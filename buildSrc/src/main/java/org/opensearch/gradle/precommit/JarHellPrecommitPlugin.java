@@ -44,11 +44,11 @@ public class JarHellPrecommitPlugin extends PrecommitPlugin {
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
         Configuration jarHellConfig = project.getConfigurations().create("jarHell");
-        if (BuildParams.isInternal() && project.getPath().equals(":libs:opensearch-core") == false) {
+        if (BuildParams.isInternal() && project.getPath().equals(":libs:opensearch-common") == false) {
             // External plugins will depend on this already via transitive dependencies.
             // Internal projects are not all plugins, so make sure the check is available
             // we are not doing this for this project itself to avoid jar hell with itself
-            project.getDependencies().add("jarHell", project.project(":libs:opensearch-core"));
+            project.getDependencies().add("jarHell", project.project(":libs:opensearch-common"));
         }
 
         TaskProvider<JarHellTask> jarHell = project.getTasks().register("jarHell", JarHellTask.class);

@@ -89,11 +89,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - OpenJDK Update (January 2023 Patch releases) ([#6074](https://github.com/opensearch-project/OpenSearch/pull/6074))
 - Bumps `Mockito` from 4.7.0 to 5.1.0, `ByteBuddy` from 1.12.18 to 1.12.22 ([#6076](https://github.com/opensearch-project/OpenSearch/pull/6076))
 - Bumps `joda` from 2.10.13 to 2.12.2 ([#6083](https://github.com/opensearch-project/OpenSearch/pull/6083))
+- Upgrade to Lucene 9.5.0 ([#5878](https://github.com/opensearch-project/OpenSearch/pull/6078))
 
 ### Changed
 - Use ReplicationFailedException instead of OpensearchException in ReplicationTarget ([#4725](https://github.com/opensearch-project/OpenSearch/pull/4725))
 - [Refactor] Use local opensearch.common.SetOnce instead of lucene's utility class ([#5947](https://github.com/opensearch-project/OpenSearch/pull/5947))
 - Cluster health call to throw decommissioned exception for local decommissioned node([#6008](https://github.com/opensearch-project/OpenSearch/pull/6008))
+- [Refactor] core.common to new opensearch-common library ([#5976](https://github.com/opensearch-project/OpenSearch/pull/5976))
 
 ### Deprecated
 
