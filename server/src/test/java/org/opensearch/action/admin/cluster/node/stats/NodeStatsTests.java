@@ -33,6 +33,7 @@
 package org.opensearch.action.admin.cluster.node.stats;
 
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.cluster.service.ClusterManagerThrottlingStats;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
@@ -434,6 +435,15 @@ public class NodeStatsTests extends OpenSearchTestCase {
                         deserializedClusterManagerThrottlingStats.getThrottlingCount("test-task")
                     );
                 }
+
+                WeightedRoutingStats weightedRoutingStats = nodeStats.getWeightedRoutingStats();
+                WeightedRoutingStats deserializedWeightedRoutingStats = deserializedNodeStats.getWeightedRoutingStats();
+                if (weightedRoutingStats == null) {
+                    assertNull(deserializedWeightedRoutingStats);
+                } else {
+                    assertEquals(weightedRoutingStats.getFailOpenCount(), deserializedWeightedRoutingStats.getFailOpenCount());
+
+                }
             }
         }
     }
@@ -711,6 +721,11 @@ public class NodeStatsTests extends OpenSearchTestCase {
             clusterManagerThrottlingStats.onThrottle("test-task", randomInt());
         }
         ScriptCacheStats scriptCacheStats = scriptStats != null ? scriptStats.toScriptCacheStats() : null;
+
+        WeightedRoutingStats weightedRoutingStats = null;
+        weightedRoutingStats = WeightedRoutingStats.getInstance();
+        weightedRoutingStats.updateFailOpenCount();
+
         // TODO NodeIndicesStats are not tested here, way too complicated to create, also they need to be migrated to Writeable yet
         return new NodeStats(
             node,
@@ -732,7 +747,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
             null,
             null,
             null,
-            clusterManagerThrottlingStats
+            clusterManagerThrottlingStats,
+            weightedRoutingStats
         );
     }
 

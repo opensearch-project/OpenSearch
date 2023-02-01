@@ -5,7 +5,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 3.0]
 ### Added
-- Hardened token permissions in GitHub workflows ([#4587](https://github.com/opensearch-project/OpenSearch/pull/4587))
 - Support for HTTP/2 (server-side) ([#3847](https://github.com/opensearch-project/OpenSearch/pull/3847))
 - Add getter for path field in NestedQueryBuilder ([#4636](https://github.com/opensearch-project/OpenSearch/pull/4636))
 - Allow mmap to use new JDK-19 preview APIs in Apache Lucene 9.4+ ([#5151](https://github.com/opensearch-project/OpenSearch/pull/5151))
@@ -38,6 +37,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bumps `gson` from 2.10 to 2.10.1
 - Bumps `json-schema-validator` from 1.0.73 to 1.0.76
 - Bumps `jna` from 5.11.0 to 5.13.0
+- Bumps `joni` from 2.1.44 to 2.1.45
 
 ### Changed
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
@@ -81,15 +81,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Replace latches with CompletableFutures for extensions ([#5646](https://github.com/opensearch-project/OpenSearch/pull/5646))
 - Add GeoTile and GeoHash Grid aggregations on GeoShapes. ([#5589](https://github.com/opensearch-project/OpenSearch/pull/5589))
 - Add support to disallow search request with preference parameter with strict weighted shard routing([#5874](https://github.com/opensearch-project/OpenSearch/pull/5874))
+- Changing ExtensionActionRequest streaminput constructor to be public ([#6094](https://github.com/opensearch-project/OpenSearch/pull/6094))
+- Adds support for minimum compatible version for extensions ([#6003](https://github.com/opensearch-project/OpenSearch/pull/6003))
 
 ### Dependencies
 - Update nebula-publishing-plugin to 19.2.0 ([#5704](https://github.com/opensearch-project/OpenSearch/pull/5704))
 - Bumps `reactor-netty` from 1.1.1 to 1.1.2 ([#5878](https://github.com/opensearch-project/OpenSearch/pull/5878))
+- OpenJDK Update (January 2023 Patch releases) ([#6074](https://github.com/opensearch-project/OpenSearch/pull/6074))
+- Bumps `Mockito` from 4.7.0 to 5.1.0, `ByteBuddy` from 1.12.18 to 1.12.22 ([#6076](https://github.com/opensearch-project/OpenSearch/pull/6076))
+- Bumps `joda` from 2.10.13 to 2.12.2 ([#6083](https://github.com/opensearch-project/OpenSearch/pull/6083))
+- Upgrade to Lucene 9.5.0 ([#5878](https://github.com/opensearch-project/OpenSearch/pull/6078))
 
 ### Changed
 - Use ReplicationFailedException instead of OpensearchException in ReplicationTarget ([#4725](https://github.com/opensearch-project/OpenSearch/pull/4725))
 - [Refactor] Use local opensearch.common.SetOnce instead of lucene's utility class ([#5947](https://github.com/opensearch-project/OpenSearch/pull/5947))
 - Cluster health call to throw decommissioned exception for local decommissioned node([#6008](https://github.com/opensearch-project/OpenSearch/pull/6008))
+- [Refactor] core.common to new opensearch-common library ([#5976](https://github.com/opensearch-project/OpenSearch/pull/5976))
 
 ### Deprecated
 
