@@ -166,7 +166,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             clusterManagerThrottlingStats = null;
         }
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_2_6_0)) {
             weightedRoutingStats = in.readOptionalWriteable(WeightedRoutingStats::new);
         } else {
             weightedRoutingStats = null;
@@ -371,7 +371,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_2_6_0)) {
             out.writeOptionalWriteable(clusterManagerThrottlingStats);
         }
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_2_6_0)) {
             out.writeOptionalWriteable(weightedRoutingStats);
         }
     }
