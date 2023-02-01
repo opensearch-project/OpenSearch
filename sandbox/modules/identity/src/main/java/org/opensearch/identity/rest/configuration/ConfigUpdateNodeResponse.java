@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity;
+package org.opensearch.identity.rest.configuration;
 
 import java.io.IOException;
 import java.util.Arrays;

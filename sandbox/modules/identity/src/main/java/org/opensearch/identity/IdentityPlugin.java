@@ -34,6 +34,8 @@ import org.opensearch.identity.authz.IndexNameExpressionResolverHolder;
 import org.opensearch.identity.configuration.ClusterInfoHolder;
 import org.opensearch.identity.configuration.ConfigurationRepository;
 import org.opensearch.identity.configuration.DynamicConfigFactory;
+import org.opensearch.identity.rest.configuration.ConfigUpdateAction;
+import org.opensearch.identity.rest.configuration.TransportConfigUpdateAction;
 import org.opensearch.identity.rest.user.create.CreateUserAction;
 import org.opensearch.identity.rest.user.create.RestCreateUserAction;
 import org.opensearch.identity.rest.user.create.TransportCreateUserAction;
@@ -122,7 +124,16 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     // register actions in this plugin
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Arrays.asList(new ActionHandler<>(CreateUserAction.INSTANCE, TransportCreateUserAction.class));
+
+        // required to prevent GuiceHolder inject errors
+        if (!enabled) {
+            return Collections.emptyList();
+        }
+
+        return Arrays.asList(
+            new ActionHandler<>(CreateUserAction.INSTANCE, TransportCreateUserAction.class),
+            new ActionHandler<>(ConfigUpdateAction.INSTANCE, TransportConfigUpdateAction.class)
+        );
     }
 
     @Override
@@ -252,6 +263,9 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
 
         cr.setDynamicConfigFactory(dcf);
 
+        // required for dependency injections
+        components.add(cr);
+        components.add(dcf);
         return components;
     }
 }

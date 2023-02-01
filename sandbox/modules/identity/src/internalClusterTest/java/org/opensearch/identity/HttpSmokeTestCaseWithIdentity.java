@@ -158,7 +158,7 @@ public abstract class HttpSmokeTestCaseWithIdentity extends OpenSearchIntegTestC
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setClusterManagerNodeTimeout("1s").get();
 
         assertTrue(
-            ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX + " index exists",
+            ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX + " index doesn't exist",
             clusterHealthResponse.getIndices().containsKey(ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX)
         );
 

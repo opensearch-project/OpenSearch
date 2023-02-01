@@ -6,19 +6,19 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity;
+package org.opensearch.identity.rest.configuration;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.client.Client;
 
 import java.util.Objects;
 
-public class ConfigUpdatingActionListener<Response> implements ActionListener<Response> {
+public class ConfigUpdateActionListener<Response> implements ActionListener<Response> {
     private final String[] cTypes;
     private final Client client;
     private final ActionListener<Response> delegate;
 
-    public ConfigUpdatingActionListener(String[] cTypes, Client client, ActionListener<Response> delegate) {
+    public ConfigUpdateActionListener(String[] cTypes, Client client, ActionListener<Response> delegate) {
         this.cTypes = Objects.requireNonNull(cTypes, "cTypes must not be null");
         this.client = Objects.requireNonNull(client, "client must not be null");
         this.delegate = Objects.requireNonNull(delegate, "delegate must not be null");

@@ -10,6 +10,7 @@ package org.opensearch.identity.rest.user.create;
 
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.identity.ConfigConstants;
+import org.opensearch.identity.utils.ErrorType;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
@@ -58,7 +59,7 @@ public class RestCreateUserAction extends BaseRestHandler {
                 try {
                     createUserRequest.fromXContent(xContentParser);
                 } catch (IOException e) {
-                    throw new IllegalArgumentException("Failed to parse create user request body", e);
+                    throw new IllegalArgumentException(ErrorType.BODY_NOT_PARSEABLE.getMessage() + "CREATE", e);
                 }
             }
         }));

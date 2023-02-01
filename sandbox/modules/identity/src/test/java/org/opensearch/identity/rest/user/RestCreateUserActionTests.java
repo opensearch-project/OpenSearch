@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.action;
+package org.opensearch.identity.rest.user;
 
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.action.ActionListener;
@@ -19,6 +19,7 @@ import org.opensearch.common.collect.Map;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.identity.rest.user.create.CreateUserRequest;
 import org.opensearch.identity.rest.user.create.RestCreateUserAction;
+import org.opensearch.identity.utils.ErrorType;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
@@ -38,7 +39,7 @@ public class RestCreateUserActionTests extends OpenSearchTestCase {
             XContentType.JSON
         ).build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, null));
-        assertThat(e.getMessage(), equalTo("Failed to parse create user request body"));
+        assertThat(e.getMessage(), equalTo(ErrorType.BODY_NOT_PARSEABLE.getMessage() + "CREATE"));
     }
 
     public void testCreateUserWithValidJson() throws Exception {

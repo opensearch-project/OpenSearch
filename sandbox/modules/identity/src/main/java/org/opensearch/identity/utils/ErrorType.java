@@ -9,17 +9,10 @@
 package org.opensearch.identity.utils;
 
 public enum ErrorType {
-    NONE("ok"),
-    INVALID_CONFIGURATION("Invalid configuration"),
-    INVALID_PASSWORD("Invalid password"),
-    WRONG_DATATYPE("Wrong datatype"),
-    BODY_NOT_PARSEABLE("Could not parse content of request."),
-    PAYLOAD_NOT_ALLOWED("Request body not allowed for this action."),
-    PAYLOAD_MANDATORY("Request body required for this action."),
+    BODY_NOT_PARSEABLE("Failed to parse body for user request: "),
     IDENTITY_NOT_INITIALIZED("Identity index not initialized"),
-    NULL_ARRAY_ELEMENT("`null` is not allowed as json array element"),
     HASH_OR_PASSWORD_MISSING("Please specify either 'hash' or 'password' when creating a new internal user."),
-    RESTRICTED_CHARS_IN_USERNAME("Username has unpermitted restricted characters :");
+    RESTRICTED_CHARS_IN_USERNAME("Username has unpermitted restricted characters: ");
 
     private String message;
 

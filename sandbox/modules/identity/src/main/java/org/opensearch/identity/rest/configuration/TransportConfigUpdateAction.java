@@ -6,7 +6,8 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity;
+package org.opensearch.identity.rest.configuration;
+
 import java.io.IOException;
 import java.util.List;
 
@@ -21,15 +22,18 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.identity.configuration.CType;
 import org.opensearch.identity.configuration.ConfigurationRepository;
 import org.opensearch.identity.configuration.DynamicConfigFactory;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 
-public class TransportConfigUpdateAction
-    extends
-    TransportNodesAction<ConfigUpdateRequest, ConfigUpdateResponse, TransportConfigUpdateAction.NodeConfigUpdateRequest, ConfigUpdateNodeResponse> {
+public class TransportConfigUpdateAction extends TransportNodesAction<
+    ConfigUpdateRequest,
+    ConfigUpdateResponse,
+    TransportConfigUpdateAction.NodeConfigUpdateRequest,
+    ConfigUpdateNodeResponse> {
 
     protected Logger logger = LogManager.getLogger(getClass());
 
@@ -37,13 +41,26 @@ public class TransportConfigUpdateAction
     private DynamicConfigFactory dynamicConfigFactory;
 
     @Inject
-    public TransportConfigUpdateAction(final Settings settings,
-                                       final ThreadPool threadPool, final ClusterService clusterService, final TransportService transportService,
-                                       final ConfigurationRepository configurationRepository, final ActionFilters actionFilters,
-                                       DynamicConfigFactory dynamicConfigFactory) {
-        super(ConfigUpdateAction.NAME, threadPool, clusterService, transportService, actionFilters,
-            ConfigUpdateRequest::new, TransportConfigUpdateAction.NodeConfigUpdateRequest::new,
-            ThreadPool.Names.MANAGEMENT, ConfigUpdateNodeResponse.class);
+    public TransportConfigUpdateAction(
+        final Settings settings,
+        final ThreadPool threadPool,
+        final ClusterService clusterService,
+        final TransportService transportService,
+        final ConfigurationRepository configurationRepository,
+        final ActionFilters actionFilters,
+        DynamicConfigFactory dynamicConfigFactory
+    ) {
+        super(
+            ConfigUpdateAction.NAME,
+            threadPool,
+            clusterService,
+            transportService,
+            actionFilters,
+            ConfigUpdateRequest::new,
+            TransportConfigUpdateAction.NodeConfigUpdateRequest::new,
+            ThreadPool.Names.MANAGEMENT,
+            ConfigUpdateNodeResponse.class
+        );
 
         this.configurationRepository = configurationRepository;
         this.dynamicConfigFactory = dynamicConfigFactory;
@@ -53,7 +70,7 @@ public class TransportConfigUpdateAction
 
         ConfigUpdateRequest request;
 
-        public NodeConfigUpdateRequest(StreamInput in) throws IOException{
+        public NodeConfigUpdateRequest(StreamInput in) throws IOException {
             super(in);
             request = new ConfigUpdateRequest(in);
         }
@@ -75,8 +92,11 @@ public class TransportConfigUpdateAction
     }
 
     @Override
-    protected ConfigUpdateResponse newResponse(ConfigUpdateRequest request, List<ConfigUpdateNodeResponse> responses,
-                                               List<FailedNodeException> failures) {
+    protected ConfigUpdateResponse newResponse(
+        ConfigUpdateRequest request,
+        List<ConfigUpdateNodeResponse> responses,
+        List<FailedNodeException> failures
+    ) {
         return new ConfigUpdateResponse(this.clusterService.getClusterName(), responses, failures);
 
     }
@@ -84,7 +104,6 @@ public class TransportConfigUpdateAction
     @Override
     protected ConfigUpdateNodeResponse nodeOperation(final NodeConfigUpdateRequest request) {
         configurationRepository.reloadConfiguration(CType.fromStringValues((request.request.getConfigTypes())));
-        backendRegistry.get().invalidateCache();
         return new ConfigUpdateNodeResponse(clusterService.localNode(), request.request.getConfigTypes(), null);
     }
 
@@ -94,4 +113,3 @@ public class TransportConfigUpdateAction
     }
 
 }
-

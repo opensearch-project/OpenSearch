@@ -196,6 +196,12 @@ public class ConfigurationLoader {
 
     }
 
+    /**
+     * Converts a JSON response to a JAVA CType object
+     * @param singleGetResponse
+     * @return SecurityDynamicConfiguration object which is the map of Java objects
+     * @throws Exception
+     */
     private SecurityDynamicConfiguration<?> toConfig(GetResponse singleGetResponse) throws Exception {
         String sourceAsString = singleGetResponse.getSourceAsString();
         byte[] sourceAsByteArray = sourceAsString.getBytes(StandardCharsets.UTF_8);

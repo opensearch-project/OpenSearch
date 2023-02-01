@@ -252,6 +252,10 @@ public class ConfigurationRepository {
 
     private void reloadConfiguration0(Collection<CType> configTypes) {
         final Map<CType, SecurityDynamicConfiguration<?>> loaded = getConfigurationsFromIndex(configTypes);
+        // invalidate cache to load new configuration
+        if (!configCache.isEmpty()) {
+            configCache.clear();
+        }
         configCache.putAll(loaded);
         notifyAboutChanges(loaded);
     }

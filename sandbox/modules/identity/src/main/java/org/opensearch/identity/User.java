@@ -39,7 +39,7 @@ public class User {
         Objects.requireNonNull(username);
         Objects.requireNonNull(bcryptHash);
         this.username = new StringPrincipal(username);
-        this.bcryptHash = bcryptHash;
+        this.hash = bcryptHash;
         this.attributes = attributes;
         this.permissions = permissions;
     }
