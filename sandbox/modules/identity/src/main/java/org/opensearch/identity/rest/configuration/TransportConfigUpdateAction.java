@@ -29,6 +29,9 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 
+/**
+ * Updates and reloads configuration for this node
+ */
 public class TransportConfigUpdateAction extends TransportNodesAction<
     ConfigUpdateRequest,
     ConfigUpdateResponse,

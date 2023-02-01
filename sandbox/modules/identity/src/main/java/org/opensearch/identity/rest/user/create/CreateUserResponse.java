@@ -28,7 +28,8 @@ import static org.opensearch.rest.RestStatus.NOT_FOUND;
 import static org.opensearch.rest.RestStatus.OK;
 
 /**
- * Response class for create user flow
+ * Response class for create user request
+ * Contains list of responses of each user creation request
  */
 public class CreateUserResponse extends ActionResponse implements StatusToXContentObject {
 

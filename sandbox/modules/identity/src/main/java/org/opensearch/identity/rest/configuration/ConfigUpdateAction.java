@@ -10,6 +10,9 @@ package org.opensearch.identity.rest.configuration;
 
 import org.opensearch.action.ActionType;
 
+/**
+ * Propagates any changes in `identity` index
+ */
 public class ConfigUpdateAction extends ActionType<ConfigUpdateResponse> {
 
     public static final ConfigUpdateAction INSTANCE = new ConfigUpdateAction();

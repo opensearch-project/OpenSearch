@@ -15,6 +15,9 @@ import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 
+/**
+ * Request to perform config update to reload configuration
+ */
 public class ConfigUpdateRequest extends BaseNodesRequest<ConfigUpdateRequest> {
 
     private String[] configTypes;

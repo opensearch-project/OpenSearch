@@ -266,6 +266,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         // required for dependency injections
         components.add(cr);
         components.add(dcf);
+
         return components;
     }
 }

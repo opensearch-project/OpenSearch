@@ -19,6 +19,9 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 
+/**
+ * List of responses from each node on which config update action was executed
+ */
 public class ConfigUpdateResponse extends BaseNodesResponse<ConfigUpdateNodeResponse> implements ToXContentObject {
 
     public ConfigUpdateResponse(StreamInput in) throws IOException {

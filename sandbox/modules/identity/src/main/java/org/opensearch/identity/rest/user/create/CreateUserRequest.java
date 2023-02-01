@@ -81,6 +81,7 @@ public class CreateUserRequest extends ActionRequest implements ToXContentObject
         return builder;
     }
 
+    // TODO: See if this method is actually needed, or the alternative of using DefaultObjectMapper is a better approach
     public void fromXContent(XContentParser parser) throws IOException {
 
         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {

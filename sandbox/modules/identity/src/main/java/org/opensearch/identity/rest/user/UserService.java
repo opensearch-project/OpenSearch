@@ -29,7 +29,7 @@ import org.opensearch.identity.configuration.CType;
 import org.opensearch.identity.configuration.ConfigurationRepository;
 import org.opensearch.identity.configuration.SecurityDynamicConfiguration;
 import org.opensearch.identity.exception.InvalidConfigException;
-import org.opensearch.identity.exception.InvalidUserNameException;
+import org.opensearch.identity.exception.InvalidContentException;
 import org.opensearch.identity.rest.user.create.CreateUserResponse;
 import org.opensearch.identity.rest.user.create.CreateUserResponseInfo;
 import org.opensearch.identity.utils.ErrorType;
@@ -45,7 +45,7 @@ import static java.util.Collections.unmodifiableList;
 import static org.apache.shiro.util.CollectionUtils.asList;
 
 /**
- * Service class for User related functions
+ * Service layer class for handling User related functions for api requests
  */
 public class UserService {
     private static final Logger logger = LogManager.getLogger(UserService.class);
@@ -71,57 +71,72 @@ public class UserService {
         this.identityIndex = settings.get(ConfigConstants.IDENTITY_CONFIG_INDEX_NAME, ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX);
     }
 
+    /**
+     * Creates a user record in identity index (Updates if user already existed)
+     * @param username of the user to be created
+     * @param password of the user to be created (plain-text only)
+     * @param listener on which the responses should be returned once execution completes
+     */
     public void createUser(String username, String password, ActionListener<CreateUserResponse> listener) {
-        // TODO: Implement this
 
         if (!ensureIndexExists()) {
             listener.onFailure(new IndexNotFoundException(ErrorType.IDENTITY_NOT_INITIALIZED.getMessage()));
             return;
         }
 
+        // Username validation
         final List<String> foundRestrictedContents = RESTRICTED_FROM_USERNAME.stream()
             .filter(username::contains)
             .collect(Collectors.toList());
         if (!foundRestrictedContents.isEmpty()) {
             final String restrictedContents = foundRestrictedContents.stream().map(s -> "'" + s + "'").collect(Collectors.joining(","));
-            listener.onFailure(new InvalidUserNameException(ErrorType.RESTRICTED_CHARS_IN_USERNAME.getMessage() + restrictedContents));
+            listener.onFailure(new InvalidContentException(ErrorType.RESTRICTED_CHARS_IN_USERNAME.getMessage() + restrictedContents));
             return;
         }
 
-        User userToBeCreated = new User();
-
+        // load current user store in memory
         final SecurityDynamicConfiguration<?> internalUsersConfiguration = load(getConfigName());
 
+        // check if user existed
         final boolean userExisted = internalUsersConfiguration.exists(username);
 
-        // sanity checks, hash is mandatory for newly created users
+        // TODO: should "existing user" case be handled via `PATCH` only ??
+
+        // hash is mandatory for new users
         if (!userExisted && password == null) {
             listener.onFailure(new InvalidConfigException(ErrorType.HASH_OR_PASSWORD_MISSING.getMessage()));
             return;
         }
 
-        // for existing users, hash is optional
+        User userToBeCreated = new User();
+        // hash is optional for existing users
         if (userExisted && password == null) {
             // sanity check, this should usually not happen
             final String hash = ((User) internalUsersConfiguration.getCEntry(username)).getHash();
             userToBeCreated.setHash(hash);
         }
 
-        // hash from provided password
+        // hash generated from provided plain-text password
         if (password != null) {
-            // TODO: check if we are to allow hash to be passed as request data instead of plain text password
+            // TODO: discuss if we are going to allow hash to be passed as request data instead of plain text password
             userToBeCreated.setHash(Hasher.hash(password.toCharArray()));
         }
 
+        // TODO: check if this is absolutely required
         internalUsersConfiguration.remove(username);
 
-        // checks complete, create or update the user
+        // Create or update the user
         internalUsersConfiguration.putCObject(username, userToBeCreated);
 
-        // save the changes to identity index
+        // save the changes to identity index, propagate change to other nodes and reload in-memory configuration
         saveAndUpdateConfiguration(username, this.nodeClient, CType.INTERNALUSERS, internalUsersConfiguration, listener);
     }
 
+    /**
+     * Load data for a given CType
+     * @param config CType whose data is to be loaded in-memory
+     * @return configuration loaded with given CType data
+     */
     protected final SecurityDynamicConfiguration<?> load(final CType config) {
         SecurityDynamicConfiguration<?> loaded = this.configurationRepository.getConfigurationsFromIndex(Collections.singleton(config))
             .get(config)
@@ -133,6 +148,10 @@ public class UserService {
         return CType.INTERNALUSERS;
     }
 
+    /**
+     * Check if identity index exists in cluster
+     * @return true if exists, false otherwise
+     */
     protected boolean ensureIndexExists() {
         if (!this.clusterService.state().metadata().hasConcreteIndex(this.identityIndex)) {
             return false;
@@ -140,6 +159,14 @@ public class UserService {
         return true;
     }
 
+    /**
+     * Persist changes to CType configuration in index, propagates this change to other nodes and reload in-memory cache
+     * @param username of the user to be persisted in the index
+     * @param client to execute index update request
+     * @param cType Config Type to be reloaded
+     * @param configuration Data to be persisted in index
+     * @param listener on which to send response once execution completes
+     */
     protected void saveAndUpdateConfiguration(
         final String username,
         final Client client,
@@ -147,6 +174,9 @@ public class UserService {
         final SecurityDynamicConfiguration<?> configuration,
         ActionListener<CreateUserResponse> listener
     ) {
+        // TODO: Future scope: see if this method can be generalized and extracted to another class
+
+        // Listener for responding once index update completes
         final ActionListener<IndexResponse> actionListener = new OnSucessActionListener<>() {
             @Override
             public void onResponse(IndexResponse indexResponse) {
@@ -156,22 +186,19 @@ public class UserService {
                 listener.onResponse(response);
             }
         };
-        final IndexRequest ir = new IndexRequest(this.identityIndex);
-
         final String id = cType.toLCString();
 
         try {
-            // writes to index and ConfigUpdateActionListener propagates change to other nodes by reloadConfiguration
-            client.index(
-                ir.id(id)
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                    .setIfSeqNo(configuration.getSeqNo())
-                    .setIfPrimaryTerm(configuration.getPrimaryTerm())
-                    .source(id, XContentHelper.toXContent(configuration, XContentType.JSON, false)),
-                new ConfigUpdateActionListener<>(new String[] { id }, client, actionListener)
-            );
+            // request to update the index
+            final IndexRequest indexRequest = new IndexRequest(this.identityIndex);
+            indexRequest.id(id)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                .setIfSeqNo(configuration.getSeqNo())
+                .setIfPrimaryTerm(configuration.getPrimaryTerm())
+                .source(id, XContentHelper.toXContent(configuration, XContentType.JSON, false));
 
-            // execute it at transport level
+            // writes to index and ConfigUpdateActionListener propagates change to other nodes by reloadConfiguration
+            client.index(indexRequest, new ConfigUpdateActionListener<>(new String[] { id }, client, actionListener));
         } catch (IOException e) {
             throw ExceptionsHelper.convertToOpenSearchException(e);
         }

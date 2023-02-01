@@ -9,7 +9,6 @@
 package org.opensearch.identity.remotecluster;
 
 import org.junit.Before;
-import org.junit.Test;
 
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
@@ -55,7 +54,6 @@ public class UserIT extends OpenSearchRestTestCase {
         assertTrue(responseAsMap.containsKey(identityIndex));
     }
 
-    @Test
     @SuppressWarnings("unchecked")
     public void testInternalUsersApi() throws Exception {
 

@@ -13,6 +13,11 @@ import org.opensearch.client.Client;
 
 import java.util.Objects;
 
+/**
+ * Action listener for config update action
+ * Delegates execution to another action listener
+ * @param <Response> of {@link ConfigUpdateResponse} type
+ */
 public class ConfigUpdateActionListener<Response> implements ActionListener<Response> {
     private final String[] cTypes;
     private final Client client;
@@ -29,6 +34,7 @@ public class ConfigUpdateActionListener<Response> implements ActionListener<Resp
 
         final ConfigUpdateRequest cur = new ConfigUpdateRequest(cTypes);
 
+        // execute update and delegate execution to other listeners
         client.execute(ConfigUpdateAction.INSTANCE, cur, new ActionListener<>() {
             @Override
             public void onResponse(final ConfigUpdateResponse ur) {

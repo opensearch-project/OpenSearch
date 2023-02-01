@@ -8,9 +8,10 @@
 
 package org.opensearch.identity.rest.user.create;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.identity.ConfigConstants;
-import org.opensearch.identity.utils.ErrorType;
+import org.opensearch.identity.DefaultObjectMapper;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
@@ -43,26 +44,12 @@ public class RestCreateUserAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String username = request.param("name");
-        // TODO: add username validator here
 
         // Parsing request body using DefaultObjectMapper
-        // JsonNode contentAsNode = DefaultObjectMapper.readTree(request.content().utf8ToString());
-        // String password = contentAsNode.get("password").asText();
-        //
-        // CreateUserRequest createUserRequest = new CreateUserRequest(username, password);
+        JsonNode contentAsNode = DefaultObjectMapper.readTree(request.content().utf8ToString());
+        String password = contentAsNode.get("password").asText();
 
-        // // Parsing request body using XContentParser
-        CreateUserRequest createUserRequest = new CreateUserRequest();
-        createUserRequest.setUsername(username);
-        request.withContentOrSourceParamParserOrNull((xContentParser -> {
-            if (xContentParser != null) {
-                try {
-                    createUserRequest.fromXContent(xContentParser);
-                } catch (IOException e) {
-                    throw new IllegalArgumentException(ErrorType.BODY_NOT_PARSEABLE.getMessage() + "CREATE", e);
-                }
-            }
-        }));
+        CreateUserRequest createUserRequest = new CreateUserRequest(username, password);
 
         // TODO: check if this bypass to directly doExecute is okay.
         // TODO: Ideally, this should be registered as `createUser` request in Client.java and AbstractClient.java

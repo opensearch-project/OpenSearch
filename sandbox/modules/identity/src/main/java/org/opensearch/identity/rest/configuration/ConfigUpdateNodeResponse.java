@@ -18,6 +18,9 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 
+/**
+ * Response for config update request execution for this node
+ */
 public class ConfigUpdateNodeResponse extends BaseNodeResponse implements ToXContentObject {
 
     private String[] updatedConfigTypes;

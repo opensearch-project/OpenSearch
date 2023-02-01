@@ -9,7 +9,6 @@
 package org.opensearch.identity;
 
 import org.junit.Before;
-import org.junit.Test;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 

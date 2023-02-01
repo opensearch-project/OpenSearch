@@ -22,7 +22,8 @@ import java.io.IOException;
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * This class captures if creation of user is successful along with its username
+ * This class captures if creation of a single given user is successful
+ * If so, returns a boolean flag along-with the provided username
  */
 public class CreateUserResponseInfo extends TransportResponse implements Writeable, ToXContent {
     private final boolean successful;

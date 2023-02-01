@@ -37,7 +37,7 @@ public class TransportCreateUserAction extends HandledTransportAction<CreateUser
     }
 
     /**
-     * Invoke 'create a user' workflow
+     * Invokes 'create a user' workflow
      */
     @Override
     protected void doExecute(Task task, CreateUserRequest request, ActionListener<CreateUserResponse> listener) {

@@ -197,7 +197,7 @@ public class ConfigurationLoader {
     }
 
     /**
-     * Converts a JSON response to a JAVA CType object
+     * Converts a JSON response to a CType Java object
      * @param singleGetResponse
      * @return SecurityDynamicConfiguration object which is the map of Java objects
      * @throws Exception
