@@ -20,7 +20,7 @@ import java.util.List;
 
 import static java.util.Arrays.asList;
 import static org.opensearch.identity.utils.RoutesHelper.addRoutesPrefix;
-import static org.opensearch.rest.RestRequest.Method.PUT;
+import static org.opensearch.rest.RestRequest.Method.POST;
 
 /**
  * Rest action for adding a permission to the permission store
@@ -42,6 +42,7 @@ public class RestAddPermissionAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String permissionString = request.param("permissionString");
+        String principalString = request.param("principalString");
 
         // TODO: add permission validator here
 
@@ -55,6 +56,7 @@ public class RestAddPermissionAction extends BaseRestHandler {
 
         AddPermissionRequest addPermissionRequest = new AddPermissionRequest();
         addPermissionRequest.setPermissionString(permissionString);
+        addPermissionRequest.setPrincipalString(principalString);
         request.withContentOrSourceParamParserOrNull((xContentParser -> {
             if (xContentParser != null) {
                 try {
@@ -78,6 +80,6 @@ public class RestAddPermissionAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         // e.g. return value "_identity/api/internalusers/test"
-        return addRoutesPrefix(asList(new Route(PUT, "/permission/{permissionString}")));
+        return addRoutesPrefix(asList(new Route(POST, "/permissions")));
     }
 }

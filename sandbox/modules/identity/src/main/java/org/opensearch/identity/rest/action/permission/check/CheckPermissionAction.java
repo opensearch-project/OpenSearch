@@ -20,7 +20,7 @@ public class CheckPermissionAction extends ActionType<CheckPermissionResponse> {
     // TODO : revisit this action type
 
     // The action name
-    public static final String NAME = "cluster:permission/check";
+    public static final String NAME = "cluster:permissions/check";
 
     CheckPermissionAction() {
         super(NAME, CheckPermissionResponse::new);

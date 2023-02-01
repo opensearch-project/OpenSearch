@@ -8,6 +8,7 @@
 
 package org.opensearch.identity.rest.action.permission.delete;
 
+import org.opensearch.authn.StringPrincipal;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.identity.rest.RestConfigConstants;
 import org.opensearch.rest.BaseRestHandler;
@@ -31,7 +32,7 @@ public class RestDeletePermissionAction extends BaseRestHandler {
     }
 
     /**
-     * Rest request handler for deleting a permission
+     * Rest request handler for deleting a permission from a target principal
      * @param request the request to execute
      * @param client  client for executing actions on the local node
      * @return the action to be executed See {@link #handleRequest(RestRequest, RestChannel, NodeClient) for more}
@@ -40,6 +41,7 @@ public class RestDeletePermissionAction extends BaseRestHandler {
     @Override
     public BaseRestHandler.RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String permissionString = request.param("permissionString");
+        String principalString = request.param("principalString");
 
         // TODO: add permission validator here
 
@@ -53,6 +55,7 @@ public class RestDeletePermissionAction extends BaseRestHandler {
 
         DeletePermissionRequest deletePermissionRequest = new DeletePermissionRequest();
         deletePermissionRequest.setPermissionString(permissionString);
+        deletePermissionRequest.setPrincipalString(principalString);
         request.withContentOrSourceParamParserOrNull((xContentParser -> {
             if (xContentParser != null) {
                 try {
@@ -80,6 +83,6 @@ public class RestDeletePermissionAction extends BaseRestHandler {
     @Override
     public List<RestHandler.Route> routes() {
         // e.g. return value "_identity/api/internalusers/test"
-        return addRoutesPrefix(asList(new RestHandler.Route(DELETE, "/permission/{permissionString}")));
+        return addRoutesPrefix(asList(new RestHandler.Route(DELETE, "/permissions")));
     }
 }

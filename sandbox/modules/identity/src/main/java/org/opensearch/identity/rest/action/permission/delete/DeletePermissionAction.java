@@ -18,7 +18,7 @@ public class DeletePermissionAction extends ActionType<DeletePermissionResponse>
     public static final DeletePermissionAction INSTANCE = new DeletePermissionAction();
 
     // TODO : revisit this action type
-    public static final String NAME = "cluster:permission";
+    public static final String NAME = "cluster:permissions/delete";
 
     DeletePermissionAction() {
         super(NAME, DeletePermissionResponse::new);

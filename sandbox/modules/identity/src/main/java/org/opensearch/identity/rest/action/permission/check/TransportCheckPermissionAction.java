@@ -11,8 +11,6 @@ package org.opensearch.identity.rest.action.permission.check;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
-import org.opensearch.identity.authz.Permission;
-import org.opensearch.identity.rest.action.permission.add.AddPermissionAction;
 import org.opensearch.identity.rest.service.PermissionService;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
@@ -22,11 +20,12 @@ public class TransportCheckPermissionAction extends HandledTransportAction<Check
     private final PermissionService permissionService;
 
     public TransportCheckPermissionAction(TransportService transportService, ActionFilters actionFilters, PermissionService permissionService) {
-        super(AddPermissionAction.NAME, transportService, actionFilters, CheckPermissionRequest::new);
+        super(CheckPermissionAction.NAME, transportService, actionFilters, CheckPermissionRequest::new);
         this.permissionService = permissionService;
     }
 
     protected void doExecute(Task task, CheckPermissionRequest request, ActionListener<CheckPermissionResponse> listener) {
-        Permission permissionToAdd = new Permission(request.getPermissionString());
+        String principalString = request.getPrincipalString();
+        this.permissionService.checkPermission(principalString, listener);
     }
 }

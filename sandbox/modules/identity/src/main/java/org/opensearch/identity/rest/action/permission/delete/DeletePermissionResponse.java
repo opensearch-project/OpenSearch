@@ -39,15 +39,14 @@ public class DeletePermissionResponse extends ActionResponse implements StatusTo
     public DeletePermissionResponse(StreamInput in) throws IOException {
         super(in);
         int size = in.readVInt();
-        deletePermissionResults = new ArrayList<>();
+        this.deletePermissionResults = new ArrayList<>();
         for (int i = 0; i < size; i++) {
-            deletePermissionResults.add(new DeletePermissionResponseInfo(in));
+            this.deletePermissionResults.add(new DeletePermissionResponseInfo(in));
         }
-
     }
 
     public List<DeletePermissionResponseInfo> getDeletePermissionResults() {
-        return deletePermissionResults;
+        return this.deletePermissionResults;
     }
 
     /**
@@ -55,14 +54,14 @@ public class DeletePermissionResponse extends ActionResponse implements StatusTo
      */
     @Override
     public RestStatus status() {
-        if (deletePermissionResults.isEmpty()) return NOT_FOUND;
+        if (this.deletePermissionResults.isEmpty()) return NOT_FOUND;
         return OK;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(deletePermissionResults.size());
-        for (DeletePermissionResponseInfo deletePermissionResult : deletePermissionResults) {
+        out.writeVInt(this.deletePermissionResults.size());
+        for (DeletePermissionResponseInfo deletePermissionResult : this.deletePermissionResults) {
             deletePermissionResult.writeTo(out);
         }
     }
@@ -71,7 +70,7 @@ public class DeletePermissionResponse extends ActionResponse implements StatusTo
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.startArray("permissions");
-        for (DeletePermissionResponseInfo response : deletePermissionResults) {
+        for (DeletePermissionResponseInfo response : this.deletePermissionResults) {
             response.toXContent(builder, params);
         }
         builder.endArray();

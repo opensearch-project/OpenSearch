@@ -39,14 +39,14 @@ public class CheckPermissionResponse extends ActionResponse implements StatusToX
     public CheckPermissionResponse(StreamInput in) throws IOException {
         super(in);
         int size = in.readVInt();
-        checkPermissionResults = new ArrayList<>();
+        this.checkPermissionResults = new ArrayList<>();
         for (int i = 0; i < size; i++) {
-            checkPermissionResults.add(new CheckPermissionResponseInfo(in));
+            this.checkPermissionResults.add(new CheckPermissionResponseInfo(in));
         }
     }
 
     public List<CheckPermissionResponseInfo> getCheckPermissionResults() {
-        return checkPermissionResults;
+        return this.checkPermissionResults;
     }
 
     /**
@@ -54,14 +54,14 @@ public class CheckPermissionResponse extends ActionResponse implements StatusToX
      */
     @Override
     public RestStatus status() {
-        if (checkPermissionResults.isEmpty()) return NOT_FOUND;
+        if (this.checkPermissionResults.isEmpty()) return NOT_FOUND;
         return OK;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(checkPermissionResults.size());
-        for (CheckPermissionResponseInfo checkPermissionResult : checkPermissionResults) {
+        out.writeVInt(this.checkPermissionResults.size());
+        for (CheckPermissionResponseInfo checkPermissionResult : this.checkPermissionResults) {
             checkPermissionResult.writeTo(out);
         }
     }

@@ -15,60 +15,63 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.ConstructingObjectParser;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.identity.authz.OpenSearchPermission;
 import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 public class CheckPermissionResponseInfo extends TransportResponse implements Writeable, ToXContent {
     private final boolean successful;
-    private final String permissionString;
+    private final List<String> permissionStrings;
 
-    public CheckPermissionResponseInfo(boolean successful, String permissionString) {
+    public CheckPermissionResponseInfo(boolean successful, List<String> permissionStrings) {
         this.successful = successful;
-        this.permissionString = permissionString;
+        this.permissionStrings = permissionStrings;
     }
 
     public CheckPermissionResponseInfo(StreamInput in) throws IOException {
-        successful = in.readBoolean();
-        permissionString = in.readString();
 
+        successful = in.readBoolean();
+        permissionStrings = in.readStringList();
     }
 
     public boolean isSuccessful() {
         return successful;
     }
 
-    public String getPermissionString() {
-        return permissionString;
+    public List<String> getPermissionString() {
+        return permissionStrings;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(successful);
-        out.writeString(permissionString);
+        out.writeStringArray((String[]) permissionStrings.toArray());
     }
 
     static final ConstructingObjectParser<CheckPermissionResponseInfo, Void> PARSER = new ConstructingObjectParser<>(
         "check_permission_response_info",
         true,
-        args -> new CheckPermissionResponseInfo((boolean) args[0], (String) args[1])
+        args -> new CheckPermissionResponseInfo((boolean) args[0], (List<String>) args[1])
     );
 
     static {
         PARSER.declareBoolean(constructorArg(), new ParseField("successful"));
-        PARSER.declareString(constructorArg(), new ParseField("permission_string"));
+        PARSER.declareStringArray(constructorArg(), new ParseField("permissionStrings"));
+        PARSER.declareString(constructorArg(), new ParseField("message"));
     }
 
     private static final ParseField SUCCESSFUL = new ParseField("successful");
-    private static final ParseField PERMISSION_STRING = new ParseField("permission_string");
+    private static final ParseField PERMISSION_STRING = new ParseField("permissionStrings");
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(SUCCESSFUL.getPreferredName(), successful);
-        builder.field(PERMISSION_STRING.getPreferredName(), permissionString);
+        builder.field(PERMISSION_STRING.getPreferredName(), permissionStrings);
         builder.endObject();
         return builder;
     }

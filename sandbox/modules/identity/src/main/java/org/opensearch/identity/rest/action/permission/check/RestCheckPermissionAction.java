@@ -30,7 +30,7 @@ public class RestCheckPermissionAction extends BaseRestHandler {
     }
 
     /**
-     * Rest request handler for checking a new permission
+     * Rest request handler for checking the permissions associated with a principal
      * @param request the request to execute
      * @param client  client for executing actions on the local node
      * @return the action to be executed See {@link #handleRequest(RestRequest, RestChannel, NodeClient) for more}
@@ -38,9 +38,8 @@ public class RestCheckPermissionAction extends BaseRestHandler {
      */
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        String permissionString = request.param("permissionString");
+        String principalString = request.param("principalString");
 
-        // TODO: add permission validator here
 
         // Parsing request body using DefaultObjectMapper
         // JsonNode contentAsNode = DefaultObjectMapper.readTree(request.content().utf8ToString());
@@ -51,7 +50,7 @@ public class RestCheckPermissionAction extends BaseRestHandler {
         // // Parsing request body using XContentParser
 
         CheckPermissionRequest checkPermissionRequest = new CheckPermissionRequest();
-        checkPermissionRequest.setPermissionString(permissionString);
+        checkPermissionRequest.setPrincipalString(principalString);
         request.withContentOrSourceParamParserOrNull((xContentParser -> {
             if (xContentParser != null) {
                 try {
@@ -79,6 +78,6 @@ public class RestCheckPermissionAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         // e.g. return value "_identity/api/internalusers/test"
-        return addRoutesPrefix(asList(new Route(GET, "/permission/{permissionString}")));
+        return addRoutesPrefix(asList(new Route(GET, "/permissions")));
     }
 }

@@ -89,7 +89,7 @@ public class RestPermissionTests extends OpenSearchTestCase {
             ) {
                 CheckPermissionRequest req = (CheckPermissionRequest) request;
                 checkPermissionCalled.set(true);
-                assertThat(req.getPermissionString(), equalTo("test"));
+                assertThat(req.getPrincipalString(), equalTo("test"));
             }
         }) {
             RestAddPermissionAction action = new RestAddPermissionAction();

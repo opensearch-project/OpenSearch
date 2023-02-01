@@ -25,49 +25,66 @@ public class AddPermissionRequest extends ActionRequest implements ToXContentObj
 
     private String permissionString;
 
+    private String principalString;
+
     public AddPermissionRequest(StreamInput in) throws IOException {
         super(in);
-        permissionString = in.readString();
+        this.permissionString = in.readString();
+        this.principalString = in.readString();
     }
 
-    public AddPermissionRequest(String permissionString) {
+    public AddPermissionRequest(String permissionString, String principalString) {
         this.permissionString = permissionString;
+        this.principalString = principalString;
     }
 
     public AddPermissionRequest() {}
 
     public String getPermissionString() {
-        return permissionString;
+        return this.permissionString;
     }
 
     public void setPermissionString(String permissionString) {
         this.permissionString = permissionString;
     }
 
+    public String getPrincipalString() {
+        return this.principalString;
+    }
+
+    public void setPrincipalString(String principalString) {
+        this.principalString = principalString;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (permissionString == null) { // TODO: cehck the condition once
-            validationException = addValidationError("No permission string provided.", validationException);
+        if (permissionString == null) { // TODO: check the condition once
+            validationException = addValidationError("No permissionString specified", validationException);
+        } else if (principalString == null) {
+            validationException = addValidationError("No principal specified", validationException);
         }
         return validationException;
     }
+
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(permissionString);
+        out.writeString(principalString);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.value(permissionString);
+        builder.value(principalString);
         builder.endObject();
         return builder;
     }
 
-    public void fromXContent(XContentParser parser) throws IOException {
+    public void fromXContent(XContentParser parser) throws IOException { // TODO: Talk to DC about this
 
         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
             throw new IllegalArgumentException("Malformed content, must start with an object");
@@ -86,7 +103,16 @@ public class AddPermissionRequest extends ActionRequest implements ToXContentObj
                     // add any validation checks here
 
                     permissionString = parser.text();
+                }
+                else if ("principalString".equals(currentFieldName)) {
 
+                    if (token.isValue() == false) {
+                        throw new IllegalArgumentException(); // TODO: check the message to be returned
+                    }
+
+                    // add any validation checks here
+
+                    principalString = parser.text();
                 }
                 // add all other fields to be parsed from body
                 else {

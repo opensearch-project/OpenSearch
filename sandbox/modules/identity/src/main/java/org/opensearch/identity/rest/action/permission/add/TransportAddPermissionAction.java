@@ -11,7 +11,6 @@ package org.opensearch.identity.rest.action.permission.add;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
-import org.opensearch.identity.authz.Permission;
 import org.opensearch.identity.rest.service.PermissionService;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
@@ -26,6 +25,8 @@ public class TransportAddPermissionAction extends HandledTransportAction<AddPerm
     }
 
     protected void doExecute(Task task, AddPermissionRequest request, ActionListener<AddPermissionResponse> listener) {
-        Permission permissionToAdd = new Permission(request.getPermissionString());
+        String permissionString = request.getPermissionString();
+        String principalString = request.getPrincipalString();
+        this.permissionService.addPermission(permissionString, principalString, listener);
     }
 }

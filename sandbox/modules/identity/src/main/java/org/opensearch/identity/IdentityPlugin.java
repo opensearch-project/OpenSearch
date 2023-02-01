@@ -10,21 +10,18 @@ package org.opensearch.identity;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.ActionFilter;
 import org.opensearch.authn.AuthenticationManager;
 import org.opensearch.authn.Identity;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.component.Lifecycle;
+import org.opensearch.common.component.LifecycleComponent;
+import org.opensearch.common.component.LifecycleListener;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.common.settings.IndexScopedSettings;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.Setting;
-import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -34,15 +31,6 @@ import org.opensearch.identity.authz.IndexNameExpressionResolverHolder;
 import org.opensearch.identity.configuration.ClusterInfoHolder;
 import org.opensearch.identity.configuration.ConfigurationRepository;
 import org.opensearch.identity.configuration.DynamicConfigFactory;
-import org.opensearch.identity.rest.action.permission.add.RestAddPermissionAction;
-import org.opensearch.identity.rest.action.permission.check.RestCheckPermissionAction;
-import org.opensearch.identity.rest.action.permission.check.TransportCheckPermissionAction;
-import org.opensearch.identity.rest.action.permission.delete.TransportDeletePermissionAction;
-import org.opensearch.identity.rest.action.permission.check.CheckPermissionAction;
-import org.opensearch.identity.rest.action.permission.delete.DeletePermissionAction;
-import org.opensearch.identity.rest.action.permission.delete.RestDeletePermissionAction;
-import org.opensearch.identity.rest.action.permission.add.TransportAddPermissionAction;
-import org.opensearch.identity.rest.action.permission.add.AddPermissionAction;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ClusterPlugin;
@@ -51,7 +39,6 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestHandler;
-import org.opensearch.rest.RestController;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -60,11 +47,10 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -107,30 +93,6 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
 
     private static boolean isEnabled(final Settings settings) {
         return settings.getAsBoolean(ConfigConstants.IDENTITY_ENABLED, false);
-    }
-
-    @Override
-    public List<RestHandler> getRestHandlers(
-        Settings settings,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
-    ) {
-        final List<RestHandler> handlers = new ArrayList<>(1);
-        handlers.add(new RestAddPermissionAction());
-        handlers.add(new RestCheckPermissionAction());
-        handlers.add(new RestDeletePermissionAction());
-        // Add more handlers for future actions
-        return handlers;
-    }
-
-    // register actions in this plugin
-    @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return Arrays.asList(new ActionHandler<>(AddPermissionAction.INSTANCE, TransportAddPermissionAction.class), new ActionHandler<>(CheckPermissionAction.INSTANCE, TransportCheckPermissionAction.class), new ActionHandler<>(DeletePermissionAction.INSTANCE, TransportDeletePermissionAction.class));
     }
 
     @Override
@@ -261,5 +223,57 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         cr.setDynamicConfigFactory(dcf);
 
         return components;
+    }
+
+    @Override
+    public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
+
+        if (!enabled) {
+            return Collections.emptyList();
+        }
+
+        final List<Class<? extends LifecycleComponent>> services = new ArrayList<>(1);
+        services.add(GuiceHolder.class);
+        return services;
+    }
+
+    public static class GuiceHolder implements LifecycleComponent {
+
+        private static ClusterService clusterService;
+        private static RepositoriesService repositoriesService;
+
+        public GuiceHolder(final RepositoriesService repositoriesService, final ClusterService clusterService) {
+            GuiceHolder.repositoriesService = repositoriesService;
+            GuiceHolder.clusterService = clusterService;
+        }
+
+        public static RepositoriesService getRepositoriesService() {
+            return repositoriesService;
+        }
+
+        public static ClusterService getClusterService() {
+            return clusterService;
+        }
+
+        @Override
+        public void close() {}
+
+        @Override
+        public Lifecycle.State lifecycleState() {
+            return null;
+        }
+
+        @Override
+        public void addLifecycleListener(LifecycleListener listener) {}
+
+        @Override
+        public void removeLifecycleListener(LifecycleListener listener) {}
+
+        @Override
+        public void start() {}
+
+        @Override
+        public void stop() {}
+
     }
 }
