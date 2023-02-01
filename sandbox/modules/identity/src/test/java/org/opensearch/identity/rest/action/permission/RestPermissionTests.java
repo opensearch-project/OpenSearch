@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.action;
+package org.opensearch.identity.rest.action.permission;
 
 import org.apache.lucene.util.SetOnce;
 import org.opensearch.action.ActionListener;

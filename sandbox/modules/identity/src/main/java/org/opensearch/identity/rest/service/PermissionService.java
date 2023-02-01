@@ -28,6 +28,8 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.transport.TransportService;
 import org.opensearch.identity.utils.ErrorType;
 
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -69,7 +71,8 @@ public class PermissionService {
         }
 
         OpenSearchPermission newPermission = PermissionFactory.createPermission(permissionString);
-        PermissionStorage.put(principal, (List<OpenSearchPermission>) newPermission);
+        List<OpenSearchPermission> permissionList = new ArrayList<OpenSearchPermission>((Collection<? extends OpenSearchPermission>) newPermission);
+        PermissionStorage.put(principal, permissionList);
         AddPermissionResponseInfo responseInfo = new AddPermissionResponseInfo(true, permissionString, principal);
         AddPermissionResponse response = new AddPermissionResponse(unmodifiableList(asList(responseInfo)));
         listener.onResponse(response);
@@ -97,7 +100,8 @@ public class PermissionService {
         }
 
         OpenSearchPermission newPermission = PermissionFactory.createPermission(permissionString);
-        PermissionStorage.delete(principal, (List<OpenSearchPermission>) newPermission);
+        List<OpenSearchPermission> permissionList = new ArrayList<OpenSearchPermission>((Collection<? extends OpenSearchPermission>) newPermission);
+        PermissionStorage.delete(principal, permissionList);
         DeletePermissionResponseInfo responseInfo = new DeletePermissionResponseInfo(true, permissionString, principal);
         DeletePermissionResponse response = new DeletePermissionResponse(unmodifiableList(asList(responseInfo)));
         listener.onResponse(response);

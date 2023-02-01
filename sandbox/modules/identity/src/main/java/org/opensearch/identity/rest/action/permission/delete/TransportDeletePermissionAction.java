@@ -11,6 +11,7 @@ package org.opensearch.identity.rest.action.permission.delete;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.common.inject.Inject;
 import org.opensearch.identity.rest.action.permission.add.AddPermissionAction;
 import org.opensearch.identity.rest.service.PermissionService;
 import org.opensearch.tasks.Task;
@@ -20,6 +21,7 @@ public class TransportDeletePermissionAction extends HandledTransportAction<Dele
 
     private final PermissionService permissionService;
 
+    @Inject
     public TransportDeletePermissionAction(
         TransportService transportService,
         ActionFilters actionFilters,
