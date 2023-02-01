@@ -9,6 +9,7 @@
 package org.opensearch.search.backpressure.stats;
 
 import org.opensearch.Version;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -25,6 +26,7 @@ import java.util.Objects;
 public class SearchBackpressureStats implements ToXContentFragment, Writeable {
     private final SearchShardTaskStats searchShardTaskStats;
     private final SearchBackpressureMode mode;
+    @Nullable
     private final SearchTaskStats searchTaskStats;
 
     public SearchBackpressureStats(
