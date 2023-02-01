@@ -886,7 +886,6 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
      * @throws IOException throws exception
      */
     public void testWeightedRoutingFailOpenStats() throws Exception {
-
         Settings commonSettings = Settings.builder()
             .put("cluster.routing.allocation.awareness.attributes", "zone")
             .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
@@ -903,6 +902,7 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         logger.info("--> setting shard routing weights for weighted round robin");
         Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
         setShardRoutingWeights(weights);
+        WeightedRoutingStats.getInstance().resetFailOpenCount();
 
         logger.info("--> creating network partition disruption");
         final String clusterManagerNode1 = internalCluster().getClusterManagerName();
@@ -970,7 +970,6 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         } catch (Exception t) {
             fail("search should not fail");
         }
-
         assertSearchInAZ("b");
         assertSearchInAZ("c");
         assertNoSearchInAZ("a");
