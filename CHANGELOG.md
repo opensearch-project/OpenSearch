@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Upgrade to Lucene 9.5.0 ([#6078](https://github.com/opensearch-project/OpenSearch/pull/6078))
 - Bump antlr4 from 4.9.3 to 4.11.1 ([#6116](https://github.com/opensearch-project/OpenSearch/pull/6116))
 - Bumps `Netty` from 4.1.86.Final to 4.1.87.Final ([#6130](https://github.com/opensearch-project/OpenSearch/pull/6130))
+- Bumps `Jackson` from 2.14.1 to 2.14.2 ([#6129](https://github.com/opensearch-project/OpenSearch/pull/6129))
 
 ### Changed
 - Use ReplicationFailedException instead of OpensearchException in ReplicationTarget ([#4725](https://github.com/opensearch-project/OpenSearch/pull/4725))
