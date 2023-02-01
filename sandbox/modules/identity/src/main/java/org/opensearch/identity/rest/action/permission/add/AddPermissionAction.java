@@ -6,10 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.action;
+package org.opensearch.identity.rest.action.permission.add;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.rest.response.AddPermissionResponse;
 
 /**
  * This class defines the AddPermissionAction ActionType which corresponds to an action that grant a subject permissions while using Identity.

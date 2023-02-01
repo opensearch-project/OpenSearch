@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.response;
+package org.opensearch.identity.rest.action.permission.delete;
 
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.ParseField;

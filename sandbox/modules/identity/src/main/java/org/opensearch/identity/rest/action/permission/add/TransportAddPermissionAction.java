@@ -6,28 +6,26 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.action;
+package org.opensearch.identity.rest.action.permission.add;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.identity.authz.Permission;
-import org.opensearch.identity.rest.request.DeletePermissionRequest;
-import org.opensearch.identity.rest.response.DeletePermissionResponse;
 import org.opensearch.identity.rest.service.PermissionService;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
-public class TransportDeletePermissionAction extends HandledTransportAction<DeletePermissionRequest, DeletePermissionResponse> {
+public class TransportAddPermissionAction extends HandledTransportAction<AddPermissionRequest, AddPermissionResponse> {
 
     private final PermissionService permissionService;
 
-    public TransportDeletePermissionAction(TransportService transportService, ActionFilters actionFilters, PermissionService permissionService) {
-        super(AddPermissionAction.NAME, transportService, actionFilters, DeletePermissionRequest::new);
+    public TransportAddPermissionAction(TransportService transportService, ActionFilters actionFilters, PermissionService permissionService) {
+        super(AddPermissionAction.NAME, transportService, actionFilters, AddPermissionRequest::new);
         this.permissionService = permissionService;
     }
 
-    protected void doExecute(Task task, DeletePermissionRequest request, ActionListener<DeletePermissionResponse> listener) {
+    protected void doExecute(Task task, AddPermissionRequest request, ActionListener<AddPermissionResponse> listener) {
         Permission permissionToAdd = new Permission(request.getPermissionString());
     }
 }

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.response;
+package org.opensearch.identity.rest.action.permission.add;
 
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.ParseField;
@@ -27,42 +27,43 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
 import static org.opensearch.rest.RestStatus.NOT_FOUND;
 import static org.opensearch.rest.RestStatus.OK;
 
-public class CheckPermissionResponse extends ActionResponse implements StatusToXContentObject {
+public class AddPermissionResponse extends ActionResponse implements StatusToXContentObject {
 
     // TODO: revisit this class
-    private final List<CheckPermissionResponseInfo> checkPermissionResults;
+    private final List<AddPermissionResponseInfo> addPermissionResults;
 
-    public CheckPermissionResponse(List<CheckPermissionResponseInfo> CheckPermissionResults) {
-        this.checkPermissionResults = CheckPermissionResults;
+    public AddPermissionResponse(List<AddPermissionResponseInfo> addPermissionResults) {
+        this.addPermissionResults = addPermissionResults;
     }
 
-    public CheckPermissionResponse(StreamInput in) throws IOException {
+    public AddPermissionResponse(StreamInput in) throws IOException {
         super(in);
         int size = in.readVInt();
-        checkPermissionResults = new ArrayList<>();
+        addPermissionResults = new ArrayList<>();
         for (int i = 0; i < size; i++) {
-            checkPermissionResults.add(new CheckPermissionResponseInfo(in));
+            addPermissionResults.add(new AddPermissionResponseInfo(in));
         }
+
     }
 
-    public List<CheckPermissionResponseInfo> getCheckPermissionResults() {
-        return checkPermissionResults;
+    public List<AddPermissionResponseInfo> getAddPermissionResults() {
+        return addPermissionResults;
     }
 
     /**
-     * @return Whether the attempt to check a permission was successful
+     * @return Whether the attempt to add a permission was successful
      */
     @Override
     public RestStatus status() {
-        if (checkPermissionResults.isEmpty()) return NOT_FOUND;
+        if (addPermissionResults.isEmpty()) return NOT_FOUND;
         return OK;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(checkPermissionResults.size());
-        for (CheckPermissionResponseInfo checkPermissionResult : checkPermissionResults) {
-            checkPermissionResult.writeTo(out);
+        out.writeVInt(addPermissionResults.size());
+        for (AddPermissionResponseInfo addPermissionResult : addPermissionResults) {
+            addPermissionResult.writeTo(out);
         }
     }
 
@@ -70,7 +71,7 @@ public class CheckPermissionResponse extends ActionResponse implements StatusToX
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.startArray("permissions");
-        for (CheckPermissionResponseInfo response : checkPermissionResults) {
+        for (AddPermissionResponseInfo response : addPermissionResults) {
             response.toXContent(builder, params);
         }
         builder.endArray();
@@ -78,20 +79,20 @@ public class CheckPermissionResponse extends ActionResponse implements StatusToX
         return builder;
     }
 
-    private static final ConstructingObjectParser<CheckPermissionResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "check_permission_response",
+    private static final ConstructingObjectParser<AddPermissionResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "add_permission_response",
         true,
         (Object[] parsedObjects) -> {
             @SuppressWarnings("unchecked")
-            List<CheckPermissionResponseInfo> checkPermissionResponseInfoList = (List<CheckPermissionResponseInfo>) parsedObjects[0];
-            return new CheckPermissionResponse(checkPermissionResponseInfoList);
+            List<AddPermissionResponseInfo> addPermissionResponseInfoList = (List<AddPermissionResponseInfo>) parsedObjects[0];
+            return new AddPermissionResponse(addPermissionResponseInfoList);
         }
     );
     static {
-        PARSER.declareObjectArray(constructorArg(), CheckPermissionResponseInfo.PARSER, new ParseField("permissions"));
+        PARSER.declareObjectArray(constructorArg(), AddPermissionResponseInfo.PARSER, new ParseField("permissions"));
     }
 
-    public static CheckPermissionResponse fromXContent(XContentParser parser) throws IOException {
+    public static AddPermissionResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 }

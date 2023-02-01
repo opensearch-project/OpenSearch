@@ -14,13 +14,13 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.identity.rest.response.AddPermissionResponse;
-import org.opensearch.identity.rest.response.CheckPermissionResponse;
-import org.opensearch.identity.rest.response.DeletePermissionResponse;
+import org.opensearch.identity.rest.action.permission.add.AddPermissionResponse;
+import org.opensearch.identity.rest.action.permission.check.CheckPermissionResponse;
+import org.opensearch.identity.rest.action.permission.delete.DeletePermissionResponse;
 import org.opensearch.transport.TransportService;
 
 /**
- * Service class for User related functions
+ * Service class for Permission related functions
  */
 public class PermissionService {
 

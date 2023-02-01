@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.response;
+package org.opensearch.identity.rest.action.permission.check;
 
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
@@ -21,16 +21,16 @@ import java.io.IOException;
 
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
-public class DeletePermissionResponseInfo extends TransportResponse implements Writeable, ToXContent {
+public class CheckPermissionResponseInfo extends TransportResponse implements Writeable, ToXContent {
     private final boolean successful;
     private final String permissionString;
 
-    public DeletePermissionResponseInfo(boolean successful, String permissionString) {
+    public CheckPermissionResponseInfo(boolean successful, String permissionString) {
         this.successful = successful;
         this.permissionString = permissionString;
     }
 
-    public DeletePermissionResponseInfo(StreamInput in) throws IOException {
+    public CheckPermissionResponseInfo(StreamInput in) throws IOException {
         successful = in.readBoolean();
         permissionString = in.readString();
 
@@ -50,10 +50,10 @@ public class DeletePermissionResponseInfo extends TransportResponse implements W
         out.writeString(permissionString);
     }
 
-    static final ConstructingObjectParser<DeletePermissionResponseInfo, Void> PARSER = new ConstructingObjectParser<>(
-        "delete_permission_response_info",
+    static final ConstructingObjectParser<CheckPermissionResponseInfo, Void> PARSER = new ConstructingObjectParser<>(
+        "check_permission_response_info",
         true,
-        args -> new DeletePermissionResponseInfo((boolean) args[0], (String) args[1])
+        args -> new CheckPermissionResponseInfo((boolean) args[0], (String) args[1])
     );
 
     static {

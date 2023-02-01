@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.request;
+package org.opensearch.identity.rest.action.permission.delete;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
@@ -21,20 +21,20 @@ import java.io.IOException;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
-public class CheckPermissionRequest extends ActionRequest implements ToXContentObject {
+public class DeletePermissionRequest extends ActionRequest implements ToXContentObject {
 
     private String permissionString;
 
-    public CheckPermissionRequest(StreamInput in) throws IOException {
+    public DeletePermissionRequest(StreamInput in) throws IOException {
         super(in);
         permissionString = in.readString();
     }
 
-    public CheckPermissionRequest(String permissionString) {
+    public DeletePermissionRequest(String permissionString) {
         this.permissionString = permissionString;
     }
 
-    public CheckPermissionRequest() {}
+    public DeletePermissionRequest() {}
 
     public String getPermissionString() {
         return permissionString;

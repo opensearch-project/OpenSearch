@@ -6,10 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.action;
+package org.opensearch.identity.rest.action.permission.delete;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.rest.response.DeletePermissionResponse;
 
 /**
  * This class defines the DeletePermissionAction ActionType which corresponds to an action that deletes a specific permission from the permission store while using Identity.

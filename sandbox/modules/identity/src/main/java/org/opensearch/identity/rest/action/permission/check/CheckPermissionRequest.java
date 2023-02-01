@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.request;
+package org.opensearch.identity.rest.action.permission.check;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
@@ -21,20 +21,20 @@ import java.io.IOException;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
-public class AddPermissionRequest extends ActionRequest implements ToXContentObject {
+public class CheckPermissionRequest extends ActionRequest implements ToXContentObject {
 
     private String permissionString;
 
-    public AddPermissionRequest(StreamInput in) throws IOException {
+    public CheckPermissionRequest(StreamInput in) throws IOException {
         super(in);
         permissionString = in.readString();
     }
 
-    public AddPermissionRequest(String permissionString) {
+    public CheckPermissionRequest(String permissionString) {
         this.permissionString = permissionString;
     }
 
-    public AddPermissionRequest() {}
+    public CheckPermissionRequest() {}
 
     public String getPermissionString() {
         return permissionString;

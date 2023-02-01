@@ -6,10 +6,9 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.action;
+package org.opensearch.identity.rest.action.permission.check;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.rest.response.CheckPermissionResponse;
 
 /**
  * This class defines the CheckPermissionAction ActionType which corresponds to an action that checks if a subject has a specific permission while using Identity.
