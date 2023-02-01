@@ -6,7 +6,11 @@
  * compatible open source license.
  */
 
+import org.opensearch.gradle.test.RestIntegTestTask
+
 apply plugin: 'opensearch.internal-cluster-test'
+apply plugin: 'opensearch.rest-test'
+apply plugin: 'opensearch.testclusters'
 
 opensearchplugin {
   description 'Plugin for identity features in OpenSearch.'
@@ -69,6 +73,21 @@ tasks.named("dependencyLicenses").configure {
 internalClusterTest {
   systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
 }
+
+task integTestRemote(type: RestIntegTestTask) {
+
+  systemProperty "tests.security.manager", System.getProperty("tests.security.manager")
+  systemProperty "user", System.getProperty("user")
+  systemProperty "password", System.getProperty("password")
+  systemProperty "https", System.getProperty("https")
+  systemProperty "security.enabled", System.getProperty("security.enabled")
+
+  filter {
+    setIncludePatterns("org.opensearch.identity.remotecluster.*IT")
+  }
+}
+
+integTestRemote.enabled = System.getProperty("tests.rest.cluster") != null
 
 thirdPartyAudit.ignoreMissingClasses(
   'android.app.Activity',
