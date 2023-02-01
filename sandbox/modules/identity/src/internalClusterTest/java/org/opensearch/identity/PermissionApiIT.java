@@ -14,12 +14,14 @@ import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.identity.authz.PermissionStorage;
 import org.opensearch.identity.rest.RestConfigConstants;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.hamcrest.Matchers.is;
 
 /**
  * Tests REST API for users against local cluster
  */
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class PermissionApiIT extends HttpSmokeTestCaseWithIdentity {
 
     public PermissionApiIT() {}
