@@ -40,8 +40,7 @@ public class UserIT extends OpenSearchRestTestCase {
 
     @Override
     protected boolean preserveIndicesUponCompletion() {
-        // TODO: is this required and will it affect other tests?
-        return true; // setting true to reuse same spun up cluster to run tests
+        return true; // setting true so identity index is not deleted upon test completion
     }
 
     protected void ensureIdentityIndexExists() throws IOException {
