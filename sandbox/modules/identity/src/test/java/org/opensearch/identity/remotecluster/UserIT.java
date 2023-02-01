@@ -11,6 +11,7 @@ package org.opensearch.identity.remotecluster;
 import org.junit.Before;
 
 import org.opensearch.client.Request;
+import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
 import org.opensearch.identity.ConfigConstants;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
@@ -23,6 +24,7 @@ import java.util.Map;
  * Tests REST API for users against remote cluster
  */
 public class UserIT extends OpenSearchRestTestCase {
+    private final String identityIndex = ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX;
     private final String ENDPOINT;
 
     protected String getEndpointPrefix() {
@@ -43,10 +45,22 @@ public class UserIT extends OpenSearchRestTestCase {
         return true; // setting true so identity index is not deleted upon test completion
     }
 
+    /**
+     * This warning is expected to be thrown as we are accessing identity index directly
+     * @return the warning message to be expected
+     */
+    private RequestOptions systemIndexWarning() {
+        return expectWarnings(
+            "this request accesses system indices: ["
+                + identityIndex
+                + "], but in a future major version, direct access to system indices will be prevented by default"
+        );
+    }
+
     protected void ensureIdentityIndexExists() throws IOException {
         // this will fail if default index name is changed in remote cluster
-        String identityIndex = ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX;
         Request request = new Request("GET", "/" + identityIndex);
+        request.setOptions(systemIndexWarning());
         Response response = adminClient().performRequest(request);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
         Map<String, Object> responseAsMap = entityAsMap(response);
@@ -61,6 +75,7 @@ public class UserIT extends OpenSearchRestTestCase {
         // Create a user
         Request request = new Request("PUT", ENDPOINT + "/internalusers/" + username);
         request.setJsonEntity("{ \"password\" : \"test-create\" }\n");
+        request.setOptions(systemIndexWarning());
         Response response = client().performRequest(request);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
         Map<String, Object> createResponse = entityAsMap(response);
