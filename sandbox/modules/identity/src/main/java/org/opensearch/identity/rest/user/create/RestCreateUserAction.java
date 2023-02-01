@@ -8,10 +8,12 @@
 
 package org.opensearch.identity.rest.user.create;
 
+import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.identity.ConfigConstants;
 import org.opensearch.identity.DefaultObjectMapper;
+import org.opensearch.identity.utils.ErrorType;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
@@ -46,7 +48,12 @@ public class RestCreateUserAction extends BaseRestHandler {
         String username = request.param("name");
 
         // Parsing request body using DefaultObjectMapper
-        JsonNode contentAsNode = DefaultObjectMapper.readTree(request.content().utf8ToString());
+        JsonNode contentAsNode;
+        try {
+            contentAsNode = DefaultObjectMapper.readTree(request.content().utf8ToString());
+        } catch (JsonParseException e) {
+            throw new IllegalArgumentException(ErrorType.BODY_NOT_PARSEABLE.getMessage() + "CREATE");
+        }
         String password = contentAsNode.get("password").asText();
 
         CreateUserRequest createUserRequest = new CreateUserRequest(username, password);
