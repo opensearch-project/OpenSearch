@@ -67,7 +67,6 @@ public class TaskCancellation implements Comparable<TaskCancellation> {
         }
 
         taskManager.cancelTaskAndDescendants(task, getReasonString(), false, ActionListener.wrap(() -> {}));
-        task.cancel(getReasonString());
         runOnCancelCallbacks();
     }
 

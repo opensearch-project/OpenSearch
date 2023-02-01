@@ -19,7 +19,7 @@ import java.util.function.LongSupplier;
  *
  * @opensearch.internal
  */
-public class SearchBackpressureState implements CancellationListener {
+public class SearchBackpressureState implements CancellationSettingsListener {
     private final AtomicReference<TokenBucket> rateLimiter;
     private final AtomicReference<TokenBucket> ratioLimiter;
     private final LongSupplier timeNanosSupplier;
@@ -75,12 +75,12 @@ public class SearchBackpressureState implements CancellationListener {
         return limitReachedCount.incrementAndGet();
     }
 
-    public AtomicReference<TokenBucket> getRateLimiter() {
-        return rateLimiter;
+    public TokenBucket getRateLimiter() {
+        return rateLimiter.get();
     }
 
-    public AtomicReference<TokenBucket> getRatioLimiter() {
-        return ratioLimiter;
+    public TokenBucket getRatioLimiter() {
+        return ratioLimiter.get();
     }
 
     @Override

@@ -100,7 +100,12 @@ public class TaskManagerTests extends OpenSearchTestCase {
         Set<Task> cancelledTasks = ConcurrentCollections.newConcurrentSet();
         taskManager.setTaskCancellationService(new TaskCancellationService(mock(TransportService.class)) {
             @Override
-            void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {
+            public void cancelTaskAndDescendants(
+                CancellableTask task,
+                String reason,
+                boolean waitForCompletion,
+                ActionListener<Void> listener
+            ) {
                 assertThat(reason, equalTo("channel was closed"));
                 assertFalse(waitForCompletion);
                 assertTrue("task [" + task + "] was cancelled already", cancelledTasks.add(task));
@@ -148,7 +153,12 @@ public class TaskManagerTests extends OpenSearchTestCase {
         Set<CancellableTask> cancelledTasks = ConcurrentCollections.newConcurrentSet();
         taskManager.setTaskCancellationService(new TaskCancellationService(mock(TransportService.class)) {
             @Override
-            void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {
+            public void cancelTaskAndDescendants(
+                CancellableTask task,
+                String reason,
+                boolean waitForCompletion,
+                ActionListener<Void> listener
+            ) {
                 assertTrue("task [" + task + "] was cancelled already", cancelledTasks.add(task));
             }
         });

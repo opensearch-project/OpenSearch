@@ -11,7 +11,7 @@ package org.opensearch.search.backpressure;
 /**
  * Listener for callbacks related to cancellation settings
  */
-public interface CancellationListener {
+public interface CancellationSettingsListener {
 
     void onRatioChanged(double ratio);
 

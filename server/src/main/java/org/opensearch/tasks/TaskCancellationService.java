@@ -82,7 +82,7 @@ public class TaskCancellationService {
         return transportService.getLocalNode().getId();
     }
 
-    void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {
+    public void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {
         final TaskId taskId = task.taskInfo(localNodeId(), false).getTaskId();
         if (task.shouldCancelChildrenOnCancellation()) {
             logger.trace("cancelling task [{}] and its descendants", taskId);

@@ -8,7 +8,6 @@
 
 package org.opensearch.search.backpressure;
 
-import org.apache.logging.log4j.LogManager;
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.Version;
@@ -33,6 +32,7 @@ import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.tasks.TaskCancellationService;
+import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.test.OpenSearchTestCase;
@@ -220,22 +220,26 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         // Create a mix of low and high resource usage SearchTasks (50 low + 25 high resource usage tasks).
         Map<Long, Task> activeSearchTasks = new HashMap<>();
         for (long i = 0; i < 75; i++) {
+            Task task;
             if (i % 3 == 0) {
-                activeSearchTasks.put(i, createMockTaskWithResourceStats(SearchTask.class, 500, taskHeapUsageBytes));
+                task = createMockTaskWithResourceStats(SearchTask.class, 500, taskHeapUsageBytes);
+                activeSearchTasks.put(i, task);
             } else {
-                activeSearchTasks.put(i, createMockTaskWithResourceStats(SearchTask.class, 100, taskHeapUsageBytes));
+                task = createMockTaskWithResourceStats(SearchTask.class, 100, taskHeapUsageBytes);
+                activeSearchTasks.put(i, task);
             }
+            doReturn(new TaskId("test", 123)).when(task).getParentTaskId();
+            doReturn(i).when(task).getId();
+            taskManager.registerCancellableTask(task);
         }
         doReturn(activeSearchTasks).when(mockTaskResourceTrackingService).getResourceAwareTasks();
 
         // There are 25 SearchTasks eligible for cancellation but only 5 will be cancelled (burst limit).
-        LogManager.getLogger(SearchBackpressureServiceTests.class).info("first run");
         service.doRun();
         assertEquals(5, service.getSearchBackpressureStats(SearchTask.class).getCancellationCount());
         assertEquals(1, service.getSearchBackpressureStats(SearchTask.class).getLimitReachedCount());
 
         // If the clock or completed task count haven't made sufficient progress, we'll continue to be rate-limited.
-        LogManager.getLogger(SearchBackpressureServiceTests.class).info("second run");
         service.doRun();
         assertEquals(5, service.getSearchBackpressureStats(SearchTask.class).getCancellationCount());
         assertEquals(2, service.getSearchBackpressureStats(SearchTask.class).getLimitReachedCount());
@@ -243,7 +247,6 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         // Fast-forward the clock by ten second to replenish some tokens.
         // This will add 50 tokens (time delta * rate) to 'rateLimitPerTime' but it will cancel only 5 tasks (burst limit).
         mockTime.addAndGet(TimeUnit.SECONDS.toNanos(10));
-        LogManager.getLogger(SearchBackpressureServiceTests.class).info("third run");
         service.doRun();
         assertEquals(10, service.getSearchBackpressureStats(SearchTask.class).getCancellationCount());
         assertEquals(3, service.getSearchBackpressureStats(SearchTask.class).getLimitReachedCount());
@@ -293,11 +296,17 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         // Create a mix of low and high resource usage tasks (60 low + 15 high resource usage tasks).
         Map<Long, Task> activeSearchShardTasks = new HashMap<>();
         for (long i = 0; i < 75; i++) {
+            Task task;
             if (i % 5 == 0) {
-                activeSearchShardTasks.put(i, createMockTaskWithResourceStats(SearchShardTask.class, 500, taskHeapUsageBytes));
+                task = createMockTaskWithResourceStats(SearchShardTask.class, 500, taskHeapUsageBytes);
+                activeSearchShardTasks.put(i, task);
             } else {
-                activeSearchShardTasks.put(i, createMockTaskWithResourceStats(SearchShardTask.class, 100, taskHeapUsageBytes));
+                task = createMockTaskWithResourceStats(SearchShardTask.class, 100, taskHeapUsageBytes);
+                activeSearchShardTasks.put(i, task);
             }
+            doReturn(new TaskId("test", 123)).when(task).getParentTaskId();
+            doReturn(i).when(task).getId();
+            taskManager.registerCancellableTask(task);
         }
         doReturn(activeSearchShardTasks).when(mockTaskResourceTrackingService).getResourceAwareTasks();
 

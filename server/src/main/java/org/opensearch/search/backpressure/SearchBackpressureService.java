@@ -14,13 +14,20 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchTask;
 import org.opensearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.process.ProcessProbe;
 import org.opensearch.search.backpressure.settings.SearchBackpressureMode;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
+import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
+import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.search.backpressure.stats.SearchBackpressureStats;
 import org.opensearch.search.backpressure.stats.SearchShardTaskStats;
 import org.opensearch.search.backpressure.stats.SearchTaskStats;
+import org.opensearch.search.backpressure.trackers.CpuUsageTracker;
+import org.opensearch.search.backpressure.trackers.ElapsedTimeTracker;
+import org.opensearch.search.backpressure.trackers.HeapUsageTracker;
 import org.opensearch.search.backpressure.trackers.NodeDuressTracker;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTracker;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackerType;
@@ -36,12 +43,16 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.DoubleSupplier;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
+
+import static org.opensearch.search.backpressure.trackers.HeapUsageTracker.HEAP_SIZE_BYTES;
 
 /**
  * SearchBackpressureService is responsible for monitoring and cancelling in-flight search tasks if they are
@@ -84,8 +95,24 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
                     () -> JvmStats.jvmStats().getMem().getHeapUsedPercent() / 100.0 >= settings.getNodeDuressSettings().getHeapThreshold()
                 )
             ),
-            settings.getSearchTaskSettings().getTrackers(),
-            settings.getSearchShardTaskSettings().getTrackers(),
+            getTrackers(
+                settings.getSearchTaskSettings()::getCpuTimeNanosThreshold,
+                settings.getSearchTaskSettings()::getHeapVarianceThreshold,
+                settings.getSearchTaskSettings()::getHeapBytesThreshold,
+                settings.getSearchTaskSettings().getHeapMovingAverageWindowSize(),
+                settings.getSearchTaskSettings()::getElapsedTimeNanosThreshold,
+                settings.getClusterSettings(),
+                SearchTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE
+            ),
+            getTrackers(
+                settings.getSearchShardTaskSettings()::getCpuTimeNanosThreshold,
+                settings.getSearchShardTaskSettings()::getHeapVarianceThreshold,
+                settings.getSearchShardTaskSettings()::getHeapBytesThreshold,
+                settings.getSearchShardTaskSettings().getHeapMovingAverageWindowSize(),
+                settings.getSearchShardTaskSettings()::getElapsedTimeNanosThreshold,
+                settings.getClusterSettings(),
+                SearchShardTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE
+            ),
             taskManager
         );
     }
@@ -179,8 +206,8 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
 
             // Independently remove tokens from both token buckets.
             SearchBackpressureState searchBackpressureState = searchBackpressureStates.get(taskType);
-            boolean rateLimitReached = searchBackpressureState.getRateLimiter().get().request() == false;
-            boolean ratioLimitReached = searchBackpressureState.getRatioLimiter().get().request() == false;
+            boolean rateLimitReached = searchBackpressureState.getRateLimiter().request() == false;
+            boolean ratioLimitReached = searchBackpressureState.getRatioLimiter().request() == false;
 
             // Stop cancelling tasks if there are no tokens in either of the two token buckets.
             if (rateLimitReached && ratioLimitReached) {
@@ -286,6 +313,37 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
 
     SearchBackpressureState getSearchBackpressureStats(Class<? extends SearchBackpressureTask> taskType) {
         return searchBackpressureStates.get(taskType);
+    }
+
+    /**
+     * Given the threshold suppliers, returns the list of applicable trackers
+     */
+    public static List<TaskResourceUsageTracker> getTrackers(
+        LongSupplier cpuThresholdSupplier,
+        DoubleSupplier heapVarianceSupplier,
+        LongSupplier heapBytesThresholdSupplier,
+        int heapMovingAverageWindowSize,
+        LongSupplier ElapsedTimeNanosSupplier,
+        ClusterSettings clusterSettings,
+        Setting<Integer> windowSizeSetting
+    ) {
+        List<TaskResourceUsageTracker> trackers = new ArrayList<>();
+        trackers.add(new CpuUsageTracker(cpuThresholdSupplier));
+        if (HEAP_SIZE_BYTES > 0) {
+            trackers.add(
+                new HeapUsageTracker(
+                    heapVarianceSupplier,
+                    heapBytesThresholdSupplier,
+                    heapMovingAverageWindowSize,
+                    clusterSettings,
+                    windowSizeSetting
+                )
+            );
+        } else {
+            logger.warn("heap size couldn't be determined");
+        }
+        trackers.add(new ElapsedTimeTracker(ElapsedTimeNanosSupplier, System::nanoTime));
+        return Collections.unmodifiableList(trackers);
     }
 
     @Override
