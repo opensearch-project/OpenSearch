@@ -30,7 +30,6 @@ public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
         startNodesWithIdentityIndex();
     }
 
-    @Test
     public void testUsersRestApi() throws Exception {
 
         // Create a user

@@ -38,7 +38,7 @@ public class RestCreateUserAction extends BaseRestHandler {
      * @param request the request to execute
      * @param client  client for executing actions on the local node
      * @return the action to be executed See {@link #handleRequest(RestRequest, RestChannel, NodeClient) for more}
-     * @throws IOException
+     * @throws IOException if errors encountered when parsing from XContent
      */
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
