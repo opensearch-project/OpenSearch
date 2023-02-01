@@ -8,12 +8,12 @@
 
 package org.opensearch.identity.rest.user;
 
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.collect.Map;
 import org.opensearch.common.xcontent.XContentType;
