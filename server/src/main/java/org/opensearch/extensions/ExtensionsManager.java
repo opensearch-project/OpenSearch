@@ -567,10 +567,17 @@ public class ExtensionsManager {
             for (HashMap<String, ?> extensionMap : unreadExtensions) {
                 // Parse extension dependencies
                 List<ExtensionDependency> extensionDependencyList = new ArrayList<ExtensionDependency>();
-                if(extensionMap.get("dependencies") != null) {
-                    List<HashMap<String, ?>> extensionDependencies = new ArrayList<>((Collection<HashMap<String, ?>>) extensionMap.get("dependencies"));
+                if (extensionMap.get("dependencies") != null) {
+                    List<HashMap<String, ?>> extensionDependencies = new ArrayList<>(
+                        (Collection<HashMap<String, ?>>) extensionMap.get("dependencies")
+                    );
                     for (HashMap<String, ?> dependency : extensionDependencies) {
-                        extensionDependencyList.add(new ExtensionDependency(dependency.get("uniqueId").toString(), Version.fromString(dependency.get("version").toString())));
+                        extensionDependencyList.add(
+                            new ExtensionDependency(
+                                dependency.get("uniqueId").toString(),
+                                Version.fromString(dependency.get("version").toString())
+                            )
+                        );
                     }
                 }
                 // Create extension read from yml config
