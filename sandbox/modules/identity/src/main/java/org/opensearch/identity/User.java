@@ -9,7 +9,6 @@
 package org.opensearch.identity;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import org.opensearch.authn.StringPrincipal;
 
 import java.util.Collections;
 import java.util.Map;
@@ -37,13 +36,13 @@ public class User {
     public User(final String username, final String bcryptHash, Map<String, String> attributes) {
         Objects.requireNonNull(username);
         Objects.requireNonNull(bcryptHash);
-        this.username = new StringPrincipal(username);
+        this.username = username;
         this.bcryptHash = bcryptHash;
         this.attributes = attributes;
     }
 
     @JsonProperty(value = "username")
-    private StringPrincipal username;
+    private String username;
 
     @JsonProperty(value = "hash")
     private String bcryptHash;
@@ -52,12 +51,12 @@ public class User {
     private Map<String, String> attributes = Collections.emptyMap();
 
     @JsonProperty(value = "username")
-    public StringPrincipal getUsername() {
+    public String getUsername() {
         return username;
     }
 
     @JsonProperty(value = "username")
-    public void setUsername(StringPrincipal username) {
+    public void setUsername(String username) {
         this.username = username;
     }
 

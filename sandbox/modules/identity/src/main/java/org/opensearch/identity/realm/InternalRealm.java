@@ -20,7 +20,6 @@ import org.apache.shiro.authc.UnknownAccountException;
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.apache.shiro.realm.AuthenticatingRealm;
 
-import org.opensearch.authn.StringPrincipal;
 import org.opensearch.identity.User;
 import org.opensearch.identity.configuration.model.InternalUsersModel;
 import org.opensearch.identity.jwt.BadCredentialsException;
@@ -105,7 +104,8 @@ public class InternalRealm extends AuthenticatingRealm {
 
             // Verify the user
             // TODO Figure out why userRecord is coming back with empty username
-            userRecord.setUsername(new StringPrincipal(username));
+            // userRecord.setUsername(new StringPrincipal(username));
+            userRecord.setUsername(username);
             SimpleAuthenticationInfo sai = new SimpleAuthenticationInfo(username, userRecord.getBcryptHash(), realmName);
             boolean successfulAuthentication = getCredentialsMatcher().doCredentialsMatch(token, sai);
 
