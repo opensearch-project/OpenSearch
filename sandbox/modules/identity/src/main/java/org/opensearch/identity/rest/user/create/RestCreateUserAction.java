@@ -11,8 +11,8 @@ package org.opensearch.identity.rest.user.create;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.identity.ConfigConstants;
 import org.opensearch.identity.DefaultObjectMapper;
+import org.opensearch.identity.rest.IdentityRestConstants;
 import org.opensearch.identity.utils.ErrorType;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestChannel;
@@ -28,12 +28,16 @@ import static org.opensearch.rest.RestRequest.Method.PUT;
 
 /**
  * Rest action for creating a user
+ *
+ * /users/{user} rest request action to create a user
+ *
+ * @opensearch.api
  */
 public class RestCreateUserAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return ConfigConstants.IDENTITY_CREATE_USER_ACTION;
+        return IdentityRestConstants.IDENTITY_CREATE_USER_ACTION;
     }
 
     /**
@@ -70,8 +74,8 @@ public class RestCreateUserAction extends BaseRestHandler {
      */
     @Override
     public List<Route> routes() {
-        // e.g. return value "_identity/api/internalusers/test"
-        return addRoutesPrefix(asList(new Route(PUT, "/internalusers/{name}")));
+        // e.g. return value "_identity/api/users/test"
+        return addRoutesPrefix(asList(new Route(PUT, "/users/{name}")));
     }
 
 }

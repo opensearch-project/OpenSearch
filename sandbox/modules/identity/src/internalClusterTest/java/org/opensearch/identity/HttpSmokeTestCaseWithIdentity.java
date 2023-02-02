@@ -87,7 +87,7 @@ public abstract class HttpSmokeTestCaseWithIdentity extends OpenSearchIntegTestC
             .put(super.nodeSettings(nodeOrdinal))
             .put(NetworkModule.TRANSPORT_TYPE_KEY, nodeTransportTypeKey)
             .put(NetworkModule.HTTP_TYPE_KEY, nodeHttpTypeKey)
-            .put(ConfigConstants.IDENTITY_ENABLED, true)
+            .put(IdentityConfigConstants.IDENTITY_ENABLED, true)
             .build();
     }
 
@@ -158,11 +158,12 @@ public abstract class HttpSmokeTestCaseWithIdentity extends OpenSearchIntegTestC
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setClusterManagerNodeTimeout("1s").get();
 
         assertTrue(
-            ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX + " index doesn't exist",
-            clusterHealthResponse.getIndices().containsKey(ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX)
+            IdentityConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX + " index doesn't exist",
+            clusterHealthResponse.getIndices().containsKey(IdentityConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX)
         );
 
-        ClusterIndexHealth identityIndexHealth = clusterHealthResponse.getIndices().get(ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX);
+        ClusterIndexHealth identityIndexHealth = clusterHealthResponse.getIndices()
+            .get(IdentityConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX);
         assertEquals(ClusterHealthStatus.GREEN, identityIndexHealth.getStatus());
     }
 

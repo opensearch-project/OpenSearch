@@ -32,11 +32,11 @@ import org.opensearch.transport.TransportService;
 /**
  * Updates and reloads configuration for this node
  */
-public class TransportConfigUpdateAction extends TransportNodesAction<
-    ConfigUpdateRequest,
-    ConfigUpdateResponse,
-    TransportConfigUpdateAction.NodeConfigUpdateRequest,
-    ConfigUpdateNodeResponse> {
+public class TransportIdentityConfigUpdateAction extends TransportNodesAction<
+    IdentityConfigUpdateRequest,
+    IdentityConfigUpdateResponse,
+    TransportIdentityConfigUpdateAction.NodeConfigUpdateRequest,
+    IdentityConfigUpdateNodeResponse> {
 
     protected Logger logger = LogManager.getLogger(getClass());
 
@@ -44,7 +44,7 @@ public class TransportConfigUpdateAction extends TransportNodesAction<
     private DynamicConfigFactory dynamicConfigFactory;
 
     @Inject
-    public TransportConfigUpdateAction(
+    public TransportIdentityConfigUpdateAction(
         final Settings settings,
         final ThreadPool threadPool,
         final ClusterService clusterService,
@@ -54,15 +54,15 @@ public class TransportConfigUpdateAction extends TransportNodesAction<
         DynamicConfigFactory dynamicConfigFactory
     ) {
         super(
-            ConfigUpdateAction.NAME,
+            IdentityConfigUpdateAction.NAME,
             threadPool,
             clusterService,
             transportService,
             actionFilters,
-            ConfigUpdateRequest::new,
-            TransportConfigUpdateAction.NodeConfigUpdateRequest::new,
+            IdentityConfigUpdateRequest::new,
+            TransportIdentityConfigUpdateAction.NodeConfigUpdateRequest::new,
             ThreadPool.Names.MANAGEMENT,
-            ConfigUpdateNodeResponse.class
+            IdentityConfigUpdateNodeResponse.class
         );
 
         this.configurationRepository = configurationRepository;
@@ -71,14 +71,14 @@ public class TransportConfigUpdateAction extends TransportNodesAction<
 
     public static class NodeConfigUpdateRequest extends TransportRequest {
 
-        ConfigUpdateRequest request;
+        IdentityConfigUpdateRequest request;
 
         public NodeConfigUpdateRequest(StreamInput in) throws IOException {
             super(in);
-            request = new ConfigUpdateRequest(in);
+            request = new IdentityConfigUpdateRequest(in);
         }
 
-        public NodeConfigUpdateRequest(final ConfigUpdateRequest request) {
+        public NodeConfigUpdateRequest(final IdentityConfigUpdateRequest request) {
             this.request = request;
         }
 
@@ -90,28 +90,28 @@ public class TransportConfigUpdateAction extends TransportNodesAction<
     }
 
     @Override
-    protected ConfigUpdateNodeResponse newNodeResponse(StreamInput in) throws IOException {
-        return new ConfigUpdateNodeResponse(in);
+    protected IdentityConfigUpdateNodeResponse newNodeResponse(StreamInput in) throws IOException {
+        return new IdentityConfigUpdateNodeResponse(in);
     }
 
     @Override
-    protected ConfigUpdateResponse newResponse(
-        ConfigUpdateRequest request,
-        List<ConfigUpdateNodeResponse> responses,
+    protected IdentityConfigUpdateResponse newResponse(
+        IdentityConfigUpdateRequest request,
+        List<IdentityConfigUpdateNodeResponse> responses,
         List<FailedNodeException> failures
     ) {
-        return new ConfigUpdateResponse(this.clusterService.getClusterName(), responses, failures);
+        return new IdentityConfigUpdateResponse(this.clusterService.getClusterName(), responses, failures);
 
     }
 
     @Override
-    protected ConfigUpdateNodeResponse nodeOperation(final NodeConfigUpdateRequest request) {
+    protected IdentityConfigUpdateNodeResponse nodeOperation(final NodeConfigUpdateRequest request) {
         configurationRepository.reloadConfiguration(CType.fromStringValues((request.request.getConfigTypes())));
-        return new ConfigUpdateNodeResponse(clusterService.localNode(), request.request.getConfigTypes(), null);
+        return new IdentityConfigUpdateNodeResponse(clusterService.localNode(), request.request.getConfigTypes(), null);
     }
 
     @Override
-    protected NodeConfigUpdateRequest newNodeRequest(ConfigUpdateRequest request) {
+    protected NodeConfigUpdateRequest newNodeRequest(IdentityConfigUpdateRequest request) {
         return new NodeConfigUpdateRequest(request);
     }
 

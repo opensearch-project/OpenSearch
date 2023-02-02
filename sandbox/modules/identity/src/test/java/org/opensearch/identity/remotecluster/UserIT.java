@@ -13,7 +13,8 @@ import org.junit.Before;
 import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
-import org.opensearch.identity.ConfigConstants;
+import org.opensearch.identity.IdentityConfigConstants;
+import org.opensearch.identity.rest.IdentityRestConstants;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 
 import java.io.IOException;
@@ -24,11 +25,11 @@ import java.util.Map;
  * Tests REST API for users against remote cluster
  */
 public class UserIT extends OpenSearchRestTestCase {
-    private final String identityIndex = ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX;
+    private final String identityIndex = IdentityConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX;
     private final String ENDPOINT;
 
     protected String getEndpointPrefix() {
-        return ConfigConstants.IDENTITY_REST_REQUEST_PREFIX;
+        return IdentityRestConstants.IDENTITY_REST_REQUEST_PREFIX;
     }
 
     public UserIT() {
@@ -73,7 +74,7 @@ public class UserIT extends OpenSearchRestTestCase {
         String username = "test-create";
 
         // Create a user
-        Request request = new Request("PUT", ENDPOINT + "/internalusers/" + username);
+        Request request = new Request("PUT", ENDPOINT + "/users/" + username);
         request.setJsonEntity("{ \"password\" : \"test-create\" }\n");
         request.setOptions(systemIndexWarning());
         Response response = client().performRequest(request);

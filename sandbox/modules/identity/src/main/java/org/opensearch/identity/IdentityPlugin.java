@@ -34,8 +34,8 @@ import org.opensearch.identity.authz.IndexNameExpressionResolverHolder;
 import org.opensearch.identity.configuration.ClusterInfoHolder;
 import org.opensearch.identity.configuration.ConfigurationRepository;
 import org.opensearch.identity.configuration.DynamicConfigFactory;
-import org.opensearch.identity.rest.configuration.ConfigUpdateAction;
-import org.opensearch.identity.rest.configuration.TransportConfigUpdateAction;
+import org.opensearch.identity.rest.configuration.IdentityConfigUpdateAction;
+import org.opensearch.identity.rest.configuration.TransportIdentityConfigUpdateAction;
 import org.opensearch.identity.rest.user.create.CreateUserAction;
 import org.opensearch.identity.rest.user.create.RestCreateUserAction;
 import org.opensearch.identity.rest.user.create.TransportCreateUserAction;
@@ -102,7 +102,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     }
 
     private static boolean isEnabled(final Settings settings) {
-        return settings.getAsBoolean(ConfigConstants.IDENTITY_ENABLED, false);
+        return settings.getAsBoolean(IdentityConfigConstants.IDENTITY_ENABLED, false);
     }
 
     @Override
@@ -117,7 +117,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     ) {
         final List<RestHandler> handlers = new ArrayList<>(1);
         handlers.add(new RestCreateUserAction());
-        // Add more handlers for future actions
+        // TODO: Add handlers for future actions
         return handlers;
     }
 
@@ -132,7 +132,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
 
         return Arrays.asList(
             new ActionHandler<>(CreateUserAction.INSTANCE, TransportCreateUserAction.class),
-            new ActionHandler<>(ConfigUpdateAction.INSTANCE, TransportConfigUpdateAction.class)
+            new ActionHandler<>(IdentityConfigUpdateAction.INSTANCE, TransportIdentityConfigUpdateAction.class)
         );
     }
 
@@ -156,7 +156,10 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        final String indexPattern = settings.get(ConfigConstants.IDENTITY_CONFIG_INDEX_NAME, ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX);
+        final String indexPattern = settings.get(
+            IdentityConfigConstants.IDENTITY_CONFIG_INDEX_NAME,
+            IdentityConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX
+        );
         final SystemIndexDescriptor systemIndexDescriptor = new SystemIndexDescriptor(indexPattern, "Identity index");
         return Collections.singletonList(systemIndexDescriptor);
     }
@@ -164,17 +167,19 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = new ArrayList<Setting<?>>();
         settings.addAll(super.getSettings());
-        settings.add(Setting.boolSetting(ConfigConstants.IDENTITY_ENABLED, false, Setting.Property.NodeScope, Setting.Property.Filtered));
+        settings.add(
+            Setting.boolSetting(IdentityConfigConstants.IDENTITY_ENABLED, false, Setting.Property.NodeScope, Setting.Property.Filtered)
+        );
         settings.add(
             Setting.simpleString(
-                ConfigConstants.IDENTITY_AUTH_MANAGER_CLASS,
+                IdentityConfigConstants.IDENTITY_AUTH_MANAGER_CLASS,
                 InternalAuthenticationManager.class.getCanonicalName(),
                 Setting.Property.NodeScope,
                 Setting.Property.Filtered
             )
         );
         settings.add(
-            Setting.simpleString(ConfigConstants.IDENTITY_CONFIG_INDEX_NAME, Setting.Property.NodeScope, Setting.Property.Filtered)
+            Setting.simpleString(IdentityConfigConstants.IDENTITY_CONFIG_INDEX_NAME, Setting.Property.NodeScope, Setting.Property.Filtered)
         );
 
         return settings;
@@ -210,7 +215,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
 
         // TODO: revisit this
         final String authManagerClassName = this.settings.get(
-            ConfigConstants.IDENTITY_AUTH_MANAGER_CLASS,
+            IdentityConfigConstants.IDENTITY_AUTH_MANAGER_CLASS,
             InternalAuthenticationManager.class.getCanonicalName()
         );
         AuthenticationManager authManager = null;

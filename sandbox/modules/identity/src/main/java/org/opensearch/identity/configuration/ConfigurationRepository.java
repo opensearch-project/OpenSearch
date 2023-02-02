@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import org.opensearch.identity.ConfigConstants;
+import org.opensearch.identity.IdentityConfigConstants;
 import org.opensearch.identity.exception.ConfigUpdateAlreadyInProgressException;
 import org.opensearch.identity.exception.ExceptionUtils;
 import org.opensearch.identity.exception.InvalidConfigException;
@@ -72,7 +72,10 @@ public class ConfigurationRepository {
         Client client,
         ClusterService clusterService
     ) {
-        this.identityIndex = settings.get(ConfigConstants.IDENTITY_CONFIG_INDEX_NAME, ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX);
+        this.identityIndex = settings.get(
+            IdentityConfigConstants.IDENTITY_CONFIG_INDEX_NAME,
+            IdentityConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX
+        );
         this.settings = settings;
         this.client = client;
         this.threadPool = threadPool;
@@ -97,7 +100,7 @@ public class ConfigurationRepository {
                             if (Files.exists(confFile)) {
                                 final ThreadContext threadContext = threadPool.getThreadContext();
                                 try (StoredContext ctx = threadContext.stashContext()) {
-                                    threadContext.putHeader(ConfigConstants.IDENTITY_CONF_REQUEST_HEADER, "true");
+                                    threadContext.putHeader(IdentityConfigConstants.IDENTITY_CONF_REQUEST_HEADER, "true");
 
                                     createSecurityIndexIfAbsent();
                                     waitForSecurityIndexToBeAtLeastYellow();
@@ -192,7 +195,7 @@ public class ConfigurationRepository {
 
     public void initOnNodeStart() {
         try {
-            if (settings.getAsBoolean(ConfigConstants.IDENTITY_ALLOW_DEFAULT_INIT_SECURITYINDEX, true)) {
+            if (settings.getAsBoolean(IdentityConfigConstants.IDENTITY_ALLOW_DEFAULT_INIT_SECURITYINDEX, true)) {
                 LOGGER.info("Will attempt to create index {} and default configs if they are absent", identityIndex);
                 installDefaultConfig.set(true);
                 bgThread.start();
@@ -252,10 +255,6 @@ public class ConfigurationRepository {
 
     private void reloadConfiguration0(Collection<CType> configTypes) {
         final Map<CType, SecurityDynamicConfiguration<?>> loaded = getConfigurationsFromIndex(configTypes);
-        // invalidate cache to load new configuration
-        if (!configCache.isEmpty()) {
-            configCache.clear();
-        }
         configCache.putAll(loaded);
         notifyAboutChanges(loaded);
     }
@@ -283,7 +282,7 @@ public class ConfigurationRepository {
         final Map<CType, SecurityDynamicConfiguration<?>> retVal = new HashMap<>();
 
         try (StoredContext ctx = threadContext.stashContext()) {
-            threadContext.putHeader(ConfigConstants.IDENTITY_CONF_REQUEST_HEADER, "true");
+            threadContext.putHeader(IdentityConfigConstants.IDENTITY_CONF_REQUEST_HEADER, "true");
 
             IndexMetadata securityMetadata = clusterService.state().metadata().index(this.identityIndex);
             MappingMetadata mappingMetadata = securityMetadata == null ? null : securityMetadata.mapping();

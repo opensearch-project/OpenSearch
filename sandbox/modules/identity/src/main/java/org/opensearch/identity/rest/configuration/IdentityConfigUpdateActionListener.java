@@ -16,14 +16,14 @@ import java.util.Objects;
 /**
  * Action listener for config update action
  * Delegates execution to another action listener
- * @param <Response> of {@link ConfigUpdateResponse} type
+ * @param <Response> of {@link IdentityConfigUpdateResponse} type
  */
-public class ConfigUpdateActionListener<Response> implements ActionListener<Response> {
+public class IdentityConfigUpdateActionListener<Response> implements ActionListener<Response> {
     private final String[] cTypes;
     private final Client client;
     private final ActionListener<Response> delegate;
 
-    public ConfigUpdateActionListener(String[] cTypes, Client client, ActionListener<Response> delegate) {
+    public IdentityConfigUpdateActionListener(String[] cTypes, Client client, ActionListener<Response> delegate) {
         this.cTypes = Objects.requireNonNull(cTypes, "cTypes must not be null");
         this.client = Objects.requireNonNull(client, "client must not be null");
         this.delegate = Objects.requireNonNull(delegate, "delegate must not be null");
@@ -32,12 +32,12 @@ public class ConfigUpdateActionListener<Response> implements ActionListener<Resp
     @Override
     public void onResponse(Response response) {
 
-        final ConfigUpdateRequest cur = new ConfigUpdateRequest(cTypes);
+        final IdentityConfigUpdateRequest cur = new IdentityConfigUpdateRequest(cTypes);
 
         // execute update and delegate execution to other listeners
-        client.execute(ConfigUpdateAction.INSTANCE, cur, new ActionListener<>() {
+        client.execute(IdentityConfigUpdateAction.INSTANCE, cur, new ActionListener<>() {
             @Override
-            public void onResponse(final ConfigUpdateResponse ur) {
+            public void onResponse(final IdentityConfigUpdateResponse ur) {
                 if (ur.hasFailures()) {
                     delegate.onFailure(ur.failures().get(0));
                     return;

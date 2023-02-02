@@ -21,25 +21,25 @@ import org.opensearch.common.xcontent.XContentBuilder;
 /**
  * Response for config update request execution for this node
  */
-public class ConfigUpdateNodeResponse extends BaseNodeResponse implements ToXContentObject {
+public class IdentityConfigUpdateNodeResponse extends BaseNodeResponse implements ToXContentObject {
 
     private String[] updatedConfigTypes;
     private String message;
 
-    public ConfigUpdateNodeResponse(StreamInput in) throws IOException {
+    public IdentityConfigUpdateNodeResponse(StreamInput in) throws IOException {
         super(in);
         this.updatedConfigTypes = in.readStringArray();
         this.message = in.readOptionalString();
     }
 
-    public ConfigUpdateNodeResponse(final DiscoveryNode node, String[] updatedConfigTypes, String message) {
+    public IdentityConfigUpdateNodeResponse(final DiscoveryNode node, String[] updatedConfigTypes, String message) {
         super(node);
         this.updatedConfigTypes = updatedConfigTypes;
         this.message = message;
     }
 
-    public static ConfigUpdateNodeResponse readNodeResponse(StreamInput in) throws IOException {
-        return new ConfigUpdateNodeResponse(in);
+    public static IdentityConfigUpdateNodeResponse readNodeResponse(StreamInput in) throws IOException {
+        return new IdentityConfigUpdateNodeResponse(in);
     }
 
     public String[] getUpdatedConfigTypes() {

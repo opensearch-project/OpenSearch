@@ -22,8 +22,8 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.identity.ConfigConstants;
-import org.opensearch.identity.rest.configuration.ConfigUpdateActionListener;
+import org.opensearch.identity.IdentityConfigConstants;
+import org.opensearch.identity.rest.configuration.IdentityConfigUpdateActionListener;
 import org.opensearch.identity.User;
 import org.opensearch.identity.configuration.CType;
 import org.opensearch.identity.configuration.ConfigurationRepository;
@@ -68,7 +68,10 @@ public class UserService {
         this.clusterService = clusterService;
         this.nodeClient = nodeClient;
         this.configurationRepository = cr;
-        this.identityIndex = settings.get(ConfigConstants.IDENTITY_CONFIG_INDEX_NAME, ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX);
+        this.identityIndex = settings.get(
+            IdentityConfigConstants.IDENTITY_CONFIG_INDEX_NAME,
+            IdentityConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX
+        );
     }
 
     /**
@@ -198,7 +201,7 @@ public class UserService {
                 .source(id, XContentHelper.toXContent(configuration, XContentType.JSON, false));
 
             // writes to index and ConfigUpdateActionListener propagates change to other nodes by reloadConfiguration
-            client.index(indexRequest, new ConfigUpdateActionListener<>(new String[] { id }, client, actionListener));
+            client.index(indexRequest, new IdentityConfigUpdateActionListener<>(new String[] { id }, client, actionListener));
         } catch (IOException e) {
             throw ExceptionsHelper.convertToOpenSearchException(e);
         }

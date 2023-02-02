@@ -13,12 +13,12 @@ import org.opensearch.action.ActionType;
 /**
  * Propagates any changes in `identity` index
  */
-public class ConfigUpdateAction extends ActionType<ConfigUpdateResponse> {
+public class IdentityConfigUpdateAction extends ActionType<IdentityConfigUpdateResponse> {
 
-    public static final ConfigUpdateAction INSTANCE = new ConfigUpdateAction();
+    public static final IdentityConfigUpdateAction INSTANCE = new IdentityConfigUpdateAction();
     public static final String NAME = "cluster:admin/identity/config/update";
 
-    protected ConfigUpdateAction() {
-        super(NAME, ConfigUpdateResponse::new);
+    protected IdentityConfigUpdateAction() {
+        super(NAME, IdentityConfigUpdateResponse::new);
     }
 }

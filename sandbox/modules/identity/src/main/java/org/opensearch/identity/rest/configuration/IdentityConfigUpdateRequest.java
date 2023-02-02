@@ -18,20 +18,20 @@ import org.opensearch.common.io.stream.StreamOutput;
 /**
  * Request to perform config update to reload configuration
  */
-public class ConfigUpdateRequest extends BaseNodesRequest<ConfigUpdateRequest> {
+public class IdentityConfigUpdateRequest extends BaseNodesRequest<IdentityConfigUpdateRequest> {
 
     private String[] configTypes;
 
-    public ConfigUpdateRequest(StreamInput in) throws IOException {
+    public IdentityConfigUpdateRequest(StreamInput in) throws IOException {
         super(in);
         this.configTypes = in.readStringArray();
     }
 
-    public ConfigUpdateRequest() {
+    public IdentityConfigUpdateRequest() {
         super(new String[0]);
     }
 
-    public ConfigUpdateRequest(String[] configTypes) {
+    public IdentityConfigUpdateRequest(String[] configTypes) {
         this();
         setConfigTypes(configTypes);
     }

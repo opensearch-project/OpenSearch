@@ -11,6 +11,7 @@ package org.opensearch.identity;
 import org.junit.Before;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
+import org.opensearch.identity.rest.IdentityRestConstants;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.List;
@@ -23,11 +24,9 @@ import static org.opensearch.test.rest.OpenSearchRestTestCase.entityAsMap;
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
-    private final String ENDPOINT;
+    private static final String ENDPOINT = IdentityRestConstants.IDENTITY_REST_API_REQUEST_PREFIX;;
 
-    public UserCrudIT() {
-        ENDPOINT = ConfigConstants.IDENTITY_REST_API_REQUEST_PREFIX;
-    }
+    public UserCrudIT() {}
 
     @Before
     public void startClusterWithIdentityIndex() throws Exception {
@@ -39,7 +38,7 @@ public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
 
         String username = "test-create";
         // Create a user
-        Request request = new Request("PUT", ENDPOINT + "/internalusers/" + username);
+        Request request = new Request("PUT", ENDPOINT + "/users/" + username);
         request.setJsonEntity("{ \"password\" : \"test\" }\n");
         Response response = getRestClient().performRequest(request);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
@@ -49,7 +48,7 @@ public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
         assertEquals(usersCreated.get(0).get("successful"), true);
         assertEquals(usersCreated.get(0).get("username"), username);
 
-        // Add other api tests here
+        // TODO: Add other api tests here
     }
 
 }

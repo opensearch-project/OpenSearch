@@ -38,7 +38,7 @@ import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.identity.ConfigConstants;
+import org.opensearch.identity.IdentityConfigConstants;
 import org.opensearch.threadpool.ThreadPool;
 
 import static org.opensearch.common.xcontent.DeprecationHandler.THROW_UNSUPPORTED_OPERATION;
@@ -58,7 +58,10 @@ public class ConfigurationLoader {
         super();
         this.client = client;
         this.settings = settings;
-        this.securityIndex = settings.get(ConfigConstants.IDENTITY_CONFIG_INDEX_NAME, ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX);
+        this.securityIndex = settings.get(
+            IdentityConfigConstants.IDENTITY_CONFIG_INDEX_NAME,
+            IdentityConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX
+        );
         this.cs = cs;
         log.debug("Index is: {}", securityIndex);
     }

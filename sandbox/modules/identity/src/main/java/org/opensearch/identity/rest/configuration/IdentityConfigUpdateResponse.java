@@ -22,23 +22,27 @@ import org.opensearch.common.xcontent.XContentBuilder;
 /**
  * List of responses from each node on which config update action was executed
  */
-public class ConfigUpdateResponse extends BaseNodesResponse<ConfigUpdateNodeResponse> implements ToXContentObject {
+public class IdentityConfigUpdateResponse extends BaseNodesResponse<IdentityConfigUpdateNodeResponse> implements ToXContentObject {
 
-    public ConfigUpdateResponse(StreamInput in) throws IOException {
+    public IdentityConfigUpdateResponse(StreamInput in) throws IOException {
         super(in);
     }
 
-    public ConfigUpdateResponse(final ClusterName clusterName, List<ConfigUpdateNodeResponse> nodes, List<FailedNodeException> failures) {
+    public IdentityConfigUpdateResponse(
+        final ClusterName clusterName,
+        List<IdentityConfigUpdateNodeResponse> nodes,
+        List<FailedNodeException> failures
+    ) {
         super(clusterName, nodes, failures);
     }
 
     @Override
-    public List<ConfigUpdateNodeResponse> readNodesFrom(final StreamInput in) throws IOException {
-        return in.readList(ConfigUpdateNodeResponse::readNodeResponse);
+    public List<IdentityConfigUpdateNodeResponse> readNodesFrom(final StreamInput in) throws IOException {
+        return in.readList(IdentityConfigUpdateNodeResponse::readNodeResponse);
     }
 
     @Override
-    public void writeNodesTo(final StreamOutput out, List<ConfigUpdateNodeResponse> nodes) throws IOException {
+    public void writeNodesTo(final StreamOutput out, List<IdentityConfigUpdateNodeResponse> nodes) throws IOException {
         out.writeList(nodes);
     }
 
