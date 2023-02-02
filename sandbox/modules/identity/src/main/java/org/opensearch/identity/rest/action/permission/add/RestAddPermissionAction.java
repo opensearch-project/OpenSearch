@@ -37,22 +37,12 @@ public class RestAddPermissionAction extends BaseRestHandler {
      * @param request the request to execute
      * @param client  client for executing actions on the local node
      * @return the action to be executed See {@link #handleRequest(RestRequest, RestChannel, NodeClient) for more}
-     * @throws IOException
+     * @throws IOException if fails to parse
      */
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String permissionString = request.param("permissionString");
         String principalString = request.param("principalString");
-
-        // TODO: add permission validator here
-
-        // Parsing request body using DefaultObjectMapper
-        // JsonNode contentAsNode = DefaultObjectMapper.readTree(request.content().utf8ToString());
-        // String permissionString = contentAsNode.get("permissionString").asText();
-        //
-        // AddPermissionRequest addPermissionRequest = new AddPermissionRequest(permissionString);
-
-        // // Parsing request body using XContentParser
 
         AddPermissionRequest addPermissionRequest = new AddPermissionRequest();
         addPermissionRequest.setPermissionString(permissionString);
