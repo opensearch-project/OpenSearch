@@ -9,7 +9,7 @@
 package org.opensearch.identity.rest.action.permission.add;
 
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.identity.rest.RestConfigConstants;
+import org.opensearch.identity.rest.RestConstants;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
@@ -29,7 +29,7 @@ public class RestAddPermissionAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return RestConfigConstants.IDENTITY_CREATE_PERMISSION_ACTION;
+        return RestConstants.IDENTITY_CREATE_PERMISSION_ACTION;
     }
 
     /**

@@ -16,7 +16,7 @@ import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.identity.ConfigConstants;
 import org.opensearch.identity.authz.PermissionStorage;
-import org.opensearch.identity.rest.RestConfigConstants;
+import org.opensearch.identity.rest.RestConstants;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 
 import java.io.IOException;
@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.is;
 public class RestPermissionsIT extends OpenSearchRestTestCase {
 
     protected String getEndpointPrefix() {
-        return RestConfigConstants.IDENTITY_REST_REQUEST_PREFIX;
+        return RestConstants.IDENTITY_REST_REQUEST_PREFIX;
     }
 
     public RestPermissionsIT() {}
@@ -60,14 +60,14 @@ public class RestPermissionsIT extends OpenSearchRestTestCase {
     @SuppressWarnings("unchecked")
     public void testPermissionsRestApi() throws Exception {
 
-        final String createEndpoint = RestConfigConstants.IDENTITY_CREATE_PERMISSION_ACTION;
+        final String createEndpoint = RestConstants.IDENTITY_CREATE_PERMISSION_ACTION;
         // Add a permission
         Request createRequest = new Request("POST", createEndpoint);
         createRequest.setJsonEntity("{ \"permissionString\" : \"cluster:admin\\read\", \"principalString\" : \"testPrincipal\" }\n");
         Response createResponse = client().performRequest(createRequest);
         assertThat(createResponse.getStatusLine().getStatusCode(), is(200));
 
-        final String checkEndpoint = RestConfigConstants.IDENTITY_READ_PERMISSION_ACTION;
+        final String checkEndpoint = RestConstants.IDENTITY_READ_PERMISSION_ACTION;
         // Check for the added permission
         Request checkRequest = new Request("GET", checkEndpoint);
         checkRequest.setJsonEntity("{\"principalString\" : \"testPrincipal\" }\n");
@@ -78,7 +78,7 @@ public class RestPermissionsIT extends OpenSearchRestTestCase {
         // Check for the added permission in permission storage
         assertTrue(PermissionStorage.get(new StringPrincipal("testPrincipal")).contains("cluster:admin\\read"));
 
-        final String deleteEndpoint = RestConfigConstants.IDENTITY_READ_PERMISSION_ACTION;
+        final String deleteEndpoint = RestConstants.IDENTITY_READ_PERMISSION_ACTION;
         // Delete the added permission
         Request deleteRequest = new Request("DELETE", deleteEndpoint);
         deleteRequest.setJsonEntity("{ \"permissionString\" : \"cluster:admin\\read\", \"principalString\" : \"testPrincipal\" }\n");

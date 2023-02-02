@@ -8,7 +8,7 @@
 
 package org.opensearch.identity.rest;
 
-public class RestConfigConstants {
+public class RestConstants {
     // REST Action and API
     public static final String IDENTITY_REST_REQUEST_PREFIX = "_identity";
     public static final String IDENTITY_REST_API_REQUEST_PREFIX = IDENTITY_REST_REQUEST_PREFIX + "/api";
