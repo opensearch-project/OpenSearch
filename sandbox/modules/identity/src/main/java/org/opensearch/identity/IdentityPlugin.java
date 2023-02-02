@@ -10,23 +10,19 @@ package org.opensearch.identity;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionResponse;
+import org.opensearch.action.support.ActionFilter;
 import org.opensearch.authn.AuthenticationManager;
 import org.opensearch.authn.Identity;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.component.Lifecycle;
 import org.opensearch.common.component.LifecycleComponent;
 import org.opensearch.common.component.LifecycleListener;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.common.settings.IndexScopedSettings;
-import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
@@ -42,7 +38,6 @@ import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.repositories.RepositoriesService;
-import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
@@ -52,11 +47,12 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Objects;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 public final class IdentityPlugin extends Plugin implements ActionPlugin, NetworkPlugin, SystemIndexPlugin, ClusterPlugin {
     private volatile Logger log = LogManager.getLogger(this.getClass());
@@ -93,6 +89,24 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         }
 
         this.settings = settings;
+    }
+
+    @Override
+    public UnaryOperator<RestHandler> getRestHandlerWrapper(final ThreadContext threadContext) {
+        if (!enabled) {
+            return (rh) -> rh;
+        }
+        return (rh) -> securityRestHandler.wrap(rh);
+    }
+
+    @Override
+    public List<ActionFilter> getActionFilters() {
+        List<ActionFilter> filters = new ArrayList<>(1);
+        if (!enabled) {
+            return filters;
+        }
+        filters.add(Objects.requireNonNull(sf));
+        return filters;
     }
 
     private static boolean isEnabled(final Settings settings) {
