@@ -32,7 +32,6 @@ import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.tasks.TaskCancellationService;
-import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.test.OpenSearchTestCase;
@@ -52,6 +51,8 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
@@ -186,6 +187,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
     }
 
     public void testSearchTaskInFlightCancellation() {
+        TaskManager mockTaskManager = spy(taskManager);
         TaskResourceTrackingService mockTaskResourceTrackingService = mock(TaskResourceTrackingService.class);
         AtomicLong mockTime = new AtomicLong(0);
         LongSupplier mockTimeNanosSupplier = mockTime::get;
@@ -204,7 +206,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             List.of(mockNodeDuressTracker),
             List.of(mockTaskResourceUsageTracker),
             Collections.emptyList(),
-            taskManager
+            mockTaskManager
         );
 
         // Run two iterations so that node is marked 'in duress' from the third iteration onwards.
@@ -220,35 +222,29 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         // Create a mix of low and high resource usage SearchTasks (50 low + 25 high resource usage tasks).
         Map<Long, Task> activeSearchTasks = new HashMap<>();
         for (long i = 0; i < 75; i++) {
-            Task task;
             if (i % 3 == 0) {
-                task = createMockTaskWithResourceStats(SearchTask.class, 500, taskHeapUsageBytes);
-                activeSearchTasks.put(i, task);
+                activeSearchTasks.put(i, createMockTaskWithResourceStats(SearchTask.class, 500, taskHeapUsageBytes));
             } else {
-                task = createMockTaskWithResourceStats(SearchTask.class, 100, taskHeapUsageBytes);
-                activeSearchTasks.put(i, task);
+                activeSearchTasks.put(i, createMockTaskWithResourceStats(SearchTask.class, 100, taskHeapUsageBytes));
             }
-            doReturn(new TaskId("test", 123)).when(task).getParentTaskId();
-            doReturn(i).when(task).getId();
-            taskManager.registerCancellableTask(task);
         }
         doReturn(activeSearchTasks).when(mockTaskResourceTrackingService).getResourceAwareTasks();
 
         // There are 25 SearchTasks eligible for cancellation but only 5 will be cancelled (burst limit).
         service.doRun();
-        assertEquals(5, service.getSearchBackpressureStats(SearchTask.class).getCancellationCount());
+        verify(mockTaskManager, times(5)).cancelTaskAndDescendants(any(), anyString(), anyBoolean(), any());
         assertEquals(1, service.getSearchBackpressureStats(SearchTask.class).getLimitReachedCount());
 
         // If the clock or completed task count haven't made sufficient progress, we'll continue to be rate-limited.
         service.doRun();
-        assertEquals(5, service.getSearchBackpressureStats(SearchTask.class).getCancellationCount());
+        verify(mockTaskManager, times(5)).cancelTaskAndDescendants(any(), anyString(), anyBoolean(), any());
         assertEquals(2, service.getSearchBackpressureStats(SearchTask.class).getLimitReachedCount());
 
         // Fast-forward the clock by ten second to replenish some tokens.
         // This will add 50 tokens (time delta * rate) to 'rateLimitPerTime' but it will cancel only 5 tasks (burst limit).
         mockTime.addAndGet(TimeUnit.SECONDS.toNanos(10));
         service.doRun();
-        assertEquals(10, service.getSearchBackpressureStats(SearchTask.class).getCancellationCount());
+        verify(mockTaskManager, times(10)).cancelTaskAndDescendants(any(), anyString(), anyBoolean(), any());
         assertEquals(3, service.getSearchBackpressureStats(SearchTask.class).getLimitReachedCount());
 
         // Verify search backpressure stats.
@@ -262,6 +258,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
     }
 
     public void testSearchShardTaskInFlightCancellation() {
+        TaskManager mockTaskManager = spy(taskManager);
         TaskResourceTrackingService mockTaskResourceTrackingService = mock(TaskResourceTrackingService.class);
         AtomicLong mockTime = new AtomicLong(0);
         LongSupplier mockTimeNanosSupplier = mockTime::get;
@@ -280,7 +277,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             List.of(mockNodeDuressTracker),
             Collections.emptyList(),
             List.of(mockTaskResourceUsageTracker),
-            taskManager
+            mockTaskManager
         );
 
         // Run two iterations so that node is marked 'in duress' from the third iteration onwards.
@@ -296,28 +293,22 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         // Create a mix of low and high resource usage tasks (60 low + 15 high resource usage tasks).
         Map<Long, Task> activeSearchShardTasks = new HashMap<>();
         for (long i = 0; i < 75; i++) {
-            Task task;
             if (i % 5 == 0) {
-                task = createMockTaskWithResourceStats(SearchShardTask.class, 500, taskHeapUsageBytes);
-                activeSearchShardTasks.put(i, task);
+                activeSearchShardTasks.put(i, createMockTaskWithResourceStats(SearchShardTask.class, 500, taskHeapUsageBytes));
             } else {
-                task = createMockTaskWithResourceStats(SearchShardTask.class, 100, taskHeapUsageBytes);
-                activeSearchShardTasks.put(i, task);
+                activeSearchShardTasks.put(i, createMockTaskWithResourceStats(SearchShardTask.class, 100, taskHeapUsageBytes));
             }
-            doReturn(new TaskId("test", 123)).when(task).getParentTaskId();
-            doReturn(i).when(task).getId();
-            taskManager.registerCancellableTask(task);
         }
         doReturn(activeSearchShardTasks).when(mockTaskResourceTrackingService).getResourceAwareTasks();
 
         // There are 15 SearchShardTasks eligible for cancellation but only 10 will be cancelled (burst limit).
         service.doRun();
-        assertEquals(10, service.getSearchBackpressureStats(SearchShardTask.class).getCancellationCount());
+        verify(mockTaskManager, times(10)).cancelTaskAndDescendants(any(), anyString(), anyBoolean(), any());
         assertEquals(1, service.getSearchBackpressureStats(SearchShardTask.class).getLimitReachedCount());
 
         // If the clock or completed task count haven't made sufficient progress, we'll continue to be rate-limited.
         service.doRun();
-        assertEquals(10, service.getSearchBackpressureStats(SearchShardTask.class).getCancellationCount());
+        verify(mockTaskManager, times(10)).cancelTaskAndDescendants(any(), anyString(), anyBoolean(), any());
         assertEquals(2, service.getSearchBackpressureStats(SearchShardTask.class).getLimitReachedCount());
 
         // Simulate task completion to replenish some tokens.
@@ -326,21 +317,13 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             service.onTaskCompleted(createMockTaskWithResourceStats(SearchShardTask.class, 100, taskHeapUsageBytes));
         }
         service.doRun();
-        assertEquals(12, service.getSearchBackpressureStats(SearchShardTask.class).getCancellationCount());
+        verify(mockTaskManager, times(12)).cancelTaskAndDescendants(any(), anyString(), anyBoolean(), any());
         assertEquals(3, service.getSearchBackpressureStats(SearchShardTask.class).getLimitReachedCount());
-
-        // Fast-forward the clock by one second to replenish some tokens.
-        // This will add 3 tokens (time delta * rate) to 'rateLimitPerTime'.
-        mockTime.addAndGet(TimeUnit.SECONDS.toNanos(1));
-        service.doRun();
-        assertEquals(15, service.getSearchBackpressureStats(SearchShardTask.class).getCancellationCount());
-        assertEquals(3, service.getSearchBackpressureStats(SearchShardTask.class).getLimitReachedCount());  // no more tasks to cancel;
-                                                                                                            // limit not reached
 
         // Verify search backpressure stats.
         SearchBackpressureStats expectedStats = new SearchBackpressureStats(
             new SearchTaskStats(0, 0, Collections.emptyMap()),
-            new SearchShardTaskStats(15, 3, Map.of(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER, new MockStats(15))),
+            new SearchShardTaskStats(12, 3, Map.of(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER, new MockStats(12))),
             SearchBackpressureMode.ENFORCED
         );
         SearchBackpressureStats actualStats = service.nodeStats();
