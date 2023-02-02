@@ -417,14 +417,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     /**
-     * A model index. It stores info about specific index
+     * A model index that stores info about specific index
      *
      * @opensearch.internal
      */
     static final class ModelIndex implements Iterable<ShardRouting> {
         private final String id;
         private final Set<ShardRouting> shards = new HashSet<>(4); // expect few shards of same index to be allocated on same node
-
         private final Set<ShardRouting> primaryShards = new HashSet<>();
         private int highestPrimary = -1;
 
@@ -474,9 +473,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         public void addShard(ShardRouting shard) {
             highestPrimary = -1;
-            assert !shards.contains(shard) : "Shard already allocated on current node: " + shard;
+            assert shards.contains(shard) == false : "Shard already allocated on current node: " + shard;
             if (shard.primary()) {
-                assert !primaryShards.contains(shard) : "Primary shard already allocated on current node: " + shard;
+                assert primaryShards.contains(shard) == false : "Primary shard already allocated on current node: " + shard;
                 primaryShards.add(shard);
             }
             shards.add(shard);
@@ -500,7 +499,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final WeightFunction function;
         private String index;
         private final ShardsBalancer balancer;
-
         private float pivotWeight;
 
         NodeSorter(ModelNode[] modelNodes, WeightFunction function, ShardsBalancer balancer) {

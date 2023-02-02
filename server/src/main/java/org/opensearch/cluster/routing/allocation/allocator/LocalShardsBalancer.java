@@ -8,7 +8,6 @@
 
 package org.opensearch.cluster.routing.allocation.allocator;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
@@ -64,7 +63,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private final float threshold;
     private final Metadata metadata;
     private final float avgShardsPerNode;
-
     private final float avgPrimaryShardsPerNode;
     private final BalancedShardsAllocator.NodeSorter sorter;
     private final Set<RoutingNode> inEligibleTargetNode;
@@ -84,10 +82,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         this.routingNodes = allocation.routingNodes();
         this.metadata = allocation.metadata();
         avgShardsPerNode = ((float) metadata.getTotalNumberOfShards()) / routingNodes.size();
-        int shardCount = 0;
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-            shardCount += cursor.value.getNumberOfShards();
-        }
+        final int shardCount = StreamSupport.stream(metadata.spliterator(), false).mapToInt(IndexMetadata::getNumberOfShards).sum();
         avgPrimaryShardsPerNode = (float) shardCount / routingNodes.size();
         nodes = Collections.unmodifiableMap(buildModelFromAssigned());
         sorter = newNodeSorter();

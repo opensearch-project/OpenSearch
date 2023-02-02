@@ -36,9 +36,9 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
 
     private void createIndex(String idxName, int shardCount, int replicaCount, boolean isSegRep) {
         Settings.Builder builder = Settings.builder()
-            .put("index.number_of_shards", shardCount)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount)
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
-            .put("index.number_of_replicas", replicaCount);
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, REPLICA_COUNT);
         if (isSegRep) {
             builder = builder.put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
         } else {
@@ -80,12 +80,10 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
             replicaCount = randomIntBetween(0, maxReplicaCount);
             totalReplicaCount += replicaCount;
             createIndex("test" + i, shardCount, replicaCount, i % 2 == 0);
-            logger.info("--> Creating index {} with primary shards {} and replica {}", "test" + i, shardCount, replicaCount);
+            logger.info("--> Creating index {} with shard count {} and replica count {}", "test" + i, shardCount, replicaCount);
             assertBusy(() -> ensureGreen(), 60, TimeUnit.SECONDS);
-            if (logger.isTraceEnabled()) {
-                state = client().admin().cluster().prepareState().execute().actionGet().getState();
-                shardAllocations.printShardDistribution(state);
-            }
+            state = client().admin().cluster().prepareState().execute().actionGet().getState();
+            shardAllocations.printShardDistribution(state);
         }
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         RoutingNodes nodes = state.getRoutingNodes();
@@ -163,9 +161,7 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
         avgNumShards = (float) (totalShardCount) / (float) (state.getRoutingNodes().size());
         minAvgNumberOfShards = Math.round(Math.round(Math.floor(avgNumShards - 1.0f)));
         maxAvgNumberOfShards = Math.round(Math.round(Math.ceil(avgNumShards + 1.0f)));
-        if (logger.isTraceEnabled()) {
-            shardAllocations.printShardDistribution(state);
-        }
+        shardAllocations.printShardDistribution(state);
         for (RoutingNode node : state.getRoutingNodes()) {
             assertTrue(node.primaryShardsWithState(STARTED).size() >= minAvgNumberOfShards);
             assertTrue(node.primaryShardsWithState(STARTED).size() <= maxAvgNumberOfShards);
@@ -181,9 +177,8 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
         avgNumShards = (float) (totalShardCount) / (float) (state.getRoutingNodes().size());
         minAvgNumberOfShards = Math.round(Math.round(Math.floor(avgNumShards - 1.0f)));
         maxAvgNumberOfShards = Math.round(Math.round(Math.ceil(avgNumShards + 1.0f)));
-        if (logger.isTraceEnabled()) {
-            shardAllocations.printShardDistribution(state);
-        }
+        shardAllocations.printShardDistribution(state);
+
         for (RoutingNode node : state.getRoutingNodes()) {
             assertTrue(node.primaryShardsWithState(STARTED).size() >= minAvgNumberOfShards);
             assertTrue(node.primaryShardsWithState(STARTED).size() <= maxAvgNumberOfShards);

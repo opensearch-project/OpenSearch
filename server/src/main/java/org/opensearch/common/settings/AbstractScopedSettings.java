@@ -451,7 +451,7 @@ public abstract class AbstractScopedSettings {
      * <p>
      * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
      * </p>
-     * This method registers a compound updater that is useful if two settings are depending on each other.
+     * This method registers a compound updater that is useful if three settings depends on each other.
      * The consumer is always provided with both values even if only one of the two changes.
      */
     public synchronized <A, B, C> void addSettingsUpdateConsumer(Setting<A> a, Setting<B> b, Setting<C> c, TriConsumer<A, B, C> consumer) {

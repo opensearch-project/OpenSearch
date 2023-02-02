@@ -726,6 +726,8 @@ public class Setting<T> implements ToXContentObject {
 
     /**
      * Updates settings that depend on each other.
+     *
+     * See {@link AbstractScopedSettings#addSettingsUpdateConsumer(Setting, Setting, Setting, TriConsumer)} and its usage for details.
      */
     static <A, B, C> AbstractScopedSettings.SettingUpdater<Triplet<A, B, C>> compoundUpdater(
         final TriConsumer<A, B, C> consumer,
@@ -762,6 +764,9 @@ public class Setting<T> implements ToXContentObject {
                 }
                 if (bSettingUpdater.hasChanged(current, previous)) {
                     logSettingUpdate(bSetting, current, previous, logger);
+                }
+                if (cSettingUpdater.hasChanged(current, previous)) {
+                    logSettingUpdate(cSetting, current, previous, logger);
                 }
                 consumer.accept(value.v1(), value.v2(), value.v3());
             }
