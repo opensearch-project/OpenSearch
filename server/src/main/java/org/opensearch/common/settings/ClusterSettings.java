@@ -232,6 +232,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING,
                 BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING,
                 BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING,
+                BalancedShardsAllocator.PRIMARY_SHARD_BALANCE_FACTOR_SETTING,
                 BalancedShardsAllocator.SHARD_MOVE_PRIMARY_FIRST_SETTING,
                 BalancedShardsAllocator.THRESHOLD_SETTING,
                 BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING,
