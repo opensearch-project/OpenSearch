@@ -35,9 +35,6 @@ import org.opensearch.identity.authz.IndexNameExpressionResolverHolder;
 import org.opensearch.identity.configuration.ClusterInfoHolder;
 import org.opensearch.identity.configuration.ConfigurationRepository;
 import org.opensearch.identity.configuration.DynamicConfigFactory;
-import org.opensearch.identity.rest.action.permission.add.AddPermissionAction;
-import org.opensearch.identity.rest.action.permission.add.RestAddPermissionAction;
-import org.opensearch.identity.rest.action.permission.add.TransportAddPermissionAction;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ClusterPlugin;
@@ -100,34 +97,6 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
 
     private static boolean isEnabled(final Settings settings) {
         return settings.getAsBoolean(ConfigConstants.IDENTITY_ENABLED, false);
-    }
-
-    @Override
-    public List<RestHandler> getRestHandlers(
-        Settings settings,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
-    ) {
-        final List<RestHandler> handlers = new ArrayList<>(3);
-        handlers.add(new RestAddPermissionAction());
-        // Add more handlers for future actions
-        return handlers;
-    }
-
-    // register actions in this plugin
-    @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-
-        // required to prevent GuiceHolder inject errors
-        if (!enabled) {
-            return Collections.emptyList();
-        }
-
-        return Arrays.asList(new ActionHandler<>(AddPermissionAction.INSTANCE, TransportAddPermissionAction.class));
     }
 
     @Override
