@@ -32,13 +32,6 @@ public class RestAddPermissionAction extends BaseRestHandler {
         return RestConstants.IDENTITY_CREATE_PERMISSION_ACTION;
     }
 
-    /**
-     * Rest request handler for adding a new permission
-     * @param request the request to execute
-     * @param client  client for executing actions on the local node
-     * @return the action to be executed See {@link #handleRequest(RestRequest, RestChannel, NodeClient) for more}
-     * @throws IOException if fails to parse
-     */
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String permissionString = request.param("permissionString");

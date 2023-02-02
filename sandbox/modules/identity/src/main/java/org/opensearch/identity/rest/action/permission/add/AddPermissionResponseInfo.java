@@ -21,6 +21,9 @@ import java.io.IOException;
 
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
+/**
+ * Response info corresponds to a single response for a permission add action
+ */
 public class AddPermissionResponseInfo extends TransportResponse implements Writeable, ToXContent {
     private final boolean successful;
     private final String permissionString;

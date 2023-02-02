@@ -27,9 +27,12 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
 import static org.opensearch.rest.RestStatus.NOT_FOUND;
 import static org.opensearch.rest.RestStatus.OK;
 
+/**
+ * Response object holds multiple response info as a list
+ * Responses from multiple actions are aggregated and then returned in this class
+ */
 public class AddPermissionResponse extends ActionResponse implements StatusToXContentObject {
 
-    // TODO: revisit this class
     private final List<AddPermissionResponseInfo> addPermissionResults;
 
     public AddPermissionResponse(List<AddPermissionResponseInfo> addPermissionResults) {

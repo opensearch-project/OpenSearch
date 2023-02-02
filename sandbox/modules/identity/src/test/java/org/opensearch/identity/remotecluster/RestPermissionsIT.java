@@ -56,7 +56,6 @@ public class RestPermissionsIT extends OpenSearchRestTestCase {
         assertTrue(responseAsMap.containsKey(identityIndex));
     }
 
-    @Test
     public void testPermissionsRestApi() throws Exception {
 
         final String createEndpoint = RestConstants.IDENTITY_CREATE_PERMISSION_ACTION;
