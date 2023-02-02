@@ -69,7 +69,7 @@ public class MultiValuesSourceFieldConfig extends BaseMultiValuesSourceFieldConf
             MultiValuesSourceFieldConfig.Builder::new
         );
 
-        BaseMultiValuesSourceFieldConfig.PARSER.apply(parser, scriptable, timezoneAware);
+        BaseMultiValuesSourceFieldConfig.PARSER.accept(parser, scriptable, timezoneAware);
 
         if (filtered) {
             parser.declareField(

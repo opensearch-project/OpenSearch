@@ -63,6 +63,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private final float threshold;
     private final Metadata metadata;
     private final float avgShardsPerNode;
+    private final float avgPrimaryShardsPerNode;
     private final BalancedShardsAllocator.NodeSorter sorter;
     private final Set<RoutingNode> inEligibleTargetNode;
 
@@ -81,6 +82,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
         this.routingNodes = allocation.routingNodes();
         this.metadata = allocation.metadata();
         avgShardsPerNode = ((float) metadata.getTotalNumberOfShards()) / routingNodes.size();
+        final int shardCount = StreamSupport.stream(metadata.spliterator(), false).mapToInt(IndexMetadata::getNumberOfShards).sum();
+        avgPrimaryShardsPerNode = (float) shardCount / routingNodes.size();
         nodes = Collections.unmodifiableMap(buildModelFromAssigned());
         sorter = newNodeSorter();
         inEligibleTargetNode = new HashSet<>();
@@ -99,6 +102,11 @@ public class LocalShardsBalancer extends ShardsBalancer {
     @Override
     public float avgShardsPerNode(String index) {
         return ((float) metadata.index(index).getTotalNumberOfShards()) / nodes.size();
+    }
+
+    @Override
+    public float avgPrimaryShardsPerNode() {
+        return avgPrimaryShardsPerNode;
     }
 
     /**
