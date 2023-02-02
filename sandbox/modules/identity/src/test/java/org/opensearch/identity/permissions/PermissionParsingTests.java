@@ -9,6 +9,9 @@
 package org.opensearch.identity.permissions;
 
 import org.opensearch.identity.User;
+import org.opensearch.identity.authz.OpenSearchPermission;
+import org.opensearch.identity.authz.PermissionFactory;
+import org.opensearch.identity.authz.PermissionStorage;
 import org.opensearch.identity.realm.InternalUsersStore;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -19,7 +22,8 @@ public class PermissionParsingTests extends OpenSearchTestCase{
     public void testParsePermissionTest() {
         String principalString = "test_user";
         String permissionString = "cluster:admin/read";
-        Map<String, User> internalUserMap = InternalUsersStore.readUsersAsMap(internalSubjectsYaml);
+        OpenSearchPermission newPermission = PermissionFactory.createPermission(permissionString);
+        PermissionStorage.put(principalString, permissionString);
         assertTrue(internalUserMap.containsKey("new-user"));
         assertFalse(internalUserMap.containsKey("new-user2"));
     }
