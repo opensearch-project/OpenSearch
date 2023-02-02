@@ -4,85 +4,76 @@ info:
   title: OpenSearch Identity Permission API
   license:
     name: Apache 2.0
+jsonSchemaDialect:
 paths:
-  /permissions:
+  cluster/permissions:
     get:
-      summary: List all permissions associated with a principal
-      operationId: checkPermissions
-      tags:
-        - permissions
-      parameters:
-        - name: principal name
-          in: query
-          description: the principal name to get the permissions for
-          required: true
-          schema:
-            type: string
-            format: utf-8
+      requestBody:
+        description: Get a list of all permissions granted to a given principal
+        content:
+          application/json:
+            name: principal name
+            description: the principal name to get the permissions for
+            required: true
+            schema:
+              type: string
+              format: utf-8
       responses:
         "200":
-          description: A list of permission strings
-          content:
-            application/json
+          description: Return a 200 status to indicate success and show the requested permissions
+          application/json:
+              description: A list of permission strings
         default:
           description: illegal argument exception
     post:
-      summary: Add a permission
-      operationId: Add a permission
-      tags:
-        - permissions
-      parameters:
-          - name: principal name
-            in: query
-            description: the principal name to grant a permission to
-            required: true
-            schema:
-              type: string
-              format: utf-8
-          - name: permission string
-            in: query
-            description: the permission string for the permission being granted
-            required: true
-            schema:
-              type: string
-              format: utf-8
+      requestBody:
+        description: Add a permission
+        content:
+          application/json:
+            - name: principal name
+              description: the principal name to grant a permission to
+              required: true
+              schema:
+                type: string
+                format: utf-8
+            - name: permission string
+              description: the permission string for the permission being granted
+              required: true
+              schema:
+                type: string
+                format: utf-8
       responses:
         "200":
-          description: Success
+          description: Return a 200 status to indicate that the permission was added
           application/json:
             schema:
               type: string
               format: utf-8
         default:
           description: unexpected error
-          schema:
     delete:
-      summary: Delete a permission
-      operationId: Delete a permission
-      tags:
-        - permissions
-      parameters:
-        - name: principal name
-          in: query
-          description: the principal name to delete a permission from
-          required: true
-          schema:
-            type: string
-            format: utf-8
-        - name: permission string
-          in: query
-          description: the permission string for the permission being deleted
-          required: true
-          schema:
-            type: string
-            format: utf-8
+      requestBody:
+        description: Delete a permission
+        content:
+          application/json:
+            - name: principal name
+              description: the principal name to delete a permission from
+              required: true
+              schema:
+                type: string
+                format: utf-8
+            - name: permission string
+              description: the permission string for the permission being deleted
+              required: true
+              schema:
+                type: string
+                format: utf-8
       responses:
         "200":
-          description: Success
+          description: Return a 200 status to indicate that the permission was deleted
           application/json:
             schema:
               type: string
               format: utf-8
         default:
           description: unexpected error
-
