@@ -113,15 +113,15 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         "     hostAddress: '127.0.0.0'",
         "     port: '9300'",
         "     version: '0.0.7'",
-        "     opensearchVersion: '3.0.0'",
-        "     minimumCompatibleVersion: '3.0.0'",
+        "     opensearchVersion: '" + Version.CURRENT.toString() + "'",
+        "     minimumCompatibleVersion: '" + Version.CURRENT.toString() + "'",
         "   - name: secondExtension",
         "     uniqueId: 'uniqueid2'",
         "     hostAddress: '127.0.0.1'",
         "     port: '9301'",
         "     version: '3.14.16'",
-        "     opensearchVersion: '2.0.0'",
-        "     minimumCompatibleVersion: '2.0.0'",
+        "     opensearchVersion: '" + Version.CURRENT.toString() + "'",
+        "     minimumCompatibleVersion: '" + Version.CURRENT.toString() + "'",
         "     dependencies:",
         "       - uniqueId: 'uniqueid0'",
         "       - version: '2.0.0'"
@@ -176,7 +176,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
             new HashMap<String, String>(),
             Version.fromString("3.0.0"),
-            Version.fromString("3.0.0"),
+            Version.CURRENT,
             Collections.emptyList()
         );
         client = new NoOpNodeClient(this.getTestName());
@@ -209,8 +209,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 "uniqueid1",
                 new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
                 new HashMap<String, String>(),
-                Version.fromString("3.0.0"),
-                Version.fromString("3.0.0"),
+                Version.CURRENT,
+                Version.CURRENT,
                 Collections.emptyList()
             )
         );
@@ -221,8 +221,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 "uniqueid2",
                 new TransportAddress(InetAddress.getByName("127.0.0.1"), 9301),
                 new HashMap<String, String>(),
-                Version.fromString("2.0.0"),
-                Version.fromString("2.0.0"),
+                Version.CURRENT,
+                Version.CURRENT,
                 List.of(expectedDependency)
             )
         );
@@ -258,8 +258,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 "uniqueid1",
                 new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
                 new HashMap<String, String>(),
-                Version.fromString("3.0.0"),
-                Version.fromString("3.0.0"),
+                Version.CURRENT,
+                Version.CURRENT,
                 Collections.emptyList()
             )
         );
@@ -288,8 +288,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "uniqueid1",
             new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
             new HashMap<String, String>(),
-            Version.fromString("3.0.0"),
-            Version.fromString("3.0.0"),
+            Version.CURRENT,
+            Version.CURRENT,
             List.of(expectedDependency)
         );
 
@@ -530,8 +530,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 "uniqueid1",
                 new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
                 new HashMap<String, String>(),
-                Version.fromString("3.0.0"),
-                Version.fromString("3.0.0"),
+                Version.CURRENT,
+                Version.CURRENT,
                 List.of(expectedDependency)
             )
         );
