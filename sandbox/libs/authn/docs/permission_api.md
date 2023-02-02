@@ -19,14 +19,11 @@ paths:
           schema:
             type: string
             format: utf-8
-            $ref: 'OpenSearch/sandbox/libs/authn/src/main/Principals'
       responses:
         "200":
           description: A list of permission strings
           content:
-            application/json:
-              schema:
-                $ref: '#/../../../../authz/OpenSearchPermissions'
+            application/json
         default:
           description: illegal argument exception
     post:
@@ -42,7 +39,6 @@ paths:
             schema:
               type: string
               format: utf-8
-              $ref: 'OpenSearch/sandbox/libs/authn/src/main/Principals'
           - name: permission string
             in: query
             description: the permission string for the permission being granted
@@ -50,7 +46,6 @@ paths:
             schema:
               type: string
               format: utf-8
-              $ref: '#/../../../../authz/OpenSearchPermissions'
       responses:
         "200":
           description: Success
@@ -58,11 +53,9 @@ paths:
             schema:
               type: string
               format: utf-8
-              $ref: '#/add/AddPermissionResponseInfo'
         default:
           description: unexpected error
           schema:
-            $ref: '#/add/AddPermissionResponseInfo'
     delete:
       summary: Delete a permission
       operationId: Delete a permission
@@ -76,7 +69,6 @@ paths:
           schema:
             type: string
             format: utf-8
-            $ref: 'OpenSearch/sandbox/libs/authn/src/main/Principals'
         - name: permission string
           in: query
           description: the permission string for the permission being deleted
@@ -84,7 +76,6 @@ paths:
           schema:
             type: string
             format: utf-8
-            $ref: '#/../../../../authz/OpenSearchPermissions'
       responses:
         "200":
           description: Success
@@ -92,8 +83,6 @@ paths:
             schema:
               type: string
               format: utf-8
-              $ref: '#/add/DeletePermissionResponseInfo'
         default:
           description: unexpected error
-          schema:
-            $ref: '#/add/DeletePermissionResponseInfo'
+
