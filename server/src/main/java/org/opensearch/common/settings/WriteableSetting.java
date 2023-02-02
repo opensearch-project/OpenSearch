@@ -94,7 +94,7 @@ public class WriteableSetting implements Writeable {
             fallback = new WriteableSetting(in);
         }
         // Read the parser
-        Object parser = null;
+        Object parser = new Object();
         boolean isParserWriteable = in.readBoolean();
         if (isParserWriteable) {
             parser = readParser(in);
@@ -332,8 +332,6 @@ public class WriteableSetting implements Writeable {
                 return new TimeValue(duration, unit);
             case ByteSizeValue:
                 return new ByteSizeValue(in);
-            case Version:
-                return Version.readVersion(in);
             default:
                 // This Should Never Happen (TM)
                 throw new IllegalArgumentException("A SettingType has been added to the enum and not handled here.");
