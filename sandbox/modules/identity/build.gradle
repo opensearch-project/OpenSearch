@@ -74,6 +74,14 @@ integTest {
   exclude 'org/opensearch/identity/remotecluster/*'
 }
 
+// need to be set to false, otherwise task fails with
+// ```
+// Testing conventions [Expected at least one test class included in task :sandbox:modules:identity:integTest, but found none.
+//  Test classes are not included in any enabled task (:sandbox:modules:identity:integTest,:sandbox:modules:identity:test,:sandbox:modules:identity:internalClusterTest):
+//    * org.opensearch.identity.remotecluster.*IT] are not honored
+// ```
+testingConventions.enabled = false
+
 internalClusterTest {
   systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
 }
