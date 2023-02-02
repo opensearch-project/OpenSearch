@@ -405,7 +405,7 @@ public class RemoteFsTranslog extends Translog {
         try {
             return translogTransferManager.listPrimaryTerms();
         } catch (IOException e) {
-            logger.error("Exception occurred while getting oldest primary term in remote store", e);
+            logger.error("Exception occurred while getting primary terms from remote store", e);
         }
         return LongStream.range(0, current.getPrimaryTerm()).boxed().collect(Collectors.toSet());
     }

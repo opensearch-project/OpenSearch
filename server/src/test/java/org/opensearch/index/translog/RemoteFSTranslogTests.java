@@ -130,7 +130,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        primaryTerm.set(randomLongBetween(1, 8));
+        primaryTerm.set(randomLongBetween(1, Integer.MAX_VALUE));
         // if a previous test failed we clean up things here
         translogDir = createTempDir();
         translog = create(translogDir);
