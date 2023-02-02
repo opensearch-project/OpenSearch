@@ -19,6 +19,7 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingHelper;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.ClusterSettings;
@@ -102,6 +103,60 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         final ReplicationCheckpoint replicationCheckpoint = indexShard.getLatestReplicationCheckpoint();
         assertNotNull(replicationCheckpoint);
         closeShards(indexShard);
+    }
+
+    public void testSegmentInfosAndReplicationCheckpointTuple() throws Exception {
+        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            final IndexShard primary = shards.getPrimary();
+            final IndexShard replica = shards.getReplicas().get(0);
+
+            // assert before any indexing:
+            // replica:
+            Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> replicaTuple = replica.getLatestSegmentInfosAndCheckpoint();
+            try (final GatedCloseable<SegmentInfos> gatedCloseable = replicaTuple.v1()) {
+                assertReplicationCheckpoint(replica, gatedCloseable.get(), replicaTuple.v2());
+            }
+
+            // primary:
+            Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> primaryTuple = primary.getLatestSegmentInfosAndCheckpoint();
+            try (final GatedCloseable<SegmentInfos> gatedCloseable = primaryTuple.v1()) {
+                assertReplicationCheckpoint(primary, gatedCloseable.get(), primaryTuple.v2());
+            }
+            // We use compareTo here instead of equals because we ignore segments gen with replicas performing their own commits.
+            // However infos version we expect to be equal.
+            assertEquals(1, primary.getLatestReplicationCheckpoint().compareTo(replica.getLatestReplicationCheckpoint()));
+
+            // index and copy segments to replica.
+            int numDocs = randomIntBetween(10, 100);
+            shards.indexDocs(numDocs);
+            primary.refresh("test");
+            replicateSegments(primary, List.of(replica));
+
+            replicaTuple = replica.getLatestSegmentInfosAndCheckpoint();
+            try (final GatedCloseable<SegmentInfos> gatedCloseable = replicaTuple.v1()) {
+                assertReplicationCheckpoint(replica, gatedCloseable.get(), replicaTuple.v2());
+            }
+
+            primaryTuple = primary.getLatestSegmentInfosAndCheckpoint();
+            try (final GatedCloseable<SegmentInfos> gatedCloseable = primaryTuple.v1()) {
+                assertReplicationCheckpoint(primary, gatedCloseable.get(), primaryTuple.v2());
+            }
+
+            replicaTuple = replica.getLatestSegmentInfosAndCheckpoint();
+            try (final GatedCloseable<SegmentInfos> gatedCloseable = replicaTuple.v1()) {
+                assertReplicationCheckpoint(replica, gatedCloseable.get(), replicaTuple.v2());
+            }
+            assertEquals(1, primary.getLatestReplicationCheckpoint().compareTo(replica.getLatestReplicationCheckpoint()));
+        }
+    }
+
+    private void assertReplicationCheckpoint(IndexShard shard, SegmentInfos segmentInfos, ReplicationCheckpoint checkpoint)
+        throws IOException {
+        assertNotNull(segmentInfos);
+        assertEquals(checkpoint.getSeqNo(), shard.getEngine().getMaxSeqNoFromSegmentInfos(segmentInfos));
+        assertEquals(checkpoint.getSegmentInfosVersion(), segmentInfos.getVersion());
+        assertEquals(checkpoint.getSegmentsGen(), segmentInfos.getGeneration());
     }
 
     public void testIsSegmentReplicationAllowed_WrongEngineType() throws IOException {
