@@ -16,8 +16,6 @@ import org.opensearch.action.ActionType;
 public class DeletePermissionAction extends ActionType<DeletePermissionResponse> {
 
     public static final DeletePermissionAction INSTANCE = new DeletePermissionAction();
-
-    // TODO : revisit this action type
     public static final String NAME = "cluster:admin/permissions/delete";
 
     DeletePermissionAction() {

@@ -16,10 +16,6 @@ import org.opensearch.action.ActionType;
 public class CheckPermissionAction extends ActionType<CheckPermissionResponse> {
 
     public static final CheckPermissionAction INSTANCE = new CheckPermissionAction();
-
-    // TODO : revisit this action type
-
-    // The action name
     public static final String NAME = "cluster:admin/permissions/check";
 
     CheckPermissionAction() {

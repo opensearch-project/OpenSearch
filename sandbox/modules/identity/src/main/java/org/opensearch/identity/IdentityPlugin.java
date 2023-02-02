@@ -10,19 +10,23 @@ package org.opensearch.identity;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.support.ActionFilter;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionResponse;
 import org.opensearch.authn.AuthenticationManager;
 import org.opensearch.authn.Identity;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.component.Lifecycle;
 import org.opensearch.common.component.LifecycleComponent;
 import org.opensearch.common.component.LifecycleListener;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.IndexScopedSettings;
+import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
@@ -31,6 +35,15 @@ import org.opensearch.identity.authz.IndexNameExpressionResolverHolder;
 import org.opensearch.identity.configuration.ClusterInfoHolder;
 import org.opensearch.identity.configuration.ConfigurationRepository;
 import org.opensearch.identity.configuration.DynamicConfigFactory;
+import org.opensearch.identity.rest.action.permission.add.AddPermissionAction;
+import org.opensearch.identity.rest.action.permission.add.RestAddPermissionAction;
+import org.opensearch.identity.rest.action.permission.add.TransportAddPermissionAction;
+import org.opensearch.identity.rest.action.permission.check.CheckPermissionAction;
+import org.opensearch.identity.rest.action.permission.check.RestCheckPermissionAction;
+import org.opensearch.identity.rest.action.permission.check.TransportCheckPermissionAction;
+import org.opensearch.identity.rest.action.permission.delete.DeletePermissionAction;
+import org.opensearch.identity.rest.action.permission.delete.RestDeletePermissionAction;
+import org.opensearch.identity.rest.action.permission.delete.TransportDeletePermissionAction;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ClusterPlugin;
@@ -38,6 +51,7 @@ import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
@@ -46,13 +60,12 @@ import org.opensearch.watcher.ResourceWatcherService;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
-import java.util.Objects;
 import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
 
 public final class IdentityPlugin extends Plugin implements ActionPlugin, NetworkPlugin, SystemIndexPlugin, ClusterPlugin {
     private volatile Logger log = LogManager.getLogger(this.getClass());
@@ -96,21 +109,37 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     }
 
     @Override
-    public UnaryOperator<RestHandler> getRestHandlerWrapper(final ThreadContext threadContext) {
-        if (!enabled) {
-            return (rh) -> rh;
-        }
-        return (rh) -> securityRestHandler.wrap(rh);
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
+        final List<RestHandler> handlers = new ArrayList<>(3);
+        handlers.add(new RestAddPermissionAction());
+        handlers.add(new RestCheckPermissionAction());
+        handlers.add(new RestDeletePermissionAction());
+        // Add more handlers for future actions
+        return handlers;
     }
 
+    // register actions in this plugin
     @Override
-    public List<ActionFilter> getActionFilters() {
-        List<ActionFilter> filters = new ArrayList<>(1);
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+
+        // required to prevent GuiceHolder inject errors
         if (!enabled) {
-            return filters;
+            return Collections.emptyList();
         }
-        filters.add(Objects.requireNonNull(sf));
-        return filters;
+
+        return Arrays.asList(
+            new ActionHandler<>(AddPermissionAction.INSTANCE, TransportAddPermissionAction.class),
+            new ActionHandler<>(CheckPermissionAction.INSTANCE, TransportCheckPermissionAction.class),
+            new ActionHandler<>(DeletePermissionAction.INSTANCE, TransportDeletePermissionAction.class)
+        );
     }
 
     @Override
@@ -221,6 +250,9 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         // dcf.registerDCFListener(securityRestHandler);
 
         cr.setDynamicConfigFactory(dcf);
+
+        components.add(cr);
+        components.add(dcf);
 
         return components;
     }

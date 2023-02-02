@@ -31,6 +31,7 @@ public class PermissionApiIT extends HttpSmokeTestCaseWithIdentity {
         startNodesWithIdentityIndex();
     }
 
+    @SuppressWarnings("unchecked")
     public void testPermissionsRestApi() throws Exception {
 
         final String createEndpoint = RestConfigConstants.IDENTITY_CREATE_PERMISSION_ACTION;

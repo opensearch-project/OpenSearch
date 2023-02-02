@@ -16,10 +16,6 @@ import org.opensearch.action.ActionType;
 public class AddPermissionAction extends ActionType<AddPermissionResponse> {
 
     public static final AddPermissionAction INSTANCE = new AddPermissionAction();
-
-    // TODO : revisit this action type
-
-    // The action name
     public static final String NAME = "cluster:admin/permissions/add";
 
     AddPermissionAction() {
