@@ -39,6 +39,7 @@ import static java.util.Collections.unmodifiableList;
 /**
  * Service class for Permission related functions
  */
+@SuppressWarnings("unchecked")
 public class PermissionService {
 
     private static final Logger logger = LogManager.getLogger(PermissionService.class);
