@@ -10,21 +10,10 @@ package org.opensearch.identity.authz;
 
 import org.apache.shiro.authz.Permission;
 import org.apache.shiro.authz.permission.WildcardPermission;
-import org.opensearch.ResourceNotFoundException;
-import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.common.Glob;
-import org.opensearch.common.regex.Regex;
-import org.opensearch.identity.IdentityPlugin;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.Collections;
-import java.util.ArrayList;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class OpenSearchPermission implements Permission {
 
@@ -120,10 +109,11 @@ public class OpenSearchPermission implements Permission {
             }
         }
 
-        //IndexNameExpressionResolver iner = IndexNameExpressionResolverHolder.getInstance();
-        //ClusterState cs = IdentityPlugin.GuiceHolder.getClusterService().state();
-        //Set<String> concretePermissionIndexNames = iner.resolveExpressions(cs, this.resourcePatterns.toArray(new String[0]));
-        //Set<String> concreteRequestedIndexNames = iner.resolveExpressions(cs, requestedPermission.resourcePatterns.toArray(new String[0]));
+        // IndexNameExpressionResolver iner = IndexNameExpressionResolverHolder.getInstance();
+        // ClusterState cs = IdentityPlugin.GuiceHolder.getClusterService().state();
+        // Set<String> concretePermissionIndexNames = iner.resolveExpressions(cs, this.resourcePatterns.toArray(new String[0]));
+        // Set<String> concreteRequestedIndexNames = iner.resolveExpressions(cs, requestedPermission.resourcePatterns.toArray(new
+        // String[0]));
 
         // TODO Switch this comments to tests to better document and assert different scenarios
         // Example
