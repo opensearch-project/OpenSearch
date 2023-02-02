@@ -223,24 +223,21 @@ public class WriteableSetting implements Writeable {
     }
 
     private void writeParser(StreamOutput out, Object parser) throws IOException {
-        if (type == SettingType.TimeValue) {
-            out.writeBoolean(parser instanceof MinMaxTimeValueParser);
-        }
         switch (type) {
             case Boolean:
-                out.writeBoolean((boolean) parser);
+                ((BooleanParser) parser).writeTo(out);
                 break;
             case Integer:
-                out.writeInt((int) parser);
+                ((IntegerParser) parser).writeTo(out);
                 break;
             case Long:
-                out.writeLong((long) parser);
+                ((LongParser) parser).writeTo(out);
                 break;
             case Float:
-                out.writeFloat((float) parser);
+                ((FloatParser) parser).writeTo(out);
                 break;
             case Double:
-                out.writeDouble((double) parser);
+                ((DoubleParser) parser).writeTo(out);
                 break;
             case TimeValue:
                 if (parser instanceof MinMaxTimeValueParser) {
