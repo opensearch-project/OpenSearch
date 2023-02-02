@@ -52,7 +52,6 @@ public class WriteableSetting implements Writeable {
 
     private Setting<?> setting;
     private SettingType type;
-    private Object parser;
 
     /**
      * Wrap a {@link Setting}. The generic type is determined from the type of the default value.
@@ -95,6 +94,7 @@ public class WriteableSetting implements Writeable {
             fallback = new WriteableSetting(in);
         }
         // Read the parser
+        Object parser = null;
         boolean isParserWriteable = in.readBoolean();
         if (isParserWriteable) {
             parser = readParser(in);
