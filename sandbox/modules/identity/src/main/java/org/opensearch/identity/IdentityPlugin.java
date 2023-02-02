@@ -38,12 +38,6 @@ import org.opensearch.identity.configuration.DynamicConfigFactory;
 import org.opensearch.identity.rest.action.permission.add.AddPermissionAction;
 import org.opensearch.identity.rest.action.permission.add.RestAddPermissionAction;
 import org.opensearch.identity.rest.action.permission.add.TransportAddPermissionAction;
-import org.opensearch.identity.rest.action.permission.check.CheckPermissionAction;
-import org.opensearch.identity.rest.action.permission.check.RestCheckPermissionAction;
-import org.opensearch.identity.rest.action.permission.check.TransportCheckPermissionAction;
-import org.opensearch.identity.rest.action.permission.delete.DeletePermissionAction;
-import org.opensearch.identity.rest.action.permission.delete.RestDeletePermissionAction;
-import org.opensearch.identity.rest.action.permission.delete.TransportDeletePermissionAction;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ClusterPlugin;
@@ -120,8 +114,6 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     ) {
         final List<RestHandler> handlers = new ArrayList<>(3);
         handlers.add(new RestAddPermissionAction());
-        handlers.add(new RestCheckPermissionAction());
-        handlers.add(new RestDeletePermissionAction());
         // Add more handlers for future actions
         return handlers;
     }
@@ -135,11 +127,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
             return Collections.emptyList();
         }
 
-        return Arrays.asList(
-            new ActionHandler<>(AddPermissionAction.INSTANCE, TransportAddPermissionAction.class),
-            new ActionHandler<>(CheckPermissionAction.INSTANCE, TransportCheckPermissionAction.class),
-            new ActionHandler<>(DeletePermissionAction.INSTANCE, TransportDeletePermissionAction.class)
-        );
+        return Arrays.asList(new ActionHandler<>(AddPermissionAction.INSTANCE, TransportAddPermissionAction.class));
     }
 
     @Override

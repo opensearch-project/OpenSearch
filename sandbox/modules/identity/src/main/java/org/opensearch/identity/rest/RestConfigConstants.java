@@ -16,7 +16,5 @@ public class RestConfigConstants {
     public static final String IDENTITY_PERMISSION_ACTION_SUFFIX = "_permission_action";
     public static final String IDENTITY_CREATE_PERMISSION_ACTION = "create" + IDENTITY_PERMISSION_ACTION_SUFFIX;
     public static final String IDENTITY_READ_PERMISSION_ACTION = "read" + IDENTITY_PERMISSION_ACTION_SUFFIX;
-    public static final String IDENTITY_UPDATE_PERMISSION_ACTION = "update" + IDENTITY_PERMISSION_ACTION_SUFFIX;
-    public static final String IDENTITY_DELETE_PERMISSION_ACTION = "delete" + IDENTITY_PERMISSION_ACTION_SUFFIX;
 
 }

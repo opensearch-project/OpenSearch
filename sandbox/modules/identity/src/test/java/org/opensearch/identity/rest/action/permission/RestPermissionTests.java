@@ -17,12 +17,8 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.collect.Map;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.identity.rest.action.permission.check.RestCheckPermissionAction;
 import org.opensearch.identity.rest.action.permission.add.RestAddPermissionAction;
-import org.opensearch.identity.rest.action.permission.delete.RestDeletePermissionAction;
 import org.opensearch.identity.rest.action.permission.add.AddPermissionRequest;
-import org.opensearch.identity.rest.action.permission.delete.DeletePermissionRequest;
-import org.opensearch.identity.rest.action.permission.check.CheckPermissionRequest;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
@@ -65,72 +61,6 @@ public class RestPermissionTests extends OpenSearchTestCase {
             action.handleRequest(request, channel, nodeClient);
 
             assertThat(addPermissionCalled.get(), equalTo(true));
-        }
-    }
-
-    public void testParseCheckPermissionRequestWithInvalidJsonThrowsException() {
-        RestCheckPermissionAction action = new RestCheckPermissionAction();
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
-            new BytesArray("{invalid_json}"),
-            XContentType.JSON
-        ).build();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, null));
-        assertThat(e.getMessage(), equalTo("Failed to parse check permission request body"));
-    }
-
-    public void testParseCheckPermissionWithValidJson() throws Exception {
-        SetOnce<Boolean> checkPermissionCalled = new SetOnce<>();
-        try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName()) {
-            @Override
-            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                ActionType<Response> action,
-                Request request,
-                ActionListener<Response> listener
-            ) {
-                CheckPermissionRequest req = (CheckPermissionRequest) request;
-                checkPermissionCalled.set(true);
-                assertThat(req.getPrincipalString(), equalTo("test"));
-            }
-        }) {
-            RestAddPermissionAction action = new RestAddPermissionAction();
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("permissionString", "test")).build();
-            FakeRestChannel channel = new FakeRestChannel(request, false, 0);
-            action.handleRequest(request, channel, nodeClient);
-
-            assertThat(checkPermissionCalled.get(), equalTo(true));
-        }
-    }
-
-    public void testParseDeletePermissionRequestWithInvalidJsonThrowsException() {
-        RestDeletePermissionAction action = new RestDeletePermissionAction();
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
-            new BytesArray("{invalid_json}"),
-            XContentType.JSON
-        ).build();
-        Exception e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, null));
-        assertThat(e.getMessage(), equalTo("Failed to parse delete permission request body"));
-    }
-
-    public void testParseDeletePermissionWithValidJson() throws Exception {
-        SetOnce<Boolean> deletePermissionCalled = new SetOnce<>();
-        try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName()) {
-            @Override
-            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                ActionType<Response> action,
-                Request request,
-                ActionListener<Response> listener
-            ) {
-                DeletePermissionRequest req = (DeletePermissionRequest) request;
-                deletePermissionCalled.set(true);
-                assertThat(req.getPermissionString(), equalTo("test"));
-            }
-        }) {
-            RestDeletePermissionAction action = new RestDeletePermissionAction();
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("permissionString", "test")).build();
-            FakeRestChannel channel = new FakeRestChannel(request, false, 0);
-            action.handleRequest(request, channel, nodeClient);
-
-            assertThat(deletePermissionCalled.get(), equalTo(true));
         }
     }
 }
