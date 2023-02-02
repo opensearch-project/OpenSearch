@@ -15,7 +15,6 @@ import org.opensearch.identity.DefaultObjectMapper;
 import org.opensearch.identity.rest.RestConstants;
 import org.opensearch.identity.utils.ErrorType;
 import org.opensearch.rest.BaseRestHandler;
-import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestStatusToXContentListener;
 
@@ -38,7 +37,6 @@ public class RestAddPermissionAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-
 
         JsonNode contentAsNode;
         try {

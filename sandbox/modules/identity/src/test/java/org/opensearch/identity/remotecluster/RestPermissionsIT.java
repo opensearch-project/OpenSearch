@@ -9,7 +9,6 @@
 package org.opensearch.identity.remotecluster;
 
 import org.junit.Before;
-import org.junit.Test;
 
 import org.opensearch.authn.StringPrincipal;
 import org.opensearch.client.Request;
