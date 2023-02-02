@@ -223,7 +223,7 @@ public class WriteableSetting implements Writeable {
     }
 
     private void writeParser(StreamOutput out, Object parser) throws IOException {
-        if(type == SettingType.TimeValue){
+        if (type == SettingType.TimeValue) {
             out.writeBoolean(parser instanceof MinMaxTimeValueParser);
         }
         switch (type) {
@@ -243,11 +243,10 @@ public class WriteableSetting implements Writeable {
                 out.writeDouble((double) parser);
                 break;
             case TimeValue:
-                if(parser instanceof MinMaxTimeValueParser){
+                if (parser instanceof MinMaxTimeValueParser) {
                     out.writeBoolean(true);
                     ((MinMaxTimeValueParser) parser).writeTo(out);
-                }
-                else{
+                } else {
                     out.writeBoolean(false);
                     ((MinTimeValueParser) parser).writeTo(out);
                 }
@@ -315,7 +314,7 @@ public class WriteableSetting implements Writeable {
             case ByteSizeValue:
                 return new ByteSizeValueParser(in);
             default:
-                throw new IllegalArgumentException("A SettingType has been added to the enum and not handled here.");   
+                throw new IllegalArgumentException("A SettingType has been added to the enum and not handled here.");
         }
     }
 
