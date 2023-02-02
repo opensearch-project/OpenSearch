@@ -518,18 +518,17 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             replicateSegments(primary, List.of(replica_1));
 
             assertEqualCommittedSegments(primary, replica_1);
-            assertLatestCommitGen(4, primary, replica_1);
-            assertLatestCommitGen(2, replica_2);
+            assertLatestCommitGen(4, primary);
+            assertLatestCommitGen(5, replica_1);
+            assertLatestCommitGen(3, replica_2);
 
             shards.promoteReplicaToPrimary(replica_2).get();
             primary.close("demoted", false);
             primary.store().close();
             IndexShard oldPrimary = shards.addReplicaWithExistingPath(primary.shardPath(), primary.routingEntry().currentNodeId());
             shards.recoverReplica(oldPrimary);
-            assertLatestCommitGen(4, oldPrimary);
-            assertEqualCommittedSegments(oldPrimary, replica_1);
-
-            assertLatestCommitGen(4, replica_2);
+            assertLatestCommitGen(5, oldPrimary);
+            assertLatestCommitGen(5, replica_2);
 
             numDocs = randomIntBetween(numDocs + 1, numDocs + 10);
             shards.indexDocs(numDocs);
@@ -716,10 +715,12 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             for (IndexShard shard : shards.getReplicas()) {
                 assertDocCounts(shard, totalDocs, numDocs);
             }
-            assertEquals(additonalDocs, nextPrimary.translogStats().estimatedNumberOfOperations());
-            assertEquals(additonalDocs, replica.translogStats().estimatedNumberOfOperations());
-            assertEquals(additonalDocs, nextPrimary.translogStats().getUncommittedOperations());
-            assertEquals(additonalDocs, replica.translogStats().getUncommittedOperations());
+            assertEquals(totalDocs, oldPrimary.translogStats().estimatedNumberOfOperations());
+            assertEquals(totalDocs, oldPrimary.translogStats().estimatedNumberOfOperations());
+            assertEquals(totalDocs, nextPrimary.translogStats().estimatedNumberOfOperations());
+            assertEquals(totalDocs, replica.translogStats().estimatedNumberOfOperations());
+            assertEquals(totalDocs, nextPrimary.translogStats().getUncommittedOperations());
+            assertEquals(totalDocs, replica.translogStats().getUncommittedOperations());
 
             // promote the replica
             shards.syncGlobalCheckpoint();
