@@ -147,7 +147,7 @@ public class GeoTileGridIT extends AbstractGeoBucketAggregationIntegTest {
         GeoBoundsHelper.updateBoundsForGeometry(geometry, topLeft, bottomRight);
         final Set<String> geoTiles = new HashSet<>();
         for (int precision = MAX_PRECISION_FOR_GEO_SHAPES_AGG_TESTING; precision > 0; precision--) {
-            if (precision > MIN_PRECISION_WITHOUT_BB_AGGS && !intersectingWithBB) {
+            if (precision > MIN_PRECISION_WITHOUT_BB_AGGS && intersectingWithBB == false) {
                 continue;
             }
             geoTiles.addAll(

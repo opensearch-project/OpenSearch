@@ -279,7 +279,7 @@ public class GeoHashGridIT extends AbstractGeoBucketAggregationIntegTest {
         GeoBoundsHelper.updateBoundsForGeometry(geometry, topLeft, bottomRight);
         final Set<String> geoHashes = new HashSet<>();
         for (int precision = MAX_PRECISION_FOR_GEO_SHAPES_AGG_TESTING; precision > 0; precision--) {
-            if (precision > MIN_PRECISION_WITHOUT_BB_AGGS && !intersectingWithBB) {
+            if (precision > MIN_PRECISION_WITHOUT_BB_AGGS && intersectingWithBB == false) {
                 continue;
             }
             final GeoPoint topRight = new GeoPoint(topLeft.getLat(), bottomRight.getLon());
