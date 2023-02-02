@@ -22,12 +22,13 @@ subprojects {
       dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
         Project depProject = dep.dependencyProject
         if (depProject != null
-          && false == depProject.path.equals(':libs:opensearch-core')
+          && (false == depProject.path.equals(':libs:opensearch-core') &&
+          false == depProject.path.equals(':libs:opensearch-common'))
           && depProject.path.startsWith(':libs')) {
-          throw new InvalidUserDataException("projects in :libs " +
-            "may not depend on other projects libs except " +
-            ":libs:opensearch-core but " +
-            "${project.path} depends on ${depProject.path}")
+          throw new InvalidUserDataException("projects in :libs "
+            + "may not depend on other projects libs except "
+            + ":libs:opensearch-core or :libs:opensearch-common but "
+            + "${project.path} depends on ${depProject.path}")
         }
       }
     }
