@@ -31,7 +31,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BooleanSupplier;
@@ -363,21 +362,23 @@ public class RemoteFsTranslog extends Translog {
             }
             generationsToDelete.add(generation);
         }
-        deleteRemoteGeneration(generationsToDelete);
-        deleteOlderPrimaryTranslogFilesFromRemoteStore();
+        if (generationsToDelete.isEmpty() == false) {
+            deleteRemoteGeneration(generationsToDelete);
+            deleteOlderPrimaryTranslogFilesFromRemoteStore();
+        }
     }
 
+    /**
+     * This method must be called only after there are valid generations to delete in trimUnreferencedReaders as it ensures
+     * implicitly that minimum primary term in latest translog metadata in remote store is the current primary term.
+     */
     private void deleteOlderPrimaryTranslogFilesFromRemoteStore() {
         // The deletion of older translog files in remote store is on best-effort basis, there is a possibility that there
         // are older files that are no longer needed and should be cleaned up. In here, we delete all files that are part
         // of older primary term.
         if (olderPrimaryCleaned.trySet(Boolean.TRUE)) {
             logger.info("Cleaning up translog uploaded by previous primaries");
-            long minPrimaryTermInMetadata = getMinPrimaryTermInMetadata();
-            if (minPrimaryTermInMetadata == -1) {
-                // We should keep all primary terms since we can not determine the minimum primary term referenced by the metadata file
-                return;
-            }
+            long minPrimaryTermInMetadata = current.getPrimaryTerm();
             Set<Long> primaryTermsInRemote = getPrimaryTermsInRemote();
             // Delete all primary terms that are no more referenced by the metadata file and exists in the
             Set<Long> primaryTermsToDelete = primaryTermsInRemote.stream()
@@ -407,21 +408,5 @@ public class RemoteFsTranslog extends Translog {
             logger.error("Exception occurred while getting oldest primary term in remote store", e);
         }
         return LongStream.range(0, current.getPrimaryTerm()).boxed().collect(Collectors.toSet());
-    }
-
-    private long getMinPrimaryTermInMetadata() {
-        long minPrimaryTerm = -1;
-        try {
-            TranslogTransferMetadata translogMetadata = translogTransferManager.readMetadata();
-            if (translogMetadata != null && translogMetadata.getGenerationToPrimaryTermMapper().isEmpty() == false) {
-                OptionalLong min = translogMetadata.getGenerationToPrimaryTermMapper().values().stream().mapToLong(Long::valueOf).min();
-                if (min.isPresent()) {
-                    minPrimaryTerm = min.getAsLong();
-                }
-            }
-        } catch (IOException e) {
-            logger.error("Exception occurred while getting max primary term in remote translog metadata", e);
-        }
-        return minPrimaryTerm;
     }
 }
