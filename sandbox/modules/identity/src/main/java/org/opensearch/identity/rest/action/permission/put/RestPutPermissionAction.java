@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.action.permission.add;
+package org.opensearch.identity.rest.action.permission.put;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -23,12 +23,12 @@ import java.util.List;
 
 import static java.util.Arrays.asList;
 import static org.opensearch.identity.utils.RoutesHelper.addRoutesPrefix;
-import static org.opensearch.rest.RestRequest.Method.POST;
+import static org.opensearch.rest.RestRequest.Method.PUT;
 
 /**
  * Rest action for adding a permission to the permission store
  */
-public class RestAddPermissionAction extends BaseRestHandler {
+public class RestPutPermissionAction extends BaseRestHandler {
 
     @Override
     public String getName() {
@@ -42,29 +42,29 @@ public class RestAddPermissionAction extends BaseRestHandler {
         try {
             contentAsNode = DefaultObjectMapper.readTree(request.content().utf8ToString());
         } catch (JsonParseException e) {
-            throw new IllegalArgumentException(ErrorType.BODY_NOT_PARSEABLE.getMessage() + "Add Permission");
+            throw new IllegalArgumentException(ErrorType.BODY_NOT_PARSEABLE.getMessage() + "Put Permission");
         }
 
         String permissionString = contentAsNode.get("permissionString").asText();
         String principalString = contentAsNode.get("principalString").asText();
 
-        AddPermissionRequest addPermissionRequest = new AddPermissionRequest();
-        addPermissionRequest.setPermissionString(permissionString);
-        addPermissionRequest.setPrincipalString(principalString);
+        PutPermissionRequest putPermissionRequest = new PutPermissionRequest();
+        putPermissionRequest.setPermissionString(permissionString);
+        putPermissionRequest.setPrincipalString(principalString);
         request.withContentOrSourceParamParserOrNull((xContentParser -> {
             if (xContentParser != null) {
                 try {
-                    addPermissionRequest.fromXContent(xContentParser);
+                    putPermissionRequest.fromXContent(xContentParser);
                 } catch (IOException e) {
-                    throw new IllegalArgumentException("Failed to parse add permission request body", e);
+                    throw new IllegalArgumentException("Failed to parse put permission request body", e);
                 }
             }
         }));
 
         // TODO: check if this bypass to directly doExecute is okay.
-        // TODO: Ideally, this should be registered as `addPermission` request in Client.java and AbstractClient.java
+        // TODO: Ideally, this should be registered as `putPermission` request in Client.java and AbstractClient.java
         // TODO: see if you can add to RequestConverters.java to follow convention
-        return channel -> client.doExecute(AddPermissionAction.INSTANCE, addPermissionRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.doExecute(PutPermissionAction.INSTANCE, putPermissionRequest, new RestStatusToXContentListener<>(channel));
     }
 
     /**
@@ -74,6 +74,6 @@ public class RestAddPermissionAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         // e.g. return value "_identity/api/internalusers/test"
-        return addRoutesPrefix(asList(new Route(POST, "/permissions")));
+        return addRoutesPrefix(asList(new Route(PUT, "/permissions")));
     }
 }

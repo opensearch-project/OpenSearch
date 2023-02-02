@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.action.permission.add;
+package org.opensearch.identity.rest.action.permission.put;
 
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
@@ -22,20 +22,20 @@ import java.io.IOException;
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * Response info corresponds to a single response for a permission add action
+ * Response info corresponds to a single response for a permission put action
  */
-public class AddPermissionResponseInfo extends TransportResponse implements Writeable, ToXContent {
+public class PutPermissionResponseInfo extends TransportResponse implements Writeable, ToXContent {
     private final boolean successful;
     private final String permissionString;
     private final String principalString;
 
-    public AddPermissionResponseInfo(boolean successful, String permissionString, String principalString) {
+    public PutPermissionResponseInfo(boolean successful, String permissionString, String principalString) {
         this.successful = successful;
         this.permissionString = permissionString;
         this.principalString = principalString;
     }
 
-    public AddPermissionResponseInfo(StreamInput in) throws IOException {
+    public PutPermissionResponseInfo(StreamInput in) throws IOException {
         this.successful = in.readBoolean();
         this.permissionString = in.readString();
         this.principalString = in.readString();
@@ -53,10 +53,10 @@ public class AddPermissionResponseInfo extends TransportResponse implements Writ
         out.writeString(this.principalString);
     }
 
-    static final ConstructingObjectParser<AddPermissionResponseInfo, Void> PARSER = new ConstructingObjectParser<>(
-        "add_permission_response_info",
+    static final ConstructingObjectParser<PutPermissionResponseInfo, Void> PARSER = new ConstructingObjectParser<>(
+        "put_permission_response_info",
         true,
-        args -> new AddPermissionResponseInfo((boolean) args[0], (String) args[1], (String) args[2])
+        args -> new PutPermissionResponseInfo((boolean) args[0], (String) args[1], (String) args[2])
     );
 
     static {

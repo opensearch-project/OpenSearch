@@ -17,8 +17,8 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.collect.Map;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.identity.rest.action.permission.add.RestAddPermissionAction;
-import org.opensearch.identity.rest.action.permission.add.AddPermissionRequest;
+import org.opensearch.identity.rest.action.permission.put.RestPutPermissionAction;
+import org.opensearch.identity.rest.action.permission.put.PutPermissionRequest;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
@@ -31,18 +31,18 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests to verify the behavior of rest create user action
  */
 public class RestPermissionTests extends OpenSearchTestCase {
-    public void testParseAddPermissionRequestWithInvalidJsonThrowsException() {
-        RestAddPermissionAction action = new RestAddPermissionAction();
+    public void testParsePutPermissionRequestWithInvalidJsonThrowsException() {
+        RestPutPermissionAction action = new RestPutPermissionAction();
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray("{invalid_json}"),
             XContentType.JSON
         ).build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, null));
-        assertThat(e.getMessage(), equalTo("Failed to parse add permission request body"));
+        assertThat(e.getMessage(), equalTo("Failed to parse put permission request body"));
     }
 
-    public void testParseAddPermissionWithValidJson() throws Exception {
-        SetOnce<Boolean> addPermissionCalled = new SetOnce<>();
+    public void testParsePutPermissionWithValidJson() throws Exception {
+        SetOnce<Boolean> putPermissionCalled = new SetOnce<>();
         try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName()) {
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -50,17 +50,17 @@ public class RestPermissionTests extends OpenSearchTestCase {
                 Request request,
                 ActionListener<Response> listener
             ) {
-                AddPermissionRequest req = (AddPermissionRequest) request;
-                addPermissionCalled.set(true);
+                PutPermissionRequest req = (PutPermissionRequest) request;
+                putPermissionCalled.set(true);
                 assertThat(req.getPermissionString(), equalTo("test"));
             }
         }) {
-            RestAddPermissionAction action = new RestAddPermissionAction();
+            RestPutPermissionAction action = new RestPutPermissionAction();
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("permissionString", "test")).build();
             FakeRestChannel channel = new FakeRestChannel(request, false, 0);
             action.handleRequest(request, channel, nodeClient);
 
-            assertThat(addPermissionCalled.get(), equalTo(true));
+            assertThat(putPermissionCalled.get(), equalTo(true));
         }
     }
 }

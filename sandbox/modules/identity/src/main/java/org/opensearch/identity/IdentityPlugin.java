@@ -32,9 +32,9 @@ import org.opensearch.identity.authz.IndexNameExpressionResolverHolder;
 import org.opensearch.identity.configuration.ClusterInfoHolder;
 import org.opensearch.identity.configuration.ConfigurationRepository;
 import org.opensearch.identity.configuration.DynamicConfigFactory;
-import org.opensearch.identity.rest.action.permission.add.AddPermissionAction;
-import org.opensearch.identity.rest.action.permission.add.RestAddPermissionAction;
-import org.opensearch.identity.rest.action.permission.add.TransportAddPermissionAction;
+import org.opensearch.identity.rest.action.permission.put.PutPermissionAction;
+import org.opensearch.identity.rest.action.permission.put.RestPutPermissionAction;
+import org.opensearch.identity.rest.action.permission.put.TransportPutPermissionAction;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ClusterPlugin;
@@ -110,7 +110,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         final List<RestHandler> handlers = new ArrayList<>(3);
-        handlers.add(new RestAddPermissionAction());
+        handlers.add(new RestPutPermissionAction());
         // Add more handlers for future actions
         return handlers;
     }
@@ -124,7 +124,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
             return Collections.emptyList();
         }
 
-        return Arrays.asList(new ActionHandler<>(AddPermissionAction.INSTANCE, TransportAddPermissionAction.class));
+        return Arrays.asList(new ActionHandler<>(PutPermissionAction.INSTANCE, TransportPutPermissionAction.class));
     }
 
     @Override
