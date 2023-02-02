@@ -48,7 +48,7 @@ public class ExtensionActionRequest extends ActionRequest {
      * @param in bytes stream input used to de-serialize the message.
      * @throws IOException when message de-serialization fails.
      */
-    ExtensionActionRequest(StreamInput in) throws IOException {
+    public ExtensionActionRequest(StreamInput in) throws IOException {
         super(in);
         action = in.readString();
         requestBytes = in.readByteArray();

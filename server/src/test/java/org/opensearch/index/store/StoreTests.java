@@ -83,6 +83,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLease;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
@@ -120,6 +121,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
 import static org.opensearch.test.VersionUtils.randomVersion;
 
@@ -1303,6 +1305,29 @@ public class StoreTests extends OpenSearchTestCase {
         Store store = new Store(shardId, indexSettings, StoreTests.newMockFSDirectory(tmp), new DummyShardLock(shardId));
         assertThrows(IndexFormatTooOldException.class, store::readLastCommittedSegmentsInfo);
         store.close();
+    }
+
+    public void testCommitSegmentInfos() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(
+            shardId,
+            SEGMENT_REPLICATION_INDEX_SETTINGS,
+            StoreTests.newDirectory(random()),
+            new DummyShardLock(shardId)
+        );
+        commitRandomDocs(store);
+        final SegmentInfos lastCommittedInfos = store.readLastCommittedSegmentsInfo();
+        final long expectedLocalCheckpoint = 1;
+        final long expectedMaxSeqNo = 2;
+        store.commitSegmentInfos(lastCommittedInfos, expectedMaxSeqNo, expectedLocalCheckpoint);
+
+        final SegmentInfos updatedInfos = store.readLastCommittedSegmentsInfo();
+        assertEquals(lastCommittedInfos.getVersion(), updatedInfos.getVersion());
+        final Map<String, String> userData = updatedInfos.getUserData();
+        assertEquals(expectedLocalCheckpoint, Long.parseLong(userData.get(LOCAL_CHECKPOINT_KEY)));
+        assertEquals(expectedMaxSeqNo, Long.parseLong(userData.get(SequenceNumbers.MAX_SEQ_NO)));
+        deleteContent(store.directory());
+        IOUtils.close(store);
     }
 
     private void commitRandomDocs(Store store) throws IOException {

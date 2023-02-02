@@ -32,6 +32,7 @@
 
 package org.opensearch.node;
 
+import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.Build;
 import org.opensearch.Version;
@@ -177,7 +178,8 @@ public class NodeService implements Closeable {
         boolean indexingPressure,
         boolean shardIndexingPressure,
         boolean searchBackpressure,
-        boolean clusterManagerThrottling
+        boolean clusterManagerThrottling,
+        boolean weightedRoutingStats
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
@@ -201,7 +203,8 @@ public class NodeService implements Closeable {
             indexingPressure ? this.indexingPressureService.nodeStats() : null,
             shardIndexingPressure ? this.indexingPressureService.shardStats(indices) : null,
             searchBackpressure ? this.searchBackpressureService.nodeStats() : null,
-            clusterManagerThrottling ? this.clusterService.getClusterManagerService().getThrottlingStats() : null
+            clusterManagerThrottling ? this.clusterService.getClusterManagerService().getThrottlingStats() : null,
+            weightedRoutingStats ? WeightedRoutingStats.getInstance() : null
         );
     }
 
