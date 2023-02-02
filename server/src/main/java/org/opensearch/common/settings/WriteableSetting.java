@@ -12,6 +12,14 @@ import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.settings.Setting.BooleanParser;
+import org.opensearch.common.settings.Setting.ByteSizeValueParser;
+import org.opensearch.common.settings.Setting.DoubleParser;
+import org.opensearch.common.settings.Setting.FloatParser;
+import org.opensearch.common.settings.Setting.IntegerParser;
+import org.opensearch.common.settings.Setting.LongParser;
+import org.opensearch.common.settings.Setting.MinMaxTimeValueParser;
+import org.opensearch.common.settings.Setting.MinTimeValueParser;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
@@ -44,7 +52,6 @@ public class WriteableSetting implements Writeable {
 
     private Setting<?> setting;
     private SettingType type;
-    private WriteableSetting parser;
 
     /**
      * Wrap a {@link Setting}. The generic type is determined from the type of the default value.
@@ -87,16 +94,16 @@ public class WriteableSetting implements Writeable {
             fallback = new WriteableSetting(in);
         }
         // Read the parser
-        WriteableSetting parser = null;
         boolean isParserWriteable = in.readBoolean();
+        Object parser = null;
         if (isParserWriteable) {
-            parser = new WriteableSetting(in);
+            parser = readParser(in);
         }
         // We are not using validator
         // Read properties
         EnumSet<Property> propSet = in.readEnumSet(Property.class);
         // Put it all in a setting object
-        this.setting = createSetting(type, key, defaultValue, fallback, propSet.toArray(Property[]::new));
+        this.setting = createSetting(type, key, defaultValue, parser, fallback, propSet.toArray(Property[]::new));
     }
 
     /**
@@ -144,6 +151,7 @@ public class WriteableSetting implements Writeable {
         SettingType type,
         String key,
         Object defaultValue,
+        Object parser,
         WriteableSetting fallback,
         Property[] propertyArray
     ) {
@@ -204,14 +212,53 @@ public class WriteableSetting implements Writeable {
             new WriteableSetting(setting.fallbackSetting, type).writeTo(out);
         }
         // Write a boolean specifying whether the parser is an instanceof writeable
-        boolean isParserWriteable = parser instanceof Writeable;
+        boolean isParserWriteable = setting.parser instanceof Writeable;
         out.writeBoolean(isParserWriteable);
         if (isParserWriteable) {
-            parser.writeTo(out);
+            writeParser(out, setting.parser);
         }
         // We are not using validator
         // Write properties
         out.writeEnumSet(setting.getProperties());
+    }
+
+    private void writeParser(StreamOutput out, Object parser) throws IOException {
+        if(type == SettingType.TimeValue){
+            out.writeBoolean(parser instanceof MinMaxTimeValueParser);
+        }
+        switch (type) {
+            case Boolean:
+                out.writeBoolean((boolean) parser);
+                break;
+            case Integer:
+                out.writeInt((int) parser);
+                break;
+            case Long:
+                out.writeLong((long) parser);
+                break;
+            case Float:
+                out.writeFloat((float) parser);
+                break;
+            case Double:
+                out.writeDouble((double) parser);
+                break;
+            case TimeValue:
+                if(parser instanceof MinMaxTimeValueParser){
+                    out.writeBoolean(true);
+                    ((MinMaxTimeValueParser) parser).writeTo(out);
+                }
+                else{
+                    out.writeBoolean(false);
+                    ((MinTimeValueParser) parser).writeTo(out);
+                }
+                break;
+            case ByteSizeValue:
+                ((ByteSizeValue) parser).writeTo(out);
+                break;
+            default:
+                throw new IllegalArgumentException("A SettingType has been added to the enum and not handled here.");
+        }
+
     }
 
     private void writeDefaultValue(StreamOutput out, Object defaultValue) throws IOException {
@@ -248,6 +295,27 @@ public class WriteableSetting implements Writeable {
             default:
                 // This Should Never Happen (TM)
                 throw new IllegalArgumentException("A SettingType has been added to the enum and not handled here.");
+        }
+    }
+
+    private Object readParser(StreamInput in) throws IOException {
+        switch (type) {
+            case Boolean:
+                return new BooleanParser(in);
+            case Integer:
+                return new IntegerParser(in);
+            case Long:
+                return new LongParser(in);
+            case Float:
+                return new FloatParser(in);
+            case Double:
+                return new DoubleParser(in);
+            case TimeValue:
+                return new MinMaxTimeValueParser(in);
+            case ByteSizeValue:
+                return new ByteSizeValueParser(in);
+            default:
+                throw new IllegalArgumentException("A SettingType has been added to the enum and not handled here.");   
         }
     }
 

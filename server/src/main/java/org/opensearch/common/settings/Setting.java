@@ -171,7 +171,7 @@ public class Setting<T> implements ToXContentObject {
     protected final Function<Settings, String> defaultValue;
     @Nullable
     protected final Setting<T> fallbackSetting;
-    private final Function<String, T> parser;
+    protected final Function<String, T> parser;
     private final Validator<T> validator;
     private final EnumSet<Property> properties;
 
@@ -2021,7 +2021,7 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<Boolean> boolSetting(String key, boolean defaultValue, Property... properties) {
-        return new Setting<>(key, (s) -> Boolean.toString(defaultValue), b -> parseBoolean(b, key, isFiltered(properties)), properties);
+        return new Setting<>(key, (s) -> Boolean.toString(defaultValue), new BooleanParser(key, isFiltered(properties)), properties);
     }
 
     public static Setting<Boolean> boolSetting(String key, Setting<Boolean> fallbackSetting, Property... properties) {
@@ -2045,7 +2045,7 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<Boolean> boolSetting(String key, boolean defaultValue, Validator<Boolean> validator, Property... properties) {
-        return new Setting<>(key, Boolean.toString(defaultValue), b -> parseBoolean(b, key, isFiltered(properties)), validator, properties);
+        return new Setting<>(key, Boolean.toString(defaultValue), new BooleanParser(key, isFiltered(properties)), validator, properties);
     }
 
     public static Setting<Boolean> boolSetting(String key, Function<Settings, String> defaultValueFn, Property... properties) {
