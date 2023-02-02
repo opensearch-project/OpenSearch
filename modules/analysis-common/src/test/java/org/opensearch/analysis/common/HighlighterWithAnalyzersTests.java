@@ -50,6 +50,7 @@ import java.util.Collection;
 import static org.opensearch.client.Requests.searchRequest;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.boolQuery;
+import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.matchPhrasePrefixQuery;
 import static org.opensearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
@@ -61,6 +62,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHighlight;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
     @Override
@@ -270,9 +272,13 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
         refresh();
         logger.info("--> highlighting and searching on field0");
 
-        SearchSourceBuilder source = searchSource().query(matchPhrasePrefixQuery("field0", "bro"))
-            .highlighter(highlight().field("field0").order("score").preTags("<x>").postTags("</x>"));
+        SearchSourceBuilder source = searchSource().query(matchAllQuery());
         SearchResponse searchResponse = client().search(searchRequest("first_test_index").source(source)).actionGet();
+        assertHitCount(searchResponse, 2);
+
+        source = searchSource().query(matchPhrasePrefixQuery("field0", "bro"))
+            .highlighter(highlight().field("field0").order("score").preTags("<x>").postTags("</x>"));
+        searchResponse = client().search(searchRequest("first_test_index").source(source)).actionGet();
 
         assertHighlight(searchResponse, 0, "field0", 0, 1, equalTo("The quick <x>brown</x> fox jumps over the lazy dog"));
 
@@ -415,6 +421,7 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
     public static XContentBuilder type1TermVectorMapping() throws IOException {
         return XContentFactory.jsonBuilder()
             .startObject()
+            .startObject("_doc")
             .startObject("properties")
             .startObject("field1")
             .field("type", "text")
@@ -423,6 +430,7 @@ public class HighlighterWithAnalyzersTests extends OpenSearchIntegTestCase {
             .startObject("field2")
             .field("type", "text")
             .field("term_vector", "with_positions_offsets")
+            .endObject()
             .endObject()
             .endObject()
             .endObject();

@@ -95,6 +95,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AsyncIOProcessor;
+import org.opensearch.common.util.concurrent.BufferedAsyncIOProcessor;
 import org.opensearch.common.util.concurrent.RunOnce;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
@@ -220,6 +221,7 @@ import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
 import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.opensearch.index.shard.RemoteStoreRefreshListener.SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX;
+import static org.opensearch.index.translog.Translog.Durability;
 
 /**
  * An OpenSearch index shard
@@ -364,7 +366,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.indexSortSupplier = indexSortSupplier;
         this.indexEventListener = indexEventListener;
         this.threadPool = threadPool;
-        this.translogSyncProcessor = createTranslogSyncProcessor(logger, threadPool.getThreadContext(), this::getEngine);
+        this.translogSyncProcessor = createTranslogSyncProcessor(
+            logger,
+            threadPool,
+            this::getEngine,
+            indexSettings.isRemoteTranslogStoreEnabled(),
+            indexSettings.getRemoteTranslogUploadBufferInterval()
+        );
         this.mapperService = mapperService;
         this.indexCache = indexCache;
         this.internalIndexingStats = new InternalIndexingStats();
@@ -770,6 +778,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         try (Releasable forceRefreshes = refreshListeners.forceRefreshes()) {
             indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> {
                 forceRefreshes.close();
+
+                boolean syncTranslog = isRemoteTranslogEnabled() && Durability.ASYNC == indexSettings.getTranslogDurability();
+                // Since all the index permits are acquired at this point, the translog buffer will not change.
+                // It is safe to perform sync of translogs now as this will ensure for remote-backed indexes, the
+                // translogs has been uploaded to the remote store.
+                if (syncTranslog) {
+                    maybeSync();
+                }
                 // no shard operation permits are being held here, move state from started to relocated
                 assert indexShardOperationPermits.getActiveOperationsCount() == OPERATIONS_BLOCKED
                     : "in-flight operations in progress while moving shard state to relocated";
@@ -803,6 +819,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // Fail primary relocation source and target shards.
             failShard("timed out waiting for relocation hand-off to complete", null);
             throw new IndexShardClosedException(shardId(), "timed out waiting for relocation hand-off to complete");
+        }
+    }
+
+    private void maybeSync() {
+        try {
+            if (isSyncNeeded()) {
+                sync();
+            }
+        } catch (IOException e) {
+            logger.warn("failed to sync translog", e);
         }
     }
 
@@ -1418,31 +1444,56 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Returns the latest ReplicationCheckpoint that shard received.
+     * Compute and return the latest ReplicationCheckpoint for a particular shard.
      * @return EMPTY checkpoint before the engine is opened and null for non-segrep enabled indices
      */
     public ReplicationCheckpoint getLatestReplicationCheckpoint() {
+        final Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> infosAndCheckpoint = getLatestSegmentInfosAndCheckpoint();
+        if (infosAndCheckpoint == null) {
+            return null;
+        }
+        try (final GatedCloseable<SegmentInfos> ignored = infosAndCheckpoint.v1()) {
+            return infosAndCheckpoint.v2();
+        } catch (IOException e) {
+            throw new OpenSearchException("Error Closing SegmentInfos Snapshot", e);
+        }
+    }
+
+    /**
+     * Compute and return the latest ReplicationCheckpoint for a shard and a GatedCloseable containing the corresponding SegmentInfos.
+     * The segments referenced by the SegmentInfos will remain on disk until the GatedCloseable is closed.
+     *
+     * Primary shards compute the seqNo used in the replication checkpoint from the fetched SegmentInfos.
+     * Replica shards compute the seqNo from its latest processed checkpoint, which only increases when refreshing on new segments.
+     *
+     * @return A {@link Tuple} containing SegmentInfos wrapped in a {@link GatedCloseable} and the {@link ReplicationCheckpoint} computed from the infos.
+     *
+     */
+    public Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> getLatestSegmentInfosAndCheckpoint() {
         if (indexSettings.isSegRepEnabled() == false) {
             return null;
         }
         if (getEngineOrNull() == null) {
-            return ReplicationCheckpoint.empty(shardId);
+            return new Tuple<>(new GatedCloseable<>(null, () -> {}), ReplicationCheckpoint.empty(shardId));
         }
-        try (final GatedCloseable<SegmentInfos> snapshot = getSegmentInfosSnapshot()) {
-            return Optional.ofNullable(snapshot.get())
-                .map(
-                    segmentInfos -> new ReplicationCheckpoint(
+        // do not close the snapshot - caller will close it.
+        final GatedCloseable<SegmentInfos> snapshot = getSegmentInfosSnapshot();
+        return Optional.ofNullable(snapshot.get()).map(segmentInfos -> {
+            try {
+                return new Tuple<>(
+                    snapshot,
+                    new ReplicationCheckpoint(
                         this.shardId,
                         getOperationPrimaryTerm(),
                         segmentInfos.getGeneration(),
-                        getProcessedLocalCheckpoint(),
+                        shardRouting.primary() ? getEngine().getMaxSeqNoFromSegmentInfos(segmentInfos) : getProcessedLocalCheckpoint(),
                         segmentInfos.getVersion()
                     )
-                )
-                .orElse(ReplicationCheckpoint.empty(shardId));
-        } catch (IOException ex) {
-            throw new OpenSearchException("Error Closing SegmentInfos Snapshot", ex);
-        }
+                );
+            } catch (IOException e) {
+                throw new OpenSearchException("Error Fetching SegmentInfos and latest checkpoint", e);
+            }
+        }).orElseGet(() -> new Tuple<>(new GatedCloseable<>(null, () -> {}), ReplicationCheckpoint.empty(shardId)));
     }
 
     /**
@@ -2932,7 +2983,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertPrimaryMode();
         // only sync if there are no operations in flight, or when using async durability
         final SeqNoStats stats = getEngine().getSeqNoStats(replicationTracker.getGlobalCheckpoint());
-        final boolean asyncDurability = indexSettings().getTranslogDurability() == Translog.Durability.ASYNC;
+        final boolean asyncDurability = indexSettings().getTranslogDurability() == Durability.ASYNC;
         if (stats.getMaxSeqNo() == stats.getGlobalCheckpoint() || asyncDurability) {
             final ObjectLongMap<String> globalCheckpoints = getInSyncGlobalCheckpoints();
             final long globalCheckpoint = replicationTracker.getGlobalCheckpoint();
@@ -3025,7 +3076,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             + routingEntry()
             + "]";
         assert getLocalCheckpoint() == primaryContext.getCheckpointStates().get(routingEntry().allocationId().getId()).getLocalCheckpoint()
-            || indexSettings().getTranslogDurability() == Translog.Durability.ASYNC : "local checkpoint ["
+            || indexSettings().getTranslogDurability() == Durability.ASYNC : "local checkpoint ["
                 + getLocalCheckpoint()
                 + "] does not match checkpoint from primary context ["
                 + primaryContext
@@ -3445,6 +3496,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             () -> getOperationPrimaryTerm(),
             tombstoneDocSupplier(),
             isReadOnlyReplica,
+            replicationTracker::isPrimaryMode,
             translogFactorySupplier.apply(indexSettings, shardRouting)
         );
     }
@@ -3802,21 +3854,41 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private static AsyncIOProcessor<Translog.Location> createTranslogSyncProcessor(
         Logger logger,
-        ThreadContext threadContext,
-        Supplier<Engine> engineSupplier
+        ThreadPool threadPool,
+        Supplier<Engine> engineSupplier,
+        boolean bufferAsyncIoProcessor,
+        TimeValue bufferInterval
     ) {
-        return new AsyncIOProcessor<Translog.Location>(logger, 1024, threadContext) {
+        ThreadContext threadContext = threadPool.getThreadContext();
+        CheckedConsumer<List<Tuple<Translog.Location, Consumer<Exception>>>, IOException> writeConsumer = candidates -> {
+            try {
+                engineSupplier.get().ensureTranslogSynced(candidates.stream().map(Tuple::v1));
+            } catch (AlreadyClosedException ex) {
+                // that's fine since we already synced everything on engine close - this also is conform with the methods
+                // documentation
+            } catch (IOException ex) { // if this fails we are in deep shit - fail the request
+                logger.debug("failed to sync translog", ex);
+                throw ex;
+            }
+        };
+
+        if (bufferAsyncIoProcessor) {
+            return new BufferedAsyncIOProcessor<>(logger, 102400, threadContext, threadPool, bufferInterval) {
+                @Override
+                protected void write(List<Tuple<Translog.Location, Consumer<Exception>>> candidates) throws IOException {
+                    writeConsumer.accept(candidates);
+                }
+
+                @Override
+                protected String getBufferProcessThreadPoolName() {
+                    return ThreadPool.Names.TRANSLOG_SYNC;
+                }
+            };
+        }
+        return new AsyncIOProcessor<>(logger, 1024, threadContext) {
             @Override
             protected void write(List<Tuple<Translog.Location, Consumer<Exception>>> candidates) throws IOException {
-                try {
-                    engineSupplier.get().ensureTranslogSynced(candidates.stream().map(Tuple::v1));
-                } catch (AlreadyClosedException ex) {
-                    // that's fine since we already synced everything on engine close - this also is conform with the methods
-                    // documentation
-                } catch (IOException ex) { // if this fails we are in deep shit - fail the request
-                    logger.debug("failed to sync translog", ex);
-                    throw ex;
-                }
+                writeConsumer.accept(candidates);
             }
         };
     }
@@ -3850,7 +3922,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Returns the current translog durability mode
      */
-    public Translog.Durability getTranslogDurability() {
+    public Durability getTranslogDurability() {
         return indexSettings.getTranslogDurability();
     }
 

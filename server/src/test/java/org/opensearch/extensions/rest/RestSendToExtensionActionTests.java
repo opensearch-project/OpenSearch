@@ -30,7 +30,6 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.plugins.PluginInfo;
 import org.opensearch.rest.RestHandler.Route;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.test.OpenSearchTestCase;
@@ -78,22 +77,10 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         discoveryExtensionNode = new DiscoveryExtensionNode(
             "firstExtension",
             "uniqueid1",
-            "uniqueid1",
-            "myIndependentPluginHost1",
-            "127.0.0.0",
             new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
             new HashMap<String, String>(),
-            Version.fromString("3.0.0"),
-            new PluginInfo(
-                "firstExtension",
-                "Fake description 1",
-                "0.0.7",
-                Version.fromString("3.0.0"),
-                "14",
-                "fakeClass1",
-                new ArrayList<String>(),
-                false
-            ),
+            Version.CURRENT,
+            Version.CURRENT,
             Collections.emptyList()
         );
     }

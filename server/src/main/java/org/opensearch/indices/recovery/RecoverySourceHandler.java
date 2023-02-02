@@ -834,6 +834,11 @@ public abstract class RecoverySourceHandler {
                  * if the recovery process fails after disabling primary mode on the source shard, both relocation source and
                  * target are failed (see {@link IndexShard#updateRoutingEntry}).
                  */
+            } else {
+                // Force round of segment replication to update its checkpoint to primary's
+                if (shard.indexSettings().isSegRepEnabled()) {
+                    recoveryTarget.forceSegmentFileSync();
+                }
             }
             stopWatch.stop();
             logger.info("finalizing recovery took [{}]", stopWatch.totalTime());

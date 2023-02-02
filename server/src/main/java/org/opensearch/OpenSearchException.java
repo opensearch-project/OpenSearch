@@ -90,6 +90,11 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
     private static final Version UNKNOWN_VERSION_ADDED = Version.fromId(0);
 
     /**
+     * Setting a higher base exception id to avoid conflicts.
+     */
+    private static final int CUSTOM_ELASTICSEARCH_EXCEPTIONS_BASE_ID = 10000;
+
+    /**
      * Passed in the {@link Params} of {@link #generateThrowableXContent(XContentBuilder, Params, Throwable)}
      * to control if the {@code caused_by} element should render. Unlike most parameters to {@code toXContent} methods this parameter is
      * internal only and not available as a URL parameter.
@@ -1648,6 +1653,12 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             PreferenceBasedSearchNotAllowedException.class,
             PreferenceBasedSearchNotAllowedException::new,
             168,
+            V_2_6_0
+        ),
+        INDEX_CREATE_BLOCK_EXCEPTION(
+            org.opensearch.cluster.block.IndexCreateBlockException.class,
+            org.opensearch.cluster.block.IndexCreateBlockException::new,
+            CUSTOM_ELASTICSEARCH_EXCEPTIONS_BASE_ID + 1,
             V_2_6_0
         );
 

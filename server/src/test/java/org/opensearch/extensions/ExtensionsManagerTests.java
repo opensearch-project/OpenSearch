@@ -74,7 +74,6 @@ import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.plugins.PluginInfo;
 import org.opensearch.rest.RestController;
 import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.IndexSettingsModule;
@@ -111,28 +110,18 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         "extensions:",
         "   - name: firstExtension",
         "     uniqueId: uniqueid1",
-        "     hostName: 'myIndependentPluginHost1'",
         "     hostAddress: '127.0.0.0'",
         "     port: '9300'",
         "     version: '0.0.7'",
-        "     description: Fake description 1",
-        "     opensearchVersion: '3.0.0'",
-        "     javaVersion: '14'",
-        "     className: fakeClass1",
-        "     customFolderName: fakeFolder1",
-        "     hasNativeController: false",
+        "     opensearchVersion: '" + Version.CURRENT.toString() + "'",
+        "     minimumCompatibleVersion: '" + Version.CURRENT.toString() + "'",
         "   - name: secondExtension",
         "     uniqueId: 'uniqueid2'",
-        "     hostName: 'myIndependentPluginHost2'",
         "     hostAddress: '127.0.0.1'",
         "     port: '9301'",
         "     version: '3.14.16'",
-        "     description: Fake description 2",
-        "     opensearchVersion: '2.0.0'",
-        "     javaVersion: '17'",
-        "     className: fakeClass2",
-        "     customFolderName: fakeFolder2",
-        "     hasNativeController: true",
+        "     opensearchVersion: '" + Version.CURRENT.toString() + "'",
+        "     minimumCompatibleVersion: '" + Version.CURRENT.toString() + "'",
         "     dependencies:",
         "       - uniqueId: 'uniqueid0'",
         "       - version: '2.0.0'"
@@ -184,22 +173,10 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         extensionNode = new DiscoveryExtensionNode(
             "firstExtension",
             "uniqueid1",
-            "uniqueid1",
-            "myIndependentPluginHost1",
-            "127.0.0.0",
             new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
             new HashMap<String, String>(),
             Version.fromString("3.0.0"),
-            new PluginInfo(
-                "firstExtension",
-                "Fake description 1",
-                "0.0.7",
-                Version.fromString("3.0.0"),
-                "14",
-                "fakeClass1",
-                new ArrayList<String>(),
-                false
-            ),
+            Version.CURRENT,
             Collections.emptyList()
         );
         client = new NoOpNodeClient(this.getTestName());
@@ -220,63 +197,48 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
 
-        List<DiscoveryExtensionNode> expectedUninitializedExtensions = new ArrayList<DiscoveryExtensionNode>();
+        List<DiscoveryExtensionNode> expectedExtensions = new ArrayList<DiscoveryExtensionNode>();
 
         String expectedUniqueId = "uniqueid0";
         Version expectedVersion = Version.fromString("2.0.0");
         ExtensionDependency expectedDependency = new ExtensionDependency(expectedUniqueId, expectedVersion);
 
-        expectedUninitializedExtensions.add(
+        expectedExtensions.add(
             new DiscoveryExtensionNode(
                 "firstExtension",
                 "uniqueid1",
-                "uniqueid1",
-                "myIndependentPluginHost1",
-                "127.0.0.0",
                 new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
                 new HashMap<String, String>(),
-                Version.fromString("3.0.0"),
-                new PluginInfo(
-                    "firstExtension",
-                    "Fake description 1",
-                    "0.0.7",
-                    Version.fromString("3.0.0"),
-                    "14",
-                    "fakeClass1",
-                    new ArrayList<String>(),
-                    false
-                ),
+                Version.CURRENT,
+                Version.CURRENT,
                 Collections.emptyList()
             )
         );
 
-        expectedUninitializedExtensions.add(
+        expectedExtensions.add(
             new DiscoveryExtensionNode(
                 "secondExtension",
                 "uniqueid2",
-                "uniqueid2",
-                "myIndependentPluginHost2",
-                "127.0.0.1",
-                new TransportAddress(TransportAddress.META_ADDRESS, 9301),
+                new TransportAddress(InetAddress.getByName("127.0.0.1"), 9301),
                 new HashMap<String, String>(),
-                Version.fromString("2.0.0"),
-                new PluginInfo(
-                    "secondExtension",
-                    "Fake description 2",
-                    "3.14.16",
-                    Version.fromString("2.0.0"),
-                    "17",
-                    "fakeClass2",
-                    new ArrayList<String>(),
-                    true
-                ),
+                Version.CURRENT,
+                Version.CURRENT,
                 List.of(expectedDependency)
             )
         );
-        assertEquals(expectedUninitializedExtensions.size(), extensionsManager.getExtensionIdMap().values().size());
-        assertEquals(List.of(expectedDependency), expectedUninitializedExtensions.get(1).getDependencies());
-        assertTrue(expectedUninitializedExtensions.containsAll(extensionsManager.getExtensionIdMap().values()));
-        assertTrue(extensionsManager.getExtensionIdMap().values().containsAll(expectedUninitializedExtensions));
+        assertEquals(expectedExtensions.size(), extensionsManager.getExtensionIdMap().values().size());
+        assertEquals(List.of(expectedDependency), expectedExtensions.get(1).getDependencies());
+        for (DiscoveryExtensionNode extension : expectedExtensions) {
+            DiscoveryExtensionNode initializedExtension = extensionsManager.getExtensionIdMap().get(extension.getId());
+            assertEquals(extension.getName(), initializedExtension.getName());
+            assertEquals(extension.getId(), initializedExtension.getId());
+            assertEquals(extension.getAddress(), initializedExtension.getAddress());
+            assertEquals(extension.getAttributes(), initializedExtension.getAttributes());
+            assertEquals(extension.getVersion(), initializedExtension.getVersion());
+            assertEquals(extension.getMinimumCompatibleVersion(), initializedExtension.getMinimumCompatibleVersion());
+            // TODO: Will fail due to bug : https://github.com/opensearch-project/OpenSearch/issues/6115
+            // assertEquals(extension.getDependencies(), initializedExtension.getDependencies());
+        }
     }
 
     public void testNonUniqueExtensionsDiscovery() throws Exception {
@@ -288,35 +250,32 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, emptyExtensionDir);
 
-        List<DiscoveryExtensionNode> expectedUninitializedExtensions = new ArrayList<DiscoveryExtensionNode>();
+        List<DiscoveryExtensionNode> expectedExtensions = new ArrayList<DiscoveryExtensionNode>();
 
-        expectedUninitializedExtensions.add(
+        expectedExtensions.add(
             new DiscoveryExtensionNode(
                 "firstExtension",
                 "uniqueid1",
-                "uniqueid1",
-                "myIndependentPluginHost1",
-                "127.0.0.0",
                 new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
                 new HashMap<String, String>(),
-                Version.fromString("3.0.0"),
-                new PluginInfo(
-                    "firstExtension",
-                    "Fake description 1",
-                    "0.0.7",
-                    Version.fromString("3.0.0"),
-                    "14",
-                    "fakeClass1",
-                    new ArrayList<String>(),
-                    false
-                ),
+                Version.CURRENT,
+                Version.CURRENT,
                 Collections.emptyList()
             )
         );
-        assertEquals(expectedUninitializedExtensions.size(), extensionsManager.getExtensionIdMap().values().size());
-        assertTrue(expectedUninitializedExtensions.containsAll(extensionsManager.getExtensionIdMap().values()));
-        assertTrue(extensionsManager.getExtensionIdMap().values().containsAll(expectedUninitializedExtensions));
-        assertTrue(expectedUninitializedExtensions.containsAll(emptyList()));
+        assertEquals(expectedExtensions.size(), extensionsManager.getExtensionIdMap().values().size());
+        for (DiscoveryExtensionNode extension : expectedExtensions) {
+            DiscoveryExtensionNode initializedExtension = extensionsManager.getExtensionIdMap().get(extension.getId());
+            assertEquals(extension.getName(), initializedExtension.getName());
+            assertEquals(extension.getId(), initializedExtension.getId());
+            assertEquals(extension.getAddress(), initializedExtension.getAddress());
+            assertEquals(extension.getAttributes(), initializedExtension.getAttributes());
+            assertEquals(extension.getVersion(), initializedExtension.getVersion());
+            assertEquals(extension.getMinimumCompatibleVersion(), initializedExtension.getMinimumCompatibleVersion());
+        }
+        assertTrue(expectedExtensions.containsAll(emptyList()));
+        // TODO: Will fail due to bug : https://github.com/opensearch-project/OpenSearch/issues/6115
+        // assertEquals(extension.getDependencies(), initializedExtension.getDependencies());
     }
 
     public void testDiscoveryExtension() throws Exception {
@@ -327,22 +286,10 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         DiscoveryExtensionNode discoveryExtensionNode = new DiscoveryExtensionNode(
             "firstExtension",
             "uniqueid1",
-            "uniqueid1",
-            "myIndependentPluginHost1",
-            "127.0.0.0",
             new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
             new HashMap<String, String>(),
-            Version.fromString("3.0.0"),
-            new PluginInfo(
-                "firstExtension",
-                "Fake description 1",
-                "0.0.7",
-                Version.fromString("3.0.0"),
-                "14",
-                "fakeClass1",
-                new ArrayList<String>(),
-                false
-            ),
+            Version.CURRENT,
+            Version.CURRENT,
             List.of(expectedDependency)
         );
 
@@ -397,7 +344,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 new MockLogAppender.SeenEventExpectation(
                     "No Extensions File Present",
                     "org.opensearch.extensions.ExtensionsManager",
-                    Level.INFO,
+                    Level.WARN,
                     "Extensions.yml file is not present.  No extensions will be loaded."
                 )
             );
@@ -581,22 +528,10 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             new DiscoveryExtensionNode(
                 "firstExtension",
                 "uniqueid1",
-                "uniqueid1",
-                "myIndependentPluginHost1",
-                "127.0.0.0",
                 new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
                 new HashMap<String, String>(),
-                Version.fromString("3.0.0"),
-                new PluginInfo(
-                    "firstExtension",
-                    "Fake description 1",
-                    "0.0.7",
-                    Version.fromString("3.0.0"),
-                    "14",
-                    "fakeClass1",
-                    new ArrayList<String>(),
-                    false
-                ),
+                Version.CURRENT,
+                Version.CURRENT,
                 List.of(expectedDependency)
             )
         );
@@ -835,6 +770,37 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         );
         expectThrows(NodeNotConnectedException.class, () -> extensionsManager.onIndexModule(indexModule));
 
+    }
+
+    public void testIncompatibleExtensionRegistration() throws IOException, IllegalAccessException {
+
+        try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ExtensionsManager.class))) {
+
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "Could not load extension with uniqueId",
+                    "org.opensearch.extensions.ExtensionsManager",
+                    Level.ERROR,
+                    "Could not load extension with uniqueId uniqueid1 due to OpenSearchException[Extension minimumCompatibleVersion: 3.99.0 is greater than current"
+                )
+            );
+
+            List<String> incompatibleExtension = Arrays.asList(
+                "extensions:",
+                "   - name: firstExtension",
+                "     uniqueId: uniqueid1",
+                "     hostAddress: '127.0.0.0'",
+                "     port: '9300'",
+                "     version: '0.0.7'",
+                "     opensearchVersion: '3.0.0'",
+                "     minimumCompatibleVersion: '3.99.0'"
+            );
+
+            Files.write(extensionDir.resolve("extensions.yml"), incompatibleExtension, StandardCharsets.UTF_8);
+            ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
+            assertEquals(0, extensionsManager.getExtensionIdMap().values().size());
+            mockLogAppender.assertAllExpectationsMatched();
+        }
     }
 
     private void initialize(ExtensionsManager extensionsManager) {

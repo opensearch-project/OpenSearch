@@ -948,6 +948,47 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         assertEquals("Setting index.remote_store.repository should be provided with non-empty repository ID", iae.getMessage());
     }
 
+    public void testSetRemoteTranslogBufferIntervalDefaultSetting() {
+        Version createdVersion = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
+            .build();
+        assertEquals(TimeValue.timeValueMillis(100), IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings));
+    }
+
+    public void testSetRemoteTranslogBufferIntervalFailsWhenRemoteTranslogIsNotEnabled() {
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL, "200ms")
+            .build();
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(indexSettings)
+        );
+        assertEquals(
+            "Setting index.remote_store.translog.buffer_interval can only be set when index.remote_store.translog.enabled is set to true",
+            iae.getMessage()
+        );
+    }
+
+    public void testSetRemoteTranslogBufferIntervalFailsWhenEmpty() {
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL, "")
+            .build();
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(indexSettings)
+        );
+        assertEquals(
+            "failed to parse setting [index.remote_store.translog.buffer_interval] with value [] as a time value: unit is missing or unrecognized",
+            iae.getMessage()
+        );
+    }
+
     @SuppressForbidden(reason = "sets the SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY feature flag")
     public void testExtendedCompatibilityVersionForRemoteSnapshot() throws Exception {
         try (FeatureFlagSetter f = FeatureFlagSetter.set(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)) {
