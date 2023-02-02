@@ -29,6 +29,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Update Jackson to 2.14.0 ([#5105](https://github.com/opensearch-project/OpenSearch/pull/5105))
 - OpenJDK Update (January 2023 Patch releases) ([#6077](https://github.com/opensearch-project/OpenSearch/pull/6077))
 - Bumps `joda` from 2.10.13 to 2.12.2 ([#6106](https://github.com/opensearch-project/OpenSearch/pull/6106))
+- Bumps `Netty` from 4.1.86.Final to 4.1.87.Final ([#6130](https://github.com/opensearch-project/OpenSearch/pull/6130))
 
 ### Changed
 - Dependency updates (httpcore, mockito, slf4j, httpasyncclient, commons-codec) ([#4308](https://github.com/opensearch-project/OpenSearch/pull/4308))
