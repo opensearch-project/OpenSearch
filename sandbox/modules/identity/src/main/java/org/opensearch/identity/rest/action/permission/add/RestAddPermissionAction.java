@@ -8,8 +8,12 @@
 
 package org.opensearch.identity.rest.action.permission.add;
 
+import com.fasterxml.jackson.core.JsonParseException;
+import com.fasterxml.jackson.databind.JsonNode;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.identity.DefaultObjectMapper;
 import org.opensearch.identity.rest.RestConstants;
+import org.opensearch.identity.utils.ErrorType;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
@@ -34,8 +38,17 @@ public class RestAddPermissionAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        String permissionString = request.param("permissionString");
-        String principalString = request.param("principalString");
+
+
+        JsonNode contentAsNode;
+        try {
+            contentAsNode = DefaultObjectMapper.readTree(request.content().utf8ToString());
+        } catch (JsonParseException e) {
+            throw new IllegalArgumentException(ErrorType.BODY_NOT_PARSEABLE.getMessage() + "Add Permission");
+        }
+
+        String permissionString = contentAsNode.get("permissionString").asText();
+        String principalString = contentAsNode.get("principalString").asText();
 
         AddPermissionRequest addPermissionRequest = new AddPermissionRequest();
         addPermissionRequest.setPermissionString(permissionString);
