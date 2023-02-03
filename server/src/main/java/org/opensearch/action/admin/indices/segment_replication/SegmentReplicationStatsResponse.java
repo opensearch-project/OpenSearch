@@ -22,7 +22,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Information regarding the Segment Replication state of indices and their associated shards.
+ * Stats Information regarding the Segment Replication state of indices and their associated shards.
  *
  * @opensearch.internal
  */
@@ -35,7 +35,7 @@ public class SegmentReplicationStatsResponse extends BroadcastResponse {
     }
 
     /**
-     * Constructs segment replication information for a collection of indices and associated shards. Keeps track of how many total shards
+     * Constructs segment replication stats information for a collection of indices and associated shards. Keeps track of how many total shards
      * were seen, and out of those how many were successfully processed and how many failed.
      *
      * @param totalShards       Total count of shards seen

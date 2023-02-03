@@ -40,7 +40,7 @@ import java.util.HashMap;
 
 /**
  * Transport action for shard segment replication operation. This transport action does not actually
- * perform segment replication, it only reports on metrics of segment replication event (both active and complete).
+ * perform segment replication, it only reports on metrics/stats of segment replication event (both active and complete).
  *
  * @opensearch.internal
  */

@@ -11,7 +11,7 @@ package org.opensearch.action.admin.indices.segment_replication;
 import org.opensearch.action.ActionType;
 
 /**
- * Segment Replication information action
+ * Segment Replication stats information action
  *
  * @opensearch.internal
  */

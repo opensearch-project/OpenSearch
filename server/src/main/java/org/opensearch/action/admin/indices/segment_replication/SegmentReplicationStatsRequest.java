@@ -17,7 +17,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * Request for Segment Replication information
+ * Request for Segment Replication stats information
  *
  * @opensearch.internal
  */
@@ -30,7 +30,7 @@ public class SegmentReplicationStatsRequest extends BroadcastRequest<SegmentRepl
     private boolean completedOnly = false;
 
     /**
-     * Constructs a request for segment replication information for all shards
+     * Constructs a request for segment replication stats information for all shards
      */
     public SegmentReplicationStatsRequest() {
         this(Strings.EMPTY_ARRAY);
@@ -45,7 +45,7 @@ public class SegmentReplicationStatsRequest extends BroadcastRequest<SegmentRepl
     }
 
     /**
-     * Constructs a request for segment replication information for all shards for the given indices
+     * Constructs a request for segment replication stats information for all shards for the given indices
      *
      * @param indices   Comma-separated list of indices about which to gather segment replication information
      */

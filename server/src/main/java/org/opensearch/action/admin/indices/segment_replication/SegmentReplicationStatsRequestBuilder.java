@@ -12,7 +12,7 @@ import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 
 /**
- * Segment Replication information request builder.
+ * Segment Replication stats information request builder.
  *
  * @opensearch.internal
  */
