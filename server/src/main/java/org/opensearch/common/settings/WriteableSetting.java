@@ -287,9 +287,10 @@ public class WriteableSetting implements Writeable {
                 break;
             case Version:
                 Version.writeVersion((Version) defaultValue, out);
+                break;
             default:
                 // This Should Never Happen (TM)
-                throw new IllegalArgumentException(type + " is not handled by writeable parser.");
+                throw new IllegalArgumentException("A SettingType has been added to the enum and not handled here.");
         }
     }
 
@@ -310,7 +311,7 @@ public class WriteableSetting implements Writeable {
             case ByteSizeValue:
                 return new ByteSizeValueParser(in);
             default:
-                throw new IllegalArgumentException(type + " is not handled by writeable parser.");
+                throw new IllegalArgumentException("A SettingType has been added to the enum and not handled here.");
         }
     }
 
