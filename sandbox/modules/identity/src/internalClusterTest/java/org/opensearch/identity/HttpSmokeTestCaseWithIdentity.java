@@ -129,7 +129,8 @@ public abstract class HttpSmokeTestCaseWithIdentity extends OpenSearchIntegTestC
         List<NodeInfo> nodeInfos = client().admin().cluster().prepareNodesInfo().get().getNodes();
         assertEquals(2, nodeInfos.size());
 
-        Thread.sleep(1000);
+        // TODO: Optimize this
+        Thread.sleep(2000);
     }
 
     @SuppressForbidden(reason = "sets system property for testing")
