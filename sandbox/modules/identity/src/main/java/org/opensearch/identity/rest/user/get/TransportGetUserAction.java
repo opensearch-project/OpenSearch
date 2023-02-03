@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.user.update;
+package org.opensearch.identity.rest.user.get;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
@@ -20,18 +20,18 @@ import org.opensearch.transport.TransportService;
 /**
  * Transport action for Creating a user
  */
-public class TransportUpdateUserAction extends HandledTransportAction<UpdateUserRequest, UpdateUserResponse> {
+public class TransportGetUserAction extends HandledTransportAction<GetUserRequest, GetUserResponse> {
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final UserService userService;
 
     @Inject
-    public TransportUpdateUserAction(
+    public TransportGetUserAction(
         TransportService transportService,
         ActionFilters actionFilters,
         NamedWriteableRegistry namedWriteableRegistry,
         UserService userService
     ) {
-        super(UpdateUserAction.NAME, transportService, actionFilters, UpdateUserRequest::new);
+        super(GetUserAction.NAME, transportService, actionFilters, GetUserRequest::new);
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.userService = userService;
     }
@@ -40,7 +40,7 @@ public class TransportUpdateUserAction extends HandledTransportAction<UpdateUser
      * Invokes 'create a user' workflow
      */
     @Override
-    protected void doExecute(Task task, UpdateUserRequest request, ActionListener<UpdateUserResponse> listener) {
+    protected void doExecute(Task task, GetUserRequest request, ActionListener<GetUserResponse> listener) {
         String username = request.getUsername();
         String password = request.getPassword();
         userService.createUser(username, password, listener);

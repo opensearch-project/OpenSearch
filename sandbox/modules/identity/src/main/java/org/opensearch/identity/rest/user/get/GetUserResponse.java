@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.user.read;
+package org.opensearch.identity.rest.user.get;
 
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.ParseField;

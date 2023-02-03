@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.user.update;
+package org.opensearch.identity.rest.user.get;
 
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
@@ -25,16 +25,16 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
  * This class captures if creation of a single given user is successful
  * If so, returns a boolean flag along-with the provided username
  */
-public class UpdateUserResponseInfo extends TransportResponse implements Writeable, ToXContent {
+public class GetUserResponseInfo extends TransportResponse implements Writeable, ToXContent {
     private final boolean successful;
     private final String username;
 
-    public UpdateUserResponseInfo(boolean successful, String username) {
+    public GetUserResponseInfo(boolean successful, String username) {
         this.successful = successful;
         this.username = username;
     }
 
-    public UpdateUserResponseInfo(StreamInput in) throws IOException {
+    public GetUserResponseInfo(StreamInput in) throws IOException {
         successful = in.readBoolean();
         username = in.readString();
 
@@ -54,10 +54,10 @@ public class UpdateUserResponseInfo extends TransportResponse implements Writeab
         out.writeString(username);
     }
 
-    static final ConstructingObjectParser<UpdateUserResponseInfo, Void> PARSER = new ConstructingObjectParser<>(
+    static final ConstructingObjectParser<GetUserResponseInfo, Void> PARSER = new ConstructingObjectParser<>(
         "create_user_response_info",
         true,
-        args -> new UpdateUserResponseInfo((boolean) args[0], (String) args[1])
+        args -> new GetUserResponseInfo((boolean) args[0], (String) args[1])
     );
 
     static {
