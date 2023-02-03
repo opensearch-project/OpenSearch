@@ -42,6 +42,8 @@ public abstract class AbstractGeoBucketAggregationIntegTest extends GeoModulePlu
 
     protected static final int MAX_PRECISION_FOR_GEO_SHAPES_AGG_TESTING = 4;
 
+    protected static final int MIN_PRECISION_WITHOUT_BB_AGGS = 2;
+
     protected static final int NUM_DOCS = 100;
 
     protected static final String GEO_SHAPE_INDEX_NAME = "geoshape_index";
@@ -94,8 +96,9 @@ public abstract class AbstractGeoBucketAggregationIntegTest extends GeoModulePlu
                     continue;
                 }
             }
+
             i++;
-            final Set<String> values = generateBucketsForGeometry(geometry, geometryDocValue);
+            final Set<String> values = generateBucketsForGeometry(geometry, geometryDocValue, isShapeIntersectingBB);
             geoshapes.add(indexGeoShape(GEO_SHAPE_INDEX_NAME, geometry));
             for (final String hash : values) {
                 expectedDocsCountForGeoShapes.put(hash, expectedDocsCountForGeoShapes.getOrDefault(hash, 0) + 1);
@@ -109,11 +112,16 @@ public abstract class AbstractGeoBucketAggregationIntegTest extends GeoModulePlu
      * Returns a set of buckets for the shape at different precision level. Override this method for different bucket
      * aggregations.
      *
-     * @param geometry {@link Geometry}
-     * @param geoShapeDocValue {@link GeoShapeDocValue}
+     * @param geometry           {@link Geometry}
+     * @param geoShapeDocValue   {@link GeoShapeDocValue}
+     * @param intersectingWithBB boolean
      * @return A {@link Set} of {@link String} which represents the buckets.
      */
-    protected abstract Set<String> generateBucketsForGeometry(final Geometry geometry, final GeoShapeDocValue geoShapeDocValue);
+    protected abstract Set<String> generateBucketsForGeometry(
+        final Geometry geometry,
+        final GeoShapeDocValue geoShapeDocValue,
+        final boolean intersectingWithBB
+    );
 
     /**
      * Prepares a GeoPoint index for testing the GeoPoint bucket aggregations. Different bucket aggregations can use
