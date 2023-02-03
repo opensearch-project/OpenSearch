@@ -82,7 +82,36 @@ public class BlobStoreTransferService implements TransferService {
     }
 
     @Override
+    public void deleteBlobsAsync(Iterable<String> path, List<String> fileNames, ActionListener<Void> listener) {
+        executorService.execute(() -> {
+            try {
+                blobStore.blobContainer((BlobPath) path).deleteBlobsIgnoringIfNotExists(fileNames);
+                listener.onResponse(null);
+            } catch (IOException e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    @Override
+    public void deleteAsync(Iterable<String> path, ActionListener<Void> listener) {
+        executorService.execute(() -> {
+            try {
+                blobStore.blobContainer((BlobPath) path).delete();
+                listener.onResponse(null);
+            } catch (IOException e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    @Override
     public Set<String> listAll(Iterable<String> path) throws IOException {
         return blobStore.blobContainer((BlobPath) path).listBlobs().keySet();
+    }
+
+    @Override
+    public Set<String> listFolders(Iterable<String> path) throws IOException {
+        return blobStore.blobContainer((BlobPath) path).children().keySet();
     }
 }
