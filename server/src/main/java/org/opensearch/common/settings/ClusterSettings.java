@@ -617,7 +617,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchShardTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE,
                 SearchShardTaskSettings.SETTING_CPU_TIME_MILLIS_THRESHOLD,
                 SearchShardTaskSettings.SETTING_ELAPSED_TIME_MILLIS_THRESHOLD,
-                SearchShardTaskSettings.SETTING_TOTAL_HEAP_PERCENT_THRESHOLD
+                SearchShardTaskSettings.SETTING_TOTAL_HEAP_PERCENT_THRESHOLD,
+                SearchBackpressureSettings.SETTING_CANCELLATION_RATIO,  // deprecated
+                SearchBackpressureSettings.SETTING_CANCELLATION_RATE,   // deprecated
+                SearchBackpressureSettings.SETTING_CANCELLATION_BURST   // deprecated
             )
         )
     );

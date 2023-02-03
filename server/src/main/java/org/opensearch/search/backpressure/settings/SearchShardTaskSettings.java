@@ -49,7 +49,7 @@ public class SearchShardTaskSettings {
     private volatile double cancellationRatio;
     public static final Setting<Double> SETTING_CANCELLATION_RATIO = Setting.doubleSetting(
         "search_backpressure.search_shard_task.cancellation_ratio",
-        Defaults.CANCELLATION_RATIO,
+        SearchBackpressureSettings.SETTING_CANCELLATION_RATIO,
         0.0,
         1.0,
         Setting.Property.Dynamic,
@@ -63,7 +63,7 @@ public class SearchShardTaskSettings {
     private volatile double cancellationRate;
     public static final Setting<Double> SETTING_CANCELLATION_RATE = Setting.doubleSetting(
         "search_backpressure.search_shard_task.cancellation_rate",
-        Defaults.CANCELLATION_RATE,
+        SearchBackpressureSettings.SETTING_CANCELLATION_RATE,
         0.0,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -75,7 +75,7 @@ public class SearchShardTaskSettings {
     private volatile double cancellationBurst;
     public static final Setting<Double> SETTING_CANCELLATION_BURST = Setting.doubleSetting(
         "search_backpressure.search_shard_task.cancellation_burst",
-        Defaults.CANCELLATION_BURST,
+        SearchBackpressureSettings.SETTING_CANCELLATION_BURST,
         1.0,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -236,7 +236,7 @@ public class SearchShardTaskSettings {
         return cancellationRatio;
     }
 
-    private void setCancellationRatio(double cancellationRatio) {
+    void setCancellationRatio(double cancellationRatio) {
         this.cancellationRatio = cancellationRatio;
         notifyListeners(listener -> listener.onRatioChanged(cancellationRatio));
     }
@@ -249,7 +249,7 @@ public class SearchShardTaskSettings {
         return getCancellationRate() / TimeUnit.MILLISECONDS.toNanos(1); // rate per nanoseconds
     }
 
-    private void setCancellationRate(double cancellationRate) {
+    void setCancellationRate(double cancellationRate) {
         this.cancellationRate = cancellationRate;
         notifyListeners(listener -> listener.onRateChanged(cancellationRate));
     }
@@ -258,7 +258,7 @@ public class SearchShardTaskSettings {
         return cancellationBurst;
     }
 
-    private void setCancellationBurst(double cancellationBurst) {
+    void setCancellationBurst(double cancellationBurst) {
         this.cancellationBurst = cancellationBurst;
         notifyListeners(listener -> listener.onBurstChanged(cancellationBurst));
     }

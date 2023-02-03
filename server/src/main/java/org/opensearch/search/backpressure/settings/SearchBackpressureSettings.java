@@ -22,6 +22,10 @@ public class SearchBackpressureSettings {
     private static class Defaults {
         private static final long INTERVAL_MILLIS = 1000;
         private static final String MODE = "monitor_only";
+
+        private static final double CANCELLATION_RATIO = 0.1;
+        private static final double CANCELLATION_RATE = 0.003;
+        private static final double CANCELLATION_BURST = 10.0;
     }
 
     /**
@@ -46,6 +50,54 @@ public class SearchBackpressureSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Defines the percentage of tasks to cancel relative to the number of successful task completions.
+     * In other words, it is the number of tokens added to the bucket on each successful task completion.
+     *
+     * The setting below is deprecated.
+     * To keep backwards compatibility, the old usage is remained, and it's also used as the fallback for the new usage.
+     */
+    public static final Setting<Double> SETTING_CANCELLATION_RATIO = Setting.doubleSetting(
+        "search_backpressure.cancellation_ratio",
+        Defaults.CANCELLATION_RATIO,
+        0.0,
+        1.0,
+        Setting.Property.Deprecated,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Defines the number of tasks to cancel per unit time (in millis).
+     * In other words, it is the number of tokens added to the bucket each millisecond.
+     *
+     * The setting below is deprecated.
+     * To keep backwards compatibility, the old usage is remained, and it's also used as the fallback for the new usage.
+     */
+    public static final Setting<Double> SETTING_CANCELLATION_RATE = Setting.doubleSetting(
+        "search_backpressure.cancellation_rate",
+        Defaults.CANCELLATION_RATE,
+        0.0,
+        Setting.Property.Deprecated,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Defines the maximum number of tasks that can be cancelled before being rate-limited.
+     *
+     * The setting below is deprecated.
+     * To keep backwards compatibility, the old usage is remained, and it's also used as the fallback for the new usage.
+     */
+    public static final Setting<Double> SETTING_CANCELLATION_BURST = Setting.doubleSetting(
+        "search_backpressure.cancellation_burst",
+        Defaults.CANCELLATION_BURST,
+        1.0,
+        Setting.Property.Deprecated,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private final Settings settings;
     private final ClusterSettings clusterSettings;
     private final NodeDuressSettings nodeDuressSettings;
@@ -63,6 +115,9 @@ public class SearchBackpressureSettings {
 
         mode = SearchBackpressureMode.fromName(SETTING_MODE.get(settings));
         clusterSettings.addSettingsUpdateConsumer(SETTING_MODE, s -> this.setMode(SearchBackpressureMode.fromName(s)));
+        clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_RATIO, searchShardTaskSettings::setCancellationRatio);
+        clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_RATE, searchShardTaskSettings::setCancellationRate);
+        clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_BURST, searchShardTaskSettings::setCancellationBurst);
     }
 
     public Settings getSettings() {
