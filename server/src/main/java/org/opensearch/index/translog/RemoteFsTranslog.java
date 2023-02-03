@@ -25,6 +25,7 @@ import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -32,7 +33,6 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
@@ -71,14 +71,14 @@ public class RemoteFsTranslog extends Translog {
         LongSupplier primaryTermSupplier,
         LongConsumer persistedSequenceNumberConsumer,
         BlobStoreRepository blobStoreRepository,
-        ExecutorService executorService,
+        ThreadPool threadPool,
         BooleanSupplier primaryModeSupplier
     ) throws IOException {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
         this.blobStoreRepository = blobStoreRepository;
         this.primaryModeSupplier = primaryModeSupplier;
         fileTransferTracker = new FileTransferTracker(shardId);
-        this.translogTransferManager = buildTranslogTransferManager(blobStoreRepository, executorService, shardId, fileTransferTracker);
+        this.translogTransferManager = buildTranslogTransferManager(blobStoreRepository, threadPool, shardId, fileTransferTracker);
 
         try {
             download(translogTransferManager, location);
@@ -141,12 +141,12 @@ public class RemoteFsTranslog extends Translog {
 
     public static TranslogTransferManager buildTranslogTransferManager(
         BlobStoreRepository blobStoreRepository,
-        ExecutorService executorService,
+        ThreadPool threadPool,
         ShardId shardId,
         FileTransferTracker fileTransferTracker
     ) {
         return new TranslogTransferManager(
-            new BlobStoreTransferService(blobStoreRepository.blobStore(), executorService),
+            new BlobStoreTransferService(blobStoreRepository.blobStore(), threadPool),
             blobStoreRepository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())),
             fileTransferTracker
         );

@@ -15,7 +15,6 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.Translog;
@@ -24,6 +23,8 @@ import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -47,6 +48,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
     private TransferService transferService;
     private BlobPath remoteBaseTransferPath;
+    private ThreadPool threadPool;
     private long primaryTerm;
     private long generation;
     private long minTranslogGeneration;
@@ -61,6 +63,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         minTranslogGeneration = randomLongBetween(0, generation);
         remoteBaseTransferPath = new BlobPath().add("base_path");
         transferService = mock(TransferService.class);
+        threadPool = new TestThreadPool(getClass().getName());
     }
 
     @SuppressWarnings("unchecked")
@@ -309,10 +312,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         BlobStore blobStore = mock(BlobStore.class);
         BlobContainer blobContainer = mock(BlobContainer.class);
         when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
-        BlobStoreTransferService blobStoreTransferService = new BlobStoreTransferService(
-            blobStore,
-            OpenSearchExecutors.newDirectExecutorService()
-        );
+        BlobStoreTransferService blobStoreTransferService = new BlobStoreTransferService(blobStore, threadPool);
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             blobStoreTransferService,
             remoteBaseTransferPath,
@@ -335,10 +335,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         BlobContainer blobContainer = mock(BlobContainer.class);
         doAnswer(invocation -> { throw new IOException("test exception"); }).when(blobStore).blobContainer(any(BlobPath.class));
         // when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
-        BlobStoreTransferService blobStoreTransferService = new BlobStoreTransferService(
-            blobStore,
-            OpenSearchExecutors.newDirectExecutorService()
-        );
+        BlobStoreTransferService blobStoreTransferService = new BlobStoreTransferService(blobStore, threadPool);
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             blobStoreTransferService,
             remoteBaseTransferPath,

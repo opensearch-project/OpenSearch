@@ -16,12 +16,12 @@ import org.opensearch.action.ActionRunnable;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
 
 /**
  * Service that handles remote transfer of translog and checkpoint files
@@ -31,13 +31,13 @@ import java.util.concurrent.ExecutorService;
 public class BlobStoreTransferService implements TransferService {
 
     private final BlobStore blobStore;
-    private final ExecutorService executorService;
+    private final ThreadPool threadPool;
 
     private static final Logger logger = LogManager.getLogger(BlobStoreTransferService.class);
 
-    public BlobStoreTransferService(BlobStore blobStore, ExecutorService executorService) {
+    public BlobStoreTransferService(BlobStore blobStore, ThreadPool threadPool) {
         this.blobStore = blobStore;
-        this.executorService = executorService;
+        this.threadPool = threadPool;
     }
 
     @Override
@@ -48,7 +48,7 @@ public class BlobStoreTransferService implements TransferService {
     ) {
         assert remoteTransferPath instanceof BlobPath;
         BlobPath blobPath = (BlobPath) remoteTransferPath;
-        executorService.execute(ActionRunnable.wrap(listener, l -> {
+        threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER).execute(ActionRunnable.wrap(listener, l -> {
             try (InputStream inputStream = fileSnapshot.inputStream()) {
                 blobStore.blobContainer(blobPath)
                     .writeBlobAtomic(fileSnapshot.getName(), inputStream, fileSnapshot.getContentLength(), true);
@@ -83,7 +83,7 @@ public class BlobStoreTransferService implements TransferService {
 
     @Override
     public void deleteBlobsAsync(Iterable<String> path, List<String> fileNames, ActionListener<Void> listener) {
-        executorService.execute(() -> {
+        threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER).execute(() -> {
             try {
                 blobStore.blobContainer((BlobPath) path).deleteBlobsIgnoringIfNotExists(fileNames);
                 listener.onResponse(null);
@@ -95,7 +95,7 @@ public class BlobStoreTransferService implements TransferService {
 
     @Override
     public void deleteAsync(Iterable<String> path, ActionListener<Void> listener) {
-        executorService.execute(() -> {
+        threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER).execute(() -> {
             try {
                 blobStore.blobContainer((BlobPath) path).delete();
                 listener.onResponse(null);
