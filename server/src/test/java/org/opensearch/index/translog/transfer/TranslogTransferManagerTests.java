@@ -66,6 +66,12 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         threadPool = new TestThreadPool(getClass().getName());
     }
 
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        terminate(threadPool);
+    }
+
     @SuppressWarnings("unchecked")
     public void testTransferSnapshot() throws IOException {
         AtomicInteger fileTransferSucceeded = new AtomicInteger();
@@ -324,7 +330,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         assertEquals(2, tracker.allUploaded().size());
 
         List<String> files = List.of(checkpointFile, translogFile);
-        translogTransferManager.deleteTranslogAsync(primaryTerm, Set.of(19L));
+        translogTransferManager.deleteTranslog(primaryTerm, Set.of(19L));
         assertBusy(() -> assertEquals(0, tracker.allUploaded().size()));
         verify(blobContainer).deleteBlobsIgnoringIfNotExists(eq(files));
     }
@@ -346,7 +352,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         tracker.add(checkpointFile, true);
         assertEquals(2, tracker.allUploaded().size());
 
-        translogTransferManager.deleteTranslogAsync(primaryTerm, Set.of(19L));
+        translogTransferManager.deleteTranslog(primaryTerm, Set.of(19L));
         assertEquals(2, tracker.allUploaded().size());
     }
 }

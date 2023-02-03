@@ -45,9 +45,12 @@ public interface TransferService {
 
     void deleteBlobs(Iterable<String> path, List<String> fileNames) throws IOException;
 
-    void deleteBlobsAsync(Iterable<String> path, List<String> fileNames, ActionListener<Void> listener);
-
-    void deleteAsync(Iterable<String> path, ActionListener<Void> listener);
+    /**
+     *  Deletes all contents with-in a path.
+     * @param path the path in remote which needs to be deleted completely.
+     * @throws IOException the exception while transferring the data.
+     */
+    void delete(Iterable<String> path) throws IOException;
 
     /**
      * Lists the files

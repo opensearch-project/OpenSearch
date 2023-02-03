@@ -30,14 +30,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
 
-    private ExecutorService executorService;
     private ThreadPool threadPool;
 
     private BlobStoreRepository repository;
@@ -46,7 +43,6 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         repository = createRepository();
-        executorService = Executors.newFixedThreadPool(1);
         threadPool = new TestThreadPool(getClass().getName());
     }
 
@@ -96,8 +92,7 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         repository.stop();
-        executorService.shutdown();
-        executorService.awaitTermination(1000, TimeUnit.MILLISECONDS);
+        ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
     /** Create a {@link Repository} with a random name **/

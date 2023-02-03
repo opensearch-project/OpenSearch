@@ -66,8 +66,6 @@ public class BlobStoreTransferService implements TransferService {
         BlobPath blobPath = (BlobPath) remoteTransferPath;
         try (InputStream inputStream = fileSnapshot.inputStream()) {
             blobStore.blobContainer(blobPath).writeBlobAtomic(fileSnapshot.getName(), inputStream, fileSnapshot.getContentLength(), true);
-        } catch (Exception ex) {
-            throw ex;
         }
     }
 
@@ -82,27 +80,8 @@ public class BlobStoreTransferService implements TransferService {
     }
 
     @Override
-    public void deleteBlobsAsync(Iterable<String> path, List<String> fileNames, ActionListener<Void> listener) {
-        threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER).execute(() -> {
-            try {
-                blobStore.blobContainer((BlobPath) path).deleteBlobsIgnoringIfNotExists(fileNames);
-                listener.onResponse(null);
-            } catch (IOException e) {
-                listener.onFailure(e);
-            }
-        });
-    }
-
-    @Override
-    public void deleteAsync(Iterable<String> path, ActionListener<Void> listener) {
-        threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER).execute(() -> {
-            try {
-                blobStore.blobContainer((BlobPath) path).delete();
-                listener.onResponse(null);
-            } catch (IOException e) {
-                listener.onFailure(e);
-            }
-        });
+    public void delete(Iterable<String> path) throws IOException {
+        blobStore.blobContainer((BlobPath) path).delete();
     }
 
     @Override

@@ -9,7 +9,6 @@
 package org.opensearch.index.translog;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.action.ActionListener;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.lease.Releasable;
@@ -33,6 +32,7 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
@@ -53,6 +53,7 @@ public class RemoteFsTranslog extends Translog {
     private final TranslogTransferManager translogTransferManager;
     private final FileTransferTracker fileTransferTracker;
     private final BooleanSupplier primaryModeSupplier;
+    private final ExecutorService remotePurgeExecutorService;
     private volatile long maxRemoteTranslogGenerationUploaded;
 
     private volatile long minSeqNoToKeep;
@@ -78,6 +79,7 @@ public class RemoteFsTranslog extends Translog {
         this.blobStoreRepository = blobStoreRepository;
         this.primaryModeSupplier = primaryModeSupplier;
         fileTransferTracker = new FileTransferTracker(shardId);
+        this.remotePurgeExecutorService = threadPool.executor(ThreadPool.Names.TRANSLOG_REMOTE_PURGE);
         this.translogTransferManager = buildTranslogTransferManager(blobStoreRepository, threadPool, shardId, fileTransferTracker);
 
         try {
@@ -340,14 +342,6 @@ public class RemoteFsTranslog extends Translog {
         this.minSeqNoToKeep = seqNo;
     }
 
-    private void deleteRemoteGeneration(Set<Long> generations) {
-        try {
-            translogTransferManager.deleteTranslogAsync(primaryTermSupplier.getAsLong(), generations);
-        } catch (IOException e) {
-            logger.error(() -> new ParameterizedMessage("Exception occurred while deleting generation {}", generations), e);
-        }
-    }
-
     @Override
     public void trimUnreferencedReaders() throws IOException {
         // clean up local translog files and updates readers
@@ -363,9 +357,15 @@ public class RemoteFsTranslog extends Translog {
             generationsToDelete.add(generation);
         }
         if (generationsToDelete.isEmpty() == false) {
-            deleteRemoteGeneration(generationsToDelete);
-            deleteOlderPrimaryTranslogFilesFromRemoteStore();
+            remotePurgeExecutorService.execute(() -> {
+                deleteRemoteGeneration(generationsToDelete);
+                deleteOlderPrimaryTranslogFilesFromRemoteStore();
+            });
         }
+    }
+
+    private void deleteRemoteGeneration(Set<Long> generations) {
+        translogTransferManager.deleteTranslog(primaryTermSupplier.getAsLong(), generations);
     }
 
     /**
@@ -392,20 +392,16 @@ public class RemoteFsTranslog extends Translog {
             Set<Long> primaryTermsToDelete = primaryTermsInRemote.stream()
                 .filter(term -> term < minPrimaryTermInMetadata)
                 .collect(Collectors.toSet());
-            primaryTermsToDelete.forEach(term -> translogTransferManager.deleteTranslogAsync(term, new ActionListener<>() {
-                @Override
-                public void onResponse(Void response) {
-                    // NO-OP
-                }
-
-                @Override
-                public void onFailure(Exception e) {
+            primaryTermsToDelete.forEach(term -> {
+                try {
+                    translogTransferManager.deletePrimaryTerm(term);
+                } catch (IOException e) {
                     logger.error(
                         () -> new ParameterizedMessage("Exception occurred while deleting older translog files for primary_term={}", term),
                         e
                     );
                 }
-            }));
+            });
         }
     }
 }

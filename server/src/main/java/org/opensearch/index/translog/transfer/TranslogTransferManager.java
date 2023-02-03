@@ -202,7 +202,7 @@ public class TranslogTransferManager {
      * @param primaryTerm primary term
      * @param generations set of generation
      */
-    public void deleteTranslogAsync(long primaryTerm, Set<Long> generations) throws IOException {
+    public void deleteTranslog(long primaryTerm, Set<Long> generations) {
         if (generations.isEmpty()) {
             return;
         }
@@ -212,41 +212,36 @@ public class TranslogTransferManager {
             String translogFilename = Translog.getFilename(generation);
             files.addAll(List.of(ckpFileName, translogFilename));
         });
-        transferService.deleteBlobsAsync(remoteBaseTransferPath.add(String.valueOf(primaryTerm)), files, new ActionListener<>() {
-            @Override
-            public void onResponse(Void unused) {
-                fileTransferTracker.delete(files);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                logger.error(
-                    () -> new ParameterizedMessage(
-                        "Exception occurred while deleting translog for primary_term={} generations={}",
-                        primaryTerm,
-                        generations
-                    ),
-                    e
-                );
-            }
-        });
+        try {
+            transferService.deleteBlobs(remoteBaseTransferPath.add(String.valueOf(primaryTerm)), files);
+            fileTransferTracker.delete(files);
+        } catch (IOException e) {
+            logger.error(
+                () -> new ParameterizedMessage(
+                    "Exception occurred while deleting translog for primary_term={} generations={}",
+                    primaryTerm,
+                    generations
+                ),
+                e
+            );
+        }
     }
 
     /**
-     * Handles deletion of translog files for a particular primary term.
+     * Handles deletion of all translog files associated with a primary term.
      *
      * @param primaryTerm primary term
-     * @param listener    listener for response and failure
+     * @throws IOException is thrown if it can't read the data.
      */
-    public void deleteTranslogAsync(long primaryTerm, ActionListener<Void> listener) {
-        transferService.deleteAsync(remoteBaseTransferPath.add(String.valueOf(primaryTerm)), listener);
+    public void deletePrimaryTerm(long primaryTerm) throws IOException {
+        transferService.delete(remoteBaseTransferPath.add(String.valueOf(primaryTerm)));
     }
 
     /**
      * Lists all primary terms existing on remote store.
      *
      * @return the list of primary terms.
-     * @throws IOException is thrown if it can read the data.
+     * @throws IOException is thrown if it can't read the data.
      */
     public Set<Long> listPrimaryTerms() throws IOException {
         return transferService.listFolders(remoteBaseTransferPath).stream().filter(s -> {
