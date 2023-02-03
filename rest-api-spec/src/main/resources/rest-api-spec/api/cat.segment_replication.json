@@ -37,7 +37,7 @@
         "description":"If `true`, the response only includes ongoing segment replication events",
         "default":false
       },
-      "active_only":{
+      "completed_only":{
         "type":"boolean",
         "description":"If `true`, the response only includes latest completed segment replication events",
         "default":false

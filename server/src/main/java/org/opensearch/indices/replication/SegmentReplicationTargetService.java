@@ -228,7 +228,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                                 "[shardId {}] [replication id {}] Replication complete, timing data: {}",
                                 replicaShard.shardId().getId(),
                                 state.getReplicationId(),
-                                state.getOverallTimer()
+                                state.getTimingData()
                             )
                         );
                         // if we received a checkpoint during the copy event that is ahead of this
@@ -255,7 +255,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                                 "[shardId {}] [replication id {}] Replication failed, timing data: {}",
                                 replicaShard.shardId().getId(),
                                 state.getReplicationId(),
-                                state.getOverallTimer()
+                                state.getTimingData()
                             )
                         );
                         if (sendShardFailure == true) {
@@ -396,7 +396,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                                 "[shardId {}] [replication id {}] Replication complete, timing data: {}",
                                 indexShard.shardId().getId(),
                                 state.getReplicationId(),
-                                state.getOverallTimer()
+                                state.getTimingData()
                             )
                         );
                         try {
@@ -421,7 +421,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                                 "[shardId {}] [replication id {}] Replication failed, timing data: {}",
                                 indexShard.shardId().getId(),
                                 state.getReplicationId(),
-                                state.getOverallTimer()
+                                state.getTimingData()
                             )
                         );
                         if (sendShardFailure == true) {

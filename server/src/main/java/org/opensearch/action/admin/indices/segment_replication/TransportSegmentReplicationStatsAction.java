@@ -8,7 +8,7 @@
 
 package org.opensearch.action.admin.indices.segment_replication;
 
-import org.opensearch.ResourceNotFoundException;
+import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
@@ -26,6 +26,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
+import org.opensearch.rest.RestStatus;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -93,7 +94,7 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
         if (singleIndexWithSegmentReplicationDisabled != null) {
             String index = singleIndexWithSegmentReplicationDisabled;
             singleIndexWithSegmentReplicationDisabled = null;
-            throw new ResourceNotFoundException("Segment Replication is not enabled on Index: " + index);
+            throw new OpenSearchStatusException("Segment Replication is not enabled on Index: " + index, RestStatus.BAD_REQUEST);
         }
         String[] shards = request.shards();
         Set<String> set = new HashSet<>();

@@ -91,7 +91,7 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
         Table t = new Table();
         t.startHeaders()
             .addCell("index", "alias:i,idx;desc:index name")
-            .addCell("shardId", "desc: shard Id")
+            .addCell("shardId", "alias:s;desc: shard Id")
             .addCell("start_time", "default:false;alias:start;desc:segment replication start time")
             .addCell("start_time_millis", "default:false;alias:start_millis;desc:segment replication start time in epoch milliseconds")
             .addCell("stop_time", "default:false;alias:stop;desc:segment replication stop time")

@@ -173,7 +173,6 @@ import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
-import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
@@ -281,9 +280,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     @Nullable
     private volatile RecoveryState recoveryState;
-
-    @Nullable
-    private volatile SegmentReplicationState segmentReplicationState;
 
     private final RecoveryStats recoveryStats = new RecoveryStats();
     private final MeanMetric refreshMetric = new MeanMetric();

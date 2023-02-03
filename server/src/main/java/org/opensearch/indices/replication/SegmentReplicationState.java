@@ -85,10 +85,6 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
     private String sourceDescription;
     private DiscoveryNode targetNode;
 
-    public ReplicationTimer getOverallTimer() {
-        return overallTimer;
-    }
-
     public ShardRouting getShardRouting() {
         return shardRouting;
     }
@@ -122,6 +118,10 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
 
     public long getReplicatingStageTime() {
         return timingData.get(Stage.REPLICATING.toString());
+    }
+
+    public Map<String, Long> getTimingData() {
+        return timingData;
     }
 
     public long getGetCheckpointInfoStageTime() {
