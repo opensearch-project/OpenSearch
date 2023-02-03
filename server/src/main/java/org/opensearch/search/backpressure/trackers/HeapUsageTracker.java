@@ -122,6 +122,10 @@ public class HeapUsageTracker extends TaskResourceUsageTracker {
             this(in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
         }
 
+        public static boolean isHeapTrackingSupported() {
+            return HEAP_SIZE_BYTES > 0;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject()

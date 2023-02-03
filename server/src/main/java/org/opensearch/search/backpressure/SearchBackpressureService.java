@@ -52,7 +52,7 @@ import java.util.function.DoubleSupplier;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
-import static org.opensearch.search.backpressure.trackers.HeapUsageTracker.HEAP_SIZE_BYTES;
+import static org.opensearch.search.backpressure.trackers.HeapUsageTracker.Stats.isHeapTrackingSupported;
 
 /**
  * SearchBackpressureService is responsible for monitoring and cancelling in-flight search tasks if they are
@@ -329,7 +329,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
     ) {
         List<TaskResourceUsageTracker> trackers = new ArrayList<>();
         trackers.add(new CpuUsageTracker(cpuThresholdSupplier));
-        if (HEAP_SIZE_BYTES > 0) {
+        if (isHeapTrackingSupported()) {
             trackers.add(
                 new HeapUsageTracker(
                     heapVarianceSupplier,
