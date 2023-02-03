@@ -12,8 +12,8 @@ paths:
         description: Get a list of all permissions granted to a given principal
         content:
           application/json:
-            name: principal name
-            description: the principal name to get the permissions for
+            name: username
+            description: the username of the principal name to get the permissions for
             required: true
             schema:
               type: string
@@ -56,8 +56,8 @@ paths:
         description: Delete a permission
         content:
           application/json:
-            - name: principal name
-              description: the principal name to delete a permission from
+            - name: username
+              description: the username of the principal to delete a permission from
               required: true
               schema:
                 type: string
