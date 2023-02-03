@@ -26,12 +26,6 @@ import static org.hamcrest.Matchers.is;
  */
 public class RestPermissionsIT extends OpenSearchRestTestCase {
 
-    protected String getEndpointPrefix() {
-        return RestConstants.IDENTITY_REST_REQUEST_PREFIX;
-    }
-
-    public RestPermissionsIT() {}
-
     @Before
     public void init() throws Exception {
         ensureIdentityIndexExists();
@@ -55,12 +49,13 @@ public class RestPermissionsIT extends OpenSearchRestTestCase {
 
     public void testPermissionsRestApi() throws Exception {
 
-        final String createEndpoint = RestConstants.IDENTITY_CREATE_PERMISSION_ACTION;
+        final String endpoint = RestConstants.IDENTITY_PERMISSION_SUFFIX;
+
+        String username = "test";
         // Add a permission
-        Request createRequest = new Request("PUT", createEndpoint);
-        createRequest.setJsonEntity("{ \"permissionString\" : \"cluster:admin\\read\", \"principalString\" : \"testPrincipal\" }\n");
+        Request createRequest = new Request("PUT", endpoint + username + RestConstants.IDENTITY_PUT_PERMISSION_SUFFIX);
+        createRequest.setJsonEntity("{ \"permissionString\" : \"cluster:admin/read\"}\n");
         Response createResponse = client().performRequest(createRequest);
         assertThat(createResponse.getStatusLine().getStatusCode(), is(200));
-
     }
 }

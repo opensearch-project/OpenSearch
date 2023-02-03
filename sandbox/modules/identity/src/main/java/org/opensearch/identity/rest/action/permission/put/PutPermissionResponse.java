@@ -39,6 +39,12 @@ public class PutPermissionResponse extends ActionResponse implements StatusToXCo
         this.putPermissionResults = putPermissionResults;
     }
 
+    /**
+     * Conjoins the different PutPermissionResponseInfo objects from an input stream connected to another node
+     * This is important for bulk requests but right now will just be a step in between the Info and returning to the client
+     * @param in An input byte array stream from another node
+     * @throws IOException Throw on failure
+     */
     public PutPermissionResponse(StreamInput in) throws IOException {
         super(in);
         int size = in.readVInt();
@@ -49,7 +55,7 @@ public class PutPermissionResponse extends ActionResponse implements StatusToXCo
 
     }
 
-    public List<PutPermissionResponseInfo> getputPermissionResults() {
+    public List<PutPermissionResponseInfo> getPutPermissionResults() {
         return putPermissionResults;
     }
 
@@ -62,6 +68,11 @@ public class PutPermissionResponse extends ActionResponse implements StatusToXCo
         return OK;
     }
 
+    /**
+     * Sends the concatenated info out to another node
+     * @param out An output stream to another node
+     * @throws IOException Throw on failure
+     */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(putPermissionResults.size());
@@ -70,6 +81,14 @@ public class PutPermissionResponse extends ActionResponse implements StatusToXCo
         }
     }
 
+    /**
+     * Conjoins the different PutPermissionResponseInfo objects
+     * This is important for bulk requests but right now will just be a step in between the Info and returning to the client
+     * @param builder The Xcontent builder object that serves as the response holder
+     * @param params Settings for the builder
+     * @return A builder with all the concatenated response information
+     * @throws IOException throw on failure
+     */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
@@ -82,6 +101,9 @@ public class PutPermissionResponse extends ActionResponse implements StatusToXCo
         return builder;
     }
 
+    /**
+     * Conjoins the different PutPermissionResponseInfo but does so a different way
+     */
     private static final ConstructingObjectParser<PutPermissionResponse, Void> PARSER = new ConstructingObjectParser<>(
         "put_permission_response",
         true,

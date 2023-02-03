@@ -25,6 +25,8 @@ import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
 
+import java.util.Map;
+
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -53,14 +55,13 @@ public class RestPermissionTests extends OpenSearchTestCase {
                 PutPermissionRequest req = (PutPermissionRequest) request;
                 putPermissionCalled.set(true);
                 assertThat(req.getPermissionString(), equalTo("test_permission"));
-                assertThat(req.getPrincipalString(), equalTo("test_principal"));
+                assertThat(req.getUsername(), equalTo("test"));
             }
         }) {
             RestPutPermissionAction action = new RestPutPermissionAction();
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
-                new BytesArray("{\"principalString\" : \"test_principal\", \"permissionString\" : \"test_permission\" }\n"),
-                XContentType.JSON
-            ).build();
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("username", "test"))
+                .withContent(new BytesArray("{ \"permissionString\" : \"test_permission\" }\n"), XContentType.JSON)
+                .build();
             FakeRestChannel channel = new FakeRestChannel(request, false, 0);
             action.handleRequest(request, channel, nodeClient);
 

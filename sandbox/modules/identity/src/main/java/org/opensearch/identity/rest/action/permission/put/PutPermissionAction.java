@@ -11,7 +11,7 @@ package org.opensearch.identity.rest.action.permission.put;
 import org.opensearch.action.ActionType;
 
 /**
- * This class defines the PutPermissionAction ActionType which corresponds to an action that grant a subject permissions while using Identity.
+ * This class defines the PutPermissionAction ActionType which corresponds to an action that grant a subject a permission while using Identity.
  */
 public class PutPermissionAction extends ActionType<PutPermissionResponse> {
 

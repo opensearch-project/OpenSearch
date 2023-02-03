@@ -21,21 +21,24 @@ import java.io.IOException;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
+/**
+ * This class defines a PutPermissionAction request
+ */
 public class PutPermissionRequest extends ActionRequest implements ToXContentObject {
 
     private String permissionString;
 
-    private String principalString;
+    private String username;
 
     public PutPermissionRequest(StreamInput in) throws IOException {
         super(in);
         this.permissionString = in.readString();
-        this.principalString = in.readString();
+        this.username = in.readString();
     }
 
-    public PutPermissionRequest(String permissionString, String principalString) {
+    public PutPermissionRequest(String permissionString, String username) {
         this.permissionString = permissionString;
-        this.principalString = principalString;
+        this.username = username;
     }
 
     public PutPermissionRequest() {}
@@ -48,21 +51,25 @@ public class PutPermissionRequest extends ActionRequest implements ToXContentObj
         this.permissionString = permissionString;
     }
 
-    public String getPrincipalString() {
-        return this.principalString;
+    public String getUsername() {
+        return this.username;
     }
 
-    public void setPrincipalString(String principalString) {
-        this.principalString = principalString;
+    public void setUsername(String username) {
+        this.username = username;
     }
 
+    /**
+     * Ensure that both the permission and username are present
+     * @return
+     */
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (permissionString == null) { // TODO: check the condition once
             validationException = addValidationError("No permissionString specified", validationException);
-        } else if (principalString == null) {
-            validationException = addValidationError("No principal specified", validationException);
+        } else if (username == null) {
+            validationException = addValidationError("No username specified", validationException);
         }
         return validationException;
     }
@@ -71,14 +78,14 @@ public class PutPermissionRequest extends ActionRequest implements ToXContentObj
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(permissionString);
-        out.writeString(principalString);
+        out.writeString(username);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.value(permissionString);
-        builder.value(principalString);
+        builder.value(username);
         builder.endObject();
         return builder;
     }
@@ -102,15 +109,6 @@ public class PutPermissionRequest extends ActionRequest implements ToXContentObj
                     // add any validation checks here
 
                     permissionString = parser.text();
-                } else if ("principalString".equals(currentFieldName)) {
-
-                    if (token.isValue() == false) {
-                        throw new IllegalArgumentException(); // TODO: check the message to be returned
-                    }
-
-                    // add any validation checks here
-
-                    principalString = parser.text();
                 }
                 // add all other fields to be parsed from body
                 else {
