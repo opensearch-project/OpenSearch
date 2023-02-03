@@ -57,7 +57,7 @@ public abstract class BufferedAsyncIOProcessor<Item> extends AsyncIOProcessor<It
     private void scheduleProcess() {
         if (getQueue().isEmpty() == false && getPromiseSemaphore().tryAcquire()) {
             try {
-                threadpool.schedule(this::process, getBufferInterval(), getBufferRefreshThreadPoolName());
+                threadpool.schedule(this::process, getBufferInterval(), getBufferProcessThreadPoolName());
             } catch (Exception e) {
                 getLogger().error("failed to schedule process");
                 processSchedulingFailure(e);
@@ -88,6 +88,6 @@ public abstract class BufferedAsyncIOProcessor<Item> extends AsyncIOProcessor<It
         return TimeValue.timeValueNanos(bufferInterval.getNanos() - timeSinceLastRunStartInNS);
     }
 
-    protected abstract String getBufferRefreshThreadPoolName();
+    protected abstract String getBufferProcessThreadPoolName();
 
 }
