@@ -260,10 +260,10 @@ import org.opensearch.action.admin.indices.rollover.RolloverAction;
 import org.opensearch.action.admin.indices.rollover.RolloverRequest;
 import org.opensearch.action.admin.indices.rollover.RolloverRequestBuilder;
 import org.opensearch.action.admin.indices.rollover.RolloverResponse;
-import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationAction;
-import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationRequest;
-import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationRequestBuilder;
-import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationResponse;
+import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationStatsAction;
+import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationStatsRequest;
+import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationStatsRequestBuilder;
+import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
@@ -1780,21 +1780,21 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<SegmentReplicationResponse> segment_replication(final SegmentReplicationRequest request) {
-            return execute(SegmentReplicationAction.INSTANCE, request);
+        public ActionFuture<SegmentReplicationStatsResponse> segment_replication(final SegmentReplicationStatsRequest request) {
+            return execute(SegmentReplicationStatsAction.INSTANCE, request);
         }
 
         @Override
         public void segment_replication(
-            final SegmentReplicationRequest request,
-            final ActionListener<SegmentReplicationResponse> listener
+            final SegmentReplicationStatsRequest request,
+            final ActionListener<SegmentReplicationStatsResponse> listener
         ) {
-            execute(SegmentReplicationAction.INSTANCE, request, listener);
+            execute(SegmentReplicationStatsAction.INSTANCE, request, listener);
         }
 
         @Override
-        public SegmentReplicationRequestBuilder prepareSegment_Replication(String... indices) {
-            return new SegmentReplicationRequestBuilder(this, SegmentReplicationAction.INSTANCE).setIndices(indices);
+        public SegmentReplicationStatsRequestBuilder prepareSegmentReplication(String... indices) {
+            return new SegmentReplicationStatsRequestBuilder(this, SegmentReplicationStatsAction.INSTANCE).setIndices(indices);
         }
 
         @Override

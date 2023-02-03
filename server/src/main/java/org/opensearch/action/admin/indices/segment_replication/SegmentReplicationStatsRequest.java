@@ -21,23 +21,27 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class SegmentReplicationRequest extends BroadcastRequest<SegmentReplicationRequest> {
+public class SegmentReplicationStatsRequest extends BroadcastRequest<SegmentReplicationStatsRequest> {
     private boolean detailed = false;       // Provides extra details in the response
     private boolean activeOnly = false;     // Only reports on active segment replication events
 
     private String[] shards = new String[0];
 
+    private boolean completedOnly = false;
+
     /**
      * Constructs a request for segment replication information for all shards
      */
-    public SegmentReplicationRequest() {
+    public SegmentReplicationStatsRequest() {
         this(Strings.EMPTY_ARRAY);
     }
 
-    public SegmentReplicationRequest(StreamInput in) throws IOException {
+    public SegmentReplicationStatsRequest(StreamInput in) throws IOException {
         super(in);
         detailed = in.readBoolean();
         activeOnly = in.readBoolean();
+        completedOnly = in.readBoolean();
+
     }
 
     /**
@@ -45,7 +49,7 @@ public class SegmentReplicationRequest extends BroadcastRequest<SegmentReplicati
      *
      * @param indices   Comma-separated list of indices about which to gather segment replication information
      */
-    public SegmentReplicationRequest(String... indices) {
+    public SegmentReplicationStatsRequest(String... indices) {
         super(indices, IndicesOptions.STRICT_EXPAND_OPEN_CLOSED);
     }
 
@@ -88,6 +92,25 @@ public class SegmentReplicationRequest extends BroadcastRequest<SegmentReplicati
     }
 
     /**
+     * True if completedOnly flag is set, false otherwise. This value is false by default.
+     *
+     * @return  True if completedOnly flag is set, false otherwise
+     */
+    public boolean completedOnly() {
+        return completedOnly;
+    }
+
+    /**
+     * Set value of the completedOnly flag. If true, this request will only respond with
+     * latest completed segment replication event information.
+     *
+     * @param completedOnly   Whether or not to set the completedOnly flag.
+     */
+    public void completedOnly(boolean completedOnly) {
+        this.completedOnly = completedOnly;
+    }
+
+    /**
      * Contains list of shard id's if shards are passed, empty otherwise. Array is empty by default.
      *
      * @return  list of shard id's if shards are passed, empty otherwise
@@ -111,5 +134,6 @@ public class SegmentReplicationRequest extends BroadcastRequest<SegmentReplicati
         super.writeTo(out);
         out.writeBoolean(detailed);
         out.writeBoolean(activeOnly);
+        out.writeBoolean(completedOnly);
     }
 }

@@ -15,11 +15,11 @@ import org.opensearch.action.ActionType;
  *
  * @opensearch.internal
  */
-public class SegmentReplicationAction extends ActionType<SegmentReplicationResponse> {
-    public static final SegmentReplicationAction INSTANCE = new SegmentReplicationAction();
+public class SegmentReplicationStatsAction extends ActionType<SegmentReplicationStatsResponse> {
+    public static final SegmentReplicationStatsAction INSTANCE = new SegmentReplicationStatsAction();
     public static final String NAME = "indices:monitor/segment_replication";
 
-    private SegmentReplicationAction() {
-        super(NAME, SegmentReplicationResponse::new);
+    private SegmentReplicationStatsAction() {
+        super(NAME, SegmentReplicationStatsResponse::new);
     }
 }

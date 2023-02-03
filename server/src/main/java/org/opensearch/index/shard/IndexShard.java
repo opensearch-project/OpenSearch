@@ -1548,27 +1548,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return true;
     }
 
-    public SegmentReplicationState getSegmentReplicationState() {
-        if (checkSegmentReplicationAllowed(segmentReplicationState)) {
-            return this.segmentReplicationState;
-        }
-        if (this.segmentReplicationState != null) this.segmentReplicationState = null;
-        return null;
-    }
-
-    public void setSegmentReplicationState(SegmentReplicationState segmentReplicationState) {
-        if (checkSegmentReplicationAllowed(segmentReplicationState)) {
-            this.segmentReplicationState = segmentReplicationState;
-        } else throw new OpenSearchException("Cannot set Segment Replication State on a primary shard");
-    }
-
-    private boolean checkSegmentReplicationAllowed(SegmentReplicationState segmentReplicationState) {
-        if (indexSettings.isSegRepEnabled() && (this.shardRouting.primary() == false || getReplicationEngine().isEmpty() == false)) {
-            return true;
-        }
-        return false;
-    }
-
     /**
      * gets a {@link Store.MetadataSnapshot} for the current directory. This method is safe to call in all lifecycle of the index shard,
      * without having to worry about the current state of the engine and concurrent flushes.

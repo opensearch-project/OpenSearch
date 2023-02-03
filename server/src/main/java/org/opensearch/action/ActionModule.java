@@ -176,8 +176,8 @@ import org.opensearch.action.admin.indices.refresh.TransportRefreshAction;
 import org.opensearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.opensearch.action.admin.indices.rollover.RolloverAction;
 import org.opensearch.action.admin.indices.rollover.TransportRolloverAction;
-import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationAction;
-import org.opensearch.action.admin.indices.segment_replication.TransportSegmentReplicationAction;
+import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationStatsAction;
+import org.opensearch.action.admin.indices.segment_replication.TransportSegmentReplicationStatsAction;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.opensearch.action.admin.indices.segments.PitSegmentsAction;
 import org.opensearch.action.admin.indices.segments.TransportIndicesSegmentsAction;
@@ -652,7 +652,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ExplainAction.INSTANCE, TransportExplainAction.class);
         actions.register(ClearScrollAction.INSTANCE, TransportClearScrollAction.class);
         actions.register(RecoveryAction.INSTANCE, TransportRecoveryAction.class);
-        actions.register(SegmentReplicationAction.INSTANCE, TransportSegmentReplicationAction.class);
+        actions.register(SegmentReplicationStatsAction.INSTANCE, TransportSegmentReplicationStatsAction.class);
         actions.register(NodesReloadSecureSettingsAction.INSTANCE, TransportNodesReloadSecureSettingsAction.class);
         actions.register(AutoCreateAction.INSTANCE, AutoCreateAction.TransportAction.class);
 

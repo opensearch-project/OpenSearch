@@ -56,8 +56,8 @@ import org.opensearch.action.admin.indices.recovery.RecoveryAction;
 import org.opensearch.action.admin.indices.recovery.RecoveryRequest;
 import org.opensearch.action.admin.indices.refresh.RefreshRequest;
 import org.opensearch.action.admin.indices.refresh.TransportShardRefreshAction;
-import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationAction;
-import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationRequest;
+import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationStatsAction;
+import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationStatsRequest;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsAction;
@@ -471,14 +471,14 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
     }
 
     public void testSegment_Replication() {
-        String segmentReplicationAction = SegmentReplicationAction.NAME + "[n]";
+        String segmentReplicationAction = SegmentReplicationStatsAction.NAME + "[n]";
         interceptTransportActions(segmentReplicationAction);
 
-        SegmentReplicationRequest segmentReplicationRequest = new SegmentReplicationRequest(randomIndicesOrAliases());
-        internalCluster().coordOnlyNodeClient().admin().indices().segment_replication(segmentReplicationRequest).actionGet();
+        SegmentReplicationStatsRequest segmentReplicationStatsRequest = new SegmentReplicationStatsRequest(randomIndicesOrAliases());
+        internalCluster().coordOnlyNodeClient().admin().indices().segment_replication(segmentReplicationStatsRequest).actionGet();
 
         clearInterceptedActions();
-        assertSameIndices(segmentReplicationRequest, segmentReplicationAction);
+        assertSameIndices(segmentReplicationStatsRequest, segmentReplicationAction);
     }
 
     public void testSegments() {

@@ -63,22 +63,13 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         super("replication_target", indexShard, new ReplicationLuceneIndex(), listener);
         this.checkpoint = checkpoint;
         this.source = source;
-        if (indexShard.getSegmentReplicationState() == null) {
-            indexShard.setSegmentReplicationState(
-                new SegmentReplicationState(
-                    indexShard.routingEntry(),
-                    indexShard.recoveryState().getSourceNode(),
-                    indexShard.recoveryState().getTargetNode()
-                )
-            );
-        }
-        this.state = indexShard.getSegmentReplicationState()
-            .onNewSegmentReplicationEvent(
-                stateIndex,
-                getId(),
-                indexShard.recoveryState().getSourceNode(),
-                indexShard.recoveryState().getTargetNode()
-            );
+        this.state = new SegmentReplicationState(
+            indexShard.routingEntry(),
+            stateIndex,
+            getId(),
+            source.getSourceDescription(),
+            indexShard.recoveryState().getTargetNode()
+        );
         this.multiFileWriter = new MultiFileWriter(indexShard.store(), stateIndex, getPrefix(), logger, this::ensureRefCount);
     }
 
@@ -209,8 +200,6 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         }
         // always send a req even if not fetching files so the primary can clear the copyState for this shard.
         state.setStage(SegmentReplicationState.Stage.GET_FILES);
-        final long sizeOfSegmentFiles = (diff.missing).stream().mapToLong(file -> file.length()).sum();
-        state.getFileDiff().setSizeOfFiles(sizeOfSegmentFiles);
         cancellableThreads.checkForCancel();
         source.getSegmentFiles(getId(), checkpointInfo.getCheckpoint(), diff.missing, store, getFilesListener);
     }

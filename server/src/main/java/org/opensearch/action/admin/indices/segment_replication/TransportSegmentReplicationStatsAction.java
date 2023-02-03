@@ -8,6 +8,7 @@
 
 package org.opensearch.action.admin.indices.segment_replication;
 
+import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
@@ -24,14 +25,17 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.SegmentReplicationState;
+import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
+import java.util.HashMap;
 
 /**
  * Transport action for shard segment replication operation. This transport action does not actually
@@ -39,31 +43,35 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public class TransportSegmentReplicationAction extends TransportBroadcastByNodeAction<
-    SegmentReplicationRequest,
-    SegmentReplicationResponse,
+public class TransportSegmentReplicationStatsAction extends TransportBroadcastByNodeAction<
+    SegmentReplicationStatsRequest,
+    SegmentReplicationStatsResponse,
     SegmentReplicationState> {
 
+    private final SegmentReplicationTargetService targetService;
     private final IndicesService indicesService;
+    private String singleIndexWithSegmentReplicationDisabled = null;
 
     @Inject
-    public TransportSegmentReplicationAction(
+    public TransportSegmentReplicationStatsAction(
         ClusterService clusterService,
         TransportService transportService,
         IndicesService indicesService,
+        SegmentReplicationTargetService targetService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            SegmentReplicationAction.NAME,
+            SegmentReplicationStatsAction.NAME,
             clusterService,
             transportService,
             actionFilters,
             indexNameExpressionResolver,
-            SegmentReplicationRequest::new,
+            SegmentReplicationStatsRequest::new,
             ThreadPool.Names.MANAGEMENT
         );
         this.indicesService = indicesService;
+        this.targetService = targetService;
     }
 
     @Override
@@ -72,8 +80,8 @@ public class TransportSegmentReplicationAction extends TransportBroadcastByNodeA
     }
 
     @Override
-    protected SegmentReplicationResponse newResponse(
-        SegmentReplicationRequest request,
+    protected SegmentReplicationStatsResponse newResponse(
+        SegmentReplicationStatsRequest request,
         int totalShards,
         int successfulShards,
         int failedShards,
@@ -81,50 +89,86 @@ public class TransportSegmentReplicationAction extends TransportBroadcastByNodeA
         List<DefaultShardOperationFailedException> shardFailures,
         ClusterState clusterState
     ) {
+        // throw exception if API call is made on single index with segment replication disabled.
+        if (singleIndexWithSegmentReplicationDisabled != null) {
+            String index = singleIndexWithSegmentReplicationDisabled;
+            singleIndexWithSegmentReplicationDisabled = null;
+            throw new ResourceNotFoundException("Segment Replication is not enabled on Index: " + index);
+        }
+        String[] shards = request.shards();
+        Set<String> set = new HashSet<>();
+        if (shards.length > 0) {
+            for (String shard : shards) {
+                set.add(shard);
+            }
+        }
         Map<String, List<SegmentReplicationState>> shardResponses = new HashMap<>();
         for (SegmentReplicationState segmentReplicationState : responses) {
             if (segmentReplicationState == null) {
+                continue;
+            }
+
+            // Limit responses to only specific shard id's passed in query paramter shards.
+            int shardId = segmentReplicationState.getShardRouting().shardId().id();
+            if (shards.length > 0 && set.contains(Integer.toString(shardId)) == false) {
                 continue;
             }
             String indexName = segmentReplicationState.getShardRouting().getIndexName();
             if (!shardResponses.containsKey(indexName)) {
                 shardResponses.put(indexName, new ArrayList<>());
             }
-            if (request.activeOnly()) {
-                if (segmentReplicationState.getStage() != SegmentReplicationState.Stage.DONE) {
-                    shardResponses.get(indexName).add(segmentReplicationState);
-                }
-            } else {
-                shardResponses.get(indexName).add(segmentReplicationState);
-            }
+            shardResponses.get(indexName).add(segmentReplicationState);
         }
-        return new SegmentReplicationResponse(totalShards, successfulShards, failedShards, shardResponses, shardFailures);
+        return new SegmentReplicationStatsResponse(totalShards, successfulShards, failedShards, shardResponses, shardFailures);
     }
 
     @Override
-    protected SegmentReplicationRequest readRequestFrom(StreamInput in) throws IOException {
-        return new SegmentReplicationRequest(in);
+    protected SegmentReplicationStatsRequest readRequestFrom(StreamInput in) throws IOException {
+        return new SegmentReplicationStatsRequest(in);
     }
 
     @Override
-    protected SegmentReplicationState shardOperation(SegmentReplicationRequest request, ShardRouting shardRouting) {
+    protected SegmentReplicationState shardOperation(SegmentReplicationStatsRequest request, ShardRouting shardRouting) {
         IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
-        return indexShard.getSegmentReplicationState();
+
+        // check if API call is made on single index with segment replication disabled.
+        if (request.indices().length == 1 && indexShard.indexSettings().isSegRepEnabled() == false) {
+            singleIndexWithSegmentReplicationDisabled = shardRouting.getIndexName();
+            return null;
+        }
+        if (indexShard.indexSettings().isSegRepEnabled() == false) {
+            return null;
+        }
+
+        // return information about only on-going segment replication events.
+        if (request.activeOnly()) {
+            return targetService.getOngoingEventSegmentReplicationState(shardRouting);
+        }
+
+        // return information about only latest completed segment replication events.
+        if (request.completedOnly()) {
+            return targetService.getlatestCompletedEventSegmentReplicationState(shardRouting);
+        }
+        return targetService.getSegmentReplicationState(shardRouting);
     }
 
     @Override
-    protected ShardsIterator shards(ClusterState state, SegmentReplicationRequest request, String[] concreteIndices) {
+    protected ShardsIterator shards(ClusterState state, SegmentReplicationStatsRequest request, String[] concreteIndices) {
         return state.routingTable().allShardsIncludingRelocationTargets(concreteIndices);
     }
 
     @Override
-    protected ClusterBlockException checkGlobalBlock(ClusterState state, SegmentReplicationRequest request) {
+    protected ClusterBlockException checkGlobalBlock(ClusterState state, SegmentReplicationStatsRequest request) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override
-    protected ClusterBlockException checkRequestBlock(ClusterState state, SegmentReplicationRequest request, String[] concreteIndices) {
+    protected ClusterBlockException checkRequestBlock(
+        ClusterState state,
+        SegmentReplicationStatsRequest request,
+        String[] concreteIndices
+    ) {
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 }

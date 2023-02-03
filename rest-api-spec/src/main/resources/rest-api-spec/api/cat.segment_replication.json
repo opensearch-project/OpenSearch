@@ -1,8 +1,8 @@
 {
   "cat.segment_replication":{
     "documentation":{
-      "url":"https://opensearch.org/docs/1.0/opensearch/rest-api/cat/cat-recovery/",
-      "description":"Returns information about index Segment Replication events, both on-going and completed."
+      "url":"https://github.com/opensearch-project/documentation-website/issues/2627",
+      "description":"Returns information about both on-going and latest completed Segment Replication events"
     },
     "stability":"stable",
     "url":{
@@ -34,7 +34,12 @@
       },
       "active_only":{
         "type":"boolean",
-        "description":"If `true`, the response only includes ongoing segment replications",
+        "description":"If `true`, the response only includes ongoing segment replication events",
+        "default":false
+      },
+      "active_only":{
+        "type":"boolean",
+        "description":"If `true`, the response only includes latest completed segment replication events",
         "default":false
       },
       "bytes":{

@@ -17,8 +17,8 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.admin.indices.recovery.RecoveryAction;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
-import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationAction;
-import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationResponse;
+import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationStatsAction;
+import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsAction;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -49,25 +49,6 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singletonList(MockTransportService.TestPlugin.class);
-    }
-
-    private String featureFlagSetting = "NONE";
-
-    @Override
-    protected Settings featureFlagSettings() {
-        if (!featureFlagSetting.equals("NONE")) {
-            return Settings.builder().put(super.featureFlagSettings()).put(featureFlagSetting, "true").build();
-        } else {
-            return Settings.builder().put(super.featureFlagSettings()).build();
-        }
-    }
-
-    private void enableFeatureFlag(String featureFlagSetting) {
-        this.featureFlagSetting = featureFlagSetting;
-    }
-
-    private void disableFeatureFlag() {
-        this.featureFlagSetting = "NONE";
     }
 
     public void testNodesInfoTimeout() {
@@ -172,10 +153,15 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
     }
 
     public void testSegment_ReplicationWithTimeout() {
-        enableFeatureFlag(FeatureFlags.REPLICATION_TYPE);
-        internalCluster().startClusterManagerOnlyNode();
-        String dataNode = internalCluster().startDataOnlyNode();
-        String anotherDataNode = internalCluster().startDataOnlyNode();
+        internalCluster().startClusterManagerOnlyNode(
+            Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REPLICATION_TYPE, "true").build()
+        );
+        String dataNode = internalCluster().startDataOnlyNode(
+            Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REPLICATION_TYPE, "true").build()
+        );
+        String anotherDataNode = internalCluster().startDataOnlyNode(
+            Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REPLICATION_TYPE, "true").build()
+        );
 
         int numShards = 4;
         assertAcked(
@@ -197,20 +183,22 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
         ensureSearchable("test-index");
 
         // Happy case
-        SegmentReplicationResponse segmentReplicationResponse = dataNodeClient().admin().indices().prepareSegment_Replication().get();
-        assertThat(segmentReplicationResponse.getTotalShards(), equalTo(numShards * 2));
-        assertThat(segmentReplicationResponse.getSuccessfulShards(), equalTo(numShards * 2));
+        SegmentReplicationStatsResponse segmentReplicationStatsResponse = dataNodeClient().admin()
+            .indices()
+            .prepareSegmentReplication()
+            .get();
+        assertThat(segmentReplicationStatsResponse.getTotalShards(), equalTo(numShards * 2));
+        assertThat(segmentReplicationStatsResponse.getSuccessfulShards(), equalTo(numShards * 2));
 
         // simulate timeout on bad node.
-        simulateTimeoutAtTransport(dataNode, anotherDataNode, SegmentReplicationAction.NAME);
+        simulateTimeoutAtTransport(dataNode, anotherDataNode, SegmentReplicationStatsAction.NAME);
 
         // verify response with bad node.
-        segmentReplicationResponse = dataNodeClient().admin().indices().prepareSegment_Replication().get();
-        assertThat(segmentReplicationResponse.getTotalShards(), equalTo(numShards * 2));
-        assertThat(segmentReplicationResponse.getSuccessfulShards(), equalTo(numShards));
-        assertThat(segmentReplicationResponse.getFailedShards(), equalTo(numShards));
-        assertThat(segmentReplicationResponse.getShardFailures()[0].reason(), containsString("ReceiveTimeoutTransportException"));
-        disableFeatureFlag();
+        segmentReplicationStatsResponse = dataNodeClient().admin().indices().prepareSegmentReplication().get();
+        assertThat(segmentReplicationStatsResponse.getTotalShards(), equalTo(numShards * 2));
+        assertThat(segmentReplicationStatsResponse.getSuccessfulShards(), equalTo(numShards));
+        assertThat(segmentReplicationStatsResponse.getFailedShards(), equalTo(numShards));
+        assertThat(segmentReplicationStatsResponse.getShardFailures()[0].reason(), containsString("ReceiveTimeoutTransportException"));
     }
 
     public void testStatsWithTimeout() {

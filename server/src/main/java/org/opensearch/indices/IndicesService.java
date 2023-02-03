@@ -143,7 +143,6 @@ import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
-import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.IndexStorePlugin;
@@ -1018,9 +1017,6 @@ public class IndicesService extends AbstractLifecycleComponent
                 .setSource(mapping.source().string(), XContentType.JSON)
                 .get();
         }, this);
-        if (indexService.getIndexSettings().isSegRepEnabled() && shardRouting.primary() == false) {
-            indexShard.setSegmentReplicationState(new SegmentReplicationState(indexShard.routingEntry(), sourceNode, targetNode));
-        }
         return indexShard;
     }
 

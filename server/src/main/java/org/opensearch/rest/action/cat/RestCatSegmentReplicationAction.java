@@ -9,8 +9,8 @@
 package org.opensearch.rest.action.cat;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationRequest;
-import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationResponse;
+import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationStatsRequest;
+import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
@@ -27,8 +27,6 @@ import org.opensearch.rest.action.RestResponseListener;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
-import java.util.HashSet;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
@@ -62,20 +60,21 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
 
     @Override
     public BaseRestHandler.RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
-        final SegmentReplicationRequest segmentReplicationRequest = new SegmentReplicationRequest(
+        final SegmentReplicationStatsRequest segmentReplicationStatsRequest = new SegmentReplicationStatsRequest(
             Strings.splitStringByCommaToArray(request.param("index"))
         );
-        segmentReplicationRequest.timeout(request.param("timeout"));
-        segmentReplicationRequest.detailed(request.paramAsBoolean("detailed", false));
-        segmentReplicationRequest.shards(Strings.splitStringByCommaToArray(request.param("shards")));
-        segmentReplicationRequest.activeOnly(request.paramAsBoolean("active_only", false));
-        segmentReplicationRequest.indicesOptions(IndicesOptions.fromRequest(request, segmentReplicationRequest.indicesOptions()));
+        segmentReplicationStatsRequest.timeout(request.param("timeout"));
+        segmentReplicationStatsRequest.detailed(request.paramAsBoolean("detailed", false));
+        segmentReplicationStatsRequest.shards(Strings.splitStringByCommaToArray(request.param("shards")));
+        segmentReplicationStatsRequest.activeOnly(request.paramAsBoolean("active_only", false));
+        segmentReplicationStatsRequest.completedOnly(request.paramAsBoolean("completed_only", false));
+        segmentReplicationStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, segmentReplicationStatsRequest.indicesOptions()));
 
         return channel -> client.admin()
             .indices()
-            .segment_replication(segmentReplicationRequest, new RestResponseListener<SegmentReplicationResponse>(channel) {
+            .segment_replication(segmentReplicationStatsRequest, new RestResponseListener<SegmentReplicationStatsResponse>(channel) {
                 @Override
-                public RestResponse buildResponse(final SegmentReplicationResponse response) throws Exception {
+                public RestResponse buildResponse(final SegmentReplicationStatsResponse response) throws Exception {
                     return RestTable.buildResponse(buildSegmentReplicationTable(request, response), channel);
                 }
             });
@@ -99,8 +98,7 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
             .addCell("stop_time_millis", "default:false;alias:stop_millis;desc:segment replication stop time in epoch milliseconds")
             .addCell("time", "alias:t,ti;desc:segment replication time")
             .addCell("stage", "alias:st;desc:segment replication stage")
-            .addCell("source_host", "alias:shost;desc:source host")
-            .addCell("source_node", "alias:snode;desc:source node name")
+            .addCell("source_description", "alias:sdesc;desc:source description")
             .addCell("target_host", "alias:thost;desc:target host")
             .addCell("target_node", "alias:tnode;desc:target node name")
             .addCell("files_fetched", "alias:ff;desc:files fetched")
@@ -112,7 +110,6 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
                 .addCell("files_total", "alias:tf;desc:total number of files")
                 .addCell("bytes", "alias:b;desc:number of bytes to fetch")
                 .addCell("bytes_total", "alias:tb;desc:total number of bytes")
-                .addCell("replication_id", "desc: replication Id")
                 .addCell("replicating_stage_time_taken", "alias:rstt;desc:time taken in replicating stage")
                 .addCell("get_checkpoint_info_stage_time_taken", "alias:gcistt;desc:time taken in get checkpoint info stage")
                 .addCell("file_diff_stage_time_taken", "alias:fdstt;desc:time taken in file diff stage")
@@ -140,29 +137,10 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
      * @param response A SegmentReplication status response
      * @return A table containing index, shardId, node, target size, recovered size and percentage for each fetching replica
      */
-    public Table buildSegmentReplicationTable(RestRequest request, SegmentReplicationResponse response) {
-        String[] indexNames = new String[0];
+    public Table buildSegmentReplicationTable(RestRequest request, SegmentReplicationStatsResponse response) {
         boolean detailed = false;
-        String[] shards = new String[0];
-        Set<String> set = new HashSet<>();
         if (request != null) {
-            indexNames = Strings.splitStringByCommaToArray(request.param("index"));
             detailed = Boolean.parseBoolean(request.param("detailed"));
-            shards = Strings.splitStringByCommaToArray(request.param("shards"));
-        }
-        if (request != null && indexNames.length > 0) {
-            for (String index : indexNames) {
-                if (!response.shardSegmentReplicationStates().containsKey(index)) {
-                    String reason = "error:" + "{Segment Replication is not enabled on index: " + index + " }";
-                    return buildCustomResponseTable(reason);
-                }
-            }
-
-        }
-        if (shards.length > 0) {
-            for (String shard : shards) {
-                set.add(shard);
-            }
         }
         Table t = getTableWithHeader(request);
 
@@ -190,10 +168,6 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
             });
 
             for (SegmentReplicationState state : shardSegmentReplicationStates) {
-                int shardId = state.getShardRouting().shardId().id();
-                if (shards.length > 0 && !set.contains(Integer.toString(shardId))) {
-                    continue;
-                }
                 t.startRow();
                 t.addCell(index);
                 t.addCell(state.getShardRouting().shardId().id());
@@ -203,8 +177,7 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
                 t.addCell(state.getTimer().stopTime());
                 t.addCell(new TimeValue(state.getTimer().time()));
                 t.addCell(state.getStage().toString().toLowerCase(Locale.ROOT));
-                t.addCell(state.getSourceNode().getHostName());
-                t.addCell(state.getSourceNode().getName());
+                t.addCell(state.getSourceDescription());
                 t.addCell(state.getTargetNode().getHostName());
                 t.addCell(state.getTargetNode().getName());
                 t.addCell(state.getIndex().recoveredFileCount());
@@ -216,12 +189,11 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
                     t.addCell(state.getIndex().totalFileCount());
                     t.addCell(state.getIndex().totalRecoverBytes());
                     t.addCell(state.getIndex().totalBytes());
-                    t.addCell(state.getReplicationId());
-                    t.addCell(new TimeValue(state.getReplicating().time()));
-                    t.addCell(new TimeValue(state.getGetCheckpointInfo().time()));
-                    t.addCell(new TimeValue(state.getFileDiff().time()));
-                    t.addCell(new TimeValue(state.getGetFile().time()));
-                    t.addCell(new TimeValue(state.getFinalizeReplication().time()));
+                    t.addCell(new TimeValue(state.getReplicatingStageTime()));
+                    t.addCell(new TimeValue(state.getGetCheckpointInfoStageTime()));
+                    t.addCell(new TimeValue(state.getFileDiffStageTime()));
+                    t.addCell(new TimeValue(state.getGetFileStageTime()));
+                    t.addCell(new TimeValue(state.getFinalizeReplicationStageTime()));
                 }
                 t.endRow();
             }

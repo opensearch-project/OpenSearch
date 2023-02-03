@@ -22,6 +22,8 @@ import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.indices.replication.common.ReplicationTimer;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * ReplicationState implementation to track Segment Replication events.
@@ -75,129 +77,20 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
     private Stage stage;
     private ReplicationLuceneIndex index;
 
+    private final ReplicationTimer overallTimer;
+    private final Map<String, Long> timingData;
+    private final ReplicationTimer stageTimer;
+    private long replicationId;
+    private final ShardRouting shardRouting;
+    private String sourceDescription;
+    private DiscoveryNode targetNode;
+
     public ReplicationTimer getOverallTimer() {
         return overallTimer;
     }
 
     public ShardRouting getShardRouting() {
         return shardRouting;
-    }
-
-    private final ReplicationTimer overallTimer;
-
-    public Replicating getReplicating() {
-        return replicating;
-    }
-
-    public GetCheckpointInfo getGetCheckpointInfo() {
-        return getCheckpointInfo;
-    }
-
-    public FileDiff getFileDiff() {
-        return fileDiff;
-    }
-
-    public GetFile getGetFile() {
-        return getFile;
-    }
-
-    public FinalizeReplication getFinalizeReplication() {
-        return finalizeReplication;
-    }
-
-    private final Replicating replicating;
-
-    private final GetCheckpointInfo getCheckpointInfo;
-
-    private final FileDiff fileDiff;
-
-    private final GetFile getFile;
-
-    private final FinalizeReplication finalizeReplication;
-    private long replicationId;
-
-    private final ShardRouting shardRouting;
-
-    public DiscoveryNode getSourceNode() {
-        return sourceNode;
-    }
-
-    public DiscoveryNode getTargetNode() {
-        return targetNode;
-    }
-
-    private DiscoveryNode sourceNode;
-
-    private DiscoveryNode targetNode;
-
-    public SegmentReplicationState(
-        ShardRouting shardRouting,
-        ReplicationLuceneIndex index,
-        long replicationId,
-        DiscoveryNode sourceNode,
-        DiscoveryNode targetNode
-    ) {
-        this.index = index;
-        this.shardRouting = shardRouting;
-        this.replicationId = replicationId;
-        this.sourceNode = sourceNode;
-        this.targetNode = targetNode;
-        // Timing data will have as many entries as stages, plus one
-        overallTimer = new ReplicationTimer();
-        replicating = new Replicating();
-        getCheckpointInfo = new GetCheckpointInfo();
-        fileDiff = new FileDiff();
-        getFile = new GetFile();
-        finalizeReplication = new FinalizeReplication();
-    }
-
-    public SegmentReplicationState(ShardRouting shardRouting, DiscoveryNode sourceNode, DiscoveryNode targetNode) {
-        this(shardRouting, new ReplicationLuceneIndex(), -1, sourceNode, targetNode);
-    }
-
-    public SegmentReplicationState onNewSegmentReplicationEvent(
-        ReplicationLuceneIndex index,
-        long replicationId,
-        DiscoveryNode sourceNode,
-        DiscoveryNode targetNode
-    ) {
-        this.index = index;
-        this.replicationId = replicationId;
-        this.sourceNode = sourceNode;
-        this.targetNode = targetNode;
-        setStage(Stage.INIT);
-        return this;
-    }
-
-    public SegmentReplicationState(StreamInput in) throws IOException {
-        index = new ReplicationLuceneIndex(in);
-        shardRouting = new ShardRouting(in);
-        stage = in.readEnum(Stage.class);
-        replicationId = in.readLong();
-        overallTimer = new ReplicationTimer(in);
-        replicating = new Replicating(in);
-        getCheckpointInfo = new GetCheckpointInfo(in);
-        fileDiff = new FileDiff(in);
-        getFile = new GetFile(in);
-        finalizeReplication = new FinalizeReplication(in);
-        sourceNode = new DiscoveryNode(in);
-        targetNode = new DiscoveryNode(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        index.writeTo(out);
-        shardRouting.writeTo(out);
-        out.writeEnum(stage);
-        out.writeLong(replicationId);
-        overallTimer.writeTo(out);
-        replicating.writeTo(out);
-        getCheckpointInfo.writeTo(out);
-        fileDiff.writeTo(out);
-        getFile.writeTo(out);
-        finalizeReplication.writeTo(out);
-        sourceNode.writeTo(out);
-        targetNode.writeTo(out);
     }
 
     @Override
@@ -218,6 +111,80 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         return this.stage;
     }
 
+    public String getSourceDescription() {
+
+        return sourceDescription;
+    }
+
+    public DiscoveryNode getTargetNode() {
+        return targetNode;
+    }
+
+    public long getReplicatingStageTime() {
+        return timingData.get(Stage.REPLICATING.toString());
+    }
+
+    public long getGetCheckpointInfoStageTime() {
+        return timingData.get(Stage.GET_CHECKPOINT_INFO.toString());
+    }
+
+    public long getFileDiffStageTime() {
+        return timingData.get(Stage.FILE_DIFF.toString());
+    }
+
+    public long getGetFileStageTime() {
+        return timingData.get(Stage.GET_FILES.toString());
+    }
+
+    public long getFinalizeReplicationStageTime() {
+        return timingData.get(Stage.FINALIZE_REPLICATION.toString());
+    }
+
+    public SegmentReplicationState(
+        ShardRouting shardRouting,
+        ReplicationLuceneIndex index,
+        long replicationId,
+        String sourceDescription,
+        DiscoveryNode targetNode
+    ) {
+        this.index = index;
+        this.shardRouting = shardRouting;
+        this.replicationId = replicationId;
+        this.sourceDescription = sourceDescription;
+        this.targetNode = targetNode;
+        // Timing data will have as many entries as stages, plus one
+        timingData = new HashMap<>(Stage.values().length + 1);
+        overallTimer = new ReplicationTimer();
+        stageTimer = new ReplicationTimer();
+        setStage(Stage.INIT);
+        stageTimer.start();
+    }
+
+    public SegmentReplicationState(StreamInput in) throws IOException {
+        index = new ReplicationLuceneIndex(in);
+        shardRouting = new ShardRouting(in);
+        stage = in.readEnum(Stage.class);
+        replicationId = in.readLong();
+        overallTimer = new ReplicationTimer(in);
+        stageTimer = new ReplicationTimer(in);
+        timingData = in.readMap(StreamInput::readString, StreamInput::readLong);
+        sourceDescription = in.readString();
+        targetNode = new DiscoveryNode(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        index.writeTo(out);
+        shardRouting.writeTo(out);
+        out.writeEnum(stage);
+        out.writeLong(replicationId);
+        overallTimer.writeTo(out);
+        stageTimer.writeTo(out);
+        out.writeMap(timingData, StreamOutput::writeString, StreamOutput::writeLong);
+        out.writeString(sourceDescription);
+        targetNode.writeTo(out);
+    }
+
     protected void validateAndSetStage(Stage expected, Stage next) {
         if (stage != expected) {
             assert false : "can't move replication to stage [" + next + "]. current stage: [" + stage + "] (expected [" + expected + "])";
@@ -225,6 +192,16 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
                 "can't move replication to stage [" + next + "]. current stage: [" + stage + "] (expected [" + expected + "])"
             );
         }
+        stopTimersAndSetStage(next);
+    }
+
+    private void stopTimersAndSetStage(Stage next) {
+        // save the timing data for the current step
+        stageTimer.stop();
+        timingData.put(stage.name(), stageTimer.time());
+        // restart the step timer
+        stageTimer.reset();
+        stageTimer.start();
         stage = next;
     }
 
@@ -232,44 +209,29 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         switch (stage) {
             case INIT:
                 this.stage = Stage.INIT;
-                overallTimer.reset();
-                getReplicating().reset();
-                getGetCheckpointInfo().reset();
-                getFileDiff().reset();
-                getGetFile().reset();
-                getFinalizeReplication().reset();
                 break;
             case REPLICATING:
                 validateAndSetStage(Stage.INIT, stage);
                 // only start the overall timer once we've started replication
                 overallTimer.start();
-                getReplicating().start();
                 break;
             case GET_CHECKPOINT_INFO:
                 validateAndSetStage(Stage.REPLICATING, stage);
-                getReplicating().stop();
-                getGetCheckpointInfo().start();
                 break;
             case FILE_DIFF:
                 validateAndSetStage(Stage.GET_CHECKPOINT_INFO, stage);
-                getGetCheckpointInfo().stop();
-                getFileDiff().start();
                 break;
             case GET_FILES:
                 validateAndSetStage(Stage.FILE_DIFF, stage);
-                getFileDiff().stop();
-                getGetFile().start();
                 break;
             case FINALIZE_REPLICATION:
                 validateAndSetStage(Stage.GET_FILES, stage);
-                getGetFile().stop();
-                getFinalizeReplication().start();
                 break;
             case DONE:
                 validateAndSetStage(Stage.FINALIZE_REPLICATION, stage);
-                getFinalizeReplication().stop();
                 // add the overall timing data
                 overallTimer.stop();
+                timingData.put("OVERALL", overallTimer.time());
                 break;
             case CANCELLED:
                 if (this.stage == Stage.DONE) {
@@ -277,6 +239,7 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
                 }
                 this.stage = Stage.CANCELLED;
                 overallTimer.stop();
+                timingData.put("OVERALL", overallTimer.time());
                 break;
             default:
                 throw new IllegalArgumentException("unknown SegmentReplicationState.Stage [" + stage + "]");
@@ -286,22 +249,16 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
 
+        builder.field(Fields.INDEX_NAME, shardRouting.index().getName());
         builder.field(Fields.ID, shardRouting.shardId().id());
         builder.field(Fields.STAGE, getStage());
-        builder.field(Fields.REPLICATION_ID, getReplicationId());
         builder.timeField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, getTimer().startTime());
         if (getTimer().stopTime() > 0) {
             builder.timeField(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, getTimer().stopTime());
         }
         builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(getTimer().time()));
-        if (sourceNode != null) {
-            builder.startObject(SegmentReplicationState.Fields.SOURCE);
-            builder.field(Fields.ID, sourceNode.getId());
-            builder.field(Fields.HOST, sourceNode.getHostName());
-            builder.field(Fields.TRANSPORT_ADDRESS, sourceNode.getAddress().toString());
-            builder.field(SegmentReplicationState.Fields.IP, sourceNode.getHostAddress());
-            builder.field(SegmentReplicationState.Fields.NAME, sourceNode.getName());
-            builder.endObject();
+        if (sourceDescription != null) {
+            builder.field(Fields.SOURCE, getSourceDescription());
         }
 
         if (targetNode != null) {
@@ -313,33 +270,20 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
             builder.field(Fields.NAME, targetNode.getName());
             builder.endObject();
         }
-        builder.startObject(Fields.REPLICATING_STAGE);
-        replicating.toXContent(builder, params);
-        builder.endObject();
-
-        builder.startObject(Fields.GET_CHECKPOINT_INFO_STAGE);
-        getCheckpointInfo.toXContent(builder, params);
-        builder.endObject();
-
-        builder.startObject(Fields.FILE_DIFF_STAGE);
-        fileDiff.toXContent(builder, params);
-        builder.endObject();
-
-        builder.startObject(Fields.GET_FILES_STAGE);
+        builder.startObject(SegmentReplicationState.Fields.INDEX);
         index.toXContent(builder, params);
-        getFile.toXContent(builder, params);
         builder.endObject();
-
-        builder.startObject(Fields.FINALIZE_REPLICATION_STAGE);
-        finalizeReplication.toXContent(builder, params);
-        builder.endObject();
+        builder.field(Fields.REPLICATING_STAGE, new TimeValue(timingData.get("REPLICATING")));
+        builder.field(Fields.GET_CHECKPOINT_INFO_STAGE, new TimeValue(timingData.get("GET_CHECKPOINT_INFO")));
+        builder.field(Fields.FILE_DIFF_STAGE, new TimeValue(timingData.get("FILE_DIFF")));
+        builder.field(Fields.GET_FILES_STAGE, new TimeValue(timingData.get("GET_FILES")));
+        builder.field(Fields.FINALIZE_REPLICATION_STAGE, new TimeValue(timingData.get("FINALIZE_REPLICATION")));
 
         return builder;
     }
 
     static final class Fields {
         static final String ID = "id";
-        static final String REPLICATION_ID = "replication_id";
         static final String STAGE = "stage";
         static final String START_TIME = "start_time";
         static final String START_TIME_IN_MILLIS = "start_time_in_millis";
@@ -353,175 +297,15 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         static final String IP = "ip";
         static final String NAME = "name";
         static final String TARGET = "target";
-        static final String INIT_STAGE = "init_stage";
-
-        static final String SIZE_OF_FILES_IN_BYTES = "size_of_files_in_bytes";
 
         static final String INDEX = "index";
+
+        static final String INDEX_NAME = "index_name";
         static final String TOTAL_GET_FILES_STAGE_TIME_IN_MILLIS = "total_get_files_stage_in_millis";
         static final String REPLICATING_STAGE = "replicating_stage";
         static final String GET_CHECKPOINT_INFO_STAGE = "get_checkpoint_info_stage";
         static final String FILE_DIFF_STAGE = "file_diff_stage";
         static final String GET_FILES_STAGE = "get_files_stage";
         static final String FINALIZE_REPLICATION_STAGE = "finalize_replication_stage";
-    }
-
-    /**
-     * Starts Replicating
-     *
-     * @opensearch.internal
-     */
-    public static class Replicating extends ReplicationTimer implements ToXContentFragment, Writeable {
-
-        public Replicating() {}
-
-        public Replicating(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-        }
-
-        public void reset() {
-            super.reset();
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(time()));
-            return builder;
-        }
-    }
-
-    /**
-     * Gets checkpoint info from source
-     *
-     * @opensearch.internal
-     */
-    public static class GetCheckpointInfo extends ReplicationTimer implements ToXContentFragment, Writeable {
-
-        public GetCheckpointInfo() {}
-
-        public GetCheckpointInfo(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-        }
-
-        public void reset() {
-            super.reset();
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(time()));
-            return builder;
-        }
-    }
-
-    /**
-     * Computes File Diff
-     *
-     * @opensearch.internal
-     */
-    public static class FileDiff extends ReplicationTimer implements ToXContentFragment, Writeable {
-
-        private volatile long sizeOfFiles;
-
-        public FileDiff() {}
-
-        public FileDiff(StreamInput in) throws IOException {
-            super(in);
-            sizeOfFiles = in.readVLong();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeVLong(sizeOfFiles);
-        }
-
-        public void reset() {
-            super.reset();
-            sizeOfFiles = 0;
-        }
-
-        public long getSizeOfFiles() {
-            return sizeOfFiles;
-        }
-
-        public void setSizeOfFiles(long sizeOfFiles) {
-            this.sizeOfFiles = sizeOfFiles;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(Fields.SIZE_OF_FILES_IN_BYTES, getSizeOfFiles());
-            builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(time()));
-            return builder;
-        }
-    }
-
-    /**
-     * Gets necessary files from source
-     *
-     * @opensearch.internal
-     */
-    public static class GetFile extends ReplicationTimer implements ToXContentFragment, Writeable {
-
-        public GetFile() {}
-
-        public GetFile(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-        }
-
-        public void reset() {
-            super.reset();
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.humanReadableField(Fields.TOTAL_GET_FILES_STAGE_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(time()));
-            return builder;
-        }
-    }
-
-    /**
-     * Finalizes Replication
-     *
-     * @opensearch.internal
-     */
-    public static class FinalizeReplication extends ReplicationTimer implements ToXContentFragment, Writeable {
-
-        public FinalizeReplication() {}
-
-        public FinalizeReplication(StreamInput in) throws IOException {
-            super(in);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-        }
-
-        public void reset() {
-            super.reset();
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(time()));
-            return builder;
-        }
     }
 }

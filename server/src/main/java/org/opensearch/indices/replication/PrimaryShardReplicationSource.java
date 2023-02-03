@@ -38,6 +38,8 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
     private static final Logger logger = LogManager.getLogger(PrimaryShardReplicationSource.class);
 
     private final RetryableTransportClient transportClient;
+
+    private final DiscoveryNode sourceNode;
     private final DiscoveryNode targetNode;
     private final String targetAllocationId;
 
@@ -55,6 +57,7 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
             recoverySettings.internalActionRetryTimeout(),
             logger
         );
+        this.sourceNode = sourceNode;
         this.targetNode = targetNode;
     }
 
@@ -102,6 +105,12 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
             .withTimeout(TimeValue.timeValueMinutes(timeToGetSegmentFiles))
             .build();
         transportClient.executeRetryableAction(GET_SEGMENT_FILES, request, options, responseListener, reader);
+    }
+
+    @Override
+    public String getSourceDescription() {
+        String description = "Host:" + this.sourceNode.getHostName() + ", Node:" + this.sourceNode.getName();
+        return description;
     }
 
     @Override

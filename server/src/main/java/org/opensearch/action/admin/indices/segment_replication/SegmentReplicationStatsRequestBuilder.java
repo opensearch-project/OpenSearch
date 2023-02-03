@@ -16,21 +16,21 @@ import org.opensearch.client.OpenSearchClient;
  *
  * @opensearch.internal
  */
-public class SegmentReplicationRequestBuilder extends BroadcastOperationRequestBuilder<
-    SegmentReplicationRequest,
-    SegmentReplicationResponse,
-    SegmentReplicationRequestBuilder> {
+public class SegmentReplicationStatsRequestBuilder extends BroadcastOperationRequestBuilder<
+    SegmentReplicationStatsRequest,
+    SegmentReplicationStatsResponse,
+    SegmentReplicationStatsRequestBuilder> {
 
-    public SegmentReplicationRequestBuilder(OpenSearchClient client, SegmentReplicationAction action) {
-        super(client, action, new SegmentReplicationRequest());
+    public SegmentReplicationStatsRequestBuilder(OpenSearchClient client, SegmentReplicationStatsAction action) {
+        super(client, action, new SegmentReplicationStatsRequest());
     }
 
-    public SegmentReplicationRequestBuilder setDetailed(boolean detailed) {
+    public SegmentReplicationStatsRequestBuilder setDetailed(boolean detailed) {
         request.detailed(detailed);
         return this;
     }
 
-    public SegmentReplicationRequestBuilder setActiveOnly(boolean activeOnly) {
+    public SegmentReplicationStatsRequestBuilder setActiveOnly(boolean activeOnly) {
         request.activeOnly(activeOnly);
         return this;
     }

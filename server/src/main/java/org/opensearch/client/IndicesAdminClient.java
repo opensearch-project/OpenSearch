@@ -91,9 +91,9 @@ import org.opensearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.opensearch.action.admin.indices.rollover.RolloverRequest;
 import org.opensearch.action.admin.indices.rollover.RolloverRequestBuilder;
 import org.opensearch.action.admin.indices.rollover.RolloverResponse;
-import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationRequest;
-import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationRequestBuilder;
-import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationResponse;
+import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationStatsRequest;
+import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationStatsRequestBuilder;
+import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequestBuilder;
@@ -191,12 +191,12 @@ public interface IndicesAdminClient extends OpenSearchClient {
     /**
      *Indices segment replication
      */
-    ActionFuture<SegmentReplicationResponse> segment_replication(SegmentReplicationRequest request);
+    ActionFuture<SegmentReplicationStatsResponse> segment_replication(SegmentReplicationStatsRequest request);
 
     /**
      *Indices segment replication
      */
-    void segment_replication(SegmentReplicationRequest request, ActionListener<SegmentReplicationResponse> listener);
+    void segment_replication(SegmentReplicationStatsRequest request, ActionListener<SegmentReplicationStatsResponse> listener);
 
     /**
      * Indices recoveries
@@ -206,7 +206,7 @@ public interface IndicesAdminClient extends OpenSearchClient {
     /**
      * Indices segment replication
      */
-    SegmentReplicationRequestBuilder prepareSegment_Replication(String... indices);
+    SegmentReplicationStatsRequestBuilder prepareSegmentReplication(String... indices);
 
     /**
      * The segments of one or more indices.

@@ -26,10 +26,10 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public class SegmentReplicationResponse extends BroadcastResponse {
+public class SegmentReplicationStatsResponse extends BroadcastResponse {
     private final Map<String, List<SegmentReplicationState>> shardSegmentReplicationStates;
 
-    public SegmentReplicationResponse(StreamInput in) throws IOException {
+    public SegmentReplicationStatsResponse(StreamInput in) throws IOException {
         super(in);
         shardSegmentReplicationStates = in.readMapOfLists(StreamInput::readString, SegmentReplicationState::new);
     }
@@ -41,10 +41,10 @@ public class SegmentReplicationResponse extends BroadcastResponse {
      * @param totalShards       Total count of shards seen
      * @param successfulShards  Count of shards successfully processed
      * @param failedShards      Count of shards which failed to process
-     * @param shardSegmentReplicationStates    Map of indices to shard recovery information
+     * @param shardSegmentReplicationStates    Map of indices to shard replication information
      * @param shardFailures     List of failures processing shards
      */
-    public SegmentReplicationResponse(
+    public SegmentReplicationStatsResponse(
         int totalShards,
         int successfulShards,
         int failedShards,

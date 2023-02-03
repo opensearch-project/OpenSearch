@@ -8,7 +8,7 @@
 
 package org.opensearch.rest.action.cat;
 
-import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationResponse;
+import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -58,9 +58,7 @@ public class RestSegment_ReplicationActionTests extends OpenSearchTestCase {
             when(timer.stopTime()).thenReturn(startTime + time);
             when(state.getTimer()).thenReturn(timer);
             when(state.getStage()).thenReturn(randomFrom(SegmentReplicationState.Stage.values()));
-            final DiscoveryNode sourceNode = mock(DiscoveryNode.class);
-            when(sourceNode.getHostName()).thenReturn(randomAlphaOfLength(8));
-            when(state.getSourceNode()).thenReturn(sourceNode);
+            when(state.getSourceDescription()).thenReturn("Source");
             final DiscoveryNode targetNode = mock(DiscoveryNode.class);
             when(targetNode.getHostName()).thenReturn(randomAlphaOfLength(8));
             when(state.getTargetNode()).thenReturn(targetNode);
@@ -78,7 +76,7 @@ public class RestSegment_ReplicationActionTests extends OpenSearchTestCase {
         shardSegmentReplicationStates.put("index", shuffle);
 
         final List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
-        final SegmentReplicationResponse response = new SegmentReplicationResponse(
+        final SegmentReplicationStatsResponse response = new SegmentReplicationStatsResponse(
             totalShards,
             successfulShards,
             failedShards,
@@ -127,8 +125,8 @@ public class RestSegment_ReplicationActionTests extends OpenSearchTestCase {
                 state.getTimer().stopTime(),
                 new TimeValue(state.getTimer().time()),
                 state.getStage().name().toLowerCase(Locale.ROOT),
-                state.getSourceNode().getHostName(),
-                state.getSourceNode().getName(),
+                // state.getSourceDescription().getHostName(),
+                // state.getSourceDescription().getName(),
                 state.getTargetNode().getHostName(),
                 state.getTargetNode().getName(),
                 state.getIndex().recoveredFileCount(),
