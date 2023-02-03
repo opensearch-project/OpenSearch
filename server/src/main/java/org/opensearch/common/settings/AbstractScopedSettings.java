@@ -38,6 +38,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.common.TriConsumer;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.regex.Regex;
 
@@ -442,6 +443,28 @@ public abstract class AbstractScopedSettings {
      */
     public synchronized <A, B> void addSettingsUpdateConsumer(Setting<A> a, Setting<B> b, BiConsumer<A, B> consumer) {
         addSettingsUpdateConsumer(a, b, consumer, (i, j) -> {});
+    }
+
+    /**
+     * Adds a settings consumer that accepts the values for three settings. The consumer is only notified if any one of
+     * the settings changed and if the provided validator succeeded.
+     * <p>
+     * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
+     * </p>
+     * This method registers a compound updater that is useful if three settings depends on each other.
+     * The consumer is always provided with both values even if only one of the two changes.
+     */
+    public synchronized <A, B, C> void addSettingsUpdateConsumer(Setting<A> a, Setting<B> b, Setting<C> c, TriConsumer<A, B, C> consumer) {
+        if (a != get(a.getKey())) {
+            throw new IllegalArgumentException("Setting is not registered for key [" + a.getKey() + "]");
+        }
+        if (b != get(b.getKey())) {
+            throw new IllegalArgumentException("Setting is not registered for key [" + b.getKey() + "]");
+        }
+        if (c != get(c.getKey())) {
+            throw new IllegalArgumentException("Setting is not registered for key [" + c.getKey() + "]");
+        }
+        addSettingsUpdater(Setting.compoundUpdater(consumer, (i, j, k) -> {}, a, b, c, logger));
     }
 
     /**

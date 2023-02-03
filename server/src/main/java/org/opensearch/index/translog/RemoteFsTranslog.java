@@ -8,6 +8,9 @@
 
 package org.opensearch.index.translog;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.action.ActionListener;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -26,12 +29,15 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
+import java.util.stream.LongStream;
 
 /**
  * A Translog implementation which syncs local FS with a remote store
@@ -50,6 +56,12 @@ public class RemoteFsTranslog extends Translog {
     private volatile long maxRemoteTranslogGenerationUploaded;
 
     private volatile long minSeqNoToKeep;
+
+    // min generation referred by last uploaded translog
+    private volatile long minRemoteGenReferenced;
+
+    // clean up translog folder uploaded by previous primaries once
+    private final SetOnce<Boolean> olderPrimaryCleaned = new SetOnce<>();
 
     public RemoteFsTranslog(
         TranslogConfig config,
@@ -230,6 +242,7 @@ public class RemoteFsTranslog extends Translog {
                     transferReleasable.close();
                     closeFilesIfNoPendingRetentionLocks();
                     maxRemoteTranslogGenerationUploaded = generation;
+                    minRemoteGenReferenced = getMinFileGeneration();
                     logger.trace("uploaded translog for {} {} ", primaryTerm, generation);
                 }
 
@@ -327,13 +340,72 @@ public class RemoteFsTranslog extends Translog {
         this.minSeqNoToKeep = seqNo;
     }
 
-    @Override
-    void deleteReaderFiles(TranslogReader reader) {
+    private void deleteRemoteGeneration(Set<Long> generations) {
         try {
-            translogTransferManager.deleteTranslog(primaryTermSupplier.getAsLong(), reader.generation);
-        } catch (IOException ignored) {
-            logger.error("Exception {} while deleting generation {}", ignored, reader.generation);
+            translogTransferManager.deleteTranslogAsync(primaryTermSupplier.getAsLong(), generations);
+        } catch (IOException e) {
+            logger.error(() -> new ParameterizedMessage("Exception occurred while deleting generation {}", generations), e);
         }
-        super.deleteReaderFiles(reader);
+    }
+
+    @Override
+    public void trimUnreferencedReaders() throws IOException {
+        // clean up local translog files and updates readers
+        super.trimUnreferencedReaders();
+
+        // cleans up remote translog files not referenced in latest uploaded metadata.
+        // This enables us to restore translog from the metadata in case of failover or relocation.
+        Set<Long> generationsToDelete = new HashSet<>();
+        for (long generation = minRemoteGenReferenced - 1; generation >= 0; generation--) {
+            if (fileTransferTracker.uploaded(Translog.getFilename(generation)) == false) {
+                break;
+            }
+            generationsToDelete.add(generation);
+        }
+        if (generationsToDelete.isEmpty() == false) {
+            deleteRemoteGeneration(generationsToDelete);
+            deleteOlderPrimaryTranslogFilesFromRemoteStore();
+        }
+    }
+
+    /**
+     * This method must be called only after there are valid generations to delete in trimUnreferencedReaders as it ensures
+     * implicitly that minimum primary term in latest translog metadata in remote store is the current primary term.
+     */
+    private void deleteOlderPrimaryTranslogFilesFromRemoteStore() {
+        // The deletion of older translog files in remote store is on best-effort basis, there is a possibility that there
+        // are older files that are no longer needed and should be cleaned up. In here, we delete all files that are part
+        // of older primary term.
+        if (olderPrimaryCleaned.trySet(Boolean.TRUE)) {
+            logger.info("Cleaning up translog uploaded by previous primaries");
+            long minPrimaryTermInMetadata = current.getPrimaryTerm();
+            Set<Long> primaryTermsInRemote;
+            try {
+                primaryTermsInRemote = translogTransferManager.listPrimaryTerms();
+            } catch (IOException e) {
+                logger.error("Exception occurred while getting primary terms from remote store", e);
+                // If there are exceptions encountered, then we try to delete all older primary terms lesser than the
+                // minimum referenced primary term in remote translog metadata.
+                primaryTermsInRemote = LongStream.range(0, current.getPrimaryTerm()).boxed().collect(Collectors.toSet());
+            }
+            // Delete all primary terms that are no more referenced by the metadata file and exists in the
+            Set<Long> primaryTermsToDelete = primaryTermsInRemote.stream()
+                .filter(term -> term < minPrimaryTermInMetadata)
+                .collect(Collectors.toSet());
+            primaryTermsToDelete.forEach(term -> translogTransferManager.deleteTranslogAsync(term, new ActionListener<>() {
+                @Override
+                public void onResponse(Void response) {
+                    // NO-OP
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error(
+                        () -> new ParameterizedMessage("Exception occurred while deleting older translog files for primary_term={}", term),
+                        e
+                    );
+                }
+            }));
+        }
     }
 }

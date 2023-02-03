@@ -124,7 +124,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         "     minimumCompatibleVersion: '2.0.0'",
         "     dependencies:",
         "       - uniqueId: 'uniqueid0'",
-        "       - version: '2.0.0'"
+        "         version: '2.0.0'"
     );
 
     private DiscoveryExtensionNode extensionNode;
@@ -236,8 +236,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             assertEquals(extension.getAttributes(), initializedExtension.getAttributes());
             assertEquals(extension.getVersion(), initializedExtension.getVersion());
             assertEquals(extension.getMinimumCompatibleVersion(), initializedExtension.getMinimumCompatibleVersion());
-            // TODO: Will fail due to bug : https://github.com/opensearch-project/OpenSearch/issues/6115
-            // assertEquals(extension.getDependencies(), initializedExtension.getDependencies());
+            assertEquals(extension.getDependencies(), initializedExtension.getDependencies());
         }
     }
 
@@ -272,10 +271,10 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             assertEquals(extension.getAttributes(), initializedExtension.getAttributes());
             assertEquals(extension.getVersion(), initializedExtension.getVersion());
             assertEquals(extension.getMinimumCompatibleVersion(), initializedExtension.getMinimumCompatibleVersion());
+            assertEquals(extension.getDependencies(), initializedExtension.getDependencies());
         }
         assertTrue(expectedExtensions.containsAll(emptyList()));
-        // TODO: Will fail due to bug : https://github.com/opensearch-project/OpenSearch/issues/6115
-        // assertEquals(extension.getDependencies(), initializedExtension.getDependencies());
+        assertTrue(expectedExtensions.containsAll(emptyList()));
     }
 
     public void testDiscoveryExtension() throws Exception {
