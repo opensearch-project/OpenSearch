@@ -30,8 +30,8 @@ import org.opensearch.identity.configuration.ConfigurationRepository;
 import org.opensearch.identity.configuration.SecurityDynamicConfiguration;
 import org.opensearch.identity.exception.InvalidConfigException;
 import org.opensearch.identity.exception.InvalidContentException;
-import org.opensearch.identity.rest.user.create.CreateUserResponse;
-import org.opensearch.identity.rest.user.create.CreateUserResponseInfo;
+import org.opensearch.identity.rest.user.put.PutUserResponse;
+import org.opensearch.identity.rest.user.put.PutUserResponseInfo;
 import org.opensearch.identity.utils.ErrorType;
 import org.opensearch.identity.utils.Hasher;
 import org.opensearch.index.IndexNotFoundException;
@@ -75,12 +75,12 @@ public class UserService {
     }
 
     /**
-     * Creates a user record in identity index (Updates if user already existed)
+     * Creates or updates a user record in identity index (Updates if user already existed)
      * @param username of the user to be created
      * @param password of the user to be created (plain-text only)
      * @param listener on which the responses should be returned once execution completes
      */
-    public void createUser(String username, String password, ActionListener<CreateUserResponse> listener) {
+    public void createOrUpdateUser(String username, String password, ActionListener<PutUserResponse> listener) {
 
         if (!ensureIndexExists()) {
             listener.onFailure(new IndexNotFoundException(ErrorType.IDENTITY_NOT_INITIALIZED.getMessage()));
@@ -102,8 +102,6 @@ public class UserService {
 
         // check if user existed
         final boolean userExisted = internalUsersConfiguration.exists(username);
-
-        // TODO: should "existing user" case be handled via `PATCH` only ??
 
         // hash is mandatory for new users
         if (!userExisted && password == null) {
@@ -131,8 +129,21 @@ public class UserService {
         // Create or update the user
         internalUsersConfiguration.putCObject(username, userToBeCreated);
 
+        // Listener for responding once index update completes
+        final ActionListener<IndexResponse> indexActionListener = new OnSucessActionListener<>() {
+            @Override
+            public void onResponse(IndexResponse indexResponse) {
+                String operationResponse = userExisted ? " updated successfully." : " created successfully.";
+                String message = username + operationResponse;
+                PutUserResponseInfo responseInfo = new PutUserResponseInfo(true, username, message);
+                PutUserResponse response = new PutUserResponse(unmodifiableList(asList(responseInfo)));
+
+                listener.onResponse(response);
+            }
+        };
+
         // save the changes to identity index, propagate change to other nodes and reload in-memory configuration
-        saveAndUpdateConfiguration(username, this.nodeClient, CType.INTERNALUSERS, internalUsersConfiguration, listener);
+        saveAndUpdateConfiguration(this.nodeClient, CType.INTERNALUSERS, internalUsersConfiguration, indexActionListener);
     }
 
     /**
@@ -164,31 +175,18 @@ public class UserService {
 
     /**
      * Persist changes to CType configuration in index, propagates this change to other nodes and reload in-memory cache
-     * @param username of the user to be persisted in the index
-     * @param client to execute index update request
-     * @param cType Config Type to be reloaded
-     * @param configuration Data to be persisted in index
-     * @param listener on which to send response once execution completes
+     * @param client              to execute index update request
+     * @param cType               Config Type to be reloaded
+     * @param configuration       Data to be persisted in index
+     * @param indexActionListener On which to send response once index request execution completes
      */
     protected void saveAndUpdateConfiguration(
-        final String username,
         final Client client,
         final CType cType,
         final SecurityDynamicConfiguration<?> configuration,
-        ActionListener<CreateUserResponse> listener
-    ) {
+        ActionListener<IndexResponse> indexActionListener) {
         // TODO: Future scope: see if this method can be generalized and extracted to another class
 
-        // Listener for responding once index update completes
-        final ActionListener<IndexResponse> actionListener = new OnSucessActionListener<>() {
-            @Override
-            public void onResponse(IndexResponse indexResponse) {
-                CreateUserResponseInfo responseInfo = new CreateUserResponseInfo(true, username);
-                CreateUserResponse response = new CreateUserResponse(unmodifiableList(asList(responseInfo)));
-
-                listener.onResponse(response);
-            }
-        };
         final String id = cType.toLCString();
 
         try {
@@ -201,7 +199,7 @@ public class UserService {
                 .source(id, XContentHelper.toXContent(configuration, XContentType.JSON, false));
 
             // writes to index and ConfigUpdateActionListener propagates change to other nodes by reloadConfiguration
-            client.index(indexRequest, new IdentityConfigUpdateActionListener<>(new String[] { id }, client, actionListener));
+            client.index(indexRequest, new IdentityConfigUpdateActionListener<>(new String[] { id }, client, indexActionListener));
         } catch (IOException e) {
             throw ExceptionsHelper.convertToOpenSearchException(e);
         }

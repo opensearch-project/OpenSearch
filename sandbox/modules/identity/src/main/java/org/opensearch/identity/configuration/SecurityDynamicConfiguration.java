@@ -26,6 +26,10 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 
+/**
+ * In-memory configuration for {@link CType} objects
+ * @param <T> one of {@link CType} object
+ */
 public class SecurityDynamicConfiguration<T> implements ToXContent {
 
     private static final TypeReference<HashMap<String, Object>> typeRefMSO = new TypeReference<HashMap<String, Object>>() {

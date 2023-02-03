@@ -17,8 +17,8 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.collect.Map;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.identity.rest.user.create.CreateUserRequest;
-import org.opensearch.identity.rest.user.create.RestCreateUserAction;
+import org.opensearch.identity.rest.user.put.PutUserRequest;
+import org.opensearch.identity.rest.user.put.RestPutUserAction;
 import org.opensearch.identity.utils.ErrorType;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.test.OpenSearchTestCase;
@@ -31,9 +31,9 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests to verify the behavior of rest create user action
  */
-public class RestCreateUserActionTests extends OpenSearchTestCase {
-    public void testParseCreateUserRequestWithInvalidJsonThrowsException() {
-        RestCreateUserAction action = new RestCreateUserAction();
+public class RestPutUserActionTests extends OpenSearchTestCase {
+    public void testParsePutUserRequestWithInvalidJsonThrowsException() {
+        RestPutUserAction action = new RestPutUserAction();
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
             new BytesArray("{invalid_json}"),
             XContentType.JSON
@@ -42,8 +42,8 @@ public class RestCreateUserActionTests extends OpenSearchTestCase {
         assertThat(e.getMessage(), equalTo(ErrorType.BODY_NOT_PARSEABLE.getMessage() + "CREATE"));
     }
 
-    public void testCreateUserWithValidJson() throws Exception {
-        SetOnce<Boolean> createUserCalled = new SetOnce<>();
+    public void testPutUserWithValidJson() throws Exception {
+        SetOnce<Boolean> putUserCalled = new SetOnce<>();
         try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName()) {
             @Override
             public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
@@ -51,20 +51,20 @@ public class RestCreateUserActionTests extends OpenSearchTestCase {
                 Request request,
                 ActionListener<Response> listener
             ) {
-                CreateUserRequest req = (CreateUserRequest) request;
-                createUserCalled.set(true);
+                PutUserRequest req = (PutUserRequest) request;
+                putUserCalled.set(true);
                 assertThat(req.getUsername(), equalTo("test"));
                 assertThat(req.getPassword(), equalTo("test"));
             }
         }) {
-            RestCreateUserAction action = new RestCreateUserAction();
+            RestPutUserAction action = new RestPutUserAction();
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("name", "test"))
                 .withContent(new BytesArray("{ \"password\" : \"test\" }\n"), XContentType.JSON)
                 .build();
             FakeRestChannel channel = new FakeRestChannel(request, false, 0);
             action.handleRequest(request, channel, nodeClient);
 
-            assertThat(createUserCalled.get(), equalTo(true));
+            assertThat(putUserCalled.get(), equalTo(true));
         }
     }
 

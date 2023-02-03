@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.user.create;
+package org.opensearch.identity.rest.user.put;
 
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.ParseField;
@@ -31,26 +31,26 @@ import static org.opensearch.rest.RestStatus.OK;
  * Response class for create user request
  * Contains list of responses of each user creation request
  */
-public class CreateUserResponse extends ActionResponse implements StatusToXContentObject {
+public class PutUserResponse extends ActionResponse implements StatusToXContentObject {
 
     // TODO: revisit this class
-    private final List<CreateUserResponseInfo> createUserResults;
+    private final List<PutUserResponseInfo> createUserResults;
 
-    public CreateUserResponse(List<CreateUserResponseInfo> createUserResults) {
+    public PutUserResponse(List<PutUserResponseInfo> createUserResults) {
         this.createUserResults = createUserResults;
     }
 
-    public CreateUserResponse(StreamInput in) throws IOException {
+    public PutUserResponse(StreamInput in) throws IOException {
         super(in);
         int size = in.readVInt();
         createUserResults = new ArrayList<>();
         for (int i = 0; i < size; i++) {
-            createUserResults.add(new CreateUserResponseInfo(in));
+            createUserResults.add(new PutUserResponseInfo(in));
         }
 
     }
 
-    public List<CreateUserResponseInfo> getCreateUserResults() {
+    public List<PutUserResponseInfo> getCreateUserResults() {
         return createUserResults;
     }
 
@@ -66,7 +66,7 @@ public class CreateUserResponse extends ActionResponse implements StatusToXConte
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(createUserResults.size());
-        for (CreateUserResponseInfo createUserResults : createUserResults) {
+        for (PutUserResponseInfo createUserResults : createUserResults) {
             createUserResults.writeTo(out);
         }
     }
@@ -75,7 +75,7 @@ public class CreateUserResponse extends ActionResponse implements StatusToXConte
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.startArray("users");
-        for (CreateUserResponseInfo response : createUserResults) {
+        for (PutUserResponseInfo response : createUserResults) {
             response.toXContent(builder, params);
         }
         builder.endArray();
@@ -83,20 +83,20 @@ public class CreateUserResponse extends ActionResponse implements StatusToXConte
         return builder;
     }
 
-    private static final ConstructingObjectParser<CreateUserResponse, Void> PARSER = new ConstructingObjectParser<>(
+    private static final ConstructingObjectParser<PutUserResponse, Void> PARSER = new ConstructingObjectParser<>(
         "create_user_response",
         true,
         (Object[] parsedObjects) -> {
             @SuppressWarnings("unchecked")
-            List<CreateUserResponseInfo> createUserResponseInfoList = (List<CreateUserResponseInfo>) parsedObjects[0];
-            return new CreateUserResponse(createUserResponseInfoList);
+            List<PutUserResponseInfo> createUserResponseInfoList = (List<PutUserResponseInfo>) parsedObjects[0];
+            return new PutUserResponse(createUserResponseInfoList);
         }
     );
     static {
-        PARSER.declareObjectArray(constructorArg(), CreateUserResponseInfo.PARSER, new ParseField("users"));
+        PARSER.declareObjectArray(constructorArg(), PutUserResponseInfo.PARSER, new ParseField("users"));
     }
 
-    public static CreateUserResponse fromXContent(XContentParser parser) throws IOException {
+    public static PutUserResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 

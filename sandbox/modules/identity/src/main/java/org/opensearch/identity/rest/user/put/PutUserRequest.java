@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.user.create;
+package org.opensearch.identity.rest.user.put;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
@@ -22,25 +22,25 @@ import java.io.IOException;
 import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
- * Request to create a user
+ * Request to create or update a user
  */
-public class CreateUserRequest extends ActionRequest implements ToXContentObject {
+public class PutUserRequest extends ActionRequest implements ToXContentObject {
 
     private String username;
     private String password;
 
-    public CreateUserRequest(StreamInput in) throws IOException {
+    public PutUserRequest(StreamInput in) throws IOException {
         super(in);
         username = in.readString();
         password = in.readString();
     }
 
-    public CreateUserRequest(String username, String password) {
+    public PutUserRequest(String username, String password) {
         this.username = username;
         this.password = password;
     }
 
-    public CreateUserRequest() {}
+    public PutUserRequest() {}
 
     public String getUsername() {
         return username;

@@ -36,9 +36,9 @@ import org.opensearch.identity.configuration.ConfigurationRepository;
 import org.opensearch.identity.configuration.DynamicConfigFactory;
 import org.opensearch.identity.rest.configuration.IdentityConfigUpdateAction;
 import org.opensearch.identity.rest.configuration.TransportIdentityConfigUpdateAction;
-import org.opensearch.identity.rest.user.create.CreateUserAction;
-import org.opensearch.identity.rest.user.create.RestCreateUserAction;
-import org.opensearch.identity.rest.user.create.TransportCreateUserAction;
+import org.opensearch.identity.rest.user.put.PutUserAction;
+import org.opensearch.identity.rest.user.put.RestPutUserAction;
+import org.opensearch.identity.rest.user.put.TransportPutUserAction;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ClusterPlugin;
@@ -116,7 +116,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         final List<RestHandler> handlers = new ArrayList<>(1);
-        handlers.add(new RestCreateUserAction());
+        handlers.add(new RestPutUserAction());
         // TODO: Add handlers for future actions
         return handlers;
     }
@@ -131,7 +131,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         }
 
         return Arrays.asList(
-            new ActionHandler<>(CreateUserAction.INSTANCE, TransportCreateUserAction.class),
+            new ActionHandler<>(PutUserAction.INSTANCE, TransportPutUserAction.class),
             new ActionHandler<>(IdentityConfigUpdateAction.INSTANCE, TransportIdentityConfigUpdateAction.class)
         );
     }

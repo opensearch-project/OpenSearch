@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.user.create;
+package org.opensearch.identity.rest.user.put;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -33,11 +33,11 @@ import static org.opensearch.rest.RestRequest.Method.PUT;
  *
  * @opensearch.api
  */
-public class RestCreateUserAction extends BaseRestHandler {
+public class RestPutUserAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return IdentityRestConstants.IDENTITY_CREATE_USER_ACTION;
+        return IdentityRestConstants.IDENTITY_CREATE_OR_UPDATE_USER_ACTION;
     }
 
     /**
@@ -46,6 +46,24 @@ public class RestCreateUserAction extends BaseRestHandler {
      * @param client  client for executing actions on the local node
      * @return the action to be executed See {@link #handleRequest(RestRequest, RestChannel, NodeClient) for more}
      * @throws IOException if errors encountered when parsing from XContent
+     *
+     * ````
+     * Sample Request:
+     * curl -XPUT http://new-user:password@localhost:9200/_identity/api/users/test --data '{ "password" : "test" }' -H"Content-type: application/json"
+     *
+     *
+     * Sample Response
+     *
+     * {
+     *   "users": [
+     *     {
+     *       "successful": true,
+     *       "username": "test",
+     *       "message": "test created successfully."
+     *     }
+     *   ]
+     * }
+     *
      */
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
@@ -56,16 +74,16 @@ public class RestCreateUserAction extends BaseRestHandler {
         try {
             contentAsNode = DefaultObjectMapper.readTree(request.content().utf8ToString());
         } catch (JsonParseException e) {
-            throw new IllegalArgumentException(ErrorType.BODY_NOT_PARSEABLE.getMessage() + "CREATE");
+            throw new IllegalArgumentException(ErrorType.BODY_NOT_PARSEABLE.getMessage() + "PUT");
         }
         String password = contentAsNode.get("password").asText();
 
-        CreateUserRequest createUserRequest = new CreateUserRequest(username, password);
+        PutUserRequest createUserRequest = new PutUserRequest(username, password);
 
         // TODO: check if this bypass to directly doExecute is okay.
         // TODO: Ideally, this should be registered as `createUser` request in Client.java and AbstractClient.java
         // TODO: see if you can add to RequestConverters.java to follow convention
-        return channel -> client.doExecute(CreateUserAction.INSTANCE, createUserRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.doExecute(PutUserAction.INSTANCE, createUserRequest, new RestStatusToXContentListener<>(channel));
     }
 
     /**

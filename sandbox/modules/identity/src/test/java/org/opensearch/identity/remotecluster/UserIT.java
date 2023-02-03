@@ -74,6 +74,7 @@ public class UserIT extends OpenSearchRestTestCase {
         String username = "test-create";
 
         // Create a user
+        String createMessage = username + " created successfully.";
         Request request = new Request("PUT", ENDPOINT + "/users/" + username);
         request.setJsonEntity("{ \"password\" : \"test-create\" }\n");
         request.setOptions(systemIndexWarning());
@@ -84,12 +85,25 @@ public class UserIT extends OpenSearchRestTestCase {
         assertEquals(usersCreated.size(), 1);
         assertEquals(usersCreated.get(0).get("successful"), true);
         assertEquals(usersCreated.get(0).get("username"), username);
+        assertEquals(usersCreated.get(0).get("message"), createMessage);
 
         // Read a user
 
         // Read all users
 
         // Update a user
+        String updateMessage = username + " updated successfully.";
+        request = new Request("PUT", ENDPOINT + "/users/" + username);
+        request.setJsonEntity("{ \"password\" : \"test-create\" }\n");
+        request.setOptions(systemIndexWarning());
+        response = client().performRequest(request);
+        assertEquals(response.getStatusLine().getStatusCode(), 200);
+        Map<String, Object> updateResponse = entityAsMap(response);
+        List<Map<String, Object>> usersUpdated = (List<Map<String, Object>>) updateResponse.get("users");
+        assertEquals(usersUpdated.size(), 1);
+        assertEquals(usersUpdated.get(0).get("successful"), true);
+        assertEquals(usersUpdated.get(0).get("username"), username);
+        assertEquals(usersUpdated.get(0).get("message"), updateMessage);
 
         // Update multiple users
 

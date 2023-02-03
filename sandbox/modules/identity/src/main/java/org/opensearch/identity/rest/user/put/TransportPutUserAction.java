@@ -6,13 +6,12 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.user.create;
+package org.opensearch.identity.rest.user.put;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.identity.rest.user.UserService;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
@@ -20,19 +19,12 @@ import org.opensearch.transport.TransportService;
 /**
  * Transport action for Creating a user
  */
-public class TransportCreateUserAction extends HandledTransportAction<CreateUserRequest, CreateUserResponse> {
-    private final NamedWriteableRegistry namedWriteableRegistry;
+public class TransportPutUserAction extends HandledTransportAction<PutUserRequest, PutUserResponse> {
     private final UserService userService;
 
     @Inject
-    public TransportCreateUserAction(
-        TransportService transportService,
-        ActionFilters actionFilters,
-        NamedWriteableRegistry namedWriteableRegistry,
-        UserService userService
-    ) {
-        super(CreateUserAction.NAME, transportService, actionFilters, CreateUserRequest::new);
-        this.namedWriteableRegistry = namedWriteableRegistry;
+    public TransportPutUserAction(TransportService transportService, ActionFilters actionFilters, UserService userService) {
+        super(PutUserAction.NAME, transportService, actionFilters, PutUserRequest::new);
         this.userService = userService;
     }
 
@@ -40,10 +32,10 @@ public class TransportCreateUserAction extends HandledTransportAction<CreateUser
      * Invokes 'create a user' workflow
      */
     @Override
-    protected void doExecute(Task task, CreateUserRequest request, ActionListener<CreateUserResponse> listener) {
+    protected void doExecute(Task task, PutUserRequest request, ActionListener<PutUserResponse> listener) {
         String username = request.getUsername();
         String password = request.getPassword();
-        userService.createUser(username, password, listener);
+        userService.createOrUpdateUser(username, password, listener);
     }
 
 }

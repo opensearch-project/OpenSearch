@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.user.create;
+package org.opensearch.identity.rest.user.put;
 
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
@@ -25,19 +25,22 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
  * This class captures if creation of a single given user is successful
  * If so, returns a boolean flag along-with the provided username
  */
-public class CreateUserResponseInfo extends TransportResponse implements Writeable, ToXContent {
+public class PutUserResponseInfo extends TransportResponse implements Writeable, ToXContent {
     private final boolean successful;
     private final String username;
 
-    public CreateUserResponseInfo(boolean successful, String username) {
+    private final String message;
+
+    public PutUserResponseInfo(boolean successful, String username, String message) {
         this.successful = successful;
         this.username = username;
+        this.message = message;
     }
 
-    public CreateUserResponseInfo(StreamInput in) throws IOException {
+    public PutUserResponseInfo(StreamInput in) throws IOException {
         successful = in.readBoolean();
         username = in.readString();
-
+        message = in.readString();
     }
 
     public boolean isSuccessful() {
@@ -48,31 +51,39 @@ public class CreateUserResponseInfo extends TransportResponse implements Writeab
         return username;
     }
 
+    public String getMessage() {
+        return message;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(successful);
         out.writeString(username);
+        out.writeString(message);
     }
 
-    static final ConstructingObjectParser<CreateUserResponseInfo, Void> PARSER = new ConstructingObjectParser<>(
-        "create_user_response_info",
+    static final ConstructingObjectParser<PutUserResponseInfo, Void> PARSER = new ConstructingObjectParser<>(
+        "put_user_response_info",
         true,
-        args -> new CreateUserResponseInfo((boolean) args[0], (String) args[1])
+        args -> new PutUserResponseInfo((boolean) args[0], (String) args[1], (String) args[2])
     );
 
     static {
         PARSER.declareBoolean(constructorArg(), new ParseField("successful"));
         PARSER.declareString(constructorArg(), new ParseField("username"));
+        PARSER.declareString(constructorArg(), new ParseField("message"));
     }
 
     private static final ParseField SUCCESSFUL = new ParseField("successful");
     private static final ParseField USERNAME = new ParseField("username");
+    private static final ParseField MESSAGE = new ParseField("message");
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(SUCCESSFUL.getPreferredName(), successful);
         builder.field(USERNAME.getPreferredName(), username);
+        builder.field(MESSAGE.getPreferredName(), message);
         builder.endObject();
         return builder;
     }

@@ -37,16 +37,32 @@ public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
     public void testUsersRestApi() throws Exception {
 
         String username = "test-create";
+
         // Create a user
-        Request request = new Request("PUT", ENDPOINT + "/users/" + username);
-        request.setJsonEntity("{ \"password\" : \"test\" }\n");
-        Response response = getRestClient().performRequest(request);
+        String createSuccessMessage = username + " created successfully.";
+        Request createRequest = new Request("PUT", ENDPOINT + "/users/" + username);
+        createRequest.setJsonEntity("{ \"password\" : \"test\" }\n");
+        Response response = getRestClient().performRequest(createRequest);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
         Map<String, Object> createResponse = entityAsMap(response);
         List<Map<String, Object>> usersCreated = (List<Map<String, Object>>) createResponse.get("users");
         assertEquals(usersCreated.size(), 1);
         assertEquals(usersCreated.get(0).get("successful"), true);
         assertEquals(usersCreated.get(0).get("username"), username);
+        assertEquals(usersCreated.get(0).get("message"), createSuccessMessage);
+
+        // Update a user
+        String updateSuccessMessage = username + " updated successfully.";
+        Request updateRequest = new Request("PUT", ENDPOINT + "/users/" + username);
+        updateRequest.setJsonEntity("{ \"password\" : \"test\" }\n");
+        response = getRestClient().performRequest(updateRequest);
+        assertEquals(response.getStatusLine().getStatusCode(), 200);
+        Map<String, Object> updateResponse = entityAsMap(response);
+        List<Map<String, Object>> usersUpdated = (List<Map<String, Object>>) updateResponse.get("users");
+        assertEquals(usersUpdated.size(), 1);
+        assertEquals(usersUpdated.get(0).get("successful"), true);
+        assertEquals(usersUpdated.get(0).get("username"), username);
+        assertEquals(usersUpdated.get(0).get("message"), updateSuccessMessage);
 
         // TODO: Add other api tests here
     }
