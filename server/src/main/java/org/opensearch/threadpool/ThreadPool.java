@@ -177,7 +177,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.SYSTEM_WRITE, ThreadPoolType.FIXED);
         map.put(Names.TRANSLOG_TRANSFER, ThreadPoolType.SCALING);
         map.put(Names.TRANSLOG_SYNC, ThreadPoolType.FIXED);
-        map.put(Names.TRANSLOG_REMOTE_PURGE, ThreadPoolType.FIXED);
+        map.put(Names.TRANSLOG_REMOTE_PURGE, ThreadPoolType.SCALING);
         THREAD_POOL_TYPES = Collections.unmodifiableMap(map);
     }
 
