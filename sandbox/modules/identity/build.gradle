@@ -5,7 +5,10 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
+import org.opensearch.gradle.test.RestIntegTestTask
 
+apply plugin: 'opensearch.rest-test'
+apply plugin: 'opensearch.testclusters'
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
@@ -62,13 +65,40 @@ tasks.named("dependencyLicenses").configure {
  * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
  * other if we allow them to set the number of available processors as it's set-once in Netty.
  */
-  test {
-    systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
-  }
+test {
+  systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
+}
+
+integTest {
+  exclude 'org/opensearch/identity/remotecluster/*'
+}
+
+// need to be set to false, otherwise task fails with
+// ```
+// Testing conventions [Expected at least one test class included in task :sandbox:modules:identity:integTest, but found none.
+//  Test classes are not included in any enabled task (:sandbox:modules:identity:integTest,:sandbox:modules:identity:test,:sandbox:modules:identity:internalClusterTest):
+//    * org.opensearch.identity.remotecluster.*IT] are not honored
+// ```
+testingConventions.enabled = false
 
 internalClusterTest {
   systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
 }
+
+task integTestRemote(type: RestIntegTestTask) {
+
+  systemProperty "tests.security.manager", System.getProperty("tests.security.manager")
+  systemProperty "user", System.getProperty("user")
+  systemProperty "password", System.getProperty("password")
+  systemProperty "https", System.getProperty("https")
+  systemProperty "security.enabled", System.getProperty("security.enabled")
+
+  filter {
+    setIncludePatterns("org.opensearch.identity.remotecluster.*IT")
+  }
+}
+
+integTestRemote.enabled = System.getProperty("tests.rest.cluster") != null
 
 thirdPartyAudit.ignoreMissingClasses(
   'android.app.Activity',
