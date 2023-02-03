@@ -36,6 +36,15 @@ import org.opensearch.identity.configuration.ConfigurationRepository;
 import org.opensearch.identity.configuration.DynamicConfigFactory;
 import org.opensearch.identity.rest.configuration.IdentityConfigUpdateAction;
 import org.opensearch.identity.rest.configuration.TransportIdentityConfigUpdateAction;
+import org.opensearch.identity.rest.user.delete.DeleteUserAction;
+import org.opensearch.identity.rest.user.delete.RestDeleteUserAction;
+import org.opensearch.identity.rest.user.delete.TransportDeleteUserAction;
+import org.opensearch.identity.rest.user.get.multi.MultiGetUserAction;
+import org.opensearch.identity.rest.user.get.multi.RestMultiGetUserAction;
+import org.opensearch.identity.rest.user.get.multi.TransportMultiGetUserAction;
+import org.opensearch.identity.rest.user.get.single.GetUserAction;
+import org.opensearch.identity.rest.user.get.single.RestGetUserAction;
+import org.opensearch.identity.rest.user.get.single.TransportGetUserAction;
 import org.opensearch.identity.rest.user.put.PutUserAction;
 import org.opensearch.identity.rest.user.put.RestPutUserAction;
 import org.opensearch.identity.rest.user.put.TransportPutUserAction;
@@ -117,6 +126,9 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     ) {
         final List<RestHandler> handlers = new ArrayList<>(1);
         handlers.add(new RestPutUserAction());
+        handlers.add(new RestGetUserAction());
+        handlers.add(new RestMultiGetUserAction());
+        handlers.add(new RestDeleteUserAction());
         // TODO: Add handlers for future actions
         return handlers;
     }
@@ -131,8 +143,11 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         }
 
         return Arrays.asList(
+            new ActionHandler<>(IdentityConfigUpdateAction.INSTANCE, TransportIdentityConfigUpdateAction.class),
             new ActionHandler<>(PutUserAction.INSTANCE, TransportPutUserAction.class),
-            new ActionHandler<>(IdentityConfigUpdateAction.INSTANCE, TransportIdentityConfigUpdateAction.class)
+            new ActionHandler<>(GetUserAction.INSTANCE, TransportGetUserAction.class),
+            new ActionHandler<>(MultiGetUserAction.INSTANCE, TransportMultiGetUserAction.class),
+            new ActionHandler<>(DeleteUserAction.INSTANCE, TransportDeleteUserAction.class)
         );
     }
 

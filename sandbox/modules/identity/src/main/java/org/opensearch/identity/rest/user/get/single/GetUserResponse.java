@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.user.get;
+package org.opensearch.identity.rest.user.get.single;
 
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.ParseField;
@@ -27,76 +27,63 @@ import static org.opensearch.rest.RestStatus.NOT_FOUND;
 import static org.opensearch.rest.RestStatus.OK;
 
 /**
- * Response class for create user request
- * Contains list of responses of each user creation request
+ * Rest response class for the requested user
  */
 public class GetUserResponse extends ActionResponse implements StatusToXContentObject {
 
     // TODO: revisit this class
-    private final List<GetUserResponseInfo> createUserResults;
+    private final GetUserResponseInfo getUserResponseInfo;
 
-    public GetUserResponse(List<GetUserResponseInfo> createUserResults) {
-        this.createUserResults = createUserResults;
+    public GetUserResponse(GetUserResponseInfo getUserResponseInfo) {
+        this.getUserResponseInfo = getUserResponseInfo;
     }
 
     public GetUserResponse(StreamInput in) throws IOException {
         super(in);
-        int size = in.readVInt();
-        createUserResults = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            createUserResults.add(new GetUserResponseInfo(in));
-        }
+        // TODO: if making GetUserResponseInfo is a better way to handle this
+        //  (i.e. use readNamedWriteable() and writeNamedWritable())
+        getUserResponseInfo = new GetUserResponseInfo(
+            in.readString(),
+            in.readMap(StreamInput::readString, StreamInput::readString),
+            in.readList(StreamInput::readString)
+        );
 
     }
 
-    public List<GetUserResponseInfo> getCreateUserResults() {
-        return createUserResults;
+    public GetUserResponseInfo getGetUserResponseInfo() {
+        return getUserResponseInfo;
     }
 
-    /**
-     * @return Whether the attempt to Create a user was successful
-     */
     @Override
     public RestStatus status() {
-        if (createUserResults.isEmpty()) return NOT_FOUND;
+        if (getUserResponseInfo == null) return NOT_FOUND;
         return OK;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(createUserResults.size());
-        for (GetUserResponseInfo createUserResults : createUserResults) {
-            createUserResults.writeTo(out);
-        }
+        getUserResponseInfo.writeTo(out);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.startArray("users");
-        for (GetUserResponseInfo response : createUserResults) {
-            response.toXContent(builder, params);
-        }
-        builder.endArray();
+        builder.startObject("user");
+        getUserResponseInfo.toXContent(builder, params);
         builder.endObject();
         return builder;
     }
 
     private static final ConstructingObjectParser<GetUserResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "create_user_response",
+        "get_user_response",
         true,
         (Object[] parsedObjects) -> {
             @SuppressWarnings("unchecked")
-            List<GetUserResponseInfo> createUserResponseInfoList = (List<GetUserResponseInfo>) parsedObjects[0];
-            return new GetUserResponse(createUserResponseInfoList);
+            GetUserResponseInfo getUserResponseInfo = (GetUserResponseInfo) parsedObjects[0];
+            return new GetUserResponse(getUserResponseInfo);
         }
     );
     static {
-        PARSER.declareObjectArray(constructorArg(), GetUserResponseInfo.PARSER, new ParseField("users"));
-    }
-
-    public static GetUserResponse fromXContent(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
+        PARSER.declareObject(constructorArg(), GetUserResponseInfo.PARSER, new ParseField("user"));
     }
 
 }

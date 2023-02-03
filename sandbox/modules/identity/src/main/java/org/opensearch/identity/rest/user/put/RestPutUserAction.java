@@ -65,7 +65,7 @@ public class RestPutUserAction extends BaseRestHandler {
      *     }
      *   ]
      * }
-     *
+     * ````
      */
     @Override
     @SuppressWarnings("unchecked")

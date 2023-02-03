@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.user.delete;
+package org.opensearch.identity.rest.user.get.multi;
 
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.ParseField;
@@ -16,6 +16,7 @@ import org.opensearch.common.xcontent.ConstructingObjectParser;
 import org.opensearch.common.xcontent.StatusToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.identity.rest.user.get.single.GetUserResponseInfo;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -27,42 +28,41 @@ import static org.opensearch.rest.RestStatus.NOT_FOUND;
 import static org.opensearch.rest.RestStatus.OK;
 
 /**
- * Rest response class that contains aggregated list of delete user actions
+ * Response class the contains list of multiple users
  */
-public class DeleteUserResponse extends ActionResponse implements StatusToXContentObject {
+public class MultiGetUserResponse extends ActionResponse implements StatusToXContentObject {
 
     // TODO: revisit this class
-    private final List<DeleteUserResponseInfo> deleteUserResponseInfo;
+    private final List<MultiGetUserResponseInfo> multiGetUserResponseInfo;
 
-    public DeleteUserResponse(List<DeleteUserResponseInfo> deleteUserResponseInfo) {
-        this.deleteUserResponseInfo = deleteUserResponseInfo;
+    public MultiGetUserResponse(List<MultiGetUserResponseInfo> createUserResults) {
+        this.multiGetUserResponseInfo = createUserResults;
     }
 
-    public DeleteUserResponse(StreamInput in) throws IOException {
+    public MultiGetUserResponse(StreamInput in) throws IOException {
         super(in);
         int size = in.readVInt();
-        deleteUserResponseInfo = new ArrayList<>();
+        multiGetUserResponseInfo = new ArrayList<>();
         for (int i = 0; i < size; i++) {
-            deleteUserResponseInfo.add(new DeleteUserResponseInfo(in));
+            multiGetUserResponseInfo.add(new MultiGetUserResponseInfo(in));
         }
-
     }
 
-    public List<DeleteUserResponseInfo> getDeleteUserResponseInfo() {
-        return deleteUserResponseInfo;
+    public List<MultiGetUserResponseInfo> getMultiGetUserResponseInfo() {
+        return multiGetUserResponseInfo;
     }
 
     @Override
     public RestStatus status() {
-        if (deleteUserResponseInfo.isEmpty()) return NOT_FOUND;
+        if (multiGetUserResponseInfo.isEmpty()) return NOT_FOUND;
         return OK;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(deleteUserResponseInfo.size());
-        for (DeleteUserResponseInfo createUserResults : deleteUserResponseInfo) {
-            createUserResults.writeTo(out);
+        out.writeVInt(multiGetUserResponseInfo.size());
+        for (MultiGetUserResponseInfo multiGetUserResponseInfo : multiGetUserResponseInfo) {
+            multiGetUserResponseInfo.writeTo(out);
         }
     }
 
@@ -70,25 +70,25 @@ public class DeleteUserResponse extends ActionResponse implements StatusToXConte
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startArray("users");
-        for (DeleteUserResponseInfo response : deleteUserResponseInfo) {
-            response.toXContent(builder, params);
+        for (MultiGetUserResponseInfo multiGetUserResponseInfo : multiGetUserResponseInfo) {
+            multiGetUserResponseInfo.toXContent(builder, params);
         }
         builder.endArray();
         builder.endObject();
         return builder;
     }
 
-    private static final ConstructingObjectParser<DeleteUserResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "delete_user_response",
+    private static final ConstructingObjectParser<MultiGetUserResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "get_users_response",
         true,
         (Object[] parsedObjects) -> {
             @SuppressWarnings("unchecked")
-            List<DeleteUserResponseInfo> createUserResponseInfoList = (List<DeleteUserResponseInfo>) parsedObjects[0];
-            return new DeleteUserResponse(createUserResponseInfoList);
+            List<MultiGetUserResponseInfo> multiGetUserResponseInfo = (List<MultiGetUserResponseInfo>) parsedObjects[0];
+            return new MultiGetUserResponse(multiGetUserResponseInfo);
         }
     );
     static {
-        PARSER.declareObjectArray(constructorArg(), DeleteUserResponseInfo.PARSER, new ParseField("users"));
+        PARSER.declareObjectArray(constructorArg(), MultiGetUserResponseInfo.PARSER, new ParseField("users"));
     }
 
 }

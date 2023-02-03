@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.user.delete;
+package org.opensearch.identity.rest.user.get.single;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
@@ -14,32 +14,36 @@ import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.identity.rest.user.UserService;
+import org.opensearch.identity.rest.user.get.single.GetUserAction;
+import org.opensearch.identity.rest.user.get.single.GetUserRequest;
+import org.opensearch.identity.rest.user.get.single.GetUserResponse;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
 /**
- * Transport action for Deleting a user
+ * Transport action to get a user
  */
-public class TransportDeleteUserAction extends HandledTransportAction<DeleteUserRequest, DeleteUserResponse> {
+public class TransportGetUserAction extends HandledTransportAction<GetUserRequest, GetUserResponse> {
     private final UserService userService;
 
     @Inject
-    public TransportDeleteUserAction(
+    public TransportGetUserAction(
         TransportService transportService,
         ActionFilters actionFilters,
+        NamedWriteableRegistry namedWriteableRegistry,
         UserService userService
     ) {
-        super(DeleteUserAction.NAME, transportService, actionFilters, DeleteUserRequest::new);
+        super(GetUserAction.NAME, transportService, actionFilters, GetUserRequest::new);
         this.userService = userService;
     }
 
     /**
-     * Invokes 'delete a user' workflow
+     * Invokes 'get a user' workflow
      */
     @Override
-    protected void doExecute(Task task, DeleteUserRequest request, ActionListener<DeleteUserResponse> listener) {
+    protected void doExecute(Task task, GetUserRequest request, ActionListener<GetUserResponse> listener) {
         String username = request.getUsername();
-        userService.deleteUser(username, listener);
+        userService.getUser(username, listener);
     }
 
 }

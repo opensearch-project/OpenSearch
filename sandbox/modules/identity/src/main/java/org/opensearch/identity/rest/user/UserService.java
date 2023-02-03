@@ -30,6 +30,9 @@ import org.opensearch.identity.configuration.ConfigurationRepository;
 import org.opensearch.identity.configuration.SecurityDynamicConfiguration;
 import org.opensearch.identity.exception.InvalidConfigException;
 import org.opensearch.identity.exception.InvalidContentException;
+import org.opensearch.identity.rest.user.delete.DeleteUserResponse;
+import org.opensearch.identity.rest.user.get.multi.MultiGetUserResponse;
+import org.opensearch.identity.rest.user.get.single.GetUserResponse;
 import org.opensearch.identity.rest.user.put.PutUserResponse;
 import org.opensearch.identity.rest.user.put.PutUserResponseInfo;
 import org.opensearch.identity.utils.ErrorType;
@@ -230,6 +233,15 @@ public class UserService {
         } catch (IOException e) {
             throw ExceptionsHelper.convertToOpenSearchException(e);
         }
+    }
+
+    public void getUser(String username, ActionListener<GetUserResponse> listener) {
+    }
+
+    public void getUsers(ActionListener<MultiGetUserResponse> listener) {
+    }
+
+    public void deleteUser(String username, ActionListener<DeleteUserResponse> listener) {
     }
 
     abstract class OnSucessActionListener<Response> implements ActionListener<Response> {

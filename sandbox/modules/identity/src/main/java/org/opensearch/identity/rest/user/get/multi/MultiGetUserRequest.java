@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.user.delete;
+package org.opensearch.identity.rest.user.get.multi;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
@@ -14,57 +14,33 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
- * Request to delete a single user
+ * Request to get multiple users
  */
-public class DeleteUserRequest extends ActionRequest implements ToXContentObject {
-
-    private String username;
-
-    public DeleteUserRequest(StreamInput in) throws IOException {
+public class MultiGetUserRequest extends ActionRequest implements ToXContentObject {
+    public MultiGetUserRequest(StreamInput in) throws IOException {
         super(in);
-        username = in.readString();
     }
-
-    public DeleteUserRequest(String username) {
-        this.username = username;
-    }
-
-    public DeleteUserRequest() {}
-
-    public String getUsername() {
-        return username;
-    }
-
-    public void setUsername(String username) {
-        this.username = username;
-    }
+    public MultiGetUserRequest() {}
 
     @Override
     public ActionRequestValidationException validate() {
-        ActionRequestValidationException validationException = null;
-        if (username == null) { // TODO: cehck the condition once
-            validationException = addValidationError("No username specified", validationException);
-        }
-        return validationException;
+        return null;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(username);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.value(username);
         builder.endObject();
         return builder;
     }

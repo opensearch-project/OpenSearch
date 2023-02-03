@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.user.get;
+package org.opensearch.identity.rest.user.get.multi;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
@@ -14,36 +14,34 @@ import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.identity.rest.user.UserService;
+import org.opensearch.identity.rest.user.get.single.GetUserAction;
+import org.opensearch.identity.rest.user.get.single.GetUserRequest;
+import org.opensearch.identity.rest.user.get.single.GetUserResponse;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
 /**
- * Transport action for Creating a user
+ * Transport action for retrieving multiple users
  */
-public class TransportGetUserAction extends HandledTransportAction<GetUserRequest, GetUserResponse> {
-    private final NamedWriteableRegistry namedWriteableRegistry;
+public class TransportMultiGetUserAction extends HandledTransportAction<MultiGetUserRequest, MultiGetUserResponse> {
     private final UserService userService;
 
     @Inject
-    public TransportGetUserAction(
+    public TransportMultiGetUserAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        NamedWriteableRegistry namedWriteableRegistry,
         UserService userService
     ) {
-        super(GetUserAction.NAME, transportService, actionFilters, GetUserRequest::new);
-        this.namedWriteableRegistry = namedWriteableRegistry;
+        super(GetUserAction.NAME, transportService, actionFilters, MultiGetUserRequest::new);
         this.userService = userService;
     }
 
     /**
-     * Invokes 'create a user' workflow
+     * Invokes 'get multiple users' workflow
      */
     @Override
-    protected void doExecute(Task task, GetUserRequest request, ActionListener<GetUserResponse> listener) {
-        String username = request.getUsername();
-        String password = request.getPassword();
-        userService.createUser(username, password, listener);
+    protected void doExecute(Task task, MultiGetUserRequest request, ActionListener<MultiGetUserResponse> listener) {
+        userService.getUsers(listener);
     }
 
 }
