@@ -25,7 +25,7 @@ paths:
               description: A list of permission strings
         default:
           description: illegal argument exception
-    post:
+    put:
       requestBody:
         description: Add a permission
         content:
