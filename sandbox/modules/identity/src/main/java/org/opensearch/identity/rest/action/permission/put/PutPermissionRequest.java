@@ -61,7 +61,7 @@ public class PutPermissionRequest extends ActionRequest implements ToXContentObj
 
     /**
      * Ensure that both the permission and username are present
-     * @return
+     * @return Returns an exception on invalid request content
      */
     @Override
     public ActionRequestValidationException validate() {
