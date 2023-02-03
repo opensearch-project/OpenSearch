@@ -32,10 +32,12 @@
 package org.opensearch.index.engine;
 
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafMetaData;
 import org.apache.lucene.index.LeafReader;
@@ -50,7 +52,6 @@ import org.apache.lucene.index.TermVectors;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
@@ -255,8 +256,13 @@ public final class TranslogLeafReader extends LeafReader {
     }
 
     @Override
-    public VectorValues getVectorValues(String field) throws IOException {
-        return getVectorValues(field);
+    public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+        return getFloatVectorValues(field);
+    }
+
+    @Override
+    public ByteVectorValues getByteVectorValues(String field) throws IOException {
+        return getByteVectorValues(field);
     }
 
     @Override
@@ -265,7 +271,7 @@ public final class TranslogLeafReader extends LeafReader {
     }
 
     @Override
-    public TopDocs searchNearestVectors(String field, BytesRef target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
+    public TopDocs searchNearestVectors(String field, byte[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
         throw new UnsupportedOperationException();
     }
 }

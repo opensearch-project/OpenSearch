@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
@@ -57,7 +58,6 @@ import org.opensearch.index.IndicesModuleRequest;
 import org.opensearch.index.IndicesModuleResponse;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
-import org.opensearch.plugins.PluginInfo;
 import org.opensearch.rest.RestController;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
@@ -289,7 +289,7 @@ public class ExtensionsManager {
      * Load and populate all extensions
      */
     private void discover() throws IOException {
-        logger.info("Extensions Config Directory :" + extensionsPath.toString());
+        logger.info("Loading extensions : {}", extensionsPath);
         if (!FileSystemUtils.isAccessibleDirectory(extensionsPath, logger)) {
             return;
         }
@@ -308,7 +308,7 @@ public class ExtensionsManager {
                 logger.info("Loaded all extensions");
             }
         } else {
-            logger.info("Extensions.yml file is not present.  No extensions will be loaded.");
+            logger.warn("Extensions.yml file is not present.  No extensions will be loaded.");
         }
     }
 
@@ -324,27 +324,16 @@ public class ExtensionsManager {
                 DiscoveryExtensionNode discoveryExtensionNode = new DiscoveryExtensionNode(
                     extension.getName(),
                     extension.getUniqueId(),
-                    // placeholder for ephemeral id, will change with POC discovery
-                    extension.getUniqueId(),
-                    extension.getHostName(),
-                    extension.getHostAddress(),
                     new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
                     new HashMap<String, String>(),
                     Version.fromString(extension.getOpensearchVersion()),
-                    new PluginInfo(
-                        extension.getName(),
-                        extension.getDescription(),
-                        extension.getVersion(),
-                        Version.fromString(extension.getOpensearchVersion()),
-                        extension.getJavaVersion(),
-                        extension.getClassName(),
-                        new ArrayList<String>(),
-                        Boolean.parseBoolean(extension.hasNativeController())
-                    ),
+                    Version.fromString(extension.getMinimumCompatibleVersion()),
                     extension.getDependencies()
                 );
                 extensionIdMap.put(extension.getUniqueId(), discoveryExtensionNode);
                 logger.info("Loaded extension with uniqueId " + extension.getUniqueId() + ": " + extension);
+            } catch (OpenSearchException e) {
+                logger.error("Could not load extension with uniqueId " + extension.getUniqueId() + " due to " + e);
             } catch (IllegalArgumentException e) {
                 throw e;
             }
@@ -580,16 +569,11 @@ public class ExtensionsManager {
                     new Extension(
                         extensionMap.get("name").toString(),
                         extensionMap.get("uniqueId").toString(),
-                        extensionMap.get("hostName").toString(),
                         extensionMap.get("hostAddress").toString(),
                         extensionMap.get("port").toString(),
                         extensionMap.get("version").toString(),
-                        extensionMap.get("description").toString(),
                         extensionMap.get("opensearchVersion").toString(),
-                        extensionMap.get("javaVersion").toString(),
-                        extensionMap.get("className").toString(),
-                        extensionMap.get("customFolderName").toString(),
-                        extensionMap.get("hasNativeController").toString()
+                        extensionMap.get("minimumCompatibleVersion").toString()
                     )
                 );
             }
