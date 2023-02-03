@@ -347,7 +347,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         }
     }
 
-    class ForceSyncTransportRequestHandler implements TransportRequestHandler<ForceSyncRequest> {
+    private class ForceSyncTransportRequestHandler implements TransportRequestHandler<ForceSyncRequest> {
         @Override
         public void messageReceived(final ForceSyncRequest request, TransportChannel channel, Task task) throws Exception {
             assert indicesService != null;
@@ -367,7 +367,10 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                             )
                         );
                         try {
-                            indexShard.resetToWriteableEngine();
+                            // Promote engine type for primary target
+                            if (indexShard.recoveryState().getPrimary() == true) {
+                                indexShard.resetToWriteableEngine();
+                            }
                             channel.sendResponse(TransportResponse.Empty.INSTANCE);
                         } catch (InterruptedException | TimeoutException | IOException e) {
                             throw new RuntimeException(e);
