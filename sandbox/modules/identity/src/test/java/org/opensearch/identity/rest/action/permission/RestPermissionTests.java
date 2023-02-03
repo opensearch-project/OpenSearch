@@ -15,10 +15,10 @@ import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.collect.Map;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.identity.rest.action.permission.put.RestPutPermissionAction;
 import org.opensearch.identity.rest.action.permission.put.PutPermissionRequest;
+import org.opensearch.identity.utils.ErrorType;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
@@ -38,10 +38,10 @@ public class RestPermissionTests extends OpenSearchTestCase {
             XContentType.JSON
         ).build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, null));
-        assertThat(e.getMessage(), equalTo("Failed to parse put permission request body"));
+        assertThat(e.getMessage(), equalTo(ErrorType.BODY_NOT_PARSEABLE.getMessage() + "Put Permission"));
     }
 
-    public void testParsePutPermissionWithValidJson() throws Exception {
+    public void testPutPermissionWithValidJson() throws Exception {
         SetOnce<Boolean> putPermissionCalled = new SetOnce<>();
         try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName()) {
             @Override
@@ -52,11 +52,15 @@ public class RestPermissionTests extends OpenSearchTestCase {
             ) {
                 PutPermissionRequest req = (PutPermissionRequest) request;
                 putPermissionCalled.set(true);
-                assertThat(req.getPermissionString(), equalTo("test"));
+                assertThat(req.getPermissionString(), equalTo("test_permission"));
+                assertThat(req.getPrincipalString(), equalTo("test_principal"));
             }
         }) {
             RestPutPermissionAction action = new RestPutPermissionAction();
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("permissionString", "test")).build();
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
+                new BytesArray("{\"principalString\" : \"test_principal\", \"permissionString\" : \"test_permission\" }\n"),
+                XContentType.JSON
+            ).build();
             FakeRestChannel channel = new FakeRestChannel(request, false, 0);
             action.handleRequest(request, channel, nodeClient);
 

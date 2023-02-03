@@ -44,7 +44,6 @@ public class RestPutPermissionAction extends BaseRestHandler {
         } catch (JsonParseException e) {
             throw new IllegalArgumentException(ErrorType.BODY_NOT_PARSEABLE.getMessage() + "Put Permission");
         }
-
         String permissionString = contentAsNode.get("permissionString").asText();
         String principalString = contentAsNode.get("principalString").asText();
 
