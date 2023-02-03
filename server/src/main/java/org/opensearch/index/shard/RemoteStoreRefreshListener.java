@@ -179,11 +179,11 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     }
 
     String uploadSegmentInfosSnapshot(String latestSegmentsNFilename, SegmentInfos segmentInfosSnapshot) throws IOException {
-        final long lastRefreshedCheckpoint = indexShard.getEngine().getMaxSeqNoFromSegmentInfos(segmentInfosSnapshot);
+        final long maxSeqNoFromSegmentInfos = indexShard.getEngine().getMaxSeqNoFromSegmentInfos(segmentInfosSnapshot);
 
         Map<String, String> userData = segmentInfosSnapshot.getUserData();
-        userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(lastRefreshedCheckpoint));
-        userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(lastRefreshedCheckpoint));
+        userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(maxSeqNoFromSegmentInfos));
+        userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNoFromSegmentInfos));
         segmentInfosSnapshot.setUserData(userData, false);
 
         long commitGeneration = SegmentInfos.generationFromSegmentsFileName(latestSegmentsNFilename);
