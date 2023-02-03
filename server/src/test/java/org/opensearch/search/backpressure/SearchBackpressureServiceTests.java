@@ -216,7 +216,8 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         // Mocking 'settings' with predictable totalHeapBytesThreshold so that cancellation logic doesn't get skipped.
         long taskHeapUsageBytes = 500;
         SearchTaskSettings searchTaskSettings = mock(SearchTaskSettings.class);
-        when(searchTaskSettings.getTotalHeapBytesThreshold()).thenReturn(taskHeapUsageBytes);
+        // setting the total heap percent threshold to minimum so that circuit does not break in SearchBackpressureService
+        when(searchTaskSettings.getTotalHeapPercentThreshold()).thenReturn(0.0);
         when(settings.getSearchTaskSettings()).thenReturn(searchTaskSettings);
 
         // Create a mix of low and high resource usage SearchTasks (50 low + 25 high resource usage tasks).
@@ -287,7 +288,8 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         // Mocking 'settings' with predictable totalHeapBytesThreshold so that cancellation logic doesn't get skipped.
         long taskHeapUsageBytes = 500;
         SearchShardTaskSettings searchShardTaskSettings = mock(SearchShardTaskSettings.class);
-        when(searchShardTaskSettings.getTotalHeapBytesThreshold()).thenReturn(taskHeapUsageBytes);
+        // setting the total heap percent threshold to minimum so that circuit does not break in SearchBackpressureService
+        when(searchShardTaskSettings.getTotalHeapPercentThreshold()).thenReturn(0.0);
         when(settings.getSearchShardTaskSettings()).thenReturn(searchShardTaskSettings);
 
         // Create a mix of low and high resource usage tasks (60 low + 15 high resource usage tasks).

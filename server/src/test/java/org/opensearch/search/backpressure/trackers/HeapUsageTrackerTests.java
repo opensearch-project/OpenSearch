@@ -44,11 +44,12 @@ public class HeapUsageTrackerTests extends OpenSearchTestCase {
         SearchTaskSettings mockSearchTaskSettings = spy(
             new SearchTaskSettings(mockSettings.getSettings(), mockSettings.getClusterSettings())
         );
-        when(mockSearchTaskSettings.getHeapBytesThreshold()).thenReturn(HEAP_BYTES_THRESHOLD_SEARCH_TASK);
+        // setting the heap percent threshold to minimum
+        when(mockSearchTaskSettings.getHeapPercentThreshold()).thenReturn(0.0);
         HeapUsageTracker tracker = spy(
             new HeapUsageTracker(
                 mockSearchTaskSettings::getHeapVarianceThreshold,
-                mockSearchTaskSettings::getHeapBytesThreshold,
+                mockSearchTaskSettings::getHeapPercentThreshold,
                 mockSearchTaskSettings.getHeapMovingAverageWindowSize(),
                 mockSettings.getClusterSettings(),
                 SearchTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE
@@ -73,11 +74,12 @@ public class HeapUsageTrackerTests extends OpenSearchTestCase {
         SearchShardTaskSettings mockSearchShardTaskSettings = spy(
             new SearchShardTaskSettings(mockSettings.getSettings(), mockSettings.getClusterSettings())
         );
-        when(mockSearchShardTaskSettings.getHeapBytesThreshold()).thenReturn(HEAP_BYTES_THRESHOLD_SEARCH_TASK);
+        // setting the heap percent threshold to minimum
+        when(mockSearchShardTaskSettings.getHeapPercentThreshold()).thenReturn(0.0);
         HeapUsageTracker tracker = spy(
             new HeapUsageTracker(
                 mockSearchShardTaskSettings::getHeapVarianceThreshold,
-                mockSearchShardTaskSettings::getHeapBytesThreshold,
+                mockSearchShardTaskSettings::getHeapPercentThreshold,
                 mockSearchShardTaskSettings.getHeapMovingAverageWindowSize(),
                 mockSettings.getClusterSettings(),
                 SearchShardTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE
@@ -104,11 +106,12 @@ public class HeapUsageTrackerTests extends OpenSearchTestCase {
         SearchShardTaskSettings mockSearchShardTaskSettings = spy(
             new SearchShardTaskSettings(mockSettings.getSettings(), mockSettings.getClusterSettings())
         );
-        when(mockSearchShardTaskSettings.getHeapBytesThreshold()).thenReturn(HEAP_BYTES_THRESHOLD_SEARCH_SHARD_TASK);
+        // setting the heap percent threshold to minimum
+        when(mockSearchShardTaskSettings.getHeapPercentThreshold()).thenReturn(0.0);
         HeapUsageTracker tracker = spy(
             new HeapUsageTracker(
                 mockSearchShardTaskSettings::getHeapVarianceThreshold,
-                mockSearchShardTaskSettings::getHeapBytesThreshold,
+                mockSearchShardTaskSettings::getHeapPercentThreshold,
                 mockSearchShardTaskSettings.getHeapMovingAverageWindowSize(),
                 mockSettings.getClusterSettings(),
                 SearchShardTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE

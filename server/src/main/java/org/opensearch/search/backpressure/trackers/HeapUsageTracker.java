@@ -8,6 +8,8 @@
 
 package org.opensearch.search.backpressure.trackers;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -16,6 +18,7 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.MovingAverage;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.monitor.jvm.JvmStats;
+import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
 
@@ -25,7 +28,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.DoubleSupplier;
-import java.util.function.LongSupplier;
 
 import static org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER;
 
@@ -36,20 +38,21 @@ import static org.opensearch.search.backpressure.trackers.TaskResourceUsageTrack
  * @opensearch.internal
  */
 public class HeapUsageTracker extends TaskResourceUsageTracker {
-    public static final long HEAP_SIZE_BYTES = JvmStats.jvmStats().getMem().getHeapMax().getBytes();
+    private static final Logger logger = LogManager.getLogger(HeapUsageTracker.class);
+    private static final long HEAP_SIZE_BYTES = JvmStats.jvmStats().getMem().getHeapMax().getBytes();
     private final DoubleSupplier heapVarianceSupplier;
-    private final LongSupplier heapBytesThresholdSupplier;
+    private final DoubleSupplier heapPercentThresholdSupplier;
     private final AtomicReference<MovingAverage> movingAverageReference;
 
     public HeapUsageTracker(
         DoubleSupplier heapVarianceSupplier,
-        LongSupplier heapBytesThresholdSupplier,
+        DoubleSupplier heapPercentThresholdSupplier,
         int heapMovingAverageWindowSize,
         ClusterSettings clusterSettings,
         Setting<Integer> windowSizeSetting
     ) {
         this.heapVarianceSupplier = heapVarianceSupplier;
-        this.heapBytesThresholdSupplier = heapBytesThresholdSupplier;
+        this.heapPercentThresholdSupplier = heapPercentThresholdSupplier;
         this.movingAverageReference = new AtomicReference<>(new MovingAverage(heapMovingAverageWindowSize));
         clusterSettings.addSettingsUpdateConsumer(windowSizeSetting, this::updateWindowSize);
     }
@@ -77,9 +80,9 @@ public class HeapUsageTracker extends TaskResourceUsageTracker {
         double averageUsage = movingAverage.getAverage();
         double variance = heapVarianceSupplier.getAsDouble();
         double allowedUsage = averageUsage * variance;
-        double threshold = heapBytesThresholdSupplier.getAsLong();
+        double threshold = heapPercentThresholdSupplier.getAsDouble() * HEAP_SIZE_BYTES;
 
-        if (currentUsage < threshold || currentUsage < allowedUsage) {
+        if (isHeapTrackingSupported() == false || currentUsage < threshold || currentUsage < allowedUsage) {
             return Optional.empty();
         }
 
@@ -93,6 +96,24 @@ public class HeapUsageTracker extends TaskResourceUsageTracker {
 
     private void updateWindowSize(int heapMovingAverageWindowSize) {
         this.movingAverageReference.set(new MovingAverage(heapMovingAverageWindowSize));
+    }
+
+    public static boolean isHeapTrackingSupported() {
+        return HEAP_SIZE_BYTES > 0;
+    }
+
+    /**
+     * Returns true if the increase in heap usage is due to search requests.
+     */
+    public static boolean isHeapUsageDominatedBySearch(List<CancellableTask> cancellableTasks, double heapPercentThreshold) {
+        long usage = cancellableTasks.stream().mapToLong(task -> task.getTotalResourceStats().getMemoryInBytes()).sum();
+        long threshold = (long) heapPercentThreshold * HEAP_SIZE_BYTES;
+        if (isHeapTrackingSupported() && usage < threshold) {
+            logger.debug("heap usage not dominated by search requests [{}/{}]", usage, threshold);
+            return false;
+        }
+
+        return true;
     }
 
     @Override
@@ -120,10 +141,6 @@ public class HeapUsageTracker extends TaskResourceUsageTracker {
 
         public Stats(StreamInput in) throws IOException {
             this(in.readVLong(), in.readVLong(), in.readVLong(), in.readVLong());
-        }
-
-        public static boolean isHeapTrackingSupported() {
-            return HEAP_SIZE_BYTES > 0;
         }
 
         @Override

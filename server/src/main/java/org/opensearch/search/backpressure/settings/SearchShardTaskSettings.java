@@ -19,8 +19,6 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static org.opensearch.search.backpressure.trackers.HeapUsageTracker.HEAP_SIZE_BYTES;
-
 /**
  * Defines the settings related to the cancellation of SearchShardTasks.
  *
@@ -184,10 +182,6 @@ public class SearchShardTaskSettings {
         return totalHeapPercentThreshold;
     }
 
-    public long getTotalHeapBytesThreshold() {
-        return (long) (HEAP_SIZE_BYTES * getTotalHeapPercentThreshold());
-    }
-
     public long getCpuTimeNanosThreshold() {
         return TimeUnit.MILLISECONDS.toNanos(cpuTimeMillisThreshold);
     }
@@ -196,8 +190,8 @@ public class SearchShardTaskSettings {
         return TimeUnit.MILLISECONDS.toNanos(elapsedTimeMillisThreshold);
     }
 
-    public long getHeapBytesThreshold() {
-        return (long) (HEAP_SIZE_BYTES * heapPercentThreshold);
+    public double getHeapPercentThreshold() {
+        return heapPercentThreshold;
     }
 
     public double getHeapVarianceThreshold() {

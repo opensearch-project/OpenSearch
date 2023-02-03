@@ -52,7 +52,7 @@ import java.util.function.DoubleSupplier;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
-import static org.opensearch.search.backpressure.trackers.HeapUsageTracker.Stats.isHeapTrackingSupported;
+import static org.opensearch.search.backpressure.trackers.HeapUsageTracker.isHeapTrackingSupported;
 
 /**
  * SearchBackpressureService is responsible for monitoring and cancelling in-flight search tasks if they are
@@ -98,7 +98,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
             getTrackers(
                 settings.getSearchTaskSettings()::getCpuTimeNanosThreshold,
                 settings.getSearchTaskSettings()::getHeapVarianceThreshold,
-                settings.getSearchTaskSettings()::getHeapBytesThreshold,
+                settings.getSearchTaskSettings()::getHeapPercentThreshold,
                 settings.getSearchTaskSettings().getHeapMovingAverageWindowSize(),
                 settings.getSearchTaskSettings()::getElapsedTimeNanosThreshold,
                 settings.getClusterSettings(),
@@ -107,7 +107,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
             getTrackers(
                 settings.getSearchShardTaskSettings()::getCpuTimeNanosThreshold,
                 settings.getSearchShardTaskSettings()::getHeapVarianceThreshold,
-                settings.getSearchShardTaskSettings()::getHeapBytesThreshold,
+                settings.getSearchShardTaskSettings()::getHeapPercentThreshold,
                 settings.getSearchShardTaskSettings().getHeapMovingAverageWindowSize(),
                 settings.getSearchShardTaskSettings()::getElapsedTimeNanosThreshold,
                 settings.getClusterSettings(),
@@ -176,12 +176,18 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         taskResourceTrackingService.refreshResourceStats(searchShardTasks.toArray(new Task[0]));
 
         // Check if increase in heap usage is due to SearchTasks
-        if (isHeapUsageDominatedBySearch(searchTasks, getSettings().getSearchTaskSettings().getTotalHeapBytesThreshold())) {
+        if (HeapUsageTracker.isHeapUsageDominatedBySearch(
+            searchTasks,
+            getSettings().getSearchTaskSettings().getTotalHeapPercentThreshold()
+        )) {
             cancellableTasks.addAll(searchTasks);
         }
 
         // Check if increase in heap usage is due to SearchShardTasks
-        if (isHeapUsageDominatedBySearch(searchShardTasks, getSettings().getSearchShardTaskSettings().getTotalHeapBytesThreshold())) {
+        if (HeapUsageTracker.isHeapUsageDominatedBySearch(
+            searchShardTasks,
+            getSettings().getSearchShardTaskSettings().getTotalHeapPercentThreshold()
+        )) {
             cancellableTasks.addAll(searchShardTasks);
         }
 
@@ -252,15 +258,6 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
     /**
      * Returns true if the increase in heap usage is due to search requests.
      */
-    boolean isHeapUsageDominatedBySearch(List<CancellableTask> cancellableTasks, long threshold) {
-        long usage = cancellableTasks.stream().mapToLong(task -> task.getTotalResourceStats().getMemoryInBytes()).sum();
-        if (usage < threshold) {
-            logger.debug("heap usage not dominated by search requests [{}/{}]", usage, threshold);
-            return false;
-        }
-
-        return true;
-    }
 
     /**
      * Filters and returns the list of currently running tasks of specified type.
@@ -321,7 +318,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
     public static List<TaskResourceUsageTracker> getTrackers(
         LongSupplier cpuThresholdSupplier,
         DoubleSupplier heapVarianceSupplier,
-        LongSupplier heapBytesThresholdSupplier,
+        DoubleSupplier heapPercentThresholdSupplier,
         int heapMovingAverageWindowSize,
         LongSupplier ElapsedTimeNanosSupplier,
         ClusterSettings clusterSettings,
@@ -333,7 +330,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
             trackers.add(
                 new HeapUsageTracker(
                     heapVarianceSupplier,
-                    heapBytesThresholdSupplier,
+                    heapPercentThresholdSupplier,
                     heapMovingAverageWindowSize,
                     clusterSettings,
                     windowSizeSetting
