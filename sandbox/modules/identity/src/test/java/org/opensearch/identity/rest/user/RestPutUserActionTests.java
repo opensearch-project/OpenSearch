@@ -39,7 +39,7 @@ public class RestPutUserActionTests extends OpenSearchTestCase {
             XContentType.JSON
         ).build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, null));
-        assertThat(e.getMessage(), equalTo(ErrorType.BODY_NOT_PARSEABLE.getMessage() + "CREATE"));
+        assertThat(e.getMessage(), equalTo(ErrorType.BODY_NOT_PARSEABLE.getMessage() + "PUT"));
     }
 
     public void testPutUserWithValidJson() throws Exception {

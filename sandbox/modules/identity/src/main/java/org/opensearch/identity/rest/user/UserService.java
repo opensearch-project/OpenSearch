@@ -184,7 +184,8 @@ public class UserService {
         final Client client,
         final CType cType,
         final SecurityDynamicConfiguration<?> configuration,
-        ActionListener<IndexResponse> indexActionListener) {
+        ActionListener<IndexResponse> indexActionListener
+    ) {
         // TODO: Future scope: see if this method can be generalized and extracted to another class
 
         final String id = cType.toLCString();
