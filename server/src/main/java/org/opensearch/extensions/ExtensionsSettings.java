@@ -52,7 +52,8 @@ public class ExtensionsSettings {
             String port,
             String version,
             String opensearchVersion,
-            String minimumCompatibleVersion
+            String minimumCompatibleVersion,
+            List<ExtensionDependency> dependencies
         ) {
             this.name = name;
             this.uniqueId = uniqueId;
@@ -61,6 +62,7 @@ public class ExtensionsSettings {
             this.version = version;
             this.opensearchVersion = opensearchVersion;
             this.minimumCompatibleVersion = minimumCompatibleVersion;
+            this.dependencies = dependencies;
         }
 
         public Extension() {
