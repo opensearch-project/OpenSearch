@@ -180,20 +180,11 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     }
 
     String uploadSegmentInfosSnapshot(String latestSegmentsNFilename, SegmentInfos segmentInfosSnapshot) throws IOException {
-        // We use lastRefreshedCheckpoint as local checkpoint for the SegmentInfosSnapshot. This is better than using
-        // getProcessedLocalCheckpoint() as processedCheckpoint can advance between reading the value and setting up
-        // in SegmentInfos.userData. This could lead to data loss as, during recovery, translog will be replayed based on
-        // LOCAL_CHECKPOINT_KEY.
-        // lastRefreshedCheckpoint is updated after refresh listeners are executed, this means, InternalEngine.lastRefreshedCheckpoint()
-        // will return checkpoint of last refresh but that does not impact the correctness as duplicate sequence numbers
-        // will not be replayed.
-        assert indexShard.getEngine() instanceof InternalEngine : "Expected shard with InternalEngine, got: "
-            + indexShard.getEngine().getClass();
-        final long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();
+        final long maxSeqNoFromSegmentInfos = indexShard.getEngine().getMaxSeqNoFromSegmentInfos(segmentInfosSnapshot);
 
         Map<String, String> userData = segmentInfosSnapshot.getUserData();
-        userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(lastRefreshedCheckpoint));
-        userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(lastRefreshedCheckpoint));
+        userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(maxSeqNoFromSegmentInfos));
+        userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNoFromSegmentInfos));
         segmentInfosSnapshot.setUserData(userData, false);
 
         long commitGeneration = SegmentInfos.generationFromSegmentsFileName(latestSegmentsNFilename);
