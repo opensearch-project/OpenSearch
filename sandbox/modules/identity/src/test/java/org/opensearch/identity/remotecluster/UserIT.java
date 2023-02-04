@@ -70,6 +70,9 @@ public class UserIT extends OpenSearchRestTestCase {
     @SuppressWarnings("unchecked")
     public void testInternalUsersApi() throws Exception {
 
+        final Map<String, String> emptyMap = Map.of();
+        final List<String> emptyList = List.of();
+
         String username = "test-create";
         String requestContent = "{ \"password\" : \"test\","
             + " \"attributes\": { \"attribute1\": \"value1\"},"
@@ -89,10 +92,6 @@ public class UserIT extends OpenSearchRestTestCase {
         assertEquals(userCreated.get("username"), username);
         assertEquals(userCreated.get("message"), createMessage);
 
-        // Read a user
-
-        // Read all users
-
         // Update a user
         String updateMessage = username + " updated successfully.";
         request = new Request("PUT", ENDPOINT + "/users/" + username);
@@ -106,9 +105,37 @@ public class UserIT extends OpenSearchRestTestCase {
         assertEquals(userUpdated.get("username"), username);
         assertEquals(userUpdated.get("message"), updateMessage);
 
-        // Update multiple users
+        // Get a user
+        Request getRequest = new Request("GET", ENDPOINT + "/users/" + username);
+        request.setOptions(systemIndexWarning());
+        response = client().performRequest(getRequest);
+        assertEquals(response.getStatusLine().getStatusCode(), 200);
+        Map<String, Object> getResponse = entityAsMap(response);
+        Map<String, String> user = (Map<String, String>) getResponse.get("user");
+        assertEquals(user.get("username"), username);
+        assertEquals(user.get("attributes"), emptyMap);
+        assertEquals(user.get("permissions"), emptyList);
+
+        // Get all users
+        Request mGetRequest = new Request("GET", ENDPOINT + "/users");
+        request.setOptions(systemIndexWarning());
+        response = client().performRequest(mGetRequest);
+        assertEquals(response.getStatusLine().getStatusCode(), 200);
+        Map<String, Object> mGetResponse = entityAsMap(response);
+        List<Map<String, Object>> users = (List<Map<String, Object>>) mGetResponse.get("users");
+        assertEquals(users.size(), 11); // Refer: distribution/src/config/internal_users.yml
 
         // Delete a user
+        String deletedMessage = username + " deleted successfully.";
+        Request deleteRequest = new Request("DELETE", ENDPOINT + "/users/" + username);
+        request.setOptions(systemIndexWarning());
+        response = client().performRequest(deleteRequest);
+        assertEquals(response.getStatusLine().getStatusCode(), 200);
+        Map<String, Object> deleteResponse = entityAsMap(response);
+        List<Map<String, Object>> deletedUsers = (List<Map<String, Object>>) deleteResponse.get("users");
+        assertEquals(deletedUsers.size(), 1);
+        assertEquals(deletedUsers.get(0).get("successful"), true);
+        assertEquals(deletedUsers.get(0).get("message"), deletedMessage);
 
     }
 
