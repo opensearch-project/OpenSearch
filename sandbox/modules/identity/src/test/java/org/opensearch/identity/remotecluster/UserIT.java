@@ -72,11 +72,15 @@ public class UserIT extends OpenSearchRestTestCase {
     public void testInternalUsersApi() throws Exception {
 
         String username = "test-create";
+        String requestContent = "{ \"password\" : \"test\","
+            + " \"attributes\": { \"attribute1\": \"value1\"},"
+            + " \"permissions\": [\"indices:admin:create\"]"
+            + " }\n";
 
         // Create a user
         String createMessage = username + " created successfully.";
         Request request = new Request("PUT", ENDPOINT + "/users/" + username);
-        request.setJsonEntity("{ \"password\" : \"test-create\" }\n");
+        request.setJsonEntity(requestContent);
         request.setOptions(systemIndexWarning());
         Response response = client().performRequest(request);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
@@ -94,7 +98,7 @@ public class UserIT extends OpenSearchRestTestCase {
         // Update a user
         String updateMessage = username + " updated successfully.";
         request = new Request("PUT", ENDPOINT + "/users/" + username);
-        request.setJsonEntity("{ \"password\" : \"test-create\" }\n");
+        request.setJsonEntity(requestContent);
         request.setOptions(systemIndexWarning());
         response = client().performRequest(request);
         assertEquals(response.getStatusLine().getStatusCode(), 200);

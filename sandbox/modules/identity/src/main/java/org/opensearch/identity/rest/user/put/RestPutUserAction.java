@@ -21,6 +21,7 @@ import org.opensearch.rest.action.RestStatusToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static org.opensearch.identity.utils.RoutesHelper.addRoutesPrefix;
@@ -66,6 +67,7 @@ public class RestPutUserAction extends BaseRestHandler {
      *
      */
     @Override
+    @SuppressWarnings("unchecked")
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String username = request.param("name");
 
@@ -73,17 +75,20 @@ public class RestPutUserAction extends BaseRestHandler {
         JsonNode contentAsNode;
         try {
             contentAsNode = DefaultObjectMapper.readTree(request.content().utf8ToString());
+            String password = contentAsNode.get("password").asText();
+            Map<String, String> attributes = DefaultObjectMapper.readTree(contentAsNode.get("attributes"), Map.class);
+
+            List<String> permissions = DefaultObjectMapper.readTree(contentAsNode.get("permissions"), List.class);
+
+            PutUserRequest putUserRequest = new PutUserRequest(username, password, attributes, permissions);
+
+            // TODO: check if this bypass to directly doExecute is okay.
+            // TODO: Ideally, this should be registered as `createUser` request in Client.java and AbstractClient.java
+            // TODO: see if you can add to RequestConverters.java to follow convention
+            return channel -> client.doExecute(PutUserAction.INSTANCE, putUserRequest, new RestStatusToXContentListener<>(channel));
         } catch (JsonParseException e) {
             throw new IllegalArgumentException(ErrorType.BODY_NOT_PARSEABLE.getMessage() + "PUT");
         }
-        String password = contentAsNode.get("password").asText();
-
-        PutUserRequest createUserRequest = new PutUserRequest(username, password);
-
-        // TODO: check if this bypass to directly doExecute is okay.
-        // TODO: Ideally, this should be registered as `createUser` request in Client.java and AbstractClient.java
-        // TODO: see if you can add to RequestConverters.java to follow convention
-        return channel -> client.doExecute(PutUserAction.INSTANCE, createUserRequest, new RestStatusToXContentListener<>(channel));
     }
 
     /**

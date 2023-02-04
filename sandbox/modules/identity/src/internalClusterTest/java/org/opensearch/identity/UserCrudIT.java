@@ -37,11 +37,15 @@ public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
     public void testUsersRestApi() throws Exception {
 
         String username = "test-create";
+        String requestContent = "{ \"password\" : \"test\","
+            + " \"attributes\": { \"attribute1\": \"value1\"},"
+            + " \"permissions\": [\"indices:admin:create\"]"
+            + " }\n";
 
         // Create a user
         String createSuccessMessage = username + " created successfully.";
         Request createRequest = new Request("PUT", ENDPOINT + "/users/" + username);
-        createRequest.setJsonEntity("{ \"password\" : \"test\" }\n");
+        createRequest.setJsonEntity(requestContent);
         Response response = getRestClient().performRequest(createRequest);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
         Map<String, Object> createResponse = entityAsMap(response);
@@ -51,10 +55,10 @@ public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
         assertEquals(usersCreated.get(0).get("username"), username);
         assertEquals(usersCreated.get(0).get("message"), createSuccessMessage);
 
-        // Update a user
+        // Update a user (same user in this case)
         String updateSuccessMessage = username + " updated successfully.";
         Request updateRequest = new Request("PUT", ENDPOINT + "/users/" + username);
-        updateRequest.setJsonEntity("{ \"password\" : \"test\" }\n");
+        updateRequest.setJsonEntity(requestContent);
         response = getRestClient().performRequest(updateRequest);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
         Map<String, Object> updateResponse = entityAsMap(response);

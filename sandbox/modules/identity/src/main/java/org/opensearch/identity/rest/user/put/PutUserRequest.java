@@ -18,6 +18,8 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
@@ -28,16 +30,22 @@ public class PutUserRequest extends ActionRequest implements ToXContentObject {
 
     private String username;
     private String password;
+    private Map<String, String> attributes;
+    private List<String> permissions;
 
     public PutUserRequest(StreamInput in) throws IOException {
         super(in);
         username = in.readString();
         password = in.readString();
+        attributes = in.readMap(StreamInput::readString, StreamInput::readString);
+        permissions = in.readList(StreamInput::readString);
     }
 
-    public PutUserRequest(String username, String password) {
+    public PutUserRequest(String username, String password, Map<String, String> attributes, List<String> permissions) {
         this.username = username;
         this.password = password;
+        this.attributes = attributes;
+        this.permissions = permissions;
     }
 
     public PutUserRequest() {}
@@ -52,6 +60,14 @@ public class PutUserRequest extends ActionRequest implements ToXContentObject {
 
     public String getPassword() {
         return password;
+    }
+
+    public Map<String, String> getAttributes() {
+        return attributes;
+    }
+
+    public List<String> getPermissions() {
+        return permissions;
     }
 
     @Override
@@ -70,6 +86,8 @@ public class PutUserRequest extends ActionRequest implements ToXContentObject {
         super.writeTo(out);
         out.writeString(username);
         out.writeString(password);
+        out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeStringCollection(permissions);
     }
 
     @Override
@@ -77,6 +95,8 @@ public class PutUserRequest extends ActionRequest implements ToXContentObject {
         builder.startObject();
         builder.value(username);
         builder.value(password);
+        builder.value(attributes);
+        builder.value(permissions);
         builder.endObject();
         return builder;
     }

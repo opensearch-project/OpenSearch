@@ -53,13 +53,20 @@ public class RestPutUserActionTests extends OpenSearchTestCase {
             ) {
                 PutUserRequest req = (PutUserRequest) request;
                 putUserCalled.set(true);
-                assertThat(req.getUsername(), equalTo("test"));
-                assertThat(req.getPassword(), equalTo("test"));
+                assertEquals(req.getUsername(), "test");
+                assertEquals(req.getPassword(), "test");
+                assertEquals(req.getAttributes().size(), 1);
+                assertEquals(req.getPermissions().size(), 1);
             }
         }) {
+            String content = "{ \"password\" : \"test\","
+                + " \"attributes\": { \"attribute1\": \"value1\"},"
+                + " \"permissions\": [\"indices:admin:create\"]"
+                + " }\n";
+
             RestPutUserAction action = new RestPutUserAction();
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("name", "test"))
-                .withContent(new BytesArray("{ \"password\" : \"test\" }\n"), XContentType.JSON)
+                .withContent(new BytesArray(content), XContentType.JSON)
                 .build();
             FakeRestChannel channel = new FakeRestChannel(request, false, 0);
             action.handleRequest(request, channel, nodeClient);
