@@ -292,7 +292,7 @@ public class UserService {
             public void onResponse(IndexResponse indexResponse) {
                 String message = username + " deleted successfully.";
                 DeleteUserResponseInfo responseInfo = new DeleteUserResponseInfo(true, message);
-                DeleteUserResponse response = new DeleteUserResponse(unmodifiableList(asList(responseInfo)));
+                DeleteUserResponse response = new DeleteUserResponse(responseInfo);
 
                 listener.onResponse(response);
             }

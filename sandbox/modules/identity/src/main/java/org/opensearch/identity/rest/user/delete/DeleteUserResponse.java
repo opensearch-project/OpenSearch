@@ -31,48 +31,37 @@ import static org.opensearch.rest.RestStatus.OK;
 public class DeleteUserResponse extends ActionResponse implements StatusToXContentObject {
 
     // TODO: revisit this class
-    private final List<DeleteUserResponseInfo> deleteUserResponseInfo;
+    private final DeleteUserResponseInfo deleteUserResponseInfo;
 
-    public DeleteUserResponse(List<DeleteUserResponseInfo> deleteUserResponseInfo) {
+    public DeleteUserResponse(DeleteUserResponseInfo deleteUserResponseInfo) {
         this.deleteUserResponseInfo = deleteUserResponseInfo;
     }
 
     public DeleteUserResponse(StreamInput in) throws IOException {
         super(in);
-        int size = in.readVInt();
-        deleteUserResponseInfo = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            deleteUserResponseInfo.add(new DeleteUserResponseInfo(in));
-        }
-
+        deleteUserResponseInfo = new DeleteUserResponseInfo(in);
     }
 
-    public List<DeleteUserResponseInfo> getDeleteUserResponseInfo() {
+    public DeleteUserResponseInfo getDeleteUserResponseInfo() {
         return deleteUserResponseInfo;
     }
 
     @Override
     public RestStatus status() {
-        if (deleteUserResponseInfo.isEmpty()) return NOT_FOUND;
+        if (deleteUserResponseInfo == null) return NOT_FOUND;
         return OK;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(deleteUserResponseInfo.size());
-        for (DeleteUserResponseInfo createUserResults : deleteUserResponseInfo) {
-            createUserResults.writeTo(out);
-        }
+        if (deleteUserResponseInfo != null) deleteUserResponseInfo.writeTo(out);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.startArray("users");
-        for (DeleteUserResponseInfo response : deleteUserResponseInfo) {
-            response.toXContent(builder, params);
-        }
-        builder.endArray();
+        builder.field("user");
+        if (deleteUserResponseInfo != null) deleteUserResponseInfo.toXContent(builder, params);
         builder.endObject();
         return builder;
     }
@@ -82,8 +71,8 @@ public class DeleteUserResponse extends ActionResponse implements StatusToXConte
         true,
         (Object[] parsedObjects) -> {
             @SuppressWarnings("unchecked")
-            List<DeleteUserResponseInfo> createUserResponseInfoList = (List<DeleteUserResponseInfo>) parsedObjects[0];
-            return new DeleteUserResponse(createUserResponseInfoList);
+            DeleteUserResponseInfo deleteUserResponseInfoList = (DeleteUserResponseInfo) parsedObjects[0];
+            return new DeleteUserResponse(deleteUserResponseInfoList);
         }
     );
     static {

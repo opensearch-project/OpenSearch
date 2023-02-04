@@ -41,13 +41,7 @@ public class GetUserResponse extends ActionResponse implements StatusToXContentO
 
     public GetUserResponse(StreamInput in) throws IOException {
         super(in);
-        // TODO: if making GetUserResponseInfo is a better way to handle this
-        // (i.e. use readNamedWriteable() and writeNamedWritable())
-        getUserResponseInfo = new GetUserResponseInfo(
-            in.readString(),
-            in.readMap(StreamInput::readString, StreamInput::readString),
-            in.readList(StreamInput::readString)
-        );
+        getUserResponseInfo = new GetUserResponseInfo(in);
 
     }
 
