@@ -8,18 +8,13 @@
 
 package org.opensearch.identity.rest.user.delete;
 
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.databind.JsonNode;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.identity.DefaultObjectMapper;
 import org.opensearch.identity.rest.IdentityRestConstants;
-import org.opensearch.identity.utils.ErrorType;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestStatusToXContentListener;
 
-import java.io.IOException;
 import java.util.List;
 
 import static java.util.Arrays.asList;

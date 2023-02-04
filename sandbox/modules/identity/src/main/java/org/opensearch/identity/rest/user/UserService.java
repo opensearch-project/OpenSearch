@@ -235,14 +235,11 @@ public class UserService {
         }
     }
 
-    public void getUser(String username, ActionListener<GetUserResponse> listener) {
-    }
+    public void getUser(String username, ActionListener<GetUserResponse> listener) {}
 
-    public void getUsers(ActionListener<MultiGetUserResponse> listener) {
-    }
+    public void getUsers(ActionListener<MultiGetUserResponse> listener) {}
 
-    public void deleteUser(String username, ActionListener<DeleteUserResponse> listener) {
-    }
+    public void deleteUser(String username, ActionListener<DeleteUserResponse> listener) {}
 
     abstract class OnSucessActionListener<Response> implements ActionListener<Response> {
 

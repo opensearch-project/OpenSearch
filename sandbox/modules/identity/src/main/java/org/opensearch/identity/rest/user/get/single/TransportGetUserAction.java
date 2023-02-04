@@ -14,9 +14,6 @@ import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.identity.rest.user.UserService;
-import org.opensearch.identity.rest.user.get.single.GetUserAction;
-import org.opensearch.identity.rest.user.get.single.GetUserRequest;
-import org.opensearch.identity.rest.user.get.single.GetUserResponse;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 

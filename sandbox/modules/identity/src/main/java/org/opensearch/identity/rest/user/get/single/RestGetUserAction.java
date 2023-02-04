@@ -8,24 +8,18 @@
 
 package org.opensearch.identity.rest.user.get.single;
 
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.databind.JsonNode;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.identity.DefaultObjectMapper;
 import org.opensearch.identity.rest.IdentityRestConstants;
-import org.opensearch.identity.utils.ErrorType;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestStatusToXContentListener;
 
-import java.io.IOException;
 import java.util.List;
 
 import static java.util.Arrays.asList;
 import static org.opensearch.identity.utils.RoutesHelper.addRoutesPrefix;
 import static org.opensearch.rest.RestRequest.Method.GET;
-import static org.opensearch.rest.RestRequest.Method.PUT;
 
 /**
  * Rest action for getting a single user

@@ -17,8 +17,6 @@ import org.opensearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-import static org.opensearch.action.ValidateActions.addValidationError;
-
 /**
  * Request to get multiple users
  */
@@ -26,6 +24,7 @@ public class MultiGetUserRequest extends ActionRequest implements ToXContentObje
     public MultiGetUserRequest(StreamInput in) throws IOException {
         super(in);
     }
+
     public MultiGetUserRequest() {}
 
     @Override

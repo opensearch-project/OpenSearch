@@ -12,11 +12,8 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.identity.rest.user.UserService;
 import org.opensearch.identity.rest.user.get.single.GetUserAction;
-import org.opensearch.identity.rest.user.get.single.GetUserRequest;
-import org.opensearch.identity.rest.user.get.single.GetUserResponse;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
@@ -27,11 +24,7 @@ public class TransportMultiGetUserAction extends HandledTransportAction<MultiGet
     private final UserService userService;
 
     @Inject
-    public TransportMultiGetUserAction(
-        TransportService transportService,
-        ActionFilters actionFilters,
-        UserService userService
-    ) {
+    public TransportMultiGetUserAction(TransportService transportService, ActionFilters actionFilters, UserService userService) {
         super(GetUserAction.NAME, transportService, actionFilters, MultiGetUserRequest::new);
         this.userService = userService;
     }

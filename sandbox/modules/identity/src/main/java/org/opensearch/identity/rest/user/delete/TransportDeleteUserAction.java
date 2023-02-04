@@ -12,7 +12,6 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.identity.rest.user.UserService;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
@@ -24,11 +23,7 @@ public class TransportDeleteUserAction extends HandledTransportAction<DeleteUser
     private final UserService userService;
 
     @Inject
-    public TransportDeleteUserAction(
-        TransportService transportService,
-        ActionFilters actionFilters,
-        UserService userService
-    ) {
+    public TransportDeleteUserAction(TransportService transportService, ActionFilters actionFilters, UserService userService) {
         super(DeleteUserAction.NAME, transportService, actionFilters, DeleteUserRequest::new);
         this.userService = userService;
     }

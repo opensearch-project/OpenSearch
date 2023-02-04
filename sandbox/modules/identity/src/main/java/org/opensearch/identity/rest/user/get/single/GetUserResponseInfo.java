@@ -9,8 +9,6 @@
 package org.opensearch.identity.rest.user.get.single;
 
 import org.opensearch.common.ParseField;
-import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -20,7 +18,6 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 

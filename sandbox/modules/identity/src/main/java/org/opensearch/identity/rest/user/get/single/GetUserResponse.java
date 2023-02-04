@@ -15,12 +15,9 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ConstructingObjectParser;
 import org.opensearch.common.xcontent.StatusToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.rest.RestStatus.NOT_FOUND;
@@ -41,7 +38,7 @@ public class GetUserResponse extends ActionResponse implements StatusToXContentO
     public GetUserResponse(StreamInput in) throws IOException {
         super(in);
         // TODO: if making GetUserResponseInfo is a better way to handle this
-        //  (i.e. use readNamedWriteable() and writeNamedWritable())
+        // (i.e. use readNamedWriteable() and writeNamedWritable())
         getUserResponseInfo = new GetUserResponseInfo(
             in.readString(),
             in.readMap(StreamInput::readString, StreamInput::readString),

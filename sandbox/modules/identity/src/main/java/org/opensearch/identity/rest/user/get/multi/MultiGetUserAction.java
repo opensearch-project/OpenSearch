@@ -9,7 +9,6 @@
 package org.opensearch.identity.rest.user.get.multi;
 
 import org.opensearch.action.ActionType;
-import org.opensearch.identity.rest.user.get.single.GetUserResponse;
 
 /**
  * Action type for getting multiple user
