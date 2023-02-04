@@ -29,26 +29,20 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
  * Represents a user object to be returned
  */
 public class GetUserResponseInfo extends TransportResponse implements Writeable, ToXContent {
-    private final String username;
     private final Map<String, String> attributes;
     private final Set<String> permissions;
 
-    public GetUserResponseInfo(String username, Map<String, String> attributes, Set<String> permissions) {
+    public GetUserResponseInfo(Map<String, String> attributes, Set<String> permissions) {
         this.attributes = attributes;
         this.permissions = permissions;
-        this.username = username;
     }
 
     public GetUserResponseInfo(StreamInput in) throws IOException {
         super(in);
-        username = in.readString();
         attributes = in.readMap(StreamInput::readString, StreamInput::readString);
         permissions = in.readSet(StreamInput::readString);
     }
 
-    public String getUsername() {
-        return username;
-    }
 
     public Map<String, String> getAttributes() {
         return attributes;
@@ -60,7 +54,6 @@ public class GetUserResponseInfo extends TransportResponse implements Writeable,
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(username);
         out.writeMap(attributes, StreamOutput::writeString, StreamOutput::writeString);
         out.writeStringCollection(permissions);
     }
@@ -81,22 +74,19 @@ public class GetUserResponseInfo extends TransportResponse implements Writeable,
     public static final ConstructingObjectParser<GetUserResponseInfo, Void> PARSER = new ConstructingObjectParser<>(
         "get_user_response_info",
         true,
-        args -> new GetUserResponseInfo((String) args[0], (Map<String, String>) args[1], (Set<String>) args[2])
+        args -> new GetUserResponseInfo( (Map<String, String>) args[0], (Set<String>) args[1])
     );
 
     static {
-        PARSER.declareString(constructorArg(), new ParseField("username"));
         PARSER.declareObject(constructorArg(), ATTRIBUTE_PARSER, new ParseField("attributes"));
         PARSER.declareObject(constructorArg(), PERMISSIONS_PARSER, new ParseField("permissions"));
     }
-    private static final ParseField USERNAME = new ParseField("username");
     private static final ParseField ATTRIBUTES = new ParseField("attributes");
     private static final ParseField PERMISSIONS = new ParseField("permissions");
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(USERNAME.getPreferredName(), username);
         builder.field(ATTRIBUTES.getPreferredName(), attributes);
         builder.field(PERMISSIONS.getPreferredName(), permissions);
         builder.endObject();

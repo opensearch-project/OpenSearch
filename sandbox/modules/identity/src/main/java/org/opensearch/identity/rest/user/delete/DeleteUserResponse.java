@@ -18,8 +18,6 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.rest.RestStatus.NOT_FOUND;
@@ -30,7 +28,6 @@ import static org.opensearch.rest.RestStatus.OK;
  */
 public class DeleteUserResponse extends ActionResponse implements StatusToXContentObject {
 
-    // TODO: revisit this class
     private final DeleteUserResponseInfo deleteUserResponseInfo;
 
     public DeleteUserResponse(DeleteUserResponseInfo deleteUserResponseInfo) {
@@ -59,10 +56,7 @@ public class DeleteUserResponse extends ActionResponse implements StatusToXConte
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field("user");
         if (deleteUserResponseInfo != null) deleteUserResponseInfo.toXContent(builder, params);
-        builder.endObject();
         return builder;
     }
 
@@ -76,7 +70,7 @@ public class DeleteUserResponse extends ActionResponse implements StatusToXConte
         }
     );
     static {
-        PARSER.declareObjectArray(constructorArg(), DeleteUserResponseInfo.PARSER, new ParseField("users"));
+        PARSER.declareObject(constructorArg(), DeleteUserResponseInfo.PARSER, new ParseField("user"));
     }
 
 }

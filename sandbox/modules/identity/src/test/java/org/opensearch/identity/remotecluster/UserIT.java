@@ -111,8 +111,8 @@ public class UserIT extends OpenSearchRestTestCase {
         response = client().performRequest(getRequest);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
         Map<String, Object> getResponse = entityAsMap(response);
-        Map<String, String> user = (Map<String, String>) getResponse.get("user");
-        assertEquals(user.get("username"), username);
+        Map<String, String> user = (Map<String, String>) getResponse.get(username);
+        assertNotEquals(user, null);
         assertEquals(user.get("attributes"), emptyMap);
         assertEquals(user.get("permissions"), emptyList);
 
@@ -131,11 +131,10 @@ public class UserIT extends OpenSearchRestTestCase {
         request.setOptions(systemIndexWarning());
         response = client().performRequest(deleteRequest);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
-        Map<String, Object> deleteResponse = entityAsMap(response);
-        List<Map<String, Object>> deletedUsers = (List<Map<String, Object>>) deleteResponse.get("users");
-        assertEquals(deletedUsers.size(), 1);
-        assertEquals(deletedUsers.get(0).get("successful"), true);
-        assertEquals(deletedUsers.get(0).get("message"), deletedMessage);
+        Map<String, Object> deletedUsers = entityAsMap(response);
+        assertEquals(deletedUsers.size(), 2);
+        assertEquals(deletedUsers.get("successful"), true);
+        assertEquals(deletedUsers.get("message"), deletedMessage);
 
     }
 

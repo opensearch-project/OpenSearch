@@ -48,7 +48,10 @@ public class GetUserResponse extends ActionResponse implements StatusToXContentO
         getUserResponseInfo = new GetUserResponseInfo(in);
     }
 
-    public String getUsername() { return username; }
+    public String getUsername() {
+        return username;
+    }
+
     public GetUserResponseInfo getGetUserResponseInfo() {
         return getUserResponseInfo;
     }

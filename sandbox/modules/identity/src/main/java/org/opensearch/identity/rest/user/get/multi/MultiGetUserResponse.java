@@ -16,7 +16,6 @@ import org.opensearch.common.xcontent.ConstructingObjectParser;
 import org.opensearch.common.xcontent.StatusToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.identity.rest.user.get.single.GetUserResponse;
-import org.opensearch.identity.rest.user.get.single.GetUserResponseInfo;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;

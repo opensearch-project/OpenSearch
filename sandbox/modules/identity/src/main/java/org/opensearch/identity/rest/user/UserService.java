@@ -256,12 +256,9 @@ public class UserService {
 
         List<GetUserResponse> users = new ArrayList<>();
 
-        usersFromConfig.forEach((name, user) -> { users.add(
-            new GetUserResponse(name,
-                new GetUserResponseInfo(user.getAttributes(), user.getPermissions())
-            )
+        usersFromConfig.forEach(
+            (name, user) -> { users.add(new GetUserResponse(name, new GetUserResponseInfo(user.getAttributes(), user.getPermissions()))); }
         );
-        });
 
         // formulate response to be returned
         MultiGetUserResponse response = new MultiGetUserResponse(users);
