@@ -76,16 +76,18 @@ public class UserService {
 
     /**
      * Creates or updates a user record in identity index (Updates if user already existed)
-     * @param username of the user to be created
-     * @param password of the user to be created (plain-text only)
+     * @param userToBeCreated user object to be created
      * @param listener on which the responses should be returned once execution completes
      */
-    public void createOrUpdateUser(String username, String password, ActionListener<PutUserResponse> listener) {
+    public void createOrUpdateUser(User userToBeCreated, ActionListener<PutUserResponse> listener) {
 
         if (!ensureIndexExists()) {
             listener.onFailure(new IndexNotFoundException(ErrorType.IDENTITY_NOT_INITIALIZED.getMessage()));
             return;
         }
+
+        String username = userToBeCreated.getUsername().getName();
+        String password = userToBeCreated.getHash();
 
         // Username validation
         final List<String> foundRestrictedContents = RESTRICTED_FROM_USERNAME.stream()
@@ -109,7 +111,6 @@ public class UserService {
             return;
         }
 
-        User userToBeCreated = new User();
         // hash is optional for existing users
         if (userExisted && password == null) {
             // sanity check, this should usually not happen
@@ -122,6 +123,9 @@ public class UserService {
             // TODO: discuss if we are going to allow hash to be passed as request data instead of plain text password
             userToBeCreated.setHash(Hasher.hash(password.toCharArray()));
         }
+
+        // this is needed, otherwise jackson databind throws StringPrincipal related errors
+        userToBeCreated.setUsername(null);
 
         // TODO: check if this is absolutely required
         internalUsersConfiguration.remove(username);

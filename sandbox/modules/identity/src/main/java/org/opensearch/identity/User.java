@@ -98,6 +98,6 @@ public class User {
 
     @Override
     public String toString() {
-        return "User [username=" + username + ", bcryptHash=" + hash + ", attributes=" + attributes + "]";
+        return "User [username=" + username + ", hash=" + hash + ", attributes=" + attributes + ", permissions=" + attributes + "]";
     }
 }

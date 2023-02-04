@@ -12,9 +12,13 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.identity.User;
 import org.opensearch.identity.rest.user.UserService;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
+
+import java.util.List;
+import java.util.Map;
 
 /**
  * Transport action for Creating a user
@@ -35,7 +39,10 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
     protected void doExecute(Task task, PutUserRequest request, ActionListener<PutUserResponse> listener) {
         String username = request.getUsername();
         String password = request.getPassword();
-        userService.createOrUpdateUser(username, password, listener);
+        Map<String, String> attributes = request.getAttributes();
+        List<String> permissions = request.getPermissions();
+        User user = new User(username, password, attributes, permissions);
+        userService.createOrUpdateUser(user, listener);
     }
 
 }
