@@ -43,6 +43,8 @@ public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
             + " \"attributes\": { \"attribute1\": \"value1\"},"
             + " \"permissions\": [\"indices:admin:create\"]"
             + " }\n";
+        Map<String, String> expectedAttributes = Map.of("attribute1", "value1");
+        List<String> expectedPermissions = List.of("indices:admin:create");
 
         // Create a user
         String createSuccessMessage = username + " created successfully.";
@@ -75,8 +77,8 @@ public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
         Map<String, Object> getResponse = entityAsMap(response);
         Map<String, String> user = (Map<String, String>) getResponse.get(username);
         assertNotEquals(user, null);
-        assertEquals(user.get("attributes"), emptyMap);
-        assertEquals(user.get("permissions"), emptyList);
+        assertEquals(user.get("attributes"), expectedAttributes);
+        assertEquals(user.get("permissions"), expectedPermissions);
 
         // GET all users
         Request mGetRequest = new Request("GET", ENDPOINT + "/users");
@@ -89,11 +91,10 @@ public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
         Map<String, Object> user1 = (Map<String, Object>) users.get(0).get("admin");
         assertEquals(user1.get("attributes"), emptyMap);
         assertEquals(user1.get("permissions"), emptyList);
-
         assertTrue(users.get(1).containsKey(username));
         Map<String, Object> user2 = (Map<String, Object>) users.get(1).get(username);
-        assertEquals(user2.get("attributes"), emptyMap);
-        assertEquals(user2.get("permissions"), emptyList);
+        assertEquals(user2.get("attributes"), expectedAttributes);
+        assertEquals(user2.get("permissions"), expectedPermissions);
 
         // DELETE a user
         String deletedMessage = username + " deleted successfully.";
