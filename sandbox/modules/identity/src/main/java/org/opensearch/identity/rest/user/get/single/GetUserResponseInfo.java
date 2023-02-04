@@ -20,6 +20,7 @@ import org.opensearch.transport.TransportResponse;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -30,9 +31,9 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
 public class GetUserResponseInfo extends TransportResponse implements Writeable, ToXContent {
     private final String username;
     private final Map<String, String> attributes;
-    private final List<String> permissions;
+    private final Set<String> permissions;
 
-    public GetUserResponseInfo(String username, Map<String, String> attributes, List<String> permissions) {
+    public GetUserResponseInfo(String username, Map<String, String> attributes, Set<String> permissions) {
         this.attributes = attributes;
         this.permissions = permissions;
         this.username = username;
@@ -42,7 +43,7 @@ public class GetUserResponseInfo extends TransportResponse implements Writeable,
         super(in);
         username = in.readString();
         attributes = in.readMap(StreamInput::readString, StreamInput::readString);
-        permissions = in.readList(StreamInput::readString);
+        permissions = in.readSet(StreamInput::readString);
     }
 
     public String getUsername() {
@@ -53,7 +54,7 @@ public class GetUserResponseInfo extends TransportResponse implements Writeable,
         return attributes;
     }
 
-    public List<String> getPermissions() {
+    public Set<String> getPermissions() {
         return permissions;
     }
 
@@ -76,10 +77,10 @@ public class GetUserResponseInfo extends TransportResponse implements Writeable,
         args -> List.of((String) args[0])
     );
 
-    static final ConstructingObjectParser<GetUserResponseInfo, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<GetUserResponseInfo, Void> PARSER = new ConstructingObjectParser<>(
         "get_user_response_info",
         true,
-        args -> new GetUserResponseInfo((String) args[0], (Map<String, String>) args[1], (List<String>) args[2])
+        args -> new GetUserResponseInfo((String) args[0], (Map<String, String>) args[1], (Set<String>) args[2])
     );
 
     static {

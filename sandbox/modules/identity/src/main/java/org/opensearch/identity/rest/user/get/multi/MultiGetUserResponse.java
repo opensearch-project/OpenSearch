@@ -15,6 +15,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ConstructingObjectParser;
 import org.opensearch.common.xcontent.StatusToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.identity.rest.user.get.single.GetUserResponseInfo;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -31,9 +32,9 @@ import static org.opensearch.rest.RestStatus.OK;
 public class MultiGetUserResponse extends ActionResponse implements StatusToXContentObject {
 
     // TODO: revisit this class
-    private final List<MultiGetUserResponseInfo> multiGetUserResponseInfo;
+    private final List<GetUserResponseInfo> multiGetUserResponseInfo;
 
-    public MultiGetUserResponse(List<MultiGetUserResponseInfo> createUserResults) {
+    public MultiGetUserResponse(List<GetUserResponseInfo> createUserResults) {
         this.multiGetUserResponseInfo = createUserResults;
     }
 
@@ -42,11 +43,11 @@ public class MultiGetUserResponse extends ActionResponse implements StatusToXCon
         int size = in.readVInt();
         multiGetUserResponseInfo = new ArrayList<>();
         for (int i = 0; i < size; i++) {
-            multiGetUserResponseInfo.add(new MultiGetUserResponseInfo(in));
+            multiGetUserResponseInfo.add(new GetUserResponseInfo(in));
         }
     }
 
-    public List<MultiGetUserResponseInfo> getMultiGetUserResponseInfo() {
+    public List<GetUserResponseInfo> getMultiGetUserResponseInfo() {
         return multiGetUserResponseInfo;
     }
 
@@ -59,7 +60,7 @@ public class MultiGetUserResponse extends ActionResponse implements StatusToXCon
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(multiGetUserResponseInfo.size());
-        for (MultiGetUserResponseInfo multiGetUserResponseInfo : multiGetUserResponseInfo) {
+        for (GetUserResponseInfo multiGetUserResponseInfo : multiGetUserResponseInfo) {
             multiGetUserResponseInfo.writeTo(out);
         }
     }
@@ -68,7 +69,7 @@ public class MultiGetUserResponse extends ActionResponse implements StatusToXCon
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startArray("users");
-        for (MultiGetUserResponseInfo multiGetUserResponseInfo : multiGetUserResponseInfo) {
+        for (GetUserResponseInfo multiGetUserResponseInfo : multiGetUserResponseInfo) {
             multiGetUserResponseInfo.toXContent(builder, params);
         }
         builder.endArray();
@@ -81,12 +82,12 @@ public class MultiGetUserResponse extends ActionResponse implements StatusToXCon
         true,
         (Object[] parsedObjects) -> {
             @SuppressWarnings("unchecked")
-            List<MultiGetUserResponseInfo> multiGetUserResponseInfo = (List<MultiGetUserResponseInfo>) parsedObjects[0];
+            List<GetUserResponseInfo> multiGetUserResponseInfo = (List<GetUserResponseInfo>) parsedObjects[0];
             return new MultiGetUserResponse(multiGetUserResponseInfo);
         }
     );
     static {
-        PARSER.declareObjectArray(constructorArg(), MultiGetUserResponseInfo.PARSER, new ParseField("users"));
+        PARSER.declareObjectArray(constructorArg(), GetUserResponseInfo.PARSER, new ParseField("users"));
     }
 
 }

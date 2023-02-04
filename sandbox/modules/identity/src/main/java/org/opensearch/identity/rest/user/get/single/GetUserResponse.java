@@ -35,6 +35,10 @@ public class GetUserResponse extends ActionResponse implements StatusToXContentO
         this.getUserResponseInfo = getUserResponseInfo;
     }
 
+    public GetUserResponse() {
+        this.getUserResponseInfo = null;
+    }
+
     public GetUserResponse(StreamInput in) throws IOException {
         super(in);
         // TODO: if making GetUserResponseInfo is a better way to handle this
@@ -59,13 +63,13 @@ public class GetUserResponse extends ActionResponse implements StatusToXContentO
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        getUserResponseInfo.writeTo(out);
+        if (getUserResponseInfo != null) getUserResponseInfo.writeTo(out);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("user");
-        getUserResponseInfo.toXContent(builder, params);
+        if (getUserResponseInfo != null) getUserResponseInfo.toXContent(builder, params);
         builder.endObject();
         return builder;
     }
