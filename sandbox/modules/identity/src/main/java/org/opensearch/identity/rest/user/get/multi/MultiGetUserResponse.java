@@ -15,6 +15,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.ConstructingObjectParser;
 import org.opensearch.common.xcontent.StatusToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.identity.rest.user.get.single.GetUserResponse;
 import org.opensearch.identity.rest.user.get.single.GetUserResponseInfo;
 import org.opensearch.rest.RestStatus;
 
@@ -32,36 +33,36 @@ import static org.opensearch.rest.RestStatus.OK;
 public class MultiGetUserResponse extends ActionResponse implements StatusToXContentObject {
 
     // TODO: revisit this class
-    private final List<GetUserResponseInfo> multiGetUserResponseInfo;
+    private final List<GetUserResponse> multiGetUserResponses;
 
-    public MultiGetUserResponse(List<GetUserResponseInfo> createUserResults) {
-        this.multiGetUserResponseInfo = createUserResults;
+    public MultiGetUserResponse(List<GetUserResponse> getUserResponses) {
+        this.multiGetUserResponses = getUserResponses;
     }
 
     public MultiGetUserResponse(StreamInput in) throws IOException {
         super(in);
         int size = in.readVInt();
-        multiGetUserResponseInfo = new ArrayList<>();
+        multiGetUserResponses = new ArrayList<>();
         for (int i = 0; i < size; i++) {
-            multiGetUserResponseInfo.add(new GetUserResponseInfo(in));
+            multiGetUserResponses.add(new GetUserResponse(in));
         }
     }
 
-    public List<GetUserResponseInfo> getMultiGetUserResponseInfo() {
-        return multiGetUserResponseInfo;
+    public List<GetUserResponse> getMultiGetUserResponses() {
+        return multiGetUserResponses;
     }
 
     @Override
     public RestStatus status() {
-        if (multiGetUserResponseInfo.isEmpty()) return NOT_FOUND;
+        if (multiGetUserResponses.isEmpty()) return NOT_FOUND;
         return OK;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(multiGetUserResponseInfo.size());
-        for (GetUserResponseInfo multiGetUserResponseInfo : multiGetUserResponseInfo) {
-            multiGetUserResponseInfo.writeTo(out);
+        out.writeVInt(multiGetUserResponses.size());
+        for (GetUserResponse multiGetUserResponse : multiGetUserResponses) {
+            multiGetUserResponse.writeTo(out);
         }
     }
 
@@ -69,8 +70,8 @@ public class MultiGetUserResponse extends ActionResponse implements StatusToXCon
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startArray("users");
-        for (GetUserResponseInfo multiGetUserResponseInfo : multiGetUserResponseInfo) {
-            multiGetUserResponseInfo.toXContent(builder, params);
+        for (GetUserResponse multiGetUserResponse : multiGetUserResponses) {
+            multiGetUserResponse.toXContent(builder, params);
         }
         builder.endArray();
         builder.endObject();
@@ -82,12 +83,12 @@ public class MultiGetUserResponse extends ActionResponse implements StatusToXCon
         true,
         (Object[] parsedObjects) -> {
             @SuppressWarnings("unchecked")
-            List<GetUserResponseInfo> multiGetUserResponseInfo = (List<GetUserResponseInfo>) parsedObjects[0];
-            return new MultiGetUserResponse(multiGetUserResponseInfo);
+            List<GetUserResponse> multiGetUserResponses = (List<GetUserResponse>) parsedObjects[0];
+            return new MultiGetUserResponse(multiGetUserResponses);
         }
     );
     static {
-        PARSER.declareObjectArray(constructorArg(), GetUserResponseInfo.PARSER, new ParseField("users"));
+        PARSER.declareObjectArray(constructorArg(), GetUserResponse.PARSER, new ParseField("users"));
     }
 
 }

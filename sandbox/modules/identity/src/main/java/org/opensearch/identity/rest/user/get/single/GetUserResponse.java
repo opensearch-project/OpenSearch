@@ -29,56 +29,63 @@ import static org.opensearch.rest.RestStatus.OK;
 public class GetUserResponse extends ActionResponse implements StatusToXContentObject {
 
     // TODO: revisit this class
+    private final String username;
     private final GetUserResponseInfo getUserResponseInfo;
 
-    public GetUserResponse(GetUserResponseInfo getUserResponseInfo) {
+    public GetUserResponse(String username, GetUserResponseInfo getUserResponseInfo) {
+        this.username = username;
         this.getUserResponseInfo = getUserResponseInfo;
     }
 
     public GetUserResponse() {
+        this.username = null;
         this.getUserResponseInfo = null;
     }
 
     public GetUserResponse(StreamInput in) throws IOException {
         super(in);
+        this.username = in.readString();
         getUserResponseInfo = new GetUserResponseInfo(in);
-
     }
 
+    public String getUsername() { return username; }
     public GetUserResponseInfo getGetUserResponseInfo() {
         return getUserResponseInfo;
     }
 
     @Override
     public RestStatus status() {
-        if (getUserResponseInfo == null) return NOT_FOUND;
+        if (username == null || getUserResponseInfo == null) return NOT_FOUND;
         return OK;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(username);
         if (getUserResponseInfo != null) getUserResponseInfo.writeTo(out);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("user");
+        builder.field(username);
         if (getUserResponseInfo != null) getUserResponseInfo.toXContent(builder, params);
         builder.endObject();
         return builder;
     }
 
-    private static final ConstructingObjectParser<GetUserResponse, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<GetUserResponse, Void> PARSER = new ConstructingObjectParser<>(
         "get_user_response",
         true,
         (Object[] parsedObjects) -> {
+            String username = (String) parsedObjects[0];
             @SuppressWarnings("unchecked")
-            GetUserResponseInfo getUserResponseInfo = (GetUserResponseInfo) parsedObjects[0];
-            return new GetUserResponse(getUserResponseInfo);
+            GetUserResponseInfo getUserResponseInfo = (GetUserResponseInfo) parsedObjects[1];
+            return new GetUserResponse(username, getUserResponseInfo);
         }
     );
     static {
+        PARSER.declareString(constructorArg(), new ParseField("username"));
         PARSER.declareObject(constructorArg(), GetUserResponseInfo.PARSER, new ParseField("user"));
     }
 

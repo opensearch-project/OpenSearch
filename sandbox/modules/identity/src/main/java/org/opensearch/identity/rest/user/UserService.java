@@ -234,8 +234,8 @@ public class UserService {
         User user = (User) internalUsersConfiguration.getCEntry(username);
 
         // formulate response to be returned
-        GetUserResponseInfo responseInfo = new GetUserResponseInfo(username, user.getAttributes(), user.getPermissions());
-        GetUserResponse response = new GetUserResponse(responseInfo);
+        GetUserResponseInfo responseInfo = new GetUserResponseInfo(user.getAttributes(), user.getPermissions());
+        GetUserResponse response = new GetUserResponse(username, responseInfo);
 
         // success response
         listener.onResponse(response);
@@ -252,14 +252,19 @@ public class UserService {
         // load current user store in memory
         final SecurityDynamicConfiguration<?> internalUsersConfiguration = load(getConfigName());
 
-        final Map<String, User> users = (Map<String, User>) internalUsersConfiguration.getCEntries();
+        final Map<String, User> usersFromConfig = (Map<String, User>) internalUsersConfiguration.getCEntries();
 
-        List<GetUserResponseInfo> usersInfo = new ArrayList<>();
+        List<GetUserResponse> users = new ArrayList<>();
 
-        users.forEach((name, user) -> { usersInfo.add(new GetUserResponseInfo(name, user.getAttributes(), user.getPermissions())); });
+        usersFromConfig.forEach((name, user) -> { users.add(
+            new GetUserResponse(name,
+                new GetUserResponseInfo(user.getAttributes(), user.getPermissions())
+            )
+        );
+        });
 
         // formulate response to be returned
-        MultiGetUserResponse response = new MultiGetUserResponse(usersInfo);
+        MultiGetUserResponse response = new MultiGetUserResponse(users);
 
         // success response
         listener.onResponse(response);
