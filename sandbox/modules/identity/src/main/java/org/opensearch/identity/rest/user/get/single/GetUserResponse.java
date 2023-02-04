@@ -68,7 +68,8 @@ public class GetUserResponse extends ActionResponse implements StatusToXContentO
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("user");
+        builder.startObject();
+        builder.field("user");
         if (getUserResponseInfo != null) getUserResponseInfo.toXContent(builder, params);
         builder.endObject();
         return builder;

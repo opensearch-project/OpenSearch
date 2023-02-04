@@ -13,7 +13,6 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.identity.rest.user.UserService;
-import org.opensearch.identity.rest.user.get.single.GetUserAction;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
@@ -25,7 +24,7 @@ public class TransportMultiGetUserAction extends HandledTransportAction<MultiGet
 
     @Inject
     public TransportMultiGetUserAction(TransportService transportService, ActionFilters actionFilters, UserService userService) {
-        super(GetUserAction.NAME, transportService, actionFilters, MultiGetUserRequest::new);
+        super(MultiGetUserAction.NAME, transportService, actionFilters, MultiGetUserRequest::new);
         this.userService = userService;
     }
 

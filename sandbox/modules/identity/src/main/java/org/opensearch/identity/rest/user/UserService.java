@@ -226,7 +226,7 @@ public class UserService {
 
         // hash is optional for existing users
         if (!userExists) {
-            listener.onFailure(new IndexNotFoundException(username + ErrorType.RESOURCE_NOT_FOUND_SUFFIX.getMessage()));
+            listener.onFailure(new ResourceNotFoundException(username + ErrorType.RESOURCE_NOT_FOUND_SUFFIX.getMessage()));
             return;
         }
 
@@ -234,17 +234,14 @@ public class UserService {
         User user = (User) internalUsersConfiguration.getCEntry(username);
 
         // formulate response to be returned
-        GetUserResponseInfo responseInfo = new GetUserResponseInfo(
-            user.getUsername().getName(),
-            user.getAttributes(),
-            user.getPermissions()
-        );
+        GetUserResponseInfo responseInfo = new GetUserResponseInfo(username, user.getAttributes(), user.getPermissions());
         GetUserResponse response = new GetUserResponse(responseInfo);
 
         // success response
         listener.onResponse(response);
     }
 
+    @SuppressWarnings("unchecked")
     public void getUsers(ActionListener<MultiGetUserResponse> listener) {
 
         if (!ensureIndexExists()) {

@@ -35,6 +35,9 @@ public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
     @SuppressWarnings("unchecked")
     public void testUsersRestApi() throws Exception {
 
+        final Map<String, String> emptyMap = Map.of();
+        final List<String> emptyList = List.of();
+
         String username = "test-create";
         String requestContent = "{ \"password\" : \"test\","
             + " \"attributes\": { \"attribute1\": \"value1\"},"
@@ -65,7 +68,40 @@ public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
         assertEquals(usersUpdated.get("username"), username);
         assertEquals(usersUpdated.get("message"), updateSuccessMessage);
 
-        // TODO: Add other api tests here
+        // GET a user
+        Request getRequest = new Request("GET", ENDPOINT + "/users/" + username);
+        response = getRestClient().performRequest(getRequest);
+        assertEquals(response.getStatusLine().getStatusCode(), 200);
+        Map<String, Object> getResponse = entityAsMap(response);
+        Map<String, String> user = (Map<String, String>) getResponse.get("user");
+        assertEquals(user.get("username"), username);
+        assertEquals(user.get("attributes"), emptyMap);
+        assertEquals(user.get("permissions"), emptyList);
+
+        // GET all users
+        Request mGetRequest = new Request("GET", ENDPOINT + "/users");
+        response = getRestClient().performRequest(mGetRequest);
+        assertEquals(response.getStatusLine().getStatusCode(), 200);
+        Map<String, Object> mGetResponse = entityAsMap(response);
+        List<Map<String, Object>> users = (List<Map<String, Object>>) mGetResponse.get("users");
+        assertEquals(users.size(), 2);
+        assertEquals(users.get(0).get("username"), "admin");
+        assertEquals(users.get(0).get("attributes"), emptyMap);
+        assertEquals(users.get(0).get("permissions"), emptyList);
+        assertEquals(users.get(1).get("username"), username);
+        assertEquals(users.get(1).get("attributes"), emptyMap);
+        assertEquals(users.get(1).get("permissions"), emptyList);
+
+        // DELETE a user
+        String deletedMessage = username + " deleted successfully.";
+        Request deleteRequest = new Request("DELETE", ENDPOINT + "/users/" + username);
+        response = getRestClient().performRequest(deleteRequest);
+        assertEquals(response.getStatusLine().getStatusCode(), 200);
+        Map<String, Object> deleteResponse = entityAsMap(response);
+        List<Map<String, Object>> deletedUsers = (List<Map<String, Object>>) deleteResponse.get("users");
+        assertEquals(deletedUsers.size(), 1);
+        assertEquals(deletedUsers.get(0).get("successful"), true);
+        assertEquals(deletedUsers.get(0).get("message"), deletedMessage);
     }
 
 }
