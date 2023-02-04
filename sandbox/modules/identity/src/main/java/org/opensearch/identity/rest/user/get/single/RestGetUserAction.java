@@ -39,14 +39,14 @@ public class RestGetUserAction extends BaseRestHandler {
      *
      * ````
      * Sample Request:
-     * curl -XGET http://new-user:password@localhost:9200/_identity/api/users/test
+     * curl -XGET http://new-user:password@localhost:9200/_identity/api/users/apitest
      *
      *
      * Sample Response
      *
      * {
      *   "user": {
-     *       "username": test,
+     *       "username": apitest,
      *       "attributes": {},
      *       "permissions": []
      *     }

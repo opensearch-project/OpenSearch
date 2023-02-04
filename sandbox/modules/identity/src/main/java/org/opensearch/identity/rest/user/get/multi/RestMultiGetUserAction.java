@@ -47,7 +47,7 @@ public class RestMultiGetUserAction extends BaseRestHandler {
      * {
      *   "users": [
      *     {
-     *       "username": "test1",
+     *       "username": "apitest",
      *       "attributes": {},
      *       "permissions": []
      *     }

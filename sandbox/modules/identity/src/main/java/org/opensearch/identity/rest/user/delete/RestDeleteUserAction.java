@@ -40,7 +40,7 @@ public class RestDeleteUserAction extends BaseRestHandler {
      *
      * ````
      * Sample Request:
-     * curl -XDELETE http://new-user:password@localhost:9200/_identity/api/users/test
+     * curl -XDELETE http://new-user:password@localhost:9200/_identity/api/users/apitest
      *
      *
      * Sample Response
@@ -49,7 +49,7 @@ public class RestDeleteUserAction extends BaseRestHandler {
      *   "users": [
      *     {
      *       "successful": true,
-     *       "message": "test deleted successfully."
+     *       "message": "apitest deleted successfully."
      *     }
      *   ]
      * }
