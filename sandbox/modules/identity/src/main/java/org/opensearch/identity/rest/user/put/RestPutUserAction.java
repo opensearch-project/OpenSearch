@@ -22,6 +22,7 @@ import org.opensearch.rest.action.RestStatusToXContentListener;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static org.opensearch.identity.utils.RoutesHelper.addRoutesPrefix;
@@ -78,7 +79,7 @@ public class RestPutUserAction extends BaseRestHandler {
             String password = contentAsNode.get("password").asText();
             Map<String, String> attributes = DefaultObjectMapper.readTree(contentAsNode.get("attributes"), Map.class);
 
-            List<String> permissions = DefaultObjectMapper.readTree(contentAsNode.get("permissions"), List.class);
+            Set<String> permissions = DefaultObjectMapper.readTree(contentAsNode.get("permissions"), Set.class);
 
             PutUserRequest putUserRequest = new PutUserRequest(username, password, attributes, permissions);
 

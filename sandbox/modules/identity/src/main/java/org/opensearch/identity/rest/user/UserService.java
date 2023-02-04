@@ -38,7 +38,10 @@ import org.opensearch.index.IndexNotFoundException;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableList;
@@ -111,12 +114,31 @@ public class UserService {
             return;
         }
 
+        User existingUser = null;
+
+        // update permissions
+        Set<String> permissions = new HashSet<>();
+
         // hash is optional for existing users
         if (userExisted && password == null) {
             // sanity check, this should usually not happen
             final String hash = ((User) internalUsersConfiguration.getCEntry(username)).getHash();
             userToBeCreated.setHash(hash);
         }
+
+        // TODO: revisit this logic:
+        // 1. Are we going to create a user with permissions
+        // 2. Are we going to allow addition of new permissions to existing user (should be done via `permissions` API)
+        if (userExisted) {
+            existingUser = (User) internalUsersConfiguration.getCEntry(username);
+            // add current permissions
+            Optional.ofNullable(existingUser.getPermissions()).ifPresent(permissions::addAll);
+        } else {
+            // add new permissions
+            Optional.ofNullable(userToBeCreated.getPermissions()).ifPresent(permissions::addAll);
+        }
+
+        userToBeCreated.setPermissions(permissions);
 
         // hash generated from provided plain-text password
         if (password != null) {

@@ -18,8 +18,8 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
@@ -31,17 +31,17 @@ public class PutUserRequest extends ActionRequest implements ToXContentObject {
     private String username;
     private String password;
     private Map<String, String> attributes;
-    private List<String> permissions;
+    private Set<String> permissions;
 
     public PutUserRequest(StreamInput in) throws IOException {
         super(in);
         username = in.readString();
         password = in.readString();
         attributes = in.readMap(StreamInput::readString, StreamInput::readString);
-        permissions = in.readList(StreamInput::readString);
+        permissions = in.readSet(StreamInput::readString);
     }
 
-    public PutUserRequest(String username, String password, Map<String, String> attributes, List<String> permissions) {
+    public PutUserRequest(String username, String password, Map<String, String> attributes, Set<String> permissions) {
         this.username = username;
         this.password = password;
         this.attributes = attributes;
@@ -66,7 +66,7 @@ public class PutUserRequest extends ActionRequest implements ToXContentObject {
         return attributes;
     }
 
-    public List<String> getPermissions() {
+    public Set<String> getPermissions() {
         return permissions;
     }
 

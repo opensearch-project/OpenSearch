@@ -17,8 +17,8 @@ import org.opensearch.identity.rest.user.UserService;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
 
-import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Transport action for Creating a user
@@ -40,7 +40,7 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
         String username = request.getUsername();
         String password = request.getPassword();
         Map<String, String> attributes = request.getAttributes();
-        List<String> permissions = request.getPermissions();
+        Set<String> permissions = request.getPermissions();
         User user = new User(username, password, attributes, permissions);
         userService.createOrUpdateUser(user, listener);
     }
