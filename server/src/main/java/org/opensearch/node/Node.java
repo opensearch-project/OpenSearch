@@ -869,7 +869,8 @@ public class Node implements Closeable {
             final SearchBackpressureService searchBackpressureService = new SearchBackpressureService(
                 searchBackpressureSettings,
                 taskResourceTrackingService,
-                threadPool
+                threadPool,
+                transportService.getTaskManager()
             );
 
             final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
