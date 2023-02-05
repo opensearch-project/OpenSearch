@@ -260,6 +260,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 Metadata.DEFAULT_REPLICA_COUNT_SETTING,
                 Metadata.SETTING_CREATE_INDEX_BLOCK_SETTING,
                 ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
+                ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_CLUSTER,
                 ShardLimitValidator.SETTING_CLUSTER_IGNORE_DOT_INDEXES,
                 RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
                 RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING,
