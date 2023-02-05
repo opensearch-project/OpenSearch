@@ -120,6 +120,29 @@ public class ExtensionsManager {
         REQUEST_OPENSEARCH_NAMED_WRITEABLE_REGISTRY
     }
 
+    /**
+     * Enum for ExtensionInterfaces
+     * 
+     * Extensions impliment subset of these enum Interfaces
+     */
+    public static enum ExtensionInterfaceType{
+        ACTION_EXTENSION_INTERFACE,
+        ANALYSIS_EXTENSION_INTERFACE,
+        CIRCUITBREAKER_EXTENSION_INTERFACE,
+        ENGINE_EXTENSION_INTERFACE,
+        EXTENSIBLE_EXTENSION_INTERFACE,
+        INDEXSTORE_EXTENSION_INTERFACE,
+        INGEST_EXTENSION_INTERFACE,
+        MAPPER_EXTENSION_INTERFACE,
+        PERSISTANTTASK_EXTENSION_INTERFACE,
+        REPOSITORY_EXTENSION_INTERFACE,
+        RELOADABLE_EXTENSION_INTERFACE,
+        SCRIPT_EXTENSION_INTERFACE,
+        SEARCH_EXTENSION_INTERFACE,
+        SYSTEMINDEX_EXTENSION_INTERFACE
+
+    }
+
     private final Path extensionsPath;
     private ExtensionTransportActionsHandler extensionTransportActionsHandler;
     // A list of initialized extensions, a subset of the values of map below which includes all extensions
