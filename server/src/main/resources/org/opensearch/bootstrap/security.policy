@@ -181,4 +181,7 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/cpuacct/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
+
+  permission java.io.FilePermission "/Users/cwperx/Projects/opensearch/distribution/opensearch-3.0.0-SNAPSHOT/extensions", "read";
+  permission java.io.FilePermission "/Users/cwperx/Projects/opensearch/distribution/opensearch-3.0.0-SNAPSHOT/extensions/-", "read";
 };

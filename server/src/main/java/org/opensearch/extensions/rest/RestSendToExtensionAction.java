@@ -164,13 +164,15 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             // Will be replaced with ExtensionTokenProcessor and PrincipalIdentifierToken classes from feature/identity
             final String extensionTokenProcessor = "placeholder_token_processor";
             final String requestIssuerIdentity = "placeholder_request_issuer_identity";
+            // TODO Token is currently generated in SecurityRestFilter of Identity module. Should that be moved here?
+            String jwt = client.threadPool().getThreadContext().getHeader("_opensearch_auth_token");
 
             transportService.sendRequest(
                 discoveryExtensionNode,
                 ExtensionsManager.REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION,
                 // HERE BE DRAGONS - DO NOT INCLUDE HEADERS
                 // SEE https://github.com/opensearch-project/OpenSearch/issues/4429
-                new ExtensionRestRequest(method, path, params, contentType, content, requestIssuerIdentity),
+                new ExtensionRestRequest(method, path, params, contentType, content, jwt),
                 restExecuteOnExtensionResponseHandler
             );
             inProgressFuture.orTimeout(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();

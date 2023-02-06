@@ -429,7 +429,6 @@ public class Node implements Closeable {
             );
 
             final Settings settings = pluginsService.updatedSettings();
-
             // Ensure to initialize Feature Flags via the settings from opensearch.yml
             FeatureFlags.initializeFeatureFlags(settings);
 

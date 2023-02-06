@@ -8,12 +8,14 @@
 
 package org.opensearch.identity;
 
+import org.apache.commons.lang.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.shiro.authc.AuthenticationException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.authn.Identity;
 import org.opensearch.authn.Subject;
+import org.opensearch.identity.extensions.ExtensionSecurityConfigStore;
 import org.opensearch.identity.jwt.JwtVendor;
 import org.opensearch.authn.tokens.AuthenticationToken;
 import org.opensearch.authn.tokens.BasicAuthToken;
@@ -63,6 +65,50 @@ public class SecurityRestFilter {
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
                 org.apache.logging.log4j.ThreadContext.clearAll();
                 if (checkAndAuthenticateRequest(request, channel, client)) {
+                    String authTokenHeader = threadContext.getHeader(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER);
+                    Map<String, String> jwtClaims = new HashMap<>();
+                    String encodedJwt = null;
+
+                    if (authTokenHeader == null) {
+                        Subject currentSubject = Identity.getAuthManager().getSubject();
+                        // TODO replace with Principal Identifier Token if destination is extension
+                        jwtClaims.put("sub", currentSubject.getPrincipal().getName());
+                        jwtClaims.put("iat", Instant.now().toString());
+                    }
+
+                    if (request.path().startsWith("/_extensions/")) {
+                        // TODO Figure out better way of extracting extensionId
+                        // Extension routes look like: /_extensions/_opensearch-sdk-java-1/hello where
+                        // opensearch-sdk-java-1 is the extensionId
+                        String extensionRoute = request.path().replace("/_extensions/", "");
+                        String extensionId = extensionRoute.substring(0, extensionRoute.indexOf("/"));
+                        extensionId = StringUtils.strip(extensionId, "_");
+                        String extensionSigningKey = ExtensionSecurityConfigStore.getInstance().getSigningKeyForExtension(extensionId);
+                        if (extensionSigningKey != null) {
+                            encodedJwt = JwtVendor.createJwt(jwtClaims, extensionSigningKey);
+                        }
+                    } else {
+                        String signingKey = settings.get(ConfigConstants.IDENTITY_SIGNING_KEY);
+                        if (signingKey != null) {
+                            encodedJwt = JwtVendor.createJwt(jwtClaims, settings.get(ConfigConstants.IDENTITY_SIGNING_KEY));
+                        }
+                    }
+
+                    String requestInfo = String.format(
+                        Locale.ROOT,
+                        "(nodeName=%s, requestId=%s, path=%s, jwtClaims=%s checkAndAuthenticateRequest)",
+                        client.getLocalNodeId(),
+                        request.getRequestId(),
+                        request.path(),
+                        jwtClaims
+                    );
+
+                    if (log.isDebugEnabled()) {
+                        log.debug(requestInfo);
+                        String logMsg = String.format(Locale.ROOT, "Created internal access token %s", encodedJwt);
+                        log.debug("{} {}", requestInfo, logMsg);
+                    }
+                    threadContext.putHeader(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER, encodedJwt);
                     original.handleRequest(request, channel, client);
                 }
             }
@@ -77,26 +123,6 @@ public class SecurityRestFilter {
             return false;
         }
 
-        if (threadContext.getHeader(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER) == null) {
-            Map<String, String> jwtClaims = new HashMap<>();
-            jwtClaims.put("sub", "subject");
-            jwtClaims.put("iat", Instant.now().toString());
-            String encodedJwt = JwtVendor.createJwt(jwtClaims);
-            String requestInfo = String.format(
-                Locale.ROOT,
-                "(nodeName=%s, requestId=%s, path=%s, jwtClaims=%s checkAndAuthenticateRequest)",
-                client.getLocalNodeId(),
-                request.getRequestId(),
-                request.path(),
-                jwtClaims
-            );
-            if (log.isDebugEnabled()) {
-                log.debug(requestInfo);
-                String logMsg = String.format(Locale.ROOT, "Created internal access token %s", encodedJwt);
-                log.debug("{} {}", requestInfo, logMsg);
-            }
-            threadContext.putHeader(ThreadContextConstants.OPENSEARCH_AUTHENTICATION_TOKEN_HEADER, encodedJwt);
-        }
         return true;
     }
 

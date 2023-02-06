@@ -29,7 +29,7 @@ import org.opensearch.identity.User;
 import org.opensearch.identity.authz.OpenSearchPermission;
 import org.opensearch.identity.configuration.model.InternalUsersModel;
 import org.opensearch.identity.jwt.BadCredentialsException;
-import org.opensearch.identity.jwt.JwtVerifier;
+import org.opensearch.identity.jwt.IdentityJwtVerifier;
 
 import java.util.Objects;
 import java.util.Set;
@@ -129,7 +129,7 @@ public class InternalRealm extends AuthorizingRealm {
 
             // Verify the validity of JWT token
             try {
-                jwtToken = JwtVerifier.getVerifiedJwtToken(((BearerToken) token).getToken());
+                jwtToken = IdentityJwtVerifier.getInstance().getVerifiedJwtToken(((BearerToken) token).getToken());
             } catch (BadCredentialsException e) {
                 throw new IncorrectCredentialsException(e.getMessage()); // Invalid Token
             }

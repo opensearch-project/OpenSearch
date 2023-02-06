@@ -30,6 +30,8 @@ import org.opensearch.identity.jwt.JwtVendor;
 public class JwtVendorTestUtils {
     private static final Logger logger = LogManager.getLogger(JwtVendor.class);
 
+    public static final String SIGNING_KEY = Base64.getEncoder().encodeToString("signingKey".getBytes(StandardCharsets.UTF_8));
+
     private static JsonMapObjectReaderWriter jsonMapReaderWriter = new JsonMapObjectReaderWriter();
 
     static JsonWebKey getDefaultJsonWebKey() {
@@ -38,8 +40,7 @@ public class JwtVendorTestUtils {
         jwk.setKeyType(KeyType.OCTET);
         jwk.setAlgorithm("HS512");
         jwk.setPublicKeyUse(PublicKeyUse.SIGN);
-        String b64SigningKey = Base64.getEncoder().encodeToString("exchangeKey".getBytes(StandardCharsets.UTF_8));
-        jwk.setProperty("k", b64SigningKey);
+        jwk.setProperty("k", SIGNING_KEY);
         return jwk;
     }
 

@@ -15,6 +15,6 @@ public class ConfigConstants {
     public static final String IDENTITY_CONFIG_INDEX_NAME = "identity.config_index_name";
     public static final String IDENTITY_AUTH_MANAGER_CLASS = "identity.auth_manager_class";
     public static final String IDENTITY_ALLOW_DEFAULT_INIT_SECURITYINDEX = "plugins.identity.allow_default_init_securityindex";
-
+    public static final String IDENTITY_SIGNING_KEY = "identity.signing_key";
     public static final String IDENTITY_ENABLED = "identity.enabled";
 }

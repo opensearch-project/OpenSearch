@@ -364,6 +364,8 @@ public class ExtensionsManager {
             public void handleResponse(InitializeExtensionResponse response) {
                 for (DiscoveryExtensionNode extension : extensionIdMap.values()) {
                     if (extension.getName().equals(response.getName())) {
+                        // TODO Generate secret for extension
+
                         extensions.add(extension);
                         logger.info("Initialized extension: " + extension.getName());
                         break;
@@ -383,6 +385,7 @@ public class ExtensionsManager {
                 return ThreadPool.Names.GENERIC;
             }
         };
+
         try {
             logger.info("Sending extension request type: " + REQUEST_EXTENSION_ACTION_NAME);
             transportService.connectToExtensionNode(extension);
@@ -484,6 +487,7 @@ public class ExtensionsManager {
             public void handleResponse(IndicesModuleResponse response) {
                 logger.info("received {}", response);
                 if (response.getIndexEventListener() == true) {
+                    logger.info("indexModule.addIndexEventListener");
                     indexModule.addIndexEventListener(new IndexEventListener() {
                         @Override
                         public void beforeIndexRemoved(
@@ -513,7 +517,9 @@ public class ExtensionsManager {
                             }
                         }
                     });
+                    inProgressFuture.complete(response);
                 } else {
+                    logger.info("Probably shouldn't be here");
                     inProgressFuture.complete(response);
                 }
             }
