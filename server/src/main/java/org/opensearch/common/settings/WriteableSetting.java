@@ -205,9 +205,7 @@ public class WriteableSetting implements Writeable {
                     ? Setting.simpleString(key, (String) defaultValue, propertyArray)
                     : Setting.simpleString(key, (Setting<String>) fallback.getSetting(), propertyArray);
             case TimeValue:
-                if (fallback != null) {
-                    return Setting.timeSetting(key, (Setting<TimeValue>) fallback.getSetting(), propertyArray);
-                } else {
+                if (fallback == null) {
                     if (parser instanceof MinMaxTimeValueParser) {
                         return Setting.timeSetting(
                             key,
@@ -220,7 +218,7 @@ public class WriteableSetting implements Writeable {
                         return Setting.timeSetting(key, (TimeValue) defaultValue, ((MinTimeValueParser) parser).getMin(), propertyArray);
                     }
                 }
-                break;
+                return Setting.simpleString(key, (Setting<TimeValue>) fallback.getSetting(), propertyArray);
             case ByteSizeValue:
                 return fallback == null
                     ? Setting.byteSizeSetting(
