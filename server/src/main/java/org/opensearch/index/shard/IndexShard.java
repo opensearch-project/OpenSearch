@@ -3041,7 +3041,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
              * while the global checkpoint update may have emanated from the primary when we were in that state, we could subsequently move
              * to recovery finalization, or even finished recovery before the update arrives here.
              */
-            assert state() != IndexShardState.POST_RECOVERY && state() != IndexShardState.STARTED
+            assert (state() != IndexShardState.POST_RECOVERY && state() != IndexShardState.STARTED)
+                || (indexSettings.isRemoteTranslogStoreEnabled() == true && state() != IndexShardState.RECOVERING)
                 : "supposedly in-sync shard copy received a global checkpoint ["
                     + globalCheckpoint
                     + "] "
