@@ -1110,6 +1110,23 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
         assert invariant();
     }
 
+    public synchronized void updateGlobalCheckpoint(final long newGlobalCheckpoint) {
+        assert invariant();
+        /*
+         * The global checkpoint here is a local knowledge which is updated under the mandate of the primary. It can happen that the primary
+         * information is lagging compared to a replica (e.g., if a replica is promoted to primary but has stale info relative to other
+         * replica shards). In these cases, the local knowledge of the global checkpoint could be higher than the sync from the lagging
+         * primary.
+         */
+        final long previousGlobalCheckpoint = globalCheckpoint;
+        if (newGlobalCheckpoint > previousGlobalCheckpoint) {
+            globalCheckpoint = newGlobalCheckpoint;
+            logger.trace("updated global checkpoint from [{}] to [{}]", previousGlobalCheckpoint, globalCheckpoint);
+            onGlobalCheckpointUpdated.accept(globalCheckpoint);
+        }
+        assert invariant();
+    }
+
     /**
      * Update the local knowledge of the persisted global checkpoint for the specified allocation ID.
      *

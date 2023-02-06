@@ -16,6 +16,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.FileTransferTracker;
@@ -83,6 +84,7 @@ public class RemoteFsTranslog extends Translog {
         try {
             download(translogTransferManager, location);
             Checkpoint checkpoint = readCheckpoint(location);
+            ((ReplicationTracker)globalCheckpointSupplier).updateGlobalCheckpoint(checkpoint.globalCheckpoint);
             this.readers.addAll(recoverFromFiles(checkpoint));
             if (readers.isEmpty()) {
                 throw new IllegalStateException("at least one reader must be recovered");
