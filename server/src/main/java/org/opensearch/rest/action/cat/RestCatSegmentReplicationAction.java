@@ -120,22 +120,13 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
         return t;
     }
 
-    protected Table buildCustomResponseTable(String reason) {
-        Table t = new Table();
-        t.startHeaders().addCell("Reason", "desc: Reason for API response").endHeaders();
-        t.startRow();
-        t.addCell(reason);
-        t.endRow();
-        return t;
-    }
-
     /**
      * buildSegmentReplicationTable will build a table of SegmentReplication information suitable
      * for displaying at the command line.
      *
      * @param request  A Rest request
      * @param response A SegmentReplication status response
-     * @return A table containing index, shardId, node, target size, recovered size and percentage for each fetching replica
+     * @return A table containing index, shardId, node, target size, fetched size and percentage for each fetching replica
      */
     public Table buildSegmentReplicationTable(RestRequest request, SegmentReplicationStatsResponse response) {
         boolean detailed = false;

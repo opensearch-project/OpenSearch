@@ -35,7 +35,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class RestSegment_ReplicationActionTests extends OpenSearchTestCase {
+public class RestCatSegmentReplicationActionTests extends OpenSearchTestCase {
     public void testSegment_ReplicationActionAction() {
         final RestCatSegmentReplicationAction action = new RestCatSegmentReplicationAction();
         final int totalShards = randomIntBetween(1, 32);
