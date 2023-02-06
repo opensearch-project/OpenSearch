@@ -11,6 +11,7 @@ package org.opensearch.identity.rest.action.permission.put;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.common.inject.Inject;
 import org.opensearch.identity.rest.service.PermissionService;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
@@ -25,6 +26,7 @@ public class TransportPutPermissionAction extends HandledTransportAction<PutPerm
      * @param actionFilters Handles plugin action filter configurations
      * @param permissionService Executes the different permission operations
      */
+    @Inject
     public TransportPutPermissionAction(
         TransportService transportService,
         ActionFilters actionFilters,
