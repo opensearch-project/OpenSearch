@@ -13,6 +13,7 @@ import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.index.translog.transfer.listener.FileTransferListener;
 
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -55,9 +56,14 @@ public class FileTransferTracker implements FileTransferListener {
         add(fileSnapshot.getName(), TransferState.FAILED);
     }
 
-    @Override
-    public void onDelete(String name) {
-        fileTransferTracker.remove(name);
+    public void delete(List<String> names) {
+        for (String name : names) {
+            fileTransferTracker.remove(name);
+        }
+    }
+
+    public boolean uploaded(String file) {
+        return fileTransferTracker.get(file) == TransferState.SUCCESS;
     }
 
     public Set<TransferFileSnapshot> exclusionFilter(Set<TransferFileSnapshot> original) {
