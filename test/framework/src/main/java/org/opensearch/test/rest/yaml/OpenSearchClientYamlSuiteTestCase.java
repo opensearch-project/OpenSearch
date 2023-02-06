@@ -50,6 +50,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.opensearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
@@ -450,7 +451,7 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
             // Dump the stash on failure. Instead of dumping it in true json we escape `\n`s so stack traces are easier to read
             logger.info(
                 "Stash dump on test failure [{}]",
-                Strings.toString(restTestExecutionContext.stash(), true, true)
+                Strings.toString(XContentType.JSON, restTestExecutionContext.stash(), true, true)
                     .replace("\\n", "\n")
                     .replace("\\r", "\r")
                     .replace("\\t", "\t")

@@ -195,14 +195,68 @@ public class TranslogTransferManager {
         );
     }
 
-    public void deleteTranslog(long primaryTerm, long generation) throws IOException {
-        String ckpFileName = Translog.getCommitCheckpointFileName(generation);
-        String translogFilename = Translog.getFilename(generation);
-        // ToDo - Take care of metadata file cleanup
-        // https://github.com/opensearch-project/OpenSearch/issues/5677
-        fileTransferTracker.onDelete(ckpFileName);
-        fileTransferTracker.onDelete(translogFilename);
-        List<String> files = List.of(ckpFileName, translogFilename);
-        transferService.deleteBlobs(remoteBaseTransferPath.add(String.valueOf(primaryTerm)), files);
+    /**
+     * This method handles deletion of multiple generations for a single primary term.
+     *  TODO: Take care of metadata file cleanup. <a href="https://github.com/opensearch-project/OpenSearch/issues/5677">Github Issue #5677</a>
+     *
+     * @param primaryTerm primary term
+     * @param generations set of generation
+     */
+    public void deleteTranslogAsync(long primaryTerm, Set<Long> generations) throws IOException {
+        if (generations.isEmpty()) {
+            return;
+        }
+        List<String> files = new ArrayList<>();
+        generations.forEach(generation -> {
+            String ckpFileName = Translog.getCommitCheckpointFileName(generation);
+            String translogFilename = Translog.getFilename(generation);
+            files.addAll(List.of(ckpFileName, translogFilename));
+        });
+        transferService.deleteBlobsAsync(remoteBaseTransferPath.add(String.valueOf(primaryTerm)), files, new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                fileTransferTracker.delete(files);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error(
+                    () -> new ParameterizedMessage(
+                        "Exception occurred while deleting translog for primary_term={} generations={}",
+                        primaryTerm,
+                        generations
+                    ),
+                    e
+                );
+            }
+        });
+    }
+
+    /**
+     * Handles deletion of translog files for a particular primary term.
+     *
+     * @param primaryTerm primary term
+     * @param listener    listener for response and failure
+     */
+    public void deleteTranslogAsync(long primaryTerm, ActionListener<Void> listener) {
+        transferService.deleteAsync(remoteBaseTransferPath.add(String.valueOf(primaryTerm)), listener);
+    }
+
+    /**
+     * Lists all primary terms existing on remote store.
+     *
+     * @return the list of primary terms.
+     * @throws IOException is thrown if it can read the data.
+     */
+    public Set<Long> listPrimaryTerms() throws IOException {
+        return transferService.listFolders(remoteBaseTransferPath).stream().filter(s -> {
+            try {
+                Long.parseLong(s);
+                return true;
+            } catch (Exception ignored) {
+                // NO-OP
+            }
+            return false;
+        }).map(Long::parseLong).collect(Collectors.toSet());
     }
 }

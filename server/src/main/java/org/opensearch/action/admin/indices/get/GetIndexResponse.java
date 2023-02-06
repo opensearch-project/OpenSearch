@@ -44,6 +44,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
@@ -327,7 +328,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
     @Override

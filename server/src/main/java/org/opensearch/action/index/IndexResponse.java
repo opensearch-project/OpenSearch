@@ -36,6 +36,7 @@ import org.opensearch.action.DocWriteResponse;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
 
@@ -89,7 +90,7 @@ public class IndexResponse extends DocWriteResponse {
         builder.append(",result=").append(getResult().getLowercase());
         builder.append(",seqNo=").append(getSeqNo());
         builder.append(",primaryTerm=").append(getPrimaryTerm());
-        builder.append(",shards=").append(Strings.toString(getShardInfo()));
+        builder.append(",shards=").append(Strings.toString(XContentType.JSON, getShardInfo()));
         return builder.append("]").toString();
     }
 

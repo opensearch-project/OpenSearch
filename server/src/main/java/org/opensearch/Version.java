@@ -85,10 +85,11 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_2_4_0 = new Version(2040099, org.apache.lucene.util.Version.LUCENE_9_4_1);
     public static final Version V_2_4_1 = new Version(2040199, org.apache.lucene.util.Version.LUCENE_9_4_2);
     public static final Version V_2_5_0 = new Version(2050099, org.apache.lucene.util.Version.LUCENE_9_4_2);
+    public static final Version V_2_5_1 = new Version(2050199, org.apache.lucene.util.Version.LUCENE_9_4_2);
 
     // UNRELEASED
     public static final Version V_2_4_2 = new Version(2040299, org.apache.lucene.util.Version.LUCENE_9_4_2);
-    public static final Version V_2_6_0 = new Version(2060099, org.apache.lucene.util.Version.LUCENE_9_4_2);
+    public static final Version V_2_6_0 = new Version(2060099, org.apache.lucene.util.Version.LUCENE_9_5_0);
     public static final Version V_3_0_0 = new Version(3000099, org.apache.lucene.util.Version.LUCENE_9_5_0);
     public static final Version CURRENT = V_3_0_0;
 
@@ -316,8 +317,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * lazily once.
      */
     static class DeclaredVersionsHolder {
-        // use LegacyESVersion.class since it inherits Version fields
-        protected static final List<Version> DECLARED_VERSIONS = Collections.unmodifiableList(getDeclaredVersions(LegacyESVersion.class));
+        protected static final List<Version> DECLARED_VERSIONS = Collections.unmodifiableList(getDeclaredVersions(Version.class));
     }
 
     // lazy initialized because we don't yet have the declared versions ready when instantiating the cached Version
@@ -394,7 +394,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         return res;
     }
 
-    private Version computeMinIndexCompatVersion() {
+    protected Version computeMinIndexCompatVersion() {
         final int bwcMajor;
         if (major == 5) {
             bwcMajor = 2; // we jumped from 2 to 5

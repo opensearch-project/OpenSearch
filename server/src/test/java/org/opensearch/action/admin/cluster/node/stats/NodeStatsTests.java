@@ -33,6 +33,8 @@
 package org.opensearch.action.admin.cluster.node.stats;
 
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.WeightedRoutingStats;
+import org.opensearch.cluster.service.ClusterManagerThrottlingStats;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.discovery.DiscoveryStats;
@@ -418,6 +420,30 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     assertEquals(limited, sum.getCompilationLimitTriggered());
                     assertEquals(compilations, sum.getCompilations());
                 }
+                ClusterManagerThrottlingStats clusterManagerThrottlingStats = nodeStats.getClusterManagerThrottlingStats();
+                ClusterManagerThrottlingStats deserializedClusterManagerThrottlingStats = deserializedNodeStats
+                    .getClusterManagerThrottlingStats();
+                if (clusterManagerThrottlingStats == null) {
+                    assertNull(deserializedClusterManagerThrottlingStats);
+                } else {
+                    assertEquals(
+                        clusterManagerThrottlingStats.getTotalThrottledTaskCount(),
+                        deserializedClusterManagerThrottlingStats.getTotalThrottledTaskCount()
+                    );
+                    assertEquals(
+                        clusterManagerThrottlingStats.getThrottlingCount("test-task"),
+                        deserializedClusterManagerThrottlingStats.getThrottlingCount("test-task")
+                    );
+                }
+
+                WeightedRoutingStats weightedRoutingStats = nodeStats.getWeightedRoutingStats();
+                WeightedRoutingStats deserializedWeightedRoutingStats = deserializedNodeStats.getWeightedRoutingStats();
+                if (weightedRoutingStats == null) {
+                    assertNull(deserializedWeightedRoutingStats);
+                } else {
+                    assertEquals(weightedRoutingStats.getFailOpenCount(), deserializedWeightedRoutingStats.getFailOpenCount());
+
+                }
             }
         }
     }
@@ -689,7 +715,17 @@ public class NodeStatsTests extends OpenSearchTestCase {
             }
             adaptiveSelectionStats = new AdaptiveSelectionStats(nodeConnections, nodeStats);
         }
+        ClusterManagerThrottlingStats clusterManagerThrottlingStats = null;
+        if (frequently()) {
+            clusterManagerThrottlingStats = new ClusterManagerThrottlingStats();
+            clusterManagerThrottlingStats.onThrottle("test-task", randomInt());
+        }
         ScriptCacheStats scriptCacheStats = scriptStats != null ? scriptStats.toScriptCacheStats() : null;
+
+        WeightedRoutingStats weightedRoutingStats = null;
+        weightedRoutingStats = WeightedRoutingStats.getInstance();
+        weightedRoutingStats.updateFailOpenCount();
+
         // TODO NodeIndicesStats are not tested here, way too complicated to create, also they need to be migrated to Writeable yet
         return new NodeStats(
             node,
@@ -710,7 +746,9 @@ public class NodeStatsTests extends OpenSearchTestCase {
             scriptCacheStats,
             null,
             null,
-            null
+            null,
+            clusterManagerThrottlingStats,
+            weightedRoutingStats
         );
     }
 

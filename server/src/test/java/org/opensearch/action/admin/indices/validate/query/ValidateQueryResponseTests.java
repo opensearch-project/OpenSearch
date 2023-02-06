@@ -36,6 +36,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.AbstractBroadcastResponseTestCase;
 
 import java.io.IOException;
@@ -114,7 +115,7 @@ public class ValidateQueryResponseTests extends AbstractBroadcastResponseTestCas
     @Override
     public void testToXContent() {
         ValidateQueryResponse response = createTestInstance(10, 10, 0, new ArrayList<>());
-        String output = Strings.toString(response);
+        String output = Strings.toString(XContentType.JSON, response);
         assertEquals("{\"_shards\":{\"total\":10,\"successful\":10,\"failed\":0},\"valid\":true}", output);
     }
 }

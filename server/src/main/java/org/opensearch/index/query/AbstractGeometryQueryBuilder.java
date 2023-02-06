@@ -34,7 +34,6 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.get.GetRequest;
@@ -42,6 +41,7 @@ import org.opensearch.action.get.GetResponse;
 import org.opensearch.client.Client;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.geo.GeoJson;
 import org.opensearch.common.geo.GeometryIO;
 import org.opensearch.common.geo.GeometryParser;

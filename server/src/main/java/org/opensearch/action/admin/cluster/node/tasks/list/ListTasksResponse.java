@@ -47,6 +47,7 @@ import org.opensearch.common.xcontent.ConstructingObjectParser;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
 
@@ -261,6 +262,6 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, true);
+        return Strings.toString(XContentType.JSON, this, true, true);
     }
 }

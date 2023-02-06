@@ -32,6 +32,8 @@
 
 package org.opensearch.common;
 
+import java.util.Objects;
+
 /**
  * Represents an operation that accepts three arguments and returns no result.
  *
@@ -50,5 +52,14 @@ public interface TriConsumer<S, T, U> {
      * @param t the second function argument
      * @param u the third function argument
      */
-    void apply(S s, T t, U u);
+    void accept(S s, T t, U u);
+
+    default TriConsumer<S, T, U> andThen(TriConsumer<? super S, ? super T, ? super U> after) {
+        Objects.requireNonNull(after);
+
+        return (l, r, s) -> {
+            accept(l, r, s);
+            after.accept(l, r, s);
+        };
+    }
 }

@@ -32,10 +32,10 @@
 package org.opensearch.search.suggest;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.io.stream.StreamInput;
@@ -47,6 +47,7 @@ import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParserUtils;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.suggest.Suggest.Suggestion.Entry;
@@ -739,6 +740,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, true);
+        return Strings.toString(XContentType.JSON, this, true, true);
     }
 }

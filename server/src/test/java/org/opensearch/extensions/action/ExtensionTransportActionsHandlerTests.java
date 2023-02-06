@@ -24,19 +24,18 @@ import org.opensearch.extensions.AcknowledgedResponse;
 import org.opensearch.extensions.RegisterTransportActionsRequest;
 import org.opensearch.extensions.rest.RestSendToExtensionActionTests;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.plugins.PluginInfo;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ActionNotFoundTransportException;
+import org.opensearch.transport.NodeNotConnectedException;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransport;
 
 import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -84,22 +83,10 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
         discoveryExtensionNode = new DiscoveryExtensionNode(
             "firstExtension",
             "uniqueid1",
-            "uniqueid1",
-            "myIndependentPluginHost1",
-            "127.0.0.0",
             new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
             new HashMap<String, String>(),
             Version.fromString("3.0.0"),
-            new PluginInfo(
-                "firstExtension",
-                "Fake description 1",
-                "0.0.7",
-                Version.fromString("3.0.0"),
-                "14",
-                "fakeClass1",
-                new ArrayList<String>(),
-                false
-            ),
+            Version.fromString("3.0.0"),
             Collections.emptyList()
         );
         client = new NoOpNodeClient(this.getTestName());
@@ -172,10 +159,6 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
         );
         assertTrue(response.getStatus());
 
-        ExtensionActionResponse extensionResponse = extensionTransportActionsHandler.sendTransportRequestToExtension(request);
-        assertEquals(
-            "Request failed: [firstExtension][127.0.0.0:9300] Node not connected",
-            new String(extensionResponse.getResponseBytes(), StandardCharsets.UTF_8)
-        );
+        expectThrows(NodeNotConnectedException.class, () -> extensionTransportActionsHandler.sendTransportRequestToExtension(request));
     }
 }

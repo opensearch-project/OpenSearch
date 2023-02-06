@@ -20,12 +20,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
@@ -55,7 +58,6 @@ import org.opensearch.index.IndicesModuleRequest;
 import org.opensearch.index.IndicesModuleResponse;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
-import org.opensearch.plugins.PluginInfo;
 import org.opensearch.rest.RestController;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
@@ -198,7 +200,7 @@ public class ExtensionsManager {
      *
      * @param request which was sent by an extension.
      */
-    public ExtensionActionResponse handleTransportRequest(ExtensionActionRequest request) throws InterruptedException {
+    public ExtensionActionResponse handleTransportRequest(ExtensionActionRequest request) throws Exception {
         return extensionTransportActionsHandler.sendTransportRequestToExtension(request);
     }
 
@@ -287,7 +289,7 @@ public class ExtensionsManager {
      * Load and populate all extensions
      */
     private void discover() throws IOException {
-        logger.info("Extensions Config Directory :" + extensionsPath.toString());
+        logger.info("Loading extensions : {}", extensionsPath);
         if (!FileSystemUtils.isAccessibleDirectory(extensionsPath, logger)) {
             return;
         }
@@ -306,7 +308,7 @@ public class ExtensionsManager {
                 logger.info("Loaded all extensions");
             }
         } else {
-            logger.info("Extensions.yml file is not present.  No extensions will be loaded.");
+            logger.warn("Extensions.yml file is not present.  No extensions will be loaded.");
         }
     }
 
@@ -322,27 +324,16 @@ public class ExtensionsManager {
                 DiscoveryExtensionNode discoveryExtensionNode = new DiscoveryExtensionNode(
                     extension.getName(),
                     extension.getUniqueId(),
-                    // placeholder for ephemeral id, will change with POC discovery
-                    extension.getUniqueId(),
-                    extension.getHostName(),
-                    extension.getHostAddress(),
                     new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
                     new HashMap<String, String>(),
                     Version.fromString(extension.getOpensearchVersion()),
-                    new PluginInfo(
-                        extension.getName(),
-                        extension.getDescription(),
-                        extension.getVersion(),
-                        Version.fromString(extension.getOpensearchVersion()),
-                        extension.getJavaVersion(),
-                        extension.getClassName(),
-                        new ArrayList<String>(),
-                        Boolean.parseBoolean(extension.hasNativeController())
-                    ),
+                    Version.fromString(extension.getMinimumCompatibleVersion()),
                     extension.getDependencies()
                 );
                 extensionIdMap.put(extension.getUniqueId(), discoveryExtensionNode);
                 logger.info("Loaded extension with uniqueId " + extension.getUniqueId() + ": " + extension);
+            } catch (OpenSearchException e) {
+                logger.error("Could not load extension with uniqueId " + extension.getUniqueId() + " due to " + e);
             } catch (IllegalArgumentException e) {
                 throw e;
             }
@@ -401,13 +392,17 @@ public class ExtensionsManager {
                 new InitializeExtensionRequest(transportService.getLocalNode(), extension),
                 initializeExtensionResponseHandler
             );
-            // TODO: make asynchronous
-            inProgressFuture.get(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            try {
-                throw e;
-            } catch (Exception e1) {
-                logger.error(e.toString());
+            inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof TimeoutException) {
+                logger.info("No response from extension to request.");
+            }
+            if (e.getCause() instanceof RuntimeException) {
+                throw (RuntimeException) e.getCause();
+            } else if (e.getCause() instanceof Error) {
+                throw (Error) e.getCause();
+            } else {
+                throw new RuntimeException(e.getCause());
             }
         }
     }
@@ -462,7 +457,7 @@ public class ExtensionsManager {
 
             @Override
             public void handleException(TransportException exp) {
-
+                inProgressIndexNameFuture.completeExceptionally(exp);
             }
 
             @Override
@@ -506,20 +501,21 @@ public class ExtensionsManager {
                                     new IndicesModuleRequest(indexModule),
                                     acknowledgedResponseHandler
                                 );
-                                // TODO: make asynchronous
-                                inProgressIndexNameFuture.get(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
-                                logger.info("Received ack response from Extension");
-                            } catch (Exception e) {
-                                try {
-                                    throw e;
-                                } catch (Exception e1) {
-                                    logger.error(e.toString());
-                                }
+                                inProgressIndexNameFuture.whenComplete((r, e) -> {
+                                    if (e != null) {
+                                        inProgressFuture.complete(response);
+                                    } else if (e == null) {
+                                        inProgressFuture.completeExceptionally(e);
+                                    }
+                                });
+                            } catch (Exception ex) {
+                                inProgressFuture.completeExceptionally(ex);
                             }
                         }
                     });
+                } else {
+                    inProgressFuture.complete(response);
                 }
-                inProgressFuture.complete(response);
             }
 
             @Override
@@ -542,14 +538,18 @@ public class ExtensionsManager {
                 new IndicesModuleRequest(indexModule),
                 indicesModuleResponseHandler
             );
-            // TODO: make asynchronous
-            inProgressFuture.get(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
+            inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
             logger.info("Received response from Extension");
-        } catch (Exception e) {
-            try {
-                throw e;
-            } catch (Exception e1) {
-                logger.error(e.toString());
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof TimeoutException) {
+                logger.info("No response from extension to request.");
+            }
+            if (e.getCause() instanceof RuntimeException) {
+                throw (RuntimeException) e.getCause();
+            } else if (e.getCause() instanceof Error) {
+                throw (Error) e.getCause();
+            } else {
+                throw new RuntimeException(e.getCause());
             }
         }
     }
@@ -565,20 +565,32 @@ public class ExtensionsManager {
             List<HashMap<String, ?>> unreadExtensions = new ArrayList<>((Collection<HashMap<String, ?>>) obj.get("extensions"));
             List<Extension> readExtensions = new ArrayList<Extension>();
             for (HashMap<String, ?> extensionMap : unreadExtensions) {
+                // Parse extension dependencies
+                List<ExtensionDependency> extensionDependencyList = new ArrayList<ExtensionDependency>();
+                if (extensionMap.get("dependencies") != null) {
+                    List<HashMap<String, ?>> extensionDependencies = new ArrayList<>(
+                        (Collection<HashMap<String, ?>>) extensionMap.get("dependencies")
+                    );
+                    for (HashMap<String, ?> dependency : extensionDependencies) {
+                        extensionDependencyList.add(
+                            new ExtensionDependency(
+                                dependency.get("uniqueId").toString(),
+                                Version.fromString(dependency.get("version").toString())
+                            )
+                        );
+                    }
+                }
+                // Create extension read from yml config
                 readExtensions.add(
                     new Extension(
                         extensionMap.get("name").toString(),
                         extensionMap.get("uniqueId").toString(),
-                        extensionMap.get("hostName").toString(),
                         extensionMap.get("hostAddress").toString(),
                         extensionMap.get("port").toString(),
                         extensionMap.get("version").toString(),
-                        extensionMap.get("description").toString(),
                         extensionMap.get("opensearchVersion").toString(),
-                        extensionMap.get("javaVersion").toString(),
-                        extensionMap.get("className").toString(),
-                        extensionMap.get("customFolderName").toString(),
-                        extensionMap.get("hasNativeController").toString()
+                        extensionMap.get("minimumCompatibleVersion").toString(),
+                        extensionDependencyList
                     )
                 );
             }

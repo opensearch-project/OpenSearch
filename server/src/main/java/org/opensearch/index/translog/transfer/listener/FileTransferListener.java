@@ -30,5 +30,4 @@ public interface FileTransferListener {
      */
     void onFailure(TransferFileSnapshot fileSnapshot, Exception e);
 
-    void onDelete(String name);
 }
