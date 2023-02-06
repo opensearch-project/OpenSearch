@@ -14,7 +14,6 @@ import org.opensearch.client.Response;
 import org.opensearch.identity.rest.IdentityRestConstants;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
-import java.util.List;
 import java.util.Map;
 
 import static org.opensearch.test.rest.OpenSearchRestTestCase.entityAsMap;
