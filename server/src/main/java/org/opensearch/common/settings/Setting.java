@@ -1250,6 +1250,35 @@ public class Setting<T> implements ToXContentObject {
         return properties != null && Arrays.asList(properties).contains(Property.Filtered);
     }
 
+    // RegexValidator
+    private class RegexValidator implements Writeable, Validator<T>{
+        private Pattern pattern;
+
+        public RegexValidator(String regex){
+            this.pattern = Pattern.compile(regex);
+        }
+
+        public RegexValidator(StreamInput in) throws IOException {
+            this.pattern = Pattern.compile(in.readString());
+        }
+        @Override
+        public void validate(Object value) {
+            
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(pattern.pattern());   
+        }
+
+        private boolean validateValue(Object value) {
+            if(value instanceof String) {
+                return pattern.matcher((String) value).matches();
+            }
+            return false;
+        }
+    }
+
     // Float
 
     private static float parseFloat(String s, float minValue, float maxValue, String key, boolean isFiltered) {
