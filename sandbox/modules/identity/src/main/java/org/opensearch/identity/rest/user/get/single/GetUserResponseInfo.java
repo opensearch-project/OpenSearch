@@ -43,7 +43,6 @@ public class GetUserResponseInfo extends TransportResponse implements Writeable,
         permissions = in.readSet(StreamInput::readString);
     }
 
-
     public Map<String, String> getAttributes() {
         return attributes;
     }
@@ -74,7 +73,7 @@ public class GetUserResponseInfo extends TransportResponse implements Writeable,
     public static final ConstructingObjectParser<GetUserResponseInfo, Void> PARSER = new ConstructingObjectParser<>(
         "get_user_response_info",
         true,
-        args -> new GetUserResponseInfo( (Map<String, String>) args[0], (Set<String>) args[1])
+        args -> new GetUserResponseInfo((Map<String, String>) args[0], (Set<String>) args[1])
     );
 
     static {
