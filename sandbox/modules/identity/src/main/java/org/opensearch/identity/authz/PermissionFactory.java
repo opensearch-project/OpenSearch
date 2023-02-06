@@ -8,13 +8,15 @@
 
 package org.opensearch.identity.authz;
 
+import java.util.Arrays;
+
 /**
  * This class is used to create Permission instances. The factory can create both standard Permissions which have specific
  * formatting requirements and legacy permissions which are not checked for validity on creation.
  */
 public class PermissionFactory {
 
-    private final static String[] INVALID_CHARACTERS = new String[] { ":", "" }; // This is a placeholder for what may want to be banned
+    private final static String[] INVALID_CHARACTERS = new String[] { ":", " " }; // This is a placeholder for what may want to be banned
 
     // A placeholder for the different resources which a permission may grant a permission based on
     static enum QUALIFIED_PERMISSION_TYPES {
@@ -77,9 +79,10 @@ public class PermissionFactory {
                     "The provided permission string for '"
                         + permission.getPermissionString()
                         + "' is not valid. The permission type and action may not include "
-                        + "the character "
-                        + INVALID_CHARACTERS.toString()
-                        + " or be empty."
+                        + "the characters "
+                        + Arrays.toString(INVALID_CHARACTERS)
+                        + " or be empty. " + invalidCharacter + " was present. For permission type: " + permission.getPermissionType() +
+                        " and permission action: " + permission.getAction()
                 );
             }
         }

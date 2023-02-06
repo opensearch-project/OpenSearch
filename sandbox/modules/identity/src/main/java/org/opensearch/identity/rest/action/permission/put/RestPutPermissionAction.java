@@ -75,7 +75,7 @@ public class RestPutPermissionAction extends BaseRestHandler {
             contentAsNode = DefaultObjectMapper.readTree(request.content().utf8ToString());
             String permissionString = contentAsNode.get("permissionString").asText();
 
-            PutPermissionRequest putPermissionRequest  = new PutPermissionRequest(permissionString, username);
+            PutPermissionRequest putPermissionRequest  = new PutPermissionRequest(username, permissionString);
 
             // TODO: check if this bypass to directly doExecute is okay.
             // TODO: Ideally, this should be registered as `createUser` request in Client.java and AbstractClient.java

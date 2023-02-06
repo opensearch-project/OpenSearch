@@ -55,7 +55,7 @@ public class RestPermissionsIT extends OpenSearchRestTestCase {
         String username = "test";
         // _identity/api/permissions/test
         Request createRequest = new Request("PUT", endpoint + username);
-        createRequest.setJsonEntity("{ \"permissionString\" : \"cluster:admin/read\"}\n");
+        createRequest.setJsonEntity("{ \"permissionString\" : \"cluster.admin/read\"}\n");
         Response createResponse = client().performRequest(createRequest);
         assertThat(createResponse.getStatusLine().getStatusCode(), is(200));
     }

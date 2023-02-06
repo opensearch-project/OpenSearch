@@ -27,6 +27,7 @@ import org.opensearch.transport.TransportService;
 import org.opensearch.identity.utils.ErrorType;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -73,20 +74,12 @@ public class PermissionService {
         }
 
         OpenSearchPermission newPermission = PermissionFactory.createPermission(permissionString);
-        List<OpenSearchPermission> permissionList = new ArrayList<OpenSearchPermission>(
-            (Collection<? extends OpenSearchPermission>) newPermission
-        );
+        List<OpenSearchPermission> permissionList = Arrays.asList(newPermission);
 
-        final ActionListener<IndexResponse> indexActionListener = new OnSucessActionListener<>() {
-            @Override
-            public void onResponse(IndexResponse indexResponse) {
-                PermissionStorage.put(principal, permissionList);
-                PutPermissionResponseInfo responseInfo = new PutPermissionResponseInfo(true, permissionString, principal);
-                PutPermissionResponse response = new PutPermissionResponse(responseInfo);
-
-                listener.onResponse(response);
-            }
-        };
+        PermissionStorage.put(principal, permissionList);
+        PutPermissionResponseInfo responseInfo = new PutPermissionResponseInfo(true, principal, permissionString);
+        PutPermissionResponse response = new PutPermissionResponse(responseInfo);
+        listener.onResponse(response);
     }
 
     abstract class OnSucessActionListener<Response> implements ActionListener<Response> {

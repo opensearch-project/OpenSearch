@@ -26,30 +26,22 @@ import static org.opensearch.action.ValidateActions.addValidationError;
  */
 public class PutPermissionRequest extends ActionRequest implements ToXContentObject {
 
-    private String permissionString;
-
     private String username;
+    private String permissionString;
 
     public PutPermissionRequest(StreamInput in) throws IOException {
         super(in);
-        this.permissionString = in.readString();
         this.username = in.readString();
+        this.permissionString = in.readString();
     }
 
-    public PutPermissionRequest(String permissionString, String username) {
-        this.permissionString = permissionString;
+    public PutPermissionRequest(String username, String permissionString) {
         this.username = username;
+        this.permissionString = permissionString;
+
     }
 
     public PutPermissionRequest() {}
-
-    public String getPermissionString() {
-        return this.permissionString;
-    }
-
-    public void setPermissionString(String permissionString) {
-        this.permissionString = permissionString;
-    }
 
     public String getUsername() {
         return this.username;
@@ -59,6 +51,14 @@ public class PutPermissionRequest extends ActionRequest implements ToXContentObj
         this.username = username;
     }
 
+    public String getPermissionString() {
+        return this.permissionString;
+    }
+
+    public void setPermissionString(String permissionString) {
+        this.permissionString = permissionString;
+    }
+
     /**
      * Ensure that both the permission and username are present
      * @return Returns an exception on invalid request content
@@ -66,10 +66,10 @@ public class PutPermissionRequest extends ActionRequest implements ToXContentObj
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (permissionString == null) { // TODO: check the condition once
-            validationException = addValidationError("No permissionString specified", validationException);
-        } else if (username == null) {
+        if (username == null) {
             validationException = addValidationError("No username specified", validationException);
+        } else if (permissionString == null) { // TODO: check the condition once
+            validationException = addValidationError("No permissionString specified", validationException);
         }
         return validationException;
     }
@@ -77,15 +77,15 @@ public class PutPermissionRequest extends ActionRequest implements ToXContentObj
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(permissionString);
         out.writeString(username);
+        out.writeString(permissionString);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        builder.value(permissionString);
         builder.value(username);
+        builder.value(permissionString);
         builder.endObject();
         return builder;
     }

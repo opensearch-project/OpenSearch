@@ -44,8 +44,8 @@ public class TransportPutPermissionAction extends HandledTransportAction<PutPerm
      */
     @Override
     protected void doExecute(Task task, PutPermissionRequest request, ActionListener<PutPermissionResponse> listener) {
-        String permissionString = request.getPermissionString();
         String username = request.getUsername();
-        this.permissionService.putPermission(permissionString, username, listener);
+        String permissionString = request.getPermissionString();
+        this.permissionService.putPermission(username, permissionString, listener);
     }
 }
