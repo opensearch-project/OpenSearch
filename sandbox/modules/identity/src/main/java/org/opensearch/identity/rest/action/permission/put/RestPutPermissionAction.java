@@ -92,8 +92,8 @@ public class RestPutPermissionAction extends BaseRestHandler {
      */
     @Override
     public List<Route> routes() {
-        // e.g. return value "_identity/api/permissions/{username}"
+        // e.g. return value "/permissions/{username}" which is then added to "_identity/api"
 
-        return addRoutesPrefix(asList(new Route(PUT, RestConstants.IDENTITY_API_PERMISSION_PREFIX +"/{username}")));
+        return addRoutesPrefix(asList(new Route(PUT, RestConstants.PERMISSION_SUBPATH +"/{username}")));
     }
 }

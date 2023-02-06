@@ -50,7 +50,7 @@ public class RestPermissionsIT extends OpenSearchRestTestCase {
     public void testPermissionsRestApi() throws Exception {
 
         // _identity/api/permissions
-        final String endpoint = RestConstants.IDENTITY_API_PERMISSION_PREFIX;
+        final String endpoint = RestConstants.PERMISSION_SUBPATH;
 
         String username = "test";
         // _identity/api/permissions/test

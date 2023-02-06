@@ -38,7 +38,7 @@ public class PermissionApiIT extends HttpSmokeTestCaseWithIdentity {
         String username = "test";
         // Add a permission
         Request putRequest = new Request("PUT", endpoint + "/" + username);
-        putRequest.setJsonEntity("{ \"permissionString\" : \"cluster:admin/read\"}\n");
+        putRequest.setJsonEntity("{ \"permissionString\" : \"cluster.admin/read\"}\n");
         Response putResponse = getRestClient().performRequest(putRequest);
         assertThat(putResponse.getStatusLine().getStatusCode(), is(200));
 

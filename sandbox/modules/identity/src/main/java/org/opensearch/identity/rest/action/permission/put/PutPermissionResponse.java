@@ -20,8 +20,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+
 
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.rest.RestStatus.NOT_FOUND;
