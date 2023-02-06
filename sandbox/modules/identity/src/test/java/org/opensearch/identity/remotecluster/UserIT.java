@@ -84,12 +84,11 @@ public class UserIT extends OpenSearchRestTestCase {
         request.setOptions(systemIndexWarning());
         Response response = client().performRequest(request);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
-        Map<String, Object> createResponse = entityAsMap(response);
-        List<Map<String, Object>> usersCreated = (List<Map<String, Object>>) createResponse.get("users");
-        assertEquals(usersCreated.size(), 1);
-        assertEquals(usersCreated.get(0).get("successful"), true);
-        assertEquals(usersCreated.get(0).get("username"), username);
-        assertEquals(usersCreated.get(0).get("message"), createMessage);
+        Map<String, Object> userCreated = entityAsMap(response);
+        assertEquals(userCreated.size(), 3);
+        assertEquals(userCreated.get("successful"), true);
+        assertEquals(userCreated.get("username"), username);
+        assertEquals(userCreated.get("message"), createMessage);
 
         // Read a user
 
@@ -102,12 +101,11 @@ public class UserIT extends OpenSearchRestTestCase {
         request.setOptions(systemIndexWarning());
         response = client().performRequest(request);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
-        Map<String, Object> updateResponse = entityAsMap(response);
-        List<Map<String, Object>> usersUpdated = (List<Map<String, Object>>) updateResponse.get("users");
-        assertEquals(usersUpdated.size(), 1);
-        assertEquals(usersUpdated.get(0).get("successful"), true);
-        assertEquals(usersUpdated.get(0).get("username"), username);
-        assertEquals(usersUpdated.get(0).get("message"), updateMessage);
+        Map<String, Object> userUpdated = entityAsMap(response);
+        assertEquals(userUpdated.size(), 3);
+        assertEquals(userUpdated.get("successful"), true);
+        assertEquals(userUpdated.get("username"), username);
+        assertEquals(userUpdated.get("message"), updateMessage);
 
         // Update multiple users
 

@@ -162,7 +162,7 @@ public class UserService {
                 String operationResponse = userExisted ? " updated successfully." : " created successfully.";
                 String message = username + operationResponse;
                 PutUserResponseInfo responseInfo = new PutUserResponseInfo(true, username, message);
-                PutUserResponse response = new PutUserResponse(unmodifiableList(asList(responseInfo)));
+                PutUserResponse response = new PutUserResponse(responseInfo);
 
                 listener.onResponse(response);
             }

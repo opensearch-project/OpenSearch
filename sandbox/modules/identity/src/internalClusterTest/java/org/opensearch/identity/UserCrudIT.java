@@ -48,12 +48,11 @@ public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
         createRequest.setJsonEntity(requestContent);
         Response response = getRestClient().performRequest(createRequest);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
-        Map<String, Object> createResponse = entityAsMap(response);
-        List<Map<String, Object>> usersCreated = (List<Map<String, Object>>) createResponse.get("users");
-        assertEquals(usersCreated.size(), 1);
-        assertEquals(usersCreated.get(0).get("successful"), true);
-        assertEquals(usersCreated.get(0).get("username"), username);
-        assertEquals(usersCreated.get(0).get("message"), createSuccessMessage);
+        Map<String, Object> userCreated = entityAsMap(response);
+        assertEquals(userCreated.size(), 3);
+        assertEquals(userCreated.get("successful"), true);
+        assertEquals(userCreated.get("username"), username);
+        assertEquals(userCreated.get("message"), createSuccessMessage);
 
         // Update a user (same user in this case)
         String updateSuccessMessage = username + " updated successfully.";
@@ -61,12 +60,11 @@ public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
         updateRequest.setJsonEntity(requestContent);
         response = getRestClient().performRequest(updateRequest);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
-        Map<String, Object> updateResponse = entityAsMap(response);
-        List<Map<String, Object>> usersUpdated = (List<Map<String, Object>>) updateResponse.get("users");
-        assertEquals(usersUpdated.size(), 1);
-        assertEquals(usersUpdated.get(0).get("successful"), true);
-        assertEquals(usersUpdated.get(0).get("username"), username);
-        assertEquals(usersUpdated.get(0).get("message"), updateSuccessMessage);
+        Map<String, Object> usersUpdated = entityAsMap(response);
+        assertEquals(usersUpdated.size(), 3);
+        assertEquals(usersUpdated.get("successful"), true);
+        assertEquals(usersUpdated.get("username"), username);
+        assertEquals(usersUpdated.get("message"), updateSuccessMessage);
 
         // TODO: Add other api tests here
     }

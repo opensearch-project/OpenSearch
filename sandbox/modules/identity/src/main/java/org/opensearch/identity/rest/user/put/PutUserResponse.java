@@ -34,24 +34,19 @@ import static org.opensearch.rest.RestStatus.OK;
 public class PutUserResponse extends ActionResponse implements StatusToXContentObject {
 
     // TODO: revisit this class
-    private final List<PutUserResponseInfo> createUserResults;
+    private final PutUserResponseInfo putUserResponseInfo;
 
-    public PutUserResponse(List<PutUserResponseInfo> createUserResults) {
-        this.createUserResults = createUserResults;
+    public PutUserResponse(PutUserResponseInfo putUserResponseInfo) {
+        this.putUserResponseInfo = putUserResponseInfo;
     }
 
     public PutUserResponse(StreamInput in) throws IOException {
         super(in);
-        int size = in.readVInt();
-        createUserResults = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            createUserResults.add(new PutUserResponseInfo(in));
-        }
-
+        putUserResponseInfo = new PutUserResponseInfo(in);
     }
 
-    public List<PutUserResponseInfo> getCreateUserResults() {
-        return createUserResults;
+    public PutUserResponseInfo getPutUserResponseInfo() {
+        return putUserResponseInfo;
     }
 
     /**
@@ -59,41 +54,36 @@ public class PutUserResponse extends ActionResponse implements StatusToXContentO
      */
     @Override
     public RestStatus status() {
-        if (createUserResults.isEmpty()) return NOT_FOUND;
+        if (putUserResponseInfo == null) return NOT_FOUND;
         return OK;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(createUserResults.size());
-        for (PutUserResponseInfo createUserResults : createUserResults) {
-            createUserResults.writeTo(out);
+        if (putUserResponseInfo != null) {
+            putUserResponseInfo.writeTo(out);
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject();
-        builder.startArray("users");
-        for (PutUserResponseInfo response : createUserResults) {
-            response.toXContent(builder, params);
+        if (putUserResponseInfo != null) {
+            putUserResponseInfo.toXContent(builder, params);
         }
-        builder.endArray();
-        builder.endObject();
         return builder;
     }
 
     private static final ConstructingObjectParser<PutUserResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "create_user_response",
+        "put_user_response",
         true,
         (Object[] parsedObjects) -> {
             @SuppressWarnings("unchecked")
-            List<PutUserResponseInfo> createUserResponseInfoList = (List<PutUserResponseInfo>) parsedObjects[0];
-            return new PutUserResponse(createUserResponseInfoList);
+            PutUserResponseInfo putUserResponseInfo1 = (PutUserResponseInfo) parsedObjects[0];
+            return new PutUserResponse(putUserResponseInfo1);
         }
     );
     static {
-        PARSER.declareObjectArray(constructorArg(), PutUserResponseInfo.PARSER, new ParseField("users"));
+        PARSER.declareObjectArray(constructorArg(), PutUserResponseInfo.PARSER, new ParseField("user"));
     }
 
     public static PutUserResponse fromXContent(XContentParser parser) throws IOException {
