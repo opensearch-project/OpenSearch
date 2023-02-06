@@ -34,7 +34,6 @@ import org.opensearch.identity.configuration.ClusterInfoHolder;
 import org.opensearch.identity.configuration.ConfigurationRepository;
 import org.opensearch.identity.configuration.DynamicConfigFactory;
 import org.opensearch.identity.jwt.IdentityJwtVerifier;
-import org.opensearch.index.IndexModule;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ClusterPlugin;
