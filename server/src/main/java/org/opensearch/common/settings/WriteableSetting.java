@@ -97,7 +97,7 @@ public class WriteableSetting implements Writeable {
         Object parser = new Object();
         boolean isParserWriteable = in.readBoolean();
         if (isParserWriteable) {
-            parser = readParser(in);
+            parser = readParser(in, parser);
         }
         // We are not using validator
         // Read properties
