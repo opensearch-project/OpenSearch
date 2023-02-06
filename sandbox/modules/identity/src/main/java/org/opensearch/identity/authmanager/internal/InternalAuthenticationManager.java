@@ -8,14 +8,13 @@
 
 package org.opensearch.identity.authmanager.internal;
 
-import org.apache.shiro.config.Ini;
+import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.config.IniSecurityManagerFactory;
+import org.apache.shiro.mgt.SecurityManager;
 import org.apache.shiro.util.Factory;
 import org.opensearch.authn.AccessTokenManager;
 import org.opensearch.authn.AuthenticationManager;
 import org.opensearch.authn.Subject;
-import org.apache.shiro.SecurityUtils;
-import org.apache.shiro.mgt.SecurityManager;
 
 /**
  * Implementation of authentication manager that enforces authentication against internal idp
@@ -57,15 +56,5 @@ public class InternalAuthenticationManager implements AuthenticationManager {
     @Override
     public AccessTokenManager getAccessTokenManager() {
         return null;
-    }
-
-    public void setSigningKey(String signingKey) {
-        Ini ini = Ini.fromResourcePath("classpath:shiro.ini");
-        if (signingKey != null) {
-            ini.setSectionProperty("main", "myRealm.signingKey", signingKey);
-        }
-        Factory<SecurityManager> factory = new IniSecurityManagerFactory(ini);
-        SecurityManager securityManager = factory.getInstance();
-        SecurityUtils.setSecurityManager(securityManager);
     }
 }
