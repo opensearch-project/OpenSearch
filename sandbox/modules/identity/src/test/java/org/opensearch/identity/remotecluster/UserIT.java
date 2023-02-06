@@ -74,17 +74,23 @@ public class UserIT extends OpenSearchRestTestCase {
         final List<String> emptyList = List.of();
 
         String username = "test-create";
-        String requestContent = "{ \"password\" : \"test\","
+        String createContent = "{ \"password\" : \"test\","
             + " \"attributes\": { \"attribute1\": \"value1\"},"
             + " \"permissions\": [\"indices:admin:create\"]"
             + " }\n";
-        Map<String, String> expectedAttributes = Map.of("attribute1", "value1");
+
+        String updateContent = "{ \"password\" : \"test\","
+            + " \"attributes\": { \"attribute1\": \"value2\"},"
+            + " \"permissions\": [\"indices:admin:update\"]"
+            + " }\n";
+
+        Map<String, String> expectedAttributes = Map.of("attribute1", "value2");
         List<String> expectedPermissions = List.of("indices:admin:create");
 
         // Create a user
         String createMessage = username + " created successfully.";
         Request request = new Request("PUT", ENDPOINT + "/users/" + username);
-        request.setJsonEntity(requestContent);
+        request.setJsonEntity(createContent);
         request.setOptions(systemIndexWarning());
         Response response = client().performRequest(request);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
@@ -97,7 +103,7 @@ public class UserIT extends OpenSearchRestTestCase {
         // Update a user
         String updateMessage = username + " updated successfully.";
         request = new Request("PUT", ENDPOINT + "/users/" + username);
-        request.setJsonEntity(requestContent);
+        request.setJsonEntity(updateContent);
         request.setOptions(systemIndexWarning());
         response = client().performRequest(request);
         assertEquals(response.getStatusLine().getStatusCode(), 200);

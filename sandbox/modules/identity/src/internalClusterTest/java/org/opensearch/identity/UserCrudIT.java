@@ -39,17 +39,23 @@ public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
         final List<String> emptyList = List.of();
 
         String username = "test-create";
-        String requestContent = "{ \"password\" : \"test\","
+        String createContent = "{ \"password\" : \"test\","
             + " \"attributes\": { \"attribute1\": \"value1\"},"
             + " \"permissions\": [\"indices:admin:create\"]"
             + " }\n";
-        Map<String, String> expectedAttributes = Map.of("attribute1", "value1");
+
+        String updateContent = "{ \"password\" : \"test\","
+            + " \"attributes\": { \"attribute1\": \"value2\"},"
+            + " \"permissions\": [\"indices:admin:update\"]"
+            + " }\n";
+
+        Map<String, String> expectedAttributes = Map.of("attribute1", "value2");
         List<String> expectedPermissions = List.of("indices:admin:create");
 
         // Create a user
         String createSuccessMessage = username + " created successfully.";
         Request createRequest = new Request("PUT", ENDPOINT + "/users/" + username);
-        createRequest.setJsonEntity(requestContent);
+        createRequest.setJsonEntity(createContent);
         Response response = getRestClient().performRequest(createRequest);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
         Map<String, Object> userCreated = entityAsMap(response);
@@ -61,7 +67,7 @@ public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
         // Update a user (same user in this case)
         String updateSuccessMessage = username + " updated successfully.";
         Request updateRequest = new Request("PUT", ENDPOINT + "/users/" + username);
-        updateRequest.setJsonEntity(requestContent);
+        updateRequest.setJsonEntity(updateContent);
         response = getRestClient().performRequest(updateRequest);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
         Map<String, Object> usersUpdated = entityAsMap(response);
