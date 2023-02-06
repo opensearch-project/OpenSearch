@@ -341,8 +341,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                 @Override
                 public void onResponse(Void o) {
                     onGoingReplications.markAsDone(replicationId);
-                    if(target.state().getIndex().recoveredFileCount() != 0
-                       && target.state().getIndex().recoveredBytes() != 0)   {
+                    if (target.state().getIndex().recoveredFileCount() != 0 && target.state().getIndex().recoveredBytes() != 0) {
                         completedReplications.put(target.shardId(), target);
                     }
 
