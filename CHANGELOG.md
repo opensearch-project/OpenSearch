@@ -38,6 +38,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bumps `json-schema-validator` from 1.0.73 to 1.0.76
 - Bumps `jna` from 5.11.0 to 5.13.0
 - Bumps `joni` from 2.1.44 to 2.1.45
+- Bumps `org.jruby.joni:joni` from 2.1.45 to 2.1.47
 
 ### Changed
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
