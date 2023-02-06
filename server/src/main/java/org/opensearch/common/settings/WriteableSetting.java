@@ -162,31 +162,72 @@ public class WriteableSetting implements Writeable {
                     : Setting.boolSetting(key, (Setting<Boolean>) fallback.getSetting(), propertyArray);
             case Integer:
                 return fallback == null
-                    ? Setting.intSetting(key, (int) defaultValue, propertyArray)
+                    ? Setting.intSetting(
+                        key,
+                        (int) defaultValue,
+                        ((IntegerParser) parser).getMin(),
+                        ((IntegerParser) parser).getMax(),
+                        propertyArray
+                    )
                     : Setting.intSetting(key, (Setting<Integer>) fallback.getSetting(), propertyArray);
             case Long:
                 return fallback == null
-                    ? Setting.longSetting(key, (long) defaultValue, propertyArray)
+                    ? Setting.longSetting(
+                        key,
+                        (long) defaultValue,
+                        ((LongParser) parser).getMin(),
+                        ((LongParser) parser).getMax(),
+                        propertyArray
+                    )
                     : Setting.longSetting(key, (Setting<Long>) fallback.getSetting(), propertyArray);
             case Float:
                 return fallback == null
-                    ? Setting.floatSetting(key, (float) defaultValue, propertyArray)
+                    ? Setting.floatSetting(
+                        key,
+                        (float) defaultValue,
+                        ((FloatParser) parser).getMin(),
+                        ((FloatParser) parser).getMax(),
+                        propertyArray
+                    )
                     : Setting.floatSetting(key, (Setting<Float>) fallback.getSetting(), propertyArray);
             case Double:
                 return fallback == null
-                    ? Setting.doubleSetting(key, (double) defaultValue, propertyArray)
+                    ? Setting.doubleSetting(
+                        key,
+                        (double) defaultValue,
+                        ((DoubleParser) parser).getMin(),
+                        ((DoubleParser) parser).getMax(),
+                        propertyArray
+                    )
                     : Setting.doubleSetting(key, (Setting<Double>) fallback.getSetting(), propertyArray);
             case String:
                 return fallback == null
                     ? Setting.simpleString(key, (String) defaultValue, propertyArray)
                     : Setting.simpleString(key, (Setting<String>) fallback.getSetting(), propertyArray);
             case TimeValue:
-                return fallback == null
-                    ? Setting.timeSetting(key, (TimeValue) defaultValue, propertyArray)
-                    : Setting.timeSetting(key, (Setting<TimeValue>) fallback.getSetting(), propertyArray);
+                if (fallback != null) {
+                    if (parser instanceof MinMaxTimeValueParser) {
+                        return Setting.timeSetting(
+                            key,
+                            (TimeValue) defaultValue,
+                            ((MinMaxTimeValueParser) parser).getMin(),
+                            ((MinMaxTimeValueParser) parser).getMax(),
+                            propertyArray
+                        );
+                    } else {
+                        return Setting.timeSetting(key, (TimeValue) defaultValue, ((MinTimeValueParser) parser).getMin(), propertyArray);
+                    }
+                }
+                return Setting.timeSetting(key, (Setting<TimeValue>) fallback.getSetting(), propertyArray);
             case ByteSizeValue:
                 return fallback == null
-                    ? Setting.byteSizeSetting(key, (ByteSizeValue) defaultValue, propertyArray)
+                    ? Setting.byteSizeSetting(
+                        key,
+                        (ByteSizeValue) defaultValue,
+                        ((ByteSizeValueParser) parser).getMin(),
+                        ((ByteSizeValueParser) parser).getMax(),
+                        propertyArray
+                    )
                     : Setting.byteSizeSetting(key, (Setting<ByteSizeValue>) fallback.getSetting(), propertyArray);
             case Version:
                 // No fallback option on this method
@@ -294,7 +335,7 @@ public class WriteableSetting implements Writeable {
         }
     }
 
-    private Object readParser(StreamInput in) throws IOException {
+    private Object readParser(StreamInput in, Object parser) throws IOException {
         switch (type) {
             case Boolean:
                 return new BooleanParser(in);
@@ -307,7 +348,10 @@ public class WriteableSetting implements Writeable {
             case Double:
                 return new DoubleParser(in);
             case TimeValue:
-                return new MinMaxTimeValueParser(in);
+                if (parser instanceof MinMaxTimeValueParser) {
+                    return new MinMaxTimeValueParser(in);
+                }
+                return new MinTimeValueParser(in);
             case ByteSizeValue:
                 return new ByteSizeValueParser(in);
             default:
