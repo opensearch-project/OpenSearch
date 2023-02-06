@@ -217,8 +217,7 @@ public class WriteableSetting implements Writeable {
                     } else {
                         return Setting.timeSetting(key, (TimeValue) defaultValue, ((MinTimeValueParser) parser).getMin(), propertyArray);
                     }
-                }
-                else{
+                } else {
                     return Setting.timeSetting(key, (Setting<TimeValue>) fallback.getSetting(), propertyArray);
                 }
             case ByteSizeValue:
