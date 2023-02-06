@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
+import org.opensearch.action.support.ActionFilter;
 import org.opensearch.authn.AuthenticationManager;
 import org.opensearch.authn.Identity;
 import org.opensearch.client.Client;
@@ -54,6 +55,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Objects;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.function.Supplier;
@@ -93,6 +95,17 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         }
 
         this.settings = settings;
+    }
+
+
+    @Override
+    public List<ActionFilter> getActionFilters() {
+        List<ActionFilter> filters = new ArrayList<>(1);
+        if (!enabled) {
+            return filters;
+        }
+        filters.add(Objects.requireNonNull(sf));
+        return filters;
     }
 
     private static boolean isEnabled(final Settings settings) {

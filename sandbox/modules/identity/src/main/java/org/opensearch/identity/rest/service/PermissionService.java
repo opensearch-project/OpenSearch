@@ -11,9 +11,11 @@ package org.opensearch.identity.rest.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.index.IndexResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.identity.ConfigConstants;
 import org.opensearch.identity.authz.OpenSearchPermission;
 import org.opensearch.identity.authz.PermissionFactory;
@@ -43,13 +45,17 @@ public class PermissionService {
     private final TransportService transportService;
     private final NodeClient nodeClient;
 
-    private final String identityIndex = ConfigConstants.IDENTITY_CONFIG_INDEX_NAME;
+    private final String identityIndex;
 
     @Inject
-    public PermissionService(ClusterService clusterService, TransportService transportService, NodeClient nodeClient) {
+    public PermissionService(Settings settings, ClusterService clusterService, TransportService transportService, NodeClient nodeClient) {
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.nodeClient = nodeClient;
+        this.identityIndex = settings.get(
+            ConfigConstants.IDENTITY_CONFIG_INDEX_NAME,
+            ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX
+        );
     }
 
     protected boolean ensureIndexExists() {
@@ -70,9 +76,29 @@ public class PermissionService {
         List<OpenSearchPermission> permissionList = new ArrayList<OpenSearchPermission>(
             (Collection<? extends OpenSearchPermission>) newPermission
         );
-        PermissionStorage.put(principal, permissionList);
-        PutPermissionResponseInfo responseInfo = new PutPermissionResponseInfo(true, permissionString, principal);
-        PutPermissionResponse response = new PutPermissionResponse(unmodifiableList(asList(responseInfo)));
-        listener.onResponse(response);
+
+        final ActionListener<IndexResponse> indexActionListener = new OnSucessActionListener<>() {
+            @Override
+            public void onResponse(IndexResponse indexResponse) {
+                PermissionStorage.put(principal, permissionList);
+                PutPermissionResponseInfo responseInfo = new PutPermissionResponseInfo(true, permissionString, principal);
+                PutPermissionResponse response = new PutPermissionResponse(responseInfo);
+
+                listener.onResponse(response);
+            }
+        };
+    }
+
+    abstract class OnSucessActionListener<Response> implements ActionListener<Response> {
+
+        public OnSucessActionListener() {
+            super();
+        }
+
+        @Override
+        public final void onFailure(Exception e) {
+            // TODO throw it somewhere??
+        }
+
     }
 }

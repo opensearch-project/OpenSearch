@@ -53,8 +53,16 @@ public class PutPermissionResponseInfo extends TransportResponse implements Writ
 
     }
 
+    public boolean isSuccessful(){
+        return this.successful;
+    }
+
     public String getPermissionString() {
         return permissionString;
+    }
+
+    public String getUsername() {
+        return this.username;
     }
 
     /**
@@ -70,7 +78,7 @@ public class PutPermissionResponseInfo extends TransportResponse implements Writ
     }
 
     /**
-     * Create a new PARSER that writes to the different output fields
+     * Create a new PARSER that writes the different output fields
      */
     static final ConstructingObjectParser<PutPermissionResponseInfo, Void> PARSER = new ConstructingObjectParser<>(
         "put_permission_response_info",

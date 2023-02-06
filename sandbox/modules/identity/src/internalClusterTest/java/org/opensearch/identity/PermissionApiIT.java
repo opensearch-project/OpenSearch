@@ -32,14 +32,15 @@ public class PermissionApiIT extends HttpSmokeTestCaseWithIdentity {
     @SuppressWarnings("unchecked")
     public void testPermissionsRestApi() throws Exception {
 
-        final String endpoint = RestConstants.IDENTITY_PERMISSION_SUFFIX;
+        //_identity_api_permissions
+        final String endpoint = RestConstants.IDENTITY_API_PERMISSION_PREFIX;
 
         String username = "test";
         // Add a permission
-        Request createRequest = new Request("PUT", endpoint + username + RestConstants.IDENTITY_PUT_PERMISSION_SUFFIX);
-        createRequest.setJsonEntity("{ \"permissionString\" : \"cluster:admin/read\"}\n");
-        Response createResponse = getRestClient().performRequest(createRequest);
-        assertThat(createResponse.getStatusLine().getStatusCode(), is(200));
+        Request putRequest = new Request("PUT", endpoint + "/" + username);
+        putRequest.setJsonEntity("{ \"permissionString\" : \"cluster:admin/read\"}\n");
+        Response putResponse = getRestClient().performRequest(putRequest);
+        assertThat(putResponse.getStatusLine().getStatusCode(), is(200));
 
     }
 }

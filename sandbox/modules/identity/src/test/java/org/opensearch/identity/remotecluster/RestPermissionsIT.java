@@ -49,11 +49,12 @@ public class RestPermissionsIT extends OpenSearchRestTestCase {
 
     public void testPermissionsRestApi() throws Exception {
 
-        final String endpoint = RestConstants.IDENTITY_PERMISSION_SUFFIX;
+        // _identity/api/permissions
+        final String endpoint = RestConstants.IDENTITY_API_PERMISSION_PREFIX;
 
         String username = "test";
-        // Add a permission
-        Request createRequest = new Request("PUT", endpoint + username + RestConstants.IDENTITY_PUT_PERMISSION_SUFFIX);
+        // _identity/api/permissions/test
+        Request createRequest = new Request("PUT", endpoint + username);
         createRequest.setJsonEntity("{ \"permissionString\" : \"cluster:admin/read\"}\n");
         Response createResponse = client().performRequest(createRequest);
         assertThat(createResponse.getStatusLine().getStatusCode(), is(200));

@@ -10,10 +10,10 @@ package org.opensearch.identity.rest;
 
 public class RestConstants {
     // REST Action and API
-    public static final String IDENTITY_REST_REQUEST_PREFIX = "_identity";
-    public static final String IDENTITY_REST_API_REQUEST_PREFIX = IDENTITY_REST_REQUEST_PREFIX + "/api";
-    public static final String IDENTITY_USER_ACTION_SUFFIX = "_user_action";
-    public static final String IDENTITY_PERMISSION_SUFFIX = IDENTITY_REST_API_REQUEST_PREFIX + "/permissions";
+    public static final String IDENTITY_PREFIX = "_identity";
+    public static final String IDENTITY_API_PREFIX = IDENTITY_PREFIX + "/api";
+    public static final String IDENTITY_API_PERMISSION_PREFIX = IDENTITY_API_PREFIX + "/permissions";
     public static final String IDENTITY_PUT_PERMISSION_SUFFIX = "/put";
+    public static final String PERMISSION_ACTION_PREFIX = "permission_action";
 
 }

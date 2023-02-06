@@ -31,11 +31,12 @@ import static org.opensearch.rest.RestRequest.Method.PUT;
 public class RestPutPermissionAction extends BaseRestHandler {
 
     /**
-     * @return a string representing the rest route -- "_identity/api/permissions/put
+     * @return a string of the action name  -- "_identity/api/permissions/put
      */
     @Override
     public String getName() {
-        return RestConstants.IDENTITY_PERMISSION_SUFFIX + RestConstants.IDENTITY_PUT_PERMISSION_SUFFIX;
+        // permission_action_put
+        return RestConstants.PERMISSION_ACTION_PREFIX + "_put";
     }
 
     /**
@@ -64,34 +65,25 @@ public class RestPutPermissionAction extends BaseRestHandler {
      *
      */
     @Override
+    @SuppressWarnings("unchecked")
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        String username = request.param("username");
 
+        // Parsing request body using DefaultObjectMapper
         JsonNode contentAsNode;
         try {
             contentAsNode = DefaultObjectMapper.readTree(request.content().utf8ToString());
+            String permissionString = contentAsNode.get("permissionString").asText();
+
+            PutPermissionRequest putPermissionRequest  = new PutPermissionRequest(permissionString, username);
+
+            // TODO: check if this bypass to directly doExecute is okay.
+            // TODO: Ideally, this should be registered as `createUser` request in Client.java and AbstractClient.java
+            // TODO: see if you can add to RequestConverters.java to follow convention
+            return channel -> client.doExecute(PutPermissionAction.INSTANCE, putPermissionRequest, new RestStatusToXContentListener<>(channel));
         } catch (JsonParseException e) {
-            throw new IllegalArgumentException(ErrorType.BODY_NOT_PARSEABLE.getMessage() + "Put Permission");
+            throw new IllegalArgumentException(ErrorType.BODY_NOT_PARSEABLE.getMessage() + "PUT");
         }
-        String permissionString = contentAsNode.get("permissionString").asText();
-        String username = request.param("username");
-
-        PutPermissionRequest putPermissionRequest = new PutPermissionRequest();
-        putPermissionRequest.setPermissionString(permissionString);
-        putPermissionRequest.setUsername(username);
-        request.withContentOrSourceParamParserOrNull((xContentParser -> {
-            if (xContentParser != null) {
-                try {
-                    putPermissionRequest.fromXContent(xContentParser);
-                } catch (IOException e) {
-                    throw new IllegalArgumentException("Failed to parse put permission request body", e);
-                }
-            }
-        }));
-
-        // TODO: check if this bypass to directly doExecute is okay.
-        // TODO: Ideally, this should be registered as `putPermission` request in Client.java and AbstractClient.java
-        // TODO: see if you can add to RequestConverters.java to follow convention
-        return channel -> client.doExecute(PutPermissionAction.INSTANCE, putPermissionRequest, new RestStatusToXContentListener<>(channel));
     }
 
     /**
@@ -100,7 +92,8 @@ public class RestPutPermissionAction extends BaseRestHandler {
      */
     @Override
     public List<Route> routes() {
-        // e.g. return value "_identity/api/permissions/{username}/put"
-        return addRoutesPrefix(asList(new Route(PUT, "/{username}/put")));
+        // e.g. return value "_identity/api/permissions/{username}"
+
+        return addRoutesPrefix(asList(new Route(PUT, RestConstants.IDENTITY_API_PERMISSION_PREFIX +"/{username}")));
     }
 }

@@ -33,10 +33,10 @@ import static org.opensearch.rest.RestStatus.OK;
  */
 public class PutPermissionResponse extends ActionResponse implements StatusToXContentObject {
 
-    private final List<PutPermissionResponseInfo> putPermissionResults;
+    private final PutPermissionResponseInfo putPermissionResponseInfo;
 
-    public PutPermissionResponse(List<PutPermissionResponseInfo> putPermissionResults) {
-        this.putPermissionResults = putPermissionResults;
+    public PutPermissionResponse(PutPermissionResponseInfo permissionResponseInfo) {
+        this.putPermissionResponseInfo = permissionResponseInfo;
     }
 
     /**
@@ -47,16 +47,11 @@ public class PutPermissionResponse extends ActionResponse implements StatusToXCo
      */
     public PutPermissionResponse(StreamInput in) throws IOException {
         super(in);
-        int size = in.readVInt();
-        putPermissionResults = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            putPermissionResults.add(new PutPermissionResponseInfo(in));
-        }
-
+        this.putPermissionResponseInfo = new PutPermissionResponseInfo(in);
     }
 
-    public List<PutPermissionResponseInfo> getPutPermissionResults() {
-        return putPermissionResults;
+    public PutPermissionResponseInfo getPutPermissionResults() {
+        return this.putPermissionResponseInfo;
     }
 
     /**
@@ -64,26 +59,24 @@ public class PutPermissionResponse extends ActionResponse implements StatusToXCo
      */
     @Override
     public RestStatus status() {
-        if (putPermissionResults.isEmpty()) return NOT_FOUND;
+        if (this.putPermissionResponseInfo == null) return NOT_FOUND;
         return OK;
     }
 
     /**
-     * Sends the concatenated info out to another node
+     * Sends the info out to another node
      * @param out An output stream to another node
      * @throws IOException Throw on failure
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(putPermissionResults.size());
-        for (PutPermissionResponseInfo putPermissionResult : putPermissionResults) {
-            putPermissionResult.writeTo(out);
+        if (putPermissionResponseInfo != null) {
+            putPermissionResponseInfo.writeTo(out);
         }
     }
 
     /**
-     * Conjoins the different PutPermissionResponseInfo objects
-     * This is important for bulk requests but right now will just be a step in between the Info and returning to the client
+     * Creates a builder for conjoining multiple response info objects
      * @param builder The Xcontent builder object that serves as the response holder
      * @param params Settings for the builder
      * @return A builder with all the concatenated response information
@@ -91,13 +84,9 @@ public class PutPermissionResponse extends ActionResponse implements StatusToXCo
      */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        builder.startObject();
-        builder.startArray("permissions");
-        for (PutPermissionResponseInfo response : putPermissionResults) {
-            response.toXContent(builder, params);
+        if (this.putPermissionResponseInfo != null) {
+            putPermissionResponseInfo.toXContent(builder, params);
         }
-        builder.endArray();
-        builder.endObject();
         return builder;
     }
 
@@ -109,7 +98,7 @@ public class PutPermissionResponse extends ActionResponse implements StatusToXCo
         true,
         (Object[] parsedObjects) -> {
             @SuppressWarnings("unchecked")
-            List<PutPermissionResponseInfo> putPermissionResponseInfoList = (List<PutPermissionResponseInfo>) parsedObjects[0];
+            PutPermissionResponseInfo putPermissionResponseInfoList = (PutPermissionResponseInfo) parsedObjects[0];
             return new PutPermissionResponse(putPermissionResponseInfoList);
         }
     );
