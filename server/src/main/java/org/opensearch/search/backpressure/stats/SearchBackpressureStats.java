@@ -8,6 +8,8 @@
 
 package org.opensearch.search.backpressure.stats;
 
+import org.opensearch.Version;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -24,28 +26,47 @@ import java.util.Objects;
 public class SearchBackpressureStats implements ToXContentFragment, Writeable {
     private final SearchShardTaskStats searchShardTaskStats;
     private final SearchBackpressureMode mode;
+    @Nullable
+    private final SearchTaskStats searchTaskStats;
 
-    public SearchBackpressureStats(SearchShardTaskStats searchShardTaskStats, SearchBackpressureMode mode) {
+    public SearchBackpressureStats(
+        SearchTaskStats searchTaskStats,
+        SearchShardTaskStats searchShardTaskStats,
+        SearchBackpressureMode mode
+    ) {
         this.searchShardTaskStats = searchShardTaskStats;
         this.mode = mode;
+        this.searchTaskStats = searchTaskStats;
     }
 
     public SearchBackpressureStats(StreamInput in) throws IOException {
-        this(new SearchShardTaskStats(in), SearchBackpressureMode.fromName(in.readString()));
+        searchShardTaskStats = new SearchShardTaskStats(in);
+        mode = SearchBackpressureMode.fromName(in.readString());
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            searchTaskStats = in.readOptionalWriteable(SearchTaskStats::new);
+        } else {
+            searchTaskStats = null;
+        }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject("search_backpressure")
-            .field("search_shard_task", searchShardTaskStats)
-            .field("mode", mode.getName())
-            .endObject();
+        builder.startObject("search_backpressure");
+        if (searchTaskStats != null) {
+            builder.field("search_task", searchTaskStats);
+        }
+        builder.field("search_shard_task", searchShardTaskStats);
+        builder.field("mode", mode.getName());
+        return builder.endObject();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         searchShardTaskStats.writeTo(out);
         out.writeString(mode.getName());
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            out.writeOptionalWriteable(searchTaskStats);
+        }
     }
 
     @Override
@@ -53,11 +74,13 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SearchBackpressureStats that = (SearchBackpressureStats) o;
-        return searchShardTaskStats.equals(that.searchShardTaskStats) && mode == that.mode;
+        return mode == that.mode
+            && Objects.equals(searchTaskStats, that.searchTaskStats)
+            && Objects.equals(searchShardTaskStats, that.searchShardTaskStats);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(searchShardTaskStats, mode);
+        return Objects.hash(searchTaskStats, searchShardTaskStats, mode);
     }
 }
