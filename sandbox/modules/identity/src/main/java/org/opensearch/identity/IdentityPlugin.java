@@ -153,15 +153,6 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     }
 
     @Override
-    public void onIndexModule(IndexModule indexModule) {
-        // called for every index!
-
-        if (enabled) {
-
-        }
-    }
-
-    @Override
     public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
 
         if (!enabled) {
