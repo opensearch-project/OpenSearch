@@ -84,7 +84,7 @@ public class RemoteFsTranslog extends Translog {
         try {
             download(translogTransferManager, location);
             Checkpoint checkpoint = readCheckpoint(location);
-            ((ReplicationTracker)globalCheckpointSupplier).updateGlobalCheckpoint(checkpoint.globalCheckpoint);
+            ((ReplicationTracker) globalCheckpointSupplier).updateGlobalCheckpoint(checkpoint.globalCheckpoint);
             this.readers.addAll(recoverFromFiles(checkpoint));
             if (readers.isEmpty()) {
                 throw new IllegalStateException("at least one reader must be recovered");
