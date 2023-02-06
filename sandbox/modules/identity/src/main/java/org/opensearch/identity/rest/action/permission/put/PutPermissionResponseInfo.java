@@ -70,7 +70,7 @@ public class PutPermissionResponseInfo extends TransportResponse implements Writ
     }
 
     /**
-     * Create a new parsed that is then used for writing to Xcontent
+     * Create a new PARSER that writes to the different output fields
      */
     static final ConstructingObjectParser<PutPermissionResponseInfo, Void> PARSER = new ConstructingObjectParser<>(
         "put_permission_response_info",
