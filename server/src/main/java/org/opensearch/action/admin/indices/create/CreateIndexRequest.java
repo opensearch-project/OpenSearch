@@ -51,6 +51,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.DeprecationHandler;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.MediaType;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -208,9 +209,20 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     /**
      * The settings to create the index with (either json or yaml format)
+     *
+     * @deprecated use {@link #settings(String source, MediaType mediaType)} instead
      */
+    @Deprecated
     public CreateIndexRequest settings(String source, XContentType xContentType) {
         this.settings = Settings.builder().loadFromSource(source, xContentType).build();
+        return this;
+    }
+
+    /**
+     * The settings to create the index with (either json or yaml format)
+     */
+    public CreateIndexRequest settings(String source, MediaType mediaType) {
+        this.settings = Settings.builder().loadFromSource(source, mediaType).build();
         return this;
     }
 
@@ -248,7 +260,10 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
      *
      * @param source The mapping source
      * @param xContentType The content type of the source
+     *
+     * @deprecated use {@link #mapping(String source, MediaType mediaType)} instead
      */
+    @Deprecated
     public CreateIndexRequest mapping(String source, XContentType xContentType) {
         return mapping(new BytesArray(source), xContentType);
     }
@@ -256,12 +271,41 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     /**
      * Adds mapping that will be added when the index gets created.
      *
+     * Note that the definition should *not* be nested under a type name.
+     *
+     * @param source The mapping source
+     * @param mediaType The media type of the source
+     */
+    public CreateIndexRequest mapping(String source, MediaType mediaType) {
+        return mapping(new BytesArray(source), mediaType);
+    }
+
+    /**
+     * Adds mapping that will be added when the index gets created.
+     *
      * @param source The mapping source
      * @param xContentType the content type of the mapping source
+     *
+     * @deprecated use {@link #mapping(BytesReference source, MediaType mediaType)} instead
      */
+    @Deprecated
     private CreateIndexRequest mapping(BytesReference source, XContentType xContentType) {
         Objects.requireNonNull(xContentType);
         Map<String, Object> mappingAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
+        return mapping(MapperService.SINGLE_MAPPING_NAME, mappingAsMap);
+    }
+
+    /**
+     * Adds mapping that will be added when the index gets created.
+     *
+     * Note that the definition should *not* be nested under a type name.
+     *
+     * @param source The mapping source
+     * @param mediaType The media type of the source
+     */
+    public CreateIndexRequest mapping(BytesReference source, MediaType mediaType) {
+        Objects.requireNonNull(mediaType);
+        Map<String, Object> mappingAsMap = XContentHelper.convertToMap(source, false, mediaType).v2();
         return mapping(MapperService.SINGLE_MAPPING_NAME, mappingAsMap);
     }
 
@@ -379,9 +423,21 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     /**
      * Sets the settings and mappings as a single source.
+     *
+     * @deprecated use {@link #source(String, MediaType)} instead
      */
+    @Deprecated
     public CreateIndexRequest source(String source, XContentType xContentType) {
         return source(new BytesArray(source), xContentType);
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     *
+     * Note that the mapping definition should *not* be nested under a type name.
+     */
+    public CreateIndexRequest source(String source, MediaType mediaType) {
+        return source(new BytesArray(source), mediaType);
     }
 
     /**
@@ -393,14 +449,29 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
 
     /**
      * Sets the settings and mappings as a single source.
+     *
+     * @deprecated use {@link #source(byte[], MediaType mediaType)} instead
      */
+    @Deprecated
     public CreateIndexRequest source(byte[] source, XContentType xContentType) {
         return source(source, 0, source.length, xContentType);
     }
 
     /**
      * Sets the settings and mappings as a single source.
+     *
+     * Note that the mapping definition should *not* be nested under a type name.
      */
+    public CreateIndexRequest source(byte[] source, MediaType mediaType) {
+        return source(source, 0, source.length, mediaType);
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     *
+     * @deprecated use {@link #source(byte[], int, int, MediaType)} instead
+     */
+    @Deprecated
     public CreateIndexRequest source(byte[] source, int offset, int length, XContentType xContentType) {
         return source(new BytesArray(source, offset, length), xContentType);
     }
@@ -408,9 +479,28 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     /**
      * Sets the settings and mappings as a single source.
      */
+    public CreateIndexRequest source(byte[] source, int offset, int length, MediaType mediaType) {
+        return source(new BytesArray(source, offset, length), mediaType);
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     *
+     * @deprecated use {@link #source(BytesReference, MediaType)} instead
+     */
+    @Deprecated
     public CreateIndexRequest source(BytesReference source, XContentType xContentType) {
         Objects.requireNonNull(xContentType);
         source(XContentHelper.convertToMap(source, false, xContentType).v2(), LoggingDeprecationHandler.INSTANCE);
+        return this;
+    }
+
+    /**
+     * Sets the settings and mappings as a single source.
+     */
+    public CreateIndexRequest source(BytesReference source, MediaType mediaType) {
+        Objects.requireNonNull(mediaType);
+        source(XContentHelper.convertToMap(source, false, mediaType).v2(), LoggingDeprecationHandler.INSTANCE);
         return this;
     }
 

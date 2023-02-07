@@ -122,7 +122,7 @@ public interface XContentGenerator extends Closeable, Flushable {
     /**
      * Writes a raw value taken from the bytes in the stream
      */
-    void writeRawValue(InputStream value, XContentType xContentType) throws IOException;
+    void writeRawValue(InputStream value, MediaType xContentType) throws IOException;
 
     void copyCurrentStructure(XContentParser parser) throws IOException;
 

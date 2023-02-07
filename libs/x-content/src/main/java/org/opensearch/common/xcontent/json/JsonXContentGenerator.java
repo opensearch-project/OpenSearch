@@ -42,6 +42,7 @@ import com.fasterxml.jackson.core.util.DefaultIndenter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import com.fasterxml.jackson.core.util.JsonGeneratorDelegate;
 import org.opensearch.common.xcontent.DeprecationHandler;
+import org.opensearch.common.xcontent.MediaType;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContent;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -369,7 +370,7 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override
-    public void writeRawValue(InputStream stream, XContentType xContentType) throws IOException {
+    public void writeRawValue(InputStream stream, MediaType xContentType) throws IOException {
         if (mayWriteRawData(xContentType) == false) {
             copyRawValue(stream, xContentType.xContent());
         } else {
@@ -383,7 +384,7 @@ public class JsonXContentGenerator implements XContentGenerator {
         }
     }
 
-    private boolean mayWriteRawData(XContentType contentType) {
+    private boolean mayWriteRawData(MediaType contentType) {
         // When the current generator is filtered (ie filter != null)
         // or the content is in a different format than the current generator,
         // we need to copy the whole structure so that it will be correctly

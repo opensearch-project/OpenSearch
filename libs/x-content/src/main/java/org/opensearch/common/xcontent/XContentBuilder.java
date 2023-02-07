@@ -1004,7 +1004,7 @@ public final class XContentBuilder implements Closeable, Flushable {
     /**
      * Writes a value with the source coming directly from the bytes in the stream
      */
-    public XContentBuilder rawValue(InputStream stream, XContentType contentType) throws IOException {
+    public XContentBuilder rawValue(InputStream stream, MediaType contentType) throws IOException {
         generator.writeRawValue(stream, contentType);
         return this;
     }
