@@ -86,7 +86,7 @@ public class RestPutPermissionAction extends BaseRestHandler {
                 new RestStatusToXContentListener<>(channel)
             );
         } catch (JsonParseException e) {
-            throw new IllegalArgumentException(ErrorType.BODY_NOT_PARSEABLE.getMessage() + "PUT");
+            throw new IllegalArgumentException(ErrorType.BODY_NOT_PARSEABLE.getMessage() + "PUT Permission");
         }
     }
 

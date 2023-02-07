@@ -40,7 +40,7 @@ public class RestPermissionTests extends OpenSearchTestCase {
             XContentType.JSON
         ).build();
         Exception e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, null));
-        assertThat(e.getMessage(), equalTo(ErrorType.BODY_NOT_PARSEABLE.getMessage() + "Put Permission"));
+        assertThat(e.getMessage(), equalTo(ErrorType.BODY_NOT_PARSEABLE.getMessage() + "PUT Permission"));
     }
 
     public void testPutPermissionWithValidJson() throws Exception {
