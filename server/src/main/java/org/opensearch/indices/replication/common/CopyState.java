@@ -12,6 +12,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.index.shard.IndexShard;
@@ -44,16 +45,12 @@ public class CopyState extends AbstractRefCounted {
         super("CopyState-" + shard.shardId());
         this.requestedReplicationCheckpoint = requestedReplicationCheckpoint;
         this.shard = shard;
-        this.segmentInfosRef = shard.getSegmentInfosSnapshot();
+        final Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> latestSegmentInfosAndCheckpoint = shard
+            .getLatestSegmentInfosAndCheckpoint();
+        this.segmentInfosRef = latestSegmentInfosAndCheckpoint.v1();
+        this.replicationCheckpoint = latestSegmentInfosAndCheckpoint.v2();
         SegmentInfos segmentInfos = this.segmentInfosRef.get();
         this.metadataMap = shard.store().getSegmentMetadataMap(segmentInfos);
-        this.replicationCheckpoint = new ReplicationCheckpoint(
-            shard.shardId(),
-            shard.getOperationPrimaryTerm(),
-            segmentInfos.getGeneration(),
-            shard.getProcessedLocalCheckpoint(),
-            segmentInfos.getVersion()
-        );
         this.commitRef = shard.acquireLastIndexCommit(false);
 
         ByteBuffersDataOutput buffer = new ByteBuffersDataOutput();

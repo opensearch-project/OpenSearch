@@ -40,6 +40,7 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
@@ -605,8 +606,8 @@ public class IndexSettingsTests extends OpenSearchTestCase {
 
         {
             // validation should fail since we are not ignoring private settings
-            final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
+            final SettingsException e = expectThrows(
+                SettingsException.class,
                 () -> indexScopedSettings.validate(settings, randomBoolean())
             );
             assertThat(e, hasToString(containsString("unknown setting [index.creation_date]")));
@@ -614,8 +615,8 @@ public class IndexSettingsTests extends OpenSearchTestCase {
 
         {
             // validation should fail since we are not ignoring private settings
-            final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
+            final SettingsException e = expectThrows(
+                SettingsException.class,
                 () -> indexScopedSettings.validate(settings, randomBoolean(), false, randomBoolean())
             );
             assertThat(e, hasToString(containsString("unknown setting [index.creation_date]")));
@@ -633,8 +634,8 @@ public class IndexSettingsTests extends OpenSearchTestCase {
 
         {
             // validation should fail since we are not ignoring archived settings
-            final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
+            final SettingsException e = expectThrows(
+                SettingsException.class,
                 () -> indexScopedSettings.validate(settings, randomBoolean())
             );
             assertThat(e, hasToString(containsString("unknown setting [archived.foo]")));
@@ -642,8 +643,8 @@ public class IndexSettingsTests extends OpenSearchTestCase {
 
         {
             // validation should fail since we are not ignoring archived settings
-            final IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
+            final SettingsException e = expectThrows(
+                SettingsException.class,
                 () -> indexScopedSettings.validate(settings, randomBoolean(), randomBoolean(), false)
             );
             assertThat(e, hasToString(containsString("unknown setting [archived.foo]")));
@@ -712,8 +713,8 @@ public class IndexSettingsTests extends OpenSearchTestCase {
 
     public void testUpdateSoftDeletesFails() {
         IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
-        IllegalArgumentException error = expectThrows(
-            IllegalArgumentException.class,
+        SettingsException error = expectThrows(
+            SettingsException.class,
             () -> settings.updateSettings(
                 Settings.builder().put("index.soft_deletes.enabled", randomBoolean()).build(),
                 Settings.builder(),
@@ -817,8 +818,8 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         Set<Setting<?>> remoteStoreSettingSet = new HashSet<>();
         remoteStoreSettingSet.add(IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING);
         IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, remoteStoreSettingSet);
-        IllegalArgumentException error = expectThrows(
-            IllegalArgumentException.class,
+        SettingsException error = expectThrows(
+            SettingsException.class,
             () -> settings.updateSettings(
                 Settings.builder().put("index.remote_store.enabled", randomBoolean()).build(),
                 Settings.builder(),
@@ -833,8 +834,8 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         Set<Setting<?>> remoteStoreSettingSet = new HashSet<>();
         remoteStoreSettingSet.add(IndexMetadata.INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING);
         IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, remoteStoreSettingSet);
-        IllegalArgumentException error = expectThrows(
-            IllegalArgumentException.class,
+        SettingsException error = expectThrows(
+            SettingsException.class,
             () -> settings.updateSettings(
                 Settings.builder().put("index.remote_store.translog.enabled", randomBoolean()).build(),
                 Settings.builder(),
@@ -907,8 +908,8 @@ public class IndexSettingsTests extends OpenSearchTestCase {
         Set<Setting<?>> remoteStoreSettingSet = new HashSet<>();
         remoteStoreSettingSet.add(IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING);
         IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, remoteStoreSettingSet);
-        IllegalArgumentException error = expectThrows(
-            IllegalArgumentException.class,
+        SettingsException error = expectThrows(
+            SettingsException.class,
             () -> settings.updateSettings(
                 Settings.builder().put("index.remote_store.repository", randomUnicodeOfLength(10)).build(),
                 Settings.builder(),
@@ -964,11 +965,13 @@ public class IndexSettingsTests extends OpenSearchTestCase {
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
                 .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "tlog-store")
+                .put(IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.getKey(), "200ms")
                 .build()
         );
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         assertNull(settings.getRemoteStoreRepository());
         assertEquals("tlog-store", settings.getRemoteStoreTranslogRepository());
+        assertEquals(TimeValue.timeValueMillis(200), settings.getRemoteTranslogUploadBufferInterval());
     }
 
     public void testSetRemoteTranslogRepositoryFailsWhenRemoteTranslogIsNotEnabled() {
@@ -998,6 +1001,47 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(indexSettings)
         );
         assertEquals("Setting index.remote_store.translog.repository should be provided with non-empty repository ID", iae.getMessage());
+    }
+
+    public void testSetRemoteTranslogBufferIntervalDefaultSetting() {
+        Version createdVersion = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
+            .build();
+        assertEquals(TimeValue.timeValueMillis(100), IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(settings));
+    }
+
+    public void testSetRemoteTranslogBufferIntervalFailsWhenRemoteTranslogIsNotEnabled() {
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL, "200ms")
+            .build();
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(indexSettings)
+        );
+        assertEquals(
+            "Setting index.remote_store.translog.buffer_interval can only be set when index.remote_store.translog.enabled is set to true",
+            iae.getMessage()
+        );
+    }
+
+    public void testSetRemoteTranslogBufferIntervalFailsWhenEmpty() {
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false)
+            .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL, "")
+            .build();
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING.get(indexSettings)
+        );
+        assertEquals(
+            "failed to parse setting [index.remote_store.translog.buffer_interval] with value [] as a time value: unit is missing or unrecognized",
+            iae.getMessage()
+        );
     }
 
     @SuppressForbidden(reason = "sets the SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY feature flag")

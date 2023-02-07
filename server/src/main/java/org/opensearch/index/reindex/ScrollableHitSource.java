@@ -498,7 +498,7 @@ public abstract class ScrollableHitSource {
 
         @Override
         public String toString() {
-            return Strings.toString(this);
+            return Strings.toString(XContentType.JSON, this);
         }
     }
 }

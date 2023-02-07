@@ -35,7 +35,7 @@ package org.opensearch.node;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.SetOnce;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.index.IndexModule;
@@ -428,16 +428,16 @@ public class Node implements Closeable {
                 classpathPlugins
             );
 
+            final Settings settings = pluginsService.updatedSettings();
+
+            // Ensure to initialize Feature Flags via the settings from opensearch.yml
+            FeatureFlags.initializeFeatureFlags(settings);
+
             if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
                 this.extensionsManager = new ExtensionsManager(tmpSettings, initialEnvironment.extensionDir());
             } else {
                 this.extensionsManager = new NoopExtensionsManager();
             }
-
-            final Settings settings = pluginsService.updatedSettings();
-
-            // Ensure to initialize Feature Flags via the settings from opensearch.yml
-            FeatureFlags.initializeFeatureFlags(settings);
 
             final Set<DiscoveryNodeRole> additionalRoles = pluginsService.filterPlugins(Plugin.class)
                 .stream()
@@ -867,7 +867,8 @@ public class Node implements Closeable {
             final SearchBackpressureService searchBackpressureService = new SearchBackpressureService(
                 searchBackpressureSettings,
                 taskResourceTrackingService,
-                threadPool
+                threadPool,
+                transportService.getTaskManager()
             );
 
             final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
@@ -1006,9 +1007,7 @@ public class Node implements Closeable {
                 b.bind(Client.class).toInstance(client);
                 b.bind(NodeClient.class).toInstance(client);
                 b.bind(Environment.class).toInstance(this.environment);
-                if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-                    b.bind(ExtensionsManager.class).toInstance(this.extensionsManager);
-                }
+                b.bind(ExtensionsManager.class).toInstance(this.extensionsManager);
                 b.bind(ThreadPool.class).toInstance(threadPool);
                 b.bind(NodeEnvironment.class).toInstance(nodeEnvironment);
                 b.bind(ResourceWatcherService.class).toInstance(resourceWatcherService);

@@ -15,8 +15,11 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingHelper;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.ClusterSettings;
@@ -54,17 +57,21 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiFunction;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 import static java.util.Arrays.asList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -96,6 +103,60 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         final ReplicationCheckpoint replicationCheckpoint = indexShard.getLatestReplicationCheckpoint();
         assertNotNull(replicationCheckpoint);
         closeShards(indexShard);
+    }
+
+    public void testSegmentInfosAndReplicationCheckpointTuple() throws Exception {
+        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            final IndexShard primary = shards.getPrimary();
+            final IndexShard replica = shards.getReplicas().get(0);
+
+            // assert before any indexing:
+            // replica:
+            Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> replicaTuple = replica.getLatestSegmentInfosAndCheckpoint();
+            try (final GatedCloseable<SegmentInfos> gatedCloseable = replicaTuple.v1()) {
+                assertReplicationCheckpoint(replica, gatedCloseable.get(), replicaTuple.v2());
+            }
+
+            // primary:
+            Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> primaryTuple = primary.getLatestSegmentInfosAndCheckpoint();
+            try (final GatedCloseable<SegmentInfos> gatedCloseable = primaryTuple.v1()) {
+                assertReplicationCheckpoint(primary, gatedCloseable.get(), primaryTuple.v2());
+            }
+            // We use compareTo here instead of equals because we ignore segments gen with replicas performing their own commits.
+            // However infos version we expect to be equal.
+            assertEquals(1, primary.getLatestReplicationCheckpoint().compareTo(replica.getLatestReplicationCheckpoint()));
+
+            // index and copy segments to replica.
+            int numDocs = randomIntBetween(10, 100);
+            shards.indexDocs(numDocs);
+            primary.refresh("test");
+            replicateSegments(primary, List.of(replica));
+
+            replicaTuple = replica.getLatestSegmentInfosAndCheckpoint();
+            try (final GatedCloseable<SegmentInfos> gatedCloseable = replicaTuple.v1()) {
+                assertReplicationCheckpoint(replica, gatedCloseable.get(), replicaTuple.v2());
+            }
+
+            primaryTuple = primary.getLatestSegmentInfosAndCheckpoint();
+            try (final GatedCloseable<SegmentInfos> gatedCloseable = primaryTuple.v1()) {
+                assertReplicationCheckpoint(primary, gatedCloseable.get(), primaryTuple.v2());
+            }
+
+            replicaTuple = replica.getLatestSegmentInfosAndCheckpoint();
+            try (final GatedCloseable<SegmentInfos> gatedCloseable = replicaTuple.v1()) {
+                assertReplicationCheckpoint(replica, gatedCloseable.get(), replicaTuple.v2());
+            }
+            assertEquals(1, primary.getLatestReplicationCheckpoint().compareTo(replica.getLatestReplicationCheckpoint()));
+        }
+    }
+
+    private void assertReplicationCheckpoint(IndexShard shard, SegmentInfos segmentInfos, ReplicationCheckpoint checkpoint)
+        throws IOException {
+        assertNotNull(segmentInfos);
+        assertEquals(checkpoint.getSeqNo(), shard.getEngine().getMaxSeqNoFromSegmentInfos(segmentInfos));
+        assertEquals(checkpoint.getSegmentInfosVersion(), segmentInfos.getVersion());
+        assertEquals(checkpoint.getSegmentsGen(), segmentInfos.getGeneration());
     }
 
     public void testIsSegmentReplicationAllowed_WrongEngineType() throws IOException {
@@ -307,15 +368,12 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         );
         updateMappings(primaryTarget, primarySource.indexSettings().getIndexMetadata());
 
-        BiFunction<List<IndexShard>, ActionListener<Void>, List<SegmentReplicationTarget>> replicatePrimaryFunction = (
-            shardList,
-            listener) -> {
+        Function<List<IndexShard>, List<SegmentReplicationTarget>> replicatePrimaryFunction = (shardList) -> {
             try {
                 assert shardList.size() >= 2;
                 final IndexShard primary = shardList.get(0);
-                return replicateSegments(primary, shardList.subList(1, shardList.size()), listener);
+                return replicateSegments(primary, shardList.subList(1, shardList.size()));
             } catch (IOException | InterruptedException e) {
-                listener.onFailure(e);
                 throw new RuntimeException(e);
             }
         };
@@ -347,11 +405,12 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         );
         updateMappings(primaryTarget, primarySource.indexSettings().getIndexMetadata());
 
-        BiFunction<List<IndexShard>, ActionListener<Void>, List<SegmentReplicationTarget>> replicatePrimaryFunction = (
-            shardList,
-            listener) -> {
-            listener.onFailure(new IOException("Expected failure"));
-            return null;
+        Function<List<IndexShard>, List<SegmentReplicationTarget>> replicatePrimaryFunction = (shardList) -> {
+            try {
+                throw new IOException("Expected failure");
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         };
         Exception e = expectThrows(
             Exception.class,
@@ -366,7 +425,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
                     @Override
                     public void onFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
-                        assertThat(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), equalTo("Expected failure"));
+                        assertEquals(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), "Expected failure");
                     }
                 }),
                 true,
@@ -374,8 +433,117 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                 replicatePrimaryFunction
             )
         );
-        assertThat(e, hasToString(containsString("Expected failure")));
         closeShards(primarySource, primaryTarget);
+    }
+
+    // Todo: Remove this test when there is a better mechanism to test a functionality passing in different replication
+    // strategy.
+    public void testLockingBeforeAndAfterRelocated() throws Exception {
+        final IndexShard shard = newStartedShard(true, settings);
+        final ShardRouting routing = ShardRoutingHelper.relocate(shard.routingEntry(), "other_node");
+        IndexShardTestCase.updateRoutingEntry(shard, routing);
+        CountDownLatch latch = new CountDownLatch(1);
+        Thread recoveryThread = new Thread(() -> {
+            latch.countDown();
+            try {
+                shard.relocated(routing.getTargetRelocatingShard().allocationId().getId(), primaryContext -> {}, () -> {});
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        try (Releasable ignored = acquirePrimaryOperationPermitBlockingly(shard)) {
+            // start finalization of recovery
+            recoveryThread.start();
+            latch.await();
+            // recovery can only be finalized after we release the current primaryOperationLock
+            assertFalse(shard.isRelocatedPrimary());
+        }
+        // recovery can be now finalized
+        recoveryThread.join();
+        assertTrue(shard.isRelocatedPrimary());
+        final ExecutionException e = expectThrows(ExecutionException.class, () -> acquirePrimaryOperationPermitBlockingly(shard));
+        assertThat(e.getCause(), instanceOf(ShardNotInPrimaryModeException.class));
+        assertThat(e.getCause(), hasToString(containsString("shard is not in primary mode")));
+
+        closeShards(shard);
+    }
+
+    // Todo: Remove this test when there is a better mechanism to test a functionality passing in different replication
+    // strategy.
+    public void testDelayedOperationsBeforeAndAfterRelocated() throws Exception {
+        final IndexShard shard = newStartedShard(true, settings);
+        final ShardRouting routing = ShardRoutingHelper.relocate(shard.routingEntry(), "other_node");
+        IndexShardTestCase.updateRoutingEntry(shard, routing);
+        final CountDownLatch startRecovery = new CountDownLatch(1);
+        final CountDownLatch relocationStarted = new CountDownLatch(1);
+        Thread recoveryThread = new Thread(() -> {
+            try {
+                startRecovery.await();
+                shard.relocated(
+                    routing.getTargetRelocatingShard().allocationId().getId(),
+                    primaryContext -> relocationStarted.countDown(),
+                    () -> {}
+                );
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        recoveryThread.start();
+
+        final int numberOfAcquisitions = randomIntBetween(1, 10);
+        final List<Runnable> assertions = new ArrayList<>(numberOfAcquisitions);
+        final int recoveryIndex = randomIntBetween(0, numberOfAcquisitions - 1);
+
+        for (int i = 0; i < numberOfAcquisitions; i++) {
+            final PlainActionFuture<Releasable> onLockAcquired;
+            if (i < recoveryIndex) {
+                final AtomicBoolean invoked = new AtomicBoolean();
+                onLockAcquired = new PlainActionFuture<Releasable>() {
+
+                    @Override
+                    public void onResponse(Releasable releasable) {
+                        invoked.set(true);
+                        releasable.close();
+                        super.onResponse(releasable);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new AssertionError();
+                    }
+
+                };
+                assertions.add(() -> assertTrue(invoked.get()));
+            } else if (recoveryIndex == i) {
+                startRecovery.countDown();
+                relocationStarted.await();
+                onLockAcquired = new PlainActionFuture<>();
+                assertions.add(() -> {
+                    final ExecutionException e = expectThrows(ExecutionException.class, () -> onLockAcquired.get(30, TimeUnit.SECONDS));
+                    assertThat(e.getCause(), instanceOf(ShardNotInPrimaryModeException.class));
+                    assertThat(e.getCause(), hasToString(containsString("shard is not in primary mode")));
+                });
+            } else {
+                onLockAcquired = new PlainActionFuture<>();
+                assertions.add(() -> {
+                    final ExecutionException e = expectThrows(ExecutionException.class, () -> onLockAcquired.get(30, TimeUnit.SECONDS));
+                    assertThat(e.getCause(), instanceOf(ShardNotInPrimaryModeException.class));
+                    assertThat(e.getCause(), hasToString(containsString("shard is not in primary mode")));
+                });
+            }
+
+            shard.acquirePrimaryOperationPermit(onLockAcquired, ThreadPool.Names.WRITE, "i_" + i);
+        }
+
+        for (final Runnable assertion : assertions) {
+            assertion.run();
+        }
+
+        recoveryThread.join();
+
+        closeShards(shard);
     }
 
     public void testReplicaReceivesLowerGeneration() throws Exception {
@@ -405,18 +573,17 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             replicateSegments(primary, List.of(replica_1));
 
             assertEqualCommittedSegments(primary, replica_1);
-            assertLatestCommitGen(4, primary, replica_1);
-            assertLatestCommitGen(2, replica_2);
+            assertLatestCommitGen(4, primary);
+            assertLatestCommitGen(5, replica_1);
+            assertLatestCommitGen(3, replica_2);
 
             shards.promoteReplicaToPrimary(replica_2).get();
             primary.close("demoted", false);
             primary.store().close();
             IndexShard oldPrimary = shards.addReplicaWithExistingPath(primary.shardPath(), primary.routingEntry().currentNodeId());
             shards.recoverReplica(oldPrimary);
-            assertLatestCommitGen(4, oldPrimary);
-            assertEqualCommittedSegments(oldPrimary, replica_1);
-
-            assertLatestCommitGen(4, replica_2);
+            assertLatestCommitGen(5, oldPrimary);
+            assertLatestCommitGen(5, replica_2);
 
             numDocs = randomIntBetween(numDocs + 1, numDocs + 10);
             shards.indexDocs(numDocs);
@@ -603,10 +770,12 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             for (IndexShard shard : shards.getReplicas()) {
                 assertDocCounts(shard, totalDocs, numDocs);
             }
-            assertEquals(additonalDocs, nextPrimary.translogStats().estimatedNumberOfOperations());
-            assertEquals(additonalDocs, replica.translogStats().estimatedNumberOfOperations());
-            assertEquals(additonalDocs, nextPrimary.translogStats().getUncommittedOperations());
-            assertEquals(additonalDocs, replica.translogStats().getUncommittedOperations());
+            assertEquals(totalDocs, oldPrimary.translogStats().estimatedNumberOfOperations());
+            assertEquals(totalDocs, oldPrimary.translogStats().estimatedNumberOfOperations());
+            assertEquals(totalDocs, nextPrimary.translogStats().estimatedNumberOfOperations());
+            assertEquals(totalDocs, replica.translogStats().estimatedNumberOfOperations());
+            assertEquals(totalDocs, nextPrimary.translogStats().getUncommittedOperations());
+            assertEquals(totalDocs, replica.translogStats().getUncommittedOperations());
 
             // promote the replica
             shards.syncGlobalCheckpoint();

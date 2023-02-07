@@ -35,7 +35,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterName;
@@ -61,6 +60,7 @@ import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.Strings;
 import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
@@ -73,6 +73,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.ListenableFuture;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.discovery.DiscoveryModule;
@@ -1318,16 +1319,22 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     // deserialized from the resulting JSON
     private boolean assertPreviousStateConsistency(ClusterChangedEvent event) {
         assert event.previousState() == coordinationState.get().getLastAcceptedState()
-            || XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(event.previousState()), false)
+            || XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(XContentType.JSON, event.previousState()), false)
                 .equals(
                     XContentHelper.convertToMap(
                         JsonXContent.jsonXContent,
-                        Strings.toString(clusterStateWithNoClusterManagerBlock(coordinationState.get().getLastAcceptedState())),
+                        Strings.toString(
+                            XContentType.JSON,
+                            clusterStateWithNoClusterManagerBlock(coordinationState.get().getLastAcceptedState())
+                        ),
                         false
                     )
-                ) : Strings.toString(event.previousState())
+                ) : Strings.toString(XContentType.JSON, event.previousState())
                     + " vs "
-                    + Strings.toString(clusterStateWithNoClusterManagerBlock(coordinationState.get().getLastAcceptedState()));
+                    + Strings.toString(
+                        XContentType.JSON,
+                        clusterStateWithNoClusterManagerBlock(coordinationState.get().getLastAcceptedState())
+                    );
         return true;
     }
 
@@ -1437,8 +1444,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         peerFinder.onNodeCommissionStatusChange(localNodeCommissioned);
     }
 
-    // package-visible for testing
-    boolean localNodeCommissioned() {
+    public boolean localNodeCommissioned() {
         return localNodeCommissioned;
     }
 

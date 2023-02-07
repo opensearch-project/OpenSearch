@@ -53,6 +53,7 @@ import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParser.Token;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
@@ -260,7 +261,7 @@ public class MultiGetRequest extends ActionRequest
         }
 
         public String toString() {
-            return Strings.toString(this);
+            return Strings.toString(XContentType.JSON, this);
         }
 
     }

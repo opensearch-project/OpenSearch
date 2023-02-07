@@ -60,16 +60,23 @@ public abstract class ShardsBalancer {
     abstract MoveDecision decideRebalance(ShardRouting shardRouting);
 
     /**
-     * Returns the average of shards per node for the given index
+     * Returns the average of shards per node
      */
     public float avgShardsPerNode() {
         return Float.MAX_VALUE;
     }
 
     /**
-     * Returns the global average of shards per node
+     * Returns the global average of shards per node for the given index
      */
     public float avgShardsPerNode(String index) {
+        return Float.MAX_VALUE;
+    }
+
+    /**
+     * Returns the average of primary shards per node
+     */
+    public float avgPrimaryShardsPerNode() {
         return Float.MAX_VALUE;
     }
 }

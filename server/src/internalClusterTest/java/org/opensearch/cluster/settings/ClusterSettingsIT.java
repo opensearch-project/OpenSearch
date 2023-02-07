@@ -41,6 +41,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -78,7 +79,7 @@ public class ClusterSettingsIT extends OpenSearchIntegTestCase {
         try {
             client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(key1, value1).build()).get();
             fail("bogus value");
-        } catch (IllegalArgumentException ex) {
+        } catch (SettingsException ex) {
             assertEquals("transient setting [no_idea_what_you_are_talking_about], not recognized", ex.getMessage());
         }
     }

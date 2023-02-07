@@ -28,8 +28,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * This class manages TransportActions for extensions
@@ -108,10 +110,9 @@ public class ExtensionTransportActionsHandler {
      * @return {@link TransportResponse} which is sent back to the transport action invoker.
      * @throws InterruptedException when message transport fails.
      */
-    public TransportResponse handleTransportActionRequestFromExtension(TransportActionRequestFromExtension request)
-        throws InterruptedException {
+    public TransportResponse handleTransportActionRequestFromExtension(TransportActionRequestFromExtension request) throws Exception {
         DiscoveryExtensionNode extension = extensionIdMap.get(request.getUniqueId());
-        final CountDownLatch inProgressLatch = new CountDownLatch(1);
+        final CompletableFuture<ExtensionActionResponse> inProgressFuture = new CompletableFuture<>();
         final TransportActionResponseToExtension response = new TransportActionResponseToExtension(new byte[0]);
         client.execute(
             ExtensionProxyAction.INSTANCE,
@@ -120,7 +121,7 @@ public class ExtensionTransportActionsHandler {
                 @Override
                 public void onResponse(ExtensionActionResponse actionResponse) {
                     response.setResponseBytes(actionResponse.getResponseBytes());
-                    inProgressLatch.countDown();
+                    inProgressFuture.complete(actionResponse);
                 }
 
                 @Override
@@ -128,11 +129,24 @@ public class ExtensionTransportActionsHandler {
                     logger.debug("Transport request failed", exp);
                     byte[] responseBytes = ("Request failed: " + exp.getMessage()).getBytes(StandardCharsets.UTF_8);
                     response.setResponseBytes(responseBytes);
-                    inProgressLatch.countDown();
+                    inProgressFuture.completeExceptionally(exp);
                 }
             }
         );
-        inProgressLatch.await(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
+        try {
+            inProgressFuture.orTimeout(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof TimeoutException) {
+                logger.info("No response from extension to request.");
+            }
+            if (e.getCause() instanceof RuntimeException) {
+                throw (RuntimeException) e.getCause();
+            } else if (e.getCause() instanceof Error) {
+                throw (Error) e.getCause();
+            } else {
+                throw new RuntimeException(e.getCause());
+            }
+        }
         return response;
     }
 
@@ -143,12 +157,12 @@ public class ExtensionTransportActionsHandler {
      * @return {@link ExtensionActionResponse} which encapsulates the transport response from the extension.
      * @throws InterruptedException when message transport fails.
      */
-    public ExtensionActionResponse sendTransportRequestToExtension(ExtensionActionRequest request) throws InterruptedException {
+    public ExtensionActionResponse sendTransportRequestToExtension(ExtensionActionRequest request) throws Exception {
         DiscoveryExtensionNode extension = actionsMap.get(request.getAction());
         if (extension == null) {
             throw new ActionNotFoundTransportException(request.getAction());
         }
-        final CountDownLatch inProgressLatch = new CountDownLatch(1);
+        final CompletableFuture<ExtensionActionResponse> inProgressFuture = new CompletableFuture<>();
         final ExtensionActionResponse extensionActionResponse = new ExtensionActionResponse(new byte[0]);
         final TransportResponseHandler<ExtensionActionResponse> extensionActionResponseTransportResponseHandler =
             new TransportResponseHandler<ExtensionActionResponse>() {
@@ -161,7 +175,7 @@ public class ExtensionTransportActionsHandler {
                 @Override
                 public void handleResponse(ExtensionActionResponse response) {
                     extensionActionResponse.setResponseBytes(response.getResponseBytes());
-                    inProgressLatch.countDown();
+                    inProgressFuture.complete(response);
                 }
 
                 @Override
@@ -169,7 +183,7 @@ public class ExtensionTransportActionsHandler {
                     logger.debug("Transport request failed", exp);
                     byte[] responseBytes = ("Request failed: " + exp.getMessage()).getBytes(StandardCharsets.UTF_8);
                     extensionActionResponse.setResponseBytes(responseBytes);
-                    inProgressLatch.countDown();
+                    inProgressFuture.completeExceptionally(exp);
                 }
 
                 @Override
@@ -187,7 +201,20 @@ public class ExtensionTransportActionsHandler {
         } catch (Exception e) {
             logger.info("Failed to send transport action to extension " + extension.getName(), e);
         }
-        inProgressLatch.await(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS);
+        try {
+            inProgressFuture.orTimeout(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
+        } catch (CompletionException e) {
+            if (e.getCause() instanceof TimeoutException) {
+                logger.info("No response from extension to request.");
+            }
+            if (e.getCause() instanceof RuntimeException) {
+                throw (RuntimeException) e.getCause();
+            } else if (e.getCause() instanceof Error) {
+                throw (Error) e.getCause();
+            } else {
+                throw new RuntimeException(e.getCause());
+            }
+        }
         return extensionActionResponse;
     }
 }

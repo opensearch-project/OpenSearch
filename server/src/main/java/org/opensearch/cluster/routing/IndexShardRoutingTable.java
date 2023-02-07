@@ -77,6 +77,8 @@ import static java.util.Collections.emptyMap;
 public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     final ShardShuffler shuffler;
+    // Shuffler for weighted round-robin shard routing. This uses rotation to permute shards.
+    final ShardShuffler shufflerForWeightedRouting;
     final ShardId shardId;
 
     final ShardRouting primary;
@@ -105,6 +107,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     IndexShardRoutingTable(ShardId shardId, List<ShardRouting> shards) {
         this.shardId = shardId;
         this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
+        this.shufflerForWeightedRouting = new RotationShardShuffler(Randomness.get().nextInt());
         this.shards = Collections.unmodifiableList(shards);
 
         ShardRouting primary = null;
@@ -323,11 +326,11 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         double defaultWeight,
         boolean isFailOpenEnabled
     ) {
-        final int seed = shuffler.nextSeed();
+        final int seed = shufflerForWeightedRouting.nextSeed();
         List<ShardRouting> ordered = new ArrayList<>();
         List<ShardRouting> orderedActiveShards = getActiveShardsByWeight(weightedRouting, nodes, defaultWeight);
         List<ShardRouting> orderedListWithDistinctShards;
-        ordered.addAll(shuffler.shuffle(orderedActiveShards, seed));
+        ordered.addAll(shufflerForWeightedRouting.shuffle(orderedActiveShards, seed));
         if (!allInitializingShards.isEmpty()) {
             List<ShardRouting> orderedInitializingShards = getInitializingShardsByWeight(weightedRouting, nodes, defaultWeight);
             ordered.addAll(orderedInitializingShards);
