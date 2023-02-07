@@ -25,6 +25,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
@@ -59,6 +60,7 @@ import java.util.Objects;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 public final class IdentityPlugin extends Plugin implements ActionPlugin, NetworkPlugin, SystemIndexPlugin, ClusterPlugin {
     private volatile Logger log = LogManager.getLogger(this.getClass());
@@ -95,6 +97,14 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         }
 
         this.settings = settings;
+    }
+
+    @Override
+    public UnaryOperator<RestHandler> getRestHandlerWrapper(final ThreadContext threadContext) {
+        if (!enabled) {
+            return (rh) -> rh;
+        }
+        return (rh) -> securityRestHandler.wrap(rh);
     }
 
     @Override
