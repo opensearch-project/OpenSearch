@@ -550,7 +550,7 @@ wrapper {
     println "Added checksum to wrapper properties"
     // Update build-tools to reflect the Gradle upgrade
     // TODO: we can remove this once we have tests to make sure older versions work.
-    project(':build-tools').file('src/main/resources/minimumGradleVersion').text = gradleVersion
+    project(':build-tools').file('src/main/resources/minimumGradleVersion').text = gradleVersion + System.getProperty("line.separator")
     println "Updated minimum Gradle Version"
   }
 }
