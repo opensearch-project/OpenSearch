@@ -32,10 +32,11 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.repositories.fs.FsRepository;
 
-import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -466,10 +467,12 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
                     // Find all the files in the path
                     try (Stream<Path> paths = Files.walk(shardRootPath)) {
                         paths.filter(Files::isRegularFile).forEach(path -> {
-                            File file = path.toFile();
-                            // Testing renaming the file to check the file is closed or not.
-                            boolean fileIsClosed = file.renameTo(file);
-                            assertThat(fileIsClosed, is(true));
+                            // Testing moving the file to check the file is closed or not.
+                            try {
+                                Files.move(path, path, StandardCopyOption.REPLACE_EXISTING);
+                            } catch (IOException e) {
+                                fail("No exception is expected. The file can't be moved, so it may not be closed.");
+                            }
                         });
                     } catch (NoSuchFileException e) {
                         logger.debug("--> the root path for the restored index data doesn't exist.");
