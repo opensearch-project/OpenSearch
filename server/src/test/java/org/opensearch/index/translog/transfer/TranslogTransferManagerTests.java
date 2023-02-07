@@ -85,7 +85,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             ActionListener<TransferFileSnapshot> listener = (ActionListener<TransferFileSnapshot>) invocationOnMock.getArguments()[2];
             listener.onResponse((TransferFileSnapshot) invocationOnMock.getArguments()[0]);
             return null;
-        }).when(transferService).uploadBlobAsync(any(TransferFileSnapshot.class), any(BlobPath.class), any(ActionListener.class));
+        }).when(transferService)
+            .uploadBlobAsync(any(String.class), any(TransferFileSnapshot.class), any(BlobPath.class), any(ActionListener.class));
 
         FileTransferTracker fileTransferTracker = new FileTransferTracker(new ShardId("index", "indexUUid", 0)) {
             @Override
@@ -330,7 +331,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         assertEquals(2, tracker.allUploaded().size());
 
         List<String> files = List.of(checkpointFile, translogFile);
-        translogTransferManager.deleteTranslog(primaryTerm, Set.of(19L));
+        translogTransferManager.deleteTranslogAsync(primaryTerm, Set.of(19L));
         assertBusy(() -> assertEquals(0, tracker.allUploaded().size()));
         verify(blobContainer).deleteBlobsIgnoringIfNotExists(eq(files));
     }
@@ -352,7 +353,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         tracker.add(checkpointFile, true);
         assertEquals(2, tracker.allUploaded().size());
 
-        translogTransferManager.deleteTranslog(primaryTerm, Set.of(19L));
+        translogTransferManager.deleteTranslogAsync(primaryTerm, Set.of(19L));
         assertEquals(2, tracker.allUploaded().size());
     }
 }

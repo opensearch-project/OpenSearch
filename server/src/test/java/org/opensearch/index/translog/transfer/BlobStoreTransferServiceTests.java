@@ -71,19 +71,24 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
         FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(testFile, randomNonNegativeLong());
         CountDownLatch latch = new CountDownLatch(1);
         TransferService transferService = new BlobStoreTransferService(repository.blobStore(), threadPool);
-        transferService.uploadBlobAsync(transferFileSnapshot, repository.basePath(), new LatchedActionListener<>(new ActionListener<>() {
-            @Override
-            public void onResponse(FileSnapshot.TransferFileSnapshot fileSnapshot) {
-                assert succeeded.compareAndSet(false, true);
-                assertEquals(transferFileSnapshot.getPrimaryTerm(), fileSnapshot.getPrimaryTerm());
-                assertEquals(transferFileSnapshot.getName(), fileSnapshot.getName());
-            }
+        transferService.uploadBlobAsync(
+            ThreadPool.Names.TRANSLOG_TRANSFER,
+            transferFileSnapshot,
+            repository.basePath(),
+            new LatchedActionListener<>(new ActionListener<>() {
+                @Override
+                public void onResponse(FileSnapshot.TransferFileSnapshot fileSnapshot) {
+                    assert succeeded.compareAndSet(false, true);
+                    assertEquals(transferFileSnapshot.getPrimaryTerm(), fileSnapshot.getPrimaryTerm());
+                    assertEquals(transferFileSnapshot.getName(), fileSnapshot.getName());
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError("Failed to perform uploadBlobAsync", e);
-            }
-        }, latch));
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError("Failed to perform uploadBlobAsync", e);
+                }
+            }, latch)
+        );
         assertTrue(latch.await(1000, TimeUnit.MILLISECONDS));
         assertTrue(succeeded.get());
     }

@@ -18,6 +18,7 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -97,6 +98,7 @@ public class TranslogTransferManager {
             );
             toUpload.forEach(
                 fileSnapshot -> transferService.uploadBlobAsync(
+                    ThreadPool.Names.TRANSLOG_TRANSFER,
                     fileSnapshot,
                     remoteBaseTransferPath.add(String.valueOf(fileSnapshot.getPrimaryTerm())),
                     latchedActionListener
@@ -197,12 +199,12 @@ public class TranslogTransferManager {
 
     /**
      * This method handles deletion of multiple generations for a single primary term.
-     *  TODO: Take care of metadata file cleanup. <a href="https://github.com/opensearch-project/OpenSearch/issues/5677">Github Issue #5677</a>
+     * TODO: Take care of metadata file cleanup. <a href="https://github.com/opensearch-project/OpenSearch/issues/5677">Github Issue #5677</a>
      *
-     * @param primaryTerm primary term
-     * @param generations set of generation
+     * @param primaryTerm primary term where the generations will be deleted.
+     * @param generations set of generation to delete.
      */
-    public void deleteTranslog(long primaryTerm, Set<Long> generations) {
+    public void deleteTranslogAsync(long primaryTerm, Set<Long> generations) {
         if (generations.isEmpty()) {
             return;
         }
@@ -212,46 +214,86 @@ public class TranslogTransferManager {
             String translogFilename = Translog.getFilename(generation);
             files.addAll(List.of(ckpFileName, translogFilename));
         });
-        try {
-            transferService.deleteBlobs(remoteBaseTransferPath.add(String.valueOf(primaryTerm)), files);
-            fileTransferTracker.delete(files);
-        } catch (IOException e) {
-            logger.error(
-                () -> new ParameterizedMessage(
-                    "Exception occurred while deleting translog for primary_term={} generations={}",
-                    primaryTerm,
-                    generations
-                ),
-                e
-            );
-        }
+        transferService.deleteBlobsAsync(
+            ThreadPool.Names.REMOTE_PURGE,
+            remoteBaseTransferPath.add(String.valueOf(primaryTerm)),
+            files,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    fileTransferTracker.delete(files);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error(
+                        () -> new ParameterizedMessage(
+                            "Exception occurred while deleting translog for primary_term={} generations={}",
+                            primaryTerm,
+                            generations
+                        ),
+                        e
+                    );
+                }
+            }
+        );
+    }
+
+    /**
+     * Deletes all primary terms from remote store that are more than the given {@code minPrimaryTermToKeep}. The caller
+     * of the method must ensure that the value is lesser than equal to the minimum primary term referenced by the remote
+     * translog metadata.
+     *
+     * @param minPrimaryTermToKeep all primary terms above this primary term are deleted.
+     */
+    public void deletePrimaryTermsAsync(long minPrimaryTermToKeep) {
+        logger.info("Deleting primary term from remote store lesser than {}", minPrimaryTermToKeep);
+        transferService.listFoldersAsync(ThreadPool.Names.REMOTE_PURGE, remoteBaseTransferPath, new ActionListener<>() {
+            @Override
+            public void onResponse(Set<String> folders) {
+                Set<Long> primaryTermsInRemote = folders.stream().filter(folderName -> {
+                    try {
+                        Long.parseLong(folderName);
+                        return true;
+                    } catch (Exception ignored) {
+                        // NO-OP
+                    }
+                    return false;
+                }).map(Long::parseLong).collect(Collectors.toSet());
+                // Delete all primary terms that are no more referenced by the metadata file and exists in the
+                Set<Long> primaryTermsToDelete = primaryTermsInRemote.stream()
+                    .filter(term -> term < minPrimaryTermToKeep)
+                    .collect(Collectors.toSet());
+                primaryTermsToDelete.forEach(term -> deletePrimaryTermAsync(term));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("Exception occurred while getting primary terms from remote store", e);
+            }
+        });
     }
 
     /**
      * Handles deletion of all translog files associated with a primary term.
      *
-     * @param primaryTerm primary term
-     * @throws IOException is thrown if it can't read the data.
+     * @param primaryTerm primary term.
      */
-    public void deletePrimaryTerm(long primaryTerm) throws IOException {
-        transferService.delete(remoteBaseTransferPath.add(String.valueOf(primaryTerm)));
-    }
+    private void deletePrimaryTermAsync(long primaryTerm) {
+        transferService.deleteAsync(
+            ThreadPool.Names.REMOTE_PURGE,
+            remoteBaseTransferPath.add(String.valueOf(primaryTerm)),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    logger.info("Deleted primary term {}", primaryTerm);
+                }
 
-    /**
-     * Lists all primary terms existing on remote store.
-     *
-     * @return the list of primary terms.
-     * @throws IOException is thrown if it can't read the data.
-     */
-    public Set<Long> listPrimaryTerms() throws IOException {
-        return transferService.listFolders(remoteBaseTransferPath).stream().filter(s -> {
-            try {
-                Long.parseLong(s);
-                return true;
-            } catch (Exception ignored) {
-                // NO-OP
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error(new ParameterizedMessage("Exception occurred while deleting primary term {}", primaryTerm), e);
+                }
             }
-            return false;
-        }).map(Long::parseLong).collect(Collectors.toSet());
+        );
     }
 }

@@ -42,6 +42,7 @@ public class BlobStoreTransferService implements TransferService {
 
     @Override
     public void uploadBlobAsync(
+        String threadpoolName,
         final TransferFileSnapshot fileSnapshot,
         Iterable<String> remoteTransferPath,
         ActionListener<TransferFileSnapshot> listener
@@ -80,8 +81,32 @@ public class BlobStoreTransferService implements TransferService {
     }
 
     @Override
+    public void deleteBlobsAsync(String threadpoolName, Iterable<String> path, List<String> fileNames, ActionListener<Void> listener) {
+        threadPool.executor(threadpoolName).execute(() -> {
+            try {
+                deleteBlobs(path, fileNames);
+                listener.onResponse(null);
+            } catch (IOException e) {
+                listener.onFailure(e);
+            }
+        });
+    }
+
+    @Override
     public void delete(Iterable<String> path) throws IOException {
         blobStore.blobContainer((BlobPath) path).delete();
+    }
+
+    @Override
+    public void deleteAsync(String threadpoolName, Iterable<String> path, ActionListener<Void> listener) {
+        threadPool.executor(threadpoolName).execute(() -> {
+            try {
+                delete(path);
+                listener.onResponse(null);
+            } catch (IOException e) {
+                listener.onFailure(e);
+            }
+        });
     }
 
     @Override
@@ -92,5 +117,16 @@ public class BlobStoreTransferService implements TransferService {
     @Override
     public Set<String> listFolders(Iterable<String> path) throws IOException {
         return blobStore.blobContainer((BlobPath) path).children().keySet();
+    }
+
+    @Override
+    public void listFoldersAsync(String threadpoolName, Iterable<String> path, ActionListener<Set<String>> listener) {
+        threadPool.executor(threadpoolName).execute(() -> {
+            try {
+                listener.onResponse(listFolders(path));
+            } catch (IOException e) {
+                listener.onFailure(e);
+            }
+        });
     }
 }
