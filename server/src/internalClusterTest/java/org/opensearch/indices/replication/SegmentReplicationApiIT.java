@@ -19,13 +19,14 @@ import org.opensearch.transport.TransportService;
 
 import java.util.concurrent.CountDownLatch;
 
+import static java.util.Arrays.asList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SegmentReplicationApiIT extends SegmentReplicationBaseIT {
 
-    public void testSegmentReplicationApiResponse() {
+    public void testSegmentReplicationApiResponse() throws Exception {
         logger.info("--> starting [Primary Node] ...");
         final String primaryNode = internalCluster().startNode();
         createIndex(INDEX_NAME);
@@ -38,8 +39,7 @@ public class SegmentReplicationApiIT extends SegmentReplicationBaseIT {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         refresh(INDEX_NAME);
-        logger.info("--> verifying count");
-        assertEquals(client().prepareSearch(INDEX_NAME).setSize(0).execute().actionGet().getHits().getTotalHits().value, 10L);
+        waitForSearchableDocs(10L, asList(primaryNode, replicaNode));
 
         SegmentReplicationStatsResponse response = client().admin().indices().prepareSegmentReplication(INDEX_NAME).execute().actionGet();
         // Verify API Response
@@ -48,7 +48,7 @@ public class SegmentReplicationApiIT extends SegmentReplicationBaseIT {
         assertThat(response.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getIndex().recoveredFileCount(), greaterThan(0));
     }
 
-    public void testSegmentReplicationApiResponseForActiveAndCompletedOnly() {
+    public void testSegmentReplicationApiResponseForActiveAndCompletedOnly() throws Exception {
         logger.info("--> starting [Primary Node] ...");
         final String primaryNode = internalCluster().startNode();
         createIndex(INDEX_NAME);
@@ -61,6 +61,7 @@ public class SegmentReplicationApiIT extends SegmentReplicationBaseIT {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         refresh(INDEX_NAME);
+        waitForSearchableDocs(10L, asList(primaryNode, replicaNode));
         for (int i = 10; i < 20; i++) {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
