@@ -497,10 +497,33 @@ public class XContentHelper {
      * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
      * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
      * by the {@link ToXContent#isFragment()} method returns.
+     *
+     * @deprecated use {@link #toXContent(ToXContent, MediaType, Params, boolean)} instead
      */
+    @Deprecated
     public static BytesReference toXContent(ToXContent toXContent, XContentType xContentType, Params params, boolean humanReadable)
         throws IOException {
         try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+            builder.humanReadable(humanReadable);
+            if (toXContent.isFragment()) {
+                builder.startObject();
+            }
+            toXContent.toXContent(builder, params);
+            if (toXContent.isFragment()) {
+                builder.endObject();
+            }
+            return BytesReference.bytes(builder);
+        }
+    }
+
+    /**
+     * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
+     * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
+     * by the {@link ToXContent#isFragment()} method returns.
+     */
+    public static BytesReference toXContent(ToXContent toXContent, MediaType mediaType, Params params, boolean humanReadable)
+        throws IOException {
+        try (XContentBuilder builder = XContentBuilder.builder(mediaType.xContent())) {
             builder.humanReadable(humanReadable);
             if (toXContent.isFragment()) {
                 builder.startObject();
