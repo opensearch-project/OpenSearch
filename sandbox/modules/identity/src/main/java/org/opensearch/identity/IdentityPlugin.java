@@ -97,7 +97,6 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         this.settings = settings;
     }
 
-
     @Override
     public List<ActionFilter> getActionFilters() {
         List<ActionFilter> filters = new ArrayList<>(1);

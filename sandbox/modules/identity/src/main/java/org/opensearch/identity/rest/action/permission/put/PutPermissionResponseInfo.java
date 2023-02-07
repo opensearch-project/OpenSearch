@@ -29,7 +29,6 @@ public class PutPermissionResponseInfo extends TransportResponse implements Writ
     private final String username;
     private final String permissionString;
 
-
     /**
      * Construct an instance of a put permission response info (these are aggregated into a response for bulk requests)
      * @param successful whether the request was successful
@@ -54,17 +53,17 @@ public class PutPermissionResponseInfo extends TransportResponse implements Writ
 
     }
 
-    public boolean isSuccessful(){
+    public boolean isSuccessful() {
         return this.successful;
     }
+
     public String getUsername() {
         return this.username;
     }
+
     public String getPermissionString() {
         return permissionString;
     }
-
-
 
     /**
      * An output stream for writing the information to another node
@@ -96,7 +95,6 @@ public class PutPermissionResponseInfo extends TransportResponse implements Writ
     private static final ParseField SUCCESSFUL = new ParseField("successful");
     private static final ParseField USERNAME = new ParseField("username");
     private static final ParseField PERMISSION_STRING = new ParseField("permission added");
-
 
     /**
      * Write the response info to Xcontent (JSON formatted data) that you will see as the response message to the request

@@ -21,7 +21,6 @@ import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
-
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.rest.RestStatus.NOT_FOUND;
 import static org.opensearch.rest.RestStatus.OK;

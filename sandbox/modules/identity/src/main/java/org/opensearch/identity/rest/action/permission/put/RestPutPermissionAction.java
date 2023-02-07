@@ -75,12 +75,16 @@ public class RestPutPermissionAction extends BaseRestHandler {
             contentAsNode = DefaultObjectMapper.readTree(request.content().utf8ToString());
             String permissionString = contentAsNode.get("permissionString").asText();
 
-            PutPermissionRequest putPermissionRequest  = new PutPermissionRequest(username, permissionString);
+            PutPermissionRequest putPermissionRequest = new PutPermissionRequest(username, permissionString);
 
             // TODO: check if this bypass to directly doExecute is okay.
             // TODO: Ideally, this should be registered as `createUser` request in Client.java and AbstractClient.java
             // TODO: see if you can add to RequestConverters.java to follow convention
-            return channel -> client.doExecute(PutPermissionAction.INSTANCE, putPermissionRequest, new RestStatusToXContentListener<>(channel));
+            return channel -> client.doExecute(
+                PutPermissionAction.INSTANCE,
+                putPermissionRequest,
+                new RestStatusToXContentListener<>(channel)
+            );
         } catch (JsonParseException e) {
             throw new IllegalArgumentException(ErrorType.BODY_NOT_PARSEABLE.getMessage() + "PUT");
         }
@@ -94,6 +98,6 @@ public class RestPutPermissionAction extends BaseRestHandler {
     public List<Route> routes() {
         // e.g. return value "/permissions/{username}" which is then added to "_identity/api"
 
-        return addRoutesPrefix(asList(new Route(PUT, RestConstants.PERMISSION_SUBPATH +"/{username}")));
+        return addRoutesPrefix(asList(new Route(PUT, RestConstants.PERMISSION_SUBPATH + "/{username}")));
     }
 }

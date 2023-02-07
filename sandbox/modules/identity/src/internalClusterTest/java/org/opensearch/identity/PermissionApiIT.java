@@ -32,7 +32,7 @@ public class PermissionApiIT extends HttpSmokeTestCaseWithIdentity {
     @SuppressWarnings("unchecked")
     public void testPermissionsRestApi() throws Exception {
 
-        //_identity_api_permissions
+        // _identity_api_permissions
         final String endpoint = RestConstants.IDENTITY_API_PERMISSION_PREFIX;
 
         String username = "test";

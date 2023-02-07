@@ -11,7 +11,6 @@ package org.opensearch.identity.rest.service;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.index.IndexResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -26,13 +25,8 @@ import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.transport.TransportService;
 import org.opensearch.identity.utils.ErrorType;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
-
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 
 /**
  * Service class for Permission related functions
@@ -53,10 +47,7 @@ public class PermissionService {
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.nodeClient = nodeClient;
-        this.identityIndex = settings.get(
-            ConfigConstants.IDENTITY_CONFIG_INDEX_NAME,
-            ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX
-        );
+        this.identityIndex = settings.get(ConfigConstants.IDENTITY_CONFIG_INDEX_NAME, ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX);
     }
 
     protected boolean ensureIndexExists() {

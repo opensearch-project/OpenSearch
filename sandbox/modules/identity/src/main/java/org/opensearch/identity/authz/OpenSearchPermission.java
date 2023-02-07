@@ -31,10 +31,8 @@ public class OpenSearchPermission implements Permission {
     public OpenSearchPermission(String permission) {
 
         this.permissionString = permission;
-        System.out.println("Permission being read is: " + this.permissionString);
         try {
             this.permissionSegments = permissionString.split(PERMISSION_DELIMITER);
-            System.out.println("Permission segments are: " + Arrays.toString(this.permissionSegments));
             this.permissionType = permissionSegments[0];
             this.action = permissionSegments[1];
         } catch (IndexOutOfBoundsException ex) {

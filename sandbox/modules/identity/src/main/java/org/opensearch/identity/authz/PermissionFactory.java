@@ -81,8 +81,12 @@ public class PermissionFactory {
                         + "' is not valid. The permission type and action may not include "
                         + "the characters "
                         + Arrays.toString(INVALID_CHARACTERS)
-                        + " or be empty. " + invalidCharacter + " was present. For permission type: " + permission.getPermissionType() +
-                        " and permission action: " + permission.getAction()
+                        + " or be empty. "
+                        + invalidCharacter
+                        + " was present. For permission type: "
+                        + permission.getPermissionType()
+                        + " and permission action: "
+                        + permission.getAction()
                 );
             }
         }
