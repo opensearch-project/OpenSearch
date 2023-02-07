@@ -17,8 +17,8 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.admin.indices.recovery.RecoveryAction;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
-import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationStatsAction;
-import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationStatsResponse;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsAction;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsAction;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -152,7 +152,7 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
         assertThat(recoveryResponse.getShardFailures()[0].reason(), containsString("ReceiveTimeoutTransportException"));
     }
 
-    public void testSegment_ReplicationWithTimeout() {
+    public void testSegmentReplicationWithTimeout() {
         internalCluster().startClusterManagerOnlyNode(
             Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REPLICATION_TYPE, "true").build()
         );

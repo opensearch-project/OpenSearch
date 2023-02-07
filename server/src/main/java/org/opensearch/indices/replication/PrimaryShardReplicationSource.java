@@ -108,9 +108,8 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
     }
 
     @Override
-    public String getSourceDescription() {
-        String description = "Host:" + this.sourceNode.getHostName() + ", Node:" + this.sourceNode.getName();
-        return description;
+    public String getDescription() {
+        return sourceNode.getName();
     }
 
     @Override

@@ -41,6 +41,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -157,27 +158,28 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     /**
      * returns SegmentReplicationState of on-going segment replication events.
      */
-    public SegmentReplicationState getOngoingEventSegmentReplicationState(ShardRouting shardRouting) {
-        SegmentReplicationTarget target = onGoingReplications.getOngoingReplicationTarget(shardRouting.shardId());
-        return target != null ? target.state() : null;
+    @Nullable
+    public SegmentReplicationState getOngoingEventSegmentReplicationState(ShardId shardId) {
+        return Optional.ofNullable(onGoingReplications.getOngoingReplicationTarget(shardId))
+            .map(SegmentReplicationTarget::state)
+            .orElse(null);
     }
 
     /**
      * returns SegmentReplicationState of latest completed segment replication events.
      */
-    public SegmentReplicationState getlatestCompletedEventSegmentReplicationState(ShardRouting shardRouting) {
-        SegmentReplicationTarget target = completedReplications.get(shardRouting.shardId());
-        return target != null ? target.state() : null;
+    @Nullable
+    public SegmentReplicationState getlatestCompletedEventSegmentReplicationState(ShardId shardId) {
+        return Optional.ofNullable(completedReplications.get(shardId)).map(SegmentReplicationTarget::state).orElse(null);
     }
 
     /**
      * returns SegmentReplicationState of on-going if present or completed segment replication events.
      */
-    public SegmentReplicationState getSegmentReplicationState(ShardRouting shardRouting) {
-        if (getOngoingEventSegmentReplicationState(shardRouting) == null) {
-            return getlatestCompletedEventSegmentReplicationState(shardRouting);
-        }
-        return getOngoingEventSegmentReplicationState(shardRouting);
+    @Nullable
+    public SegmentReplicationState getSegmentReplicationState(ShardId shardId) {
+        return Optional.ofNullable(getOngoingEventSegmentReplicationState(shardId))
+            .orElseGet(() -> getlatestCompletedEventSegmentReplicationState(shardId));
     }
 
     /**

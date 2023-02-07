@@ -260,10 +260,10 @@ import org.opensearch.action.admin.indices.rollover.RolloverAction;
 import org.opensearch.action.admin.indices.rollover.RolloverRequest;
 import org.opensearch.action.admin.indices.rollover.RolloverRequestBuilder;
 import org.opensearch.action.admin.indices.rollover.RolloverResponse;
-import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationStatsAction;
-import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationStatsRequest;
-import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationStatsRequestBuilder;
-import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationStatsResponse;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsAction;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsRequest;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsRequestBuilder;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
@@ -1780,12 +1780,12 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<SegmentReplicationStatsResponse> segment_replication(final SegmentReplicationStatsRequest request) {
+        public ActionFuture<SegmentReplicationStatsResponse> segmentReplication(final SegmentReplicationStatsRequest request) {
             return execute(SegmentReplicationStatsAction.INSTANCE, request);
         }
 
         @Override
-        public void segment_replication(
+        public void segmentReplication(
             final SegmentReplicationStatsRequest request,
             final ActionListener<SegmentReplicationStatsResponse> listener
         ) {

@@ -1326,6 +1326,11 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 }
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
             }
+
+            @Override
+            public String getDescription() {
+                return "";
+            }
         };
         when(sourceFactory.get(any())).thenReturn(replicationSource);
         when(indicesService.getShardOrNull(any())).thenReturn(target);

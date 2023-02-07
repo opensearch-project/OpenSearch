@@ -136,6 +136,11 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             ) {
                 Assert.fail("Should not be called");
             }
+
+            @Override
+            public String getDescription() {
+                return "";
+            }
         };
         final SegmentReplicationTarget target = new SegmentReplicationTarget(
             checkpoint,

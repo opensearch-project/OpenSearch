@@ -845,6 +845,11 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                 ) {
                     listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
                 }
+
+                @Override
+                public String getDescription() {
+                    return "";
+                }
             };
             when(sourceFactory.get(any())).thenReturn(source);
             startReplicationAndAssertCancellation(nextPrimary, targetService);
@@ -915,6 +920,11 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                 ) {
                     Assert.fail("Should not be reached");
                 }
+
+                @Override
+                public String getDescription() {
+                    return "";
+                }
             };
             when(sourceFactory.get(any())).thenReturn(source);
             startReplicationAndAssertCancellation(replica, targetService);
@@ -957,6 +967,11 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                     listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
                     targetService.beforeIndexShardClosed(replica.shardId, replica, Settings.EMPTY);
                 }
+
+                @Override
+                public String getDescription() {
+                    return "";
+                }
             };
             when(sourceFactory.get(any())).thenReturn(source);
             startReplicationAndAssertCancellation(replica, targetService);
@@ -995,6 +1010,11 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                     Store store,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {}
+
+                @Override
+                public String getDescription() {
+                    return "";
+                }
             };
             when(sourceFactory.get(any())).thenReturn(source);
             startReplicationAndAssertCancellation(replica, targetService);

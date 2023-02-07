@@ -67,7 +67,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
             indexShard.routingEntry(),
             stateIndex,
             getId(),
-            source.getSourceDescription(),
+            source.getDescription(),
             indexShard.recoveryState().getTargetNode()
         );
         this.multiFileWriter = new MultiFileWriter(indexShard.store(), stateIndex, getPrefix(), logger, this::ensureRefCount);

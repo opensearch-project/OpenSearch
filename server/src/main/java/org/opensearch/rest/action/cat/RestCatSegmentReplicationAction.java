@@ -9,8 +9,8 @@
 package org.opensearch.rest.action.cat;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationStatsRequest;
-import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationStatsResponse;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsRequest;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Strings;
@@ -72,7 +72,7 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
 
         return channel -> client.admin()
             .indices()
-            .segment_replication(segmentReplicationStatsRequest, new RestResponseListener<SegmentReplicationStatsResponse>(channel) {
+            .segmentReplication(segmentReplicationStatsRequest, new RestResponseListener<SegmentReplicationStatsResponse>(channel) {
                 @Override
                 public RestResponse buildResponse(final SegmentReplicationStatsResponse response) throws Exception {
                     return RestTable.buildResponse(buildSegmentReplicationTable(request, response), channel);
@@ -180,11 +180,11 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
                     t.addCell(state.getIndex().totalFileCount());
                     t.addCell(state.getIndex().totalRecoverBytes());
                     t.addCell(state.getIndex().totalBytes());
-                    t.addCell(new TimeValue(state.getReplicatingStageTime()));
-                    t.addCell(new TimeValue(state.getGetCheckpointInfoStageTime()));
-                    t.addCell(new TimeValue(state.getFileDiffStageTime()));
-                    t.addCell(new TimeValue(state.getGetFileStageTime()));
-                    t.addCell(new TimeValue(state.getFinalizeReplicationStageTime()));
+                    t.addCell(state.getReplicatingStageTime());
+                    t.addCell(state.getGetCheckpointInfoStageTime());
+                    t.addCell(state.getFileDiffStageTime());
+                    t.addCell(state.getGetFileStageTime());
+                    t.addCell(state.getFinalizeReplicationStageTime());
                 }
                 t.endRow();
             }

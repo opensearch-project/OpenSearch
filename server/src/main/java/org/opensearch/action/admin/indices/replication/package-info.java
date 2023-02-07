@@ -7,4 +7,4 @@
  */
 
 /** Segment Replication transport handlers. */
-package org.opensearch.action.admin.indices.segment_replication;
+package org.opensearch.action.admin.indices.replication;

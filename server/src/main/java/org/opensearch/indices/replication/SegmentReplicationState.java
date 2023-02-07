@@ -116,28 +116,28 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         return targetNode;
     }
 
-    public long getReplicatingStageTime() {
-        return timingData.get(Stage.REPLICATING.toString());
-    }
-
     public Map<String, Long> getTimingData() {
         return timingData;
     }
 
-    public long getGetCheckpointInfoStageTime() {
-        return timingData.get(Stage.GET_CHECKPOINT_INFO.toString());
+    public TimeValue getReplicatingStageTime() {
+        return new TimeValue(timingData.get(Stage.REPLICATING.toString()));
     }
 
-    public long getFileDiffStageTime() {
-        return timingData.get(Stage.FILE_DIFF.toString());
+    public TimeValue getGetCheckpointInfoStageTime() {
+        return new TimeValue(timingData.get(Stage.GET_CHECKPOINT_INFO.toString()));
     }
 
-    public long getGetFileStageTime() {
-        return timingData.get(Stage.GET_FILES.toString());
+    public TimeValue getFileDiffStageTime() {
+        return new TimeValue(timingData.get(Stage.FILE_DIFF.toString()));
     }
 
-    public long getFinalizeReplicationStageTime() {
-        return timingData.get(Stage.FINALIZE_REPLICATION.toString());
+    public TimeValue getGetFileStageTime() {
+        return new TimeValue(timingData.get(Stage.GET_FILES.toString()));
+    }
+
+    public TimeValue getFinalizeReplicationStageTime() {
+        return new TimeValue(timingData.get(Stage.FINALIZE_REPLICATION.toString()));
     }
 
     public SegmentReplicationState(
@@ -273,11 +273,11 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         builder.startObject(SegmentReplicationState.Fields.INDEX);
         index.toXContent(builder, params);
         builder.endObject();
-        builder.field(Fields.REPLICATING_STAGE, new TimeValue(timingData.get("REPLICATING")));
-        builder.field(Fields.GET_CHECKPOINT_INFO_STAGE, new TimeValue(timingData.get("GET_CHECKPOINT_INFO")));
-        builder.field(Fields.FILE_DIFF_STAGE, new TimeValue(timingData.get("FILE_DIFF")));
-        builder.field(Fields.GET_FILES_STAGE, new TimeValue(timingData.get("GET_FILES")));
-        builder.field(Fields.FINALIZE_REPLICATION_STAGE, new TimeValue(timingData.get("FINALIZE_REPLICATION")));
+        builder.field(Fields.REPLICATING_STAGE, getReplicatingStageTime());
+        builder.field(Fields.GET_CHECKPOINT_INFO_STAGE, getGetCheckpointInfoStageTime());
+        builder.field(Fields.FILE_DIFF_STAGE, getFileDiffStageTime());
+        builder.field(Fields.GET_FILES_STAGE, getGetFileStageTime());
+        builder.field(Fields.FINALIZE_REPLICATION_STAGE, getFinalizeReplicationStageTime());
 
         return builder;
     }
@@ -301,7 +301,6 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         static final String INDEX = "index";
 
         static final String INDEX_NAME = "index_name";
-        static final String TOTAL_GET_FILES_STAGE_TIME_IN_MILLIS = "total_get_files_stage_in_millis";
         static final String REPLICATING_STAGE = "replicating_stage";
         static final String GET_CHECKPOINT_INFO_STAGE = "get_checkpoint_info_stage";
         static final String FILE_DIFF_STAGE = "file_diff_stage";

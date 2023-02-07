@@ -8,7 +8,7 @@
 
 package org.opensearch.rest.action.cat;
 
-import org.opensearch.action.admin.indices.segment_replication.SegmentReplicationStatsResponse;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -36,7 +36,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class RestCatSegmentReplicationActionTests extends OpenSearchTestCase {
-    public void testSegment_ReplicationActionAction() {
+    public void testSegmentReplicationAction() {
         final RestCatSegmentReplicationAction action = new RestCatSegmentReplicationAction();
         final int totalShards = randomIntBetween(1, 32);
         final int successfulShards = Math.max(0, totalShards - randomIntBetween(1, 2));

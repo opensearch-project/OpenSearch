@@ -135,6 +135,11 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 assert (filesToFetch.contains(SEGMENT_FILE));
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
             }
+
+            @Override
+            public String getDescription() {
+                return "";
+            }
         };
 
         SegmentReplicationTargetService.SegmentReplicationListener segRepListener = mock(
@@ -184,6 +189,11 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             ) {
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
             }
+
+            @Override
+            public String getDescription() {
+                return "";
+            }
         };
         SegmentReplicationTargetService.SegmentReplicationListener segRepListener = mock(
             SegmentReplicationTargetService.SegmentReplicationListener.class
@@ -227,6 +237,11 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             ) {
                 listener.onFailure(exception);
             }
+
+            @Override
+            public String getDescription() {
+                return "";
+            }
         };
         SegmentReplicationTargetService.SegmentReplicationListener segRepListener = mock(
             SegmentReplicationTargetService.SegmentReplicationListener.class
@@ -269,6 +284,11 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
+            }
+
+            @Override
+            public String getDescription() {
+                return "";
             }
         };
         SegmentReplicationTargetService.SegmentReplicationListener segRepListener = mock(
@@ -315,6 +335,11 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             ) {
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
             }
+
+            @Override
+            public String getDescription() {
+                return "";
+            }
         };
         SegmentReplicationTargetService.SegmentReplicationListener segRepListener = mock(
             SegmentReplicationTargetService.SegmentReplicationListener.class
@@ -358,6 +383,11 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
+            }
+
+            @Override
+            public String getDescription() {
+                return "";
             }
         };
         SegmentReplicationTargetService.SegmentReplicationListener segRepListener = mock(
@@ -409,6 +439,11 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
+            }
+
+            @Override
+            public String getDescription() {
+                return "";
             }
         };
         SegmentReplicationTargetService.SegmentReplicationListener segRepListener = mock(

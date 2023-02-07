@@ -52,9 +52,7 @@ public interface SegmentReplicationSource {
     /**
      * Get the source description
      */
-    default String getSourceDescription() {
-        return null;
-    }
+    String getDescription();
 
     /**
      * Cancel any ongoing requests, should resolve any ongoing listeners with onFailure with a {@link ExecutionCancelledException}.

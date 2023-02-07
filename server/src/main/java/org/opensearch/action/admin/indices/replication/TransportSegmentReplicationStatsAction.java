@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.indices.segment_replication;
+package org.opensearch.action.admin.indices.replication;
 
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.support.ActionFilters;
@@ -23,6 +23,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
@@ -132,6 +133,7 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
     protected SegmentReplicationState shardOperation(SegmentReplicationStatsRequest request, ShardRouting shardRouting) {
         IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
+        ShardId shardId = shardRouting.shardId();
 
         // check if API call is made on single index with segment replication disabled.
         if (request.indices().length == 1 && indexShard.indexSettings().isSegRepEnabled() == false) {
@@ -144,14 +146,14 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
 
         // return information about only on-going segment replication events.
         if (request.activeOnly()) {
-            return targetService.getOngoingEventSegmentReplicationState(shardRouting);
+            return targetService.getOngoingEventSegmentReplicationState(shardId);
         }
 
         // return information about only latest completed segment replication events.
         if (request.completedOnly()) {
-            return targetService.getlatestCompletedEventSegmentReplicationState(shardRouting);
+            return targetService.getlatestCompletedEventSegmentReplicationState(shardId);
         }
-        return targetService.getSegmentReplicationState(shardRouting);
+        return targetService.getSegmentReplicationState(shardId);
     }
 
     @Override

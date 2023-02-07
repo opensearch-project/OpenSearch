@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.indices.segment_replication;
+package org.opensearch.action.admin.indices.replication;
 
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
