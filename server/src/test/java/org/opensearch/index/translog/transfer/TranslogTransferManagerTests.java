@@ -82,8 +82,8 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         doNothing().when(transferService)
             .uploadBlob(any(TransferFileSnapshot.class), Mockito.eq(remoteBaseTransferPath.add(String.valueOf(primaryTerm))));
         doAnswer(invocationOnMock -> {
-            ActionListener<TransferFileSnapshot> listener = (ActionListener<TransferFileSnapshot>) invocationOnMock.getArguments()[2];
-            listener.onResponse((TransferFileSnapshot) invocationOnMock.getArguments()[0]);
+            ActionListener<TransferFileSnapshot> listener = (ActionListener<TransferFileSnapshot>) invocationOnMock.getArguments()[3];
+            listener.onResponse((TransferFileSnapshot) invocationOnMock.getArguments()[1]);
             return null;
         }).when(transferService)
             .uploadBlobAsync(any(String.class), any(TransferFileSnapshot.class), any(BlobPath.class), any(ActionListener.class));
