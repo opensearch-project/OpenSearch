@@ -22,6 +22,7 @@ import org.opensearch.common.settings.Setting.MemorySizeValueParser;
 import org.opensearch.common.settings.Setting.MinMaxTimeValueParser;
 import org.opensearch.common.settings.Setting.MinTimeValueParser;
 import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Setting.RegexValidator;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import java.io.IOException;
@@ -100,11 +101,16 @@ public class WriteableSetting implements Writeable {
         if (isParserWriteable) {
             parser = readParser(in, parser);
         }
-        // We are not using validator
+        // Read the Validator
+        Object validator = new Object();
+        boolean isValidatorWriteable = in.readBoolean();
+        if (isValidatorWriteable) {
+            validator = readValidator(in);
+        }
         // Read properties
         EnumSet<Property> propSet = in.readEnumSet(Property.class);
         // Put it all in a setting object
-        this.setting = createSetting(type, key, defaultValue, parser, fallback, propSet.toArray(Property[]::new));
+        this.setting = createSetting(type, key, defaultValue, parser, validator, fallback, propSet.toArray(Property[]::new));
     }
 
     /**
@@ -153,6 +159,7 @@ public class WriteableSetting implements Writeable {
         String key,
         Object defaultValue,
         @Nullable Object parser,
+        Object validator,
         WriteableSetting fallback,
         Property[] propertyArray
     ) {
@@ -281,7 +288,12 @@ public class WriteableSetting implements Writeable {
         if (isParserWriteable) {
             writeParser(out, setting.parser);
         }
-        // We are not using validator
+        // Write the validator
+        boolean isValidatorWriteable = setting.validator instanceof Writeable;
+        out.writeBoolean(isValidatorWriteable);
+        if(isValidatorWriteable) {
+            writeValidator(out, setting.validator);
+        }
         // Write properties
         out.writeEnumSet(setting.getProperties());
     }
@@ -321,7 +333,10 @@ public class WriteableSetting implements Writeable {
             default:
                 throw new IllegalArgumentException("A SettingType has been added to the enum and not handled here.");
         }
+    }
 
+    private void writeValidator(StreamOutput out, Object validator) throws IOException {
+        ((Writeable) validator).writeTo(out);
     }
 
     private void writeDefaultValue(StreamOutput out, Object defaultValue) throws IOException {
@@ -384,8 +399,12 @@ public class WriteableSetting implements Writeable {
                     return new MemorySizeValueParser(in);
                 }
             default:
-                throw new IllegalArgumentException("A SettingType has been added to the enum and not handled here.");
+                throw new IllegalArgumentException("A SettingType has been added to the enum and not handled here."); 
         }
+    }
+
+    private Object readValidator(StreamInput in) throws IOException {
+        return new RegexValidator(in); 
     }
 
     private Object readDefaultValue(StreamInput in) throws IOException {

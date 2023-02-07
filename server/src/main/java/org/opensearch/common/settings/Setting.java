@@ -170,7 +170,7 @@ public class Setting<T> implements ToXContentObject {
     @Nullable
     protected final Setting<T> fallbackSetting;
     protected final Function<String, T> parser;
-    private final Validator<T> validator;
+    protected final Validator<T> validator;
     private final EnumSet<Property> properties;
 
     private static final EnumSet<Property> EMPTY_PROPERTIES = EnumSet.noneOf(Property.class);
@@ -1251,8 +1251,9 @@ public class Setting<T> implements ToXContentObject {
     }
 
     // RegexValidator
-    private class RegexValidator implements Writeable, Validator<T>{
+    public static class RegexValidator implements Writeable, Validator<String> {
         private Pattern pattern;
+        private String value = "forbidden";
 
         public RegexValidator(String regex){
             this.pattern = Pattern.compile(regex);
@@ -1262,20 +1263,15 @@ public class Setting<T> implements ToXContentObject {
             this.pattern = Pattern.compile(in.readString());
         }
         @Override
-        public void validate(Object value) {
-            
+        public void validate(String value) {
+            if(pattern.matcher(value).matches()){
+                throw new IllegalArgumentException("custom setting contains forbidden");
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(pattern.pattern());   
-        }
-
-        private boolean validateValue(Object value) {
-            if(value instanceof String) {
-                return pattern.matcher((String) value).matches();
-            }
-            return false;
         }
     }
 
