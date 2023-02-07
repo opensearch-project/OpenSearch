@@ -152,7 +152,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
             // service.onTaskCompleted(new SearchTask(1, "test", "test", () -> "Test", TaskId.EMPTY_TASK_ID, new HashMap<>()));
             service.onTaskCompleted(createMockTaskWithResourceStats(SearchTask.class, 100, 200));
         }
-        assertEquals(100, service.getSearchBackpressureStats(SearchTask.class).getCompletionCount());
+        assertEquals(100, service.getSearchBackpressureState(SearchTask.class).getCompletionCount());
         verify(mockTaskResourceUsageTracker, times(100)).update(any());
     }
 
@@ -182,7 +182,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         for (int i = 0; i < 100; i++) {
             service.onTaskCompleted(createMockTaskWithResourceStats(SearchShardTask.class, 100, 200));
         }
-        assertEquals(100, service.getSearchBackpressureStats(SearchShardTask.class).getCompletionCount());
+        assertEquals(100, service.getSearchBackpressureState(SearchShardTask.class).getCompletionCount());
         verify(mockTaskResourceUsageTracker, times(100)).update(any());
     }
 
@@ -234,19 +234,19 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         // There are 25 SearchTasks eligible for cancellation but only 5 will be cancelled (burst limit).
         service.doRun();
         verify(mockTaskManager, times(5)).cancelTaskAndDescendants(any(), anyString(), anyBoolean(), any());
-        assertEquals(1, service.getSearchBackpressureStats(SearchTask.class).getLimitReachedCount());
+        assertEquals(1, service.getSearchBackpressureState(SearchTask.class).getLimitReachedCount());
 
         // If the clock or completed task count haven't made sufficient progress, we'll continue to be rate-limited.
         service.doRun();
         verify(mockTaskManager, times(5)).cancelTaskAndDescendants(any(), anyString(), anyBoolean(), any());
-        assertEquals(2, service.getSearchBackpressureStats(SearchTask.class).getLimitReachedCount());
+        assertEquals(2, service.getSearchBackpressureState(SearchTask.class).getLimitReachedCount());
 
         // Fast-forward the clock by ten second to replenish some tokens.
         // This will add 50 tokens (time delta * rate) to 'rateLimitPerTime' but it will cancel only 5 tasks (burst limit).
         mockTime.addAndGet(TimeUnit.SECONDS.toNanos(10));
         service.doRun();
         verify(mockTaskManager, times(10)).cancelTaskAndDescendants(any(), anyString(), anyBoolean(), any());
-        assertEquals(3, service.getSearchBackpressureStats(SearchTask.class).getLimitReachedCount());
+        assertEquals(3, service.getSearchBackpressureState(SearchTask.class).getLimitReachedCount());
 
         // Verify search backpressure stats.
         SearchBackpressureStats expectedStats = new SearchBackpressureStats(
@@ -306,12 +306,12 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         // There are 15 SearchShardTasks eligible for cancellation but only 10 will be cancelled (burst limit).
         service.doRun();
         verify(mockTaskManager, times(10)).cancelTaskAndDescendants(any(), anyString(), anyBoolean(), any());
-        assertEquals(1, service.getSearchBackpressureStats(SearchShardTask.class).getLimitReachedCount());
+        assertEquals(1, service.getSearchBackpressureState(SearchShardTask.class).getLimitReachedCount());
 
         // If the clock or completed task count haven't made sufficient progress, we'll continue to be rate-limited.
         service.doRun();
         verify(mockTaskManager, times(10)).cancelTaskAndDescendants(any(), anyString(), anyBoolean(), any());
-        assertEquals(2, service.getSearchBackpressureStats(SearchShardTask.class).getLimitReachedCount());
+        assertEquals(2, service.getSearchBackpressureState(SearchShardTask.class).getLimitReachedCount());
 
         // Simulate task completion to replenish some tokens.
         // This will add 2 tokens (task count delta * cancellationRatio) to 'rateLimitPerTaskCompletion'.
@@ -320,7 +320,7 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         }
         service.doRun();
         verify(mockTaskManager, times(12)).cancelTaskAndDescendants(any(), anyString(), anyBoolean(), any());
-        assertEquals(3, service.getSearchBackpressureStats(SearchShardTask.class).getLimitReachedCount());
+        assertEquals(3, service.getSearchBackpressureState(SearchShardTask.class).getLimitReachedCount());
 
         // Verify search backpressure stats.
         SearchBackpressureStats expectedStats = new SearchBackpressureStats(
