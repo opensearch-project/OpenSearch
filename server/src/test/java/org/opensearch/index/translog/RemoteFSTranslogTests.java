@@ -41,8 +41,10 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.MissingHistoryOperationsException;
+import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.LocalCheckpointTrackerTests;
+import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
@@ -93,6 +95,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.opensearch.common.util.BigArrays.NON_RECYCLING_INSTANCE;
+import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.opensearch.index.translog.SnapshotMatchers.containsOperationsInAnyOrder;
 import static org.opensearch.index.translog.TranslogDeletionPolicies.createTranslogDeletionPolicy;
 
@@ -103,7 +106,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
     protected final ShardId shardId = new ShardId("index", "_na_", 1);
 
     protected RemoteFsTranslog translog;
-    private AtomicLong globalCheckpoint;
+    private ReplicationTracker replicationTracker;
     protected Path translogDir;
     // A default primary term is used by translog instances created in this test.
     private final AtomicLong primaryTerm = new AtomicLong();
@@ -155,7 +158,17 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
 
     private RemoteFsTranslog create(Path path, BlobStoreRepository repository, String translogUUID) throws IOException {
         this.repository = repository;
-        globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        replicationTracker = new ReplicationTracker(
+            shardId,
+            translogUUID,
+            IndexSettingsModule.newIndexSettings("index", Settings.EMPTY),
+            primaryTerm.get(),
+            UNASSIGNED_SEQ_NO,
+            value -> {},
+            System::currentTimeMillis,
+            (leases, listener) -> {},
+            () -> SafeCommitInfo.EMPTY
+        );
         final TranslogConfig translogConfig = getTranslogConfig(path);
         final TranslogDeletionPolicy deletionPolicy = createTranslogDeletionPolicy(translogConfig.getIndexSettings());
         threadPool = new TestThreadPool(getClass().getName());
@@ -167,7 +180,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             translogConfig,
             translogUUID,
             deletionPolicy,
-            () -> globalCheckpoint.get(),
+            replicationTracker,
             primaryTerm::get,
             getPersistedSeqNoConsumer(),
             repository,
@@ -1160,7 +1173,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
                 config,
                 translogUUID,
                 new DefaultTranslogDeletionPolicy(-1, -1, 0),
-                () -> SequenceNumbers.NO_OPS_PERFORMED,
+                replicationTracker,
                 primaryTerm::get,
                 persistedSeqNos::add,
                 repository,
