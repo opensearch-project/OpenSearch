@@ -50,6 +50,7 @@ List projects = [
   'distribution:archives:no-jdk-linux-arm64-tar',
   'distribution:archives:linux-s390x-tar',
   'distribution:archives:linux-ppc64le-tar',
+  'distribution:archives:no-jdk-linux-ppc64le-tar',
   'distribution:archives:linux-tar',
   'distribution:archives:no-jdk-linux-tar',
   'distribution:docker',
