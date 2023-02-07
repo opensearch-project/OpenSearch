@@ -12,7 +12,6 @@ import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.search.backpressure.trackers.CpuUsageTracker;
@@ -26,15 +25,15 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Stats related to cancelled SearchShardTasks.
+ * Stats related to cancelled SearchTasks.
  */
 
-public class SearchShardTaskStats implements ToXContentObject, Writeable {
+public class SearchTaskStats implements ToXContentObject, Writeable {
     private final long cancellationCount;
     private final long limitReachedCount;
     private final Map<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> resourceUsageTrackerStats;
 
-    public SearchShardTaskStats(
+    public SearchTaskStats(
         long cancellationCount,
         long limitReachedCount,
         Map<TaskResourceUsageTrackerType, TaskResourceUsageTracker.Stats> resourceUsageTrackerStats
@@ -44,7 +43,7 @@ public class SearchShardTaskStats implements ToXContentObject, Writeable {
         this.resourceUsageTrackerStats = resourceUsageTrackerStats;
     }
 
-    public SearchShardTaskStats(StreamInput in) throws IOException {
+    public SearchTaskStats(StreamInput in) throws IOException {
         this.cancellationCount = in.readVLong();
         this.limitReachedCount = in.readVLong();
 
@@ -56,7 +55,7 @@ public class SearchShardTaskStats implements ToXContentObject, Writeable {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
         builder.startObject("resource_tracker_stats");
@@ -87,7 +86,7 @@ public class SearchShardTaskStats implements ToXContentObject, Writeable {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        SearchShardTaskStats that = (SearchShardTaskStats) o;
+        SearchTaskStats that = (SearchTaskStats) o;
         return cancellationCount == that.cancellationCount
             && limitReachedCount == that.limitReachedCount
             && resourceUsageTrackerStats.equals(that.resourceUsageTrackerStats);

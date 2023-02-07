@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.settings.WriteableSetting;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
@@ -81,7 +82,7 @@ public class AddSettingsUpdateConsumerRequestHandler {
                     );
                 });
             }
-        } catch (IllegalArgumentException e) {
+        } catch (SettingsException e) {
             logger.error(e.toString());
             status = false;
         }

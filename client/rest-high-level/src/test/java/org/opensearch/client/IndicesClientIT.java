@@ -1437,8 +1437,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(
             exception.getMessage(),
             startsWith(
-                "OpenSearch exception [type=illegal_argument_exception, "
-                    + "reason=final index setting [index.number_of_shards], not updateable"
+                "OpenSearch exception [type=settings_exception, " + "reason=final index setting [index.number_of_shards], not updateable"
             )
         );
     }
@@ -1475,7 +1474,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(
             exception.getMessage(),
             equalTo(
-                "OpenSearch exception [type=illegal_argument_exception, "
+                "OpenSearch exception [type=settings_exception, "
                     + "reason=unknown setting [index.no_idea_what_you_are_talking_about] please check that any required plugins are installed, "
                     + "or check the breaking changes documentation for removed settings]"
             )
