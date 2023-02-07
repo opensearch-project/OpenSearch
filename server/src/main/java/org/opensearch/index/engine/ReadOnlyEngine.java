@@ -137,7 +137,9 @@ public class ReadOnlyEngine extends Engine {
                 }
                 if (seqNoStats == null) {
                     seqNoStats = buildSeqNoStats(config, lastCommittedSegmentInfos);
-                    ensureMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats);
+                    if(config.getIndexSettings().isRemoteTranslogStoreEnabled() == false) {
+                        ensureMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats);
+                    }
                 }
                 this.seqNoStats = seqNoStats;
                 this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, directory);
@@ -186,7 +188,7 @@ public class ReadOnlyEngine extends Engine {
         // In addition to that we only execute the check if the index the engine belongs to has been
         // created after the refactoring of the Close Index API and its TransportVerifyShardBeforeCloseAction
         // that guarantee that all operations have been flushed to Lucene.
-        assert assertMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats.getMaxSeqNo(), seqNoStats.getGlobalCheckpoint());
+        assertMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats.getMaxSeqNo(), seqNoStats.getGlobalCheckpoint());
         if (seqNoStats.getMaxSeqNo() != seqNoStats.getGlobalCheckpoint()) {
             throw new IllegalStateException(
                 "Maximum sequence number ["
