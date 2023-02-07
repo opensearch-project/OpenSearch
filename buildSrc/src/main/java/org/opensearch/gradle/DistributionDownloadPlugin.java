@@ -241,6 +241,9 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
                     case X64:
                         classifier = ":" + distribution.getPlatform() + "-x64";
                         break;
+                    case PPC64LE:
+                        classifier = ":" + distribution.getPlatform() + "-ppc64le";
+                        break;
                     default:
                         throw new IllegalArgumentException("Unsupported architecture: " + distribution.getArchitecture());
                 }

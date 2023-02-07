@@ -95,10 +95,24 @@ distribution_archives {
     }
   }
 
+  darwinArm64Tar {
+    archiveClassifier = 'darwin-arm64'
+    content {
+      archiveFiles(modulesFiles('darwin-arm64'), 'tar', 'darwin', 'arm64', true)
+    }
+  }
+
   noJdkDarwinTar {
     archiveClassifier = 'no-jdk-darwin-x64'
     content {
       archiveFiles(modulesFiles('darwin-x64'), 'tar', 'darwin', 'x64', false)
+    }
+  }
+
+  noJdkDarwinArm64Tar {
+    archiveClassifier = 'no-jdk-darwin-arm64'
+    content {
+      archiveFiles(modulesFiles('darwin-arm64'), 'tar', 'darwin', 'arm64', false)
     }
   }
 
@@ -134,6 +148,22 @@ distribution_archives {
     archiveClassifier = 'no-jdk-linux-x64'
     content {
       archiveFiles(modulesFiles('linux-x64'), 'tar', 'linux', 'x64', false)
+    }
+  }
+
+  noJdkLinuxArm64Tar {
+    archiveClassifier = 'no-jdk-linux-arm64'
+    content {
+      archiveFiles(modulesFiles('linux-arm64'), 'tar', 'linux', 'arm64', false)
+    }
+  }
+  
+  // Should really be `no-jdk-linux-ppc64le` as it ships without a JDK, however it seems that the build can't handle
+  // the absence of the `linux-ppc64le` target.
+  linuxPpc64leTar {
+    archiveClassifier = 'linux-ppc64le'
+    content {
+      archiveFiles(modulesFiles('linux-ppc64le'), 'tar', 'linux', 'ppc64le', false)
     }
   }
 

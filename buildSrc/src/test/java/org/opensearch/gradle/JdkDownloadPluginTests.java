@@ -108,7 +108,7 @@ public class JdkDownloadPluginTests extends GradleUnitTestCase {
             "11.0.2+33",
             "linux",
             "unknown",
-            "unknown architecture [unknown] for jdk [testjdk], must be one of [aarch64, x64]"
+            "unknown architecture [unknown] for jdk [testjdk], must be one of [aarch64, x64, ppc64le]"
         );
     }
 
