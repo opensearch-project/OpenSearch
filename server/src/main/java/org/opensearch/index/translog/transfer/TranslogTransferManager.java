@@ -222,6 +222,7 @@ public class TranslogTransferManager {
                 @Override
                 public void onResponse(Void unused) {
                     fileTransferTracker.delete(files);
+                    logger.trace("Deleted translogs for primaryTerm {} generations {}", primaryTerm, generations);
                 }
 
                 @Override
