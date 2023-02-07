@@ -8,19 +8,13 @@
 
 package org.opensearch.search.backpressure.settings;
 
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
-
 /**
- * Settings related to search backpressure and cancellation of in-flight requests.
+ * Settings related to search backpressure mode and interval
  *
  * @opensearch.internal
  */
@@ -59,13 +53,16 @@ public class SearchBackpressureSettings {
     /**
      * Defines the percentage of tasks to cancel relative to the number of successful task completions.
      * In other words, it is the number of tokens added to the bucket on each successful task completion.
+     *
+     * The setting below is deprecated.
+     * To keep backwards compatibility, the old usage is remained, and it's also used as the fallback for the new usage.
      */
-    private volatile double cancellationRatio;
     public static final Setting<Double> SETTING_CANCELLATION_RATIO = Setting.doubleSetting(
         "search_backpressure.cancellation_ratio",
         Defaults.CANCELLATION_RATIO,
         0.0,
         1.0,
+        Setting.Property.Deprecated,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -73,68 +70,54 @@ public class SearchBackpressureSettings {
     /**
      * Defines the number of tasks to cancel per unit time (in millis).
      * In other words, it is the number of tokens added to the bucket each millisecond.
+     *
+     * The setting below is deprecated.
+     * To keep backwards compatibility, the old usage is remained, and it's also used as the fallback for the new usage.
      */
-    private volatile double cancellationRate;
     public static final Setting<Double> SETTING_CANCELLATION_RATE = Setting.doubleSetting(
         "search_backpressure.cancellation_rate",
         Defaults.CANCELLATION_RATE,
         0.0,
+        Setting.Property.Deprecated,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
     /**
      * Defines the maximum number of tasks that can be cancelled before being rate-limited.
+     *
+     * The setting below is deprecated.
+     * To keep backwards compatibility, the old usage is remained, and it's also used as the fallback for the new usage.
      */
-    private volatile double cancellationBurst;
     public static final Setting<Double> SETTING_CANCELLATION_BURST = Setting.doubleSetting(
         "search_backpressure.cancellation_burst",
         Defaults.CANCELLATION_BURST,
         1.0,
+        Setting.Property.Deprecated,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
-    /**
-     * Callback listeners.
-     */
-    public interface Listener {
-        void onCancellationRatioChanged();
-
-        void onCancellationRateChanged();
-
-        void onCancellationBurstChanged();
-    }
-
-    private final List<Listener> listeners = new ArrayList<>();
     private final Settings settings;
     private final ClusterSettings clusterSettings;
     private final NodeDuressSettings nodeDuressSettings;
+    private final SearchTaskSettings searchTaskSettings;
     private final SearchShardTaskSettings searchShardTaskSettings;
 
     public SearchBackpressureSettings(Settings settings, ClusterSettings clusterSettings) {
         this.settings = settings;
         this.clusterSettings = clusterSettings;
         this.nodeDuressSettings = new NodeDuressSettings(settings, clusterSettings);
+        this.searchTaskSettings = new SearchTaskSettings(settings, clusterSettings);
         this.searchShardTaskSettings = new SearchShardTaskSettings(settings, clusterSettings);
 
         interval = new TimeValue(SETTING_INTERVAL_MILLIS.get(settings));
 
         mode = SearchBackpressureMode.fromName(SETTING_MODE.get(settings));
         clusterSettings.addSettingsUpdateConsumer(SETTING_MODE, s -> this.setMode(SearchBackpressureMode.fromName(s)));
-
-        cancellationRatio = SETTING_CANCELLATION_RATIO.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_RATIO, this::setCancellationRatio);
-
-        cancellationRate = SETTING_CANCELLATION_RATE.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_RATE, this::setCancellationRate);
-
-        cancellationBurst = SETTING_CANCELLATION_BURST.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_BURST, this::setCancellationBurst);
-    }
-
-    public void addListener(Listener listener) {
-        listeners.add(listener);
+        clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_RATIO, searchShardTaskSettings::setCancellationRatio);
+        clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_RATE, searchShardTaskSettings::setCancellationRate);
+        clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_BURST, searchShardTaskSettings::setCancellationBurst);
     }
 
     public Settings getSettings() {
@@ -147,6 +130,10 @@ public class SearchBackpressureSettings {
 
     public NodeDuressSettings getNodeDuressSettings() {
         return nodeDuressSettings;
+    }
+
+    public SearchTaskSettings getSearchTaskSettings() {
+        return searchTaskSettings;
     }
 
     public SearchShardTaskSettings getSearchShardTaskSettings() {
@@ -163,50 +150,5 @@ public class SearchBackpressureSettings {
 
     public void setMode(SearchBackpressureMode mode) {
         this.mode = mode;
-    }
-
-    public double getCancellationRatio() {
-        return cancellationRatio;
-    }
-
-    private void setCancellationRatio(double cancellationRatio) {
-        this.cancellationRatio = cancellationRatio;
-        notifyListeners(Listener::onCancellationRatioChanged);
-    }
-
-    public double getCancellationRate() {
-        return cancellationRate;
-    }
-
-    public double getCancellationRateNanos() {
-        return getCancellationRate() / TimeUnit.MILLISECONDS.toNanos(1); // rate per nanoseconds
-    }
-
-    private void setCancellationRate(double cancellationRate) {
-        this.cancellationRate = cancellationRate;
-        notifyListeners(Listener::onCancellationRateChanged);
-    }
-
-    public double getCancellationBurst() {
-        return cancellationBurst;
-    }
-
-    private void setCancellationBurst(double cancellationBurst) {
-        this.cancellationBurst = cancellationBurst;
-        notifyListeners(Listener::onCancellationBurstChanged);
-    }
-
-    private void notifyListeners(Consumer<Listener> consumer) {
-        List<Exception> exceptions = new ArrayList<>();
-
-        for (Listener listener : listeners) {
-            try {
-                consumer.accept(listener);
-            } catch (Exception e) {
-                exceptions.add(e);
-            }
-        }
-
-        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
     }
 }
