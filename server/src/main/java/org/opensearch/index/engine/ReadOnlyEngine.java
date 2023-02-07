@@ -137,7 +137,7 @@ public class ReadOnlyEngine extends Engine {
                 }
                 if (seqNoStats == null) {
                     seqNoStats = buildSeqNoStats(config, lastCommittedSegmentInfos);
-                    if(config.getIndexSettings().isRemoteTranslogStoreEnabled() == false) {
+                    if (config.getIndexSettings().isRemoteTranslogStoreEnabled() == false) {
                         ensureMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats);
                     }
                 }
