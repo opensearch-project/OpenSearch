@@ -52,7 +52,7 @@ public abstract class TaskResourceUsageTracker {
     public abstract Optional<TaskCancellation.Reason> checkAndMaybeGetCancellationReason(Task task);
 
     /**
-     * Returns the tracker's state as seen in the stats API.
+     * Returns the tracker's state for tasks as seen in the stats API.
      */
     public abstract Stats stats(List<? extends Task> activeTasks);
 
