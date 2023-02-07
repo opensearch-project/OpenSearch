@@ -27,11 +27,13 @@ testFixtures.useFixture()
 
 configurations {
   arm64DockerSource
+  ppc64leDockerSource
   dockerSource
 }
 
 dependencies {
   arm64DockerSource project(path: ":distribution:archives:linux-arm64-tar", configuration:"default")
+  ppc64leDockerSource project(path: ":distribution:archives:linux-ppc64le-tar", configuration:"default")
   dockerSource project(path: ":distribution:archives:linux-tar", configuration:"default")
 }
 
@@ -42,6 +44,8 @@ ext.expansions = { Architecture architecture, DockerBase base, boolean local ->
       classifier = "linux-arm64"
     } else if (architecture == Architecture.X64) {
       classifier = "linux-x64"
+    } else if (architecture == Architecture.PPC64LE) {
+      classifier = "linux-ppc64le"
     } else {
       throw new IllegalArgumentException("Unsupported architecture [" + architecture + "]")
     }
@@ -85,12 +89,14 @@ RUN curl --retry 8 -S -L \\
 private static String buildPath(Architecture architecture, DockerBase base) {
   return 'build/' +
     (architecture == Architecture.ARM64 ? 'arm64-' : '') +
+    (architecture == Architecture.PPC64LE ? 'ppc64le-' : '') +
     'docker'
 }
 
 private static String taskName(String prefix, Architecture architecture, DockerBase base, String suffix) {
   return prefix +
     (architecture == Architecture.ARM64 ? 'Arm64' : '') +
+    (architecture == Architecture.PPC64LE ? 'Ppc64le' : '') +
     suffix
 }
 
@@ -127,6 +133,8 @@ void addCopyDockerContextTask(Architecture architecture, DockerBase base) {
 
     if (architecture == Architecture.ARM64) {
       from configurations.arm64DockerSource
+    } else if (architecture == Architecture.PPC64LE) {
+      from configurations.ppc64leDockerSource
     } else {
       from configurations.dockerSource
     }
