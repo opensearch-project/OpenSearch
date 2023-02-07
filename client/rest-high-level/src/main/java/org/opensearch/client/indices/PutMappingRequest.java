@@ -161,10 +161,6 @@ public class PutMappingRequest extends TimedRequest implements IndicesRequest, T
      */
     public PutMappingRequest source(XContentBuilder builder) {
         this.source = BytesReference.bytes(builder);
-        MediaType mediaType = builder.contentType();
-        if (mediaType instanceof XContentType == false) {
-            throw new IllegalArgumentException("PutMappingRequest does not support media type [" + mediaType.getClass().getName() + "]");
-        }
         this.mediaType = builder.contentType();
         return this;
     }
