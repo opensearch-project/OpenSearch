@@ -96,9 +96,9 @@ public class XContentHelper {
         NamedXContentRegistry xContentRegistry,
         DeprecationHandler deprecationHandler,
         BytesReference bytes,
-        MediaType xContentType
+        MediaType mediaType
     ) throws IOException {
-        Objects.requireNonNull(xContentType);
+        Objects.requireNonNull(mediaType);
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
             InputStream compressedInput = null;
@@ -107,7 +107,7 @@ public class XContentHelper {
                 if (compressedInput.markSupported() == false) {
                     compressedInput = new BufferedInputStream(compressedInput);
                 }
-                return XContentFactory.xContent(xContentType).createParser(xContentRegistry, deprecationHandler, compressedInput);
+                return XContentFactory.xContent(mediaType).createParser(xContentRegistry, deprecationHandler, compressedInput);
             } catch (Exception e) {
                 if (compressedInput != null) compressedInput.close();
                 throw e;
@@ -115,10 +115,10 @@ public class XContentHelper {
         } else {
             if (bytes instanceof BytesArray) {
                 final BytesArray array = (BytesArray) bytes;
-                return xContentType.xContent()
+                return mediaType.xContent()
                     .createParser(xContentRegistry, deprecationHandler, array.array(), array.offset(), array.length());
             }
-            return xContentType.xContent().createParser(xContentRegistry, deprecationHandler, bytes.streamInput());
+            return mediaType.xContent().createParser(xContentRegistry, deprecationHandler, bytes.streamInput());
         }
     }
 

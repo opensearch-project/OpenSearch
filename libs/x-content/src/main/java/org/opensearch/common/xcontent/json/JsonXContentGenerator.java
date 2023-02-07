@@ -369,8 +369,14 @@ public class JsonXContentGenerator implements XContentGenerator {
         }
     }
 
+    /**
+     * Writes the raw value to the stream
+     *
+     * @deprecated use {@link #writeRawValue(InputStream, MediaType)} instead
+     */
+    @Deprecated
     @Override
-    public void writeRawValue(InputStream stream, MediaType xContentType) throws IOException {
+    public void writeRawValue(InputStream stream, XContentType xContentType) throws IOException {
         if (mayWriteRawData(xContentType) == false) {
             copyRawValue(stream, xContentType.xContent());
         } else {
@@ -384,6 +390,41 @@ public class JsonXContentGenerator implements XContentGenerator {
         }
     }
 
+    /**
+     * Writes the raw value to the stream
+     */
+    @Override
+    public void writeRawValue(InputStream stream, MediaType mediaType) throws IOException {
+        if (mayWriteRawData(mediaType) == false) {
+            copyRawValue(stream, mediaType.xContent());
+        } else {
+            if (generator.getOutputContext().getCurrentName() != null) {
+                // If we've just started a field we'll need to add the separator
+                generator.writeRaw(':');
+            }
+            flush();
+            Streams.copy(stream, os, false);
+            writeEndRaw();
+        }
+    }
+
+    /**
+     * possibly copy the whole structure to correctly filter
+     *
+     * @deprecated use {@link #mayWriteRawData(MediaType)} instead
+     */
+    @Deprecated
+    private boolean mayWriteRawData(XContentType contentType) {
+        // When the current generator is filtered (ie filter != null)
+        // or the content is in a different format than the current generator,
+        // we need to copy the whole structure so that it will be correctly
+        // filtered or converted
+        return supportsRawWrites() && isFiltered() == false && contentType == contentType() && prettyPrint == false;
+    }
+
+    /**
+     * possibly copy the whole structure to correctly filter
+     */
     private boolean mayWriteRawData(MediaType contentType) {
         // When the current generator is filtered (ie filter != null)
         // or the content is in a different format than the current generator,

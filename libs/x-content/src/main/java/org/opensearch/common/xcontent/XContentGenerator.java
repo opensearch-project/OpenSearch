@@ -121,8 +121,15 @@ public interface XContentGenerator extends Closeable, Flushable {
 
     /**
      * Writes a raw value taken from the bytes in the stream
+     * @deprecated use {@link #writeRawValue(InputStream, MediaType)} instead
      */
-    void writeRawValue(InputStream value, MediaType xContentType) throws IOException;
+    @Deprecated
+    void writeRawValue(InputStream value, XContentType xContentType) throws IOException;
+
+    /**
+     * Writes a raw value taken from the bytes in the stream
+     */
+    void writeRawValue(InputStream value, MediaType mediaType) throws IOException;
 
     void copyCurrentStructure(XContentParser parser) throws IOException;
 

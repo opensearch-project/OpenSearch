@@ -36,6 +36,7 @@ import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.opensearch.common.xcontent.DeprecationHandler;
+import org.opensearch.common.xcontent.MediaType;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContent;
 import org.opensearch.common.xcontent.XContentBuilder;
@@ -70,7 +71,7 @@ public class YamlXContent implements XContent {
     private YamlXContent() {}
 
     @Override
-    public XContentType type() {
+    public MediaType type() {
         return XContentType.YAML;
     }
 
