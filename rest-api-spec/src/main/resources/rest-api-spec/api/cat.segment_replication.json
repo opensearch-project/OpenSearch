@@ -1,0 +1,108 @@
+{
+  "cat.segment_replication":{
+    "documentation":{
+      "url":"https://github.com/opensearch-project/documentation-website/issues/2627",
+      "description":"Returns information about both on-going and latest completed Segment Replication events"
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_cat/segment_replication",
+          "methods":[
+            "GET"
+          ]
+        },
+        {
+          "path":"/_cat/segment_replication/{index}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "index":{
+              "type":"list",
+              "description":"Comma-separated list or wildcard expression of index names to limit the returned information"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "format":{
+        "type":"string",
+        "description":"a short version of the Accept header, e.g. json, yaml"
+      },
+      "active_only":{
+        "type":"boolean",
+        "description":"If `true`, the response only includes ongoing segment replication events",
+        "default":false
+      },
+      "completed_only":{
+        "type":"boolean",
+        "description":"If `true`, the response only includes latest completed segment replication events",
+        "default":false
+      },
+      "bytes":{
+        "type":"enum",
+        "description":"The unit in which to display byte values",
+        "options":[
+          "b",
+          "k",
+          "kb",
+          "m",
+          "mb",
+          "g",
+          "gb",
+          "t",
+          "tb",
+          "p",
+          "pb"
+        ]
+      },
+      "detailed":{
+        "type":"boolean",
+        "description":"If `true`, the response includes detailed information about segment replications",
+        "default":false
+      },
+      "shards":{
+        "type":"list",
+        "description":"Comma-separated list of shards to display"
+      },
+      "h":{
+        "type":"list",
+        "description":"Comma-separated list of column names to display"
+      },
+      "help":{
+        "type":"boolean",
+        "description":"Return help information",
+        "default":false
+      },
+      "index":{
+        "type":"list",
+        "description":"Comma-separated list or wildcard expression of index names to limit the returned information"
+      },
+      "s":{
+        "type":"list",
+        "description":"Comma-separated list of column names or column aliases to sort by"
+      },
+      "time":{
+        "type":"enum",
+        "description":"The unit in which to display time values",
+        "options":[
+          "d",
+          "h",
+          "m",
+          "s",
+          "ms",
+          "micros",
+          "nanos"
+        ]
+      },
+      "v":{
+        "type":"boolean",
+        "description":"Verbose mode. Display column headers",
+        "default":false
+      }
+    }
+  }
+}
