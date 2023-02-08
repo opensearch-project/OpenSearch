@@ -51,6 +51,7 @@ import org.opensearch.index.fielddata.GeoShapeValue;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexGeoPointFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
+import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.opensearch.index.fielddata.IndexOrdinalsFieldData;
 import org.opensearch.index.fielddata.LeafOrdinalsFieldData;
 import org.opensearch.index.fielddata.MultiGeoPointValues;
@@ -409,6 +410,11 @@ public abstract class ValuesSource {
             }
 
             @Override
+            public boolean isBigInteger() {
+                return false;
+            }
+
+            @Override
             public SortedNumericDocValues longValues(LeafReaderContext context) {
                 return DocValues.emptySortedNumeric();
             }
@@ -428,6 +434,9 @@ public abstract class ValuesSource {
         /** Whether the underlying data is floating-point or not. */
         public abstract boolean isFloatingPoint();
 
+        /** Whether the underlying data is big integer or not. */
+        public abstract boolean isBigInteger();
+
         /** Get the current {@link SortedNumericDocValues}. */
         public abstract SortedNumericDocValues longValues(LeafReaderContext context) throws IOException;
 
@@ -436,7 +445,7 @@ public abstract class ValuesSource {
 
         @Override
         public DocValueBits docsWithValue(LeafReaderContext context) throws IOException {
-            if (isFloatingPoint()) {
+            if (isFloatingPoint() || isBigInteger()) {
                 final SortedNumericDoubleValues values = doubleValues(context);
                 return org.opensearch.index.fielddata.FieldData.docsWithValue(values);
             } else {
@@ -468,6 +477,11 @@ public abstract class ValuesSource {
             @Override
             public boolean isFloatingPoint() {
                 return true; // even if the underlying source produces longs, scripts can change them to doubles
+            }
+
+            @Override
+            public boolean isBigInteger() {
+                return false; /* always fall back to floating point */
             }
 
             @Override
@@ -582,6 +596,11 @@ public abstract class ValuesSource {
             }
 
             @Override
+            public boolean isBigInteger() {
+                return indexFieldData.getNumericType() == NumericType.UNSIGNED_LONG;
+            }
+
+            @Override
             public SortedBinaryDocValues bytesValues(LeafReaderContext context) {
                 return indexFieldData.load(context).getBytesValues();
             }
@@ -614,6 +633,11 @@ public abstract class ValuesSource {
             @Override
             public boolean isFloatingPoint() {
                 return scriptValueType != null ? scriptValueType == ValueType.DOUBLE : true;
+            }
+
+            @Override
+            public boolean isBigInteger() {
+                return scriptValueType != null ? scriptValueType == ValueType.UNSIGNED_LONG : false;
             }
 
             @Override
