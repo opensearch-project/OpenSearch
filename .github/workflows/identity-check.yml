@@ -2,7 +2,7 @@ name: Identity Tests
 on: [pull_request]
 
 jobs:
-  precommit:
+  identity-tests:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
