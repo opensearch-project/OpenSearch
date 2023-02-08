@@ -16,6 +16,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.Store;
@@ -115,7 +116,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     public void testReplicationFails() throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         final OpenSearchException expectedError = new OpenSearchException("Fail");
-        SegmentReplicationSource source = new SegmentReplicationSource() {
+        SegmentReplicationSource source = new TestReplicationSource() {
 
             @Override
             public void getCheckpointMetadata(

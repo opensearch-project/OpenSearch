@@ -260,6 +260,10 @@ import org.opensearch.action.admin.indices.rollover.RolloverAction;
 import org.opensearch.action.admin.indices.rollover.RolloverRequest;
 import org.opensearch.action.admin.indices.rollover.RolloverRequestBuilder;
 import org.opensearch.action.admin.indices.rollover.RolloverResponse;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsAction;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsRequest;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsRequestBuilder;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
@@ -1773,6 +1777,24 @@ public abstract class AbstractClient implements Client {
         @Override
         public RecoveryRequestBuilder prepareRecoveries(String... indices) {
             return new RecoveryRequestBuilder(this, RecoveryAction.INSTANCE).setIndices(indices);
+        }
+
+        @Override
+        public ActionFuture<SegmentReplicationStatsResponse> segmentReplicationStats(final SegmentReplicationStatsRequest request) {
+            return execute(SegmentReplicationStatsAction.INSTANCE, request);
+        }
+
+        @Override
+        public void segmentReplicationStats(
+            final SegmentReplicationStatsRequest request,
+            final ActionListener<SegmentReplicationStatsResponse> listener
+        ) {
+            execute(SegmentReplicationStatsAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public SegmentReplicationStatsRequestBuilder prepareSegmentReplicationStats(String... indices) {
+            return new SegmentReplicationStatsRequestBuilder(this, SegmentReplicationStatsAction.INSTANCE).setIndices(indices);
         }
 
         @Override
