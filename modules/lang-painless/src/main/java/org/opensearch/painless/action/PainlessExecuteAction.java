@@ -58,21 +58,20 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.ShardsIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedBiFunction;
-import org.opensearch.core.ParseField;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.ParsedDocument;
@@ -183,11 +182,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
             static ContextSetup parse(XContentParser parser, Void context) throws IOException {
                 ContextSetup contextSetup = PARSER.parse(parser, null);
-                MediaType contentType = parser.contentType();
-                if (contentType instanceof XContentType == false) {
-                    throw new IllegalArgumentException("Unable to parse unsupported media type [" + contentType.getClass().getName() + "]");
-                }
-                contextSetup.setXContentType((XContentType) contentType);
+                contextSetup.setXContentType((XContentType) parser.contentType());
                 return contextSetup;
             }
 

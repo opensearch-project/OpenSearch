@@ -54,11 +54,11 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.core.xcontent.MediaType;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardId;
@@ -451,18 +451,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * Sets the document to index in bytes form.
      */
     public IndexRequest source(BytesReference source, MediaType mediaType) {
-        if (mediaType instanceof XContentType == false) {
-            throw new IllegalArgumentException("IndexRequest does not support media type [" + mediaType.getClass().getName() + "]");
-        }
-        return this.source(source, (XContentType) mediaType);
-    }
-
-    /**
-     * Sets the document to index in bytes form.
-     */
-    public IndexRequest source(BytesReference source, XContentType xContentType) {
         this.source = Objects.requireNonNull(source);
-        this.contentType = Objects.requireNonNull(xContentType);
+        this.contentType = (XContentType) Objects.requireNonNull(mediaType);
         return this;
     }
 

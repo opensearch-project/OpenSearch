@@ -19,14 +19,13 @@ import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -93,16 +92,7 @@ public class ClusterPutWeightedRoutingRequest extends ClusterManagerNodeRequest<
         }
     }
 
-    private void setWeightedRouting(BytesReference source, MediaType mediaType) {
-        if (mediaType instanceof XContentType == false) {
-            throw new IllegalArgumentException(
-                "ClusterPutWeightedRoutingRequest does not support media type [" + mediaType.getClass().getName() + "]"
-            );
-        }
-        setWeightedRouting(source, (XContentType) mediaType);
-    }
-
-    public void setWeightedRouting(BytesReference source, XContentType contentType) {
+    public void setWeightedRouting(BytesReference source, MediaType contentType) {
         try (
             XContentParser parser = XContentHelper.createParser(
                 NamedXContentRegistry.EMPTY,

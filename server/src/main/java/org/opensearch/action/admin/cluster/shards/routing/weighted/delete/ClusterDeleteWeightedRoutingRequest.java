@@ -18,14 +18,13 @@ import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -97,16 +96,7 @@ public class ClusterDeleteWeightedRoutingRequest extends ClusterManagerNodeReque
         return this;
     }
 
-    private void setRequestBody(BytesReference source, MediaType mediaType) {
-        if (mediaType instanceof XContentType == false) {
-            throw new IllegalArgumentException(
-                "ClusterDeleteWeightedRoutingRequest does not support media type [" + mediaType.getClass().getName() + "]"
-            );
-        }
-        setRequestBody(source, (XContentType) mediaType);
-    }
-
-    public void setRequestBody(BytesReference source, XContentType contentType) {
+    private void setRequestBody(BytesReference source, MediaType contentType) {
         try (
             XContentParser parser = XContentHelper.createParser(
                 NamedXContentRegistry.EMPTY,

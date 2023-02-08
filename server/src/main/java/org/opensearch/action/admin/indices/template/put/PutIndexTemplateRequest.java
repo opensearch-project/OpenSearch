@@ -48,18 +48,18 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
@@ -262,22 +262,7 @@ public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexT
      * @param mediaType The type of content contained within the source
      */
     public PutIndexTemplateRequest mapping(String source, MediaType mediaType) {
-        if (mediaType instanceof XContentType == false) {
-            throw new IllegalArgumentException(
-                "PutIndexTemplateRequest does not support media type [" + mediaType.getClass().getName() + "]"
-            );
-        }
-        return mapping(new BytesArray(source), (XContentType) mediaType);
-    }
-
-    /**
-     * Adds mapping that will be added when the index gets created.
-     *
-     * @param source The mapping source
-     * @param xContentType The type of content contained within the source
-     */
-    public PutIndexTemplateRequest mapping(String source, XContentType xContentType) {
-        return mapping(new BytesArray(source), xContentType);
+        return mapping(new BytesArray(source), mediaType);
     }
 
     /**
@@ -296,23 +281,8 @@ public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexT
      * @param mediaType the source content type
      */
     public PutIndexTemplateRequest mapping(BytesReference source, MediaType mediaType) {
-        if (mediaType instanceof XContentType == false) {
-            throw new IllegalArgumentException(
-                "PutIndexTemplateRequest does not support media type [" + mediaType.getClass().getName() + "]"
-            );
-        }
-        return mapping(source, (XContentType) mediaType);
-    }
-
-    /**
-     * Adds mapping that will be added when the index gets created.
-     *
-     * @param source The mapping source
-     * @param xContentType the source content type
-     */
-    public PutIndexTemplateRequest mapping(BytesReference source, XContentType xContentType) {
-        Objects.requireNonNull(xContentType);
-        Map<String, Object> mappingAsMap = XContentHelper.convertToMap(source, false, xContentType).v2();
+        Objects.requireNonNull(mediaType);
+        Map<String, Object> mappingAsMap = XContentHelper.convertToMap(source, false, mediaType).v2();
         return mapping(mappingAsMap);
     }
 
@@ -443,19 +413,7 @@ public class PutIndexTemplateRequest extends ClusterManagerNodeRequest<PutIndexT
      * The template source definition.
      */
     public PutIndexTemplateRequest source(BytesReference source, MediaType mediaType) {
-        if (mediaType instanceof XContentType == false) {
-            throw new IllegalArgumentException(
-                "PutIndexTemplateRequest does not support media type [" + mediaType.getClass().getName() + "]"
-            );
-        }
-        return source(XContentHelper.convertToMap(source, true, (XContentType) mediaType).v2());
-    }
-
-    /**
-     * The template source definition.
-     */
-    public PutIndexTemplateRequest source(BytesReference source, XContentType xContentType) {
-        return source(XContentHelper.convertToMap(source, true, xContentType).v2());
+        return source(XContentHelper.convertToMap(source, true, mediaType).v2());
     }
 
     public Set<Alias> aliases() {

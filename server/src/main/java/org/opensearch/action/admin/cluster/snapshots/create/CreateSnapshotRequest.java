@@ -369,30 +369,12 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
      * See repository documentation for more information.
      *
      * @param source repository-specific snapshot settings
-     * @param xContentType the content type of the source
-     * @return this request
-     */
-    public CreateSnapshotRequest settings(String source, XContentType xContentType) {
-        this.settings = Settings.builder().loadFromSource(source, xContentType).build();
-        return this;
-    }
-
-    /**
-     * Sets repository-specific snapshot settings in JSON or YAML format
-     * <p>
-     * See repository documentation for more information.
-     *
-     * @param source repository-specific snapshot settings
      * @param mediaType the content type of the source
      * @return this request
      */
     public CreateSnapshotRequest settings(String source, MediaType mediaType) {
-        if (mediaType instanceof XContentType == false) {
-            throw new IllegalArgumentException(
-                "CreateSnapshotRequest does not support media type [" + mediaType.getClass().getName() + "]"
-            );
-        }
-        return settings(source, (XContentType) mediaType);
+        this.settings = Settings.builder().loadFromSource(source, mediaType).build();
+        return this;
     }
 
     /**

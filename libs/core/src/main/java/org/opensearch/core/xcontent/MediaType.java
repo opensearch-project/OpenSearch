@@ -63,12 +63,6 @@ public interface MediaType {
         return type() + "/" + subtype();
     }
 
-    default String mediaType() {
-        return mediaTypeWithoutParameters();
-    }
-
-    String mediaTypeWithoutParameters();
-
     XContent xContent();
 
     default String mediaType() {
