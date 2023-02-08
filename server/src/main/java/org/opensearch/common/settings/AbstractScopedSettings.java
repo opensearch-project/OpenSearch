@@ -100,16 +100,14 @@ public abstract class AbstractScopedSettings {
         Map<String, Setting<?>> keySettings = new HashMap<>();
         for (Setting<?> setting : settingsSet) {
             if (setting.getProperties().contains(scope) == false) {
-                throw new IllegalArgumentException(
-                    "Setting " + setting + " must be a " + scope + " setting but has: " + setting.getProperties()
-                );
+                throw new SettingsException("Setting " + setting + " must be a " + scope + " setting but has: " + setting.getProperties());
             }
             validateSettingKey(setting);
 
             if (setting.hasComplexMatcher()) {
                 Setting<?> overlappingSetting = findOverlappingSetting(setting, complexMatchers);
                 if (overlappingSetting != null) {
-                    throw new IllegalArgumentException(
+                    throw new SettingsException(
                         "complex setting key: ["
                             + setting.getKey()
                             + "] overlaps existing setting key: ["
@@ -130,7 +128,7 @@ public abstract class AbstractScopedSettings {
         if (isValidKey(setting.getKey()) == false
             && (setting.isGroupSetting() && isValidGroupKey(setting.getKey()) || isValidAffixKey(setting.getKey())) == false
             || setting.getKey().endsWith(".0")) {
-            throw new IllegalArgumentException("illegal settings key: [" + setting.getKey() + "]");
+            throw new SettingsException("illegal settings key: [" + setting.getKey() + "]");
         }
     }
 
@@ -249,7 +247,7 @@ public abstract class AbstractScopedSettings {
      */
     public synchronized <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer, Consumer<T> validator) {
         if (setting != get(setting.getKey())) {
-            throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
+            throw new SettingsException("Setting is not registered for key [" + setting.getKey() + "]");
         }
         addSettingsUpdater(setting.newUpdater(consumer, logger, validator));
     }
@@ -412,7 +410,7 @@ public abstract class AbstractScopedSettings {
     private void ensureSettingIsRegistered(Setting.AffixSetting<?> setting) {
         final Setting<?> registeredSetting = this.complexMatchers.get(setting.getKey());
         if (setting != registeredSetting) {
-            throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
+            throw new SettingsException("Setting is not registered for key [" + setting.getKey() + "]");
         }
     }
 
@@ -428,7 +426,7 @@ public abstract class AbstractScopedSettings {
     ) {
         final Setting<?> registeredSetting = this.complexMatchers.get(setting.getKey());
         if (setting != registeredSetting) {
-            throw new IllegalArgumentException("Setting is not registered for key [" + setting.getKey() + "]");
+            throw new SettingsException("Setting is not registered for key [" + setting.getKey() + "]");
         }
         addSettingsUpdater(setting.newAffixMapUpdater(consumer, logger, validator));
     }
@@ -483,10 +481,10 @@ public abstract class AbstractScopedSettings {
         BiConsumer<A, B> validator
     ) {
         if (a != get(a.getKey())) {
-            throw new IllegalArgumentException("Setting is not registered for key [" + a.getKey() + "]");
+            throw new SettingsException("Setting is not registered for key [" + a.getKey() + "]");
         }
         if (b != get(b.getKey())) {
-            throw new IllegalArgumentException("Setting is not registered for key [" + b.getKey() + "]");
+            throw new SettingsException("Setting is not registered for key [" + b.getKey() + "]");
         }
         addSettingsUpdater(Setting.compoundUpdater(consumer, validator, a, b, logger));
     }
@@ -583,7 +581,7 @@ public abstract class AbstractScopedSettings {
      * @param key the key of the setting to validate
      * @param settings the settings
      * @param validateDependencies true if dependent settings should be validated
-     * @throws IllegalArgumentException if the setting is invalid
+     * @throws SettingsException if the setting is invalid
      */
     void validate(final String key, final Settings settings, final boolean validateDependencies) {
         validate(key, settings, validateDependencies, false);
@@ -596,7 +594,7 @@ public abstract class AbstractScopedSettings {
      * @param settings                       the settings
      * @param validateDependencies           true if dependent settings should be validated
      * @param validateInternalOrPrivateIndex true if internal index settings should be validated
-     * @throws IllegalArgumentException if the setting is invalid
+     * @throws SettingsException if the setting is invalid
      */
     void validate(
         final String key,
@@ -628,7 +626,7 @@ public abstract class AbstractScopedSettings {
                 msg += " please check that any required plugins are installed, or check the breaking changes documentation for removed "
                     + "settings";
             }
-            throw new IllegalArgumentException(msg);
+            throw new SettingsException(msg);
         } else {
             Set<Setting.SettingDependency> settingsDependencies = setting.getSettingsDependencies(key);
             if (setting.hasComplexMatcher()) {
@@ -645,7 +643,7 @@ public abstract class AbstractScopedSettings {
                             dependency.getKey(),
                             setting.getKey()
                         );
-                        throw new IllegalArgumentException(message);
+                        throw new SettingsException(message);
                     }
                     // validate the dependent setting value
                     settingDependency.validate(setting.getKey(), setting.get(settings), dependency.get(settings));
@@ -654,11 +652,11 @@ public abstract class AbstractScopedSettings {
             // the only time that validateInternalOrPrivateIndex should be true is if this call is coming via the update settings API
             if (validateInternalOrPrivateIndex) {
                 if (setting.isInternalIndex()) {
-                    throw new IllegalArgumentException(
+                    throw new SettingsException(
                         "can not update internal setting [" + setting.getKey() + "]; this setting is managed via a dedicated API"
                     );
                 } else if (setting.isPrivateIndex()) {
-                    throw new IllegalArgumentException(
+                    throw new SettingsException(
                         "can not update private setting [" + setting.getKey() + "]; this setting is managed by OpenSearch"
                     );
                 }
@@ -805,12 +803,12 @@ public abstract class AbstractScopedSettings {
      */
     public <T> T get(Setting<T> setting) {
         if (setting.getProperties().contains(scope) == false) {
-            throw new IllegalArgumentException(
+            throw new SettingsException(
                 "settings scope doesn't match the setting scope [" + this.scope + "] not in [" + setting.getProperties() + "]"
             );
         }
         if (get(setting.getKey()) == null) {
-            throw new IllegalArgumentException("setting " + setting.getKey() + " has not been registered");
+            throw new SettingsException("setting " + setting.getKey() + " has not been registered");
         }
         return setting.get(this.lastSettingsApplied, settings);
     }
@@ -819,7 +817,7 @@ public abstract class AbstractScopedSettings {
      * Updates a target settings builder with new, updated or deleted settings from a given settings builder.
      * <p>
      * Note: This method will only allow updates to dynamic settings. if a non-dynamic setting is updated an
-     * {@link IllegalArgumentException} is thrown instead.
+     * {@link SettingsException} is thrown instead.
      * </p>
      *
      * @param toApply the new settings to apply
@@ -883,7 +881,7 @@ public abstract class AbstractScopedSettings {
                 toRemove.add(key);
                 // we don't set changed here it's set after we apply deletes below if something actually changed
             } else if (get(key) == null) {
-                throw new IllegalArgumentException(type + " setting [" + key + "], not recognized");
+                throw new SettingsException(type + " setting [" + key + "], not recognized");
             } else if (isDelete == false && canUpdate.test(key)) {
                 get(key).validateWithoutDependencies(toApply); // we might not have a full picture here do to a dependency validation
                 settingsBuilder.copy(key, toApply);
@@ -891,9 +889,9 @@ public abstract class AbstractScopedSettings {
                 changed |= toApply.get(key).equals(target.get(key)) == false;
             } else {
                 if (isFinalSetting(key)) {
-                    throw new IllegalArgumentException("final " + type + " setting [" + key + "], not updateable");
+                    throw new SettingsException("final " + type + " setting [" + key + "], not updateable");
                 } else {
-                    throw new IllegalArgumentException(type + " setting [" + key + "], not dynamically updateable");
+                    throw new SettingsException(type + " setting [" + key + "], not dynamically updateable");
                 }
             }
         }
