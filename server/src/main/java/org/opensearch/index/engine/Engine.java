@@ -303,7 +303,7 @@ public abstract class Engine implements Closeable {
         ScoreDoc[] docs = searcher.search(
             Queries.newMatchAllQuery(),
             1,
-            new Sort(new SortField(SeqNoFieldMapper.NAME, SortField.Type.DOC, true))
+            new Sort(new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG, true))
         ).scoreDocs;
         if (docs.length == 0) {
             return SequenceNumbers.NO_OPS_PERFORMED;
