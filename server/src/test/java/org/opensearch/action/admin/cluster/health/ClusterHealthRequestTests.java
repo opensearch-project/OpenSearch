@@ -157,14 +157,14 @@ public class ClusterHealthRequestTests extends OpenSearchTestCase {
         ClusterHealthRequest clusterHealthRequest = randomRequest();
         {
             clusterHealthRequest.local(false);
-            clusterHealthRequest.ensureNodeCommissioned(true);
+            clusterHealthRequest.ensureNodeWeighedIn(true);
             ActionRequestValidationException e = clusterHealthRequest.validate();
             assertNotNull(e);
-            assertTrue(e.getMessage().contains("not a local request to ensure local node commissioned"));
+            assertTrue(e.getMessage().contains("not a local request to ensure local node commissioned or weighed in"));
         }
         {
             clusterHealthRequest.local(true);
-            clusterHealthRequest.ensureNodeCommissioned(false);
+            clusterHealthRequest.ensureNodeWeighedIn(false);
             ActionRequestValidationException e = clusterHealthRequest.validate();
             assertNull(e);
         }
