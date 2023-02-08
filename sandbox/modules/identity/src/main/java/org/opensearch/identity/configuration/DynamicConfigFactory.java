@@ -121,7 +121,7 @@ public class DynamicConfigFactory implements ConfigurationChangeListener {
         @Override
         public String getHash(String username) {
             User tmp = internalUserSecurityDynamicConfiguration.getCEntry(username);
-            return tmp == null ? null : tmp.getBcryptHash();
+            return tmp == null ? null : tmp.getHash();
         }
     }
 }

@@ -10,10 +10,13 @@ package org.opensearch.identity.configuration;
 
 import org.opensearch.identity.User;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public enum CType {
 
@@ -23,6 +26,10 @@ public enum CType {
 
     private CType(Map<Integer, Class<?>> implementations) {
         this.implementations = implementations;
+    }
+
+    public static Collection<CType> fromStringValues(String[] configTypes) {
+        return Arrays.stream(configTypes).map(c -> CType.fromString(c)).collect(Collectors.toSet());
     }
 
     public Map<Integer, Class<?>> getImplementationClass() {
