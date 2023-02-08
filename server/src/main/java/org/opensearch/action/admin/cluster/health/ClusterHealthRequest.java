@@ -68,7 +68,7 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
     private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
     private String waitForNodes = "";
     private Priority waitForEvents = null;
-    private boolean ensureNodeCommissioned = false;
+    private boolean ensureNodeWeighedIn = false;
     /**
      * Only used by the high-level REST Client. Controls the details level of the health information returned.
      * The default value is 'cluster'.
@@ -105,7 +105,7 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
             level = in.readEnum(Level.class);
         }
         if (in.getVersion().onOrAfter(Version.V_2_6_0)) {
-            ensureNodeCommissioned = in.readBoolean();
+            ensureNodeWeighedIn = in.readBoolean();
         }
     }
 
@@ -142,7 +142,7 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
             out.writeEnum(level);
         }
         if (out.getVersion().onOrAfter(Version.V_2_6_0)) {
-            out.writeBoolean(ensureNodeCommissioned);
+            out.writeBoolean(ensureNodeWeighedIn);
         }
     }
 
@@ -328,8 +328,8 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
         return awarenessAttribute;
     }
 
-    public final ClusterHealthRequest ensureNodeCommissioned(boolean ensureNodeCommissioned) {
-        this.ensureNodeCommissioned = ensureNodeCommissioned;
+    public final ClusterHealthRequest ensureNodeWeighedIn(boolean ensureNodeWeighedIn) {
+        this.ensureNodeWeighedIn = ensureNodeWeighedIn;
         return this;
     }
 
@@ -338,8 +338,8 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
      * @return <code>true</code> if local information is to be returned only when local node is also commissioned
      * <code>false</code> to not check local node if commissioned or not for a local request
      */
-    public final boolean ensureNodeCommissioned() {
-        return ensureNodeCommissioned;
+    public final boolean ensureNodeWeighedIn() {
+        return ensureNodeWeighedIn;
     }
 
     @Override
@@ -349,8 +349,8 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
         } else if (!level.equals(Level.AWARENESS_ATTRIBUTES) && awarenessAttribute != null) {
             return addValidationError("level=awareness_attributes is required with awareness_attribute parameter", null);
         }
-        if (ensureNodeCommissioned && local == false) {
-            return addValidationError("not a local request to ensure local node commissioned", null);
+        if (ensureNodeWeighedIn && local == false) {
+            return addValidationError("not a local request to ensure local node commissioned or weighed in", null);
         }
         return null;
     }
