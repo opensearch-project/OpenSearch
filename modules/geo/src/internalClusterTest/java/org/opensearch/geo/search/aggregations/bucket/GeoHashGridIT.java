@@ -268,18 +268,15 @@ public class GeoHashGridIT extends AbstractGeoBucketAggregationIntegTest {
     }
 
     @Override
-    protected Set<String> generateBucketsForGeometry(
-        final Geometry geometry,
-        final GeoShapeDocValue geometryDocValue,
-        boolean intersectingWithBB
-    ) {
+    protected Set<String> generateBucketsForGeometry(final Geometry geometry, final GeoShapeDocValue geometryDocValue) {
         final GeoPoint topLeft = new GeoPoint();
         final GeoPoint bottomRight = new GeoPoint();
         assert geometry != null;
         GeoBoundsHelper.updateBoundsForGeometry(geometry, topLeft, bottomRight);
         final Set<String> geoHashes = new HashSet<>();
+        final boolean isIntersectingWithBoundingRectangle = geometryDocValue.isIntersectingRectangle(boundingRectangleForGeoShapesAgg);
         for (int precision = MAX_PRECISION_FOR_GEO_SHAPES_AGG_TESTING; precision > 0; precision--) {
-            if (precision > MIN_PRECISION_WITHOUT_BB_AGGS && intersectingWithBB == false) {
+            if (precision > MIN_PRECISION_WITHOUT_BB_AGGS && isIntersectingWithBoundingRectangle == false) {
                 continue;
             }
             final GeoPoint topRight = new GeoPoint(topLeft.getLat(), bottomRight.getLon());
