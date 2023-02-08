@@ -134,20 +134,20 @@ public class GeoTileGridIT extends AbstractGeoBucketAggregationIntegTest {
      * Returns a set of buckets for the shape at different precision level. Override this method for different bucket
      * aggregations.
      *
-     * @param geometry           {@link Geometry}
-     * @param geoShapeDocValue   {@link GeoShapeDocValue}
-     * @param intersectingWithBB
+     * @param geometry         {@link Geometry}
+     * @param geoShapeDocValue {@link GeoShapeDocValue}
      * @return A {@link Set} of {@link String} which represents the buckets.
      */
     @Override
-    protected Set<String> generateBucketsForGeometry(Geometry geometry, GeoShapeDocValue geoShapeDocValue, boolean intersectingWithBB) {
+    protected Set<String> generateBucketsForGeometry(final Geometry geometry, final GeoShapeDocValue geoShapeDocValue) {
         final GeoPoint topLeft = new GeoPoint();
         final GeoPoint bottomRight = new GeoPoint();
         assert geometry != null;
         GeoBoundsHelper.updateBoundsForGeometry(geometry, topLeft, bottomRight);
         final Set<String> geoTiles = new HashSet<>();
+        final boolean isIntersectingWithBoundingRectangle = geoShapeDocValue.isIntersectingRectangle(boundingRectangleForGeoShapesAgg);
         for (int precision = MAX_PRECISION_FOR_GEO_SHAPES_AGG_TESTING; precision > 0; precision--) {
-            if (precision > MIN_PRECISION_WITHOUT_BB_AGGS && intersectingWithBB == false) {
+            if (precision > MIN_PRECISION_WITHOUT_BB_AGGS && isIntersectingWithBoundingRectangle == false) {
                 continue;
             }
             geoTiles.addAll(
