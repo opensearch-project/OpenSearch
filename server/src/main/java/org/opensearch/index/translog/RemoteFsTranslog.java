@@ -369,7 +369,13 @@ public class RemoteFsTranslog extends Translog {
         // are older files that are no longer needed and should be cleaned up. In here, we delete all files that are part
         // of older primary term.
         if (olderPrimaryCleaned.trySet(Boolean.TRUE)) {
-            translogTransferManager.deletePrimaryTermsAsync(current.getPrimaryTerm());
+            assert readers.isEmpty() == false : "Expected non-empty readers";
+            long minimumReferencedPrimaryTerm = readers.stream()
+                .map(BaseTranslogReader::getPrimaryTerm)
+                .mapToLong(l -> l)
+                .min()
+                .getAsLong();
+            translogTransferManager.deletePrimaryTermsAsync(minimumReferencedPrimaryTerm);
         }
     }
 }
