@@ -51,7 +51,10 @@ import org.opensearch.cluster.decommission.NodeDecommissionedException;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.NodeWeighedAwayException;
 import org.opensearch.cluster.routing.UnassignedInfo;
+import org.opensearch.cluster.routing.WeightedRoutingUtils;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
@@ -140,12 +143,13 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
         final ClusterState unusedState,
         final ActionListener<ClusterHealthResponse> listener
     ) {
-        if (request.ensureNodeCommissioned()
+        if (request.ensureNodeWeighedIn()
             && discovery instanceof Coordinator
             && ((Coordinator) discovery).localNodeCommissioned() == false) {
             listener.onFailure(new NodeDecommissionedException("local node is decommissioned"));
             return;
         }
+
         final int waitCount = getWaitCount(request);
 
         if (request.waitForEvents() != null) {
@@ -274,7 +278,18 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
 
         final Predicate<ClusterState> validationPredicate = newState -> validateRequest(request, newState, waitCount);
         if (validationPredicate.test(currentState)) {
-            listener.onResponse(getResponse(request, currentState, waitCount, TimeoutState.OK));
+            ClusterHealthResponse clusterHealthResponse = getResponse(request, currentState, waitCount, TimeoutState.OK);
+            if (request.ensureNodeWeighedIn() && clusterHealthResponse.hasDiscoveredClusterManager()) {
+                DiscoveryNode localNode = clusterService.state().getNodes().getLocalNode();
+                assert request.local() == true : "local node request false for request for local node weighed in";
+                boolean weighedAway = WeightedRoutingUtils.isWeighedAway(localNode.getId(), clusterService.state());
+                if (weighedAway) {
+                    listener.onFailure(new NodeWeighedAwayException("local node is weighed away"));
+                    return;
+                }
+            }
+
+            listener.onResponse(clusterHealthResponse);
         } else {
             final ClusterStateObserver observer = new ClusterStateObserver(
                 currentState,
