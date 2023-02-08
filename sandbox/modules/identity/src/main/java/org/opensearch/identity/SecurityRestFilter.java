@@ -88,9 +88,9 @@ public class SecurityRestFilter {
                             encodedJwt = JwtVendor.createJwt(jwtClaims, extensionSigningKey);
                         }
                     } else {
-                        String signingKey = settings.get(ConfigConstants.IDENTITY_SIGNING_KEY);
+                        String signingKey = settings.get(IdentityConfigConstants.IDENTITY_SIGNING_KEY);
                         if (signingKey != null) {
-                            encodedJwt = JwtVendor.createJwt(jwtClaims, settings.get(ConfigConstants.IDENTITY_SIGNING_KEY));
+                            encodedJwt = JwtVendor.createJwt(jwtClaims, signingKey);
                         }
                     }
 

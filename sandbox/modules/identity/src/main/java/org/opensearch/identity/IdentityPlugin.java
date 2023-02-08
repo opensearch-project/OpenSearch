@@ -184,7 +184,9 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
                 Setting.Property.Filtered
             )
         );
-        settings.add(Setting.simpleString(ConfigConstants.IDENTITY_SIGNING_KEY, Setting.Property.NodeScope, Setting.Property.Filtered));
+        settings.add(
+            Setting.simpleString(IdentityConfigConstants.IDENTITY_SIGNING_KEY, Setting.Property.NodeScope, Setting.Property.Filtered)
+        );
         settings.add(
             Setting.simpleString(IdentityConfigConstants.IDENTITY_CONFIG_INDEX_NAME, Setting.Property.NodeScope, Setting.Property.Filtered)
         );
@@ -323,7 +325,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         cr.setDynamicConfigFactory(dcf);
 
         IdentityJwtVerifier verifier = IdentityJwtVerifier.getInstance();
-        verifier.init(this.settings.get(ConfigConstants.IDENTITY_SIGNING_KEY));
+        verifier.init(this.settings.get(IdentityConfigConstants.IDENTITY_SIGNING_KEY));
 
         // required for dependency injections
         components.add(cr);
