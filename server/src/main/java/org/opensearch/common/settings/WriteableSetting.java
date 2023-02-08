@@ -291,7 +291,7 @@ public class WriteableSetting implements Writeable {
         // Write the validator
         boolean isValidatorWriteable = setting.validator instanceof Writeable;
         out.writeBoolean(isValidatorWriteable);
-        if(isValidatorWriteable) {
+        if (isValidatorWriteable) {
             writeValidator(out, setting.validator);
         }
         // Write properties
@@ -404,7 +404,7 @@ public class WriteableSetting implements Writeable {
     }
 
     private Object readValidator(StreamInput in) throws IOException {
-        return new RegexValidator(in); 
+        return new RegexValidator(in);
     }
 
     private Object readDefaultValue(StreamInput in) throws IOException {

@@ -1256,16 +1256,17 @@ public class Setting<T> implements ToXContentObject {
     public static class RegexValidator implements Writeable, Validator<String> {
         private Pattern pattern;
 
-        public RegexValidator(String regex){
+        public RegexValidator(String regex) {
             this.pattern = Pattern.compile(regex);
         }
 
         public RegexValidator(StreamInput in) throws IOException {
             this.pattern = Pattern.compile(in.readString());
         }
+
         @Override
         public void validate(String value) {
-            if(pattern.matcher(value).matches()){
+            if (pattern.matcher(value).matches()) {
                 if (value != null) {
                     throw new IllegalArgumentException("Setting must be valid [" + value + "]");
                 }
@@ -1275,7 +1276,7 @@ public class Setting<T> implements ToXContentObject {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(pattern.pattern());   
+            out.writeString(pattern.pattern());
         }
     }
 
