@@ -78,7 +78,7 @@ public class JsonXContent implements XContent {
     private JsonXContent() {}
 
     @Override
-    public MediaType type() {
+    public MediaType mediaType() {
         return XContentType.JSON;
     }
 

@@ -46,7 +46,7 @@ public interface XContent {
     /**
      * The type this content handles and produces.
      */
-    MediaType type();
+    MediaType mediaType();
 
     byte streamSeparator();
 

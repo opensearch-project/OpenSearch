@@ -78,7 +78,7 @@ public class SmileXContent implements XContent {
     private SmileXContent() {}
 
     @Override
-    public MediaType type() {
+    public MediaType mediaType() {
         return XContentType.SMILE;
     }
 

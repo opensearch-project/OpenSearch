@@ -520,7 +520,7 @@ final class RequestConverters {
         XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
         byte[] source = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, xContent);
         request.addParameters(params.asMap());
-        request.setEntity(new ByteArrayEntity(source, createContentType(xContent.type())));
+        request.setEntity(new ByteArrayEntity(source, createContentType(xContent.mediaType())));
         return request;
     }
 
@@ -555,7 +555,7 @@ final class RequestConverters {
 
         XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
         byte[] source = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, xContent);
-        request.setEntity(new ByteArrayEntity(source, createContentType(xContent.type())));
+        request.setEntity(new ByteArrayEntity(source, createContentType(xContent.mediaType())));
         return request;
     }
 

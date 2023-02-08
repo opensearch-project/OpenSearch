@@ -76,7 +76,7 @@ public class CborXContent implements XContent {
     private CborXContent() {}
 
     @Override
-    public MediaType type() {
+    public MediaType mediaType() {
         return XContentType.CBOR;
     }
 

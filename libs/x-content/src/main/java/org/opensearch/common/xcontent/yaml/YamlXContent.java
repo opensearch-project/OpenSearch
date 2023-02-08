@@ -71,7 +71,7 @@ public class YamlXContent implements XContent {
     private YamlXContent() {}
 
     @Override
-    public MediaType type() {
+    public MediaType mediaType() {
         return XContentType.YAML;
     }
 
