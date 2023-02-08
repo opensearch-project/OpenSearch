@@ -1,4 +1,4 @@
-name: Gradle Precommit
+name: Identity Tests
 on: [pull_request]
 
 jobs:
