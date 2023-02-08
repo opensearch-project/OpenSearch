@@ -1250,7 +1250,9 @@ public class Setting<T> implements ToXContentObject {
         return properties != null && Arrays.asList(properties).contains(Property.Filtered);
     }
 
-    // A writeable validator able to check the value of string type custom setting by using regular expression
+    /**
+     * A writeable validator able to check the value of string type custom setting by using regular expression
+     */
     public static class RegexValidator implements Writeable, Validator<String> {
         private Pattern pattern;
 
