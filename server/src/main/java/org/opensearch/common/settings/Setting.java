@@ -1250,10 +1250,9 @@ public class Setting<T> implements ToXContentObject {
         return properties != null && Arrays.asList(properties).contains(Property.Filtered);
     }
 
-    // RegexValidator
+    // A writeable validator able to check the value of string type custom setting by using regular expression
     public static class RegexValidator implements Writeable, Validator<String> {
         private Pattern pattern;
-        private String value = "forbidden";
 
         public RegexValidator(String regex){
             this.pattern = Pattern.compile(regex);
@@ -1265,7 +1264,10 @@ public class Setting<T> implements ToXContentObject {
         @Override
         public void validate(String value) {
             if(pattern.matcher(value).matches()){
-                throw new IllegalArgumentException("custom setting contains forbidden");
+                if (value != null) {
+                    throw new IllegalArgumentException("Setting must be valid [" + value + "]");
+                }
+                throw new IllegalArgumentException("Custom setting matches regex [" + pattern.pattern() + "]");
             }
         }
 
