@@ -49,7 +49,7 @@ public class BlobStoreTransferService implements TransferService {
     ) {
         assert remoteTransferPath instanceof BlobPath;
         BlobPath blobPath = (BlobPath) remoteTransferPath;
-        threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER).execute(ActionRunnable.wrap(listener, l -> {
+        threadPool.executor(threadpoolName).execute(ActionRunnable.wrap(listener, l -> {
             try (InputStream inputStream = fileSnapshot.inputStream()) {
                 blobStore.blobContainer(blobPath)
                     .writeBlobAtomic(fileSnapshot.getName(), inputStream, fileSnapshot.getContentLength(), true);
