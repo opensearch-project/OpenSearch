@@ -87,8 +87,8 @@ public abstract class HttpSmokeTestCaseWithIdentity extends OpenSearchIntegTestC
             .put(super.nodeSettings(nodeOrdinal))
             .put(NetworkModule.TRANSPORT_TYPE_KEY, nodeTransportTypeKey)
             .put(NetworkModule.HTTP_TYPE_KEY, nodeHttpTypeKey)
-            .put(ConfigConstants.IDENTITY_ENABLED, true)
-            .put(ConfigConstants.IDENTITY_SIGNING_KEY, "signingKey")
+            .put(IdentityConfigConstants.IDENTITY_ENABLED, true)
+            .put(IdentityConfigConstants.IDENTITY_SIGNING_KEY, "signingKey")
             .build();
     }
 
@@ -130,7 +130,8 @@ public abstract class HttpSmokeTestCaseWithIdentity extends OpenSearchIntegTestC
         List<NodeInfo> nodeInfos = client().admin().cluster().prepareNodesInfo().get().getNodes();
         assertEquals(2, nodeInfos.size());
 
-        Thread.sleep(1000);
+        // TODO: Optimize this
+        Thread.sleep(2000);
     }
 
     @SuppressForbidden(reason = "sets system property for testing")
@@ -159,11 +160,12 @@ public abstract class HttpSmokeTestCaseWithIdentity extends OpenSearchIntegTestC
         ClusterHealthResponse clusterHealthResponse = client().admin().cluster().prepareHealth().setClusterManagerNodeTimeout("1s").get();
 
         assertTrue(
-            ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX + " index exists",
-            clusterHealthResponse.getIndices().containsKey(ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX)
+            IdentityConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX + " index doesn't exist",
+            clusterHealthResponse.getIndices().containsKey(IdentityConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX)
         );
 
-        ClusterIndexHealth identityIndexHealth = clusterHealthResponse.getIndices().get(ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX);
+        ClusterIndexHealth identityIndexHealth = clusterHealthResponse.getIndices()
+            .get(IdentityConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX);
         assertEquals(ClusterHealthStatus.GREEN, identityIndexHealth.getStatus());
     }
 

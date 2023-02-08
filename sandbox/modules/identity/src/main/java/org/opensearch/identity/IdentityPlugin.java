@@ -10,19 +10,25 @@ package org.opensearch.identity;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.ActionFilter;
 import org.opensearch.authn.AuthenticationManager;
 import org.opensearch.authn.Identity;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.component.Lifecycle;
 import org.opensearch.common.component.LifecycleComponent;
 import org.opensearch.common.component.LifecycleListener;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -34,6 +40,11 @@ import org.opensearch.identity.configuration.ClusterInfoHolder;
 import org.opensearch.identity.configuration.ConfigurationRepository;
 import org.opensearch.identity.configuration.DynamicConfigFactory;
 import org.opensearch.identity.jwt.IdentityJwtVerifier;
+import org.opensearch.identity.rest.configuration.IdentityConfigUpdateAction;
+import org.opensearch.identity.rest.configuration.TransportIdentityConfigUpdateAction;
+import org.opensearch.identity.rest.user.put.PutUserAction;
+import org.opensearch.identity.rest.user.put.RestPutUserAction;
+import org.opensearch.identity.rest.user.put.TransportPutUserAction;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ClusterPlugin;
@@ -41,6 +52,7 @@ import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SystemIndexPlugin;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
@@ -50,6 +62,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -95,7 +108,38 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     }
 
     private static boolean isEnabled(final Settings settings) {
-        return settings.getAsBoolean(ConfigConstants.IDENTITY_ENABLED, false);
+        return settings.getAsBoolean(IdentityConfigConstants.IDENTITY_ENABLED, false);
+    }
+
+    @Override
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
+        final List<RestHandler> handlers = new ArrayList<>(1);
+        handlers.add(new RestPutUserAction());
+        // TODO: Add handlers for future actions
+        return handlers;
+    }
+
+    // register actions in this plugin
+    @Override
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+
+        // required to prevent GuiceHolder inject errors
+        if (!enabled) {
+            return Collections.emptyList();
+        }
+
+        return Arrays.asList(
+            new ActionHandler<>(PutUserAction.INSTANCE, TransportPutUserAction.class),
+            new ActionHandler<>(IdentityConfigUpdateAction.INSTANCE, TransportIdentityConfigUpdateAction.class)
+        );
     }
 
     @Override
@@ -118,7 +162,10 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        final String indexPattern = settings.get(ConfigConstants.IDENTITY_CONFIG_INDEX_NAME, ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX);
+        final String indexPattern = settings.get(
+            IdentityConfigConstants.IDENTITY_CONFIG_INDEX_NAME,
+            IdentityConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX
+        );
         final SystemIndexDescriptor systemIndexDescriptor = new SystemIndexDescriptor(indexPattern, "Identity index");
         return Collections.singletonList(systemIndexDescriptor);
     }
@@ -126,10 +173,12 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = new ArrayList<Setting<?>>();
         settings.addAll(super.getSettings());
-        settings.add(Setting.boolSetting(ConfigConstants.IDENTITY_ENABLED, false, Setting.Property.NodeScope, Setting.Property.Filtered));
+        settings.add(
+            Setting.boolSetting(IdentityConfigConstants.IDENTITY_ENABLED, false, Setting.Property.NodeScope, Setting.Property.Filtered)
+        );
         settings.add(
             Setting.simpleString(
-                ConfigConstants.IDENTITY_AUTH_MANAGER_CLASS,
+                IdentityConfigConstants.IDENTITY_AUTH_MANAGER_CLASS,
                 InternalAuthenticationManager.class.getCanonicalName(),
                 Setting.Property.NodeScope,
                 Setting.Property.Filtered
@@ -137,7 +186,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         );
         settings.add(Setting.simpleString(ConfigConstants.IDENTITY_SIGNING_KEY, Setting.Property.NodeScope, Setting.Property.Filtered));
         settings.add(
-            Setting.simpleString(ConfigConstants.IDENTITY_CONFIG_INDEX_NAME, Setting.Property.NodeScope, Setting.Property.Filtered)
+            Setting.simpleString(IdentityConfigConstants.IDENTITY_CONFIG_INDEX_NAME, Setting.Property.NodeScope, Setting.Property.Filtered)
         );
 
         return settings;
@@ -220,7 +269,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
 
         // TODO: revisit this
         final String authManagerClassName = this.settings.get(
-            ConfigConstants.IDENTITY_AUTH_MANAGER_CLASS,
+            IdentityConfigConstants.IDENTITY_AUTH_MANAGER_CLASS,
             InternalAuthenticationManager.class.getCanonicalName()
         );
         AuthenticationManager authManager = null;
@@ -275,6 +324,10 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
 
         IdentityJwtVerifier verifier = IdentityJwtVerifier.getInstance();
         verifier.init(this.settings.get(ConfigConstants.IDENTITY_SIGNING_KEY));
+
+        // required for dependency injections
+        components.add(cr);
+        components.add(dcf);
 
         return components;
     }

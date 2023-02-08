@@ -110,7 +110,7 @@ public class InternalRealm extends AuthorizingRealm {
             // Verify the user
             // TODO Figure out why userRecord is coming back with empty username
             userRecord.setUsername(new StringPrincipal(username));
-            SimpleAuthenticationInfo sai = new SimpleAuthenticationInfo(username, userRecord.getBcryptHash(), realmName);
+            SimpleAuthenticationInfo sai = new SimpleAuthenticationInfo(username, userRecord.getHash(), realmName);
             boolean successfulAuthentication = getCredentialsMatcher().doCredentialsMatch(token, sai);
 
             if (successfulAuthentication) {
