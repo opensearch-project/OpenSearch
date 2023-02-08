@@ -8,65 +8,16 @@
 
 package org.opensearch.identity.remotecluster;
 
-import org.junit.Before;
-
 import org.opensearch.client.Request;
-import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
-import org.opensearch.identity.IdentityConfigConstants;
-import org.opensearch.identity.rest.IdentityRestConstants;
-import org.opensearch.test.rest.OpenSearchRestTestCase;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Tests REST API for users against remote cluster
  */
-public class UserIT extends OpenSearchRestTestCase {
-    private final String identityIndex = IdentityConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX;
-    private final String ENDPOINT;
-
-    protected String getEndpointPrefix() {
-        return IdentityRestConstants.IDENTITY_REST_REQUEST_PREFIX;
-    }
-
-    public UserIT() {
-        ENDPOINT = getEndpointPrefix() + "/api";
-    }
-
-    @Before
-    public void init() throws Exception {
-        ensureIdentityIndexExists();
-    }
-
-    @Override
-    protected boolean preserveIndicesUponCompletion() {
-        return true; // setting true so identity index is not deleted upon test completion
-    }
-
-    /**
-     * This warning is expected to be thrown as we are accessing identity index directly
-     * @return the warning message to be expected
-     */
-    private RequestOptions systemIndexWarning() {
-        return expectWarnings(
-            "this request accesses system indices: ["
-                + identityIndex
-                + "], but in a future major version, direct access to system indices will be prevented by default"
-        );
-    }
-
-    protected void ensureIdentityIndexExists() throws IOException {
-        // this will fail if default index name is changed in remote cluster
-        Request request = new Request("GET", "/" + identityIndex);
-        request.setOptions(systemIndexWarning());
-        Response response = adminClient().performRequest(request);
-        assertEquals(response.getStatusLine().getStatusCode(), 200);
-        Map<String, Object> responseAsMap = entityAsMap(response);
-        assertTrue(responseAsMap.containsKey(identityIndex));
-    }
+public class UserIT extends IdentityRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testInternalUsersApi() throws Exception {
@@ -92,7 +43,7 @@ public class UserIT extends OpenSearchRestTestCase {
         String createMessage = username + " created successfully.";
         Request request = new Request("PUT", ENDPOINT + "/users/" + username);
         request.setJsonEntity(createContent);
-        request.setOptions(systemIndexWarning());
+        request.setOptions(options());
         Response response = client().performRequest(request);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
         Map<String, Object> userCreated = entityAsMap(response);
@@ -105,7 +56,7 @@ public class UserIT extends OpenSearchRestTestCase {
         String updateMessage = username + " updated successfully.";
         request = new Request("PUT", ENDPOINT + "/users/" + username);
         request.setJsonEntity(updateContent);
-        request.setOptions(systemIndexWarning());
+        request.setOptions(options());
         response = client().performRequest(request);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
         Map<String, Object> userUpdated = entityAsMap(response);
@@ -116,7 +67,7 @@ public class UserIT extends OpenSearchRestTestCase {
 
         // Get a user
         Request getRequest = new Request("GET", ENDPOINT + "/users/" + username);
-        request.setOptions(systemIndexWarning());
+        request.setOptions(options());
         response = client().performRequest(getRequest);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
         Map<String, Object> getResponse = entityAsMap(response);
@@ -127,7 +78,7 @@ public class UserIT extends OpenSearchRestTestCase {
 
         // Get all users
         Request mGetRequest = new Request("GET", ENDPOINT + "/users");
-        request.setOptions(systemIndexWarning());
+        request.setOptions(options());
         response = client().performRequest(mGetRequest);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
         Map<String, Object> mGetResponse = entityAsMap(response);
@@ -137,7 +88,7 @@ public class UserIT extends OpenSearchRestTestCase {
         // Delete a user
         String deletedMessage = username + " deleted successfully.";
         Request deleteRequest = new Request("DELETE", ENDPOINT + "/users/" + username);
-        request.setOptions(systemIndexWarning());
+        request.setOptions(options());
         response = client().performRequest(deleteRequest);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
         Map<String, Object> deletedUsers = entityAsMap(response);

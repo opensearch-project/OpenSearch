@@ -10,6 +10,7 @@ package org.opensearch.identity;
 
 import org.junit.Before;
 import org.opensearch.client.Request;
+import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
 import org.opensearch.identity.rest.IdentityRestConstants;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -39,6 +40,10 @@ public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
         final Map<String, String> emptyMap = Map.of();
         final List<String> emptyList = List.of();
 
+        final RequestOptions authHeaderOptions = RequestOptions.DEFAULT.toBuilder()
+            .addHeader("Authorization", "Basic YWRtaW46YWRtaW4=")
+            .build(); // admin:admin
+
         String username = "test-create";
         String createContent = "{ \"password\" : \"test\","
             + " \"attributes\": { \"attribute1\": \"value1\"},"
@@ -57,6 +62,7 @@ public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
         String createSuccessMessage = username + " created successfully.";
         Request createRequest = new Request("PUT", ENDPOINT + "/users/" + username);
         createRequest.setJsonEntity(createContent);
+        createRequest.setOptions(authHeaderOptions);
         Response response = getRestClient().performRequest(createRequest);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
         Map<String, Object> userCreated = entityAsMap(response);
@@ -69,6 +75,7 @@ public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
         String updateSuccessMessage = username + " updated successfully.";
         Request updateRequest = new Request("PUT", ENDPOINT + "/users/" + username);
         updateRequest.setJsonEntity(updateContent);
+        updateRequest.setOptions(authHeaderOptions);
         response = getRestClient().performRequest(updateRequest);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
         Map<String, Object> usersUpdated = entityAsMap(response);
@@ -79,6 +86,7 @@ public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
 
         // GET a user
         Request getRequest = new Request("GET", ENDPOINT + "/users/" + username);
+        getRequest.setOptions(authHeaderOptions);
         response = getRestClient().performRequest(getRequest);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
         Map<String, Object> getResponse = entityAsMap(response);
@@ -89,6 +97,7 @@ public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
 
         // GET all users
         Request mGetRequest = new Request("GET", ENDPOINT + "/users");
+        mGetRequest.setOptions(authHeaderOptions);
         response = getRestClient().performRequest(mGetRequest);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
         Map<String, Object> mGetResponse = entityAsMap(response);
@@ -106,6 +115,7 @@ public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
         // DELETE a user
         String deletedMessage = username + " deleted successfully.";
         Request deleteRequest = new Request("DELETE", ENDPOINT + "/users/" + username);
+        deleteRequest.setOptions(authHeaderOptions);
         response = getRestClient().performRequest(deleteRequest);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
         Map<String, Object> deletedUser = entityAsMap(response);
