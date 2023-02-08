@@ -179,10 +179,6 @@ public class SearchTaskSettings {
         clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_BURST, this::setCancellationBurst);
     }
 
-    /**
-     * Callback listeners.
-     */
-
     public double getTotalHeapPercentThreshold() {
         return totalHeapPercentThreshold;
     }
