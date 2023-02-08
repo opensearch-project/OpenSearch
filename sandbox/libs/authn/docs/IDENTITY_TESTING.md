@@ -60,3 +60,11 @@ and enter the following lines:
 identity.enabled: true
 logger.org.opensearch.identity: debug
 ```
+
+To start opensearch with the extensions feature flag enabled you can add:
+
+```
+opensearch.experimental.feature.extensions.enabled: true
+```
+
+to `opensearch.yml`. Follow the [Developer Guide](https://github.com/opensearch-project/opensearch-sdk-java/blob/main/DEVELOPER_GUIDE.md) on the `opensearch-sdk-java` repo to follow the instructions to start a sample `helloWorld` extension.
