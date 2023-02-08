@@ -191,12 +191,12 @@ public interface IndicesAdminClient extends OpenSearchClient {
     /**
      *Indices segment replication
      */
-    ActionFuture<SegmentReplicationStatsResponse> segmentReplication(SegmentReplicationStatsRequest request);
+    ActionFuture<SegmentReplicationStatsResponse> segmentReplicationStats(SegmentReplicationStatsRequest request);
 
     /**
      *Indices segment replication
      */
-    void segmentReplication(SegmentReplicationStatsRequest request, ActionListener<SegmentReplicationStatsResponse> listener);
+    void segmentReplicationStats(SegmentReplicationStatsRequest request, ActionListener<SegmentReplicationStatsResponse> listener);
 
     /**
      * Indices recoveries
@@ -206,7 +206,7 @@ public interface IndicesAdminClient extends OpenSearchClient {
     /**
      * Indices segment replication
      */
-    SegmentReplicationStatsRequestBuilder prepareSegmentReplication(String... indices);
+    SegmentReplicationStatsRequestBuilder prepareSegmentReplicationStats(String... indices);
 
     /**
      * The segments of one or more indices.

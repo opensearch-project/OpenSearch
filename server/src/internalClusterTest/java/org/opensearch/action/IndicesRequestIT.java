@@ -470,12 +470,12 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
         assertSameIndices(recoveryRequest, recoveryAction);
     }
 
-    public void testSegmentReplication() {
+    public void testSegmentReplicationStats() {
         String segmentReplicationAction = SegmentReplicationStatsAction.NAME + "[n]";
         interceptTransportActions(segmentReplicationAction);
 
         SegmentReplicationStatsRequest segmentReplicationStatsRequest = new SegmentReplicationStatsRequest(randomIndicesOrAliases());
-        internalCluster().coordOnlyNodeClient().admin().indices().segmentReplication(segmentReplicationStatsRequest).actionGet();
+        internalCluster().coordOnlyNodeClient().admin().indices().segmentReplicationStats(segmentReplicationStatsRequest).actionGet();
 
         clearInterceptedActions();
         assertSameIndices(segmentReplicationStatsRequest, segmentReplicationAction);

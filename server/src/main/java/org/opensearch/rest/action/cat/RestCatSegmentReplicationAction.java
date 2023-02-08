@@ -72,7 +72,7 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
 
         return channel -> client.admin()
             .indices()
-            .segmentReplication(segmentReplicationStatsRequest, new RestResponseListener<SegmentReplicationStatsResponse>(channel) {
+            .segmentReplicationStats(segmentReplicationStatsRequest, new RestResponseListener<SegmentReplicationStatsResponse>(channel) {
                 @Override
                 public RestResponse buildResponse(final SegmentReplicationStatsResponse response) throws Exception {
                     return RestTable.buildResponse(buildSegmentReplicationTable(request, response), channel);

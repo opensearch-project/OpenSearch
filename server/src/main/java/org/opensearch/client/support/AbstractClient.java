@@ -1780,12 +1780,12 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public ActionFuture<SegmentReplicationStatsResponse> segmentReplication(final SegmentReplicationStatsRequest request) {
+        public ActionFuture<SegmentReplicationStatsResponse> segmentReplicationStats(final SegmentReplicationStatsRequest request) {
             return execute(SegmentReplicationStatsAction.INSTANCE, request);
         }
 
         @Override
-        public void segmentReplication(
+        public void segmentReplicationStats(
             final SegmentReplicationStatsRequest request,
             final ActionListener<SegmentReplicationStatsResponse> listener
         ) {
@@ -1793,7 +1793,7 @@ public abstract class AbstractClient implements Client {
         }
 
         @Override
-        public SegmentReplicationStatsRequestBuilder prepareSegmentReplication(String... indices) {
+        public SegmentReplicationStatsRequestBuilder prepareSegmentReplicationStats(String... indices) {
             return new SegmentReplicationStatsRequestBuilder(this, SegmentReplicationStatsAction.INSTANCE).setIndices(indices);
         }
 

@@ -152,7 +152,7 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
         assertThat(recoveryResponse.getShardFailures()[0].reason(), containsString("ReceiveTimeoutTransportException"));
     }
 
-    public void testSegmentReplicationWithTimeout() {
+    public void testSegmentReplicationStatsWithTimeout() {
         internalCluster().startClusterManagerOnlyNode(
             Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REPLICATION_TYPE, "true").build()
         );
@@ -185,7 +185,7 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
         // Happy case
         SegmentReplicationStatsResponse segmentReplicationStatsResponse = dataNodeClient().admin()
             .indices()
-            .prepareSegmentReplication()
+            .prepareSegmentReplicationStats()
             .get();
         assertThat(segmentReplicationStatsResponse.getTotalShards(), equalTo(numShards * 2));
         assertThat(segmentReplicationStatsResponse.getSuccessfulShards(), equalTo(numShards * 2));
@@ -194,7 +194,7 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
         simulateTimeoutAtTransport(dataNode, anotherDataNode, SegmentReplicationStatsAction.NAME);
 
         // verify response with bad node.
-        segmentReplicationStatsResponse = dataNodeClient().admin().indices().prepareSegmentReplication().get();
+        segmentReplicationStatsResponse = dataNodeClient().admin().indices().prepareSegmentReplicationStats().get();
         assertThat(segmentReplicationStatsResponse.getTotalShards(), equalTo(numShards * 2));
         assertThat(segmentReplicationStatsResponse.getSuccessfulShards(), equalTo(numShards));
         assertThat(segmentReplicationStatsResponse.getFailedShards(), equalTo(numShards));

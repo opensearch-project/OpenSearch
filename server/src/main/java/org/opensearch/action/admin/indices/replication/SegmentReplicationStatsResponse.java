@@ -55,7 +55,7 @@ public class SegmentReplicationStatsResponse extends BroadcastResponse {
         this.shardSegmentReplicationStates = shardSegmentReplicationStates;
     }
 
-    public boolean hasSegmentReplication() {
+    public boolean hasSegmentReplicationStats() {
         return shardSegmentReplicationStates.size() > 0;
     }
 
@@ -66,7 +66,7 @@ public class SegmentReplicationStatsResponse extends BroadcastResponse {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (hasSegmentReplication()) {
+        if (hasSegmentReplicationStats()) {
             for (String index : shardSegmentReplicationStates.keySet()) {
                 List<SegmentReplicationState> segmentReplicationStates = shardSegmentReplicationStates.get(index);
                 if (segmentReplicationStates == null || segmentReplicationStates.size() == 0) {

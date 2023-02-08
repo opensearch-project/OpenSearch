@@ -6,5 +6,5 @@
  * compatible open source license.
  */
 
-/** Segment Replication transport handlers. */
+/** Segment Replication Stats transport handlers. */
 package org.opensearch.action.admin.indices.replication;

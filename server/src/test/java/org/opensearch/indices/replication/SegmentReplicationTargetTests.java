@@ -32,6 +32,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.shard.ShardId;
@@ -113,7 +114,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
 
     public void testSuccessfulResponse_startReplication() {
 
-        SegmentReplicationSource segrepSource = new SegmentReplicationSource() {
+        SegmentReplicationSource segrepSource = new TestReplicationSource() {
             @Override
             public void getCheckpointMetadata(
                 long replicationId,
@@ -134,11 +135,6 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 assertEquals(1, filesToFetch.size());
                 assert (filesToFetch.contains(SEGMENT_FILE));
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
-            }
-
-            @Override
-            public String getDescription() {
-                return "";
             }
         };
 
@@ -169,7 +165,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
     public void testFailureResponse_getCheckpointMetadata() {
 
         Exception exception = new Exception("dummy failure");
-        SegmentReplicationSource segrepSource = new SegmentReplicationSource() {
+        SegmentReplicationSource segrepSource = new TestReplicationSource() {
             @Override
             public void getCheckpointMetadata(
                 long replicationId,
@@ -188,11 +184,6 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
-            }
-
-            @Override
-            public String getDescription() {
-                return "";
             }
         };
         SegmentReplicationTargetService.SegmentReplicationListener segRepListener = mock(
@@ -217,7 +208,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
     public void testFailureResponse_getSegmentFiles() {
 
         Exception exception = new Exception("dummy failure");
-        SegmentReplicationSource segrepSource = new SegmentReplicationSource() {
+        SegmentReplicationSource segrepSource = new TestReplicationSource() {
             @Override
             public void getCheckpointMetadata(
                 long replicationId,
@@ -236,11 +227,6 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 listener.onFailure(exception);
-            }
-
-            @Override
-            public String getDescription() {
-                return "";
             }
         };
         SegmentReplicationTargetService.SegmentReplicationListener segRepListener = mock(
@@ -265,7 +251,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
     public void testFailure_finalizeReplication_IOException() throws IOException {
 
         IOException exception = new IOException("dummy failure");
-        SegmentReplicationSource segrepSource = new SegmentReplicationSource() {
+        SegmentReplicationSource segrepSource = new TestReplicationSource() {
             @Override
             public void getCheckpointMetadata(
                 long replicationId,
@@ -284,11 +270,6 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
-            }
-
-            @Override
-            public String getDescription() {
-                return "";
             }
         };
         SegmentReplicationTargetService.SegmentReplicationListener segRepListener = mock(
@@ -315,7 +296,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
     public void testFailure_finalizeReplication_IndexFormatException() throws IOException {
 
         IndexFormatTooNewException exception = new IndexFormatTooNewException("string", 1, 2, 1);
-        SegmentReplicationSource segrepSource = new SegmentReplicationSource() {
+        SegmentReplicationSource segrepSource = new TestReplicationSource() {
             @Override
             public void getCheckpointMetadata(
                 long replicationId,
@@ -334,11 +315,6 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
-            }
-
-            @Override
-            public String getDescription() {
-                return "";
             }
         };
         SegmentReplicationTargetService.SegmentReplicationListener segRepListener = mock(
@@ -364,7 +340,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
 
     public void testFailure_differentSegmentFiles() throws IOException {
 
-        SegmentReplicationSource segrepSource = new SegmentReplicationSource() {
+        SegmentReplicationSource segrepSource = new TestReplicationSource() {
             @Override
             public void getCheckpointMetadata(
                 long replicationId,
@@ -383,11 +359,6 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
-            }
-
-            @Override
-            public String getDescription() {
-                return "";
             }
         };
         SegmentReplicationTargetService.SegmentReplicationListener segRepListener = mock(
@@ -420,7 +391,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
         // snapshot (2nd element which contains delete operations) and replica's existing snapshot (1st element).
         List<Store.MetadataSnapshot> storeMetadataSnapshots = generateStoreMetadataSnapshot(docCount);
 
-        SegmentReplicationSource segrepSource = new SegmentReplicationSource() {
+        SegmentReplicationSource segrepSource = new TestReplicationSource() {
             @Override
             public void getCheckpointMetadata(
                 long replicationId,
@@ -439,11 +410,6 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
-            }
-
-            @Override
-            public String getDescription() {
-                return "";
             }
         };
         SegmentReplicationTargetService.SegmentReplicationListener segRepListener = mock(
@@ -526,4 +492,5 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
         super.tearDown();
         closeShards(spyIndexShard, indexShard);
     }
+
 }

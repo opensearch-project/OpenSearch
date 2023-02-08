@@ -24,43 +24,47 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class SegmentReplicationApiIT extends SegmentReplicationBaseIT {
+public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
 
-    public void testSegmentReplicationApiResponse() throws Exception {
-        logger.info("--> starting [Primary Node] ...");
+    public void testSegmentReplicationStatsResponse() throws Exception {
         final String primaryNode = internalCluster().startNode();
         createIndex(INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);
-        logger.info("--> start empty node to add replica shard");
         final String replicaNode = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
-        logger.info("--> index 10 docs");
+
+        // index 10 docs
         for (int i = 0; i < 10; i++) {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         refresh(INDEX_NAME);
         waitForSearchableDocs(10L, asList(primaryNode, replicaNode));
 
-        SegmentReplicationStatsResponse response = client().admin().indices().prepareSegmentReplication(INDEX_NAME).execute().actionGet();
+        SegmentReplicationStatsResponse response = client().admin()
+            .indices()
+            .prepareSegmentReplicationStats(INDEX_NAME)
+            .execute()
+            .actionGet();
         // Verify API Response
         assertThat(response.shardSegmentReplicationStates().size(), equalTo(SHARD_COUNT));
         assertThat(response.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getStage(), equalTo(SegmentReplicationState.Stage.DONE));
         assertThat(response.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getIndex().recoveredFileCount(), greaterThan(0));
     }
 
-    public void testSegmentReplicationApiResponseForActiveAndCompletedOnly() throws Exception {
-        logger.info("--> starting [Primary Node] ...");
+    public void testSegmentReplicationStatsResponseForActiveAndCompletedOnly() throws Exception {
         final String primaryNode = internalCluster().startNode();
         createIndex(INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);
-        logger.info("--> starting [Replica Node] ...");
         final String replicaNode = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
-        logger.info("--> index 10 docs");
+
+        // index 10 docs
         for (int i = 0; i < 10; i++) {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         refresh(INDEX_NAME);
+
+        // index 10 more docs
         waitForSearchableDocs(10L, asList(primaryNode, replicaNode));
         for (int i = 10; i < 20; i++) {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
@@ -93,10 +97,11 @@ public class SegmentReplicationApiIT extends SegmentReplicationBaseIT {
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
-        logger.info("--> verifying active_only by checking if current stage is GET_FILES STAGE");
+
+        // verifying active_only by checking if current stage is GET_FILES STAGE
         SegmentReplicationStatsResponse activeOnlyResponse = client().admin()
             .indices()
-            .prepareSegmentReplication(INDEX_NAME)
+            .prepareSegmentReplicationStats(INDEX_NAME)
             .setActiveOnly(true)
             .execute()
             .actionGet();
@@ -105,10 +110,10 @@ public class SegmentReplicationApiIT extends SegmentReplicationBaseIT {
             equalTo(SegmentReplicationState.Stage.GET_FILES)
         );
 
-        logger.info("--> verifying completed_only by checking if current stage is DONE");
+        // verifying completed_only by checking if current stage is DONE
         SegmentReplicationStatsResponse completedOnlyResponse = client().admin()
             .indices()
-            .prepareSegmentReplication(INDEX_NAME)
+            .prepareSegmentReplicationStats(INDEX_NAME)
             .setCompletedOnly(true)
             .execute()
             .actionGet();
@@ -120,8 +125,7 @@ public class SegmentReplicationApiIT extends SegmentReplicationBaseIT {
         waitForAssertions.countDown();
     }
 
-    public void testSegmentReplicationApiResponseOnDocumentReplicationIndex() {
-        logger.info("--> starting [Primary Node] ...");
+    public void testSegmentReplicationStatsResponseOnDocumentReplicationIndex() {
         final String primaryNode = internalCluster().startNode();
         prepareCreate(
             INDEX_NAME,
@@ -129,17 +133,17 @@ public class SegmentReplicationApiIT extends SegmentReplicationBaseIT {
 
         ).get();
         ensureYellowAndNoInitializingShards(INDEX_NAME);
-        logger.info("--> start empty node to add replica shard");
         final String replicaNode = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
-        logger.info("--> index 10 docs");
+
+        // index 10 docs
         for (int i = 0; i < 10; i++) {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         refresh(INDEX_NAME);
         OpenSearchStatusException exception = assertThrows(
             OpenSearchStatusException.class,
-            () -> client().admin().indices().prepareSegmentReplication(INDEX_NAME).execute().actionGet()
+            () -> client().admin().indices().prepareSegmentReplicationStats(INDEX_NAME).execute().actionGet()
         );
         // Verify exception message
         String expectedMessage = "Segment Replication is not enabled on Index: test-idx-1";

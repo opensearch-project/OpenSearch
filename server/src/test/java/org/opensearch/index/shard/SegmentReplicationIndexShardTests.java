@@ -35,6 +35,7 @@ import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
+import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -818,7 +819,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
             final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
-            SegmentReplicationSource source = new SegmentReplicationSource() {
+            SegmentReplicationSource source = new TestReplicationSource() {
                 @Override
                 public void getCheckpointMetadata(
                     long replicationId,
@@ -844,11 +845,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {
                     listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
-                }
-
-                @Override
-                public String getDescription() {
-                    return "";
                 }
             };
             when(sourceFactory.get(any())).thenReturn(source);
@@ -898,7 +894,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
             final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
-            SegmentReplicationSource source = new SegmentReplicationSource() {
+            SegmentReplicationSource source = new TestReplicationSource() {
                 @Override
                 public void getCheckpointMetadata(
                     long replicationId,
@@ -920,11 +916,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                 ) {
                     Assert.fail("Should not be reached");
                 }
-
-                @Override
-                public String getDescription() {
-                    return "";
-                }
             };
             when(sourceFactory.get(any())).thenReturn(source);
             startReplicationAndAssertCancellation(replica, targetService);
@@ -945,7 +936,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
             final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
-            SegmentReplicationSource source = new SegmentReplicationSource() {
+            SegmentReplicationSource source = new TestReplicationSource() {
                 @Override
                 public void getCheckpointMetadata(
                     long replicationId,
@@ -967,11 +958,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                     listener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
                     targetService.beforeIndexShardClosed(replica.shardId, replica, Settings.EMPTY);
                 }
-
-                @Override
-                public String getDescription() {
-                    return "";
-                }
             };
             when(sourceFactory.get(any())).thenReturn(source);
             startReplicationAndAssertCancellation(replica, targetService);
@@ -992,7 +978,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
             final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
-            SegmentReplicationSource source = new SegmentReplicationSource() {
+            SegmentReplicationSource source = new TestReplicationSource() {
                 @Override
                 public void getCheckpointMetadata(
                     long replicationId,
@@ -1010,11 +996,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
                     Store store,
                     ActionListener<GetSegmentFilesResponse> listener
                 ) {}
-
-                @Override
-                public String getDescription() {
-                    return "";
-                }
             };
             when(sourceFactory.get(any())).thenReturn(source);
             startReplicationAndAssertCancellation(replica, targetService);
