@@ -39,7 +39,6 @@ import org.apache.lucene.util.Constants;
 
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.index.IndexRequestBuilder;
@@ -65,6 +64,7 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.fs.FsService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.fs.FsRepository;
@@ -95,7 +95,6 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -136,6 +135,7 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
     }
 
     private static final long WATERMARK_BYTES = new ByteSizeValue(10, ByteSizeUnit.KB).getBytes();
+    private static final long TOTAL_SPACE_BYTES = new ByteSizeValue(100, ByteSizeUnit.KB).getBytes();
     private static final String INDEX_ROUTING_ALLOCATION_NODE_SETTING = "index.routing.allocation.include._name";
 
     @Override
@@ -196,14 +196,13 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
             .build();
 
         internalCluster().startClusterManagerOnlyNode(settings);
-        final List<String> dataNodeNames = internalCluster().startDataOnlyNodes(2, settings);
+        internalCluster().startDataOnlyNodes(2, settings);
         ensureStableCluster(3);
+        final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
         // Reduce disk space of all node until all of them is breaching high disk watermark.
-        for (final String dataNodeName : dataNodeNames) {
-            populateNode(dataNodeName);
-        }
-
-        getMockInternalClusterInfoService().refresh();
+        clusterInfoService.setDiskUsageFunctionAndRefresh(
+            (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, TOTAL_SPACE_BYTES, WATERMARK_BYTES - 1)
+        );
         assertBusy(() -> {
             ClusterState state1 = client().admin().cluster().prepareState().setLocal(true).get().getState();
             assertFalse(state1.blocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()));
@@ -234,22 +233,23 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
         final List<String> indexNames = new ArrayList<>();
         ensureStableCluster(3);
 
+        final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
         // Reduce disk space of all node until all of them is breaching high disk watermark.
-        for (final String dataNodeName : dataNodeNames) {
-            final String indexName = populateNode(dataNodeName);
-            indexNames.add(indexName);
-        }
+        clusterInfoService.setDiskUsageFunctionAndRefresh(
+            (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, TOTAL_SPACE_BYTES, WATERMARK_BYTES - 1)
+        );
 
-        getMockInternalClusterInfoService().refresh();
         // Validate if cluster block is applied on the cluster
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
             assertTrue(state.blocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()));
         }, 30L, TimeUnit.SECONDS);
 
-        // Delete indices to free space
-        deleteIndices(indexNames);
-        getMockInternalClusterInfoService().refresh();
+        // Free all the space
+        clusterInfoService.setDiskUsageFunctionAndRefresh(
+            (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, TOTAL_SPACE_BYTES, TOTAL_SPACE_BYTES)
+        );
+
         // Validate if index create block is removed on the cluster
         assertBusy(() -> {
             ClusterState state1 = client().admin().cluster().prepareState().setLocal(true).get().getState();
@@ -266,20 +266,22 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
         final List<String> dataNodeNames = internalCluster().startDataOnlyNodes(2, settings);
         ensureStableCluster(3);
 
+        final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
         // Create one of the index.
-        final String indexName = populateNode(dataNodeNames.get(0));
-        // Reduce disk space of all other node until all of them is breaching high disk watermark
-        for (int i = 1; i < dataNodeNames.size(); i++) {
-            populateNode(dataNodeNames.get(i));
-        }
-
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createAndPopulateIndex(indexName, dataNodeNames.get(0));
         // Apply a read_only_allow_delete_block on one of the index
         // (can happen if the corresponding node has breached flood stage watermark).
         final Settings readOnlySettings = Settings.builder()
             .put(IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE, Boolean.TRUE.toString())
             .build();
         client().admin().indices().prepareUpdateSettings(indexName).setSettings(readOnlySettings).get();
-        getMockInternalClusterInfoService().refresh();
+
+        // Reduce disk space of all node until all of them is breaching high disk watermark.
+        clusterInfoService.setDiskUsageFunctionAndRefresh(
+            (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, TOTAL_SPACE_BYTES, WATERMARK_BYTES - 1)
+        );
+
         // Validate index create block is applied on the cluster
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
@@ -364,18 +366,9 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
         assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, hasSize(1));
     }
 
-    private void deleteIndices(final List<String> indexNames) throws ExecutionException, InterruptedException {
-        for (String indexName : indexNames) {
-            assertAcked(client().admin().indices().delete(new DeleteIndexRequest(indexName)).get());
-            assertFalse("index [" + indexName + "] should have been deleted", indexExists(indexName));
-        }
-    }
-
     private String populateNode(final String dataNodeName) throws Exception {
-        final Path dataNodePath = internalCluster().getInstance(Environment.class, dataNodeName).dataFiles()[0];
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        long minShardSize = createAndPopulateIndex(indexName, dataNodeName);
-        fileSystemProvider.getTestFileStore(dataNodePath).setTotalSpace(minShardSize + WATERMARK_BYTES - 1L);
+        createAndPopulateIndex(indexName, dataNodeName);
         return indexName;
     }
 
@@ -463,6 +456,10 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
                 return minShardSize;
             }
         }
+    }
+
+    private static FsInfo.Path setDiskUsage(FsInfo.Path original, long totalBytes, long freeBytes) {
+        return new FsInfo.Path(original.getPath(), original.getMount(), totalBytes, freeBytes, freeBytes);
     }
 
     private void refreshDiskUsage() {
