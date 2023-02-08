@@ -134,7 +134,7 @@ public class SearchPhaseExecutionExceptionTests extends OpenSearchTestCase {
         final String phase = randomFrom("query", "search", "other");
         SearchPhaseExecutionException actual = new SearchPhaseExecutionException(phase, "unexpected failures", shardSearchFailures);
 
-        BytesReference exceptionBytes = toShuffledXContent(actual, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
+        BytesReference exceptionBytes = toShuffledXContent(actual, xContent.mediaType(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         OpenSearchException parsedException;
         try (XContentParser parser = createParser(xContent, exceptionBytes)) {

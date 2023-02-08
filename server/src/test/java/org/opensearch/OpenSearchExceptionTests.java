@@ -742,7 +742,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         BytesReference throwableBytes = toShuffledXContent((builder, params) -> {
             OpenSearchException.generateThrowableXContent(builder, params, throwable);
             return builder;
-        }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
+        }, xContent.mediaType(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         OpenSearchException parsedException;
         try (XContentParser parser = createParser(xContent, throwableBytes)) {
@@ -774,7 +774,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
             // Prints a null failure using generateFailureXContent()
             OpenSearchException.generateFailureXContent(builder, params, null, randomBoolean());
             return builder;
-        }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
+        }, xContent.mediaType(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         OpenSearchException parsedFailure;
         try (XContentParser parser = createParser(xContent, failureBytes)) {
@@ -798,7 +798,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         BytesReference failureBytes = toShuffledXContent((builder, params) -> {
             OpenSearchException.generateFailureXContent(builder, params, failure, false);
             return builder;
-        }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
+        }, xContent.mediaType(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         try (XContentParser parser = createParser(xContent, failureBytes)) {
             failureBytes = BytesReference.bytes(shuffleXContent(parser, randomBoolean()));
@@ -952,7 +952,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         BytesReference failureBytes = toShuffledXContent((builder, params) -> {
             OpenSearchException.generateFailureXContent(builder, params, finalFailure, true);
             return builder;
-        }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
+        }, xContent.mediaType(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         try (XContentParser parser = createParser(xContent, failureBytes)) {
             failureBytes = BytesReference.bytes(shuffleXContent(parser, randomBoolean()));

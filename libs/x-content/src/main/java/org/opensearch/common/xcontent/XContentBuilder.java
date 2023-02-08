@@ -995,16 +995,38 @@ public final class XContentBuilder implements Closeable, Flushable {
 
     /**
      * Writes a raw field with the value taken from the bytes in the stream
+     *
+     * @deprecated use {@link #rawField(String, InputStream, MediaType)} instead
      */
+    @Deprecated
     public XContentBuilder rawField(String name, InputStream value, XContentType contentType) throws IOException {
         generator.writeRawField(name, value, contentType);
         return this;
     }
 
     /**
+     * Writes a raw field with the value taken from the bytes in the stream
+     */
+    public XContentBuilder rawField(String name, InputStream value, MediaType mediaType) throws IOException {
+        generator.writeRawField(name, value, mediaType);
+        return this;
+    }
+
+    /**
+     * Writes a value with the source coming directly from the bytes in the stream
+     *
+     * @deprecated use {@link #rawValue(InputStream, MediaType)} instead
+     */
+    @Deprecated
+    public XContentBuilder rawValue(InputStream stream, XContentType contentType) throws IOException {
+        generator.writeRawValue(stream, contentType);
+        return this;
+    }
+
+    /**
      * Writes a value with the source coming directly from the bytes in the stream
      */
-    public XContentBuilder rawValue(InputStream stream, XContentType contentType) throws IOException {
+    public XContentBuilder rawValue(InputStream stream, MediaType contentType) throws IOException {
         generator.writeRawValue(stream, contentType);
         return this;
     }

@@ -307,7 +307,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             builder.startObject("source");
             if (remoteInfo != null) {
                 builder.field("remote", remoteInfo);
-                builder.rawField("query", remoteInfo.getQuery().streamInput(), RemoteInfo.QUERY_CONTENT_TYPE.type());
+                builder.rawField("query", remoteInfo.getQuery().streamInput(), RemoteInfo.QUERY_CONTENT_TYPE.mediaType());
             }
             builder.array("index", getSearchRequest().indices());
             getSearchRequest().source().innerToXContent(builder, params);

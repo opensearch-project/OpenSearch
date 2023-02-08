@@ -74,8 +74,8 @@ public class PutMappingRequestTests extends AbstractXContentTestCase<PutMappingR
     protected void assertEqualInstances(PutMappingRequest expected, PutMappingRequest actual) {
         if (actual.source() != null) {
             try (
-                XContentParser expectedJson = createParser(expected.xContentType().xContent(), expected.source());
-                XContentParser actualJson = createParser(actual.xContentType().xContent(), actual.source())
+                XContentParser expectedJson = createParser(expected.mediaType().xContent(), expected.source());
+                XContentParser actualJson = createParser(actual.mediaType().xContent(), actual.source())
             ) {
                 assertEquals(expectedJson.mapOrdered(), actualJson.mapOrdered());
             } catch (IOException e) {

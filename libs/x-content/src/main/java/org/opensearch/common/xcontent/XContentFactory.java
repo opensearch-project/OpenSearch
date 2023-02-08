@@ -141,7 +141,7 @@ public class XContentFactory {
     /**
      * Returns the {@link org.opensearch.common.xcontent.XContent} for the provided content type.
      */
-    public static XContent xContent(XContentType type) {
+    public static XContent xContent(MediaType type) {
         if (type == null) {
             throw new IllegalArgumentException("Cannot get xcontent for unknown type");
         }
