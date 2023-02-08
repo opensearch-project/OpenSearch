@@ -370,11 +370,7 @@ public class RemoteFsTranslog extends Translog {
         // of older primary term.
         if (olderPrimaryCleaned.trySet(Boolean.TRUE)) {
             assert readers.isEmpty() == false : "Expected non-empty readers";
-            long minimumReferencedPrimaryTerm = readers.stream()
-                .map(BaseTranslogReader::getPrimaryTerm)
-                .mapToLong(l -> l)
-                .min()
-                .getAsLong();
+            long minimumReferencedPrimaryTerm = readers.stream().map(BaseTranslogReader::getPrimaryTerm).min(Long::compare).get();
             translogTransferManager.deletePrimaryTermsAsync(minimumReferencedPrimaryTerm);
         }
     }

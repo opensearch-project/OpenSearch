@@ -245,10 +245,10 @@ public class TranslogTransferManager {
      * of the method must ensure that the value is lesser than equal to the minimum primary term referenced by the remote
      * translog metadata.
      *
-     * @param minPrimaryTermToKeep all primary terms above this primary term are deleted.
+     * @param minPrimaryTermToKeep all primary terms below this primary term are deleted.
      */
     public void deletePrimaryTermsAsync(long minPrimaryTermToKeep) {
-        logger.info("Deleting primary term from remote store lesser than {}", minPrimaryTermToKeep);
+        logger.info("Deleting primary terms from remote store lesser than {}", minPrimaryTermToKeep);
         transferService.listFoldersAsync(ThreadPool.Names.REMOTE_PURGE, remoteBaseTransferPath, new ActionListener<>() {
             @Override
             public void onResponse(Set<String> folders) {
@@ -261,7 +261,6 @@ public class TranslogTransferManager {
                     }
                     return false;
                 }).map(Long::parseLong).collect(Collectors.toSet());
-                // Delete all primary terms that are no more referenced by the metadata file and exists in the
                 Set<Long> primaryTermsToDelete = primaryTermsInRemote.stream()
                     .filter(term -> term < minPrimaryTermToKeep)
                     .collect(Collectors.toSet());
