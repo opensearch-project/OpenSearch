@@ -42,6 +42,7 @@ import com.fasterxml.jackson.core.util.DefaultIndenter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import com.fasterxml.jackson.core.util.JsonGeneratorDelegate;
 import org.opensearch.common.xcontent.DeprecationHandler;
+import org.opensearch.common.xcontent.MediaType;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContent;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -345,6 +346,11 @@ public class JsonXContentGenerator implements XContentGenerator {
         writeRawField(name, content, contentType);
     }
 
+    /**
+     * Writes a raw field with the value taken from the bytes in the stream
+     * @deprecated use {@link #writeRawField(String, InputStream, MediaType)} instead
+     */
+    @Deprecated
     @Override
     public void writeRawField(String name, InputStream content, XContentType contentType) throws IOException {
         if (mayWriteRawData(contentType) == false) {
@@ -368,6 +374,38 @@ public class JsonXContentGenerator implements XContentGenerator {
         }
     }
 
+    /**
+     * Writes a raw field with the value taken from the bytes in the stream
+     */
+    @Override
+    public void writeRawField(String name, InputStream content, MediaType mediaType) throws IOException {
+        if (mayWriteRawData(mediaType) == false) {
+            // EMPTY is safe here because we never call namedObject when writing raw data
+            try (
+                XContentParser parser = XContentFactory.xContent(mediaType)
+                    // It's okay to pass the throwing deprecation handler
+                    // because we should not be writing raw fields when
+                    // generating JSON
+                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, content)
+            ) {
+                parser.nextToken();
+                writeFieldName(name);
+                copyCurrentStructure(parser);
+            }
+        } else {
+            writeStartRaw(name);
+            flush();
+            Streams.copy(content, os);
+            writeEndRaw();
+        }
+    }
+
+    /**
+     * Writes the raw value to the stream
+     *
+     * @deprecated use {@link #writeRawValue(InputStream, MediaType)} instead
+     */
+    @Deprecated
     @Override
     public void writeRawValue(InputStream stream, XContentType xContentType) throws IOException {
         if (mayWriteRawData(xContentType) == false) {
@@ -383,7 +421,42 @@ public class JsonXContentGenerator implements XContentGenerator {
         }
     }
 
+    /**
+     * Writes the raw value to the stream
+     */
+    @Override
+    public void writeRawValue(InputStream stream, MediaType mediaType) throws IOException {
+        if (mayWriteRawData(mediaType) == false) {
+            copyRawValue(stream, mediaType.xContent());
+        } else {
+            if (generator.getOutputContext().getCurrentName() != null) {
+                // If we've just started a field we'll need to add the separator
+                generator.writeRaw(':');
+            }
+            flush();
+            Streams.copy(stream, os, false);
+            writeEndRaw();
+        }
+    }
+
+    /**
+     * possibly copy the whole structure to correctly filter
+     *
+     * @deprecated use {@link #mayWriteRawData(MediaType)} instead
+     */
+    @Deprecated
     private boolean mayWriteRawData(XContentType contentType) {
+        // When the current generator is filtered (ie filter != null)
+        // or the content is in a different format than the current generator,
+        // we need to copy the whole structure so that it will be correctly
+        // filtered or converted
+        return supportsRawWrites() && isFiltered() == false && contentType == contentType() && prettyPrint == false;
+    }
+
+    /**
+     * possibly copy the whole structure to correctly filter
+     */
+    private boolean mayWriteRawData(MediaType contentType) {
         // When the current generator is filtered (ie filter != null)
         // or the content is in a different format than the current generator,
         // we need to copy the whole structure so that it will be correctly

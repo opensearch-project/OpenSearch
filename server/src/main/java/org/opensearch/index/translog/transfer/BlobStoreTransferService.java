@@ -16,12 +16,12 @@ import org.opensearch.action.ActionRunnable;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
 
 /**
  * Service that handles remote transfer of translog and checkpoint files
@@ -31,24 +31,25 @@ import java.util.concurrent.ExecutorService;
 public class BlobStoreTransferService implements TransferService {
 
     private final BlobStore blobStore;
-    private final ExecutorService executorService;
+    private final ThreadPool threadPool;
 
     private static final Logger logger = LogManager.getLogger(BlobStoreTransferService.class);
 
-    public BlobStoreTransferService(BlobStore blobStore, ExecutorService executorService) {
+    public BlobStoreTransferService(BlobStore blobStore, ThreadPool threadPool) {
         this.blobStore = blobStore;
-        this.executorService = executorService;
+        this.threadPool = threadPool;
     }
 
     @Override
     public void uploadBlobAsync(
+        String threadpoolName,
         final TransferFileSnapshot fileSnapshot,
         Iterable<String> remoteTransferPath,
         ActionListener<TransferFileSnapshot> listener
     ) {
         assert remoteTransferPath instanceof BlobPath;
         BlobPath blobPath = (BlobPath) remoteTransferPath;
-        executorService.execute(ActionRunnable.wrap(listener, l -> {
+        threadPool.executor(threadpoolName).execute(ActionRunnable.wrap(listener, l -> {
             try (InputStream inputStream = fileSnapshot.inputStream()) {
                 blobStore.blobContainer(blobPath)
                     .writeBlobAtomic(fileSnapshot.getName(), inputStream, fileSnapshot.getContentLength(), true);
@@ -66,8 +67,6 @@ public class BlobStoreTransferService implements TransferService {
         BlobPath blobPath = (BlobPath) remoteTransferPath;
         try (InputStream inputStream = fileSnapshot.inputStream()) {
             blobStore.blobContainer(blobPath).writeBlobAtomic(fileSnapshot.getName(), inputStream, fileSnapshot.getContentLength(), true);
-        } catch (Exception ex) {
-            throw ex;
         }
     }
 
@@ -82,10 +81,10 @@ public class BlobStoreTransferService implements TransferService {
     }
 
     @Override
-    public void deleteBlobsAsync(Iterable<String> path, List<String> fileNames, ActionListener<Void> listener) {
-        executorService.execute(() -> {
+    public void deleteBlobsAsync(String threadpoolName, Iterable<String> path, List<String> fileNames, ActionListener<Void> listener) {
+        threadPool.executor(threadpoolName).execute(() -> {
             try {
-                blobStore.blobContainer((BlobPath) path).deleteBlobsIgnoringIfNotExists(fileNames);
+                deleteBlobs(path, fileNames);
                 listener.onResponse(null);
             } catch (IOException e) {
                 listener.onFailure(e);
@@ -94,10 +93,15 @@ public class BlobStoreTransferService implements TransferService {
     }
 
     @Override
-    public void deleteAsync(Iterable<String> path, ActionListener<Void> listener) {
-        executorService.execute(() -> {
+    public void delete(Iterable<String> path) throws IOException {
+        blobStore.blobContainer((BlobPath) path).delete();
+    }
+
+    @Override
+    public void deleteAsync(String threadpoolName, Iterable<String> path, ActionListener<Void> listener) {
+        threadPool.executor(threadpoolName).execute(() -> {
             try {
-                blobStore.blobContainer((BlobPath) path).delete();
+                delete(path);
                 listener.onResponse(null);
             } catch (IOException e) {
                 listener.onFailure(e);
@@ -113,5 +117,16 @@ public class BlobStoreTransferService implements TransferService {
     @Override
     public Set<String> listFolders(Iterable<String> path) throws IOException {
         return blobStore.blobContainer((BlobPath) path).children().keySet();
+    }
+
+    @Override
+    public void listFoldersAsync(String threadpoolName, Iterable<String> path, ActionListener<Set<String>> listener) {
+        threadPool.executor(threadpoolName).execute(() -> {
+            try {
+                listener.onResponse(listFolders(path));
+            } catch (IOException e) {
+                listener.onFailure(e);
+            }
+        });
     }
 }

@@ -69,7 +69,6 @@ import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
-import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -484,7 +483,7 @@ final class StoreRecovery {
         FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId);
         TranslogTransferManager translogTransferManager = RemoteFsTranslog.buildTranslogTransferManager(
             blobStoreRepository,
-            indexShard.getThreadPool().executor(ThreadPool.Names.TRANSLOG_TRANSFER),
+            indexShard.getThreadPool(),
             shardId,
             fileTransferTracker
         );
