@@ -91,6 +91,9 @@ import org.opensearch.action.admin.indices.resolve.ResolveIndexAction;
 import org.opensearch.action.admin.indices.rollover.RolloverRequest;
 import org.opensearch.action.admin.indices.rollover.RolloverRequestBuilder;
 import org.opensearch.action.admin.indices.rollover.RolloverResponse;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsRequest;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsRequestBuilder;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequestBuilder;
@@ -186,9 +189,24 @@ public interface IndicesAdminClient extends OpenSearchClient {
     void recoveries(RecoveryRequest request, ActionListener<RecoveryResponse> listener);
 
     /**
+     *Indices segment replication
+     */
+    ActionFuture<SegmentReplicationStatsResponse> segmentReplicationStats(SegmentReplicationStatsRequest request);
+
+    /**
+     *Indices segment replication
+     */
+    void segmentReplicationStats(SegmentReplicationStatsRequest request, ActionListener<SegmentReplicationStatsResponse> listener);
+
+    /**
      * Indices recoveries
      */
     RecoveryRequestBuilder prepareRecoveries(String... indices);
+
+    /**
+     * Indices segment replication
+     */
+    SegmentReplicationStatsRequestBuilder prepareSegmentReplicationStats(String... indices);
 
     /**
      * The segments of one or more indices.
