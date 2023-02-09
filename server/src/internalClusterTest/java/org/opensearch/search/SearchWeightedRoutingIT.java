@@ -804,9 +804,8 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
 
     /**
      * Assert that preference based search is not allowed with strict weighted shard routing
-     * @throws Exception throws exception
      */
-    public void testStrictWeightedRouting() throws Exception {
+    public void testStrictWeightedRouting() {
 
         Settings commonSettings = Settings.builder()
             .put("cluster.routing.allocation.awareness.attributes", "zone")
@@ -841,9 +840,8 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
 
     /**
      *  Assert that preference based search works with non-strict weighted shard routing
-     * @throws Exception
      */
-    public void testPreferenceSearchWithWeightedRouting() throws Exception {
+    public void testPreferenceSearchWithWeightedRouting() {
         Settings commonSettings = Settings.builder()
             .put("cluster.routing.allocation.awareness.attributes", "zone")
             .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")

@@ -52,9 +52,9 @@ public class RestClusterHealthActionTests extends OpenSearchTestCase {
         Map<String, String> params = new HashMap<>();
         String index = "index";
         boolean local = randomBoolean();
-        boolean ensureLocalNodeCommissioned = false;
+        boolean ensureLocalWeighedIn = false;
         if (local) {
-            ensureLocalNodeCommissioned = randomBoolean();
+            ensureLocalWeighedIn = randomBoolean();
         }
         String clusterManagerTimeout = randomTimeValue();
         String timeout = randomTimeValue();
@@ -67,7 +67,7 @@ public class RestClusterHealthActionTests extends OpenSearchTestCase {
 
         params.put("index", index);
         params.put("local", String.valueOf(local));
-        params.put("ensure_node_commissioned", String.valueOf(ensureLocalNodeCommissioned));
+        params.put("ensure_node_weighed_in", String.valueOf(ensureLocalWeighedIn));
         params.put("cluster_manager_timeout", clusterManagerTimeout);
         params.put("timeout", timeout);
         params.put("wait_for_status", waitForStatus.name());
@@ -86,7 +86,7 @@ public class RestClusterHealthActionTests extends OpenSearchTestCase {
         assertThat(clusterHealthRequest.indices().length, equalTo(1));
         assertThat(clusterHealthRequest.indices()[0], equalTo(index));
         assertThat(clusterHealthRequest.local(), equalTo(local));
-        assertThat(clusterHealthRequest.ensureNodeCommissioned(), equalTo(ensureLocalNodeCommissioned));
+        assertThat(clusterHealthRequest.ensureNodeWeighedIn(), equalTo(ensureLocalWeighedIn));
         assertThat(clusterHealthRequest.clusterManagerNodeTimeout(), equalTo(TimeValue.parseTimeValue(clusterManagerTimeout, "test")));
         assertThat(clusterHealthRequest.timeout(), equalTo(TimeValue.parseTimeValue(timeout, "test")));
         assertThat(clusterHealthRequest.waitForStatus(), equalTo(waitForStatus));

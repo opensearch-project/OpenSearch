@@ -941,7 +941,7 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
 
         os = new ByteArrayOutputStream();
         try (XContentGenerator generator = xcontentType().xContent().createGenerator(os)) {
-            generator.writeRawValue(new BytesArray(rawData).streamInput(), source.type());
+            generator.writeRawValue(new BytesArray(rawData).streamInput(), source.mediaType());
         }
 
         try (
@@ -966,7 +966,7 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
         try (XContentGenerator generator = xcontentType().xContent().createGenerator(os)) {
             generator.writeStartObject();
             generator.writeFieldName("test");
-            generator.writeRawValue(new BytesArray(rawData).streamInput(), source.type());
+            generator.writeRawValue(new BytesArray(rawData).streamInput(), source.mediaType());
             assertFalse("Generator should not have closed the output stream", closed.get());
             generator.writeEndObject();
         }
