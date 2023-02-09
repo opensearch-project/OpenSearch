@@ -61,7 +61,7 @@ identity.enabled: true
 logger.org.opensearch.identity: debug
 ```
 
-To start opensearch with the extensions feature flag enabled you can add:
+To start OpenSearch with the extensions feature flag enabled you can add:
 
 ```
 opensearch.experimental.feature.extensions.enabled: true
