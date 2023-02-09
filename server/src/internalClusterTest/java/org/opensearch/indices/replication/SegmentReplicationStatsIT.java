@@ -47,7 +47,12 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
             .actionGet();
         // Verify API Response
         assertThat(response.shardSegmentReplicationStates().size(), equalTo(SHARD_COUNT));
-        assertThat(response.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getStage(), equalTo(SegmentReplicationState.Stage.DONE));
+        assertBusy(
+            () -> assertThat(
+                response.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getStage(),
+                equalTo(SegmentReplicationState.Stage.DONE)
+            )
+        );
         assertThat(response.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getIndex().recoveredFileCount(), greaterThan(0));
     }
 

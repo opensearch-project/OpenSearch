@@ -51,6 +51,11 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
         return Collections.singletonList(MockTransportService.TestPlugin.class);
     }
 
+    @Override
+    protected boolean addMockInternalEngine() {
+        return false;
+    }
+
     public void testNodesInfoTimeout() {
         String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
@@ -152,7 +157,6 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
         assertThat(recoveryResponse.getShardFailures()[0].reason(), containsString("ReceiveTimeoutTransportException"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6255")
     public void testSegmentReplicationStatsWithTimeout() {
         internalCluster().startClusterManagerOnlyNode(
             Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REPLICATION_TYPE, "true").build()

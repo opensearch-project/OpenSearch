@@ -22,8 +22,8 @@ import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.indices.replication.common.ReplicationTimer;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * ReplicationState implementation to track Segment Replication events.
@@ -76,9 +76,10 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
 
     private Stage stage;
     private ReplicationLuceneIndex index;
-
     private final ReplicationTimer overallTimer;
-    private final Map<String, Long> timingData;
+
+    // Timing data will have as many entries as stages, plus one
+    private final Map<String, Long> timingData = new ConcurrentHashMap<>(Stage.values().length + 1);
     private final ReplicationTimer stageTimer;
     private long replicationId;
     private final ShardRouting shardRouting;
@@ -152,8 +153,6 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         this.replicationId = replicationId;
         this.sourceDescription = sourceDescription;
         this.targetNode = targetNode;
-        // Timing data will have as many entries as stages, plus one
-        timingData = new HashMap<>(Stage.values().length + 1);
         overallTimer = new ReplicationTimer();
         stageTimer = new ReplicationTimer();
         setStage(Stage.INIT);
@@ -167,7 +166,6 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         replicationId = in.readLong();
         overallTimer = new ReplicationTimer(in);
         stageTimer = new ReplicationTimer(in);
-        timingData = in.readMap(StreamInput::readString, StreamInput::readLong);
         sourceDescription = in.readString();
         targetNode = new DiscoveryNode(in);
     }
@@ -180,7 +178,6 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         out.writeLong(replicationId);
         overallTimer.writeTo(out);
         stageTimer.writeTo(out);
-        out.writeMap(timingData, StreamOutput::writeString, StreamOutput::writeLong);
         out.writeString(sourceDescription);
         targetNode.writeTo(out);
     }
