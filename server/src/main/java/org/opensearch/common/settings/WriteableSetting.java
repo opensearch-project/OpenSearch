@@ -351,6 +351,7 @@ public class WriteableSetting implements Writeable {
                 } else if (parser instanceof MinTimeValueParser) {
                     return new MinTimeValueParser(in);
                 }
+                return null;
             case ByteSizeValue:
                 return new ByteSizeValueParser(in);
             default:
