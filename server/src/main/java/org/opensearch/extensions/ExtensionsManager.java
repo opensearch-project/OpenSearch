@@ -90,7 +90,7 @@ public class ExtensionsManager {
     public static final String REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION = "internal:extensions/restexecuteonextensiontaction";
     public static final String REQUEST_EXTENSION_HANDLE_TRANSPORT_ACTION = "internal:extensions/handle-transportaction";
     public static final String TRANSPORT_ACTION_REQUEST_FROM_EXTENSION = "internal:extensions/request-transportaction-from-extension";
-    public static final int EXTENSION_REQUEST_WAIT_TIMEOUT = 10;
+    public static final int EXTENSION_REQUEST_WAIT_TIMEOUT = 11;
 
     private static final Logger logger = LogManager.getLogger(ExtensionsManager.class);
 
@@ -502,21 +502,23 @@ public class ExtensionsManager {
                                     new IndicesModuleRequest(indexModule),
                                     acknowledgedResponseHandler
                                 );
-                                inProgressIndexNameFuture.whenComplete((r, e) -> {
-                                    if (e != null) {
-                                        inProgressFuture.complete(response);
-                                    } else if (e == null) {
-                                        inProgressFuture.completeExceptionally(e);
-                                    }
-                                });
-                            } catch (Exception ex) {
-                                inProgressFuture.completeExceptionally(ex);
+                                inProgressIndexNameFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
+                            } catch (CompletionException e) {
+                                if (e.getCause() instanceof TimeoutException) {
+                                    logger.info("No response from extension to request.");
+                                }
+                                if (e.getCause() instanceof RuntimeException) {
+                                    throw (RuntimeException) e.getCause();
+                                } else if (e.getCause() instanceof Error) {
+                                    throw (Error) e.getCause();
+                                } else {
+                                    throw new RuntimeException(e.getCause());
+                                }
                             }
                         }
                     });
-                } else {
-                    inProgressFuture.complete(response);
                 }
+                inProgressFuture.complete(response);
             }
 
             @Override
