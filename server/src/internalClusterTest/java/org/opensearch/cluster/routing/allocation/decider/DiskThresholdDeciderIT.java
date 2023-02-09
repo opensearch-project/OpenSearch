@@ -89,7 +89,6 @@ import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Locale;
@@ -223,14 +222,13 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
         assertFalse(state.blocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()));
     }
 
-    public void testIndexCreateBlockIsRemovedWhenAnyNodesNotExceedHighWatermark() throws Exception {
+    public void testIndexCreateBlockIsRemovedWhenAnyNodesNotExceedHighWatermarkWithAutoReleaseEnabled() throws Exception {
         final Settings settings = Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
             .build();
 
         internalCluster().startClusterManagerOnlyNode(settings);
-        final List<String> dataNodeNames = internalCluster().startDataOnlyNodes(2, settings);
-        final List<String> indexNames = new ArrayList<>();
+        internalCluster().startDataOnlyNodes(2, settings);
         ensureStableCluster(3);
 
         final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
@@ -254,6 +252,78 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
         assertBusy(() -> {
             ClusterState state1 = client().admin().cluster().prepareState().setLocal(true).get().getState();
             assertFalse(state1.blocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()));
+        }, 30L, TimeUnit.SECONDS);
+    }
+
+    public void testIndexCreateBlockIsRemovedWhenAnyNodesNotExceedHighWatermarkWithAutoReleaseDisabled() throws Exception {
+        final Settings settings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+            .put(DiskThresholdSettings.CLUSTER_CREATE_INDEX_BLOCK_AUTO_RELEASE.getKey(), false)
+            .build();
+
+        internalCluster().startClusterManagerOnlyNode(settings);
+        internalCluster().startDataOnlyNodes(2, settings);
+        ensureStableCluster(3);
+
+        final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
+        // Reduce disk space of all node until all of them is breaching high disk watermark
+        clusterInfoService.setDiskUsageFunctionAndRefresh(
+            (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, TOTAL_SPACE_BYTES, WATERMARK_BYTES - 1)
+        );
+
+        // Validate if cluster block is applied on the cluster
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
+            assertTrue(state.blocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()));
+        }, 30L, TimeUnit.SECONDS);
+
+        // Free all the space
+        clusterInfoService.setDiskUsageFunctionAndRefresh(
+            (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, TOTAL_SPACE_BYTES, TOTAL_SPACE_BYTES)
+        );
+
+        // Validate index create block is not removed on the cluster
+        assertBusy(() -> {
+            ClusterState state1 = client().admin().cluster().prepareState().setLocal(true).get().getState();
+            assertTrue(state1.blocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()));
+        }, 30L, TimeUnit.SECONDS);
+    }
+
+    public void testDiskMonitorAppliesBlockBackWhenUserRemovesIndexCreateBlock() throws Exception {
+        final Settings settings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+            .put(DiskThresholdSettings.CLUSTER_CREATE_INDEX_BLOCK_AUTO_RELEASE.getKey(), false)
+            .build();
+
+        internalCluster().startClusterManagerOnlyNode(settings);
+        internalCluster().startDataOnlyNodes(2, settings);
+        ensureStableCluster(3);
+
+        // User applies index create block.
+        Settings createBlockSetting = Settings.builder().put(Metadata.SETTING_CREATE_INDEX_BLOCK_SETTING.getKey(), "true").build();
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(createBlockSetting).get());
+        final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
+        // Reduce disk space of all node until all of them is breaching high disk watermark and DiskMonitor applies block.
+        clusterInfoService.setDiskUsageFunctionAndRefresh(
+            (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, TOTAL_SPACE_BYTES, WATERMARK_BYTES - 1)
+        );
+
+        // Validate if cluster block is applied on the cluster
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
+            assertTrue(state.blocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()));
+        }, 30L, TimeUnit.SECONDS);
+
+        // User removes the block.
+        Settings removeBlockSetting = Settings.builder().put(Metadata.SETTING_CREATE_INDEX_BLOCK_SETTING.getKey(), false).build();
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(removeBlockSetting).get());
+
+        // Refresh so that DiskThresholdMonitor kicks in and applies block.
+        getMockInternalClusterInfoService().refresh();
+        // Validate index create block is not removed on the cluster
+        assertBusy(() -> {
+            ClusterState state1 = client().admin().cluster().prepareState().setLocal(true).get().getState();
+            assertTrue(state1.blocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()));
         }, 30L, TimeUnit.SECONDS);
     }
 
