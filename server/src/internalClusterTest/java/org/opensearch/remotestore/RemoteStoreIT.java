@@ -91,6 +91,7 @@ public class RemoteStoreIT extends OpenSearchIntegTestCase {
 
     @Before
     public void setup() {
+        internalCluster().startClusterManagerOnlyNode();
         Path absolutePath = randomRepoPath().toAbsolutePath();
         assertAcked(
             clusterAdmin().preparePutRepository(REPOSITORY_NAME).setType("fs").setSettings(Settings.builder().put("location", absolutePath))
@@ -112,8 +113,8 @@ public class RemoteStoreIT extends OpenSearchIntegTestCase {
     private Map<String, Long> indexData() {
         long totalOperations = 0;
         long refreshedOrFlushedOperations = 0;
-        long maxSeqNo = 0;
-        long maxSeqNoRefreshedOrFlushed = 0;
+        long maxSeqNo = -1;
+        long maxSeqNoRefreshedOrFlushed = -1;
         for (int i = 0; i < randomIntBetween(1, 10); i++) {
             if (randomBoolean()) {
                 flush(INDEX_NAME);
@@ -149,8 +150,8 @@ public class RemoteStoreIT extends OpenSearchIntegTestCase {
         assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(statsGranularity) + 1);
     }
 
-    public void testRemoteStoreRestoreFromRemoteSegmentStore() throws IOException {
-        internalCluster().startNodes(3);
+    public void testRemoteSegmentStoreRestore() throws IOException {
+        internalCluster().startDataOnlyNodes(3);
         createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
@@ -161,12 +162,14 @@ public class RemoteStoreIT extends OpenSearchIntegTestCase {
         assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
 
         client().admin().cluster().restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAME), PlainActionFuture.newFuture());
+        ensureGreen(INDEX_NAME);
 
         verifyRestoredData(indexStats, false);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6188")
     public void testRemoteTranslogRestore() throws IOException {
-        internalCluster().startNodes(3);
+        internalCluster().startDataOnlyNodes(3);
         createIndex(INDEX_NAME, remoteTranslogIndexSettings(0));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
@@ -177,6 +180,7 @@ public class RemoteStoreIT extends OpenSearchIntegTestCase {
         assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
 
         client().admin().cluster().restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAME), PlainActionFuture.newFuture());
+        ensureGreen(INDEX_NAME);
 
         verifyRestoredData(indexStats, true);
     }

@@ -14,7 +14,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 
 /**
- * Settings related to search backpressure mode and internal
+ * Settings related to search backpressure mode and interval
  *
  * @opensearch.internal
  */

@@ -42,7 +42,7 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
     public SearchBackpressureStats(StreamInput in) throws IOException {
         searchShardTaskStats = new SearchShardTaskStats(in);
         mode = SearchBackpressureMode.fromName(in.readString());
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_6_0)) {
             searchTaskStats = in.readOptionalWriteable(SearchTaskStats::new);
         } else {
             searchTaskStats = null;
@@ -64,7 +64,7 @@ public class SearchBackpressureStats implements ToXContentFragment, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         searchShardTaskStats.writeTo(out);
         out.writeString(mode.getName());
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_6_0)) {
             out.writeOptionalWriteable(searchTaskStats);
         }
     }

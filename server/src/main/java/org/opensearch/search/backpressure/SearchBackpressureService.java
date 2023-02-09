@@ -308,7 +308,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         return settings;
     }
 
-    SearchBackpressureState getSearchBackpressureStats(Class<? extends SearchBackpressureTask> taskType) {
+    SearchBackpressureState getSearchBackpressureState(Class<? extends SearchBackpressureTask> taskType) {
         return searchBackpressureStates.get(taskType);
     }
 

@@ -79,6 +79,7 @@ import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.common.xcontent.DeprecationHandler;
+import org.opensearch.common.xcontent.MediaType;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContent;
@@ -112,6 +113,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
 
+/**
+ * Converts OpenSearch writeable requests to an HTTP Request
+ *
+ * @opensearch.api
+ */
 final class RequestConverters {
     static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
 
@@ -514,7 +520,7 @@ final class RequestConverters {
         XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
         byte[] source = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, xContent);
         request.addParameters(params.asMap());
-        request.setEntity(new ByteArrayEntity(source, createContentType(xContent.type())));
+        request.setEntity(new ByteArrayEntity(source, createContentType(xContent.mediaType())));
         return request;
     }
 
@@ -549,7 +555,7 @@ final class RequestConverters {
 
         XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
         byte[] source = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, xContent);
-        request.setEntity(new ByteArrayEntity(source, createContentType(xContent.type())));
+        request.setEntity(new ByteArrayEntity(source, createContentType(xContent.mediaType())));
         return request;
     }
 
@@ -867,10 +873,24 @@ final class RequestConverters {
      *
      * @param xContentType the {@link XContentType}
      * @return the {@link ContentType}
+     *
+     * @deprecated use {@link #createContentType(MediaType)} instead
      */
+    @Deprecated
     @SuppressForbidden(reason = "Only allowed place to convert a XContentType to a ContentType")
     public static ContentType createContentType(final XContentType xContentType) {
         return ContentType.create(xContentType.mediaTypeWithoutParameters(), (Charset) null);
+    }
+
+    /**
+     * Returns a {@link ContentType} from a given {@link XContentType}.
+     *
+     * @param mediaType the {@link MediaType}
+     * @return the {@link ContentType}
+     */
+    @SuppressForbidden(reason = "Only allowed place to convert a XContentType to a ContentType")
+    public static ContentType createContentType(final MediaType mediaType) {
+        return ContentType.create(mediaType.mediaTypeWithoutParameters(), (Charset) null);
     }
 
     /**

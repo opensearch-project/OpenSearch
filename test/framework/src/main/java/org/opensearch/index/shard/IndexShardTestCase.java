@@ -89,6 +89,7 @@ import org.opensearch.index.engine.EngineTestCase;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceToParse;
+import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -1290,7 +1291,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             sourceFactory,
             indicesService
         );
-        final SegmentReplicationSource replicationSource = new SegmentReplicationSource() {
+        final SegmentReplicationSource replicationSource = new TestReplicationSource() {
             @Override
             public void getCheckpointMetadata(
                 long replicationId,
