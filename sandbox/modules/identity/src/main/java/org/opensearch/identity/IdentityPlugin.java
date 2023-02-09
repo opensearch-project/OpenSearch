@@ -34,9 +34,9 @@ import org.opensearch.identity.authz.IndexNameExpressionResolverHolder;
 import org.opensearch.identity.configuration.ClusterInfoHolder;
 import org.opensearch.identity.configuration.ConfigurationRepository;
 import org.opensearch.identity.configuration.DynamicConfigFactory;
-import org.opensearch.identity.rest.action.permission.put.PutPermissionAction;
-import org.opensearch.identity.rest.action.permission.put.RestPutPermissionAction;
-import org.opensearch.identity.rest.action.permission.put.TransportPutPermissionAction;
+import org.opensearch.identity.rest.permission.put.PutPermissionAction;
+import org.opensearch.identity.rest.permission.put.RestPutPermissionAction;
+import org.opensearch.identity.rest.permission.put.TransportPutPermissionAction;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ClusterPlugin;
@@ -131,7 +131,10 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        final List<RestHandler> handlers = new ArrayList<>(3);
+        final List<RestHandler> handlers = new ArrayList<>(1);
+        if (!isEnabled(settings)){
+            return handlers;
+        }
         handlers.add(new RestPutPermissionAction());
         // Add more handlers for future actions
         return handlers;

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.action.permission.put;
+package org.opensearch.identity.rest.permission.put;
 
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
@@ -27,18 +27,18 @@ import static org.opensearch.common.xcontent.ConstructingObjectParser.constructo
 public class PutPermissionResponseInfo extends TransportResponse implements Writeable, ToXContent {
     private final boolean successful;
     private final String username;
-    private final String permissionString;
+    private final String permission;
 
     /**
      * Construct an instance of a put permission response info (these are aggregated into a response for bulk requests)
      * @param successful whether the request was successful
      * @param username the username of the principal being granted the permission
-     * @param permissionString the permission string to be granted
+     * @param permission the permission to be granted
      */
-    public PutPermissionResponseInfo(boolean successful, String username, String permissionString) {
+    public PutPermissionResponseInfo(boolean successful, String username, String permission) {
         this.successful = successful;
         this.username = username;
-        this.permissionString = permissionString;
+        this.permission = permission;
     }
 
     /**
@@ -49,7 +49,7 @@ public class PutPermissionResponseInfo extends TransportResponse implements Writ
     public PutPermissionResponseInfo(StreamInput in) throws IOException {
         this.successful = in.readBoolean();
         this.username = in.readString();
-        this.permissionString = in.readString();
+        this.permission = in.readString();
 
     }
 
@@ -61,8 +61,8 @@ public class PutPermissionResponseInfo extends TransportResponse implements Writ
         return this.username;
     }
 
-    public String getPermissionString() {
-        return permissionString;
+    public String getpermission() {
+        return permission;
     }
 
     /**
@@ -74,7 +74,7 @@ public class PutPermissionResponseInfo extends TransportResponse implements Writ
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(this.successful);
         out.writeString(this.username);
-        out.writeString(this.permissionString);
+        out.writeString(this.permission);
     }
 
     /**
@@ -89,12 +89,12 @@ public class PutPermissionResponseInfo extends TransportResponse implements Writ
     static {
         PARSER.declareBoolean(constructorArg(), new ParseField("successful"));
         PARSER.declareString(constructorArg(), new ParseField("username"));
-        PARSER.declareString(constructorArg(), new ParseField("permissionString"));
+        PARSER.declareString(constructorArg(), new ParseField("permission"));
     }
 
     private static final ParseField SUCCESSFUL = new ParseField("successful");
     private static final ParseField USERNAME = new ParseField("username");
-    private static final ParseField PERMISSION_STRING = new ParseField("permission added");
+    private static final ParseField PERMISSION = new ParseField("permission added");
 
     /**
      * Write the response info to Xcontent (JSON formatted data) that you will see as the response message to the request
@@ -108,7 +108,7 @@ public class PutPermissionResponseInfo extends TransportResponse implements Writ
         builder.startObject();
         builder.field(SUCCESSFUL.getPreferredName(), this.successful);
         builder.field(USERNAME.getPreferredName(), this.username);
-        builder.field(PERMISSION_STRING.getPreferredName(), this.permissionString);
+        builder.field(PERMISSION.getPreferredName(), this.permission);
         builder.endObject();
         return builder;
     }

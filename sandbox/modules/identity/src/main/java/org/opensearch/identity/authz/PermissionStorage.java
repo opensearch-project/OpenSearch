@@ -45,9 +45,7 @@ public class PermissionStorage {
     public static void put(String principal, List<OpenSearchPermission> permissions) {
 
         StringPrincipal principalFromString = new StringPrincipal(principal);
-        for (OpenSearchPermission permission : permissions) {
-            permissionStore.computeIfAbsent(principalFromString, permissionsList -> new ArrayList<>()).add(permission);
-        }
+        put(principalFromString, permissions);
     }
 
     /**

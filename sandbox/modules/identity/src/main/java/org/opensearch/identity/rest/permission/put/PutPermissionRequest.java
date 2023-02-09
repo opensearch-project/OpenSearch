@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.action.permission.put;
+package org.opensearch.identity.rest.permission.put;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
@@ -27,17 +27,17 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 public class PutPermissionRequest extends ActionRequest implements ToXContentObject {
 
     private String username;
-    private String permissionString;
+    private String permission;
 
     public PutPermissionRequest(StreamInput in) throws IOException {
         super(in);
         this.username = in.readString();
-        this.permissionString = in.readString();
+        this.permission = in.readString();
     }
 
-    public PutPermissionRequest(String username, String permissionString) {
+    public PutPermissionRequest(String username, String permission) {
         this.username = username;
-        this.permissionString = permissionString;
+        this.permission = permission;
 
     }
 
@@ -51,12 +51,12 @@ public class PutPermissionRequest extends ActionRequest implements ToXContentObj
         this.username = username;
     }
 
-    public String getPermissionString() {
-        return this.permissionString;
+    public String getPermission() {
+        return this.permission;
     }
 
-    public void setPermissionString(String permissionString) {
-        this.permissionString = permissionString;
+    public void setPermission(String permission) {
+        this.permission = permission;
     }
 
     /**
@@ -68,8 +68,8 @@ public class PutPermissionRequest extends ActionRequest implements ToXContentObj
         ActionRequestValidationException validationException = null;
         if (username == null) {
             validationException = addValidationError("No username specified", validationException);
-        } else if (permissionString == null) { // TODO: check the condition once
-            validationException = addValidationError("No permissionString specified", validationException);
+        } else if (permission == null) { // TODO: check the condition once
+            validationException = addValidationError("No permission specified", validationException);
         }
         return validationException;
     }
@@ -78,45 +78,15 @@ public class PutPermissionRequest extends ActionRequest implements ToXContentObj
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(username);
-        out.writeString(permissionString);
+        out.writeString(permission);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.value(username);
-        builder.value(permissionString);
+        builder.value(permission);
         builder.endObject();
         return builder;
-    }
-
-    public void fromXContent(XContentParser parser) throws IOException { // TODO: Talk to DC about this
-
-        if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
-            throw new IllegalArgumentException("Malformed content, must start with an object");
-        } else {
-            XContentParser.Token token;
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if ("permissionString".equals(currentFieldName)) {
-
-                    if (token.isValue() == false) {
-                        throw new IllegalArgumentException(); // TODO: check the message to be returned
-                    }
-
-                    // add any validation checks here
-
-                    permissionString = parser.text();
-                }
-                // add all other fields to be parsed from body
-                else {
-                    throw new IllegalArgumentException(
-                        "Unknown parameter [" + currentFieldName + "] in request body or parameter is of the wrong type[" + token + "] "
-                    );
-                }
-            }
-        }
     }
 }

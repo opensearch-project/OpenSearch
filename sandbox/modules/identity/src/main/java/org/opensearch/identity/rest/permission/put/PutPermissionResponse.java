@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.action.permission.put;
+package org.opensearch.identity.rest.permission.put;
 
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.ParseField;
@@ -101,7 +101,7 @@ public class PutPermissionResponse extends ActionResponse implements StatusToXCo
         }
     );
     static {
-        PARSER.declareObjectArray(constructorArg(), PutPermissionResponseInfo.PARSER, new ParseField("permissions"));
+        PARSER.declareObject(constructorArg(), PutPermissionResponseInfo.PARSER, new ParseField("permissions"));
     }
 
     public static PutPermissionResponse fromXContent(XContentParser parser) throws IOException {

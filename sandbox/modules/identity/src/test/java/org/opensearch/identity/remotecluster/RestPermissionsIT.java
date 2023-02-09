@@ -10,14 +10,18 @@ package org.opensearch.identity.remotecluster;
 
 import org.junit.Before;
 
+import org.opensearch.authn.StringPrincipal;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.identity.ConfigConstants;
+import org.opensearch.identity.authz.PermissionStorage;
 import org.opensearch.identity.rest.RestConstants;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.is;
 
@@ -54,9 +58,33 @@ public class RestPermissionsIT extends OpenSearchRestTestCase {
 
         String username = "test";
         // _identity/api/permissions/test
-        Request createRequest = new Request("PUT", endpoint + username);
-        createRequest.setJsonEntity("{ \"permissionString\" : \"cluster.admin/read\"}\n");
+        Request createRequest = new Request("PUT", endpoint + "/" + username);
+        createRequest.setJsonEntity("{ \"permission\" : \"cluster.admin/read\"}\n");
         Response createResponse = client().performRequest(createRequest);
         assertThat(createResponse.getStatusLine().getStatusCode(), is(200));
+        assertTrue(new String(createResponse.getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8).contains("true"));
+
+        // Check for the added permission in permission storage
+        assertTrue(
+            PermissionStorage.get((new StringPrincipal(username)))
+                .stream()
+                .map(permission -> permission.getPermissionString())
+                .collect(Collectors.toList())
+                .contains("cluster.admin/read")
+        );
+
+        createRequest = new Request("PUT", endpoint + "/" + username);
+        createRequest.setJsonEntity("{ \"permission\" : \":1:2:3\"}\n"); //Invalid permission
+        createResponse = client().performRequest(createRequest);
+        assertThat(createResponse.getStatusLine().getStatusCode(), is(500));
+
+        // Check for the added permission in permission storage
+        assertFalse(
+            PermissionStorage.get((new StringPrincipal(username)))
+                .stream()
+                .map(permission -> permission.getPermissionString())
+                .collect(Collectors.toList())
+                .contains(":1:2:3")
+        );
     }
 }

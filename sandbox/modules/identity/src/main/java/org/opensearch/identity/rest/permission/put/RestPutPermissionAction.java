@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.action.permission.put;
+package org.opensearch.identity.rest.permission.put;
 
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -48,7 +48,7 @@ public class RestPutPermissionAction extends BaseRestHandler {
      *
      * ````
      * Sample Request:
-     * curl -XPUT http://new-user:password@localhost:9200/_identity/api/permissions/second_user/put --data '{ "permissionString" : "my_permission" }' -H"Content-type: application/json"
+     * curl -XPUT http://new-user:password@localhost:9200/_identity/api/permissions/second_user/put --data '{ "permission" : "my_permission" }' -H"Content-type: application/json"
      *
      *
      * Sample Response
@@ -73,9 +73,9 @@ public class RestPutPermissionAction extends BaseRestHandler {
         JsonNode contentAsNode;
         try {
             contentAsNode = DefaultObjectMapper.readTree(request.content().utf8ToString());
-            String permissionString = contentAsNode.get("permissionString").asText();
+            String permission = contentAsNode.get("permission").asText();
 
-            PutPermissionRequest putPermissionRequest = new PutPermissionRequest(username, permissionString);
+            PutPermissionRequest putPermissionRequest = new PutPermissionRequest(username, permission);
 
             // TODO: check if this bypass to directly doExecute is okay.
             // TODO: Ideally, this should be registered as `createUser` request in Client.java and AbstractClient.java

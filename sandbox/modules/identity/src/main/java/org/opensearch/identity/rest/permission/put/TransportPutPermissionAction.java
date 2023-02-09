@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.action.permission.put;
+package org.opensearch.identity.rest.permission.put;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
@@ -45,7 +45,7 @@ public class TransportPutPermissionAction extends HandledTransportAction<PutPerm
     @Override
     protected void doExecute(Task task, PutPermissionRequest request, ActionListener<PutPermissionResponse> listener) {
         String username = request.getUsername();
-        String permissionString = request.getPermissionString();
-        this.permissionService.putPermission(username, permissionString, listener);
+        String permission = request.getPermission();
+        this.permissionService.putPermission(username, permission, listener);
     }
 }

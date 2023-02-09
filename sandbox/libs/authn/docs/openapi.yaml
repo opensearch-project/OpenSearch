@@ -30,13 +30,13 @@ paths:
         description: Add a permission
         content:
           application/json:
-            - name: principal name
+            - name: username
               description: the principal name to grant a permission to
               required: true
               schema:
                 type: string
                 format: utf-8
-            - name: permission string
+            - name: permission
               description: the permission string for the permission being granted
               required: true
               schema:
@@ -62,7 +62,7 @@ paths:
               schema:
                 type: string
                 format: utf-8
-            - name: permission string
+            - name: permission
               description: the permission string for the permission being deleted
               required: true
               schema:

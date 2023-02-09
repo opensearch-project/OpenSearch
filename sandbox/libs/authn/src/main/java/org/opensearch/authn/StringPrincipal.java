@@ -47,4 +47,11 @@ public class StringPrincipal implements Principal {
     public String toString() {
         return "StringPrincipal(" + "name=" + name + ")";
     }
+
+    public boolean equals(StringPrincipal secondStringPrincipal) {
+        if (this.name == secondStringPrincipal.getName()) {
+            return true;
+        }
+        return false;
+    }
 }

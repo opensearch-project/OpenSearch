@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.action.permission;
+package org.opensearch.identity.rest.permission;
 
 import org.opensearch.common.SetOnce;
 import org.opensearch.action.ActionListener;
@@ -16,8 +16,8 @@ import org.opensearch.action.ActionType;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.identity.rest.action.permission.put.RestPutPermissionAction;
-import org.opensearch.identity.rest.action.permission.put.PutPermissionRequest;
+import org.opensearch.identity.rest.permission.put.RestPutPermissionAction;
+import org.opensearch.identity.rest.permission.put.PutPermissionRequest;
 import org.opensearch.identity.utils.ErrorType;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.test.OpenSearchTestCase;
@@ -54,13 +54,13 @@ public class RestPermissionTests extends OpenSearchTestCase {
             ) {
                 PutPermissionRequest req = (PutPermissionRequest) request;
                 putPermissionCalled.set(true);
-                assertThat(req.getPermissionString(), equalTo("test_permission"));
+                assertThat(req.getPermission(), equalTo("test_permission"));
                 assertThat(req.getUsername(), equalTo("test"));
             }
         }) {
             RestPutPermissionAction action = new RestPutPermissionAction();
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("username", "test"))
-                .withContent(new BytesArray("{ \"permissionString\" : \"test_permission\" }\n"), XContentType.JSON)
+                .withContent(new BytesArray("{ \"permission\" : \"test_permission\" }\n"), XContentType.JSON)
                 .build();
             FakeRestChannel channel = new FakeRestChannel(request, false, 0);
             action.handleRequest(request, channel, nodeClient);

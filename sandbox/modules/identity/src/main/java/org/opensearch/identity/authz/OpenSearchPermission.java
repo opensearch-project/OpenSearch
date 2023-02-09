@@ -37,11 +37,11 @@ public class OpenSearchPermission implements Permission {
             this.action = permissionSegments[1];
         } catch (IndexOutOfBoundsException ex) {
             throw new PermissionFactory.InvalidPermissionException(
-                "All permissions must contain a permission type and" + " action delimited by a " + PERMISSION_DELIMITER + "."
+                "All permissions must contain a permission type and action delimited by a " + PERMISSION_DELIMITER + "."
             );
         }
         // Handle two legacy index permissions that are really cluster permissions
-        if (this.action.equalsIgnoreCase("admin/template/") || this.action.equalsIgnoreCase("admin/index_template/")) {
+        if (this.action.startsWith("admin/template/") || this.action.startsWith("admin/index_template/")) {
             this.resourcePatterns = Arrays.asList("*");
         }
         if (this.permissionSegments.length == 3) {
@@ -128,4 +128,12 @@ public class OpenSearchPermission implements Permission {
 
         return allRequestedPatternsMatchGranted;
     }
+
+    public boolean equals(OpenSearchPermission secondPermission) {
+        if (this.getPermissionString() == secondPermission.getPermissionString()) {
+            return true;
+        }
+        return false;
+    }
+
 }
