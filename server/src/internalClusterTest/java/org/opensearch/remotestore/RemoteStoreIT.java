@@ -113,8 +113,8 @@ public class RemoteStoreIT extends OpenSearchIntegTestCase {
     private Map<String, Long> indexData() {
         long totalOperations = 0;
         long refreshedOrFlushedOperations = 0;
-        long maxSeqNo = 0;
-        long maxSeqNoRefreshedOrFlushed = 0;
+        long maxSeqNo = -1;
+        long maxSeqNoRefreshedOrFlushed = -1;
         for (int i = 0; i < randomIntBetween(1, 10); i++) {
             if (randomBoolean()) {
                 flush(INDEX_NAME);
@@ -150,8 +150,8 @@ public class RemoteStoreIT extends OpenSearchIntegTestCase {
         assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(statsGranularity) + 1);
     }
 
-    public void testRemoteStoreRestoreFromRemoteSegmentStore() throws IOException {
-        internalCluster().startNodes(3);
+    public void testRemoteSegmentStoreRestore() throws IOException {
+        internalCluster().startDataOnlyNodes(3);
         createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
@@ -169,7 +169,7 @@ public class RemoteStoreIT extends OpenSearchIntegTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6188")
     public void testRemoteTranslogRestore() throws IOException {
-        internalCluster().startNodes(3);
+        internalCluster().startDataOnlyNodes(3);
         createIndex(INDEX_NAME, remoteTranslogIndexSettings(0));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);

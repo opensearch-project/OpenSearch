@@ -379,8 +379,6 @@ public class LuceneTests extends OpenSearchTestCase {
     /**
      * Tests whether old segments are readable and queryable based on the data documented
      * in the README <a href="file:../../../../../resources/indices/bwc/es-6.3.0/README.md">here</a>.
-     *
-     * @throws IOException
      */
     public void testReadSegmentInfosExtendedCompatibility() throws IOException {
         final String pathToTestIndex = "/indices/bwc/es-6.3.0/testIndex-es-6.3.0.zip";
