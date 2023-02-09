@@ -81,7 +81,7 @@ public class PutUserResponse extends ActionResponse implements StatusToXContentO
         }
     );
     static {
-        PARSER.declareObjectArray(constructorArg(), PutUserResponseInfo.PARSER, new ParseField("user"));
+        PARSER.declareObject(constructorArg(), PutUserResponseInfo.PARSER, new ParseField("user"));
     }
 
     public static PutUserResponse fromXContent(XContentParser parser) throws IOException {

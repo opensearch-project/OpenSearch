@@ -124,7 +124,10 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        final List<RestHandler> handlers = new ArrayList<>(1);
+        if (!enabled) {
+            return Collections.emptyList();
+        }
+        final List<RestHandler> handlers = new ArrayList<>(4);
         handlers.add(new RestPutUserAction());
         handlers.add(new RestGetUserAction());
         handlers.add(new RestMultiGetUserAction());

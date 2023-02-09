@@ -284,17 +284,17 @@ public class ConfigurationRepository {
         try (StoredContext ctx = threadContext.stashContext()) {
             threadContext.putHeader(IdentityConfigConstants.IDENTITY_CONF_REQUEST_HEADER, "true");
 
-            IndexMetadata securityMetadata = clusterService.state().metadata().index(this.identityIndex);
-            MappingMetadata mappingMetadata = securityMetadata == null ? null : securityMetadata.mapping();
+            IndexMetadata identityMetadata = clusterService.state().metadata().index(this.identityIndex);
+            MappingMetadata mappingMetadata = identityMetadata == null ? null : identityMetadata.mapping();
 
-            if (securityMetadata != null && mappingMetadata != null) {
-                LOGGER.debug("identity index exists");
-                retVal.putAll(validate(cl.load(configTypes.toArray(new CType[0]), 5, TimeUnit.SECONDS), configTypes.size()));
+            if (identityMetadata != null && mappingMetadata != null) {
+                LOGGER.info("identity index exists");
+                retVal.putAll(validate(cl.load(configTypes.toArray(new CType[0]), 10, TimeUnit.SECONDS), configTypes.size()));
 
             } else {
                 // wait (and use new layout)
-                LOGGER.debug("identity index not exists (yet)");
-                retVal.putAll(validate(cl.load(configTypes.toArray(new CType[0]), 5, TimeUnit.SECONDS), configTypes.size()));
+                LOGGER.info("identity index not exists (yet)");
+                retVal.putAll(validate(cl.load(configTypes.toArray(new CType[0]), 10, TimeUnit.SECONDS), configTypes.size()));
             }
 
         } catch (Exception e) {
