@@ -29,11 +29,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 /**
  * A Translog implementation which syncs local FS with a remote store
@@ -58,8 +60,6 @@ public class RemoteFsTranslog extends Translog {
 
     // clean up translog folder uploaded by previous primaries once
     private final SetOnce<Boolean> olderPrimaryCleaned = new SetOnce<>();
-
-    private static final int LAST_N_METADATA_FILES_TO_KEEP = 5;
 
     public RemoteFsTranslog(
         TranslogConfig config,
@@ -242,7 +242,6 @@ public class RemoteFsTranslog extends Translog {
                     maxRemoteTranslogGenerationUploaded = generation;
                     minRemoteGenReferenced = getMinFileGeneration();
                     logger.trace("uploaded translog for {} {} ", primaryTerm, generation);
-                    translogTransferManager.deleteStaleTranslogMetadataFilesAsync(LAST_N_METADATA_FILES_TO_KEEP);
                 }
 
                 @Override
@@ -354,27 +353,48 @@ public class RemoteFsTranslog extends Translog {
             generationsToDelete.add(generation);
         }
         if (generationsToDelete.isEmpty() == false) {
-            deleteRemoteGenerationAsync(generationsToDelete);
-            deleteOlderPrimaryTranslogFiles();
+            deleteRemoteGeneration(generationsToDelete);
+            deleteRemoteMetadata(generationsToDelete);
+            deleteStaleRemotePrimaryTermsAndMetadataFiles();
         }
     }
 
-    private void deleteRemoteGenerationAsync(Set<Long> generations) {
+    /**
+     * Deletes remote translog metadata files asynchronously corresponding to the generations.
+     * @param generations for which corresponding translog metadata files are to be deleted.
+     */
+    private void deleteRemoteMetadata(Set<Long> generations) {
+        List<String> metadataFilesToDelete = generations.stream()
+            .map(generation -> TranslogTransferMetadata.getFileName(primaryTermSupplier.getAsLong(), generation))
+            .collect(Collectors.toList());
+        translogTransferManager.deleteMetadataFilesAsync(metadataFilesToDelete);
+    }
+
+    /**
+     * Deletes remote translog files asynchronously corresponding to the generations.
+     * @param generations generations that needs to be deleted.
+     */
+    private void deleteRemoteGeneration(Set<Long> generations) {
         translogTransferManager.deleteTranslogAsync(primaryTermSupplier.getAsLong(), generations);
     }
 
     /**
      * This method must be called only after there are valid generations to delete in trimUnreferencedReaders as it ensures
      * implicitly that minimum primary term in latest translog metadata in remote store is the current primary term.
+     * <br>
+     * This will also delete all stale translog metadata files from remote except the latest basis the metadata file comparator.
      */
-    private void deleteOlderPrimaryTranslogFiles() {
+    private void deleteStaleRemotePrimaryTermsAndMetadataFiles() {
         // The deletion of older translog files in remote store is on best-effort basis, there is a possibility that there
         // are older files that are no longer needed and should be cleaned up. In here, we delete all files that are part
         // of older primary term.
         if (olderPrimaryCleaned.trySet(Boolean.TRUE)) {
+            // First we delete all stale primary terms folders from remote store
             assert readers.isEmpty() == false : "Expected non-empty readers";
             long minimumReferencedPrimaryTerm = readers.stream().map(BaseTranslogReader::getPrimaryTerm).min(Long::compare).get();
             translogTransferManager.deletePrimaryTermsAsync(minimumReferencedPrimaryTerm);
+            // Second we delete all stale metadata files from remote store
+            translogTransferManager.deleteStaleTranslogMetadataFilesAsync();
         }
     }
 }

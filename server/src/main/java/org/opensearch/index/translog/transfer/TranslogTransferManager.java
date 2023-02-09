@@ -37,6 +37,8 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import static org.opensearch.index.translog.transfer.FileSnapshot.TranslogFileSnapshot;
+import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.METADATA_FILENAME_COMPARATOR;
+import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.getFileName;
 
 /**
  * The class responsible for orchestrating the transfer of a {@link TransferSnapshot} via a {@link TransferService}
@@ -162,19 +164,15 @@ public class TranslogTransferManager {
     }
 
     public TranslogTransferMetadata readMetadata() throws IOException {
-        return transferService.listAll(remoteMetadataTransferPath)
-            .stream()
-            .max(TranslogTransferMetadata.METADATA_FILENAME_COMPARATOR)
-            .map(filename -> {
-                try (InputStream inputStream = transferService.downloadBlob(remoteMetadataTransferPath, filename);) {
-                    IndexInput indexInput = new ByteArrayIndexInput("metadata file", inputStream.readAllBytes());
-                    return new TranslogTransferMetadata(indexInput);
-                } catch (IOException e) {
-                    logger.error(() -> new ParameterizedMessage("Exception while reading metadata file: {}", filename), e);
-                    return null;
-                }
-            })
-            .orElse(null);
+        return transferService.listAll(remoteMetadataTransferPath).stream().max(METADATA_FILENAME_COMPARATOR).map(filename -> {
+            try (InputStream inputStream = transferService.downloadBlob(remoteMetadataTransferPath, filename);) {
+                IndexInput indexInput = new ByteArrayIndexInput("metadata file", inputStream.readAllBytes());
+                return new TranslogTransferMetadata(indexInput);
+            } catch (IOException e) {
+                logger.error(() -> new ParameterizedMessage("Exception while reading metadata file: {}", filename), e);
+                return null;
+            }
+        }).orElse(null);
     }
 
     private TransferFileSnapshot prepareMetadata(TransferSnapshot transferSnapshot) throws IOException {
@@ -191,7 +189,7 @@ public class TranslogTransferManager {
         TranslogTransferMetadata translogTransferMetadata = transferSnapshot.getTranslogTransferMetadata();
         translogTransferMetadata.setGenerationToPrimaryTermMapper(new HashMap<>(generationPrimaryTermMap));
         return new TransferFileSnapshot(
-            translogTransferMetadata.getFileName(),
+            getFileName(translogTransferMetadata.getPrimaryTerm(), translogTransferMetadata.getGeneration()),
             translogTransferMetadata.createMetadataBytes(),
             translogTransferMetadata.getPrimaryTerm()
         );
@@ -297,25 +295,16 @@ public class TranslogTransferManager {
         );
     }
 
-    public void deleteStaleTranslogMetadataFilesAsync(int lastNMetadataFilesToKeep) {
+    public void deleteStaleTranslogMetadataFilesAsync() {
         transferService.listAllAsync(ThreadPool.Names.REMOTE_PURGE, remoteMetadataTransferPath, new ActionListener<>() {
             @Override
             public void onResponse(Set<String> metadataFiles) {
-                List<String> sortedMetadataFileList = metadataFiles.stream()
-                    .sorted(TranslogTransferMetadata.METADATA_FILENAME_COMPARATOR)
-                    .collect(Collectors.toList());
-                if (sortedMetadataFileList.size() <= lastNMetadataFilesToKeep) {
-                    logger.trace(
-                        "Number of metadataFiles in remote segment store={}, lastNMetadataFilesToKeep={}",
-                        sortedMetadataFileList.size(),
-                        lastNMetadataFilesToKeep
-                    );
+                List<String> sortedMetadataFiles = metadataFiles.stream().sorted(METADATA_FILENAME_COMPARATOR).collect(Collectors.toList());
+                if (sortedMetadataFiles.size() <= 1) {
+                    logger.trace("Remote Metadata file count is {}, so skipping deletion", sortedMetadataFiles.size());
                     return;
                 }
-                List<String> metadataFilesToDelete = sortedMetadataFileList.subList(
-                    0,
-                    sortedMetadataFileList.size() - lastNMetadataFilesToKeep
-                );
+                List<String> metadataFilesToDelete = sortedMetadataFiles.subList(0, sortedMetadataFiles.size() - 1);
                 deleteMetadataFilesAsync(metadataFilesToDelete);
             }
 
@@ -331,16 +320,16 @@ public class TranslogTransferManager {
      *
      * @param files list of metadata files to be deleted.
      */
-    private void deleteMetadataFilesAsync(List<String> files) {
+    public void deleteMetadataFilesAsync(List<String> files) {
         transferService.deleteBlobsAsync(ThreadPool.Names.REMOTE_PURGE, remoteMetadataTransferPath, files, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
-                logger.trace("Deleted metadata files {}", files);
+                logger.trace("Deleted remote translog metadata files {}", files);
             }
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(new ParameterizedMessage("Exception occurred while deletion of metadata files {}", files), e);
+                logger.error(new ParameterizedMessage("Exception occurred while deleting remote translog metadata files {}", files), e);
             }
         });
     }
