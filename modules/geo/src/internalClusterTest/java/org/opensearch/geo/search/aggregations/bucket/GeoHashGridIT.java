@@ -120,6 +120,7 @@ public class GeoHashGridIT extends AbstractGeoBucketAggregationIntegTest {
             final List<? extends GeoGrid.Bucket> buckets = geoGrid.getBuckets();
             final Object[] propertiesKeys = (Object[]) ((InternalAggregation) geoGrid).getProperty("_key");
             final Object[] propertiesDocCounts = (Object[]) ((InternalAggregation) geoGrid).getProperty("_count");
+            System.out.println("Number of buckets is : " + buckets.size());
             for (int i = 0; i < buckets.size(); i++) {
                 final GeoGrid.Bucket cell = buckets.get(i);
                 final String geohash = cell.getKeyAsString();
