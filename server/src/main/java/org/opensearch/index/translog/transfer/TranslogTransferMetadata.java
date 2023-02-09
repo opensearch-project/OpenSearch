@@ -38,8 +38,6 @@ public class TranslogTransferMetadata {
 
     private final long minTranslogGeneration;
 
-    private final long timeStamp;
-
     private int count;
 
     private final SetOnce<Map<String, String>> generationToPrimaryTermMapper = new SetOnce<>();
@@ -58,7 +56,6 @@ public class TranslogTransferMetadata {
         this.primaryTerm = primaryTerm;
         this.generation = generation;
         this.minTranslogGeneration = minTranslogGeneration;
-        this.timeStamp = System.currentTimeMillis();
         this.count = count;
     }
 
@@ -68,7 +65,6 @@ public class TranslogTransferMetadata {
         this.primaryTerm = indexInput.readLong();
         this.generation = indexInput.readLong();
         this.minTranslogGeneration = indexInput.readLong();
-        this.timeStamp = indexInput.readLong();
         this.generationToPrimaryTermMapper.set(indexInput.readMapOfStrings());
     }
 
@@ -97,10 +93,7 @@ public class TranslogTransferMetadata {
     }
 
     public String getFileName() {
-        return String.join(
-            METADATA_SEPARATOR,
-            Arrays.asList(String.valueOf(primaryTerm), String.valueOf(generation), String.valueOf(timeStamp))
-        );
+        return String.join(METADATA_SEPARATOR, Arrays.asList(String.valueOf(primaryTerm), String.valueOf(generation)));
     }
 
     public byte[] createMetadataBytes() throws IOException {
@@ -123,7 +116,7 @@ public class TranslogTransferMetadata {
 
     @Override
     public int hashCode() {
-        return Objects.hash(primaryTerm, generation, timeStamp);
+        return Objects.hash(primaryTerm, generation);
     }
 
     @Override
@@ -131,16 +124,13 @@ public class TranslogTransferMetadata {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         TranslogTransferMetadata other = (TranslogTransferMetadata) o;
-        return Objects.equals(this.primaryTerm, other.primaryTerm)
-            && Objects.equals(this.generation, other.generation)
-            && Objects.equals(this.timeStamp, other.timeStamp);
+        return Objects.equals(this.primaryTerm, other.primaryTerm) && Objects.equals(this.generation, other.generation);
     }
 
     private void write(DataOutput out) throws IOException {
         out.writeLong(primaryTerm);
         out.writeLong(generation);
         out.writeLong(minTranslogGeneration);
-        out.writeLong(timeStamp);
         if (generationToPrimaryTermMapper.get() != null) {
             out.writeMapOfStrings(generationToPrimaryTermMapper.get());
         } else {
@@ -151,12 +141,11 @@ public class TranslogTransferMetadata {
     private static class MetadataFilenameComparator implements Comparator<String> {
         @Override
         public int compare(String first, String second) {
-            // Format of metadata filename is <Primary Term>__<Generation>__<Timestamp>
+            // Format of metadata filename is <Primary Term>__<Generation>
             String[] filenameTokens1 = first.split(METADATA_SEPARATOR);
             String[] filenameTokens2 = second.split(METADATA_SEPARATOR);
-            // Here, we are not comparing only primary term and generation.
-            // Timestamp is not a good measure of comparison in case primary term and generation are same.
-            for (int i = 0; i < filenameTokens1.length - 1; i++) {
+            // Here, we are comparing only primary term and generation.
+            for (int i = 0; i < filenameTokens1.length; i++) {
                 if (filenameTokens1[i].equals(filenameTokens2[i]) == false) {
                     return Long.compare(Long.parseLong(filenameTokens1[i]), Long.parseLong(filenameTokens2[i]));
                 }
