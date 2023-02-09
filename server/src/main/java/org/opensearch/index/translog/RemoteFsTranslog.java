@@ -59,6 +59,8 @@ public class RemoteFsTranslog extends Translog {
     // clean up translog folder uploaded by previous primaries once
     private final SetOnce<Boolean> olderPrimaryCleaned = new SetOnce<>();
 
+    private static final int LAST_N_METADATA_FILES_TO_KEEP = 5;
+
     public RemoteFsTranslog(
         TranslogConfig config,
         String translogUUID,
@@ -240,6 +242,7 @@ public class RemoteFsTranslog extends Translog {
                     maxRemoteTranslogGenerationUploaded = generation;
                     minRemoteGenReferenced = getMinFileGeneration();
                     logger.trace("uploaded translog for {} {} ", primaryTerm, generation);
+                    translogTransferManager.deleteStaleTranslogMetadataFilesAsync(LAST_N_METADATA_FILES_TO_KEEP);
                 }
 
                 @Override

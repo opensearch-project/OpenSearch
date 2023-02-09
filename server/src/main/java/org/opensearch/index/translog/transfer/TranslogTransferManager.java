@@ -296,4 +296,52 @@ public class TranslogTransferManager {
             }
         );
     }
+
+    public void deleteStaleTranslogMetadataFilesAsync(int lastNMetadataFilesToKeep) {
+        transferService.listAllAsync(ThreadPool.Names.REMOTE_PURGE, remoteMetadataTransferPath, new ActionListener<>() {
+            @Override
+            public void onResponse(Set<String> metadataFiles) {
+                List<String> sortedMetadataFileList = metadataFiles.stream()
+                    .sorted(TranslogTransferMetadata.METADATA_FILENAME_COMPARATOR)
+                    .collect(Collectors.toList());
+                if (sortedMetadataFileList.size() <= lastNMetadataFilesToKeep) {
+                    logger.trace(
+                        "Number of metadataFiles in remote segment store={}, lastNMetadataFilesToKeep={}",
+                        sortedMetadataFileList.size(),
+                        lastNMetadataFilesToKeep
+                    );
+                    return;
+                }
+                List<String> metadataFilesToDelete = sortedMetadataFileList.subList(
+                    0,
+                    sortedMetadataFileList.size() - lastNMetadataFilesToKeep
+                );
+                deleteMetadataFilesAsync(metadataFilesToDelete);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error("Exception occurred while listing translog metadata files from remote store", e);
+            }
+        });
+    }
+
+    /**
+     * Deletes metadata files asynchronously using the {@code REMOTE_PURGE} threadpool.
+     *
+     * @param files list of metadata files to be deleted.
+     */
+    private void deleteMetadataFilesAsync(List<String> files) {
+        transferService.deleteBlobsAsync(ThreadPool.Names.REMOTE_PURGE, remoteMetadataTransferPath, files, new ActionListener<>() {
+            @Override
+            public void onResponse(Void unused) {
+                logger.trace("Deleted metadata files {}", files);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error(new ParameterizedMessage("Exception occurred while deletion of metadata files {}", files), e);
+            }
+        });
+    }
 }

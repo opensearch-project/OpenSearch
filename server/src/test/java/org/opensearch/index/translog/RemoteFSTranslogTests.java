@@ -110,6 +110,8 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
     private final AtomicBoolean primaryMode = new AtomicBoolean(true);
     private final AtomicReference<LongConsumer> persistedSeqNoConsumer = new AtomicReference<>();
     private ThreadPool threadPool;
+    private final static String METADATA_DIR = "metadata";
+    private static final int LAST_N_METADATA_FILES_TO_KEEP = 5;
 
     BlobStoreRepository repository;
 
@@ -568,6 +570,26 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         translog.trimUnreferencedReaders();
         assertEquals(1, translog.readers.size());
         assertBusy(() -> assertEquals(4, translog.allUploaded().size()));
+    }
+
+    public void testMetadataFileDeletion() throws Exception {
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+        // Test deletion of metadata files
+        for (int i = 0; i < randomIntBetween(6, 10); i++) {
+            addToTranslogAndListAndUpload(translog, ops, new Translog.Index(String.valueOf(i), i, primaryTerm.get(), new byte[] { 1 }));
+            translog.deletionPolicy.setLocalCheckpointOfSafeCommit(i - 1);
+            translog.setMinSeqNoToKeep(i);
+            translog.trimUnreferencedReaders();
+            assertEquals(1, translog.readers.size());
+        }
+        assertBusy(() -> assertEquals(4, translog.allUploaded().size()));
+        assertBusy(
+            () -> assertTrue(
+                blobStoreTransferService.listAll(
+                    repository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())).add(METADATA_DIR)
+                ).size() <= LAST_N_METADATA_FILES_TO_KEEP
+            )
+        );
     }
 
     private Long populateTranslogOps(boolean withMissingOps) throws IOException {
