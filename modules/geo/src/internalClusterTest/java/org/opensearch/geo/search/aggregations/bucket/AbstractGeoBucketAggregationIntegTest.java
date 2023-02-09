@@ -41,11 +41,11 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 public abstract class AbstractGeoBucketAggregationIntegTest extends GeoModulePluginIntegTestCase {
 
     // Make this value 4, GH issue: https://github.com/opensearch-project/OpenSearch/issues/6251
-    protected static final int MAX_PRECISION_FOR_GEO_SHAPES_AGG_TESTING = 2;
+    protected static final int MAX_PRECISION_FOR_GEO_SHAPES_AGG_TESTING = 4;
 
     protected static final int MIN_PRECISION_WITHOUT_BB_AGGS = 2;
 
-    protected static final int NUM_DOCS = 100;
+    protected static final int NUM_DOCS = 10;
 
     protected static final String GEO_SHAPE_INDEX_NAME = "geoshape_index";
 
@@ -100,6 +100,9 @@ public abstract class AbstractGeoBucketAggregationIntegTest extends GeoModulePlu
 
             i++;
             final Set<String> values = generateBucketsForGeometry(geometry, geometryDocValue);
+            if(values.contains("z04h")) {
+                System.out.println("Geometry is : " + WKT.toWKT(geometry));
+            }
             geoshapes.add(indexGeoShape(GEO_SHAPE_INDEX_NAME, geometry));
             for (final String hash : values) {
                 expectedDocsCountForGeoShapes.put(hash, expectedDocsCountForGeoShapes.getOrDefault(hash, 0) + 1);

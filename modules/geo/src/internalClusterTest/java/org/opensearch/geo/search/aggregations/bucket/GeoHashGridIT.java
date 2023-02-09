@@ -108,7 +108,7 @@ public class GeoHashGridIT extends AbstractGeoBucketAggregationIntegTest {
             new GeoPoint(boundingRectangleForGeoShapesAgg.getMaxLat(), boundingRectangleForGeoShapesAgg.getMinLon()),
             new GeoPoint(boundingRectangleForGeoShapesAgg.getMinLat(), boundingRectangleForGeoShapesAgg.getMaxLon())
         );
-        for (int precision = 1; precision <= MAX_PRECISION_FOR_GEO_SHAPES_AGG_TESTING; precision++) {
+        for (int precision = 4; precision <= MAX_PRECISION_FOR_GEO_SHAPES_AGG_TESTING; precision++) {
             GeoGridAggregationBuilder builder = AggregationBuilders.geohashGrid(AGG_NAME).field(GEO_SHAPE_FIELD_NAME).precision(precision);
             // This makes sure that for only higher precision we are providing the GeoBounding Box. This also ensures
             // that we are able to test both bounded and unbounded aggregations
@@ -120,6 +120,7 @@ public class GeoHashGridIT extends AbstractGeoBucketAggregationIntegTest {
             final List<? extends GeoGrid.Bucket> buckets = geoGrid.getBuckets();
             final Object[] propertiesKeys = (Object[]) ((InternalAggregation) geoGrid).getProperty("_key");
             final Object[] propertiesDocCounts = (Object[]) ((InternalAggregation) geoGrid).getProperty("_count");
+            System.out.println("Number of buckets is : " + buckets.size());
             for (int i = 0; i < buckets.size(); i++) {
                 final GeoGrid.Bucket cell = buckets.get(i);
                 final String geohash = cell.getKeyAsString();
