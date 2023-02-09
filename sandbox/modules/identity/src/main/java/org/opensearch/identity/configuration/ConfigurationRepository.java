@@ -288,12 +288,12 @@ public class ConfigurationRepository {
             MappingMetadata mappingMetadata = identityMetadata == null ? null : identityMetadata.mapping();
 
             if (identityMetadata != null && mappingMetadata != null) {
-                LOGGER.info("identity index exists");
+                LOGGER.debug("identity index exists");
                 retVal.putAll(validate(cl.load(configTypes.toArray(new CType[0]), 5, TimeUnit.SECONDS), configTypes.size()));
 
             } else {
                 // wait (and use new layout)
-                LOGGER.info("identity index not exists (yet)");
+                LOGGER.debug("identity index not exists (yet)");
                 retVal.putAll(validate(cl.load(configTypes.toArray(new CType[0]), 5, TimeUnit.SECONDS), configTypes.size()));
             }
 
