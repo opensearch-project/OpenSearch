@@ -348,8 +348,7 @@ public class WriteableSetting implements Writeable {
             case TimeValue:
                 if (parser instanceof MinMaxTimeValueParser) {
                     return new MinMaxTimeValueParser(in);
-                }
-                else if(parser instanceof MinTimeValueParser){
+                } else if (parser instanceof MinTimeValueParser) {
                     return new MinTimeValueParser(in);
                 }
             case ByteSizeValue:
