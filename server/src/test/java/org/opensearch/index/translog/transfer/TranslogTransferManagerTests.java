@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -189,10 +190,10 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(transferService, remoteBaseTransferPath, null);
 
         // BlobPath does not have equals method, so we can't use the instance directly in when
-        when(transferService.listAll(any(BlobPath.class))).thenReturn(Sets.newHashSet("12__234__123456789"));
+        when(transferService.listAll(any(BlobPath.class))).thenReturn(Sets.newHashSet("12__234"));
 
         TranslogTransferMetadata metadata = createTransferSnapshot().getTranslogTransferMetadata();
-        when(transferService.downloadBlob(any(BlobPath.class), eq("12__234__123456789"))).thenReturn(
+        when(transferService.downloadBlob(any(BlobPath.class), eq("12__234"))).thenReturn(
             new ByteArrayInputStream(metadata.createMetadataBytes())
         );
 
@@ -202,12 +203,10 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
     public void testReadMetadataMultipleFiles() throws IOException {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(transferService, remoteBaseTransferPath, null);
 
-        when(transferService.listAll(any(BlobPath.class))).thenReturn(
-            Sets.newHashSet("12__234__56789", "12__235__56823", "12__233__56700")
-        );
+        when(transferService.listAll(any(BlobPath.class))).thenReturn(Sets.newHashSet("12__234", "12__235", "12__233"));
 
         TranslogTransferMetadata metadata = createTransferSnapshot().getTranslogTransferMetadata();
-        when(transferService.downloadBlob(any(BlobPath.class), eq("12__235__56823"))).thenReturn(
+        when(transferService.downloadBlob(any(BlobPath.class), eq("12__235"))).thenReturn(
             new ByteArrayInputStream(metadata.createMetadataBytes())
         );
 
@@ -217,23 +216,16 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
     public void testReadMetadataException() throws IOException {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(transferService, remoteBaseTransferPath, null);
 
-        when(transferService.listAll(any(BlobPath.class))).thenReturn(
-            Sets.newHashSet("12__234__56789", "12__235__56823", "12__233__56700")
-        );
+        when(transferService.listAll(any(BlobPath.class))).thenReturn(Sets.newHashSet("12__234", "12__235", "12__233"));
 
-        when(transferService.downloadBlob(any(BlobPath.class), eq("12__235__56823"))).thenThrow(new IOException("Something went wrong"));
+        when(transferService.downloadBlob(any(BlobPath.class), eq("12__235"))).thenThrow(new IOException("Something went wrong"));
 
         assertNull(translogTransferManager.readMetadata());
     }
 
     public void testReadMetadataSamePrimaryTermGeneration() throws IOException {
-        TranslogTransferManager translogTransferManager = new TranslogTransferManager(transferService, remoteBaseTransferPath, null);
-
-        when(transferService.listAll(any(BlobPath.class))).thenReturn(
-            Sets.newHashSet("12__234__56789", "12__235__56823", "12__234__56700")
-        );
-
-        assertThrows(IllegalArgumentException.class, translogTransferManager::readMetadata);
+        List<String> metadataFiles = Arrays.asList("12__234", "12__235", "12__234");
+        assertThrows(IllegalArgumentException.class, () -> metadataFiles.sort(TranslogTransferMetadata.METADATA_FILENAME_COMPARATOR));
     }
 
     public void testDownloadTranslog() throws IOException {
