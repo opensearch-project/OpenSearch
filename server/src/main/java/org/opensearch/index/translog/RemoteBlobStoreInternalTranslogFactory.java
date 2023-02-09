@@ -15,7 +15,6 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.concurrent.ExecutorService;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
@@ -30,7 +29,7 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
 
     private final Repository repository;
 
-    private final ExecutorService executorService;
+    private final ThreadPool threadPool;
 
     public RemoteBlobStoreInternalTranslogFactory(
         Supplier<RepositoriesService> repositoriesServiceSupplier,
@@ -44,7 +43,7 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
             throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", ex);
         }
         this.repository = repository;
-        this.executorService = threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER);
+        this.threadPool = threadPool;
     }
 
     @Override
@@ -68,7 +67,7 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
             primaryTermSupplier,
             persistedSequenceNumberConsumer,
             blobStoreRepository,
-            executorService,
+            threadPool,
             primaryModeSupplier
         );
     }
