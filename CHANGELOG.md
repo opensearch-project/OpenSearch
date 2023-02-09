@@ -11,7 +11,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
-- Bumps `reactor-netty-http` from 1.0.18 to 1.0.23
+- Bumps `reactor-netty-http` from 1.0.24 to 1.1.2
+- Bumps `reactor-netty-http` from 1.0.18 to 1.1.2
 - Bumps `jettison` from 1.5.0 to 1.5.3
 - Bumps `forbiddenapis` from 3.3 to 3.4
 - Bumps `avro` from 1.11.0 to 1.11.1
