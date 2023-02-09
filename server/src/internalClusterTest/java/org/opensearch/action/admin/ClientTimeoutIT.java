@@ -51,6 +51,11 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
         return Collections.singletonList(MockTransportService.TestPlugin.class);
     }
 
+    @Override
+    protected boolean addMockInternalEngine() {
+        return false;
+    }
+
     public void testNodesInfoTimeout() {
         String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
