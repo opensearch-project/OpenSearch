@@ -4,7 +4,7 @@
       "url":"https://github.com/opensearch-project/documentation-website/issues/2627",
       "description":"Returns information about both on-going and latest completed Segment Replication events"
     },
-    "stability":"stable",
+    "stability":"experimental",
     "url":{
       "paths":[
         {
