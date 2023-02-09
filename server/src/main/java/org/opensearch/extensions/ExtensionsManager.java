@@ -90,7 +90,7 @@ public class ExtensionsManager {
     public static final String REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION = "internal:extensions/restexecuteonextensiontaction";
     public static final String REQUEST_EXTENSION_HANDLE_TRANSPORT_ACTION = "internal:extensions/handle-transportaction";
     public static final String TRANSPORT_ACTION_REQUEST_FROM_EXTENSION = "internal:extensions/request-transportaction-from-extension";
-    public static final int EXTENSION_REQUEST_WAIT_TIMEOUT = 11;
+    public static final int EXTENSION_REQUEST_WAIT_TIMEOUT = 10;
 
     private static final Logger logger = LogManager.getLogger(ExtensionsManager.class);
 
