@@ -280,13 +280,15 @@ public class WriteableSetting implements Writeable {
                 if (parser instanceof MinMaxTimeValueParser) {
                     out.writeBoolean(true);
                     ((MinMaxTimeValueParser) parser).writeTo(out);
-                } else {
-                    out.writeBoolean(false);
+                } else if (parser instanceof MinTimeValueParser) {
+                    out.writeBoolean(true);
                     ((MinTimeValueParser) parser).writeTo(out);
                 }
                 break;
             case ByteSizeValue:
-                ((ByteSizeValue) parser).writeTo(out);
+                if (parser instanceof ByteSizeValueParser) {
+                    ((ByteSizeValue) parser).writeTo(out);
+                }
                 break;
             default:
                 throw new IllegalArgumentException("A SettingType has been added to the enum and not handled here.");
