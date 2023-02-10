@@ -47,7 +47,6 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.unit.MemorySizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.DeprecationHandler;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
@@ -2120,11 +2119,11 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, Setting<ByteSizeValue> fallbackSetting, Property... properties) {
-        return new Setting<>(key, fallbackSetting, (s) -> ByteSizeValue.parseBytesSizeValue(s, key), properties);
+        return new Setting<>(key, fallbackSetting, new ByteSizeValueParser(key), properties);
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, Function<Settings, String> defaultValue, Property... properties) {
-        return new Setting<>(key, defaultValue, (s) -> ByteSizeValue.parseBytesSizeValue(s, key), properties);
+        return new Setting<>(key, defaultValue, new ByteSizeValueParser(key), properties);
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(
@@ -2160,6 +2159,10 @@ public class Setting<T> implements ToXContentObject {
             this.minValue = minValue;
             this.maxValue = maxValue;
             this.key = key;
+        }
+
+        public ByteSizeValueParser(String key) {
+            this(new ByteSizeValue(Long.MIN_VALUE), new ByteSizeValue(Long.MAX_VALUE), key);
         }
 
         public ByteSizeValueParser(StreamInput in) throws IOException {
@@ -2257,7 +2260,7 @@ public class Setting<T> implements ToXContentObject {
      * @return the setting object
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, Function<Settings, String> defaultValue, Property... properties) {
-        return new Setting<>(key, defaultValue, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
+        return new Setting<>(key, defaultValue, new ByteSizeValueParser(key), properties);
     }
 
     /**
@@ -2271,7 +2274,7 @@ public class Setting<T> implements ToXContentObject {
      * @return the setting object
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, String defaultPercentage, Property... properties) {
-        return new Setting<>(key, (s) -> defaultPercentage, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
+        return new Setting<>(key, (s) -> defaultPercentage, new ByteSizeValueParser(key), properties);
     }
 
     /**
@@ -2285,7 +2288,7 @@ public class Setting<T> implements ToXContentObject {
      * @return the setting object
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, Setting<ByteSizeValue> fallbackSetting, Property... properties) {
-        return new Setting<>(key, fallbackSetting, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
+        return new Setting<>(key, fallbackSetting, new ByteSizeValueParser(key), properties);
     }
 
     public static <T> Setting<List<T>> listSetting(
@@ -2639,6 +2642,10 @@ public class Setting<T> implements ToXContentObject {
             this.isFiltered = isFiltered;
         }
 
+        public MinMaxTimeValueParser(String key) {
+            this(null, null, key);
+        }
+
         public MinMaxTimeValueParser(StreamInput in) throws IOException {
             key = in.readString();
             minValue = in.readTimeValue();
@@ -2756,11 +2763,11 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<TimeValue> timeSetting(String key, TimeValue defaultValue, Property... properties) {
-        return new Setting<>(key, (s) -> defaultValue.getStringRep(), (s) -> TimeValue.parseTimeValue(s, key), properties);
+        return new Setting<>(key, (s) -> defaultValue.getStringRep(), new MinMaxTimeValueParser(key), properties);
     }
 
     public static Setting<TimeValue> timeSetting(String key, Setting<TimeValue> fallbackSetting, Property... properties) {
-        return new Setting<>(key, fallbackSetting, (s) -> TimeValue.parseTimeValue(s, key), properties);
+        return new Setting<>(key, fallbackSetting, new MinMaxTimeValueParser(key), properties);
     }
 
     public static Setting<TimeValue> timeSetting(
