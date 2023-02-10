@@ -8,7 +8,6 @@
 
 package org.opensearch.snapshots;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.junit.BeforeClass;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
