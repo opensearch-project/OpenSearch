@@ -71,8 +71,7 @@ public final class XContentTestUtils {
         builder.startObject();
         part.toXContent(builder, EMPTY_PARAMS);
         builder.endObject();
-        XContentType xContentType = (XContentType) builder.contentType();
-        return XContentHelper.convertToMap(BytesReference.bytes(builder), false, xContentType).v2();
+        return XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
     }
 
     public static BytesReference convertToXContent(Map<String, ?> map, XContentType xContentType) throws IOException {

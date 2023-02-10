@@ -429,11 +429,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
     public void testThatFilterIncludesEmptyObjectWhenUsingIncludes() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("obj").endObject().endObject();
 
-        Tuple<XContentType, Map<String, Object>> mapTuple = convertToMap(
-            BytesReference.bytes(builder),
-            true,
-            (XContentType) builder.contentType()
-        );
+        Tuple<? extends MediaType, Map<String, Object>> mapTuple = convertToMap(BytesReference.bytes(builder), true, builder.contentType());
         Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), new String[] { "obj" }, Strings.EMPTY_ARRAY);
 
         assertThat(mapTuple.v2(), equalTo(filteredSource));
@@ -442,11 +438,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
     public void testThatFilterIncludesEmptyObjectWhenUsingExcludes() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("obj").endObject().endObject();
 
-        Tuple<XContentType, Map<String, Object>> mapTuple = convertToMap(
-            BytesReference.bytes(builder),
-            true,
-            (XContentType) builder.contentType()
-        );
+        Tuple<? extends MediaType, Map<String, Object>> mapTuple = convertToMap(BytesReference.bytes(builder), true, builder.contentType());
         Map<String, Object> filteredSource = XContentMapValues.filter(
             mapTuple.v2(),
             Strings.EMPTY_ARRAY,
@@ -460,11 +452,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
     public void testNotOmittingObjectsWithExcludedProperties() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("obj").field("f1", "v1").endObject().endObject();
 
-        Tuple<XContentType, Map<String, Object>> mapTuple = convertToMap(
-            BytesReference.bytes(builder),
-            true,
-            (XContentType) builder.contentType()
-        );
+        Tuple<? extends MediaType, Map<String, Object>> mapTuple = convertToMap(BytesReference.bytes(builder), true, builder.contentType());
         Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), Strings.EMPTY_ARRAY, new String[] { "obj.f1" });
 
         assertThat(filteredSource.size(), equalTo(1));
@@ -485,11 +473,7 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
             .endObject();
 
         // implicit include
-        Tuple<XContentType, Map<String, Object>> mapTuple = convertToMap(
-            BytesReference.bytes(builder),
-            true,
-            (XContentType) builder.contentType()
-        );
+        Tuple<? extends MediaType, Map<String, Object>> mapTuple = convertToMap(BytesReference.bytes(builder), true, builder.contentType());
         Map<String, Object> filteredSource = XContentMapValues.filter(mapTuple.v2(), Strings.EMPTY_ARRAY, new String[] { "*.obj2" });
 
         assertThat(filteredSource.size(), equalTo(1));

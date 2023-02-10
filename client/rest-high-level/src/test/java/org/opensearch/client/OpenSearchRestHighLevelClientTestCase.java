@@ -228,7 +228,7 @@ public abstract class OpenSearchRestHighLevelClientTestCase extends OpenSearchRe
 
     protected static void createPipeline(String pipelineId) throws IOException {
         XContentBuilder builder = buildRandomXContentPipeline();
-        createPipeline(new PutPipelineRequest(pipelineId, BytesReference.bytes(builder), (XContentType) builder.contentType()));
+        createPipeline(new PutPipelineRequest(pipelineId, BytesReference.bytes(builder), builder.contentType()));
     }
 
     protected static void createPipeline(PutPipelineRequest putPipelineRequest) throws IOException {
@@ -267,7 +267,7 @@ public abstract class OpenSearchRestHighLevelClientTestCase extends OpenSearchRe
         final PutPipelineRequest putPipelineRequest = new PutPipelineRequest(
             CONFLICT_PIPELINE_ID,
             BytesReference.bytes(pipelineBuilder),
-            (XContentType) pipelineBuilder.contentType()
+            pipelineBuilder.contentType()
         );
         assertTrue(highLevelClient().ingest().putPipeline(putPipelineRequest, RequestOptions.DEFAULT).isAcknowledged());
     }

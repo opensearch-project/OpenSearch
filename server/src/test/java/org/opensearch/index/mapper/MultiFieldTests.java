@@ -205,7 +205,7 @@ public class MultiFieldTests extends OpenSearchSingleNodeTestCase {
         Map<String, Object> sourceAsMap = XContentHelper.convertToMap(
             docMapper.mappingSource().compressedReference(),
             true,
-            (XContentType) builder.contentType()
+            builder.contentType()
         ).v2();
         @SuppressWarnings("unchecked")
         Map<String, Object> multiFields = (Map<String, Object>) XContentMapValues.extractValue(

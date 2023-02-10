@@ -36,7 +36,6 @@ import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotReques
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.test.OpenSearchTestCase;
@@ -97,7 +96,7 @@ public class SnapshotRequestsTests extends OpenSearchTestCase {
 
         BytesReference bytes = BytesReference.bytes(builder.endObject());
 
-        request.source(XContentHelper.convertToMap(bytes, true, (XContentType) builder.contentType()).v2());
+        request.source(XContentHelper.convertToMap(bytes, true, builder.contentType()).v2());
 
         assertEquals("test-repo", request.repository());
         assertEquals("test-snap", request.snapshot());
@@ -163,7 +162,7 @@ public class SnapshotRequestsTests extends OpenSearchTestCase {
 
         BytesReference bytes = BytesReference.bytes(builder.endObject());
 
-        request.source(XContentHelper.convertToMap(bytes, true, (XContentType) builder.contentType()).v2());
+        request.source(XContentHelper.convertToMap(bytes, true, builder.contentType()).v2());
 
         assertEquals("test-repo", request.repository());
         assertEquals("test-snap", request.snapshot());

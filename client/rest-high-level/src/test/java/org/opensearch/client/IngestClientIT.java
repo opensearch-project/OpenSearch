@@ -58,11 +58,7 @@ public class IngestClientIT extends OpenSearchRestHighLevelClientTestCase {
     public void testPutPipeline() throws IOException {
         String id = "some_pipeline_id";
         XContentBuilder pipelineBuilder = buildRandomXContentPipeline();
-        PutPipelineRequest request = new PutPipelineRequest(
-            id,
-            BytesReference.bytes(pipelineBuilder),
-            (XContentType) pipelineBuilder.contentType()
-        );
+        PutPipelineRequest request = new PutPipelineRequest(id, BytesReference.bytes(pipelineBuilder), pipelineBuilder.contentType());
 
         AcknowledgedResponse putPipelineResponse = execute(
             request,
@@ -76,11 +72,7 @@ public class IngestClientIT extends OpenSearchRestHighLevelClientTestCase {
         String id = "some_pipeline_id";
         XContentBuilder pipelineBuilder = buildRandomXContentPipeline();
         {
-            PutPipelineRequest request = new PutPipelineRequest(
-                id,
-                BytesReference.bytes(pipelineBuilder),
-                (XContentType) pipelineBuilder.contentType()
-            );
+            PutPipelineRequest request = new PutPipelineRequest(id, BytesReference.bytes(pipelineBuilder), pipelineBuilder.contentType());
             createPipeline(request);
         }
 

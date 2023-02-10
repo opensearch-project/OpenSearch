@@ -46,7 +46,6 @@ import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -235,29 +234,26 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             b.field("meta", Collections.singletonMap("foo", "bar"));
         });
         MapperService mapperService = createMapperService(mapping);
-        XContentType xContentType = (XContentType) mapping.contentType();
         assertEquals(
-            XContentHelper.convertToMap(BytesReference.bytes(mapping), false, xContentType).v2(),
-            XContentHelper.convertToMap(mapperService.documentMapper().mappingSource().uncompressed(), false, xContentType).v2()
+            XContentHelper.convertToMap(BytesReference.bytes(mapping), false, mapping.contentType()).v2(),
+            XContentHelper.convertToMap(mapperService.documentMapper().mappingSource().uncompressed(), false, mapping.contentType()).v2()
         );
 
         mapping = fieldMapping(this::metaMapping);
-        xContentType = (XContentType) mapping.contentType();
         merge(mapperService, mapping);
         assertEquals(
-            XContentHelper.convertToMap(BytesReference.bytes(mapping), false, xContentType).v2(),
-            XContentHelper.convertToMap(mapperService.documentMapper().mappingSource().uncompressed(), false, xContentType).v2()
+            XContentHelper.convertToMap(BytesReference.bytes(mapping), false, mapping.contentType()).v2(),
+            XContentHelper.convertToMap(mapperService.documentMapper().mappingSource().uncompressed(), false, mapping.contentType()).v2()
         );
 
         mapping = fieldMapping(b -> {
             metaMapping(b);
             b.field("meta", Collections.singletonMap("baz", "quux"));
         });
-        xContentType = (XContentType) mapping.contentType();
         merge(mapperService, mapping);
         assertEquals(
-            XContentHelper.convertToMap(BytesReference.bytes(mapping), false, xContentType).v2(),
-            XContentHelper.convertToMap(mapperService.documentMapper().mappingSource().uncompressed(), false, xContentType).v2()
+            XContentHelper.convertToMap(BytesReference.bytes(mapping), false, mapping.contentType()).v2(),
+            XContentHelper.convertToMap(mapperService.documentMapper().mappingSource().uncompressed(), false, mapping.contentType()).v2()
         );
     }
 
