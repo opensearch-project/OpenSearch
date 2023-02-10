@@ -17,10 +17,15 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.admin.indices.recovery.RecoveryAction;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsAction;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsAction;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
@@ -44,6 +49,11 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singletonList(MockTransportService.TestPlugin.class);
+    }
+
+    @Override
+    protected boolean addMockInternalEngine() {
+        return false;
     }
 
     public void testNodesInfoTimeout() {
@@ -145,6 +155,55 @@ public class ClientTimeoutIT extends OpenSearchIntegTestCase {
         assertThat(recoveryResponse.getSuccessfulShards(), equalTo(numShards / 2));
         assertThat(recoveryResponse.getFailedShards(), equalTo(numShards / 2));
         assertThat(recoveryResponse.getShardFailures()[0].reason(), containsString("ReceiveTimeoutTransportException"));
+    }
+
+    public void testSegmentReplicationStatsWithTimeout() {
+        internalCluster().startClusterManagerOnlyNode(
+            Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REPLICATION_TYPE, "true").build()
+        );
+        String dataNode = internalCluster().startDataOnlyNode(
+            Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REPLICATION_TYPE, "true").build()
+        );
+        String anotherDataNode = internalCluster().startDataOnlyNode(
+            Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REPLICATION_TYPE, "true").build()
+        );
+
+        int numShards = 4;
+        assertAcked(
+            prepareCreate(
+                "test-index",
+                0,
+                Settings.builder()
+                    .put("number_of_shards", numShards)
+                    .put("number_of_replicas", 1)
+                    .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            )
+        );
+        ensureGreen();
+        final long numDocs = scaledRandomIntBetween(50, 100);
+        for (int i = 0; i < numDocs; i++) {
+            index("test-index", "doc", Integer.toString(i));
+        }
+        refresh("test-index");
+        ensureSearchable("test-index");
+
+        // Happy case
+        SegmentReplicationStatsResponse segmentReplicationStatsResponse = dataNodeClient().admin()
+            .indices()
+            .prepareSegmentReplicationStats()
+            .get();
+        assertThat(segmentReplicationStatsResponse.getTotalShards(), equalTo(numShards * 2));
+        assertThat(segmentReplicationStatsResponse.getSuccessfulShards(), equalTo(numShards * 2));
+
+        // simulate timeout on bad node.
+        simulateTimeoutAtTransport(dataNode, anotherDataNode, SegmentReplicationStatsAction.NAME);
+
+        // verify response with bad node.
+        segmentReplicationStatsResponse = dataNodeClient().admin().indices().prepareSegmentReplicationStats().get();
+        assertThat(segmentReplicationStatsResponse.getTotalShards(), equalTo(numShards * 2));
+        assertThat(segmentReplicationStatsResponse.getSuccessfulShards(), equalTo(numShards));
+        assertThat(segmentReplicationStatsResponse.getFailedShards(), equalTo(numShards));
+        assertThat(segmentReplicationStatsResponse.getShardFailures()[0].reason(), containsString("ReceiveTimeoutTransportException"));
     }
 
     public void testStatsWithTimeout() {

@@ -8,20 +8,29 @@
 
 package org.opensearch.indices.replication;
 
-import org.opensearch.common.collect.Tuple;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.indices.replication.common.ReplicationTimer;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.io.IOException;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * ReplicationState implementation to track Segment Replication events.
  *
  * @opensearch.internal
  */
-public class SegmentReplicationState implements ReplicationState {
+public class SegmentReplicationState implements ReplicationState, ToXContentFragment, Writeable {
 
     /**
      * The stage of the recovery state
@@ -66,28 +75,19 @@ public class SegmentReplicationState implements ReplicationState {
     }
 
     private Stage stage;
-    private final ReplicationLuceneIndex index;
+    private ReplicationLuceneIndex index;
     private final ReplicationTimer overallTimer;
+
+    // Timing data will have as many entries as stages, plus one
+    private final Map<String, Long> timingData = new ConcurrentHashMap<>(Stage.values().length + 1);
     private final ReplicationTimer stageTimer;
-    private final List<Tuple<String, Long>> timingData;
     private long replicationId;
+    private final ShardRouting shardRouting;
+    private String sourceDescription;
+    private DiscoveryNode targetNode;
 
-    public SegmentReplicationState(ReplicationLuceneIndex index) {
-        stage = Stage.INIT;
-        this.index = index;
-        // Timing data will have as many entries as stages, plus one
-        // additional entry for the overall timer
-        timingData = new ArrayList<>(Stage.values().length + 1);
-        overallTimer = new ReplicationTimer();
-        stageTimer = new ReplicationTimer();
-        stageTimer.start();
-        // set an invalid value by default
-        this.replicationId = -1L;
-    }
-
-    public SegmentReplicationState(ReplicationLuceneIndex index, long replicationId) {
-        this(index);
-        this.replicationId = replicationId;
+    public ShardRouting getShardRouting() {
+        return shardRouting;
     }
 
     @Override
@@ -104,12 +104,82 @@ public class SegmentReplicationState implements ReplicationState {
         return overallTimer;
     }
 
-    public List<Tuple<String, Long>> getTimingData() {
+    public Stage getStage() {
+        return this.stage;
+    }
+
+    public String getSourceDescription() {
+
+        return sourceDescription;
+    }
+
+    public DiscoveryNode getTargetNode() {
+        return targetNode;
+    }
+
+    public Map<String, Long> getTimingData() {
         return timingData;
     }
 
-    public Stage getStage() {
-        return stage;
+    public TimeValue getReplicatingStageTime() {
+        return new TimeValue(timingData.get(Stage.REPLICATING.toString()));
+    }
+
+    public TimeValue getGetCheckpointInfoStageTime() {
+        return new TimeValue(timingData.get(Stage.GET_CHECKPOINT_INFO.toString()));
+    }
+
+    public TimeValue getFileDiffStageTime() {
+        return new TimeValue(timingData.get(Stage.FILE_DIFF.toString()));
+    }
+
+    public TimeValue getGetFileStageTime() {
+        return new TimeValue(timingData.get(Stage.GET_FILES.toString()));
+    }
+
+    public TimeValue getFinalizeReplicationStageTime() {
+        return new TimeValue(timingData.get(Stage.FINALIZE_REPLICATION.toString()));
+    }
+
+    public SegmentReplicationState(
+        ShardRouting shardRouting,
+        ReplicationLuceneIndex index,
+        long replicationId,
+        String sourceDescription,
+        DiscoveryNode targetNode
+    ) {
+        this.index = index;
+        this.shardRouting = shardRouting;
+        this.replicationId = replicationId;
+        this.sourceDescription = sourceDescription;
+        this.targetNode = targetNode;
+        overallTimer = new ReplicationTimer();
+        stageTimer = new ReplicationTimer();
+        setStage(Stage.INIT);
+        stageTimer.start();
+    }
+
+    public SegmentReplicationState(StreamInput in) throws IOException {
+        index = new ReplicationLuceneIndex(in);
+        shardRouting = new ShardRouting(in);
+        stage = in.readEnum(Stage.class);
+        replicationId = in.readLong();
+        overallTimer = new ReplicationTimer(in);
+        stageTimer = new ReplicationTimer(in);
+        sourceDescription = in.readString();
+        targetNode = new DiscoveryNode(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        index.writeTo(out);
+        shardRouting.writeTo(out);
+        out.writeEnum(stage);
+        out.writeLong(replicationId);
+        overallTimer.writeTo(out);
+        stageTimer.writeTo(out);
+        out.writeString(sourceDescription);
+        targetNode.writeTo(out);
     }
 
     protected void validateAndSetStage(Stage expected, Stage next) {
@@ -125,7 +195,7 @@ public class SegmentReplicationState implements ReplicationState {
     private void stopTimersAndSetStage(Stage next) {
         // save the timing data for the current step
         stageTimer.stop();
-        timingData.add(new Tuple<>(stage.name(), stageTimer.time()));
+        timingData.put(stage.name(), stageTimer.time());
         // restart the step timer
         stageTimer.reset();
         stageTimer.start();
@@ -158,18 +228,80 @@ public class SegmentReplicationState implements ReplicationState {
                 validateAndSetStage(Stage.FINALIZE_REPLICATION, stage);
                 // add the overall timing data
                 overallTimer.stop();
-                timingData.add(new Tuple<>("OVERALL", overallTimer.time()));
+                timingData.put("OVERALL", overallTimer.time());
                 break;
             case CANCELLED:
                 if (this.stage == Stage.DONE) {
                     throw new IllegalStateException("can't move replication to Cancelled state from Done.");
                 }
-                stopTimersAndSetStage(Stage.CANCELLED);
+                this.stage = Stage.CANCELLED;
                 overallTimer.stop();
-                timingData.add(new Tuple<>("OVERALL", overallTimer.time()));
+                timingData.put("OVERALL", overallTimer.time());
                 break;
             default:
                 throw new IllegalArgumentException("unknown SegmentReplicationState.Stage [" + stage + "]");
         }
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+
+        builder.field(Fields.INDEX_NAME, shardRouting.index().getName());
+        builder.field(Fields.ID, shardRouting.shardId().id());
+        builder.field(Fields.STAGE, getStage());
+        builder.timeField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, getTimer().startTime());
+        if (getTimer().stopTime() > 0) {
+            builder.timeField(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, getTimer().stopTime());
+        }
+        builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(getTimer().time()));
+        if (sourceDescription != null) {
+            builder.field(Fields.SOURCE, getSourceDescription());
+        }
+
+        if (targetNode != null) {
+            builder.startObject(Fields.TARGET);
+            builder.field(Fields.ID, targetNode.getId());
+            builder.field(Fields.HOST, targetNode.getHostName());
+            builder.field(Fields.TRANSPORT_ADDRESS, targetNode.getAddress().toString());
+            builder.field(Fields.IP, targetNode.getHostAddress());
+            builder.field(Fields.NAME, targetNode.getName());
+            builder.endObject();
+        }
+        builder.startObject(SegmentReplicationState.Fields.INDEX);
+        index.toXContent(builder, params);
+        builder.endObject();
+        builder.field(Fields.REPLICATING_STAGE, getReplicatingStageTime());
+        builder.field(Fields.GET_CHECKPOINT_INFO_STAGE, getGetCheckpointInfoStageTime());
+        builder.field(Fields.FILE_DIFF_STAGE, getFileDiffStageTime());
+        builder.field(Fields.GET_FILES_STAGE, getGetFileStageTime());
+        builder.field(Fields.FINALIZE_REPLICATION_STAGE, getFinalizeReplicationStageTime());
+
+        return builder;
+    }
+
+    static final class Fields {
+        static final String ID = "id";
+        static final String STAGE = "stage";
+        static final String START_TIME = "start_time";
+        static final String START_TIME_IN_MILLIS = "start_time_in_millis";
+        static final String STOP_TIME = "stop_time";
+        static final String STOP_TIME_IN_MILLIS = "stop_time_in_millis";
+        static final String TOTAL_TIME = "total_time";
+        static final String TOTAL_TIME_IN_MILLIS = "total_time_in_millis";
+        static final String SOURCE = "source";
+        static final String HOST = "host";
+        static final String TRANSPORT_ADDRESS = "transport_address";
+        static final String IP = "ip";
+        static final String NAME = "name";
+        static final String TARGET = "target";
+
+        static final String INDEX = "index";
+
+        static final String INDEX_NAME = "index_name";
+        static final String REPLICATING_STAGE = "replicating_stage";
+        static final String GET_CHECKPOINT_INFO_STAGE = "get_checkpoint_info_stage";
+        static final String FILE_DIFF_STAGE = "file_diff_stage";
+        static final String GET_FILES_STAGE = "get_files_stage";
+        static final String FINALIZE_REPLICATION_STAGE = "finalize_replication_stage";
     }
 }
