@@ -38,7 +38,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHits
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SegmentReplicationIT extends SegmentReplicationBaseIT {
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
+
     public void testPrimaryStopped_ReplicaPromoted() throws Exception {
         final String primary = internalCluster().startNode();
         createIndex(INDEX_NAME);
