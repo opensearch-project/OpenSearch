@@ -2120,11 +2120,11 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, Setting<ByteSizeValue> fallbackSetting, Property... properties) {
-        return new Setting<>(key, fallbackSetting, new ByteSizeValueParser(key), properties);
+        return new Setting<>(key, fallbackSetting, (s) -> ByteSizeValue.parseBytesSizeValue(s, key), properties);
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, Function<Settings, String> defaultValue, Property... properties) {
-        return new Setting<>(key, defaultValue, new ByteSizeValueParser(key), properties);
+        return new Setting<>(key, defaultValue, (s) -> ByteSizeValue.parseBytesSizeValue(s, key), properties);
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(
@@ -2160,10 +2160,6 @@ public class Setting<T> implements ToXContentObject {
             this.minValue = minValue;
             this.maxValue = maxValue;
             this.key = key;
-        }
-
-        public ByteSizeValueParser(String key) {
-            this(new ByteSizeValue(Long.MIN_VALUE), new ByteSizeValue(Long.MAX_VALUE), key);
         }
 
         public ByteSizeValueParser(StreamInput in) throws IOException {
