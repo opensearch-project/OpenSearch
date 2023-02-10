@@ -57,7 +57,7 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
 
     // Variables for actual held open block
     /**
-     * Current block for read, it should be a cloned block always
+     * Current block for read, it should be a cloned block always. In current implementation this will be a FileCachedIndexInput
      */
     protected IndexInput currentBlock;
 
@@ -366,9 +366,10 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
         return new Builder();
     }
 
-    static class Builder {
+    public static class Builder {
         // Block size shift (default value is 13 = 8KB)
         public static final int DEFAULT_BLOCK_SIZE_SHIFT = 13;
+        public static final int DEFAULT_BLOCK_SIZE = 1 << DEFAULT_BLOCK_SIZE_SHIFT;;
 
         private String resourceDescription;
         private boolean isClone;
@@ -400,7 +401,7 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
             return this;
         }
 
-        public Builder blockSizeShift(int blockSizeShift) {
+        Builder blockSizeShift(int blockSizeShift) {
             assert blockSizeShift < 31 : "blockSizeShift must be < 31";
             this.blockSizeShift = blockSizeShift;
             this.blockSize = 1 << blockSizeShift;
