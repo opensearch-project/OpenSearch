@@ -47,6 +47,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.common.unit.MemorySizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.DeprecationHandler;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
@@ -2260,7 +2261,7 @@ public class Setting<T> implements ToXContentObject {
      * @return the setting object
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, Function<Settings, String> defaultValue, Property... properties) {
-        return new Setting<>(key, defaultValue, new ByteSizeValueParser(key), properties);
+        return new Setting<>(key, defaultValue, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
     }
 
     /**
@@ -2274,7 +2275,7 @@ public class Setting<T> implements ToXContentObject {
      * @return the setting object
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, String defaultPercentage, Property... properties) {
-        return new Setting<>(key, (s) -> defaultPercentage, new ByteSizeValueParser(key), properties);
+        return new Setting<>(key, (s) -> defaultPercentage, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
     }
 
     /**
@@ -2288,7 +2289,7 @@ public class Setting<T> implements ToXContentObject {
      * @return the setting object
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, Setting<ByteSizeValue> fallbackSetting, Property... properties) {
-        return new Setting<>(key, fallbackSetting, new ByteSizeValueParser(key), properties);
+        return new Setting<>(key, fallbackSetting, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
     }
 
     public static <T> Setting<List<T>> listSetting(
@@ -2643,7 +2644,7 @@ public class Setting<T> implements ToXContentObject {
         }
 
         public MinMaxTimeValueParser(String key) {
-            this(key, null, null, false);
+            this(key, Long.MIN_VALUE , Long.MAX_VALUE, false);
         }
 
         public MinMaxTimeValueParser(StreamInput in) throws IOException {
