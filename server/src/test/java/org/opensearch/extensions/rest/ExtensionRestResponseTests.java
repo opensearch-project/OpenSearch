@@ -43,6 +43,7 @@ public class ExtensionRestResponseTests extends OpenSearchTestCase {
             Method.GET,
             "/foo",
             Collections.emptyMap(),
+            Collections.emptyMap(),
             null,
             new BytesArray("Text Content"),
             null

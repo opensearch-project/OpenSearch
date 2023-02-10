@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.Collections;
 
 /**
  * Request to execute REST actions on extension node.
@@ -39,6 +40,7 @@ public class ExtensionRestRequest extends TransportRequest {
     private Method method;
     private String path;
     private Map<String, String> params;
+    private final Map<String, List<String>> headers;
     private XContentType xContentType = null;
     private BytesReference content;
     // The owner of this request object
@@ -63,6 +65,7 @@ public class ExtensionRestRequest extends TransportRequest {
         Method method,
         String path,
         Map<String, String> params,
+        Map<String, List<String>> headers,
         XContentType xContentType,
         BytesReference content,
         String principalIdentifier
@@ -70,6 +73,7 @@ public class ExtensionRestRequest extends TransportRequest {
         this.method = method;
         this.path = path;
         this.params = params;
+        this.headers = Collections.unmodifiableMap(headers);
         this.xContentType = xContentType;
         this.content = content;
         this.principalIdentifierToken = principalIdentifier;
@@ -86,6 +90,7 @@ public class ExtensionRestRequest extends TransportRequest {
         method = in.readEnum(RestRequest.Method.class);
         path = in.readString();
         params = in.readMap(StreamInput::readString, StreamInput::readString);
+        headers = in.readMap(StreamInput::readString, StreamInput::readStringList);
         if (in.readBoolean()) {
             xContentType = in.readEnum(XContentType.class);
         }
@@ -99,6 +104,7 @@ public class ExtensionRestRequest extends TransportRequest {
         out.writeEnum(method);
         out.writeString(path);
         out.writeMap(params, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeStringCollection);
         out.writeBoolean(xContentType != null);
         if (xContentType != null) {
             out.writeEnum(xContentType);
@@ -154,6 +160,36 @@ public class ExtensionRestRequest extends TransportRequest {
     public String param(String key) {
         consumedParams.add(key);
         return params.get(key);
+    }
+
+    /**
+     * Get the value of the header or {@code null} if not found. This method only retrieves the first header value if multiple values are
+     * sent.
+     */
+    public final String header(String name) {
+        List<String> values = headers.get(name);
+        if (values != null && values.isEmpty() == false) {
+            return values.get(0);
+        }
+        return null;
+    }
+
+    /**
+     * Get all values for the header or {@code null} if the header was not found
+     */
+    public final List<String> getAllHeaderValues(String name) {
+        List<String> values = headers.get(name);
+        if (values != null) {
+            return Collections.unmodifiableList(values);
+        }
+        return null;
+    }
+
+    /**
+     * Get all of the headers and values associated with the headers. Modifications of this map are not supported.
+     */
+    public final Map<String, List<String>> getHeaders() {
+        return headers;
     }
 
     /**

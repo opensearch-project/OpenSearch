@@ -46,6 +46,7 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.ToXContent.Params;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.extensions.rest.ExtensionRestRequest;
 import org.opensearch.index.query.Operator;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -76,6 +77,17 @@ public class RestActions {
     public static final ParseField FAILURES_FIELD = new ParseField("failures");
 
     public static long parseVersion(RestRequest request) {
+        if (request.hasParam("version")) {
+            return request.paramAsLong("version", Versions.MATCH_ANY);
+        }
+        String ifMatch = request.header("If-Match");
+        if (ifMatch != null) {
+            return Long.parseLong(ifMatch);
+        }
+        return Versions.MATCH_ANY;
+    }
+
+    public static long parseVersion(ExtensionRestRequest request) {
         if (request.hasParam("version")) {
             return request.paramAsLong("version", Versions.MATCH_ANY);
         }

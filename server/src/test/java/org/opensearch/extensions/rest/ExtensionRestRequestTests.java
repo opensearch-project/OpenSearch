@@ -25,9 +25,8 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.charset.StandardCharsets;
 import java.security.Principal;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+
 import static java.util.Map.entry;
 
 public class ExtensionRestRequestTests extends OpenSearchTestCase {
@@ -35,6 +34,7 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
     private Method expectedMethod;
     private String expectedPath;
     Map<String, String> expectedParams;
+    Map<String, List<String>> expectedHeaders;
     XContentType expectedContentType;
     BytesReference expectedContent;
     String extensionUniqueId1;
@@ -49,6 +49,9 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
         expectedMethod = Method.GET;
         expectedPath = "/test/uri";
         expectedParams = Map.ofEntries(entry("foo", "bar"), entry("baz", "42"));
+        expectedHeaders = new HashMap<>();
+        expectedHeaders.put("header1", Collections.singletonList("boo"));
+        expectedHeaders.put("header2", Arrays.asList("foo", "foo"));
         expectedContentType = XContentType.JSON;
         expectedContent = new BytesArray("{\"key\": \"value\"}".getBytes(StandardCharsets.UTF_8));
         extensionUniqueId1 = "ext_1";
@@ -62,6 +65,7 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
             expectedMethod,
             expectedPath,
             expectedParams,
+            expectedHeaders,
             expectedContentType,
             expectedContent,
             expectedRequestIssuerIdentity
@@ -80,6 +84,10 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
         assertEquals(0L, request.paramAsLong("bar", 0L));
         assertTrue(request.consumedParams().contains("foo"));
         assertTrue(request.consumedParams().contains("baz"));
+
+        assertEquals(expectedHeaders, request.getHeaders());
+        assertEquals("boo", request.header("header1"));
+        assertEquals(Arrays.asList("foo", "foo"), request.getAllHeaderValues("header2"));
 
         assertEquals(expectedContentType, request.getXContentType());
         assertTrue(request.hasContent());
@@ -114,6 +122,7 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
             expectedMethod,
             expectedPath,
             expectedParams,
+            expectedHeaders,
             null,
             new BytesArray(new byte[0]),
             expectedRequestIssuerIdentity
@@ -122,6 +131,7 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
         assertEquals(expectedMethod, request.method());
         assertEquals(expectedPath, request.path());
         assertEquals(expectedParams, request.params());
+        assertEquals(expectedHeaders, request.getHeaders());
         assertNull(request.getXContentType());
         assertEquals(0, request.content().length());
         assertEquals(expectedRequestIssuerIdentity, request.getRequestIssuerIdentity());
@@ -156,6 +166,7 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
             expectedMethod,
             expectedPath,
             expectedParams,
+            expectedHeaders,
             null,
             expectedText,
             expectedRequestIssuerIdentity
@@ -164,6 +175,7 @@ public class ExtensionRestRequestTests extends OpenSearchTestCase {
         assertEquals(expectedMethod, request.method());
         assertEquals(expectedPath, request.path());
         assertEquals(expectedParams, request.params());
+        assertEquals(expectedHeaders, request.getHeaders());
         assertNull(request.getXContentType());
         assertEquals(expectedText, request.content());
         assertEquals(expectedRequestIssuerIdentity, request.getRequestIssuerIdentity());
