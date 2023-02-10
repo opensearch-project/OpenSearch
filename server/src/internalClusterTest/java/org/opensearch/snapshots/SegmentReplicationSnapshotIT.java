@@ -110,10 +110,7 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
             .setWaitForCompletion(true)
             .setIndices(INDEX_NAME)
             .get();
-        assertEquals(
-            createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            createSnapshotResponse.getSnapshotInfo().totalShards()
-        );
+        assertEquals(createSnapshotResponse.getSnapshotInfo().successfulShards(), createSnapshotResponse.getSnapshotInfo().totalShards());
         assertEquals(createSnapshotResponse.getSnapshotInfo().state(), SnapshotState.SUCCESS);
     }
 
