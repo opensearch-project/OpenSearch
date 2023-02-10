@@ -2643,7 +2643,7 @@ public class Setting<T> implements ToXContentObject {
         }
 
         public MinMaxTimeValueParser(String key) {
-            this(key, null, null, null);
+            this(key, null, null, false);
         }
 
         public MinMaxTimeValueParser(StreamInput in) throws IOException {
