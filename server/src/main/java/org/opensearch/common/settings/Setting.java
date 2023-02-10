@@ -2643,10 +2643,6 @@ public class Setting<T> implements ToXContentObject {
             this.isFiltered = isFiltered;
         }
 
-        public MinMaxTimeValueParser(String key) {
-            this(key, new TimeValue(Long.MIN_VALUE), new TimeValue(Long.MAX_VALUE), false);
-        }
-
         public MinMaxTimeValueParser(StreamInput in) throws IOException {
             key = in.readString();
             minValue = in.readTimeValue();
@@ -2764,11 +2760,11 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<TimeValue> timeSetting(String key, TimeValue defaultValue, Property... properties) {
-        return new Setting<>(key, (s) -> defaultValue.getStringRep(), new MinMaxTimeValueParser(key), properties);
+        return new Setting<>(key, (s) -> defaultValue.getStringRep(), (s) -> TimeValue.parseTimeValue(s, key), properties);
     }
 
     public static Setting<TimeValue> timeSetting(String key, Setting<TimeValue> fallbackSetting, Property... properties) {
-        return new Setting<>(key, fallbackSetting, new MinMaxTimeValueParser(key), properties);
+        return new Setting<>(key, fallbackSetting, (s) -> TimeValue.parseTimeValue(s, key), properties);
     }
 
     public static Setting<TimeValue> timeSetting(
