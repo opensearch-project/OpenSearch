@@ -628,6 +628,41 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
                 ).size()
             )
         );
+
+        // Change primary term and test the deletion of older primaries
+        String translogUUID = translog.translogUUID;
+        try {
+            translog.getDeletionPolicy().assertNoOpenTranslogRefs();
+            translog.close();
+        } finally {
+            terminate(threadPool);
+        }
+
+        // Increase primary term
+        long oldPrimaryTerm = primaryTerm.get();
+        long newPrimaryTerm = primaryTerm.incrementAndGet();
+
+        // Check all metadata files corresponds to old primary term
+        Set<String> mdFileNames = blobStoreTransferService.listAll(
+            repository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())).add(METADATA_DIR)
+        );
+        assertTrue(mdFileNames.stream().allMatch(name -> name.startsWith(String.valueOf(oldPrimaryTerm).concat("__"))));
+
+        // Creating RemoteFsTranslog with the same location
+        Translog newTranslog = create(translogDir, repository, translogUUID);
+        int newPrimaryTermDocs = randomIntBetween(5, 10);
+        for (int i = totalDocs + 1; i <= totalDocs + newPrimaryTermDocs; i++) {
+            addToTranslogAndListAndUpload(newTranslog, ops, new Translog.Index(String.valueOf(i), i, primaryTerm.get(), new byte[] { 1 }));
+            newTranslog.deletionPolicy.setLocalCheckpointOfSafeCommit(i - 1);
+            newTranslog.setMinSeqNoToKeep(i);
+            newTranslog.trimUnreferencedReaders();
+        }
+
+        // Check that all metadata files are belonging now to the new primary
+        mdFileNames = blobStoreTransferService.listAll(
+            repository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())).add(METADATA_DIR)
+        );
+        assertTrue(mdFileNames.stream().allMatch(name -> name.startsWith(String.valueOf(newPrimaryTerm).concat("__"))));
     }
 
     private Long populateTranslogOps(boolean withMissingOps) throws IOException {

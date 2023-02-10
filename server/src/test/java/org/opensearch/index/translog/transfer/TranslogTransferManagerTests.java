@@ -323,7 +323,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         assertEquals(2, tracker.allUploaded().size());
 
         List<String> files = List.of(checkpointFile, translogFile);
-        translogTransferManager.deleteTranslogAsync(primaryTerm, Set.of(19L));
+        translogTransferManager.deleteGenerationAsync(primaryTerm, Set.of(19L));
         assertBusy(() -> assertEquals(0, tracker.allUploaded().size()));
         verify(blobContainer).deleteBlobsIgnoringIfNotExists(eq(files));
     }
@@ -345,7 +345,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         tracker.add(checkpointFile, true);
         assertEquals(2, tracker.allUploaded().size());
 
-        translogTransferManager.deleteTranslogAsync(primaryTerm, Set.of(19L));
+        translogTransferManager.deleteGenerationAsync(primaryTerm, Set.of(19L));
         assertEquals(2, tracker.allUploaded().size());
     }
 }

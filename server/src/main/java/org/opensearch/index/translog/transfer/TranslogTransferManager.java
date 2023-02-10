@@ -196,46 +196,31 @@ public class TranslogTransferManager {
     }
 
     /**
-     * This method handles deletion of multiple generations for a single primary term.
-     * TODO: Take care of metadata file cleanup. <a href="https://github.com/opensearch-project/OpenSearch/issues/5677">Github Issue #5677</a>
+     * This method handles deletion of multiple generations for a single primary term. The deletion happens for translog
+     * and metadata files.
      *
      * @param primaryTerm primary term where the generations will be deleted.
      * @param generations set of generation to delete.
      */
-    public void deleteTranslogAsync(long primaryTerm, Set<Long> generations) {
+    public void deleteGenerationAsync(long primaryTerm, Set<Long> generations) {
         if (generations.isEmpty()) {
             return;
         }
-        List<String> files = new ArrayList<>();
+        List<String> translogFiles = new ArrayList<>();
+        List<String> metadataFiles = new ArrayList<>();
         generations.forEach(generation -> {
+            // Add .ckp and .tlog file to translog file list which is located in basePath/<primaryTerm>
             String ckpFileName = Translog.getCommitCheckpointFileName(generation);
-            String translogFilename = Translog.getFilename(generation);
-            files.addAll(List.of(ckpFileName, translogFilename));
+            String translogFileName = Translog.getFilename(generation);
+            translogFiles.addAll(List.of(ckpFileName, translogFileName));
+            // Add metadata file tio metadata file list which is located in basePath/metadata
+            String metadataFileName = TranslogTransferMetadata.getFileName(primaryTerm, generation);
+            metadataFiles.add(metadataFileName);
         });
-        transferService.deleteBlobsAsync(
-            ThreadPool.Names.REMOTE_PURGE,
-            remoteBaseTransferPath.add(String.valueOf(primaryTerm)),
-            files,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(Void unused) {
-                    fileTransferTracker.delete(files);
-                    logger.trace("Deleted translogs for primaryTerm {} generations {}", primaryTerm, generations);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error(
-                        () -> new ParameterizedMessage(
-                            "Exception occurred while deleting translog for primary_term={} generations={}",
-                            primaryTerm,
-                            generations
-                        ),
-                        e
-                    );
-                }
-            }
-        );
+        // Delete the translog and checkpoint files asynchronously
+        deleteTranslogFilesAsync(primaryTerm, translogFiles);
+        // Delete the metadata files asynchronously
+        deleteMetadataFilesAsync(metadataFiles);
     }
 
     /**
@@ -316,11 +301,44 @@ public class TranslogTransferManager {
     }
 
     /**
+     * Deletes list of translog files asynchronously using the {@code REMOTE_PURGE} threadpool.
+     *
+     * @param primaryTerm primary term of translog files.
+     * @param files       list of translog files to be deleted.
+     */
+    private void deleteTranslogFilesAsync(long primaryTerm, List<String> files) {
+        transferService.deleteBlobsAsync(
+            ThreadPool.Names.REMOTE_PURGE,
+            remoteBaseTransferPath.add(String.valueOf(primaryTerm)),
+            files,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    fileTransferTracker.delete(files);
+                    logger.trace("Deleted translogs for primaryTerm={} files={}", primaryTerm, files);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error(
+                        () -> new ParameterizedMessage(
+                            "Exception occurred while deleting translog for primaryTerm={} files={}",
+                            primaryTerm,
+                            files
+                        ),
+                        e
+                    );
+                }
+            }
+        );
+    }
+
+    /**
      * Deletes metadata files asynchronously using the {@code REMOTE_PURGE} threadpool.
      *
      * @param files list of metadata files to be deleted.
      */
-    public void deleteMetadataFilesAsync(List<String> files) {
+    private void deleteMetadataFilesAsync(List<String> files) {
         transferService.deleteBlobsAsync(ThreadPool.Names.REMOTE_PURGE, remoteMetadataTransferPath, files, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {

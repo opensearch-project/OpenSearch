@@ -29,13 +29,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 
 /**
  * A Translog implementation which syncs local FS with a remote store
@@ -354,28 +352,16 @@ public class RemoteFsTranslog extends Translog {
         }
         if (generationsToDelete.isEmpty() == false) {
             deleteRemoteGeneration(generationsToDelete);
-            deleteRemoteMetadata(generationsToDelete);
             deleteStaleRemotePrimaryTermsAndMetadataFiles();
         }
     }
 
     /**
-     * Deletes remote translog metadata files asynchronously corresponding to the generations.
-     * @param generations for which corresponding translog metadata files are to be deleted.
-     */
-    private void deleteRemoteMetadata(Set<Long> generations) {
-        List<String> metadataFilesToDelete = generations.stream()
-            .map(generation -> TranslogTransferMetadata.getFileName(primaryTermSupplier.getAsLong(), generation))
-            .collect(Collectors.toList());
-        translogTransferManager.deleteMetadataFilesAsync(metadataFilesToDelete);
-    }
-
-    /**
-     * Deletes remote translog files asynchronously corresponding to the generations.
-     * @param generations generations that needs to be deleted.
+     * Deletes remote translog and metadata files asynchronously corresponding to the generations.
+     * @param generations generations to be deleted.
      */
     private void deleteRemoteGeneration(Set<Long> generations) {
-        translogTransferManager.deleteTranslogAsync(primaryTermSupplier.getAsLong(), generations);
+        translogTransferManager.deleteGenerationAsync(primaryTermSupplier.getAsLong(), generations);
     }
 
     /**
