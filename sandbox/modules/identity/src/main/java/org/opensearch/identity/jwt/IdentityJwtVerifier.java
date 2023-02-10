@@ -11,8 +11,14 @@ package org.opensearch.identity.jwt;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+/**
+ * Singleton instance of a JWT Verifier that is initialized with the signingKey in the identity settings.
+ * This is used to provide Bearer Authentication to the cluster with tokens signed by the configured signing key.
+ *
+ * @opensearch.experimental
+ */
 public class IdentityJwtVerifier extends AbstractJwtVerifier {
-    private final static Logger log = LogManager.getLogger(JwtVerifier.class);
+    private final static Logger log = LogManager.getLogger(IdentityJwtVerifier.class);
 
     private static IdentityJwtVerifier INSTANCE;
 

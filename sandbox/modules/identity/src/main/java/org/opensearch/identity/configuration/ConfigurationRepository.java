@@ -359,7 +359,10 @@ public class ConfigurationRepository {
                 final String res = response.getId();
 
                 if (!configType.equals(res)) {
-                    LOGGER.warn("FAIL: Configuration for '{}' failed for unknown reasons. Pls. consult logfile of opensearch", configType);
+                    LOGGER.warn(
+                        "FAIL: Configuration for '{}' failed for unknown reasons. See OpenSearch logs for more details.",
+                        configType
+                    );
                 }
             } catch (IOException e) {
                 throw ExceptionsHelper.convertToOpenSearchException(e);
