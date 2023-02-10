@@ -8,7 +8,9 @@
 
 package org.opensearch.identity.utils;
 
+
 import org.opensearch.identity.rest.RestConstants;
+import org.opensearch.identity.rest.IdentityRestConstants;
 import org.opensearch.rest.RestHandler;
 
 import java.util.Arrays;
@@ -23,7 +25,9 @@ public class RoutesHelper {
      * @return new list of API routes prefixed with _identity/api...
      */
     public static List<RestHandler.Route> addRoutesPrefix(List<RestHandler.Route> routes) {
+    
         return addRoutesPrefix(routes, RestConstants.IDENTITY_API_PREFIX);
+        return addRoutesPrefix(routes, IdentityRestConstants.IDENTITY_REST_API_REQUEST_PREFIX);
     }
 
     /**

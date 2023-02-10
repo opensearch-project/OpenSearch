@@ -34,6 +34,7 @@ package org.opensearch;
 
 import org.opensearch.action.support.replication.ReplicationOperation;
 import org.opensearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.routing.NodeWeighedAwayException;
 import org.opensearch.cluster.routing.PreferenceBasedSearchNotAllowedException;
 import org.opensearch.cluster.routing.UnsupportedWeightedRoutingStateException;
 import org.opensearch.cluster.service.ClusterManagerThrottlingException;
@@ -1640,6 +1641,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             168,
             V_2_6_0
         ),
+        NODE_WEIGHED_AWAY_EXCEPTION(NodeWeighedAwayException.class, NodeWeighedAwayException::new, 169, V_2_6_0),
         INDEX_CREATE_BLOCK_EXCEPTION(
             org.opensearch.cluster.block.IndexCreateBlockException.class,
             org.opensearch.cluster.block.IndexCreateBlockException::new,

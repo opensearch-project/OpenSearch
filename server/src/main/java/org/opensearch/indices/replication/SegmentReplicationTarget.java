@@ -63,7 +63,13 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         super("replication_target", indexShard, new ReplicationLuceneIndex(), listener);
         this.checkpoint = checkpoint;
         this.source = source;
-        this.state = new SegmentReplicationState(stateIndex, getId());
+        this.state = new SegmentReplicationState(
+            indexShard.routingEntry(),
+            stateIndex,
+            getId(),
+            source.getDescription(),
+            indexShard.recoveryState().getTargetNode()
+        );
         this.multiFileWriter = new MultiFileWriter(indexShard.store(), stateIndex, getPrefix(), logger, this::ensureRefCount);
     }
 
@@ -180,8 +186,11 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         if (diff.different.isEmpty() == false) {
             getFilesListener.onFailure(
                 new IllegalStateException(
-                    new ParameterizedMessage("Shard {} has local copies of segments that differ from the primary", indexShard.shardId())
-                        .getFormattedMessage()
+                    new ParameterizedMessage(
+                        "Shard {} has local copies of segments that differ from the primary {}",
+                        indexShard.shardId(),
+                        diff.different
+                    ).getFormattedMessage()
                 )
             );
         }

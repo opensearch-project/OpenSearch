@@ -49,6 +49,7 @@ import org.opensearch.common.unit.MemorySizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.DeprecationHandler;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.MediaType;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
@@ -1090,7 +1091,7 @@ public final class Settings implements ToXContentFragment {
         /**
          * Loads settings from the actual string content that represents them using {@link #fromXContent(XContentParser)}
          */
-        public Builder loadFromSource(String source, XContentType xContentType) {
+        public Builder loadFromSource(String source, MediaType xContentType) {
             try (
                 XContentParser parser = XContentFactory.xContent(xContentType)
                     .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)

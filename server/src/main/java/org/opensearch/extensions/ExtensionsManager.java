@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
@@ -57,7 +58,6 @@ import org.opensearch.index.IndicesModuleRequest;
 import org.opensearch.index.IndicesModuleResponse;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
-import org.opensearch.plugins.PluginInfo;
 import org.opensearch.rest.RestController;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
@@ -66,6 +66,7 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 import org.yaml.snakeyaml.Yaml;
 import org.opensearch.env.EnvironmentSettingsResponse;
+import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 /**
  * The main class for managing Extension communication with the OpenSearch Node.
@@ -289,7 +290,7 @@ public class ExtensionsManager {
      * Load and populate all extensions
      */
     private void discover() throws IOException {
-        logger.info("Extensions Config Directory :" + extensionsPath.toString());
+        logger.info("Loading extensions : {}", extensionsPath);
         if (!FileSystemUtils.isAccessibleDirectory(extensionsPath, logger)) {
             return;
         }
@@ -308,7 +309,7 @@ public class ExtensionsManager {
                 logger.info("Loaded all extensions");
             }
         } else {
-            logger.info("Extensions.yml file is not present.  No extensions will be loaded.");
+            logger.warn("Extensions.yml file is not present.  No extensions will be loaded.");
         }
     }
 
@@ -324,27 +325,16 @@ public class ExtensionsManager {
                 DiscoveryExtensionNode discoveryExtensionNode = new DiscoveryExtensionNode(
                     extension.getName(),
                     extension.getUniqueId(),
-                    // placeholder for ephemeral id, will change with POC discovery
-                    extension.getUniqueId(),
-                    extension.getHostName(),
-                    extension.getHostAddress(),
                     new TransportAddress(InetAddress.getByName(extension.getHostAddress()), Integer.parseInt(extension.getPort())),
                     new HashMap<String, String>(),
                     Version.fromString(extension.getOpensearchVersion()),
-                    new PluginInfo(
-                        extension.getName(),
-                        extension.getDescription(),
-                        extension.getVersion(),
-                        Version.fromString(extension.getOpensearchVersion()),
-                        extension.getJavaVersion(),
-                        extension.getClassName(),
-                        new ArrayList<String>(),
-                        Boolean.parseBoolean(extension.hasNativeController())
-                    ),
+                    Version.fromString(extension.getMinimumCompatibleVersion()),
                     extension.getDependencies()
                 );
                 extensionIdMap.put(extension.getUniqueId(), discoveryExtensionNode);
                 logger.info("Loaded extension with uniqueId " + extension.getUniqueId() + ": " + extension);
+            } catch (OpenSearchException e) {
+                logger.error("Could not load extension with uniqueId " + extension.getUniqueId() + " due to " + e);
             } catch (IllegalArgumentException e) {
                 throw e;
             }
@@ -566,7 +556,7 @@ public class ExtensionsManager {
     }
 
     private ExtensionsSettings readFromExtensionsYml(Path filePath) throws IOException {
-        Yaml yaml = new Yaml();
+        Yaml yaml = new Yaml(new SafeConstructor());
         try (InputStream inputStream = Files.newInputStream(filePath)) {
             Map<String, Object> obj = yaml.load(inputStream);
             if (obj == null) {
@@ -576,20 +566,32 @@ public class ExtensionsManager {
             List<HashMap<String, ?>> unreadExtensions = new ArrayList<>((Collection<HashMap<String, ?>>) obj.get("extensions"));
             List<Extension> readExtensions = new ArrayList<Extension>();
             for (HashMap<String, ?> extensionMap : unreadExtensions) {
+                // Parse extension dependencies
+                List<ExtensionDependency> extensionDependencyList = new ArrayList<ExtensionDependency>();
+                if (extensionMap.get("dependencies") != null) {
+                    List<HashMap<String, ?>> extensionDependencies = new ArrayList<>(
+                        (Collection<HashMap<String, ?>>) extensionMap.get("dependencies")
+                    );
+                    for (HashMap<String, ?> dependency : extensionDependencies) {
+                        extensionDependencyList.add(
+                            new ExtensionDependency(
+                                dependency.get("uniqueId").toString(),
+                                Version.fromString(dependency.get("version").toString())
+                            )
+                        );
+                    }
+                }
+                // Create extension read from yml config
                 readExtensions.add(
                     new Extension(
                         extensionMap.get("name").toString(),
                         extensionMap.get("uniqueId").toString(),
-                        extensionMap.get("hostName").toString(),
                         extensionMap.get("hostAddress").toString(),
                         extensionMap.get("port").toString(),
                         extensionMap.get("version").toString(),
-                        extensionMap.get("description").toString(),
                         extensionMap.get("opensearchVersion").toString(),
-                        extensionMap.get("javaVersion").toString(),
-                        extensionMap.get("className").toString(),
-                        extensionMap.get("customFolderName").toString(),
-                        extensionMap.get("hasNativeController").toString()
+                        extensionMap.get("minimumCompatibleVersion").toString(),
+                        extensionDependencyList
                     )
                 );
             }

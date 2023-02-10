@@ -133,6 +133,8 @@ public class ScalingThreadPoolTests extends OpenSearchThreadPoolTestCase {
         sizes.put(ThreadPool.Names.FETCH_SHARD_STARTED, ThreadPool::twiceAllocatedProcessors);
         sizes.put(ThreadPool.Names.FETCH_SHARD_STORE, ThreadPool::twiceAllocatedProcessors);
         sizes.put(ThreadPool.Names.TRANSLOG_TRANSFER, ThreadPool::halfAllocatedProcessorsMaxTen);
+        sizes.put(ThreadPool.Names.TRANSLOG_SYNC, n -> 4 * n);
+        sizes.put(ThreadPool.Names.REMOTE_PURGE, ThreadPool::halfAllocatedProcessorsMaxFive);
         return sizes.get(threadPoolName).apply(numberOfProcessors);
     }
 

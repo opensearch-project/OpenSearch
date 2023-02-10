@@ -161,4 +161,12 @@ public class ClusterHealthRequestBuilder extends ClusterManagerNodeReadOperation
         request.setLevel(level);
         return this;
     }
+
+    /**
+     * Specifies if the local request should ensure that the local node is commissioned
+     */
+    public final ClusterHealthRequestBuilder setEnsureNodeWeighedIn(boolean ensureNodeCommissioned) {
+        request.ensureNodeWeighedIn(ensureNodeCommissioned);
+        return this;
+    }
 }

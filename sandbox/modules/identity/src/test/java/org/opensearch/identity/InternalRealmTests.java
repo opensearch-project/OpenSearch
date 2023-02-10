@@ -48,7 +48,7 @@ public class InternalRealmTests extends OpenSearchTestCase {
         @Override
         public String getHash(String username) {
             User tmp = userModel.get(username);
-            return tmp == null ? null : tmp.getBcryptHash();
+            return tmp == null ? null : tmp.getHash();
         }
     }
 
