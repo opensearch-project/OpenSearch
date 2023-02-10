@@ -2120,11 +2120,11 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, Setting<ByteSizeValue> fallbackSetting, Property... properties) {
-        return new Setting<>(key, fallbackSetting, (s) -> ByteSizeValue.parseBytesSizeValue(s, key), properties);
+        return new Setting<>(key, fallbackSetting, new ByteSizeValueParser(key), properties);
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, Function<Settings, String> defaultValue, Property... properties) {
-        return new Setting<>(key, defaultValue, (s) -> ByteSizeValue.parseBytesSizeValue(s, key), properties);
+        return new Setting<>(key, defaultValue, new ByteSizeValueParser(key), properties);
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(
