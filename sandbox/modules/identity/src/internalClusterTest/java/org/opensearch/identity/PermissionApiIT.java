@@ -14,7 +14,7 @@ import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.identity.authz.PermissionStorage;
-import org.opensearch.identity.rest.RestConstants;
+import org.opensearch.identity.rest.IdentityRestConstants;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.stream.Collectors;
@@ -38,7 +38,7 @@ public class PermissionApiIT extends HttpSmokeTestCaseWithIdentity {
     public void testPermissionsRestApi() throws Exception {
 
         // _identity_api_permissions
-        final String endpoint = RestConstants.IDENTITY_API_PERMISSION_PREFIX;
+        final String endpoint = IdentityRestConstants.IDENTITY_API_PERMISSION_PREFIX;
 
         String username = "test";
         // Add a permission
@@ -46,7 +46,6 @@ public class PermissionApiIT extends HttpSmokeTestCaseWithIdentity {
         putRequest.setJsonEntity("{ \"permission\" : \"cluster.admin/read\"}\n");
         Response putResponse = getRestClient().performRequest(putRequest);
         assertThat(putResponse.getStatusLine().getStatusCode(), is(200));
-
 
         // Check for the added permission in permission storage
         assertTrue(
@@ -58,7 +57,7 @@ public class PermissionApiIT extends HttpSmokeTestCaseWithIdentity {
         );
 
         putRequest = new Request("PUT", endpoint + "/" + username);
-        putRequest.setJsonEntity("{ \"permission\" : \":1:2:3\"}\n"); //Invalid permission
+        putRequest.setJsonEntity("{ \"permission\" : \":1:2:3\"}\n"); // Invalid permission
         try {
             putResponse = getRestClient().performRequest(putRequest);
         } catch (ResponseException ex) {

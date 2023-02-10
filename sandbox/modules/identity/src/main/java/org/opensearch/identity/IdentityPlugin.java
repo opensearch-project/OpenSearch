@@ -63,7 +63,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Objects;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -105,7 +104,6 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         this.settings = settings;
     }
 
-
     private static boolean isEnabled(final Settings settings) {
         return settings.getAsBoolean(IdentityConfigConstants.IDENTITY_ENABLED, false);
     }
@@ -120,8 +118,9 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        final List<RestHandler> handlers = new ArrayList<>(1);
+        final List<RestHandler> handlers = new ArrayList<>(2);
         handlers.add(new RestPutUserAction());
+        handlers.add(new RestPutPermissionAction());
         // TODO: Add handlers for future actions
         return handlers;
     }
@@ -137,7 +136,8 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
 
         return Arrays.asList(
             new ActionHandler<>(PutUserAction.INSTANCE, TransportPutUserAction.class),
-            new ActionHandler<>(IdentityConfigUpdateAction.INSTANCE, TransportIdentityConfigUpdateAction.class)
+            new ActionHandler<>(IdentityConfigUpdateAction.INSTANCE, TransportIdentityConfigUpdateAction.class),
+            new ActionHandler<>(PutPermissionAction.INSTANCE, TransportPutPermissionAction.class)
         );
     }
 
@@ -157,41 +157,6 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         }
         filters.add(Objects.requireNonNull(sf));
         return filters;
-    }
-
-    private static boolean isEnabled(final Settings settings) {
-        return settings.getAsBoolean(ConfigConstants.IDENTITY_ENABLED, false);
-    }
-
-    @Override
-    public List<RestHandler> getRestHandlers(
-        Settings settings,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
-    ) {
-        final List<RestHandler> handlers = new ArrayList<>(1);
-        if (!isEnabled(settings)){
-            return handlers;
-        }
-        handlers.add(new RestPutPermissionAction());
-        // Add more handlers for future actions
-        return handlers;
-    }
-
-    // register actions in this plugin
-    @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-
-        // required to prevent GuiceHolder inject errors
-        if (!enabled) {
-            return Collections.emptyList();
-        }
-
-        return Arrays.asList(new ActionHandler<>(PutPermissionAction.INSTANCE, TransportPutPermissionAction.class));
     }
 
     @Override
@@ -307,7 +272,6 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         // dcf.registerDCFListener(securityRestHandler);
 
         cr.setDynamicConfigFactory(dcf);
-
 
         // required for dependency injections
         components.add(cr);

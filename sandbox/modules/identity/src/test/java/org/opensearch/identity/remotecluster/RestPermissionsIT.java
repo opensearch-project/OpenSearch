@@ -13,9 +13,9 @@ import org.junit.Before;
 import org.opensearch.authn.StringPrincipal;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
-import org.opensearch.identity.ConfigConstants;
+import org.opensearch.identity.IdentityConfigConstants;
 import org.opensearch.identity.authz.PermissionStorage;
-import org.opensearch.identity.rest.RestConstants;
+import org.opensearch.identity.rest.IdentityRestConstants;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 
 import java.io.IOException;
@@ -43,7 +43,7 @@ public class RestPermissionsIT extends OpenSearchRestTestCase {
 
     protected void ensureIdentityIndexExists() throws IOException {
         // this will fail if default index name is changed in remote cluster
-        String identityIndex = ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX;
+        String identityIndex = IdentityConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX;
         Request request = new Request("GET", "/" + identityIndex);
         Response response = adminClient().performRequest(request);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
@@ -54,7 +54,7 @@ public class RestPermissionsIT extends OpenSearchRestTestCase {
     public void testPermissionsRestApi() throws Exception {
 
         // _identity/api/permissions
-        final String endpoint = RestConstants.PERMISSION_SUBPATH;
+        final String endpoint = IdentityRestConstants.PERMISSION_SUBPATH;
 
         String username = "test";
         // _identity/api/permissions/test
@@ -74,7 +74,7 @@ public class RestPermissionsIT extends OpenSearchRestTestCase {
         );
 
         createRequest = new Request("PUT", endpoint + "/" + username);
-        createRequest.setJsonEntity("{ \"permission\" : \":1:2:3\"}\n"); //Invalid permission
+        createRequest.setJsonEntity("{ \"permission\" : \":1:2:3\"}\n"); // Invalid permission
         createResponse = client().performRequest(createRequest);
         assertThat(createResponse.getStatusLine().getStatusCode(), is(500));
 

@@ -15,7 +15,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.identity.ConfigConstants;
+import org.opensearch.identity.IdentityConfigConstants;
 import org.opensearch.identity.authz.OpenSearchPermission;
 import org.opensearch.identity.authz.PermissionFactory;
 import org.opensearch.identity.authz.PermissionStorage;
@@ -47,7 +47,10 @@ public class PermissionService {
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.nodeClient = nodeClient;
-        this.identityIndex = settings.get(ConfigConstants.IDENTITY_CONFIG_INDEX_NAME, ConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX);
+        this.identityIndex = settings.get(
+            IdentityConfigConstants.IDENTITY_CONFIG_INDEX_NAME,
+            IdentityConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX
+        );
     }
 
     protected boolean ensureIndexExists() {

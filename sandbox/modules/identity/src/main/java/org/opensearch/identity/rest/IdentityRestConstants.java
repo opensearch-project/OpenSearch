@@ -21,4 +21,9 @@ public class IdentityRestConstants {
     public static final String IDENTITY_CREATE_OR_UPDATE_USER_ACTION = "put" + IDENTITY_USER_ACTION_SUFFIX;
     public static final String IDENTITY_READ_USER_ACTION = "read" + IDENTITY_USER_ACTION_SUFFIX;
     public static final String IDENTITY_DELETE_USER_ACTION = "delete" + IDENTITY_USER_ACTION_SUFFIX;
+
+    // Permission constants
+    public static final String IDENTITY_API_PERMISSION_PREFIX = IDENTITY_REST_API_REQUEST_PREFIX + "/permissions";
+    public static final String PERMISSION_SUBPATH = "/permissions";
+    public static final String PERMISSION_ACTION_PREFIX = "permission_action";
 }

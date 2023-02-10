@@ -12,7 +12,7 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.identity.DefaultObjectMapper;
-import org.opensearch.identity.rest.RestConstants;
+import org.opensearch.identity.rest.IdentityRestConstants;
 import org.opensearch.identity.utils.ErrorType;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -36,7 +36,7 @@ public class RestPutPermissionAction extends BaseRestHandler {
     @Override
     public String getName() {
         // permission_action_put
-        return RestConstants.PERMISSION_ACTION_PREFIX + "_put";
+        return IdentityRestConstants.PERMISSION_ACTION_PREFIX + "_put";
     }
 
     /**
@@ -98,6 +98,6 @@ public class RestPutPermissionAction extends BaseRestHandler {
     public List<Route> routes() {
         // e.g. return value "/permissions/{username}" which is then added to "_identity/api"
 
-        return addRoutesPrefix(asList(new Route(PUT, RestConstants.PERMISSION_SUBPATH + "/{username}")));
+        return addRoutesPrefix(asList(new Route(PUT, IdentityRestConstants.PERMISSION_SUBPATH + "/{username}")));
     }
 }
