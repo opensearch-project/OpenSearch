@@ -23,15 +23,15 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.test.BackgroundIndexer;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.opensearch.indices.replication.SegmentReplicationBaseIT.waitForSearchableDocs;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
@@ -80,20 +80,8 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
     }
 
     public void ingestData(int docCount, String indexName) throws Exception {
-        try (
-            BackgroundIndexer indexer = new BackgroundIndexer(
-                indexName,
-                "_doc",
-                client(),
-                -1,
-                RandomizedTest.scaledRandomIntBetween(2, 5),
-                false,
-                random()
-            )
-        ) {
-            indexer.start(docCount);
-            waitForDocs(docCount, indexer);
-            refresh(indexName);
+        for (int i = 0; i < docCount; i++) {
+            client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
     }
 
@@ -124,11 +112,8 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
             .setWaitForCompletion(true)
             .setIndices(INDEX_NAME)
             .get();
-        assertThat(
-            createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
-        );
-        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+        assertEquals(createSnapshotResponse.getSnapshotInfo().successfulShards(), createSnapshotResponse.getSnapshotInfo().totalShards());
+        assertEquals(createSnapshotResponse.getSnapshotInfo().state(), SnapshotState.SUCCESS);
     }
 
     public RestoreSnapshotResponse restoreSnapshotWithSettings(Settings indexSettings) {
@@ -155,7 +140,7 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
         RestoreSnapshotResponse restoreSnapshotResponse = restoreSnapshotWithSettings(null);
 
         // Assertions
-        assertThat(restoreSnapshotResponse.status(), equalTo(RestStatus.ACCEPTED));
+        assertEquals(restoreSnapshotResponse.status(), RestStatus.ACCEPTED);
         ensureGreen(RESTORED_INDEX_NAME);
         GetSettingsResponse settingsResponse = client().admin()
             .indices()
@@ -166,9 +151,9 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
         assertHitCount(resp, DOC_COUNT);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testSnapshotOnSegRep_RestoreOnSegRepDuringIngestion() throws Exception {
-        startClusterWithSettings(segRepEnableIndexSettings(), 1);
+        List<String> nodes = startClusterWithSettings(segRepEnableIndexSettings(), 1);
+        waitForSearchableDocs(INDEX_NAME, DOC_COUNT, nodes);
         createSnapshot();
         // Delete index
         assertAcked(client().admin().indices().delete(new DeleteIndexRequest(INDEX_NAME)).get());
@@ -177,16 +162,23 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
         RestoreSnapshotResponse restoreSnapshotResponse = restoreSnapshotWithSettings(null);
 
         // Assertions
-        assertThat(restoreSnapshotResponse.status(), equalTo(RestStatus.ACCEPTED));
-        ingestData(5000, RESTORED_INDEX_NAME);
-        ensureGreen(RESTORED_INDEX_NAME);
+        assertEquals(restoreSnapshotResponse.status(), RestStatus.ACCEPTED);
+        assertBusy(() -> ensureGreen(RESTORED_INDEX_NAME), 60, TimeUnit.SECONDS);
+        final int docCountPostRestore = 1001;
+        final int totalDocCount = DOC_COUNT + docCountPostRestore;
+        for (int i = DOC_COUNT; i < totalDocCount; i++) {
+            client().prepareIndex(RESTORED_INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+        }
+        flushAndRefresh(RESTORED_INDEX_NAME);
+        assertBusy(() -> ensureGreen(RESTORED_INDEX_NAME), 60, TimeUnit.SECONDS);
+        waitForSearchableDocs(RESTORED_INDEX_NAME, totalDocCount, nodes);
         GetSettingsResponse settingsResponse = client().admin()
             .indices()
             .getSettings(new GetSettingsRequest().indices(RESTORED_INDEX_NAME))
             .get();
         assertEquals(settingsResponse.getSetting(RESTORED_INDEX_NAME, "index.replication.type"), "SEGMENT");
         SearchResponse resp = client().prepareSearch(RESTORED_INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).get();
-        assertHitCount(resp, DOC_COUNT + 5000);
+        assertHitCount(resp, totalDocCount);
     }
 
     public void testSnapshotOnDocRep_RestoreOnSegRep() throws Exception {
@@ -198,7 +190,7 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
         RestoreSnapshotResponse restoreSnapshotResponse = restoreSnapshotWithSettings(restoreIndexSegRepSettings());
 
         // Assertions
-        assertThat(restoreSnapshotResponse.status(), equalTo(RestStatus.ACCEPTED));
+        assertEquals(restoreSnapshotResponse.status(), RestStatus.ACCEPTED);
         ensureGreen(RESTORED_INDEX_NAME);
         GetSettingsResponse settingsResponse = client().admin()
             .indices()
@@ -220,7 +212,7 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
         RestoreSnapshotResponse restoreSnapshotResponse = restoreSnapshotWithSettings(restoreIndexDocRepSettings());
 
         // Assertions
-        assertThat(restoreSnapshotResponse.status(), equalTo(RestStatus.ACCEPTED));
+        assertEquals(restoreSnapshotResponse.status(), RestStatus.ACCEPTED);
         ensureGreen(RESTORED_INDEX_NAME);
         GetSettingsResponse settingsResponse = client().admin()
             .indices()
@@ -240,7 +232,7 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
         RestoreSnapshotResponse restoreSnapshotResponse = restoreSnapshotWithSettings(restoreIndexDocRepSettings());
 
         // Assertions
-        assertThat(restoreSnapshotResponse.status(), equalTo(RestStatus.ACCEPTED));
+        assertEquals(restoreSnapshotResponse.status(), RestStatus.ACCEPTED);
         ensureGreen(RESTORED_INDEX_NAME);
         GetSettingsResponse settingsResponse = client().admin()
             .indices()
@@ -266,7 +258,7 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
         RestoreSnapshotResponse restoreSnapshotResponse = restoreSnapshotWithSettings(null);
 
         // Assertions
-        assertThat(restoreSnapshotResponse.status(), equalTo(RestStatus.ACCEPTED));
+        assertEquals(restoreSnapshotResponse.status(), RestStatus.ACCEPTED);
         internalCluster().startNode();
         ensureGreen(RESTORED_INDEX_NAME);
         GetSettingsResponse settingsResponse = client().admin()
