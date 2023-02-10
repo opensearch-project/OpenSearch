@@ -10,6 +10,7 @@ package org.opensearch.geo.search.aggregations.bucket.geogrid.cells;
 
 import org.opensearch.common.geo.GeoBoundingBox;
 import org.opensearch.common.geo.GeoShapeDocValue;
+import org.opensearch.geometry.Rectangle;
 import org.opensearch.index.fielddata.AbstractSortingNumericDocValues;
 import org.opensearch.index.fielddata.GeoShapeValue;
 
@@ -57,8 +58,7 @@ abstract class GeoShapeCellValues extends AbstractSortingNumericDocValues {
      * @opensearch.internal
      */
     static class BoundedCellValues extends GeoShapeCellValues {
-
-        private final GeoBoundingBox geoBoundingBox;
+        private final Rectangle geoBoundingBox;
 
         public BoundedCellValues(
             final GeoShapeValue geoShapeValue,
@@ -67,7 +67,7 @@ abstract class GeoShapeCellValues extends AbstractSortingNumericDocValues {
             final GeoBoundingBox boundingBox
         ) {
             super(geoShapeValue, precision, encoder);
-            this.geoBoundingBox = boundingBox;
+            this.geoBoundingBox = new Rectangle(boundingBox.left(), boundingBox.right(), boundingBox.top(), boundingBox.bottom());
         }
 
         /**
@@ -78,7 +78,7 @@ abstract class GeoShapeCellValues extends AbstractSortingNumericDocValues {
          */
         @Override
         void relateShape(final GeoShapeDocValue geoShapeDocValue) {
-            if (intersect(geoShapeDocValue.getBoundingRectangle())) {
+            if (geoShapeDocValue.isIntersectingRectangle(geoBoundingBox)) {
                 // now we know the shape is in the bounding rectangle, we need add them in longValues
                 // generate all grid that this shape intersects
                 final List<Long> encodedValues = encoder.encode(geoShapeDocValue, precision);
@@ -86,20 +86,11 @@ abstract class GeoShapeCellValues extends AbstractSortingNumericDocValues {
                 for (int i = 0; i < encodedValues.size(); i++) {
                     values[i] = encodedValues.get(i);
                 }
+            } else {
+                // As the shape is not intersecting with GeoBounding box, we need to reset the GeoShapeCellValues
+                // calling this function resets the CellValues for the current shape.
+                resize(0);
             }
-        }
-
-        /**
-         * Validate that shape is intersecting the bounding box provided as input.
-         *
-         * @param rectangle {@link GeoShapeDocValue.BoundingRectangle}
-         * @return true or false
-         */
-        private boolean intersect(final GeoShapeDocValue.BoundingRectangle rectangle) {
-            return geoBoundingBox.pointInBounds(rectangle.getMaxLongitude(), rectangle.getMaxLatitude())
-                || geoBoundingBox.pointInBounds(rectangle.getMaxLongitude(), rectangle.getMinLatitude())
-                || geoBoundingBox.pointInBounds(rectangle.getMinLongitude(), rectangle.getMaxLatitude())
-                || geoBoundingBox.pointInBounds(rectangle.getMinLongitude(), rectangle.getMinLatitude());
         }
 
     }
