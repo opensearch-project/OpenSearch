@@ -22,8 +22,8 @@ import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.indices.replication.common.ReplicationTimer;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * ReplicationState implementation to track Segment Replication events.
@@ -76,10 +76,9 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
 
     private Stage stage;
     private ReplicationLuceneIndex index;
-    private final ReplicationTimer overallTimer;
 
-    // Timing data will have as many entries as stages, plus one
-    private final Map<String, Long> timingData = new ConcurrentHashMap<>(Stage.values().length + 1);
+    private final ReplicationTimer overallTimer;
+    private final Map<String, Long> timingData;
     private final ReplicationTimer stageTimer;
     private long replicationId;
     private final ShardRouting shardRouting;
@@ -153,6 +152,8 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         this.replicationId = replicationId;
         this.sourceDescription = sourceDescription;
         this.targetNode = targetNode;
+        // Timing data will have as many entries as stages, plus one
+        timingData = new HashMap<>(Stage.values().length + 1);
         overallTimer = new ReplicationTimer();
         stageTimer = new ReplicationTimer();
         setStage(Stage.INIT);
@@ -166,6 +167,7 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         replicationId = in.readLong();
         overallTimer = new ReplicationTimer(in);
         stageTimer = new ReplicationTimer(in);
+        timingData = in.readMap(StreamInput::readString, StreamInput::readLong);
         sourceDescription = in.readString();
         targetNode = new DiscoveryNode(in);
     }
@@ -178,6 +180,13 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         out.writeLong(replicationId);
         overallTimer.writeTo(out);
         stageTimer.writeTo(out);
+
+        // Copy of timingData is created to avoid concurrent modification of timingData map.
+        Map<String, Long> timingDataCopy = new HashMap<>();
+        for (Map.Entry<String, Long> entry : timingDataCopy.entrySet()) {
+            timingDataCopy.put(entry.getKey(), entry.getValue());
+        }
+        out.writeMap(timingDataCopy, StreamOutput::writeString, StreamOutput::writeLong);
         out.writeString(sourceDescription);
         targetNode.writeTo(out);
     }
@@ -270,11 +279,13 @@ public class SegmentReplicationState implements ReplicationState, ToXContentFrag
         builder.startObject(SegmentReplicationState.Fields.INDEX);
         index.toXContent(builder, params);
         builder.endObject();
-        builder.field(Fields.REPLICATING_STAGE, getReplicatingStageTime());
-        builder.field(Fields.GET_CHECKPOINT_INFO_STAGE, getGetCheckpointInfoStageTime());
-        builder.field(Fields.FILE_DIFF_STAGE, getFileDiffStageTime());
-        builder.field(Fields.GET_FILES_STAGE, getGetFileStageTime());
-        builder.field(Fields.FINALIZE_REPLICATION_STAGE, getFinalizeReplicationStageTime());
+        if (timingData.isEmpty() == false) {
+            builder.field(Fields.REPLICATING_STAGE, getReplicatingStageTime());
+            builder.field(Fields.GET_CHECKPOINT_INFO_STAGE, getGetCheckpointInfoStageTime());
+            builder.field(Fields.FILE_DIFF_STAGE, getFileDiffStageTime());
+            builder.field(Fields.GET_FILES_STAGE, getGetFileStageTime());
+            builder.field(Fields.FINALIZE_REPLICATION_STAGE, getFinalizeReplicationStageTime());
+        }
 
         return builder;
     }

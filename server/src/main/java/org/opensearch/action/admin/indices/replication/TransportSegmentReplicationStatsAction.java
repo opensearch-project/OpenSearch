@@ -140,7 +140,7 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
             singleIndexWithSegmentReplicationDisabled = shardRouting.getIndexName();
             return null;
         }
-        if (indexShard.indexSettings().isSegRepEnabled() == false) {
+        if (indexShard.indexSettings().isSegRepEnabled() == false || shardRouting.primary()) {
             return null;
         }
 
