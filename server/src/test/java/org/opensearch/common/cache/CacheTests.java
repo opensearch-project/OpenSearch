@@ -240,7 +240,7 @@ public class CacheTests extends OpenSearchTestCase {
         cache.setExpireAfterAccessNanos(1);
         List<Integer> evictedKeys = new ArrayList<>();
         cache.setRemovalListener(notification -> {
-            assertEquals(RemovalNotification.RemovalReason.EVICTED, notification.getRemovalReason());
+            assertEquals(RemovalReason.EVICTED, notification.getRemovalReason());
             evictedKeys.add(notification.getKey());
         });
         now.set(0);
@@ -299,7 +299,7 @@ public class CacheTests extends OpenSearchTestCase {
         cache.setExpireAfterWriteNanos(1);
         List<Integer> evictedKeys = new ArrayList<>();
         cache.setRemovalListener(notification -> {
-            assertEquals(RemovalNotification.RemovalReason.EVICTED, notification.getRemovalReason());
+            assertEquals(RemovalReason.EVICTED, notification.getRemovalReason());
             evictedKeys.add(notification.getKey());
         });
         now.set(0);
@@ -445,7 +445,7 @@ public class CacheTests extends OpenSearchTestCase {
     public void testNotificationOnInvalidate() {
         Set<Integer> notifications = new HashSet<>();
         Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().removalListener(notification -> {
-            assertEquals(RemovalNotification.RemovalReason.INVALIDATED, notification.getRemovalReason());
+            assertEquals(RemovalReason.INVALIDATED, notification.getRemovalReason());
             notifications.add(notification.getKey());
         }).build();
         for (int i = 0; i < numberOfEntries; i++) {
@@ -493,7 +493,7 @@ public class CacheTests extends OpenSearchTestCase {
     public void testNotificationOnInvalidateWithValue() {
         Set<Integer> notifications = new HashSet<>();
         Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().removalListener(notification -> {
-            assertEquals(RemovalNotification.RemovalReason.INVALIDATED, notification.getRemovalReason());
+            assertEquals(RemovalReason.INVALIDATED, notification.getRemovalReason());
             notifications.add(notification.getKey());
         }).build();
         for (int i = 0; i < numberOfEntries; i++) {
@@ -529,7 +529,7 @@ public class CacheTests extends OpenSearchTestCase {
     public void testNotificationOnInvalidateAll() {
         Set<Integer> notifications = new HashSet<>();
         Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().removalListener(notification -> {
-            assertEquals(RemovalNotification.RemovalReason.INVALIDATED, notification.getRemovalReason());
+            assertEquals(RemovalReason.INVALIDATED, notification.getRemovalReason());
             notifications.add(notification.getKey());
         }).build();
         Set<Integer> invalidated = new HashSet<>();
@@ -590,7 +590,7 @@ public class CacheTests extends OpenSearchTestCase {
     public void testNotificationOnReplace() {
         Set<Integer> notifications = new HashSet<>();
         Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().removalListener(notification -> {
-            assertEquals(RemovalNotification.RemovalReason.REPLACED, notification.getRemovalReason());
+            assertEquals(RemovalReason.REPLACED, notification.getRemovalReason());
             notifications.add(notification.getKey());
         }).build();
         for (int i = 0; i < numberOfEntries; i++) {
@@ -928,7 +928,7 @@ public class CacheTests extends OpenSearchTestCase {
         assertEquals(expectedRemovals.size(), removalNotifications.size());
         for (int i = 0; i < expectedRemovals.size(); i++) {
             assertEquals(expectedRemovals.get(i), removalNotifications.get(i).getValue());
-            assertEquals(RemovalNotification.RemovalReason.INVALIDATED, removalNotifications.get(i).getRemovalReason());
+            assertEquals(RemovalReason.INVALIDATED, removalNotifications.get(i).getRemovalReason());
         }
     }
 }

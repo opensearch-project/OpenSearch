@@ -38,16 +38,6 @@ package org.opensearch.common.cache;
  * @opensearch.internal
  */
 public class RemovalNotification<K, V> {
-    /**
-     * Reason for notification removal
-     *
-     * @opensearch.internal
-     */
-    public enum RemovalReason {
-        REPLACED,
-        INVALIDATED,
-        EVICTED
-    }
 
     private final K key;
     private final V value;
