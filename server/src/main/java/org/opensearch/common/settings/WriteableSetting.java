@@ -18,6 +18,7 @@ import org.opensearch.common.settings.Setting.DoubleParser;
 import org.opensearch.common.settings.Setting.FloatParser;
 import org.opensearch.common.settings.Setting.IntegerParser;
 import org.opensearch.common.settings.Setting.LongParser;
+import org.opensearch.common.settings.Setting.MemorySizeValueParser;
 import org.opensearch.common.settings.Setting.MinMaxTimeValueParser;
 import org.opensearch.common.settings.Setting.MinTimeValueParser;
 import org.opensearch.common.settings.Setting.Property;
@@ -228,13 +229,15 @@ public class WriteableSetting implements Writeable {
             case ByteSizeValue:
                 return fallback == null
                     ? (parser instanceof Writeable)
-                        ? Setting.byteSizeSetting(
-                            key,
-                            (ByteSizeValue) defaultValue,
-                            ((ByteSizeValueParser) parser).getMin(),
-                            ((ByteSizeValueParser) parser).getMax(),
-                            propertyArray
-                        )
+                        ? (parser instanceof MemorySizeValueParser)
+                            ? Setting.memorySizeSetting(key, (ByteSizeValue) defaultValue, propertyArray)
+                            : Setting.byteSizeSetting(
+                                key,
+                                (ByteSizeValue) defaultValue,
+                                ((ByteSizeValueParser) parser).getMin(),
+                                ((ByteSizeValueParser) parser).getMax(),
+                                propertyArray
+                            )
                         : Setting.byteSizeSetting(key, (ByteSizeValue) defaultValue, propertyArray)
                     : Setting.byteSizeSetting(key, (Setting<ByteSizeValue>) fallback.getSetting(), propertyArray);
             case Version:

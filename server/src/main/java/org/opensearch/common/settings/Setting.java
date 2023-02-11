@@ -2120,11 +2120,11 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, Setting<ByteSizeValue> fallbackSetting, Property... properties) {
-        return new Setting<>(key, fallbackSetting, (s) -> ByteSizeValue.parseBytesSizeValue(s, key), properties);
+        return new Setting<>(key, fallbackSetting, new ByteSizeValueParser(key), properties);
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(String key, Function<Settings, String> defaultValue, Property... properties) {
-        return new Setting<>(key, defaultValue, (s) -> ByteSizeValue.parseBytesSizeValue(s, key), properties);
+        return new Setting<>(key, defaultValue, new ByteSizeValueParser(key), properties);
     }
 
     public static Setting<ByteSizeValue> byteSizeSetting(
@@ -2160,6 +2160,10 @@ public class Setting<T> implements ToXContentObject {
             this.minValue = minValue;
             this.maxValue = maxValue;
             this.key = key;
+        }
+
+        public ByteSizeValueParser(String key) {
+            this(new ByteSizeValue(-1), new ByteSizeValue(Long.MAX_VALUE), key);
         }
 
         public ByteSizeValueParser(StreamInput in) throws IOException {
@@ -2257,7 +2261,7 @@ public class Setting<T> implements ToXContentObject {
      * @return the setting object
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, Function<Settings, String> defaultValue, Property... properties) {
-        return new Setting<>(key, defaultValue, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
+        return new Setting<>(key, defaultValue, new MemorySizeValueParser(key), properties);
     }
 
     /**
@@ -2271,7 +2275,48 @@ public class Setting<T> implements ToXContentObject {
      * @return the setting object
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, String defaultPercentage, Property... properties) {
-        return new Setting<>(key, (s) -> defaultPercentage, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
+        return new Setting<>(key, (s) -> defaultPercentage, new MemorySizeValueParser(key), properties);
+    }
+
+    /**
+     * A writeable parser for memory size value
+     */
+    public static class MemorySizeValueParser implements Function<String, ByteSizeValue>, Writeable {
+        private String key;
+
+        public MemorySizeValueParser(String key) {
+            this.key = key;
+        }
+
+        public MemorySizeValueParser(StreamInput in) throws IOException {
+            key = in.readString();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(key);
+        }
+
+        // For testing
+        String getKey() {
+            return key;
+        }
+
+        @Override
+        public ByteSizeValue apply(String s) {
+            return MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key);
+        }
+
+        public boolean equals(Object obj) {
+            if (this == obj) return true;
+            if (obj == null || getClass() != obj.getClass()) return false;
+            MemorySizeValueParser that = (MemorySizeValueParser) obj;
+            return Objects.equals(key, that.key);
+        }
+
+        public int hashCode() {
+            return Objects.hash(key);
+        }
     }
 
     /**
