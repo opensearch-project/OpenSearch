@@ -404,11 +404,12 @@ public class DiskThresholdMonitor {
         // If all the nodes are breaching high disk watermark, we apply index create block to avoid red clusters.
         if (nodesOverHighThreshold.size() == nodes.size()) {
             setIndexCreateBlock(listener, true);
-        } else if (state.getBlocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id())) {
-            setIndexCreateBlock(listener, false);
-        } else {
-            listener.onResponse(null);
-        }
+        } else if (state.getBlocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id())
+            && diskThresholdSettings.isCreateIndexBlockAutoReleaseEnabled()) {
+                setIndexCreateBlock(listener, false);
+            } else {
+                listener.onResponse(null);
+            }
     }
 
     // exposed for tests to override
