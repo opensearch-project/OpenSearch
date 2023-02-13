@@ -46,6 +46,7 @@ import org.opensearch.common.settings.Setting.DoubleParser;
 import org.opensearch.common.settings.Setting.FloatParser;
 import org.opensearch.common.settings.Setting.IntegerParser;
 import org.opensearch.common.settings.Setting.LongParser;
+import org.opensearch.common.settings.Setting.MemorySizeValueParser;
 import org.opensearch.common.settings.Setting.MinMaxTimeValueParser;
 import org.opensearch.common.settings.Setting.MinTimeValueParser;
 import org.opensearch.common.settings.Setting.Property;
@@ -1430,6 +1431,23 @@ public class SettingTests extends OpenSearchTestCase {
             }
         }
     }
+
+        // MemorySizeValue
+        public void testMemorySizeValueParser() throws Exception {
+            String expectedKey = "test key";
+            MemorySizeValueParser memorySizeValueParser = new MemorySizeValueParser(expectedKey);
+    
+            assertEquals(expectedKey, memorySizeValueParser.getKey());
+    
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                memorySizeValueParser.writeTo(out);
+                out.flush();
+                try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                    memorySizeValueParser = new MemorySizeValueParser(in);
+                    assertEquals(expectedKey, byteSizeValueParser.getKey());
+                }
+            }
+        }
 
     /**
      * Only one single scope can be added to any setting

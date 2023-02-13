@@ -304,6 +304,9 @@ public class WriteableSetting implements Writeable {
                 if (parser instanceof ByteSizeValueParser) {
                     ((ByteSizeValueParser) parser).writeTo(out);
                 }
+                else (parser instanceof MemorySizeValueParser) {
+                    ((MemorySizeValueParser) parser).writeTo(out);
+                }
                 break;
             default:
                 throw new IllegalArgumentException("A SettingType has been added to the enum and not handled here.");
@@ -368,7 +371,13 @@ public class WriteableSetting implements Writeable {
                 }
                 return null;
             case ByteSizeValue:
-                return new ByteSizeValueParser(in);
+                if(parser instanceof ByteSizeValueParser){
+                    return new ByteSizeValueParser(in);
+                }
+                else if(parser instanceof MemorySizeValueParser){
+                    return new MemorySizeValueParser(in);
+                }
+                return null;
             default:
                 throw new IllegalArgumentException("A SettingType has been added to the enum and not handled here.");
         }
