@@ -354,8 +354,9 @@ public class OperationRouting {
             return indexShard.activeInitializingShardsSimpleWeightedIt(
                 weightedRoutingMetadata.getWeightedRouting(),
                 nodes,
-                weightedRoutingDefaultWeight,
+                getWeightedRoutingDefaultWeight(),
                 routingHash
+
             );
         } else if (ignoreAwarenessAttributes()) {
             return indexShard.activeInitializingShardsIt(routingHash);
@@ -380,17 +381,23 @@ public class OperationRouting {
                 return indexShard.preferNodeActiveInitializingShardsWeightedIt(
                     nodesIds,
                     nodes,
-                    weightedRoutingMetadata.getWeightedRouting()
+                    weightedRoutingMetadata.getWeightedRouting(),
+                    getWeightedRoutingDefaultWeight()
                 );
             case LOCAL:
                 return indexShard.preferNodeActiveInitializingShardsWeightedIt(
                     Collections.singleton(localNodeId),
                     nodes,
-                    weightedRoutingMetadata.getWeightedRouting()
+                    weightedRoutingMetadata.getWeightedRouting(),
+                    getWeightedRoutingDefaultWeight()
                 );
             case ONLY_LOCAL:
-                if (!indexShard.isNodeWeighedAway(weightedRoutingMetadata.getWeightedRouting(), nodes, localNodeId)) return indexShard
-                    .onlyNodeActiveInitializingShardsIt(localNodeId);
+                if (!indexShard.isNodeWeighedAway(
+                    weightedRoutingMetadata.getWeightedRouting(),
+                    nodes,
+                    localNodeId,
+                    getWeightedRoutingDefaultWeight()
+                )) return indexShard.onlyNodeActiveInitializingShardsIt(localNodeId);
                 else {
                     throw new PreferenceBasedSearchNotAllowedException(
                         "Preference based routing not allowed on weigh away node with strict weighted shard routing setting"
@@ -401,7 +408,8 @@ public class OperationRouting {
                 return indexShard.onlyNodeSelectorActiveInitializingWeightedShardsIt(
                     nodeAttributes.split(","),
                     nodes,
-                    weightedRoutingMetadata.getWeightedRouting()
+                    weightedRoutingMetadata.getWeightedRouting(),
+                    getWeightedRoutingDefaultWeight()
                 );
             default:
                 throw new IllegalArgumentException("unknown preference [" + preferenceType + "]");

@@ -353,7 +353,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return new PlainShardIterator(shardId, ordered);
     }
 
-    public List<ShardRouting> activeInitializingShardsWithWeights(
+    private List<ShardRouting> activeInitializingShardsWithWeights(
         WeightedRouting weightedRouting,
         DiscoveryNodes nodes,
         double defaultWeight,
@@ -371,6 +371,11 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return orderedListWithDistinctShards;
     }
 
+    /**
+     * Returns an iterator over active and initializing shards, shards are ordered by weighted
+     * round-robin scheduling policy. Uses the passed seed to shuffle the shards.
+     *
+     */
     public ShardIterator activeInitializingShardsSimpleWeightedIt(
         WeightedRouting weightedRouting,
         DiscoveryNodes nodes,
@@ -634,20 +639,21 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     public ShardIterator onlyNodeSelectorActiveInitializingWeightedShardsIt(
         String[] nodeAttributes,
         DiscoveryNodes discoveryNodes,
-        WeightedRouting weightedRouting
+        WeightedRouting weightedRouting,
+        double defaultWeight
     ) {
         ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
         Set<String> selectedNodes = Sets.newHashSet(discoveryNodes.resolveNodes(nodeAttributes));
         int seed = shuffler.nextSeed();
         for (ShardRouting shardRouting : shuffler.shuffle(activeShards, seed)) {
             if (selectedNodes.contains(shardRouting.currentNodeId())
-                && !isNodeWeighedAway(weightedRouting, discoveryNodes, shardRouting.currentNodeId())) {
+                && !isNodeWeighedAway(weightedRouting, discoveryNodes, shardRouting.currentNodeId(), defaultWeight)) {
                 ordered.add(shardRouting);
             }
         }
         for (ShardRouting shardRouting : shuffler.shuffle(allInitializingShards, seed)) {
             if (selectedNodes.contains(shardRouting.currentNodeId())
-                && !isNodeWeighedAway(weightedRouting, discoveryNodes, shardRouting.currentNodeId())) {
+                && !isNodeWeighedAway(weightedRouting, discoveryNodes, shardRouting.currentNodeId(), defaultWeight)) {
                 ordered.add(shardRouting);
             }
         }
@@ -685,14 +691,15 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     public ShardIterator preferNodeActiveInitializingShardsWeightedIt(
         Set<String> nodeIds,
         DiscoveryNodes nodes,
-        WeightedRouting weightedRouting
+        WeightedRouting weightedRouting,
+        double defaultWeight
     ) {
         ArrayList<ShardRouting> preferred = new ArrayList<>(activeShards.size() + allInitializingShards.size());
         ArrayList<ShardRouting> notPreferred = new ArrayList<>(activeShards.size() + allInitializingShards.size());
         // fill it in a randomized fashion
         for (ShardRouting shardRouting : shuffler.shuffle(activeShards)) {
             if (nodeIds.contains(shardRouting.currentNodeId())
-                && !isNodeWeighedAway(weightedRouting, nodes, shardRouting.currentNodeId())) {
+                && !isNodeWeighedAway(weightedRouting, nodes, shardRouting.currentNodeId(), defaultWeight)) {
                 preferred.add(shardRouting);
             } else {
                 notPreferred.add(shardRouting);
@@ -705,10 +712,10 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return new PlainShardIterator(shardId, preferred);
     }
 
-    public boolean isNodeWeighedAway(WeightedRouting weightedRouting, DiscoveryNodes nodes, String localNodeId) {
+    public boolean isNodeWeighedAway(WeightedRouting weightedRouting, DiscoveryNodes nodes, String localNodeId, double defaultWeight) {
         String attVal = nodes.get(localNodeId).getAttributes().get(weightedRouting.attributeName());
         // If weight for a zone is not defined, considering it as 1 by default
-        Double weight = weightedRouting.weights().getOrDefault(attVal, 1.0);
+        Double weight = weightedRouting.weights().getOrDefault(attVal, defaultWeight);
         return weight == WeightedRoutingMetadata.WEIGHED_AWAY_WEIGHT;
     }
 
