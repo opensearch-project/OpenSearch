@@ -281,11 +281,7 @@ public class OperationRouting {
         if (preference == null || preference.isEmpty()) {
             return shardRoutings(indexShard, nodes, collectorService, nodeCounts, weightedRoutingMetadata);
         }
-        if (weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting().isSet() && isStrictWeightedShardRouting) {
-            throw new PreferenceBasedSearchNotAllowedException(
-                "Preference based routing not allowed with strict weighted shard routing setting"
-            );
-        }
+
         if (preference.charAt(0) == '_') {
             Preference preferenceType = Preference.parse(preference);
             if (preferenceType == Preference.SHARDS) {
@@ -318,6 +314,17 @@ public class OperationRouting {
                 }
             }
             preferenceType = Preference.parse(preference);
+            if (weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting().isSet() && isStrictWeightedShardRouting) {
+
+                return preferenceSearchWithWeightedRouting(
+                    indexShard,
+                    localNodeId,
+                    nodes,
+                    preference,
+                    preferenceType,
+                    weightedRoutingMetadata
+                );
+            }
             switch (preferenceType) {
                 case PREFER_NODES:
                     final Set<String> nodesIds = Arrays.stream(preference.substring(Preference.PREFER_NODES.type().length() + 1).split(","))
@@ -343,10 +350,61 @@ public class OperationRouting {
         // for a different element in the list by also incorporating the
         // shard ID into the hash of the user-supplied preference key.
         routingHash = 31 * routingHash + indexShard.shardId.hashCode();
-        if (ignoreAwarenessAttributes()) {
+        if (weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting().isSet() && isStrictWeightedShardRouting) {
+            return indexShard.activeInitializingShardsSimpleWeightedIt(
+                weightedRoutingMetadata.getWeightedRouting(),
+                nodes,
+                weightedRoutingDefaultWeight,
+                routingHash
+            );
+        } else if (ignoreAwarenessAttributes()) {
             return indexShard.activeInitializingShardsIt(routingHash);
         } else {
             return indexShard.preferAttributesActiveInitializingShardsIt(awarenessAttributes, nodes, routingHash);
+        }
+    }
+
+    private ShardIterator preferenceSearchWithWeightedRouting(
+        IndexShardRoutingTable indexShard,
+        String localNodeId,
+        DiscoveryNodes nodes,
+        String preference,
+        Preference preferenceType,
+        WeightedRoutingMetadata weightedRoutingMetadata
+    ) {
+
+        switch (preferenceType) {
+            case PREFER_NODES:
+                final Set<String> nodesIds = Arrays.stream(preference.substring(Preference.PREFER_NODES.type().length() + 1).split(","))
+                    .collect(Collectors.toSet());
+                return indexShard.preferNodeActiveInitializingShardsWeightedIt(
+                    nodesIds,
+                    nodes,
+                    weightedRoutingMetadata.getWeightedRouting()
+                );
+            case LOCAL:
+                return indexShard.preferNodeActiveInitializingShardsWeightedIt(
+                    Collections.singleton(localNodeId),
+                    nodes,
+                    weightedRoutingMetadata.getWeightedRouting()
+                );
+            case ONLY_LOCAL:
+                if (!indexShard.isNodeWeighedAway(weightedRoutingMetadata.getWeightedRouting(), nodes, localNodeId)) return indexShard
+                    .onlyNodeActiveInitializingShardsIt(localNodeId);
+                else {
+                    throw new PreferenceBasedSearchNotAllowedException(
+                        "Preference based routing not allowed on weigh away node with strict weighted shard routing setting"
+                    );
+                }
+            case ONLY_NODES:
+                String nodeAttributes = preference.substring(Preference.ONLY_NODES.type().length() + 1);
+                return indexShard.onlyNodeSelectorActiveInitializingWeightedShardsIt(
+                    nodeAttributes.split(","),
+                    nodes,
+                    weightedRoutingMetadata.getWeightedRouting()
+                );
+            default:
+                throw new IllegalArgumentException("unknown preference [" + preferenceType + "]");
         }
     }
 

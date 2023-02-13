@@ -327,14 +327,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         boolean isFailOpenEnabled
     ) {
         final int seed = shufflerForWeightedRouting.nextSeed();
-        List<ShardRouting> ordered = new ArrayList<>();
-        List<ShardRouting> orderedActiveShards = getActiveShardsByWeight(weightedRouting, nodes, defaultWeight);
-        List<ShardRouting> orderedListWithDistinctShards;
-        ordered.addAll(shufflerForWeightedRouting.shuffle(orderedActiveShards, seed));
-        if (!allInitializingShards.isEmpty()) {
-            List<ShardRouting> orderedInitializingShards = getInitializingShardsByWeight(weightedRouting, nodes, defaultWeight);
-            ordered.addAll(orderedInitializingShards);
-        }
+        List<ShardRouting> ordered = activeInitializingShardsWithWeights(weightedRouting, nodes, defaultWeight, seed);
 
         // append shards for attribute value with weight zero, so that shard search requests can be tried on
         // shard copies in case of request failure from other attribute values.
@@ -357,8 +350,35 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                 logger.debug("no shard copies found for shard id [{}] for node attribute with weight zero", shardId);
             }
         }
+        return new PlainShardIterator(shardId, ordered);
+    }
+
+    public List<ShardRouting> activeInitializingShardsWithWeights(
+        WeightedRouting weightedRouting,
+        DiscoveryNodes nodes,
+        double defaultWeight,
+        int seed
+    ) {
+        List<ShardRouting> ordered = new ArrayList<>();
+        List<ShardRouting> orderedActiveShards = getActiveShardsByWeight(weightedRouting, nodes, defaultWeight);
+        ordered.addAll(shufflerForWeightedRouting.shuffle(orderedActiveShards, seed));
+        if (!allInitializingShards.isEmpty()) {
+            List<ShardRouting> orderedInitializingShards = getInitializingShardsByWeight(weightedRouting, nodes, defaultWeight);
+            ordered.addAll(orderedInitializingShards);
+        }
+        List<ShardRouting> orderedListWithDistinctShards;
         orderedListWithDistinctShards = ordered.stream().distinct().collect(Collectors.toList());
-        return new PlainShardIterator(shardId, orderedListWithDistinctShards);
+        return orderedListWithDistinctShards;
+    }
+
+    public ShardIterator activeInitializingShardsSimpleWeightedIt(
+        WeightedRouting weightedRouting,
+        DiscoveryNodes nodes,
+        double defaultWeight,
+        int seed
+    ) {
+        List<ShardRouting> ordered = activeInitializingShardsWithWeights(weightedRouting, nodes, defaultWeight, seed);
+        return new PlainShardIterator(shardId, ordered);
     }
 
     /**
@@ -611,6 +631,39 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return new PlainShardIterator(shardId, ordered);
     }
 
+    public ShardIterator onlyNodeSelectorActiveInitializingWeightedShardsIt(
+        String[] nodeAttributes,
+        DiscoveryNodes discoveryNodes,
+        WeightedRouting weightedRouting
+    ) {
+        ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
+        Set<String> selectedNodes = Sets.newHashSet(discoveryNodes.resolveNodes(nodeAttributes));
+        int seed = shuffler.nextSeed();
+        for (ShardRouting shardRouting : shuffler.shuffle(activeShards, seed)) {
+            if (selectedNodes.contains(shardRouting.currentNodeId())
+                && !isNodeWeighedAway(weightedRouting, discoveryNodes, shardRouting.currentNodeId())) {
+                ordered.add(shardRouting);
+            }
+        }
+        for (ShardRouting shardRouting : shuffler.shuffle(allInitializingShards, seed)) {
+            if (selectedNodes.contains(shardRouting.currentNodeId())
+                && !isNodeWeighedAway(weightedRouting, discoveryNodes, shardRouting.currentNodeId())) {
+                ordered.add(shardRouting);
+            }
+        }
+        if (ordered.isEmpty()) {
+            final String message = String.format(
+                Locale.ROOT,
+                "no data nodes with %s [%s] found for shard: %s",
+                nodeAttributes.length == 1 ? "criteria" : "criterion",
+                String.join(",", nodeAttributes),
+                shardId()
+            );
+            throw new IllegalArgumentException(message);
+        }
+        return new PlainShardIterator(shardId, ordered);
+    }
+
     public ShardIterator preferNodeActiveInitializingShardsIt(Set<String> nodeIds) {
         ArrayList<ShardRouting> preferred = new ArrayList<>(activeShards.size() + allInitializingShards.size());
         ArrayList<ShardRouting> notPreferred = new ArrayList<>(activeShards.size() + allInitializingShards.size());
@@ -627,6 +680,36 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             preferred.addAll(allInitializingShards);
         }
         return new PlainShardIterator(shardId, preferred);
+    }
+
+    public ShardIterator preferNodeActiveInitializingShardsWeightedIt(
+        Set<String> nodeIds,
+        DiscoveryNodes nodes,
+        WeightedRouting weightedRouting
+    ) {
+        ArrayList<ShardRouting> preferred = new ArrayList<>(activeShards.size() + allInitializingShards.size());
+        ArrayList<ShardRouting> notPreferred = new ArrayList<>(activeShards.size() + allInitializingShards.size());
+        // fill it in a randomized fashion
+        for (ShardRouting shardRouting : shuffler.shuffle(activeShards)) {
+            if (nodeIds.contains(shardRouting.currentNodeId())
+                && !isNodeWeighedAway(weightedRouting, nodes, shardRouting.currentNodeId())) {
+                preferred.add(shardRouting);
+            } else {
+                notPreferred.add(shardRouting);
+            }
+        }
+        preferred.addAll(notPreferred);
+        if (!allInitializingShards.isEmpty()) {
+            preferred.addAll(allInitializingShards);
+        }
+        return new PlainShardIterator(shardId, preferred);
+    }
+
+    public boolean isNodeWeighedAway(WeightedRouting weightedRouting, DiscoveryNodes nodes, String localNodeId) {
+        String attVal = nodes.get(localNodeId).getAttributes().get(weightedRouting.attributeName());
+        // If weight for a zone is not defined, considering it as 1 by default
+        Double weight = weightedRouting.weights().getOrDefault(attVal, 1.0);
+        return weight == WeightedRoutingMetadata.WEIGHED_AWAY_WEIGHT;
     }
 
     @Override
