@@ -17,6 +17,7 @@ import org.opensearch.identity.authz.PermissionStorage;
 import org.opensearch.identity.rest.IdentityRestConstants;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.is;
@@ -47,14 +48,13 @@ public class PermissionApiIT extends HttpSmokeTestCaseWithIdentity {
         Response putResponse = getRestClient().performRequest(putRequest);
         assertThat(putResponse.getStatusLine().getStatusCode(), is(200));
 
+        Set<String> permissionsInStorage = PermissionStorage.get((new StringPrincipal(username)))
+            .stream()
+            .map(permission -> permission.getPermissionString())
+            .collect(Collectors.toSet());
+
         // Check for the added permission in permission storage
-        assertTrue(
-            PermissionStorage.get((new StringPrincipal(username)))
-                .stream()
-                .map(permission -> permission.getPermissionString())
-                .collect(Collectors.toList())
-                .contains("cluster.admin/read")
-        );
+        assertTrue(permissionsInStorage.contains("cluster.admin/read"));
 
         putRequest = new Request("PUT", endpoint + "/" + username);
         putRequest.setJsonEntity("{ \"permission\" : \":1:2:3\"}\n"); // Invalid permission
@@ -65,12 +65,6 @@ public class PermissionApiIT extends HttpSmokeTestCaseWithIdentity {
         }
 
         // Check for the added permission in permission storage
-        assertFalse(
-            PermissionStorage.get((new StringPrincipal(username)))
-                .stream()
-                .map(permission -> permission.getPermissionString())
-                .collect(Collectors.toList())
-                .contains(":1:2:3")
-        );
+        assertFalse(permissionsInStorage.contains(":1:2:3"));
     }
 }

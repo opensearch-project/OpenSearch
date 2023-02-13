@@ -13,6 +13,7 @@ import org.junit.Before;
 import org.opensearch.authn.StringPrincipal;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
+import org.opensearch.client.ResponseException;
 import org.opensearch.identity.IdentityConfigConstants;
 import org.opensearch.identity.authz.PermissionStorage;
 import org.opensearch.identity.rest.IdentityRestConstants;
@@ -21,6 +22,7 @@ import org.opensearch.test.rest.OpenSearchRestTestCase;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.is;
@@ -58,33 +60,30 @@ public class RestPermissionsIT extends OpenSearchRestTestCase {
 
         String username = "test";
         // _identity/api/permissions/test
-        Request createRequest = new Request("PUT", endpoint + "/" + username);
-        createRequest.setJsonEntity("{ \"permission\" : \"cluster.admin/read\"}\n");
-        Response createResponse = client().performRequest(createRequest);
-        assertThat(createResponse.getStatusLine().getStatusCode(), is(200));
-        assertTrue(new String(createResponse.getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8).contains("true"));
+        Request putRequest = new Request("PUT", endpoint + "/" + username);
+        putRequest.setJsonEntity("{ \"permission\" : \"cluster.admin/read\"}\n");
+        Response putResponse = client().performRequest(putRequest);
+        assertThat(putResponse.getStatusLine().getStatusCode(), is(200));
+        assertTrue(new String(putResponse.getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8).contains("true"));
 
         // Check for the added permission in permission storage
-        assertTrue(
-            PermissionStorage.get((new StringPrincipal(username)))
-                .stream()
-                .map(permission -> permission.getPermissionString())
-                .collect(Collectors.toList())
-                .contains("cluster.admin/read")
-        );
-
-        createRequest = new Request("PUT", endpoint + "/" + username);
-        createRequest.setJsonEntity("{ \"permission\" : \":1:2:3\"}\n"); // Invalid permission
-        createResponse = client().performRequest(createRequest);
-        assertThat(createResponse.getStatusLine().getStatusCode(), is(500));
+        Set<String> permissionsInStorage = PermissionStorage.get((new StringPrincipal(username)))
+            .stream()
+            .map(permission -> permission.getPermissionString())
+            .collect(Collectors.toSet());
 
         // Check for the added permission in permission storage
-        assertFalse(
-            PermissionStorage.get((new StringPrincipal(username)))
-                .stream()
-                .map(permission -> permission.getPermissionString())
-                .collect(Collectors.toList())
-                .contains(":1:2:3")
-        );
+        assertTrue(permissionsInStorage.contains("cluster.admin/read"));
+
+        putRequest = new Request("PUT", endpoint + "/" + username);
+        putRequest.setJsonEntity("{ \"permission\" : \":1:2:3\"}\n"); // Invalid permission
+        try {
+            putResponse = client().performRequest(putRequest);
+        } catch (ResponseException ex) {
+            assertTrue(ex.getMessage().contains("All permissions must contain a permission type and action delimited"));
+        }
+
+        // Check for the added permission in permission storage
+        assertFalse(permissionsInStorage.contains(":1:2:3"));
     }
 }

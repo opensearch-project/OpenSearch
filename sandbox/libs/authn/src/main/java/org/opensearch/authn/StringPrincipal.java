@@ -49,7 +49,7 @@ public class StringPrincipal implements Principal {
     }
 
     public boolean equals(StringPrincipal secondStringPrincipal) {
-        if (this.name == secondStringPrincipal.getName()) {
+        if (this.name.equals(secondStringPrincipal.getName())) {
             return true;
         }
         return false;
