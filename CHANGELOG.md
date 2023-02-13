@@ -11,7 +11,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Dependencies
 - Bumps `log4j-core` from 2.18.0 to 2.19.0
-- Bumps `reactor-netty-http` from 1.0.18 to 1.0.23
+- Bumps `reactor-netty-http` from 1.0.24 to 1.1.2
+- Bumps `reactor-netty-http` from 1.0.18 to 1.1.2
 - Bumps `jettison` from 1.5.0 to 1.5.3
 - Bumps `forbiddenapis` from 3.3 to 3.4
 - Bumps `avro` from 1.11.0 to 1.11.1
@@ -39,6 +40,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bumps `joni` from 2.1.44 to 2.1.45
 - Bumps `commons-io:commons-io` from 2.7 to 2.11.0
 - Bumps `org.jruby.joni:joni` from 2.1.45 to 2.1.48
+- Bumps `org.apache.ant:ant` from 1.10.12 to 1.10.13
 
 ### Changed
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
@@ -90,6 +92,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add cancellation of in-flight SearchTasks based on resource consumption ([#5606](https://github.com/opensearch-project/OpenSearch/pull/5605))
 - Add support for ppc64le architecture ([#5459](https://github.com/opensearch-project/OpenSearch/pull/5459))
 - [Segment Replication] Add primary weight factor for balanced primary distribution ([#6017](https://github.com/opensearch-project/OpenSearch/pull/6017))
+- Add a setting to control auto release of OpenSearch managed index creation block ([#6277](https://github.com/opensearch-project/OpenSearch/pull/6277))
 - Fix timeout error when adding a document to an index with extension running ([#6275](https://github.com/opensearch-project/OpenSearch/pull/6275))
 
 ### Dependencies

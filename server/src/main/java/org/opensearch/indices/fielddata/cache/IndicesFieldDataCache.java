@@ -46,6 +46,7 @@ import org.opensearch.common.cache.Cache;
 import org.opensearch.common.cache.CacheBuilder;
 import org.opensearch.common.cache.RemovalListener;
 import org.opensearch.common.cache.RemovalNotification;
+import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Setting;
@@ -115,7 +116,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
                 listener.onRemoval(
                     key.shardId,
                     indexCache.fieldName,
-                    notification.getRemovalReason() == RemovalNotification.RemovalReason.EVICTED,
+                    notification.getRemovalReason() == RemovalReason.EVICTED,
                     value.ramBytesUsed()
                 );
             } catch (Exception e) {

@@ -150,6 +150,7 @@ public class RemoteStoreIT extends OpenSearchIntegTestCase {
         assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(statsGranularity) + 1);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6291")
     public void testRemoteSegmentStoreRestore() throws IOException {
         internalCluster().startDataOnlyNodes(3);
         createIndex(INDEX_NAME, remoteStoreIndexSettings(0));

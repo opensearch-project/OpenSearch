@@ -15,7 +15,6 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.SimpleFSLockFactory;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.Version;
 import org.junit.After;
@@ -23,15 +22,14 @@ import org.junit.Before;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.index.store.remote.PathTestUtils;
 import org.opensearch.index.store.remote.utils.BlobFetchRequest;
 import org.opensearch.index.store.remote.utils.TransferManager;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Comparator;
 import java.util.concurrent.CompletableFuture;
 
 import static org.mockito.Mockito.any;
@@ -55,16 +53,12 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
     public void init() {
         transferManager = mock(TransferManager.class);
         lockFactory = SimpleFSLockFactory.INSTANCE;
-        path = LuceneTestCase.createTempDir("OnDemandBlockSnapshotIndexInputTests");
+        path = PathTestUtils.createTestPath("OnDemandBlockSnapshotIndexInputTests");
     }
 
     @After
     public void clean() {
-        try {
-            cleanDirectory(path);
-        } catch (Exception e) {
-            fail();
-        }
+        PathTestUtils.cleanOrFail(path);
     }
 
     public void testVariousBlockSize() throws Exception {
@@ -79,7 +73,7 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
             fileSize
         );
         runAllTestsFor(ondemandBlockSnapshotIndexInput_8MB, 1 << blockSizeShift, fileSize);
-        cleanDirectory(path);
+        PathTestUtils.cleanDirectory(path);
 
         // block size 4KB
         blockSizeShift = 12;
@@ -88,7 +82,7 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
             fileSize
         );
         runAllTestsFor(ondemandBlockSnapshotIndexInput_4KB, 1 << blockSizeShift, fileSize);
-        cleanDirectory(path);
+        PathTestUtils.cleanDirectory(path);
 
         // block size 1MB
         blockSizeShift = 20;
@@ -97,7 +91,7 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
             fileSize
         );
         runAllTestsFor(ondemandBlockSnapshotIndexInput_1MB, 1 << blockSizeShift, fileSize);
-        cleanDirectory(path);
+        PathTestUtils.cleanDirectory(path);
 
         // block size 4MB
         blockSizeShift = 22;
@@ -106,7 +100,7 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
             fileSize
         );
         runAllTestsFor(ondemandBlockSnapshotIndexInput_4MB, 1 << blockSizeShift, fileSize);
-        cleanDirectory(path);
+        PathTestUtils.cleanDirectory(path);
     }
 
     public void runAllTestsFor(OnDemandBlockSnapshotIndexInput blockedSnapshotFile, int blockSize, int fileSize) throws Exception {
@@ -152,7 +146,7 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
 
         FSDirectory directory = null;
         try {
-            cleanDirectory(path);
+            PathTestUtils.cleanDirectory(path);
             // use MMapDirectory to create block
             directory = new MMapDirectory(path, lockFactory);
         } catch (IOException e) {
@@ -217,18 +211,6 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
             fail("fail to initialize block files: " + e.getMessage());
         }
 
-    }
-
-    private void cleanDirectory(Path path) throws IOException {
-        if (Files.exists(path)) {
-            Files.walk(path).sorted(Comparator.reverseOrder()).forEach(f -> {
-                try {
-                    Files.delete(f);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            });
-        }
     }
 
     public static class TestGroup {
