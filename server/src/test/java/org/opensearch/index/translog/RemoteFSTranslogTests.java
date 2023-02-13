@@ -663,6 +663,13 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             repository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())).add(METADATA_DIR)
         );
         assertTrue(mdFileNames.stream().allMatch(name -> name.startsWith(String.valueOf(newPrimaryTerm).concat("__"))));
+
+        try {
+            newTranslog.close();
+        } catch (Exception e) {
+            // Ignoring this exception for now. Once the download flow populates FileTracker,
+            // we can remove this try-catch block
+        }
     }
 
     private Long populateTranslogOps(boolean withMissingOps) throws IOException {
