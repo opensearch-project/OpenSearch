@@ -32,6 +32,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bumps `Netty` from 4.1.86.Final to 4.1.87.Final ([#6130](https://github.com/opensearch-project/OpenSearch/pull/6130))
 - Bumps `Jackson` from 2.14.1 to 2.14.2 ([#6129](https://github.com/opensearch-project/OpenSearch/pull/6129))
 - Bumps `org.apache.ant:ant` from 1.10.12 to 1.10.13
+- Bumps `azure-core-http-netty` from 1.12.7 to 1.12.8
+- Bumps `com.azure:azure-storage-common` from 12.18.1 to 12.19.3
 
 ### Changed
 - Use ReplicationFailedException instead of OpensearchException in ReplicationTarget ([#4725](https://github.com/opensearch-project/OpenSearch/pull/4725))
