@@ -1444,7 +1444,7 @@ public class SettingTests extends OpenSearchTestCase {
             out.flush();
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 memorySizeValueParser = new MemorySizeValueParser(in);
-                assertEquals(expectedKey, byteSizeValueParser.getKey());
+                assertEquals(expectedKey, memorySizeValueParser.getKey());
             }
         }
     }
