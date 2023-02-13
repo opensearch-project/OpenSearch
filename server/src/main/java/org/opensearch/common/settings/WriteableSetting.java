@@ -303,8 +303,7 @@ public class WriteableSetting implements Writeable {
             case ByteSizeValue:
                 if (parser instanceof ByteSizeValueParser) {
                     ((ByteSizeValueParser) parser).writeTo(out);
-                }
-                else (parser instanceof MemorySizeValueParser) {
+                } else if (parser instanceof MemorySizeValueParser) {
                     ((MemorySizeValueParser) parser).writeTo(out);
                 }
                 break;
@@ -371,10 +370,9 @@ public class WriteableSetting implements Writeable {
                 }
                 return null;
             case ByteSizeValue:
-                if(parser instanceof ByteSizeValueParser){
+                if (parser instanceof ByteSizeValueParser) {
                     return new ByteSizeValueParser(in);
-                }
-                else if(parser instanceof MemorySizeValueParser){
+                } else if (parser instanceof MemorySizeValueParser) {
                     return new MemorySizeValueParser(in);
                 }
                 return null;
