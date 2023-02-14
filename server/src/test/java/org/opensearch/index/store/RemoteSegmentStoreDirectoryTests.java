@@ -24,7 +24,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Set;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
-import org.opensearch.index.store.metadata.RemoteSegmentMetadata;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

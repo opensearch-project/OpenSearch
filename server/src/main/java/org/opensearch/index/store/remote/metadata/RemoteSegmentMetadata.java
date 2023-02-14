@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.store.metadata;
+package org.opensearch.index.store.remote.metadata;
 
 import java.util.Map;
 import java.util.stream.Collectors;
