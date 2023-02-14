@@ -9,6 +9,7 @@
 package org.opensearch.identity.configuration;
 
 import org.opensearch.identity.User;
+import org.opensearch.identity.extensions.ExtensionSecurityConfig;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -20,7 +21,8 @@ import java.util.stream.Collectors;
 
 public enum CType {
 
-    INTERNALUSERS(toMap(1, User.class));
+    INTERNALUSERS(toMap(1, User.class)),
+    EXTENSIONSECURITY(toMap(1, ExtensionSecurityConfig.class));
 
     private Map<Integer, Class<?>> implementations;
 
