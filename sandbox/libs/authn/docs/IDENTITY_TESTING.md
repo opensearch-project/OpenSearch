@@ -44,9 +44,9 @@ and run the install_demo_configuration script:
 ./install_demo_configuration.sh
 ```
 
-and answer yes to all prompts.
+Answer yes to all prompts.
 
-Go back up to the root directory by running: `cd ../../..`
+Navigate back up to the root directory by running: `cd ../../..`
 
 and open the `opensearch.yml` file:
 
