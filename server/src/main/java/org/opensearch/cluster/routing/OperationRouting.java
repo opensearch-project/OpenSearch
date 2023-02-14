@@ -400,8 +400,7 @@ public class OperationRouting {
                 )) return indexShard.onlyNodeActiveInitializingShardsIt(localNodeId);
                 else {
                     throw new PreferenceBasedSearchNotAllowedException(
-                        "Preference based routing not allowed on weigh away node with strict weighted shard routing " +
-                            "enabled"
+                        "Preference based routing not allowed on weigh away node with strict weighted shard routing enabled"
                     );
                 }
             case ONLY_NODES:

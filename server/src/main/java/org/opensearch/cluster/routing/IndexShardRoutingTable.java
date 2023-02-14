@@ -696,16 +696,24 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     ) {
         ArrayList<ShardRouting> preferred = new ArrayList<>(activeShards.size() + allInitializingShards.size());
         ArrayList<ShardRouting> notPreferred = new ArrayList<>(activeShards.size() + allInitializingShards.size());
+        ArrayList<ShardRouting> weighedAway = new ArrayList<>(activeShards.size() + allInitializingShards.size());
+
         // fill it in a randomized fashion
         for (ShardRouting shardRouting : shuffler.shuffle(activeShards)) {
-            if (nodeIds.contains(shardRouting.currentNodeId())
-                && !isNodeWeighedAway(weightedRouting, nodes, shardRouting.currentNodeId(), defaultWeight)) {
-                preferred.add(shardRouting);
-            } else {
+            if (nodeIds.contains(shardRouting.currentNodeId())) {
+                if (isNodeWeighedAway(weightedRouting, nodes, shardRouting.currentNodeId(), defaultWeight)) {
+                    weighedAway.add(shardRouting);
+                } else {
+                    preferred.add(shardRouting);
+                }
+            }
+
+            else {
                 notPreferred.add(shardRouting);
             }
         }
         preferred.addAll(notPreferred);
+        preferred.addAll(weighedAway);
         if (!allInitializingShards.isEmpty()) {
             preferred.addAll(allInitializingShards);
         }
@@ -716,7 +724,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         String attVal = nodes.get(localNodeId).getAttributes().get(weightedRouting.attributeName());
         // If weight for a zone is not defined, considering it as 1 by default
         Double weight = weightedRouting.weights().getOrDefault(attVal, defaultWeight);
-        return weight == WeightedRoutingMetadata.WEIGHED_AWAY_WEIGHT;
+        return weight.intValue() == WeightedRoutingMetadata.WEIGHED_AWAY_WEIGHT;
     }
 
     @Override
