@@ -23,14 +23,12 @@ public interface MetadataParser<T> {
      * Implements logic to read metadata content from metadata file input stream {@code indexInput} and parse into {@link T}
      * @param indexInput metadata file input stream
      * @return metadata content parsed to {@link T}
-     * @throws IOException
      */
     T readContent(IndexInput indexInput) throws IOException;
 
     /**
      * Implements logic to write metadata content from {@code content} to metadata file output stream {@code indexOutput}
      * @param indexOutput metadata file input stream
-     * @throws IOException
      */
     void writeContent(IndexOutput indexOutput, T content) throws IOException;
 
@@ -40,7 +38,6 @@ public interface MetadataParser<T> {
      * This will removed in future releases and only {@link #writeContent(IndexOutput, Object)} )} should be used going fwd.
      * @param indexOutput metadata file input stream
      * @param content metadata content
-     * @throws IOException
      */
     @Deprecated
     void writeContent(IndexOutput indexOutput, Map<String, String> content) throws IOException;

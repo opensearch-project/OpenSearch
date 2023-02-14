@@ -23,7 +23,6 @@ public class RemoteSegmentMetadataParser implements MetadataParser<RemoteSegment
      * Reads metadata content from metadata file input stream and parsed into {@link RemoteSegmentMetadata}
      * @param indexInput metadata file input stream with {@link IndexInput#getFilePointer()} pointing to metadata content
      * @return {@link RemoteSegmentMetadata}
-     * @throws IOException
      */
     @Override
     public RemoteSegmentMetadata readContent(IndexInput indexInput) throws IOException {
@@ -34,7 +33,6 @@ public class RemoteSegmentMetadataParser implements MetadataParser<RemoteSegment
      * Writes metadata to file output stream
      * @param indexOutput metadata file input stream
      * @param content {@link RemoteSegmentMetadata} from which metadata content would be generated
-     * @throws IOException
      */
     @Override
     public void writeContent(IndexOutput indexOutput, RemoteSegmentMetadata content) throws IOException {}
@@ -43,7 +41,6 @@ public class RemoteSegmentMetadataParser implements MetadataParser<RemoteSegment
      * Writes metadata to file output stream
      * @param indexOutput metadata file input stream
      * @param content metadata content
-     * @throws IOException
      *
      * This method would be removed in future
      * and only {@link #writeContent(IndexOutput, RemoteSegmentMetadata)} would be leveraged in future

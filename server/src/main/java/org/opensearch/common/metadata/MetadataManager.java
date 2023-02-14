@@ -44,7 +44,6 @@ public class MetadataManager<T> {
      * After reading the actual content, verifies the checksum as well
      * @param indexInput metadata file input stream
      * @return metadata content parsed into {@link T}
-     * @throws IOException
      */
     public T readMetadata(IndexInput indexInput) throws IOException {
         ChecksumIndexInput checksumIndexInput = new BufferedChecksumIndexInput(indexInput);
@@ -58,7 +57,6 @@ public class MetadataManager<T> {
      * Writes metadata to file output stream {@code indexOutput}
      * @param indexOutput file output stream which will store metadata content
      * @param metadata metadata content.
-     * @throws IOException
      *
      * {@code metadata} argument type would be changed to {@link T} in future to reuse {@link MetadataManager} for multiple metadata types
      */
@@ -72,7 +70,6 @@ public class MetadataManager<T> {
      * Reads header from metadata file input stream containing {@code this.codec} and {@code this.currentVersion}.
      * @param indexInput metadata file input stream
      * @return header version found in the metadata file
-     * @throws IOException
      */
     private int checkHeader(IndexInput indexInput) throws IOException {
         return CodecUtil.checkHeader(indexInput, this.codec, this.currentVersion, this.currentVersion);
@@ -82,7 +79,6 @@ public class MetadataManager<T> {
      * Reads footer from metadata file input stream containing checksum.
      * The {@link IndexInput#getFilePointer()} should be at the footer start position.
      * @param indexInput metadata file input stream
-     * @throws IOException
      */
     private void checkFooter(ChecksumIndexInput indexInput) throws IOException {
         CodecUtil.checkFooter(indexInput);
@@ -91,7 +87,6 @@ public class MetadataManager<T> {
     /**
      * Writes header with {@code this.codec} and {@code this.currentVersion} to the metadata file output stream
      * @param indexOutput metadata file output stream
-     * @throws IOException
      */
     private void writeHeader(IndexOutput indexOutput) throws IOException {
         CodecUtil.writeHeader(indexOutput, this.codec, this.currentVersion);
@@ -100,7 +95,6 @@ public class MetadataManager<T> {
     /**
      * Writes footer with checksum of contents of metadata file output stream
      * @param indexOutput metadata file output stream
-     * @throws IOException
      */
     private void writeFooter(IndexOutput indexOutput) throws IOException {
         CodecUtil.writeFooter(indexOutput);
