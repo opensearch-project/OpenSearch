@@ -16,7 +16,7 @@ import org.opensearch.action.ActionType;
 public class PutPermissionAction extends ActionType<PutPermissionResponse> {
 
     public static final PutPermissionAction INSTANCE = new PutPermissionAction();
-    public static final String NAME = "cluster:admin/permissions/put";
+    public static final String NAME = "cluster:admin/permissions/grant";
 
     PutPermissionAction() {
         super(NAME, PutPermissionResponse::new);

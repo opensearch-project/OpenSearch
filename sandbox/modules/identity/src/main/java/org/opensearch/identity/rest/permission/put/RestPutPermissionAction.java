@@ -57,7 +57,7 @@ public class RestPutPermissionAction extends BaseRestHandler {
      *   "permissions": [
      *     {
      *       "successful": true,
-     *       "permission added": "my_permission",
+     *       "permissionAdded": "my_permission",
      *       "username": "second_user"
      *     }
      *   ]

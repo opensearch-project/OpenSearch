@@ -14,6 +14,7 @@ import org.opensearch.common.Glob;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 public class OpenSearchPermission implements Permission {
 
@@ -129,11 +130,10 @@ public class OpenSearchPermission implements Permission {
         return allRequestedPatternsMatchGranted;
     }
 
-    public boolean equals(OpenSearchPermission secondPermission) {
-        if (this.getPermissionString() == secondPermission.getPermissionString()) {
-            return true;
-        }
-        return false;
+    public boolean equals(final Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        final OpenSearchPermission that = (OpenSearchPermission) obj;
+        return Objects.equals(this.getPermissionString(), that.getPermissionString());
     }
-
 }

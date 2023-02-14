@@ -94,7 +94,7 @@ public class PutPermissionResponseInfo extends TransportResponse implements Writ
 
     private static final ParseField SUCCESSFUL = new ParseField("successful");
     private static final ParseField USERNAME = new ParseField("username");
-    private static final ParseField PERMISSION = new ParseField("permission added");
+    private static final ParseField PERMISSION = new ParseField("permissionAdded");
 
     /**
      * Write the response info to Xcontent (JSON formatted data) that you will see as the response message to the request
