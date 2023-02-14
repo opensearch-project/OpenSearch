@@ -7,6 +7,8 @@
  */
 import org.opensearch.gradle.test.RestIntegTestTask
 
+apply plugin: 'opensearch.rest-test'
+apply plugin: 'opensearch.testclusters'
 apply plugin: 'opensearch.internal-cluster-test'
 apply plugin: 'opensearch.rest-test'
 apply plugin: 'opensearch.testclusters'
@@ -46,8 +48,9 @@ dependencies {
   implementation 'org.apache.cxf:cxf-core:3.4.5'
   implementation 'org.apache.cxf:cxf-rt-rs-json-basic:3.4.5'
   implementation 'org.apache.cxf:cxf-rt-security:3.4.5'
+    implementation project(path: ':server')
 
-  testImplementation project(path: ':modules:transport-netty4') // for http
+    testImplementation project(path: ':modules:transport-netty4') // for http
   testImplementation project(path: ':plugins:transport-nio') // for http
 }
 

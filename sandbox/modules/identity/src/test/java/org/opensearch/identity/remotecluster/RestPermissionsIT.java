@@ -32,6 +32,8 @@ import static org.hamcrest.Matchers.is;
  */
 public class RestPermissionsIT extends OpenSearchRestTestCase {
 
+    public RestPermissionsIT() {}
+
     @Before
     public void init() throws Exception {
         ensureIdentityIndexExists();
@@ -46,6 +48,7 @@ public class RestPermissionsIT extends OpenSearchRestTestCase {
     protected void ensureIdentityIndexExists() throws IOException {
         // this will fail if default index name is changed in remote cluster
         String identityIndex = IdentityConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX;
+
         Request request = new Request("GET", "/" + identityIndex);
         Response response = adminClient().performRequest(request);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
@@ -66,6 +69,14 @@ public class RestPermissionsIT extends OpenSearchRestTestCase {
         assertThat(putResponse.getStatusLine().getStatusCode(), is(200));
         assertTrue(new String(putResponse.getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8).contains("true"));
 
+        // Check for the added permission
+        Request checkRequest = new Request("GET", endpoint + "/" + username);
+        Response checkResponse = client().performRequest(checkRequest);
+        assertThat(checkResponse.getStatusLine().getStatusCode(), is(200));
+        assertTrue(
+            new String(checkResponse.getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8).contains("cluster.admin/read")
+        );
+
         // Check for the added permission in permission storage
         Set<String> permissionsInStorage = PermissionStorage.get((new StringPrincipal(username)))
             .stream()
@@ -73,6 +84,7 @@ public class RestPermissionsIT extends OpenSearchRestTestCase {
             .collect(Collectors.toSet());
 
         // Check for the added permission in permission storage
+
         assertTrue(permissionsInStorage.contains("cluster.admin/read"));
 
         putRequest = new Request("PUT", endpoint + "/" + username);
@@ -85,5 +97,20 @@ public class RestPermissionsIT extends OpenSearchRestTestCase {
 
         // Check for the added permission in permission storage
         assertFalse(permissionsInStorage.contains(":1:2:3"));
+
+        // Delete the added permission
+        Request deleteRequest = new Request("DELETE", endpoint + "/" + username);
+        deleteRequest.setJsonEntity("{ \"permissionString\" : \"cluster.admin/read\"}\n");
+        Response deleteResponse = client().performRequest(deleteRequest);
+        assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
+
+        // Check the added permission is gone
+        checkRequest = new Request("GET", endpoint + "/" + username);
+        checkResponse = client().performRequest(checkRequest);
+        assertThat(checkResponse.getStatusLine().getStatusCode(), is(200));
+        assertFalse(checkResponse.getEntity().toString().contains("cluster.admin/read"));
+
+        // Check the added permission is removed from permission storage
+        assertFalse(PermissionStorage.get(new StringPrincipal(username)).contains("cluster.admin/read"));
     }
 }

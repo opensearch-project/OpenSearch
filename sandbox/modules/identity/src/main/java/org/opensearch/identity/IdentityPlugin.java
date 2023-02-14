@@ -34,6 +34,12 @@ import org.opensearch.identity.authz.IndexNameExpressionResolverHolder;
 import org.opensearch.identity.configuration.ClusterInfoHolder;
 import org.opensearch.identity.configuration.ConfigurationRepository;
 import org.opensearch.identity.configuration.DynamicConfigFactory;
+import org.opensearch.identity.rest.permission.delete.DeletePermissionAction;
+import org.opensearch.identity.rest.permission.delete.RestDeletePermissionAction;
+import org.opensearch.identity.rest.permission.delete.TransportDeletePermissionAction;
+import org.opensearch.identity.rest.permission.get.GetPermissionAction;
+import org.opensearch.identity.rest.permission.get.RestGetPermissionAction;
+import org.opensearch.identity.rest.permission.get.TransportGetPermissionAction;
 import org.opensearch.identity.rest.permission.put.PutPermissionAction;
 import org.opensearch.identity.rest.permission.put.RestPutPermissionAction;
 import org.opensearch.identity.rest.permission.put.TransportPutPermissionAction;
@@ -118,9 +124,11 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        final List<RestHandler> handlers = new ArrayList<>(2);
+        final List<RestHandler> handlers = new ArrayList<>(4);
         handlers.add(new RestPutUserAction());
         handlers.add(new RestPutPermissionAction());
+        handlers.add(new RestGetPermissionAction());
+        handlers.add(new RestDeletePermissionAction());
         // TODO: Add handlers for future actions
         return handlers;
     }
@@ -137,7 +145,9 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         return Arrays.asList(
             new ActionHandler<>(PutUserAction.INSTANCE, TransportPutUserAction.class),
             new ActionHandler<>(IdentityConfigUpdateAction.INSTANCE, TransportIdentityConfigUpdateAction.class),
-            new ActionHandler<>(PutPermissionAction.INSTANCE, TransportPutPermissionAction.class)
+            new ActionHandler<>(PutPermissionAction.INSTANCE, TransportPutPermissionAction.class),
+            new ActionHandler<>(GetPermissionAction.INSTANCE, TransportGetPermissionAction.class),
+            new ActionHandler<>(DeletePermissionAction.INSTANCE, TransportDeletePermissionAction.class)
         );
     }
 

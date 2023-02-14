@@ -38,7 +38,7 @@ public class PermissionStorage {
     public static void put(Principal principal, List<OpenSearchPermission> permissions) {
 
         for (OpenSearchPermission permission : permissions) {
-            permissionStore.computeIfAbsent(principal, permissionsList -> new ArrayList<>()).add(permission);
+            permissionStore.computeIfAbsent(principal, (p) -> new ArrayList<>()).add(permission);
         }
     }
 
