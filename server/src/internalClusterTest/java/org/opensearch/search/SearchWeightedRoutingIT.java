@@ -18,6 +18,7 @@ import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.get.MultiGetResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.PreferenceBasedSearchNotAllowedException;
@@ -839,6 +840,20 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
             .get();
         assertEquals(RestStatus.OK.getStatus(), searchResponse.status().getStatus());
 
+        // disable strict weighed routing
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put("cluster.routing.weighted.strict", false))
+            .get();
+
+        // make search on weighed away node
+        searchResponse = internalCluster().client(nodeMap.get("c").get(0))
+            .prepareSearch()
+            .setSize(4)
+            .setPreference("_only_local")
+            .get();
+        assertEquals(RestStatus.OK.getStatus(), searchResponse.status().getStatus());
     }
 
     /**
@@ -874,6 +889,23 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         assertNoSearchInAZ("c");
         assertSearchInAZ("a");
         assertSearchInAZ("b");
+
+        // disable strict weighed routing
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put("cluster.routing.weighted.strict", false))
+            .get();
+
+        // make search requests with custom string
+        searchResponse = internalCluster().client(nodeMap.get("a").get(0))
+            .prepareSearch()
+            .setSize(20)
+            .setPreference(customPreference)
+            .get();
+        // assert search on data nodes on az c (weighed away az)
+        assertSearchInAZ("c");
+
     }
 
     /**
