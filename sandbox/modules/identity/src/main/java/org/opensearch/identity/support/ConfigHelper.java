@@ -77,7 +77,7 @@ public class ConfigHelper {
 
             if (!configType.equals(res)) {
                 throw new Exception(
-                    "   FAIL: Configuration for '" + configType + "' failed for unknown reasons. Pls. consult logfile of opensearch"
+                    "   FAIL: Configuration for '" + configType + "' failed for unknown reasons. See OpenSearch logs for more details."
                 );
             }
             LOGGER.info("Doc with id '{}' and version {} is updated in {} index.", configType, configVersion, index);

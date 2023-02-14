@@ -88,6 +88,7 @@ public abstract class HttpSmokeTestCaseWithIdentity extends OpenSearchIntegTestC
             .put(NetworkModule.TRANSPORT_TYPE_KEY, nodeTransportTypeKey)
             .put(NetworkModule.HTTP_TYPE_KEY, nodeHttpTypeKey)
             .put(IdentityConfigConstants.IDENTITY_ENABLED, true)
+            .put(IdentityConfigConstants.IDENTITY_SIGNING_KEY, "signingKey")
             .build();
     }
 
