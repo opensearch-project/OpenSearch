@@ -177,6 +177,7 @@ public class WriteableSetting implements Writeable {
                 } else {
                     return Setting.intSetting(key, (Setting<Integer>) fallback.getSetting(), propertyArray);
                 }
+                break;
             case Long:
                 if (fallback == null) {
                     if (parser instanceof Writeable) {
@@ -193,6 +194,7 @@ public class WriteableSetting implements Writeable {
                 } else {
                     return Setting.longSetting(key, (Setting<Long>) fallback.getSetting(), propertyArray);
                 }
+                break;
             case Float:
                 if (fallback == null) {
                     if (parser instanceof Writeable) {
@@ -209,6 +211,7 @@ public class WriteableSetting implements Writeable {
                 } else {
                     return Setting.floatSetting(key, (Setting<Float>) fallback.getSetting(), propertyArray);
                 }
+                break;
             case Double:
                 if (fallback == null) {
                     if (parser instanceof Writeable) {
@@ -225,6 +228,7 @@ public class WriteableSetting implements Writeable {
                 } else {
                     Setting.doubleSetting(key, (Setting<Double>) fallback.getSetting(), propertyArray);
                 }
+                break;
             case String:
                 return fallback == null
                     ? Setting.simpleString(key, (String) defaultValue, propertyArray)
@@ -249,6 +253,7 @@ public class WriteableSetting implements Writeable {
                 } else {
                     return Setting.timeSetting(key, (Setting<TimeValue>) fallback.getSetting(), propertyArray);
                 }
+                break;
             case ByteSizeValue:
                 if (fallback == null) {
                     if (parser instanceof Writeable) {
@@ -269,6 +274,7 @@ public class WriteableSetting implements Writeable {
                 } else {
                     return Setting.byteSizeSetting(key, (Setting<ByteSizeValue>) fallback.getSetting(), propertyArray);
                 }
+                break;
             case Version:
                 // No fallback option on this method
                 return Setting.versionSetting(key, (Version) defaultValue, propertyArray);
