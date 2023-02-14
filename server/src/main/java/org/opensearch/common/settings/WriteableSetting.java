@@ -162,84 +162,113 @@ public class WriteableSetting implements Writeable {
                     ? Setting.boolSetting(key, (boolean) defaultValue, propertyArray)
                     : Setting.boolSetting(key, (Setting<Boolean>) fallback.getSetting(), propertyArray);
             case Integer:
-                return fallback == null
-                    ? (parser instanceof Writeable)
-                        ? Setting.intSetting(
+                if (fallback == null) {
+                    if (parser instanceof Writeable) {
+                        return Setting.intSetting(
                             key,
                             (int) defaultValue,
                             ((IntegerParser) parser).getMin(),
                             ((IntegerParser) parser).getMax(),
                             propertyArray
-                        )
-                        : Setting.intSetting(key, (int) defaultValue, propertyArray)
-                    : Setting.intSetting(key, (Setting<Integer>) fallback.getSetting(), propertyArray);
+                        );
+                    } else {
+                        return Setting.intSetting(key, (int) defaultValue, propertyArray);
+                    }
+                } else {
+                    return Setting.intSetting(key, (Setting<Integer>) fallback.getSetting(), propertyArray);
+                }
             case Long:
-                return fallback == null
-                    ? (parser instanceof Writeable)
-                        ? Setting.longSetting(
+                if (fallback == null) {
+                    if (parser instanceof Writeable) {
+                        return Setting.longSetting(
                             key,
                             (long) defaultValue,
                             ((LongParser) parser).getMin(),
                             ((LongParser) parser).getMax(),
                             propertyArray
-                        )
-                        : Setting.longSetting(key, (long) defaultValue, propertyArray)
-                    : Setting.longSetting(key, (Setting<Long>) fallback.getSetting(), propertyArray);
+                        );
+                    } else {
+                        return Setting.longSetting(key, (long) defaultValue, propertyArray);
+                    }
+                } else {
+                    return Setting.longSetting(key, (Setting<Long>) fallback.getSetting(), propertyArray);
+                }
             case Float:
-                return fallback == null
-                    ? (parser instanceof Writeable)
-                        ? Setting.floatSetting(
+                if (fallback == null) {
+                    if (parser instanceof Writeable) {
+                        return Setting.floatSetting(
                             key,
                             (float) defaultValue,
                             ((FloatParser) parser).getMin(),
                             ((FloatParser) parser).getMax(),
                             propertyArray
-                        )
-                        : Setting.floatSetting(key, (float) defaultValue, propertyArray)
-                    : Setting.floatSetting(key, (Setting<Float>) fallback.getSetting(), propertyArray);
+                        );
+                    } else {
+                        return Setting.floatSetting(key, (float) defaultValue, propertyArray);
+                    }
+                } else {
+                    return Setting.floatSetting(key, (Setting<Float>) fallback.getSetting(), propertyArray);
+                }
             case Double:
-                return fallback == null
-                    ? (parser instanceof Writeable)
-                        ? Setting.doubleSetting(
+                if (fallback == null) {
+                    if (parser instanceof Writeable) {
+                        return Setting.doubleSetting(
                             key,
                             (double) defaultValue,
                             ((DoubleParser) parser).getMin(),
                             ((DoubleParser) parser).getMax(),
                             propertyArray
-                        )
-                        : Setting.doubleSetting(key, (double) defaultValue, propertyArray)
-                    : Setting.doubleSetting(key, (Setting<Double>) fallback.getSetting(), propertyArray);
+                        );
+                    } else {
+                        return Setting.doubleSetting(key, (double) defaultValue, propertyArray);
+                    }
+                } else {
+                    Setting.doubleSetting(key, (Setting<Double>) fallback.getSetting(), propertyArray);
+                }
             case String:
                 return fallback == null
                     ? Setting.simpleString(key, (String) defaultValue, propertyArray)
                     : Setting.simpleString(key, (Setting<String>) fallback.getSetting(), propertyArray);
             case TimeValue:
-                return fallback != null ? Setting.timeSetting(key, (Setting<TimeValue>) fallback.getSetting(), propertyArray)
-                    : (parser instanceof Writeable)
-                        ? (parser instanceof MinMaxTimeValueParser)
-                            ? Setting.timeSetting(
+                if (fallback == null) {
+                    if (parser instanceof Writeable) {
+                        if (parser instanceof MinMaxTimeValueParser) {
+                            return Setting.timeSetting(
                                 key,
                                 (TimeValue) defaultValue,
                                 ((MinMaxTimeValueParser) parser).getMin(),
                                 ((MinMaxTimeValueParser) parser).getMax(),
                                 propertyArray
-                            )
-                            : Setting.timeSetting(key, (TimeValue) defaultValue, ((MinTimeValueParser) parser).getMin(), propertyArray)
-                    : Setting.timeSetting(key, (TimeValue) defaultValue, propertyArray);
+                            );
+                        } else {
+                            Setting.timeSetting(key, (TimeValue) defaultValue, ((MinTimeValueParser) parser).getMin(), propertyArray);
+                        }
+                    } else {
+                        return Setting.timeSetting(key, (TimeValue) defaultValue, propertyArray);
+                    }
+                } else {
+                    return Setting.timeSetting(key, (Setting<TimeValue>) fallback.getSetting(), propertyArray);
+                }
             case ByteSizeValue:
-                return fallback == null
-                    ? (parser instanceof Writeable)
-                        ? (parser instanceof MemorySizeValueParser)
-                            ? Setting.memorySizeSetting(key, (ByteSizeValue) defaultValue, propertyArray)
-                            : Setting.byteSizeSetting(
+                if (fallback == null) {
+                    if (parser instanceof Writeable) {
+                        if (parser instanceof MemorySizeValueParser) {
+                            return Setting.memorySizeSetting(key, (ByteSizeValue) defaultValue, propertyArray);
+                        } else {
+                            return Setting.byteSizeSetting(
                                 key,
                                 (ByteSizeValue) defaultValue,
                                 ((ByteSizeValueParser) parser).getMin(),
                                 ((ByteSizeValueParser) parser).getMax(),
                                 propertyArray
-                            )
-                        : Setting.byteSizeSetting(key, (ByteSizeValue) defaultValue, propertyArray)
-                    : Setting.byteSizeSetting(key, (Setting<ByteSizeValue>) fallback.getSetting(), propertyArray);
+                            );
+                        }
+                    } else {
+                        return Setting.byteSizeSetting(key, (ByteSizeValue) defaultValue, propertyArray);
+                    }
+                } else {
+                    return Setting.byteSizeSetting(key, (Setting<ByteSizeValue>) fallback.getSetting(), propertyArray);
+                }
             case Version:
                 // No fallback option on this method
                 return Setting.versionSetting(key, (Version) defaultValue, propertyArray);
