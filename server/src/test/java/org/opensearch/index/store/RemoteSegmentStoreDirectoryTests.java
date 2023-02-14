@@ -24,6 +24,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Set;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.index.store.metadata.RemoteSegmentMetadata;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -56,7 +57,11 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
         remoteDataDirectory = mock(RemoteDirectory.class);
         remoteMetadataDirectory = mock(RemoteDirectory.class);
 
-        remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(remoteDataDirectory, remoteMetadataDirectory);
+        remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
+            remoteDataDirectory,
+            remoteMetadataDirectory,
+            RemoteSegmentMetadata.createMetadataManager()
+        );
     }
 
     public void testUploadedSegmentMetadataToString() {
@@ -166,11 +171,7 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
     private ByteArrayIndexInput createMetadataFileBytes(Map<String, String> segmentFilesMap) throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
         OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("segment metadata", "metadata output stream", output, 4096);
-        CodecUtil.writeHeader(
-            indexOutput,
-            RemoteSegmentStoreDirectory.UploadedSegmentMetadata.METADATA_CODEC,
-            RemoteSegmentStoreDirectory.UploadedSegmentMetadata.CURRENT_VERSION
-        );
+        CodecUtil.writeHeader(indexOutput, RemoteSegmentMetadata.METADATA_CODEC, RemoteSegmentMetadata.CURRENT_VERSION);
         indexOutput.writeMapOfStrings(segmentFilesMap);
         CodecUtil.writeFooter(indexOutput);
         indexOutput.close();
@@ -473,7 +474,7 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
 
         BytesStreamOutput output = new BytesStreamOutput();
         OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("segment metadata", "metadata output stream", output, 4096);
-        CodecUtil.writeHeader(indexOutput, "invalidCodec", RemoteSegmentStoreDirectory.UploadedSegmentMetadata.CURRENT_VERSION);
+        CodecUtil.writeHeader(indexOutput, "invalidCodec", RemoteSegmentMetadata.CURRENT_VERSION);
         indexOutput.writeMapOfStrings(metadata);
         CodecUtil.writeFooter(indexOutput);
         indexOutput.close();
@@ -495,7 +496,7 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
 
         BytesStreamOutput output = new BytesStreamOutput();
         OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("segment metadata", "metadata output stream", output, 4096);
-        CodecUtil.writeHeader(indexOutput, RemoteSegmentStoreDirectory.UploadedSegmentMetadata.METADATA_CODEC, -1);
+        CodecUtil.writeHeader(indexOutput, RemoteSegmentMetadata.METADATA_CODEC, -1);
         indexOutput.writeMapOfStrings(metadata);
         CodecUtil.writeFooter(indexOutput);
         indexOutput.close();
@@ -517,7 +518,7 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
 
         BytesStreamOutput output = new BytesStreamOutput();
         OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("segment metadata", "metadata output stream", output, 4096);
-        CodecUtil.writeHeader(indexOutput, RemoteSegmentStoreDirectory.UploadedSegmentMetadata.METADATA_CODEC, 2);
+        CodecUtil.writeHeader(indexOutput, RemoteSegmentMetadata.METADATA_CODEC, 2);
         indexOutput.writeMapOfStrings(metadata);
         CodecUtil.writeFooter(indexOutput);
         indexOutput.close();
@@ -541,11 +542,7 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
         IndexOutput indexOutput = new OutputStreamIndexOutput("segment metadata", "metadata output stream", output, 4096);
         IndexOutput wrappedIndexOutput = new WrapperIndexOutput(indexOutput);
         IndexOutput indexOutputSpy = spy(wrappedIndexOutput);
-        CodecUtil.writeHeader(
-            indexOutputSpy,
-            RemoteSegmentStoreDirectory.UploadedSegmentMetadata.METADATA_CODEC,
-            RemoteSegmentStoreDirectory.UploadedSegmentMetadata.CURRENT_VERSION
-        );
+        CodecUtil.writeHeader(indexOutputSpy, RemoteSegmentMetadata.METADATA_CODEC, RemoteSegmentMetadata.CURRENT_VERSION);
         indexOutputSpy.writeMapOfStrings(metadata);
         doReturn(12345L).when(indexOutputSpy).getChecksum();
         CodecUtil.writeFooter(indexOutputSpy);
@@ -646,7 +643,7 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
           If author doesn't want to support old metadata files. Then this can be ignored.
           After taking appropriate action, fix this test by setting the correct version here
          */
-        assertEquals(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.CURRENT_VERSION, 1);
+        assertEquals(RemoteSegmentMetadata.CURRENT_VERSION, 1);
     }
 
     private static class WrapperIndexOutput extends IndexOutput {
