@@ -81,6 +81,14 @@ public interface TransferService {
     Set<String> listAll(Iterable<String> path) throws IOException;
 
     /**
+     * Lists the files and invokes the listener on success or failure
+     * @param threadpoolName threadpool type which will be used to list all files asynchronously.
+     * @param path the path to list
+     * @param listener the callback to be invoked once list operation completes successfully/fails.
+     */
+    void listAllAsync(String threadpoolName, Iterable<String> path, ActionListener<Set<String>> listener);
+
+    /**
      * Lists the folders inside the path.
      * @param path : the path
      * @return list of folders inside the path

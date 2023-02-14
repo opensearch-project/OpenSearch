@@ -351,27 +351,36 @@ public class RemoteFsTranslog extends Translog {
             generationsToDelete.add(generation);
         }
         if (generationsToDelete.isEmpty() == false) {
-            deleteRemoteGenerationAsync(generationsToDelete);
-            deleteOlderPrimaryTranslogFiles();
+            deleteRemoteGeneration(generationsToDelete);
+            deleteStaleRemotePrimaryTermsAndMetadataFiles();
         }
     }
 
-    private void deleteRemoteGenerationAsync(Set<Long> generations) {
-        translogTransferManager.deleteTranslogAsync(primaryTermSupplier.getAsLong(), generations);
+    /**
+     * Deletes remote translog and metadata files asynchronously corresponding to the generations.
+     * @param generations generations to be deleted.
+     */
+    private void deleteRemoteGeneration(Set<Long> generations) {
+        translogTransferManager.deleteGenerationAsync(primaryTermSupplier.getAsLong(), generations);
     }
 
     /**
      * This method must be called only after there are valid generations to delete in trimUnreferencedReaders as it ensures
      * implicitly that minimum primary term in latest translog metadata in remote store is the current primary term.
+     * <br>
+     * This will also delete all stale translog metadata files from remote except the latest basis the metadata file comparator.
      */
-    private void deleteOlderPrimaryTranslogFiles() {
+    private void deleteStaleRemotePrimaryTermsAndMetadataFiles() {
         // The deletion of older translog files in remote store is on best-effort basis, there is a possibility that there
         // are older files that are no longer needed and should be cleaned up. In here, we delete all files that are part
         // of older primary term.
         if (olderPrimaryCleaned.trySet(Boolean.TRUE)) {
+            // First we delete all stale primary terms folders from remote store
             assert readers.isEmpty() == false : "Expected non-empty readers";
             long minimumReferencedPrimaryTerm = readers.stream().map(BaseTranslogReader::getPrimaryTerm).min(Long::compare).get();
             translogTransferManager.deletePrimaryTermsAsync(minimumReferencedPrimaryTerm);
+            // Second we delete all stale metadata files from remote store
+            translogTransferManager.deleteStaleTranslogMetadataFilesAsync();
         }
     }
 }
