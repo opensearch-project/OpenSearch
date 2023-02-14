@@ -41,6 +41,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bumps `joni` from 2.1.44 to 2.1.45
 - Bumps `commons-io:commons-io` from 2.7 to 2.11.0
 - Bumps `org.jruby.joni:joni` from 2.1.45 to 2.1.48
+- Bumps `org.apache.ant:ant` from 1.10.12 to 1.10.13
+- Bumps `com.azure:azure-storage-common` from 12.18.1 to 12.19.3
 
 ### Changed
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
@@ -93,7 +95,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add support for ppc64le architecture ([#5459](https://github.com/opensearch-project/OpenSearch/pull/5459))
 - [Segment Replication] Add primary weight factor for balanced primary distribution ([#6017](https://github.com/opensearch-project/OpenSearch/pull/6017))
 - Add a setting to control auto release of OpenSearch managed index creation block ([#6277](https://github.com/opensearch-project/OpenSearch/pull/6277))
-- Add support to allow search with preference parameter when strict weighted shard routing is enabled ([#6296](https://github.com/opensearch-project/OpenSearch/pull/6296))
+- Fix timeout error when adding a document to an index with extension running ([#6275](https://github.com/opensearch-project/OpenSearch/pull/6275))
 
 ### Dependencies
 - Update nebula-publishing-plugin to 19.2.0 ([#5704](https://github.com/opensearch-project/OpenSearch/pull/5704))
@@ -111,6 +113,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Cluster health call to throw decommissioned exception for local decommissioned node([#6008](https://github.com/opensearch-project/OpenSearch/pull/6008))
 - [Refactor] core.common to new opensearch-common library ([#5976](https://github.com/opensearch-project/OpenSearch/pull/5976))
 - Cluster local health call to throw exception if node is decommissioned or weighed away ([#6198](https://github.com/opensearch-project/OpenSearch/pull/6198))
+- Allow search with preference parameter when strict weighted shard routing is enabled ([#6296](https://github.com/opensearch-project/OpenSearch/pull/6296))
+
 
 ### Deprecated
 
