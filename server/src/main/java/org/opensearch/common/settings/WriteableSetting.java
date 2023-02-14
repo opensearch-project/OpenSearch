@@ -226,7 +226,7 @@ public class WriteableSetting implements Writeable {
                         return Setting.doubleSetting(key, (double) defaultValue, propertyArray);
                     }
                 } else {
-                    Setting.doubleSetting(key, (Setting<Double>) fallback.getSetting(), propertyArray);
+                    return Setting.doubleSetting(key, (Setting<Double>) fallback.getSetting(), propertyArray);
                 }
                 break;
             case String:
