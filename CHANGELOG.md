@@ -1,4 +1,3 @@
-
 # CHANGELOG
 All notable changes to this project are documented in this file.
 
@@ -114,7 +113,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Refactor] core.common to new opensearch-common library ([#5976](https://github.com/opensearch-project/OpenSearch/pull/5976))
 - Cluster local health call to throw exception if node is decommissioned or weighed away ([#6198](https://github.com/opensearch-project/OpenSearch/pull/6198))
 - Allow search with preference parameter when strict weighted shard routing is enabled ([#6296](https://github.com/opensearch-project/OpenSearch/pull/6296))
-
 
 ### Deprecated
 

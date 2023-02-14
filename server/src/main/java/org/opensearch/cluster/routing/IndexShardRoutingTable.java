@@ -726,8 +726,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                 } else {
                     preferred.add(shardRouting);
                 }
-            }
-            else {
+            } else {
                 notPreferred.add(shardRouting);
             }
         }

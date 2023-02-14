@@ -315,7 +315,6 @@ public class OperationRouting {
             }
             preferenceType = Preference.parse(preference);
             if (weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting().isSet() && isStrictWeightedShardRouting) {
-
                 return preferenceSearchWithWeightedRouting(
                     indexShard,
                     localNodeId,
@@ -356,7 +355,6 @@ public class OperationRouting {
                 nodes,
                 getWeightedRoutingDefaultWeight(),
                 routingHash
-
             );
         } else if (ignoreAwarenessAttributes()) {
             return indexShard.activeInitializingShardsIt(routingHash);
@@ -373,7 +371,6 @@ public class OperationRouting {
         Preference preferenceType,
         WeightedRoutingMetadata weightedRoutingMetadata
     ) {
-
         switch (preferenceType) {
             case PREFER_NODES:
                 final Set<String> nodesIds = Arrays.stream(preference.substring(Preference.PREFER_NODES.type().length() + 1).split(","))
