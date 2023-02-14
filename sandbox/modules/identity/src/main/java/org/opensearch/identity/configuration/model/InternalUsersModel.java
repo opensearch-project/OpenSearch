@@ -9,17 +9,34 @@
 package org.opensearch.identity.configuration.model;
 
 import org.opensearch.identity.User;
+import org.opensearch.identity.configuration.SecurityDynamicConfiguration;
 
 import java.util.Map;
 
-public abstract class InternalUsersModel {
+public class InternalUsersModel {
 
-    public abstract User getUser(String username);
+    private final SecurityDynamicConfiguration<User> internalUserSecurityDC;
 
-    public abstract boolean exists(String username);
+    public InternalUsersModel(SecurityDynamicConfiguration<User> internalUserSecurityDC) {
+        super();
+        this.internalUserSecurityDC = internalUserSecurityDC;
+    }
 
-    public abstract Map<String, String> getAttributes(String username);
+    public User getUser(String username) {
+        return internalUserSecurityDC.getCEntry(username);
+    }
 
-    public abstract String getHash(String username);
+    public boolean exists(String username) {
+        return internalUserSecurityDC.exists(username);
+    }
 
+    public Map<String, String> getAttributes(String username) {
+        User tmp = internalUserSecurityDC.getCEntry(username);
+        return tmp == null ? null : tmp.getAttributes();
+    }
+
+    public String getHash(String username) {
+        User tmp = internalUserSecurityDC.getCEntry(username);
+        return tmp == null ? null : tmp.getHash();
+    }
 }

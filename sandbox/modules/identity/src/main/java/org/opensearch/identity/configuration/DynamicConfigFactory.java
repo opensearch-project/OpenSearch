@@ -8,23 +8,21 @@
 
 package org.opensearch.identity.configuration;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.greenrobot.eventbus.EventBus;
+import org.greenrobot.eventbus.EventBusBuilder;
+import org.opensearch.client.Client;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.identity.User;
+import org.opensearch.identity.configuration.model.InternalUsersModel;
+import org.opensearch.identity.extensions.ExtensionSecurityConfigStore;
+import org.opensearch.identity.realm.InternalUsersStore;
+import org.opensearch.threadpool.ThreadPool;
+
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-
-import org.opensearch.identity.User;
-import org.opensearch.identity.configuration.model.InternalUsersModel;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.LogManager;
-import org.opensearch.client.Client;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.identity.extensions.ExtensionSecurityConfig;
-import org.opensearch.identity.extensions.ExtensionSecurityConfigStore;
-import org.opensearch.identity.extensions.ExtensionSecurityConfigModel;
-import org.opensearch.identity.realm.InternalUsersStore;
-import org.opensearch.threadpool.ThreadPool;
-import org.greenrobot.eventbus.EventBus;
-import org.greenrobot.eventbus.EventBusBuilder;
 
 public class DynamicConfigFactory implements ConfigurationChangeListener {
 
@@ -76,8 +74,7 @@ public class DynamicConfigFactory implements ConfigurationChangeListener {
 
         }
 
-        final InternalUsersModel ium;
-        ium = new InternalUsersModelV1((SecurityDynamicConfiguration<User>) internalusers);
+        final InternalUsersModel ium = new InternalUsersModel((SecurityDynamicConfiguration<User>) internalusers);
 
         eventBus.post(ium);
         eventBus.post(cr.getConfiguration(CType.EXTENSIONSECURITY));
@@ -99,57 +96,5 @@ public class DynamicConfigFactory implements ConfigurationChangeListener {
 
     public void unregisterDCFListener(Object listener) {
         eventBus.unregister(listener);
-    }
-
-    private static class InternalUsersModelV1 extends InternalUsersModel {
-
-        private final SecurityDynamicConfiguration<User> internalUserSecurityDC;
-
-        public InternalUsersModelV1(SecurityDynamicConfiguration<User> internalUserSecurityDC) {
-            super();
-            this.internalUserSecurityDC = internalUserSecurityDC;
-        }
-
-        @Override
-        public User getUser(String username) {
-            return internalUserSecurityDC.getCEntry(username);
-        }
-
-        @Override
-        public boolean exists(String username) {
-            return internalUserSecurityDC.exists(username);
-        }
-
-        @Override
-        public Map<String, String> getAttributes(String username) {
-            User tmp = internalUserSecurityDC.getCEntry(username);
-            return tmp == null ? null : tmp.getAttributes();
-        }
-
-        @Override
-        public String getHash(String username) {
-            User tmp = internalUserSecurityDC.getCEntry(username);
-            return tmp == null ? null : tmp.getHash();
-        }
-    }
-
-    private static class ExtensionsSecurityConfigModelV1 extends ExtensionSecurityConfigModel {
-
-        private final SecurityDynamicConfiguration<ExtensionSecurityConfig> extensionsSecurityConfigDC;
-
-        public ExtensionsSecurityConfigModelV1(SecurityDynamicConfiguration<ExtensionSecurityConfig> extensionsSecurityConfigDC) {
-            super();
-            this.extensionsSecurityConfigDC = extensionsSecurityConfigDC;
-        }
-
-        @Override
-        public ExtensionSecurityConfig getExtensionSecurityConfig(String extensionId) {
-            return extensionsSecurityConfigDC.getCEntry(extensionId);
-        }
-
-        @Override
-        public boolean exists(String extensionId) {
-            return extensionsSecurityConfigDC.exists(extensionId);
-        }
     }
 }
