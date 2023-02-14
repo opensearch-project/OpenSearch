@@ -643,29 +643,49 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         double defaultWeight
     ) {
         ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
+        ArrayList<ShardRouting> weighedAway = new ArrayList<>(activeShards.size() + allInitializingShards.size());
         Set<String> selectedNodes = Sets.newHashSet(discoveryNodes.resolveNodes(nodeAttributes));
         int seed = shuffler.nextSeed();
         for (ShardRouting shardRouting : shuffler.shuffle(activeShards, seed)) {
-            if (selectedNodes.contains(shardRouting.currentNodeId())
-                && !isNodeWeighedAway(weightedRouting, discoveryNodes, shardRouting.currentNodeId(), defaultWeight)) {
-                ordered.add(shardRouting);
+            if (selectedNodes.contains(shardRouting.currentNodeId())) {
+                if (isNodeWeighedAway(weightedRouting, discoveryNodes, shardRouting.currentNodeId(), defaultWeight)) {
+                    weighedAway.add(shardRouting);
+                } else {
+                    ordered.add(shardRouting);
+                }
             }
         }
         for (ShardRouting shardRouting : shuffler.shuffle(allInitializingShards, seed)) {
-            if (selectedNodes.contains(shardRouting.currentNodeId())
-                && !isNodeWeighedAway(weightedRouting, discoveryNodes, shardRouting.currentNodeId(), defaultWeight)) {
-                ordered.add(shardRouting);
+            if (selectedNodes.contains(shardRouting.currentNodeId())) {
+                if (isNodeWeighedAway(weightedRouting, discoveryNodes, shardRouting.currentNodeId(), defaultWeight)) {
+                    weighedAway.add(shardRouting);
+                } else {
+                    ordered.add(shardRouting);
+                }
             }
+
+        }
+        if (ordered.isEmpty() && weighedAway.size() > 0) {
+            throw new PreferenceBasedSearchNotAllowedException(
+                String.format(
+                    Locale.ROOT,
+                    "no weighed in data nodes with %s [%s] found for shard: %s",
+                    nodeAttributes.length == 1 ? "criteria" : "criterion",
+                    String.join(",", nodeAttributes),
+                    shardId()
+                )
+            );
         }
         if (ordered.isEmpty()) {
-            final String message = String.format(
-                Locale.ROOT,
-                "no data nodes with %s [%s] found for shard: %s",
-                nodeAttributes.length == 1 ? "criteria" : "criterion",
-                String.join(",", nodeAttributes),
-                shardId()
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "no data nodes with %s [%s] found for shard: %s",
+                    nodeAttributes.length == 1 ? "criteria" : "criterion",
+                    String.join(",", nodeAttributes),
+                    shardId()
+                )
             );
-            throw new IllegalArgumentException(message);
         }
         return new PlainShardIterator(shardId, ordered);
     }
@@ -707,7 +727,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                     preferred.add(shardRouting);
                 }
             }
-
             else {
                 notPreferred.add(shardRouting);
             }

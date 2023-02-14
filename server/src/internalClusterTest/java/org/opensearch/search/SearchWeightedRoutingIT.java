@@ -956,6 +956,130 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
     }
 
     /**
+     * Assert that preference search with _prefer_nodes doesn't hit a node in weighed away az
+     */
+    public void testStrictWeightedRoutingWithPreferNodes() {
+
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .put("cluster.routing.weighted.fail_open", true)
+            .put("cluster.routing.weighted.strict", true)
+            .build();
+
+        int nodeCountPerAZ = 1;
+        Map<String, List<String>> nodeMap = setupCluster(nodeCountPerAZ, commonSettings);
+
+        int numShards = 20;
+        int numReplicas = 2;
+        setUpIndexing(numShards, numReplicas);
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
+        setShardRoutingWeights(weights);
+
+        DiscoveryNodes dataNodes = internalCluster().clusterService().state().nodes();
+
+        Map<String, String> nodeIDMap = new HashMap<>();
+        for (DiscoveryNode node : dataNodes) {
+            nodeIDMap.put(node.getName(), node.getId());
+        }
+
+        // search request with _prefer_nodes on weighed away az nodes
+        SearchResponse searchResponse = internalCluster().client(nodeMap.get("a").get(0))
+            .prepareSearch()
+            .setSize(20)
+            .setPreference("_prefer_nodes:" + nodeIDMap.get(nodeMap.get("c").get(0)))
+            .get();
+        assertEquals(RestStatus.OK.getStatus(), searchResponse.status().getStatus());
+
+        assertNoSearchInAZ("c");
+
+        // search request with _prefer_nodes on weighed in az nodes
+        searchResponse = internalCluster().client(nodeMap.get("a").get(0))
+            .prepareSearch()
+            .setSize(20)
+            .setPreference("_prefer_nodes:" + nodeIDMap.get(nodeMap.get("b").get(0)))
+            .get();
+        assertEquals(RestStatus.OK.getStatus(), searchResponse.status().getStatus());
+
+        assertSearchInAZ("b");
+
+        // disable strict weighed routing
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put("cluster.routing.weighted.strict", false))
+            .get();
+
+        // make search requests with _prefer_nodes on weighed away az
+        searchResponse = internalCluster().client(nodeMap.get("a").get(0))
+            .prepareSearch()
+            .setSize(20)
+            .setPreference("_prefer_nodes:" + nodeIDMap.get(nodeMap.get("c").get(0)))
+            .get();
+        // assert search on data nodes in az c (weighed away az)
+        assertSearchInAZ("c");
+    }
+
+    /**
+     * Assert that preference search with only_nodes doesn't hit a node in weighed away az
+     */
+    public void testStrictWeightedRoutingWithOnlyNodes() {
+
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .put("cluster.routing.weighted.fail_open", true)
+            .put("cluster.routing.weighted.strict", true)
+            .build();
+
+        int nodeCountPerAZ = 1;
+        Map<String, List<String>> nodeMap = setupCluster(nodeCountPerAZ, commonSettings);
+
+        int numShards = 20;
+        int numReplicas = 2;
+        setUpIndexing(numShards, numReplicas);
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
+        setShardRoutingWeights(weights);
+
+        // search request with LOCAL on weighed away az nodes throws exception
+        assertThrows(
+            PreferenceBasedSearchNotAllowedException.class,
+            () -> internalCluster().client(nodeMap.get("a").get(0))
+                .prepareSearch()
+                .setSize(20)
+                .setPreference("_only_nodes:" + "zone:c")
+                .get()
+        );
+
+        // search request with LOCAL on weighed in az nodes
+        SearchResponse searchResponse = internalCluster().client(nodeMap.get("a").get(0))
+            .prepareSearch()
+            .setSize(20)
+            .setPreference("_only_nodes:" + "zone:b")
+            .get();
+        assertEquals(RestStatus.OK.getStatus(), searchResponse.status().getStatus());
+
+        // disable strict weighed routing
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put("cluster.routing.weighted.strict", false))
+            .get();
+
+        // search request with LOCAL on weighed away az nodes
+        searchResponse = internalCluster().client(nodeMap.get("a").get(0))
+            .prepareSearch()
+            .setSize(20)
+            .setPreference("_only_nodes:" + "zone:c")
+            .get();
+        assertEquals(RestStatus.OK.getStatus(), searchResponse.status().getStatus());
+    }
+
+    /**
      *  Assert that preference based search works with non-strict weighted shard routing
      */
     public void testPreferenceSearchWithWeightedRouting() {
