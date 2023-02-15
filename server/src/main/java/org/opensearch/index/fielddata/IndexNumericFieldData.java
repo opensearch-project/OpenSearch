@@ -65,25 +65,38 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
      * @opensearch.internal
      */
     public enum NumericType {
-        BOOLEAN(false, SortField.Type.LONG, CoreValuesSourceType.BOOLEAN),
-        BYTE(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
-        SHORT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
-        INT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
-        LONG(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
-        DATE(false, SortField.Type.LONG, CoreValuesSourceType.DATE),
-        DATE_NANOSECONDS(false, SortField.Type.LONG, CoreValuesSourceType.DATE),
-        HALF_FLOAT(true, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
-        FLOAT(true, SortField.Type.FLOAT, CoreValuesSourceType.NUMERIC),
-        DOUBLE(true, SortField.Type.DOUBLE, CoreValuesSourceType.NUMERIC);
+        BOOLEAN(false, SortField.Type.LONG, CoreValuesSourceType.BOOLEAN, false),
+        BYTE(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC, false),
+        SHORT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC, false),
+        INT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC, false),
+        LONG(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC, true),
+        DATE(false, SortField.Type.LONG, CoreValuesSourceType.DATE, true),
+        DATE_NANOSECONDS(false, SortField.Type.LONG, CoreValuesSourceType.DATE, true),
+        HALF_FLOAT(true, SortField.Type.LONG, CoreValuesSourceType.NUMERIC, false),
+        FLOAT(true, SortField.Type.FLOAT, CoreValuesSourceType.NUMERIC, false),
+        DOUBLE(true, SortField.Type.DOUBLE, CoreValuesSourceType.NUMERIC, true);
 
         private final boolean floatingPoint;
         private final ValuesSourceType valuesSourceType;
         private final SortField.Type sortFieldType;
 
-        NumericType(boolean floatingPoint, SortField.Type sortFieldType, ValuesSourceType valuesSourceType) {
+        /** Sort optimization has a number of requirements,
+         *  one of which is that SortField.Type matches the Point type with which the field was indexed
+         *  (e.g. sort on IntPoint field should use SortField.Type.INT).
+         *  Another requirement is that the same data is indexed with points and doc values for the field.
+         */
+        private final boolean sortOptimizationEnabled;
+
+        NumericType(
+            boolean floatingPoint,
+            SortField.Type sortFieldType,
+            ValuesSourceType valuesSourceType,
+            boolean sortOptimizationEnabled
+        ) {
             this.floatingPoint = floatingPoint;
             this.sortFieldType = sortFieldType;
             this.valuesSourceType = valuesSourceType;
+            this.sortOptimizationEnabled = sortOptimizationEnabled;
         }
 
         public final boolean isFloatingPoint() {
@@ -92,6 +105,10 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
 
         public final ValuesSourceType getValuesSourceType() {
             return valuesSourceType;
+        }
+
+        public final boolean isSortOptimizationEnabled() {
+            return sortOptimizationEnabled;
         }
     }
 
@@ -143,18 +160,11 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         // because it uses the largest byte size (LONG) for the SortField of most types. The section below disables
         // the BKD based sort optimization for numeric types whose encoded BYTE size does not match the comparator (LONG)/
         // So as of now, we can only enable for DATE, DATE_NANOSECONDS, LONG, DOUBLE.
+        // BOOLEAN, BYTE, SHORT, INT, HALF_FLOAT, FLOAT (use long for doc values, but fewer for BKD Points)
         // todo : Enable other SortField.Type as well, that will require wider change
-        switch (getNumericType()) {
-            case LONG:
-            case DATE:
-            case DATE_NANOSECONDS:
-            case DOUBLE:
-                break;
-            // BOOLEAN, BYTE, SHORT, INT, HALF_FLOAT, FLOAT (use long for doc values, but fewer for BKD Points)
-            // todo: rework the comparator logic to handle varying byte size
-            default:
-                sortField.setOptimizeSortWithPoints(false);
-        }
+        // todo: rework the comparator logic to handle varying byte size
+        sortField.setOptimizeSortWithPoints(getNumericType().isSortOptimizationEnabled());
+
         return sortField;
     }
 
