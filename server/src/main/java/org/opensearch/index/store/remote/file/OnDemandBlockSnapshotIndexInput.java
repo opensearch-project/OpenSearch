@@ -158,11 +158,7 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
     public OnDemandBlockSnapshotIndexInput clone() {
         OnDemandBlockSnapshotIndexInput clone = buildSlice("clone", 0L, this.length);
         // ensures that clones may be positioned at the same point as the blocked file they were cloned from
-        if (currentBlock != null) {
-            clone.currentBlock = currentBlock.clone();
-            clone.currentBlockId = currentBlockId;
-        }
-
+        clone.cloneBlock(this);
         return clone;
     }
 
