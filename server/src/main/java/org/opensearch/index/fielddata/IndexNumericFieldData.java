@@ -65,32 +65,25 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
      * @opensearch.internal
      */
     public enum NumericType {
-        BOOLEAN(false, SortField.Type.LONG, CoreValuesSourceType.BOOLEAN, false),
-        BYTE(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC, false),
-        SHORT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC, false),
-        INT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC, false),
-        LONG(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC, true),
-        DATE(false, SortField.Type.LONG, CoreValuesSourceType.DATE, true),
-        DATE_NANOSECONDS(false, SortField.Type.LONG, CoreValuesSourceType.DATE, true),
-        HALF_FLOAT(true, SortField.Type.LONG, CoreValuesSourceType.NUMERIC, false),
-        FLOAT(true, SortField.Type.FLOAT, CoreValuesSourceType.NUMERIC, false),
-        DOUBLE(true, SortField.Type.DOUBLE, CoreValuesSourceType.NUMERIC, true);
+        BOOLEAN(false, SortField.Type.LONG, CoreValuesSourceType.BOOLEAN),
+        BYTE(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
+        SHORT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
+        INT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
+        LONG(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
+        DATE(false, SortField.Type.LONG, CoreValuesSourceType.DATE),
+        DATE_NANOSECONDS(false, SortField.Type.LONG, CoreValuesSourceType.DATE),
+        HALF_FLOAT(true, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
+        FLOAT(true, SortField.Type.FLOAT, CoreValuesSourceType.NUMERIC),
+        DOUBLE(true, SortField.Type.DOUBLE, CoreValuesSourceType.NUMERIC);
 
         private final boolean floatingPoint;
         private final ValuesSourceType valuesSourceType;
         private final SortField.Type sortFieldType;
-        private final boolean sortOptimisationEnabled;
 
-        NumericType(
-            boolean floatingPoint,
-            SortField.Type sortFieldType,
-            ValuesSourceType valuesSourceType,
-            boolean sortOptimisationEnabled
-        ) {
+        NumericType(boolean floatingPoint, SortField.Type sortFieldType, ValuesSourceType valuesSourceType) {
             this.floatingPoint = floatingPoint;
             this.sortFieldType = sortFieldType;
             this.valuesSourceType = valuesSourceType;
-            this.sortOptimisationEnabled = sortOptimisationEnabled;
         }
 
         public final boolean isFloatingPoint() {
@@ -99,10 +92,6 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
 
         public final ValuesSourceType getValuesSourceType() {
             return valuesSourceType;
-        }
-
-        public final boolean isSortOptimisationEnabled() {
-            return sortOptimisationEnabled;
         }
     }
 
