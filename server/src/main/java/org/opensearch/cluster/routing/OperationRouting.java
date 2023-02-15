@@ -372,6 +372,10 @@ public class OperationRouting {
         WeightedRoutingMetadata weightedRoutingMetadata
     ) {
         switch (preferenceType) {
+            // If possible, run the search on the specified nodes IDs. If not, select shards using the default method
+            // If nodes IDs are from weighed out az nodes or a mix of weighed out and weighed in az, preference is given
+            // to weighed in nodes though weighed out nodes are considered if none of the weighed in nodes are available
+            // for the request.
             case PREFER_NODES:
                 final Set<String> nodesIds = Arrays.stream(preference.substring(Preference.PREFER_NODES.type().length() + 1).split(","))
                     .collect(Collectors.toSet());
@@ -381,6 +385,9 @@ public class OperationRouting {
                     weightedRoutingMetadata.getWeightedRouting(),
                     getWeightedRoutingDefaultWeight()
                 );
+            // If possible, run the search on shards on the local node. If not, select shards using the default method
+            // Here again weighed in nodes are preferred over weighed out nodes. If none of weighed in nodes have the
+            // shard, shard from the weighed out node is returned
             case LOCAL:
                 return indexShard.preferNodeActiveInitializingShardsWeightedIt(
                     Collections.singleton(localNodeId),
@@ -388,6 +395,8 @@ public class OperationRouting {
                     weightedRoutingMetadata.getWeightedRouting(),
                     getWeightedRoutingDefaultWeight()
                 );
+            // Run the search only on shards on the local node. If local node is a weighed out node, exception is
+            // thrown
             case ONLY_LOCAL:
                 if (!indexShard.isNodeWeighedAway(
                     weightedRoutingMetadata.getWeightedRouting(),
@@ -400,6 +409,9 @@ public class OperationRouting {
                         "Preference based routing not allowed on weigh away node with strict weighted shard routing enabled"
                     );
                 }
+            // Run the search on only the specified nodes IDs. If suitable shards exist on more than one selected node,
+            // use shards on weighed in nodes using the default method. If none of the specified nodes are available,
+            // select shards from any available node using the default method.
             case ONLY_NODES:
                 String nodeAttributes = preference.substring(Preference.ONLY_NODES.type().length() + 1);
                 return indexShard.onlyNodeSelectorActiveInitializingWeightedShardsIt(
