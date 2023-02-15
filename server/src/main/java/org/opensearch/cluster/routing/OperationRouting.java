@@ -409,9 +409,11 @@ public class OperationRouting {
                         "Preference based routing not allowed on weigh away node with strict weighted shard routing enabled"
                     );
                 }
-            // Run the search on only the specified nodes IDs. If suitable shards exist on more than one selected node,
-            // use shards on weighed in nodes using the default method. If none of the specified nodes are available,
-            // select shards from any available node using the default method.
+                // Run the search on only the specified nodes IDs. If suitable shards exist on more than one selected node,
+                // use shards on weighed in nodes using the default method. If none of the specified nodes are available
+                // or weighed in, select shards from any available node using the default method. Weighed in nodes are
+                // preferred over weighed out nodes but shards are returned for weighed out nodes if not available in
+                // weighed in nodes
             case ONLY_NODES:
                 String nodeAttributes = preference.substring(Preference.ONLY_NODES.type().length() + 1);
                 return indexShard.onlyNodeSelectorActiveInitializingWeightedShardsIt(
