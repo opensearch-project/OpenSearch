@@ -49,7 +49,7 @@ public class RestResetPasswordAction extends BaseRestHandler {
      *
      * ````
      * Sample Request:
-     * curl -XPOST http://new-user:password@localhost:9200/_identity/api/users/test/resetpassword --data '{ "oldpassword" : "test", "newpassword" : "newtestpassword", "newpasswordverify" : "newtestpassword" }' -H"Content-type: application/json"
+     * curl -XPOST http://new-user:password@localhost:9200/_identity/api/users/test/resetpassword --data '{ "oldpassword" : "test", "newpassword" : "newtestpassword" }' -H"Content-type: application/json"
      *
      *
      * Sample Response
@@ -72,9 +72,8 @@ public class RestResetPasswordAction extends BaseRestHandler {
             contentAsNode = DefaultObjectMapper.readTree(request.content().utf8ToString());
             String oldPassword = contentAsNode.get("oldpassword").asText();
             String newPassword = contentAsNode.get("newpassword").asText();
-            String newPasswordValidation = contentAsNode.get("newpasswordverify").asText();
 
-            ResetPasswordRequest resetPasswordRequest = new ResetPasswordRequest(username, oldPassword, newPassword, newPasswordValidation);
+            ResetPasswordRequest resetPasswordRequest = new ResetPasswordRequest(username, oldPassword, newPassword);
             return channel -> client.doExecute(
                 ResetPasswordAction.INSTANCE,
                 resetPasswordRequest,

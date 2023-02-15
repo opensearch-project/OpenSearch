@@ -350,7 +350,6 @@ public class UserService {
         String username = request.getUsername();
         String oldPassword = request.getOldPassword();
         String newPassword = request.getNewPassword();
-        String newPasswordValidation = request.getNewPasswordValidation();
 
         // load current user store in memory
         final SecurityDynamicConfiguration<?> internalUsersConfiguration = load(getConfigName());
@@ -377,12 +376,6 @@ public class UserService {
         // Verify the new password is not matching the old password
         if (newPassword.equals(oldPassword)) {
             listener.onFailure(new IllegalArgumentException(ErrorType.NEWPASSWORD_MATCHING_OLDPASSWORD.getMessage()));
-            return;
-        }
-
-        // Verify the new password is the same as the verification
-        if (!newPassword.equals(newPasswordValidation)) {
-            listener.onFailure(new IllegalArgumentException(ErrorType.NEWPASSWORD_MISMATCHING.getMessage()));
             return;
         }
 

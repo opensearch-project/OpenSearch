@@ -106,29 +106,19 @@ public class UserIT extends IdentityRestTestCase {
     public void testResetPasswordApi() throws Exception {
 
         String username = "test-user";
-        String userCreationContent = "{ \"password\" : \"test\","
-            + " \"attributes\": { \"attribute1\": \"value1\"},"
-            + " \"permissions\": [\"indices:admin:create\"]"
+        String userCreationContent = "{ \"password\" : \"test\""
             + " }\n";
 
         String requestContent = "{ \"oldpassword\" : \"test\","
-            + " \"newpassword\": \"testnewpassword\","
-            + " \"newpasswordverify\": \"testnewpassword\""
+            + " \"newpassword\": \"testnewpassword\""
             + " }\n";
 
         String newPasswordsMatchOldPassword = "{ \"oldpassword\" : \"test\","
-            + " \"newpassword\": \"test\","
-            + " \"newpasswordverify\": \"test\""
-            + " }\n";
-
-        String newPasswordsDontMatch = "{ \"oldpassword\" : \"test\","
-            + " \"newpassword\": \"testnewpassword\","
-            + " \"newpasswordverify\": \"passwordnotmatch\""
+            + " \"newpassword\": \"test\""
             + " }\n";
 
         String oldPasswordsDontMatch = "{ \"oldpassword\" : \"wrongoldpassword\","
-            + " \"newpassword\": \"testnewpassword\","
-            + " \"newpasswordverify\": \"testnewpassword\""
+            + " \"newpassword\": \"testnewpassword\""
             + " }\n";
 
         // Not existing user
@@ -181,21 +171,6 @@ public class UserIT extends IdentityRestTestCase {
         assertEquals(
             ErrorType.NEWPASSWORD_MATCHING_OLDPASSWORD.getMessage(),
             ((Map<String, Object>) exceptionNewPasswordMatchingOldPassword.get("error")).get("reason")
-        );
-
-        // Existed user but new passwords mismatching
-        Request newPasswordMismatchingRequest = new Request("POST", ENDPOINT + "/users/" + username + "/resetpassword");
-        newPasswordMismatchingRequest.setJsonEntity(newPasswordsDontMatch);
-        newPasswordMismatchingRequest.setOptions(systemIndexWarning());
-        ResponseException eNewPasswordMismatching = expectThrows(
-            ResponseException.class,
-            () -> client().performRequest(newPasswordMismatchingRequest)
-        );
-        Map<String, Object> exceptionNewPasswordMismatching = entityAsMap(eNewPasswordMismatching.getResponse());
-        assertEquals(400, exceptionNewPasswordMismatching.get("status"));
-        assertEquals(
-            ErrorType.NEWPASSWORD_MISMATCHING.getMessage(),
-            ((Map<String, Object>) exceptionNewPasswordMismatching.get("error")).get("reason")
         );
 
         // Reset an existed user's password

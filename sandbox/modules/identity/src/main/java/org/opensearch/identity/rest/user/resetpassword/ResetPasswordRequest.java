@@ -34,14 +34,12 @@ public class ResetPasswordRequest extends ActionRequest implements ToXContentObj
         username = in.readString();
         oldPassword = in.readString();
         newPassword = in.readString();
-        newPasswordValidation = in.readString();
     }
 
-    public ResetPasswordRequest(String username, String oldPassword, String newPassword, String newPasswordValidation) {
+    public ResetPasswordRequest(String username, String oldPassword, String newPassword) {
         this.username = username;
         this.oldPassword = oldPassword;
         this.newPassword = newPassword;
-        this.newPasswordValidation = newPasswordValidation;
     }
 
     public String getUsername() {
@@ -60,10 +58,6 @@ public class ResetPasswordRequest extends ActionRequest implements ToXContentObj
         return newPassword;
     }
 
-    public String getNewPasswordValidation() {
-        return newPasswordValidation;
-    }
-
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -73,8 +67,6 @@ public class ResetPasswordRequest extends ActionRequest implements ToXContentObj
             validationException = addValidationError("No current password specified", validationException);
         } else if (newPassword == null) {
             validationException = addValidationError("No new password specified", validationException);
-        } else if (newPasswordValidation == null) {
-            validationException = addValidationError("No new password verification specified", validationException);
         }
         return validationException;
     }
@@ -85,7 +77,6 @@ public class ResetPasswordRequest extends ActionRequest implements ToXContentObj
         out.writeString(username);
         out.writeString(oldPassword);
         out.writeString(newPassword);
-        out.writeString(newPasswordValidation);
     }
 
     @Override
@@ -94,7 +85,6 @@ public class ResetPasswordRequest extends ActionRequest implements ToXContentObj
         builder.value(username);
         builder.value(oldPassword);
         builder.value(newPassword);
-        builder.value(newPasswordValidation);
         builder.endObject();
         return builder;
     }
