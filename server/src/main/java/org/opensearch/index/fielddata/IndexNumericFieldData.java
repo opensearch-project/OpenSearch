@@ -68,71 +68,71 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         BOOLEAN(false, SortField.Type.LONG, CoreValuesSourceType.BOOLEAN) {
             @Deprecated
             @Override
-            protected boolean shouldApplyPointSortOptimization() {
-                return false;
+            protected PointSortOptimization applyPointSortOptimization() {
+                return PointSortOptimization.DISABLED;
             }
         },
         BYTE(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC) {
             @Deprecated
             @Override
-            protected boolean shouldApplyPointSortOptimization() {
-                return false;
+            protected PointSortOptimization applyPointSortOptimization() {
+                return PointSortOptimization.DISABLED;
             }
         },
         SHORT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC) {
             @Deprecated
             @Override
-            protected boolean shouldApplyPointSortOptimization() {
-                return false;
+            protected PointSortOptimization applyPointSortOptimization() {
+                return PointSortOptimization.DISABLED;
             }
         },
         INT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC) {
             @Deprecated
             @Override
-            protected boolean shouldApplyPointSortOptimization() {
-                return false;
+            protected PointSortOptimization applyPointSortOptimization() {
+                return PointSortOptimization.DISABLED;
             }
         },
         LONG(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC) {
             @Deprecated
             @Override
-            protected boolean shouldApplyPointSortOptimization() {
-                return true;
+            protected PointSortOptimization applyPointSortOptimization() {
+                return PointSortOptimization.ENABLED;
             }
         },
         DATE(false, SortField.Type.LONG, CoreValuesSourceType.DATE) {
             @Deprecated
             @Override
-            protected boolean shouldApplyPointSortOptimization() {
-                return true;
+            protected PointSortOptimization applyPointSortOptimization() {
+                return PointSortOptimization.ENABLED;
             }
         },
         DATE_NANOSECONDS(false, SortField.Type.LONG, CoreValuesSourceType.DATE) {
             @Deprecated
             @Override
-            public boolean shouldApplyPointSortOptimization() {
-                return true;
+            public PointSortOptimization applyPointSortOptimization() {
+                return PointSortOptimization.ENABLED;
             }
         },
         HALF_FLOAT(true, SortField.Type.LONG, CoreValuesSourceType.NUMERIC) {
             @Deprecated
             @Override
-            protected boolean shouldApplyPointSortOptimization() {
-                return false;
+            protected PointSortOptimization applyPointSortOptimization() {
+                return PointSortOptimization.DISABLED;
             }
         },
         FLOAT(true, SortField.Type.FLOAT, CoreValuesSourceType.NUMERIC) {
             @Deprecated
             @Override
-            protected boolean shouldApplyPointSortOptimization() {
-                return false;
+            protected PointSortOptimization applyPointSortOptimization() {
+                return PointSortOptimization.DISABLED;
             }
         },
         DOUBLE(true, SortField.Type.DOUBLE, CoreValuesSourceType.NUMERIC) {
             @Deprecated
             @Override
-            protected boolean shouldApplyPointSortOptimization() {
-                return true;
+            protected PointSortOptimization applyPointSortOptimization() {
+                return PointSortOptimization.ENABLED;
             }
         };
 
@@ -140,10 +140,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         private final ValuesSourceType valuesSourceType;
         private final SortField.Type sortFieldType;
 
-        NumericType(
-            boolean floatingPoint,
-            SortField.Type sortFieldType,
-            ValuesSourceType valuesSourceType) {
+        NumericType(boolean floatingPoint, SortField.Type sortFieldType, ValuesSourceType valuesSourceType) {
             this.floatingPoint = floatingPoint;
             this.sortFieldType = sortFieldType;
             this.valuesSourceType = valuesSourceType;
@@ -158,7 +155,22 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         }
 
         @Deprecated
-        protected abstract boolean shouldApplyPointSortOptimization();
+        protected abstract PointSortOptimization applyPointSortOptimization();
+    }
+
+    /**
+     * Controls whether to apply sort optimization to skip non-competitive docs
+     * based on the BKD index.
+     *
+     * @deprecated this control will be removed in a future version of OpenSearch
+     *
+     * @opensearch.internal
+     * @opensearch.experimental
+     */
+    @Deprecated
+    private enum PointSortOptimization {
+        ENABLED,
+        DISABLED
     }
 
     /**
@@ -211,7 +223,7 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         // So as of now, we can only enable for DATE, DATE_NANOSECONDS, LONG, DOUBLE.
         // BOOLEAN, BYTE, SHORT, INT, HALF_FLOAT, FLOAT (use long for doc values, but fewer for BKD Points)
         // todo : Enable other SortField.Type as well, that will require wider change
-        if (getNumericType().shouldApplyPointSortOptimization() == false) {
+        if (getNumericType().applyPointSortOptimization() == PointSortOptimization.DISABLED) {
             sortField.setOptimizeSortWithPoints(false);
         }
         return sortField;
