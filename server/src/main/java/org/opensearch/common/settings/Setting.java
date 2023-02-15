@@ -1558,16 +1558,13 @@ public class Setting<T> implements ToXContentObject {
             return minValue;
         }
 
-
         int getMax() {
             return maxValue;
         }
 
-
         String getKey() {
             return key;
         }
-
 
         boolean getFilterStatus() {
             return isFiltered;
@@ -1719,11 +1716,9 @@ public class Setting<T> implements ToXContentObject {
             out.writeBoolean(isFiltered);
         }
 
-
         long getMin() {
             return minValue;
         }
-
 
         long getMax() {
             return maxValue;
@@ -1732,7 +1727,6 @@ public class Setting<T> implements ToXContentObject {
         String getKey() {
             return key;
         }
-
 
         boolean getFilterStatus() {
             return isFiltered;
@@ -1884,21 +1878,17 @@ public class Setting<T> implements ToXContentObject {
             out.writeBoolean(isFiltered);
         }
 
-
         double getMin() {
             return minValue;
         }
-
 
         double getMax() {
             return maxValue;
         }
 
-
         String getKey() {
             return key;
         }
-
 
         boolean getFilterStatus() {
             return isFiltered;
@@ -2082,11 +2072,9 @@ public class Setting<T> implements ToXContentObject {
             out.writeBoolean(isFiltered);
         }
 
-
         String getKey() {
             return key;
         }
-
 
         boolean getFilterStatus() {
             return isFiltered;
@@ -2173,16 +2161,13 @@ public class Setting<T> implements ToXContentObject {
             out.writeString(key);
         }
 
-
         ByteSizeValue getMin() {
             return minValue;
         }
 
-
         ByteSizeValue getMax() {
             return maxValue;
         }
-
 
         String getKey() {
             return key;
@@ -2290,7 +2275,6 @@ public class Setting<T> implements ToXContentObject {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(key);
         }
-
 
         String getKey() {
             return key;
@@ -2598,16 +2582,13 @@ public class Setting<T> implements ToXContentObject {
             out.writeBoolean(isFiltered);
         }
 
-
         TimeValue getMin() {
             return minValue;
         }
 
-
         String getKey() {
             return key;
         }
-
 
         boolean getFilterStatus() {
             return isFiltered;
@@ -2693,7 +2674,6 @@ public class Setting<T> implements ToXContentObject {
             out.writeBoolean(isFiltered);
         }
 
-
         TimeValue getMin() {
             return minValue;
         }
@@ -2702,11 +2682,9 @@ public class Setting<T> implements ToXContentObject {
             return maxValue;
         }
 
-
         String getKey() {
             return key;
         }
-
 
         boolean getFilterStatus() {
             return isFiltered;
