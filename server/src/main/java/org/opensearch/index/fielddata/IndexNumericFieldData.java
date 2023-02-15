@@ -137,15 +137,13 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         // LUCENE-9280 added the ability for collectors to skip non-competitive
         // documents when top docs are sorted by other fields different from the _score.
         // However, from Lucene 9 onwards, numeric sort optimisation requires the byte size
-        // for points (BKD index) and doc values (columnar) and SortField.Type to be matched
-
+        // for points (BKD index) and doc values (columnar) and SortField.Type to be matched.
         // NumericType violates this requirement
         // (see: https://github.com/opensearch-project/OpenSearch/issues/2063#issuecomment-1069358826 test failure)
         // because it uses the largest byte size (LONG) for the SortField of most types. The section below disables
         // the BKD based sort optimization for numeric types whose encoded BYTE size does not match the comparator (LONG)/
         // So as of now, we can only enable for DATE, DATE_NANOSECONDS, LONG, DOUBLE.
         // todo : Enable other SortField.Type as well, that will require wider change
-        // todo: remove since deprecated
         switch (getNumericType()) {
             case LONG:
             case DATE:
