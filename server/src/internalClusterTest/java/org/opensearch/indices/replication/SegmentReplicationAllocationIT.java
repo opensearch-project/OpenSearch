@@ -98,6 +98,64 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
     }
 
     /**
+     * This test verifies primary shard allocation is balanced when using large number of shard count. This test
+     * exercise the rebalancing logic and ensures that primaries are relocated first between unbalanced nodes to avoid
+     * primary skewness
+     */
+    public void testSingleIndexShardAllocation() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        final int maxReplicaCount = 1;
+        final int maxShardCount = 50;
+        final int nodeCount = 5;
+
+        final List<String> nodeNames = new ArrayList<>();
+        logger.info("--> Creating {} nodes", nodeCount);
+        for (int i = 0; i < nodeCount; i++) {
+            nodeNames.add(internalCluster().startNode());
+        }
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(
+                    Settings.builder().put(BalancedShardsAllocator.PRIMARY_SHARD_BALANCE_FACTOR_SETTING.getKey(), "1.0f")
+                )
+        );
+
+        final int totalShardCount = maxShardCount, totalReplicaCount = maxReplicaCount;
+        ShardAllocations shardAllocations = new ShardAllocations();
+        ClusterState state;
+        createIndex("test", maxShardCount, maxReplicaCount, true);
+        assertBusy(() -> ensureGreen(), 60, TimeUnit.SECONDS);
+        state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        shardAllocations.printShardDistribution(state);
+        RoutingNodes nodes = state.getRoutingNodes();
+        float avgNumShards = (float) (totalShardCount) / (float) (nodes.size());
+        int minAvgNumberOfShards = Math.round(Math.round(Math.floor(avgNumShards - 1.0f)));
+        int maxAvgNumberOfShards = Math.round(Math.round(Math.ceil(avgNumShards + 1.0f)));
+
+        for (RoutingNode node : nodes) {
+            assertTrue(node.primaryShardsWithState(STARTED).size() >= minAvgNumberOfShards);
+            assertTrue(node.primaryShardsWithState(STARTED).size() <= maxAvgNumberOfShards);
+        }
+
+        // Add a new node
+        internalCluster().startDataOnlyNode();
+        assertBusy(() -> ensureGreen(), 60, TimeUnit.SECONDS);
+        state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        shardAllocations.printShardDistribution(state);
+
+        nodes = state.getRoutingNodes();
+        avgNumShards = (float) (totalShardCount) / (float) (nodes.size());
+        minAvgNumberOfShards = Math.round(Math.round(Math.floor(avgNumShards - 1.0f)));
+        maxAvgNumberOfShards = Math.round(Math.round(Math.ceil(avgNumShards + 1.0f)));
+        for (RoutingNode node : nodes) {
+            assertTrue(node.primaryShardsWithState(STARTED).size() >= minAvgNumberOfShards);
+            assertTrue(node.primaryShardsWithState(STARTED).size() <= maxAvgNumberOfShards);
+        }
+    }
+
+    /**
      * This test verifies shard allocation with changes to cluster config i.e. node add, removal keeps the primary shard
      * allocation balanced.
      */
@@ -293,8 +351,8 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
                 sb.append(printShardAllocationWithHeader(nodeToDocRepCountMap.get(nodeId), nodeToSegRepCountMap.get(nodeId)));
             }
             sb.append(ONE_LINE_RETURN);
-            formatter.format("%-20s %-20s %-20s\n\n", "Unassigned ", unassigned[0], unassigned[1]);
-            formatter.format("%-20s %-20s %-20s\n\n", "Total Shards", totalShards[0], totalShards[1]);
+            formatter.format("%-20s (P)%-5s (R)%-5s\n\n", "Unassigned ", unassigned[0], unassigned[1]);
+            formatter.format("%-20s (P)%-5s (R)%-5s\n\n", "Total Shards", totalShards[0], totalShards[1]);
             return sb.toString();
         }
 
