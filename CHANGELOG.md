@@ -24,5 +24,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Identity] Connect Identity Index to InternalRealm ([#5975](https://github.com/opensearch-project/OpenSearch/pull/5975))
 - [Identity] Basic permissions check ([#6029](https://github.com/opensearch-project/OpenSearch/pull/6029))
 - [Identity] REST API for Create user ([#5990](https://github.com/opensearch-project/OpenSearch/pull/5990))
+- [Identity] Extensions security setup and token creation ([#6204](https://github.com/opensearch-project/OpenSearch/pull/6204))
 - [Identity] Grant Permission REST API ([#6154](https://github.com/opensearch-project/OpenSearch/pull/6154))
 - [Identity] Check and Deleter Permission REST API ([#6220](https://github.com/opensearch-project/OpenSearch/pull/6220))

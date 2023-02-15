@@ -8,13 +8,13 @@
 
 package org.opensearch.identity.authmanager.internal;
 
+import org.apache.shiro.SecurityUtils;
 import org.apache.shiro.config.IniSecurityManagerFactory;
+import org.apache.shiro.mgt.SecurityManager;
 import org.apache.shiro.util.Factory;
 import org.opensearch.authn.AccessTokenManager;
 import org.opensearch.authn.AuthenticationManager;
 import org.opensearch.authn.Subject;
-import org.apache.shiro.SecurityUtils;
-import org.apache.shiro.mgt.SecurityManager;
 
 /**
  * Implementation of authentication manager that enforces authentication against internal idp

@@ -10,6 +10,7 @@ package org.opensearch.identity;
 
 import org.junit.Before;
 import org.opensearch.client.Request;
+import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
 import org.opensearch.identity.rest.IdentityRestConstants;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -45,6 +46,8 @@ public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
         String createSuccessMessage = username + " created successfully.";
         Request createRequest = new Request("PUT", ENDPOINT + "/users/" + username);
         createRequest.setJsonEntity(requestContent);
+        RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Basic YWRtaW46YWRtaW4=").build(); // admin:admin
+        createRequest.setOptions(options);
         Response response = getRestClient().performRequest(createRequest);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
         Map<String, Object> userCreated = entityAsMap(response);
@@ -57,6 +60,7 @@ public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
         String updateSuccessMessage = username + " updated successfully.";
         Request updateRequest = new Request("PUT", ENDPOINT + "/users/" + username);
         updateRequest.setJsonEntity(requestContent);
+        updateRequest.setOptions(options);
         response = getRestClient().performRequest(updateRequest);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
         Map<String, Object> usersUpdated = entityAsMap(response);

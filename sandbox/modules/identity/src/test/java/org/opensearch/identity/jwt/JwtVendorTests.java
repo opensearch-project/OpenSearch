@@ -9,6 +9,7 @@
 package org.opensearch.identity.jwt;
 
 import org.apache.cxf.rs.security.jose.jwt.JwtToken;
+import org.opensearch.identity.JwtVendorTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.HashMap;
@@ -20,10 +21,12 @@ public class JwtVendorTests extends OpenSearchTestCase {
         Map<String, String> jwtClaims = new HashMap<>();
         jwtClaims.put("sub", "testSubject");
 
-        String encodedToken = JwtVendor.createJwt(jwtClaims);
+        String encodedToken = JwtVendor.createJwt(jwtClaims, JwtVendorTestUtils.SIGNING_KEY);
+
+        JwtVerifier verifier = new JwtVerifier(JwtVendorTestUtils.SIGNING_KEY);
 
         try {
-            JwtToken token = JwtVerifier.getVerifiedJwtToken(encodedToken);
+            JwtToken token = verifier.getVerifiedJwtToken(encodedToken);
             assertTrue(token.getClaims().getClaim("sub").equals("testSubject"));
         } catch (BadCredentialsException e) {
             fail("Unexpected BadCredentialsException thrown");
