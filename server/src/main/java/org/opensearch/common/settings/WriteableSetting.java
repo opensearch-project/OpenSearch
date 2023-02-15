@@ -174,10 +174,8 @@ public class WriteableSetting implements Writeable {
                     } else {
                         return Setting.intSetting(key, (int) defaultValue, propertyArray);
                     }
-                } else {
-                    return Setting.intSetting(key, (Setting<Integer>) fallback.getSetting(), propertyArray);
                 }
-                break;
+                return Setting.intSetting(key, (Setting<Integer>) fallback.getSetting(), propertyArray);
             case Long:
                 if (fallback == null) {
                     if (parser instanceof Writeable) {
@@ -191,10 +189,8 @@ public class WriteableSetting implements Writeable {
                     } else {
                         return Setting.longSetting(key, (long) defaultValue, propertyArray);
                     }
-                } else {
-                    return Setting.longSetting(key, (Setting<Long>) fallback.getSetting(), propertyArray);
                 }
-                break;
+                return Setting.longSetting(key, (Setting<Long>) fallback.getSetting(), propertyArray);
             case Float:
                 if (fallback == null) {
                     if (parser instanceof Writeable) {
@@ -208,10 +204,8 @@ public class WriteableSetting implements Writeable {
                     } else {
                         return Setting.floatSetting(key, (float) defaultValue, propertyArray);
                     }
-                } else {
-                    return Setting.floatSetting(key, (Setting<Float>) fallback.getSetting(), propertyArray);
                 }
-                break;
+                return Setting.floatSetting(key, (Setting<Float>) fallback.getSetting(), propertyArray);
             case Double:
                 if (fallback == null) {
                     if (parser instanceof Writeable) {
@@ -225,10 +219,8 @@ public class WriteableSetting implements Writeable {
                     } else {
                         return Setting.doubleSetting(key, (double) defaultValue, propertyArray);
                     }
-                } else {
-                    return Setting.doubleSetting(key, (Setting<Double>) fallback.getSetting(), propertyArray);
                 }
-                break;
+                return Setting.doubleSetting(key, (Setting<Double>) fallback.getSetting(), propertyArray);
             case String:
                 return fallback == null
                     ? Setting.simpleString(key, (String) defaultValue, propertyArray)
@@ -250,10 +242,8 @@ public class WriteableSetting implements Writeable {
                     } else {
                         return Setting.timeSetting(key, (TimeValue) defaultValue, propertyArray);
                     }
-                } else {
-                    return Setting.timeSetting(key, (Setting<TimeValue>) fallback.getSetting(), propertyArray);
                 }
-                break;
+                return Setting.timeSetting(key, (Setting<TimeValue>) fallback.getSetting(), propertyArray);
             case ByteSizeValue:
                 if (fallback == null) {
                     if (parser instanceof Writeable) {
@@ -271,10 +261,8 @@ public class WriteableSetting implements Writeable {
                     } else {
                         return Setting.byteSizeSetting(key, (ByteSizeValue) defaultValue, propertyArray);
                     }
-                } else {
-                    return Setting.byteSizeSetting(key, (Setting<ByteSizeValue>) fallback.getSetting(), propertyArray);
                 }
-                break;
+                return Setting.byteSizeSetting(key, (Setting<ByteSizeValue>) fallback.getSetting(), propertyArray);
             case Version:
                 // No fallback option on this method
                 return Setting.versionSetting(key, (Version) defaultValue, propertyArray);
