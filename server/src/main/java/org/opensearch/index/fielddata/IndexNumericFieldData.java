@@ -65,39 +65,88 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
      * @opensearch.internal
      */
     public enum NumericType {
-        BOOLEAN(false, SortField.Type.LONG, CoreValuesSourceType.BOOLEAN, false),
-        BYTE(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC, false),
-        SHORT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC, false),
-        INT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC, false),
-        LONG(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC, true),
-        DATE(false, SortField.Type.LONG, CoreValuesSourceType.DATE, true),
-        DATE_NANOSECONDS(false, SortField.Type.LONG, CoreValuesSourceType.DATE, true),
-        HALF_FLOAT(true, SortField.Type.LONG, CoreValuesSourceType.NUMERIC, false),
-        FLOAT(true, SortField.Type.FLOAT, CoreValuesSourceType.NUMERIC, false),
-        DOUBLE(true, SortField.Type.DOUBLE, CoreValuesSourceType.NUMERIC, true);
+        BOOLEAN(false, SortField.Type.LONG, CoreValuesSourceType.BOOLEAN) {
+            @Deprecated
+            @Override
+            protected boolean shouldApplyPointSortOptimization() {
+                return false;
+            }
+        },
+        BYTE(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC) {
+            @Deprecated
+            @Override
+            protected boolean shouldApplyPointSortOptimization() {
+                return false;
+            }
+        },
+        SHORT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC) {
+            @Deprecated
+            @Override
+            protected boolean shouldApplyPointSortOptimization() {
+                return false;
+            }
+        },
+        INT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC) {
+            @Deprecated
+            @Override
+            protected boolean shouldApplyPointSortOptimization() {
+                return false;
+            }
+        },
+        LONG(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC) {
+            @Deprecated
+            @Override
+            protected boolean shouldApplyPointSortOptimization() {
+                return true;
+            }
+        },
+        DATE(false, SortField.Type.LONG, CoreValuesSourceType.DATE) {
+            @Deprecated
+            @Override
+            protected boolean shouldApplyPointSortOptimization() {
+                return true;
+            }
+        },
+        DATE_NANOSECONDS(false, SortField.Type.LONG, CoreValuesSourceType.DATE) {
+            @Deprecated
+            @Override
+            public boolean shouldApplyPointSortOptimization() {
+                return true;
+            }
+        },
+        HALF_FLOAT(true, SortField.Type.LONG, CoreValuesSourceType.NUMERIC) {
+            @Deprecated
+            @Override
+            protected boolean shouldApplyPointSortOptimization() {
+                return false;
+            }
+        },
+        FLOAT(true, SortField.Type.FLOAT, CoreValuesSourceType.NUMERIC) {
+            @Deprecated
+            @Override
+            protected boolean shouldApplyPointSortOptimization() {
+                return false;
+            }
+        },
+        DOUBLE(true, SortField.Type.DOUBLE, CoreValuesSourceType.NUMERIC) {
+            @Deprecated
+            @Override
+            protected boolean shouldApplyPointSortOptimization() {
+                return true;
+            }
+        };
 
         private final boolean floatingPoint;
         private final ValuesSourceType valuesSourceType;
         private final SortField.Type sortFieldType;
 
-        /**
-         * Sort optimization has a number of requirements,
-         * one of which is that SortField.Type matches the Point type with which the field was indexed
-         * (e.g. sort on IntPoint field should use SortField.Type.INT).
-         * Another requirement is that the same data is indexed with points and doc values for the field.
-         */
-        private final boolean sortOptimizationEnabled;
-
         NumericType(
             boolean floatingPoint,
             SortField.Type sortFieldType,
-            ValuesSourceType valuesSourceType,
-            boolean sortOptimizationEnabled
-        ) {
+            ValuesSourceType valuesSourceType) {
             this.floatingPoint = floatingPoint;
             this.sortFieldType = sortFieldType;
             this.valuesSourceType = valuesSourceType;
-            this.sortOptimizationEnabled = sortOptimizationEnabled;
         }
 
         public final boolean isFloatingPoint() {
@@ -108,9 +157,8 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             return valuesSourceType;
         }
 
-        public final boolean isSortOptimizationEnabled() {
-            return sortOptimizationEnabled;
-        }
+        @Deprecated
+        protected abstract boolean shouldApplyPointSortOptimization();
     }
 
     /**
@@ -163,9 +211,9 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         // So as of now, we can only enable for DATE, DATE_NANOSECONDS, LONG, DOUBLE.
         // BOOLEAN, BYTE, SHORT, INT, HALF_FLOAT, FLOAT (use long for doc values, but fewer for BKD Points)
         // todo : Enable other SortField.Type as well, that will require wider change
-        // todo: rework the comparator logic to handle varying byte size
-        sortField.setOptimizeSortWithPoints(getNumericType().isSortOptimizationEnabled());
-
+        if (getNumericType().shouldApplyPointSortOptimization() == false) {
+            sortField.setOptimizeSortWithPoints(false);
+        }
         return sortField;
     }
 
