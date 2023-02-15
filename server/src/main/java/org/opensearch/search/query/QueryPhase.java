@@ -36,14 +36,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.opensearch.lucene.queries.MinDocQuery;
 import org.opensearch.lucene.queries.SearchAfterSortedDocQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
@@ -201,17 +198,7 @@ public class QueryPhase {
 
                 } else {
                     final ScoreDoc after = scrollContext.lastEmittedDoc;
-                    if (returnsDocsInOrder(query, searchContext.sort())) {
-                        // now this gets interesting: since we sort in index-order, we can directly
-                        // skip to the desired doc
-                        if (after != null) {
-                            query = new BooleanQuery.Builder().add(query, BooleanClause.Occur.MUST)
-                                .add(new MinDocQuery(after.doc + 1), BooleanClause.Occur.FILTER)
-                                .build();
-                        }
-                        // ... and stop collecting after ${size} matches
-                        searchContext.terminateAfter(searchContext.size());
-                    } else if (canEarlyTerminate(reader, searchContext.sort())) {
+                    if (canEarlyTerminate(reader, searchContext.sort())) {
                         // now this gets interesting: since the search sort is a prefix of the index sort, we can directly
                         // skip to the desired doc
                         if (after != null) {
@@ -364,22 +351,6 @@ public class QueryPhase {
             ctx.postProcess(queryResult);
         }
         return topDocsFactory.shouldRescore();
-    }
-
-    /**
-     * Returns true if the provided <code>query</code> returns docs in index order (internal doc ids).
-     * @param query The query to execute
-     * @param sf The query sort
-     */
-    private static boolean returnsDocsInOrder(Query query, SortAndFormats sf) {
-        if (sf == null || Sort.RELEVANCE.equals(sf.sort)) {
-            // sort by score
-            // queries that return constant scores will return docs in index
-            // order since Lucene tie-breaks on the doc id
-            return query.getClass() == ConstantScoreQuery.class || query.getClass() == MatchAllDocsQuery.class;
-        } else {
-            return Sort.INDEXORDER.equals(sf.sort);
-        }
     }
 
     /**
