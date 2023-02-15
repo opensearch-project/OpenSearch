@@ -132,7 +132,10 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
             completedOnlyResponse.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getStage(),
             equalTo(SegmentReplicationState.Stage.DONE)
         );
-        assertThat(completedOnlyResponse.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getIndex().recoveredFileCount(), greaterThan(0));
+        assertThat(
+            completedOnlyResponse.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getIndex().recoveredFileCount(),
+            greaterThan(0)
+        );
         waitForAssertions.countDown();
     }
 
