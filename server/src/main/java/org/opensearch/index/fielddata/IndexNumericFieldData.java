@@ -80,10 +80,11 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         private final ValuesSourceType valuesSourceType;
         private final SortField.Type sortFieldType;
 
-        /** Sort optimization has a number of requirements,
-         *  one of which is that SortField.Type matches the Point type with which the field was indexed
-         *  (e.g. sort on IntPoint field should use SortField.Type.INT).
-         *  Another requirement is that the same data is indexed with points and doc values for the field.
+        /**
+         * Sort optimization has a number of requirements,
+         * one of which is that SortField.Type matches the Point type with which the field was indexed
+         * (e.g. sort on IntPoint field should use SortField.Type.INT).
+         * Another requirement is that the same data is indexed with points and doc values for the field.
          */
         private final boolean sortOptimizationEnabled;
 
