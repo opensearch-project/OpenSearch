@@ -11,7 +11,7 @@ package org.opensearch.index.store.remote.metadata;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import org.opensearch.common.metadata.MetadataManager;
+import org.opensearch.common.metadata.MetadataParser;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 
 /**
@@ -63,10 +63,10 @@ public class RemoteSegmentMetadata {
     }
 
     /**
-     * Constructs {@link MetadataManager} for {@link RemoteSegmentMetadata}
-     * @return {@link MetadataManager}
+     * Constructs {@link MetadataParser} for {@link RemoteSegmentMetadata}
+     * @return {@link MetadataParser}
      */
-    public static MetadataManager<RemoteSegmentMetadata> createMetadataManager() {
-        return new MetadataManager<>(new RemoteSegmentMetadataParser(), CURRENT_VERSION, METADATA_CODEC);
+    public static MetadataParser<RemoteSegmentMetadata> createMetadataParser() {
+        return new MetadataParser<>(new RemoteSegmentMetadataContentParser(), CURRENT_VERSION, METADATA_CODEC);
     }
 }

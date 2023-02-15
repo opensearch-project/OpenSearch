@@ -636,7 +636,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
             dataDirectory,
             metadataDirectory,
-            RemoteSegmentMetadata.createMetadataManager()
+            RemoteSegmentMetadata.createMetadataParser()
         );
         return createStore(shardId, new IndexSettings(metadata, nodeSettings), remoteSegmentStoreDirectory);
     }

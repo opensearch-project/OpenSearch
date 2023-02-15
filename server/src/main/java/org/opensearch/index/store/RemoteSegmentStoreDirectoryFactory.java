@@ -48,7 +48,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Remo
             RemoteDirectory dataDirectory = createRemoteDirectory(repository, commonBlobPath, "data");
             RemoteDirectory metadataDirectory = createRemoteDirectory(repository, commonBlobPath, "metadata");
 
-            return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, RemoteSegmentMetadata.createMetadataManager());
+            return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, RemoteSegmentMetadata.createMetadataParser());
         } catch (RepositoryMissingException e) {
             throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", e);
         }

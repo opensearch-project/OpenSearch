@@ -18,7 +18,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.UUIDs;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
-import org.opensearch.common.metadata.MetadataManager;
+import org.opensearch.common.metadata.MetadataParser;
 
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
@@ -77,19 +77,19 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      */
     private Map<String, UploadedSegmentMetadata> segmentsUploadedToRemoteStore;
 
-    private MetadataManager<RemoteSegmentMetadata> remoteMetadataManager;
+    private MetadataParser<RemoteSegmentMetadata> remoteMetadataParser;
 
     private static final Logger logger = LogManager.getLogger(RemoteSegmentStoreDirectory.class);
 
     public RemoteSegmentStoreDirectory(
         RemoteDirectory remoteDataDirectory,
         RemoteDirectory remoteMetadataDirectory,
-        MetadataManager<RemoteSegmentMetadata> metadataManager
+        MetadataParser<RemoteSegmentMetadata> metadataParser
     ) throws IOException {
         super(remoteDataDirectory);
         this.remoteDataDirectory = remoteDataDirectory;
         this.remoteMetadataDirectory = remoteMetadataDirectory;
-        this.remoteMetadataManager = metadataManager;
+        this.remoteMetadataParser = metadataParser;
         init();
     }
 
@@ -135,7 +135,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
 
     private Map<String, UploadedSegmentMetadata> readMetadataFile(String metadataFilename) throws IOException {
         try (IndexInput indexInput = remoteMetadataDirectory.openInput(metadataFilename, IOContext.DEFAULT)) {
-            RemoteSegmentMetadata metadata = this.remoteMetadataManager.readMetadata(indexInput);
+            RemoteSegmentMetadata metadata = this.remoteMetadataParser.readMetadata(indexInput);
             return metadata.getMetadata();
         }
     }
@@ -361,7 +361,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
                     throw new NoSuchFileException(file);
                 }
             }
-            this.remoteMetadataManager.writeMetadata(indexOutput, uploadedSegments);
+            this.remoteMetadataParser.writeMetadata(indexOutput, uploadedSegments);
             indexOutput.close();
             storeDirectory.sync(Collections.singleton(metadataFilename));
             remoteMetadataDirectory.copyFrom(storeDirectory, metadataFilename, metadataFilename, IOContext.DEFAULT);

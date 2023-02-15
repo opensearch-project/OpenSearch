@@ -60,7 +60,7 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
         remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
             remoteDataDirectory,
             remoteMetadataDirectory,
-            RemoteSegmentMetadata.createMetadataManager()
+            RemoteSegmentMetadata.createMetadataParser()
         );
     }
 
