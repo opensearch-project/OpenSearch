@@ -1264,7 +1264,6 @@ public class Setting<T> implements ToXContentObject {
             this.pattern = Pattern.compile(in.readString());
         }
 
-        // For testing
         Pattern getPattern() {
             return pattern;
         }

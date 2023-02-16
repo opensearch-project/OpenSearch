@@ -326,10 +326,12 @@ public class SettingTests extends OpenSearchTestCase {
     }
 
     public void testRegexValidator() throws Exception {
-        String expectedRegex = "test regex";
+        // A regex that matches one or more digits
+        String expectedRegex = "\\d+";
         Pattern expectedPattern = Pattern.compile(expectedRegex);
         RegexValidator regexValidator = new RegexValidator(expectedRegex);
 
+        // Test that the pattern is correctly initialized
         assertEquals(expectedPattern, regexValidator.getPattern());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
