@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.index.shard.IndexShard;
@@ -228,7 +229,7 @@ class OngoingSegmentReplications implements Closeable {
             copyState.incRef();
             return new GatedCloseable<>(copyState, copyState::decRef);
         }
-        throw new RetryableReplicationException("Primary has no computed copyState");
+        return new GatedCloseable<>(null, () -> {});
     }
 
     protected Map<ShardId, CopyState> getCopyStateMap() {

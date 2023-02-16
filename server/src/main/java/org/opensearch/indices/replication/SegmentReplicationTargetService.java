@@ -31,6 +31,7 @@ import org.opensearch.indices.replication.common.ReplicationCollection.Replicati
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationState;
+import org.opensearch.indices.replication.common.RetryableReplicationException;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
@@ -345,7 +346,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                 @Override
                 public void onFailure(Exception e) {
                     Throwable cause = ExceptionsHelper.unwrapCause(e);
-                    if (cause instanceof CancellableThreads.ExecutionCancelledException) {
+                    if (cause instanceof CancellableThreads.ExecutionCancelledException || cause instanceof RetryableReplicationException) {
                         if (onGoingReplications.getTarget(replicationId) != null) {
                             IndexShard indexShard = onGoingReplications.getTarget(replicationId).indexShard();
                             // if the target still exists in our collection, the primary initiated the cancellation, fail the replication

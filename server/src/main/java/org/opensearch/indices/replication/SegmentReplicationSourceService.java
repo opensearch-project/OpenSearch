@@ -29,6 +29,7 @@ import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RetryableTransportClient;
 import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.indices.replication.common.ReplicationTimer;
+import org.opensearch.indices.replication.common.RetryableReplicationException;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
@@ -132,35 +133,39 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
                 request.getCheckpoint().getShardId()
             );
             final CopyState copyState = copyStateGatedCloseable.get();
-            if (request.getCheckpoint().isAheadOf(copyState.getCheckpoint()) || copyState.getMetadataMap().isEmpty()) {
-                // if there are no files to send, or the replica is already at this checkpoint, send the infos but do not hold snapshotted
-                // infos.
-                // During recovery of an empty cluster it is possible we have no files to send but the primary has flushed to set userData,
-                // in this case we still want to send over infos.
-                channel.sendResponse(
-                    new CheckpointInfoResponse(copyState.getCheckpoint(), Collections.emptyMap(), copyState.getInfosBytes())
-                );
-                copyState.decRef();
+            if (copyState == null || copyState.getShard().verifyPrimaryMode() == false) {
+                channel.sendResponse(new RetryableReplicationException("Primary has no computed copyState"));
             } else {
-                final RemoteSegmentFileChunkWriter segmentSegmentFileChunkWriter = getRemoteSegmentFileChunkWriter(request);
-                ongoingSegmentReplications.prepareForReplication(request, segmentSegmentFileChunkWriter, copyStateGatedCloseable);
-                channel.sendResponse(
-                    new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
-                );
-                timer.stop();
-                logger.info(
-                    new ParameterizedMessage(
-                        "[replication id {}] Source node sent checkpoint info [{}] to target node [{}], timing: {}",
-                        request.getReplicationId(),
-                        copyState.getCheckpoint(),
-                        request.getTargetNode().getName(),
-                        timer.time()
-                    )
-                );
+                if (request.getCheckpoint().isAheadOf(copyState.getCheckpoint()) || copyState.getMetadataMap().isEmpty()) {
+                    // if there are no files to send, or the replica is already at this checkpoint, send the infos but do not hold snapshotted
+                    // infos.
+                    // During recovery of an empty cluster it is possible we have no files to send but the primary has flushed to set userData,
+                    // in this case we still want to send over infos.
+                    channel.sendResponse(
+                        new CheckpointInfoResponse(copyState.getCheckpoint(), Collections.emptyMap(), copyState.getInfosBytes())
+                    );
+                    copyState.decRef();
+                } else {
+                    final RemoteSegmentFileChunkWriter segmentSegmentFileChunkWriter = buildFileChunkWriter(request);
+                    ongoingSegmentReplications.prepareForReplication(request, segmentSegmentFileChunkWriter, copyStateGatedCloseable);
+                    channel.sendResponse(
+                        new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
+                    );
+                    timer.stop();
+                    logger.info(
+                        new ParameterizedMessage(
+                            "[replication id {}] Source node sent checkpoint info [{}] to target node [{}], timing: {}",
+                            request.getReplicationId(),
+                            copyState.getCheckpoint(),
+                            request.getTargetNode().getName(),
+                            timer.time()
+                        )
+                    );
+                }
             }
         }
 
-        private RemoteSegmentFileChunkWriter getRemoteSegmentFileChunkWriter(CheckpointInfoRequest request) {
+        private RemoteSegmentFileChunkWriter buildFileChunkWriter(CheckpointInfoRequest request) {
             return new RemoteSegmentFileChunkWriter(
                 request.getReplicationId(),
                 recoverySettings,

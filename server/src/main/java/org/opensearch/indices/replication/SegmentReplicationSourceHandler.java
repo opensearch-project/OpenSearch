@@ -193,6 +193,5 @@ class SegmentReplicationSourceHandler implements Closeable {
     @Override
     public void close() throws IOException {
         copyStateGatedCloseable.close();
-        ;
     }
 }

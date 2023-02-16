@@ -1745,6 +1745,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> { resetEngineToGlobalCheckpoint(); });
     }
 
+    public boolean verifyPrimaryMode() {
+        return shardRouting.primary() && replicationTracker.isPrimaryMode();
+    }
+
     /**
      * Wrapper for a non-closing reader
      *
