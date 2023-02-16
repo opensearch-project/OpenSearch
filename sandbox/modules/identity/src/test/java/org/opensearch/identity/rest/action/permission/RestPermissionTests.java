@@ -8,7 +8,7 @@
 
 package org.opensearch.identity.rest.action.permission;
 
-import org.apache.lucene.util.SetOnce;
+import org.opensearch.common.SetOnce;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
