@@ -62,7 +62,7 @@ public class TransferManager {
         });
     }
 
-    public CompletableFuture<IndexInput> asyncFetchBlob(Path path, Supplier<IndexInput> indexInputSupplier) {
+    private CompletableFuture<IndexInput> asyncFetchBlob(Path path, Supplier<IndexInput> indexInputSupplier) {
         return invocationLinearizer.linearize(path, p -> indexInputSupplier.get());
     }
 
