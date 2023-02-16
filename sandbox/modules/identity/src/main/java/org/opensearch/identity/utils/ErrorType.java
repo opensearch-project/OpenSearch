@@ -12,7 +12,8 @@ public enum ErrorType {
     BODY_NOT_PARSEABLE("Failed to parse body for user request: "),
     IDENTITY_NOT_INITIALIZED("Identity index not initialized"),
     HASH_OR_PASSWORD_MISSING("Please specify either 'hash' or 'password' when creating a new internal user."),
-    RESTRICTED_CHARS_IN_USERNAME("Username has unpermitted restricted characters: ");
+    RESTRICTED_CHARS_IN_USERNAME("Username has unpermitted restricted characters: "),
+    RESOURCE_NOT_FOUND_SUFFIX(" doesn't exist.");
 
     private String message;
 

@@ -11,6 +11,7 @@ package org.opensearch.identity.rest.user;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
@@ -30,6 +31,11 @@ import org.opensearch.identity.configuration.ConfigurationRepository;
 import org.opensearch.identity.configuration.SecurityDynamicConfiguration;
 import org.opensearch.identity.exception.InvalidConfigException;
 import org.opensearch.identity.exception.InvalidContentException;
+import org.opensearch.identity.rest.user.delete.DeleteUserResponse;
+import org.opensearch.identity.rest.user.delete.DeleteUserResponseInfo;
+import org.opensearch.identity.rest.user.get.multi.MultiGetUserResponse;
+import org.opensearch.identity.rest.user.get.single.GetUserResponse;
+import org.opensearch.identity.rest.user.get.single.GetUserResponseInfo;
 import org.opensearch.identity.rest.user.put.PutUserResponse;
 import org.opensearch.identity.rest.user.put.PutUserResponseInfo;
 import org.opensearch.identity.utils.ErrorType;
@@ -37,9 +43,11 @@ import org.opensearch.identity.utils.Hasher;
 import org.opensearch.index.IndexNotFoundException;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -75,6 +83,33 @@ public class UserService {
             IdentityConfigConstants.IDENTITY_CONFIG_INDEX_NAME,
             IdentityConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX
         );
+    }
+
+    /**
+     * Load data for a given CType
+     * @param config CType whose data is to be loaded in-memory
+     * @return configuration loaded with given CType data
+     */
+    protected final SecurityDynamicConfiguration<?> load(final CType config) {
+        SecurityDynamicConfiguration<?> loaded = this.configurationRepository.getConfigurationsFromIndex(Collections.singleton(config))
+            .get(config)
+            .deepClone();
+        return loaded;
+    }
+
+    protected CType getConfigName() {
+        return CType.INTERNALUSERS;
+    }
+
+    /**
+     * Check if identity index exists in cluster
+     * @return true if exists, false otherwise
+     */
+    protected boolean ensureIndexExists() {
+        if (!this.clusterService.state().metadata().hasConcreteIndex(this.identityIndex)) {
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -172,31 +207,101 @@ public class UserService {
         saveAndUpdateConfiguration(this.nodeClient, CType.INTERNALUSERS, internalUsersConfiguration, indexActionListener);
     }
 
-    /**
-     * Load data for a given CType
-     * @param config CType whose data is to be loaded in-memory
-     * @return configuration loaded with given CType data
-     */
-    protected final SecurityDynamicConfiguration<?> load(final CType config) {
-        SecurityDynamicConfiguration<?> loaded = this.configurationRepository.getConfigurationsFromIndex(Collections.singleton(config))
-            .get(config)
-            .deepClone();
-        return loaded;
-    }
-
-    protected CType getConfigName() {
-        return CType.INTERNALUSERS;
-    }
-
-    /**
-     * Check if identity index exists in cluster
-     * @return true if exists, false otherwise
-     */
-    protected boolean ensureIndexExists() {
-        if (!this.clusterService.state().metadata().hasConcreteIndex(this.identityIndex)) {
-            return false;
+    public void getUser(String username, ActionListener<GetUserResponse> listener) {
+        if (username == null || username == "") {
+            listener.onResponse(new GetUserResponse());
+            return;
         }
-        return true;
+
+        if (!ensureIndexExists()) {
+            listener.onFailure(new IndexNotFoundException(ErrorType.IDENTITY_NOT_INITIALIZED.getMessage()));
+            return;
+        }
+
+        // load current user store in memory
+        final SecurityDynamicConfiguration<?> internalUsersConfiguration = load(getConfigName());
+
+        // check if user existed
+        final boolean userExists = internalUsersConfiguration.exists(username);
+
+        // hash is optional for existing users
+        if (!userExists) {
+            listener.onFailure(new ResourceNotFoundException(username + ErrorType.RESOURCE_NOT_FOUND_SUFFIX.getMessage()));
+            return;
+        }
+
+        // Return this user
+        User user = (User) internalUsersConfiguration.getCEntry(username);
+
+        // formulate response to be returned
+        GetUserResponseInfo responseInfo = new GetUserResponseInfo(user.getAttributes(), user.getPermissions());
+        GetUserResponse response = new GetUserResponse(username, responseInfo);
+
+        // success response
+        listener.onResponse(response);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void getUsers(ActionListener<MultiGetUserResponse> listener) {
+
+        if (!ensureIndexExists()) {
+            listener.onFailure(new IndexNotFoundException(ErrorType.IDENTITY_NOT_INITIALIZED.getMessage()));
+            return;
+        }
+
+        // load current user store in memory
+        final SecurityDynamicConfiguration<?> internalUsersConfiguration = load(getConfigName());
+
+        final Map<String, User> usersFromConfig = (Map<String, User>) internalUsersConfiguration.getCEntries();
+
+        List<GetUserResponse> users = new ArrayList<>();
+
+        usersFromConfig.forEach(
+            (name, user) -> { users.add(new GetUserResponse(name, new GetUserResponseInfo(user.getAttributes(), user.getPermissions()))); }
+        );
+
+        // formulate response to be returned
+        MultiGetUserResponse response = new MultiGetUserResponse(users);
+
+        // success response
+        listener.onResponse(response);
+    }
+
+    public void deleteUser(String username, ActionListener<DeleteUserResponse> listener) {
+        if (!ensureIndexExists()) {
+            listener.onFailure(new IndexNotFoundException(ErrorType.IDENTITY_NOT_INITIALIZED.getMessage()));
+            return;
+        }
+
+        // load current user store in memory
+        final SecurityDynamicConfiguration<?> internalUsersConfiguration = load(getConfigName());
+
+        // check if user existed
+        final boolean userExisted = internalUsersConfiguration.exists(username);
+
+        // hash is mandatory for new users
+        if (!userExisted) {
+            listener.onFailure(new ResourceNotFoundException(username + ErrorType.RESOURCE_NOT_FOUND_SUFFIX.getMessage()));
+            return;
+        }
+
+        // Delete the user
+        internalUsersConfiguration.remove(username);
+
+        // Listener for responding once index update completes
+        final ActionListener<IndexResponse> indexActionListener = new OnSucessActionListener<>() {
+            @Override
+            public void onResponse(IndexResponse indexResponse) {
+                String message = username + " deleted successfully.";
+                DeleteUserResponseInfo responseInfo = new DeleteUserResponseInfo(true, message);
+                DeleteUserResponse response = new DeleteUserResponse(responseInfo);
+
+                listener.onResponse(response);
+            }
+        };
+
+        // save the changes to identity index, propagate change to other nodes and reload in-memory configuration
+        saveAndUpdateConfiguration(this.nodeClient, CType.INTERNALUSERS, internalUsersConfiguration, indexActionListener);
     }
 
     /**

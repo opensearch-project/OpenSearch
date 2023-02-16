@@ -51,7 +51,7 @@ public class RestPutUserAction extends BaseRestHandler {
      *
      * ````
      * Sample Request:
-     * curl -XPUT http://new-user:password@localhost:9200/_identity/api/users/test --data '{ "password" : "test" }' -H"Content-type: application/json"
+     * curl -XPUT http://new-user:password@localhost:9200/_identity/api/users/apitest --data '{ "password" : "apitest" }' -H"Content-type: application/json"
      *
      *
      * Sample Response
@@ -60,12 +60,12 @@ public class RestPutUserAction extends BaseRestHandler {
      *   "users": [
      *     {
      *       "successful": true,
-     *       "username": "test",
-     *       "message": "test created successfully."
+     *       "username": "apitest",
+     *       "message": "test created successfully." (OR "test update successfully." based on whether user existed)
      *     }
      *   ]
      * }
-     *
+     * ````
      */
     @Override
     @SuppressWarnings("unchecked")

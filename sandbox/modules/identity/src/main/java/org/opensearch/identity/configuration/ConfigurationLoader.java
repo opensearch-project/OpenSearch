@@ -50,7 +50,7 @@ public class ConfigurationLoader {
 
     protected final Logger log = LogManager.getLogger(this.getClass());
     private final Client client;
-    private final String securityIndex;
+    private final String identityIndex;
     private final ClusterService cs;
     private final Settings settings;
 
@@ -58,12 +58,12 @@ public class ConfigurationLoader {
         super();
         this.client = client;
         this.settings = settings;
-        this.securityIndex = settings.get(
+        this.identityIndex = settings.get(
             IdentityConfigConstants.IDENTITY_CONFIG_INDEX_NAME,
             IdentityConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX
         );
         this.cs = cs;
-        log.debug("Index is: {}", securityIndex);
+        log.debug("Index is: {}", identityIndex);
     }
 
     Map<CType, SecurityDynamicConfiguration<?>> load(final CType[] events, long timeout, TimeUnit timeUnit) throws InterruptedException,
@@ -80,7 +80,7 @@ public class ConfigurationLoader {
                         "Latch already counted down (for {} of {})  (index={})",
                         dConf.getCType().toLCString(),
                         Arrays.toString(events),
-                        securityIndex
+                        identityIndex
                     );
                 }
 
@@ -102,7 +102,7 @@ public class ConfigurationLoader {
                     "Failure {} retrieving configuration for {} (index={})",
                     failure == null ? null : failure.getMessage(),
                     Arrays.toString(events),
-                    securityIndex
+                    identityIndex
                 );
             }
 
@@ -110,7 +110,7 @@ public class ConfigurationLoader {
             public void noData(String id) {
                 CType cType = CType.fromString(id);
 
-                log.warn("No data for {} while retrieving configuration for {}  (index={})", id, Arrays.toString(events), securityIndex);
+                log.warn("No data for {} while retrieving configuration for {}  (index={})", id, Arrays.toString(events), identityIndex);
             }
 
             @Override
@@ -119,7 +119,7 @@ public class ConfigurationLoader {
                     Locale.ROOT,
                     "Exception while retrieving configuration for %s (index=%s)",
                     Arrays.toString(events),
-                    securityIndex
+                    identityIndex
                 );
                 log.error(errorMsg, t);
             }
@@ -135,7 +135,7 @@ public class ConfigurationLoader {
                     + " while retrieving configuration for "
                     + Arrays.toString(events)
                     + "(index="
-                    + securityIndex
+                    + identityIndex
                     + ")"
             );
         }
@@ -153,7 +153,7 @@ public class ConfigurationLoader {
 
         for (int i = 0; i < events.length; i++) {
             final String event = events[i].toLCString();
-            mget.add(securityIndex, event);
+            mget.add(identityIndex, event);
         }
 
         mget.refresh(true);
