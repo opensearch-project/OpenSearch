@@ -51,7 +51,9 @@ import org.opensearch.extensions.action.TransportActionRequestFromExtension;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.rest.RestActionsRequestHandler;
 import org.opensearch.extensions.settings.CustomSettingsRequestHandler;
+import org.opensearch.extensions.settings.ImplimentedInterfaceRequestHandler;
 import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
+import org.opensearch.extensions.settings.RegisterImplimentedInterfaceRequest;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndicesModuleRequest;
@@ -84,6 +86,7 @@ public class ExtensionsManager {
     public static final String REQUEST_EXTENSION_UPDATE_SETTINGS = "internal:discovery/updatesettings";
     public static final String REQUEST_EXTENSION_DEPENDENCY_INFORMATION = "internal:discovery/dependencyinformation";
     public static final String REQUEST_EXTENSION_REGISTER_CUSTOM_SETTINGS = "internal:discovery/registercustomsettings";
+    public static final String REQUEST_EXTENSION_REGISTER_IMPLIMENTED_INTERFACES = "internal:discovery/registerimplimentedinterfaces";
     public static final String REQUEST_EXTENSION_REGISTER_REST_ACTIONS = "internal:discovery/registerrestactions";
     public static final String REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS = "internal:discovery/registertransportactions";
     public static final String REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE = "internal:discovery/parsenamedwriteable";
@@ -126,21 +129,20 @@ public class ExtensionsManager {
      * Extensions impliment subset of these enum Interfaces
      */
     public static enum ExtensionInterfaceType{
-        ACTION_EXTENSION_INTERFACE,
-        ANALYSIS_EXTENSION_INTERFACE,
-        CIRCUITBREAKER_EXTENSION_INTERFACE,
-        ENGINE_EXTENSION_INTERFACE,
-        EXTENSIBLE_EXTENSION_INTERFACE,
-        INDEXSTORE_EXTENSION_INTERFACE,
-        INGEST_EXTENSION_INTERFACE,
-        MAPPER_EXTENSION_INTERFACE,
-        PERSISTANTTASK_EXTENSION_INTERFACE,
-        REPOSITORY_EXTENSION_INTERFACE,
-        RELOADABLE_EXTENSION_INTERFACE,
-        SCRIPT_EXTENSION_INTERFACE,
-        SEARCH_EXTENSION_INTERFACE,
-        SYSTEMINDEX_EXTENSION_INTERFACE
-
+        ACTION,
+        ANALYSIS,
+        CIRCUITBREAKER,
+        ENGINE,
+        EXTENSIBLE,
+        INDEXSTORE,
+        INGEST,
+        MAPPER,
+        PERSISTANTTASK,
+        REPOSITORY,
+        RELOADABLE,
+        SCRIPT,
+        SEARCH,
+        SYSTEMINDEX
     }
 
     private final Path extensionsPath;
@@ -150,6 +152,7 @@ public class ExtensionsManager {
     private Map<String, DiscoveryExtensionNode> extensionIdMap;
     private RestActionsRequestHandler restActionsRequestHandler;
     private CustomSettingsRequestHandler customSettingsRequestHandler;
+    private ImplimentedInterfaceRequestHandler implimentedInterfaceRequestHandler;
     private TransportService transportService;
     private ClusterService clusterService;
     private Settings environmentSettings;
@@ -206,6 +209,7 @@ public class ExtensionsManager {
     ) {
         this.restActionsRequestHandler = new RestActionsRequestHandler(restController, extensionIdMap, transportService);
         this.customSettingsRequestHandler = new CustomSettingsRequestHandler(settingsModule);
+        this.implimentedInterfaceRequestHandler = new ImplimentedInterfaceRequestHandler(extensionIdMap,transportService);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.environmentSettings = initialEnvironmentSettings;
@@ -244,6 +248,14 @@ public class ExtensionsManager {
             false,
             RegisterCustomSettingsRequest::new,
             ((request, channel, task) -> channel.sendResponse(customSettingsRequestHandler.handleRegisterCustomSettingsRequest(request)))
+        );
+        transportService.registerRequestHandler(
+            REQUEST_EXTENSION_REGISTER_IMPLIMENTED_INTERFACES,
+            ThreadPool.Names.GENERIC,
+            false,
+            false,
+            RegisterImplimentedInterfaceRequest::new,
+            ((request, channel, task) -> channel.sendResponse(implimentedInterfaceRequestHandler.handleImplimentedInterfaceRequest(request)))
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_CLUSTER_STATE,
