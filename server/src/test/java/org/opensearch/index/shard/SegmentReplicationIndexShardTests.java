@@ -47,7 +47,6 @@ import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTarget;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
-import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
@@ -66,6 +65,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.util.Arrays.asList;
@@ -253,13 +253,13 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
      * here we are starting a new primary shard in PrimaryMode and testing if the shard publishes checkpoint after refresh.
      */
     public void testPublishCheckpointOnPrimaryMode() throws IOException {
-        final SegmentReplicationCheckpointPublisher mock = mock(SegmentReplicationCheckpointPublisher.class);
+        final Consumer<IndexShard> checkpointUpdateConsumer = mock(Consumer.class);
         IndexShard shard = newStartedShard(true);
-        CheckpointRefreshListener refreshListener = new CheckpointRefreshListener(shard, mock);
+        CheckpointRefreshListener refreshListener = new CheckpointRefreshListener(shard, checkpointUpdateConsumer);
         refreshListener.afterRefresh(true);
 
         // verify checkpoint is published
-        verify(mock, times(1)).publish(any());
+        verify(checkpointUpdateConsumer, times(1)).accept(shard);
         closeShards(shard);
     }
 
@@ -268,9 +268,9 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
      * in PrimaryMode, and we test if the shard does not publish checkpoint after refresh.
      */
     public void testPublishCheckpointAfterRelocationHandOff() throws IOException {
-        final SegmentReplicationCheckpointPublisher mock = mock(SegmentReplicationCheckpointPublisher.class);
+        final Consumer<IndexShard> checkpointUpdateConsumer = mock(Consumer.class);
         IndexShard shard = newStartedShard(true);
-        CheckpointRefreshListener refreshListener = new CheckpointRefreshListener(shard, mock);
+        CheckpointRefreshListener refreshListener = new CheckpointRefreshListener(shard, checkpointUpdateConsumer);
         String id = shard.routingEntry().allocationId().getId();
 
         // Starting relocation handoff
@@ -281,7 +281,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         refreshListener.afterRefresh(true);
 
         // verify checkpoint is not published
-        verify(mock, times(0)).publish(any());
+        verify(checkpointUpdateConsumer, times(0)).accept(shard);
         closeShards(shard);
     }
 
@@ -308,7 +308,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         assertEquals(false, primaryShard.getReplicationTracker().isPrimaryMode());
         assertEquals(true, primaryShard.routingEntry().primary());
 
-        spy.onNewCheckpoint(new ReplicationCheckpoint(primaryShard.shardId(), 0L, 0L, 0L, 0L), spyShard);
+        spy.startReplication(spyShard);
 
         // Verify that checkpoint is not processed as shard routing is primary.
         verify(spy, times(0)).startReplication(any(), any(), any());
@@ -1030,7 +1030,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
     private void resolveCheckpointInfoResponseListener(ActionListener<CheckpointInfoResponse> listener, IndexShard primary) {
         try {
-            final CopyState copyState = new CopyState(ReplicationCheckpoint.empty(primary.shardId), primary);
+            final CopyState copyState = new CopyState(primary);
             listener.onResponse(
                 new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
             );

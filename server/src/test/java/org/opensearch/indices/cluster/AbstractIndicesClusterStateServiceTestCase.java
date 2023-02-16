@@ -59,7 +59,6 @@ import org.opensearch.indices.cluster.IndicesClusterStateService.Shard;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
-import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -254,7 +253,8 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends OpenSea
         @Override
         public MockIndexShard createShard(
             final ShardRouting shardRouting,
-            final SegmentReplicationCheckpointPublisher checkpointPublisher,
+            final Consumer<IndexShard> checkpointUpdateConsumer,
+            final Consumer<IndexShard> segmentSyncer,
             final PeerRecoveryTargetService recoveryTargetService,
             final RecoveryListener recoveryListener,
             final RepositoriesService repositoriesService,

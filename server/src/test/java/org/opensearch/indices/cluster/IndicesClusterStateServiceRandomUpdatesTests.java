@@ -68,7 +68,6 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
-import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -569,7 +568,6 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             indicesService,
             clusterService,
             threadPool,
-            SegmentReplicationCheckpointPublisher.EMPTY,
             SegmentReplicationTargetService.NO_OP,
             SegmentReplicationSourceService.NO_OP,
             recoveryTargetService,

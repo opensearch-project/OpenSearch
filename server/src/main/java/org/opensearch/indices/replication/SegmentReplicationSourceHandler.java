@@ -13,8 +13,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.routing.IndexShardRoutingTable;
-import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.ListenableFuture;
@@ -22,15 +21,14 @@ import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.StoreFileMetadata;
-import org.opensearch.indices.recovery.DelayRecoveryException;
 import org.opensearch.indices.recovery.FileChunkWriter;
 import org.opensearch.indices.recovery.MultiChunkTransfer;
 import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.indices.replication.common.ReplicationTimer;
-import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transports;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -44,10 +42,10 @@ import java.util.function.Consumer;
  *
  * @opensearch.internal
  */
-class SegmentReplicationSourceHandler {
+class SegmentReplicationSourceHandler implements Closeable {
 
     private final IndexShard shard;
-    private final CopyState copyState;
+    private final GatedCloseable<CopyState> copyStateGatedCloseable;
     private final SegmentFileTransferHandler segmentFileTransferHandler;
     private final CancellableThreads cancellableThreads = new CancellableThreads();
     private final ListenableFuture<GetSegmentFilesResponse> future = new ListenableFuture<>();
@@ -64,39 +62,38 @@ class SegmentReplicationSourceHandler {
      *
      * @param targetNode              - {@link DiscoveryNode} target node where files should be sent.
      * @param writer                  {@link FileChunkWriter} implementation that sends file chunks over the transport layer.
-     * @param threadPool              {@link ThreadPool} Thread pool.
-     * @param copyState               {@link CopyState} CopyState holding segment file metadata.
+     * @param copyStateGatedCloseable               {@link CopyState} CopyState holding segment file metadata.
      * @param fileChunkSizeInBytes    {@link Integer}
      * @param maxConcurrentFileChunks {@link Integer}
      */
     SegmentReplicationSourceHandler(
         DiscoveryNode targetNode,
         FileChunkWriter writer,
-        ThreadPool threadPool,
-        CopyState copyState,
+        GatedCloseable<CopyState> copyStateGatedCloseable,
         String allocationId,
         int fileChunkSizeInBytes,
         int maxConcurrentFileChunks
     ) {
+        this.copyStateGatedCloseable = copyStateGatedCloseable;
         this.targetNode = targetNode;
+        final CopyState copyState = copyStateGatedCloseable.get();
         this.shard = copyState.getShard();
         this.logger = Loggers.getLogger(
             SegmentReplicationSourceHandler.class,
-            copyState.getShard().shardId(),
+            shard.shardId(),
             "sending segments to " + targetNode.getName()
         );
         this.segmentFileTransferHandler = new SegmentFileTransferHandler(
-            copyState.getShard(),
+            shard,
             targetNode,
             writer,
             logger,
-            threadPool,
+            shard.getThreadPool(),
             cancellableThreads,
             fileChunkSizeInBytes,
             maxConcurrentFileChunks
         );
         this.allocationId = allocationId;
-        this.copyState = copyState;
         this.writer = writer;
     }
 
@@ -137,12 +134,14 @@ class SegmentReplicationSourceHandler {
                 );
             };
 
-            final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
-            ShardRouting targetShardRouting = routingTable.getByAllocationId(request.getTargetAllocationId());
-            if (targetShardRouting == null) {
-                logger.debug("delaying replication of {} as it is not listed as assigned to target node {}", shard.shardId(), targetNode);
-                throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
-            }
+//            RunUnderPrimaryPermit.run(() -> {
+//                final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
+//                ShardRouting targetShardRouting = routingTable.getByAllocationId(request.getTargetAllocationId());
+//                if (targetShardRouting == null) {
+//                    logger.debug("delaying replication of {} as it is not listed as assigned to target node {}", shard.shardId(), targetNode);
+//                    throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
+//                }
+//            }, shard.shardId() + " validating replication target [" + request.getTargetAllocationId() + "] registered ", shard, cancellableThreads, logger);
 
             final StepListener<Void> sendFileStep = new StepListener<>();
             Set<String> storeFiles = new HashSet<>(Arrays.asList(shard.store().directory().listAll()));
@@ -185,7 +184,7 @@ class SegmentReplicationSourceHandler {
     }
 
     CopyState getCopyState() {
-        return copyState;
+        return copyStateGatedCloseable.get();
     }
 
     public boolean isReplicating() {
@@ -198,5 +197,10 @@ class SegmentReplicationSourceHandler {
 
     public String getAllocationId() {
         return allocationId;
+    }
+
+    @Override
+    public void close() throws IOException {
+        copyStateGatedCloseable.close();;
     }
 }

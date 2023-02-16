@@ -32,18 +32,14 @@ import java.util.Map;
 public class CopyState extends AbstractRefCounted {
 
     private final GatedCloseable<SegmentInfos> segmentInfosRef;
-    /** ReplicationCheckpoint requested */
-    private final ReplicationCheckpoint requestedReplicationCheckpoint;
-    /** Actual ReplicationCheckpoint returned by the shard */
     private final ReplicationCheckpoint replicationCheckpoint;
     private final Map<String, StoreFileMetadata> metadataMap;
     private final byte[] infosBytes;
     private GatedCloseable<IndexCommit> commitRef;
     private final IndexShard shard;
 
-    public CopyState(ReplicationCheckpoint requestedReplicationCheckpoint, IndexShard shard) throws IOException {
+    public CopyState(IndexShard shard) throws IOException {
         super("CopyState-" + shard.shardId());
-        this.requestedReplicationCheckpoint = requestedReplicationCheckpoint;
         this.shard = shard;
         final Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> latestSegmentInfosAndCheckpoint = shard
             .getLatestSegmentInfosAndCheckpoint();
@@ -88,9 +84,5 @@ public class CopyState extends AbstractRefCounted {
 
     public IndexShard getShard() {
         return shard;
-    }
-
-    public ReplicationCheckpoint getRequestedReplicationCheckpoint() {
-        return requestedReplicationCheckpoint;
     }
 }

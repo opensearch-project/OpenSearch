@@ -11,9 +11,9 @@ package org.opensearch.index.shard;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ReferenceManager;
-import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 
 import java.io.IOException;
+import java.util.function.Consumer;
 
 /**
  * A {@link ReferenceManager.RefreshListener} that publishes a checkpoint to be consumed by replicas.
@@ -26,11 +26,11 @@ public class CheckpointRefreshListener implements ReferenceManager.RefreshListen
     protected static Logger logger = LogManager.getLogger(CheckpointRefreshListener.class);
 
     private final IndexShard shard;
-    private final SegmentReplicationCheckpointPublisher publisher;
+    private final Consumer<IndexShard> checkpointUpdateConsumer;
 
-    public CheckpointRefreshListener(IndexShard shard, SegmentReplicationCheckpointPublisher publisher) {
+    public CheckpointRefreshListener(IndexShard shard, Consumer<IndexShard> checkpointUpdateConsumer) {
         this.shard = shard;
-        this.publisher = publisher;
+        this.checkpointUpdateConsumer = checkpointUpdateConsumer;
     }
 
     @Override
@@ -40,8 +40,8 @@ public class CheckpointRefreshListener implements ReferenceManager.RefreshListen
 
     @Override
     public void afterRefresh(boolean didRefresh) throws IOException {
-        if (didRefresh && shard.state() != IndexShardState.CLOSED && shard.getReplicationTracker().isPrimaryMode()) {
-            publisher.publish(shard);
+        if (shard.state() != IndexShardState.CLOSED && shard.getReplicationTracker().isPrimaryMode()) {
+            checkpointUpdateConsumer.accept(shard);
         }
     }
 }

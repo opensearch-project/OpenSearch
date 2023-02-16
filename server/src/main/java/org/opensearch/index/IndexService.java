@@ -95,7 +95,6 @@ import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoveryState;
-import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
@@ -160,6 +159,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private volatile AsyncTranslogFSync fsyncTask;
     private volatile AsyncGlobalCheckpointTask globalCheckpointTask;
     private volatile AsyncRetentionLeaseSyncTask retentionLeaseSyncTask;
+    private volatile AsyncFetchSegmentsTask fetchSegmentTask;
 
     // don't convert to Setting<> and register... we only set this in tests and register via a plugin
     private final String INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING = "index.translog.retention.check_interval";
@@ -207,8 +207,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexNameExpressionResolver expressionResolver,
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
-        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier
-    ) {
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.indexSettings = indexSettings;
@@ -279,6 +278,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.trimTranslogTask = new AsyncTrimTranslogTask(this);
         this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
         this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
+        this.fetchSegmentTask = new AsyncFetchSegmentsTask(this);
         this.translogFactorySupplier = translogFactorySupplier;
         updateFsyncTaskIfNecessary();
     }
@@ -385,7 +385,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     fsyncTask,
                     trimTranslogTask,
                     globalCheckpointTask,
-                    retentionLeaseSyncTask
+                    retentionLeaseSyncTask,
+                    fetchSegmentTask
                 );
             }
         }
@@ -438,7 +439,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         final ShardRouting routing,
         final Consumer<ShardId> globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final SegmentReplicationCheckpointPublisher checkpointPublisher
+        final Consumer<IndexShard> onCheckpointUpdate,
+        final Consumer<IndexShard> segmentSyncer
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         /*
@@ -553,8 +555,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 retentionLeaseSyncer,
                 circuitBreakerService,
                 translogFactorySupplier,
-                this.indexSettings.isSegRepEnabled() ? checkpointPublisher : null,
-                remoteStore
+                this.indexSettings.isSegRepEnabled() ? onCheckpointUpdate : null,
+                remoteStore,
+                segmentSyncer
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
@@ -979,6 +982,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
+    private void syncSegments() {
+        for (IndexShard shard : this.shards.values()) {
+            shard.syncSegments();
+        }
+    }
+
     private void maybeTrimTranslog() {
         for (IndexShard shard : this.shards.values()) {
             switch (shard.state()) {
@@ -1105,6 +1114,28 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         @Override
         protected void runInternal() {
             indexService.maybeRefreshEngine(false);
+        }
+
+        @Override
+        protected String getThreadPool() {
+            return ThreadPool.Names.REFRESH;
+        }
+
+        @Override
+        public String toString() {
+            return "refresh";
+        }
+    }
+
+    final class AsyncFetchSegmentsTask extends BaseAsyncTask {
+
+        AsyncFetchSegmentsTask(IndexService indexService) {
+            super(indexService, indexService.getIndexSettings().getRefreshInterval());
+        }
+
+        @Override
+        protected void runInternal() {
+            indexService.syncSegments();
         }
 
         @Override

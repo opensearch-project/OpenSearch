@@ -13,6 +13,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
@@ -33,8 +34,7 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -110,10 +110,12 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
         final FileChunkWriter segmentSegmentFileChunkWriter = (fileMetadata, position, content, lastChunk, totalTranslogOps, listener) -> {
             listener.onResponse(null);
         };
-        final CopyState copyState = replications.prepareForReplication(request, segmentSegmentFileChunkWriter);
-        assertTrue(replications.isInCopyStateMap(request.getCheckpoint()));
+        replications.updateCopyState(primary);
+        final GatedCloseable<CopyState> copyStateGatedCloseable = replications.getLatestCopyState(primary.shardId());
+        replications.prepareForReplication(request, segmentSegmentFileChunkWriter, copyStateGatedCloseable);
+        final CopyState copyState = copyStateGatedCloseable.get();
         assertEquals(1, replications.size());
-        assertEquals(1, copyState.refCount());
+        assertEquals(2, copyState.refCount());
 
         getSegmentFilesRequest = new GetSegmentFilesRequest(
             1L,
@@ -127,9 +129,14 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
             @Override
             public void onResponse(GetSegmentFilesResponse getSegmentFilesResponse) {
                 assertEquals(copyState.getMetadataMap().size(), getSegmentFilesResponse.files.size());
-                assertEquals(0, copyState.refCount());
-                assertFalse(replications.isInCopyStateMap(request.getCheckpoint()));
+                assertEquals(1, copyState.refCount());
                 assertEquals(0, replications.size());
+                try {
+                    replications.close();
+                } catch (IOException e) {
+                    fail();
+                }
+                assertEquals(0, copyState.refCount());
             }
 
             @Override
@@ -152,14 +159,17 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
             // this shouldn't be called in this test.
             Assert.fail();
         };
-        final CopyState copyState = replications.prepareForReplication(request, segmentSegmentFileChunkWriter);
+        replications.updateCopyState(primary);
+        final GatedCloseable<CopyState> copyStateGatedCloseable = replications.getLatestCopyState(primary.shardId());
+        replications.prepareForReplication(request, segmentSegmentFileChunkWriter, copyStateGatedCloseable);
+        final CopyState copyState = copyStateGatedCloseable.get();
         assertEquals(1, replications.size());
-        assertEquals(1, replications.cachedCopyStateSize());
 
         replications.cancelReplication(primaryDiscoveryNode);
-        assertEquals(0, copyState.refCount());
+        assertEquals(1, copyState.refCount());
         assertEquals(0, replications.size());
-        assertEquals(0, replications.cachedCopyStateSize());
+        replications.close();
+        assertEquals(0, copyState.refCount());
     }
 
     public void testCancelReplication_AfterSendFilesStarts() throws IOException, InterruptedException {
@@ -178,9 +188,10 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
             // cancel the replication as soon as the writer starts sending files.
             replications.cancel(replica.routingEntry().allocationId().getId(), "Test");
         };
-        final CopyState copyState = replications.prepareForReplication(request, segmentSegmentFileChunkWriter);
-        assertEquals(1, replications.size());
-        assertEquals(1, replications.cachedCopyStateSize());
+        replications.updateCopyState(primary);
+        final GatedCloseable<CopyState> copyStateGatedCloseable = replications.getLatestCopyState(primary.shardId());
+        replications.prepareForReplication(request, segmentSegmentFileChunkWriter, copyStateGatedCloseable);
+        final CopyState copyState = copyStateGatedCloseable.get();        assertEquals(1, replications.size());
         getSegmentFilesRequest = new GetSegmentFilesRequest(
             1L,
             replica.routingEntry().allocationId().getId(),
@@ -197,14 +208,15 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertEquals(CancellableThreads.ExecutionCancelledException.class, e.getClass());
-                assertEquals(0, copyState.refCount());
+                assertEquals(1, copyState.refCount());
                 assertEquals(0, replications.size());
-                assertEquals(0, replications.cachedCopyStateSize());
                 latch.countDown();
             }
         });
         latch.await(2, TimeUnit.SECONDS);
         assertEquals("listener should have resolved with failure", 0, latch.getCount());
+        replications.close();
+        assertEquals(0, copyState.refCount());
     }
 
     public void testMultipleReplicasUseSameCheckpoint() throws IOException {
@@ -223,8 +235,11 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
             Assert.fail();
         };
 
-        final CopyState copyState = replications.prepareForReplication(request, segmentSegmentFileChunkWriter);
-        assertEquals(1, copyState.refCount());
+        replications.updateCopyState(primary);
+        final GatedCloseable<CopyState> copyStateGatedCloseable = replications.getLatestCopyState(primary.shardId());
+        replications.prepareForReplication(request, segmentSegmentFileChunkWriter, copyStateGatedCloseable);
+        final CopyState copyState = copyStateGatedCloseable.get();
+        assertEquals(2, copyState.refCount());
 
         final CheckpointInfoRequest secondRequest = new CheckpointInfoRequest(
             1L,
@@ -232,18 +247,18 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
             replicaDiscoveryNode,
             testCheckpoint
         );
-        replications.prepareForReplication(secondRequest, segmentSegmentFileChunkWriter);
-
-        assertEquals(2, copyState.refCount());
+        final GatedCloseable<CopyState> closeableTwo = replications.getLatestCopyState(primary.shardId());
+        replications.prepareForReplication(secondRequest, segmentSegmentFileChunkWriter, closeableTwo);
+        assertEquals(3, copyState.refCount());
         assertEquals(2, replications.size());
-        assertEquals(1, replications.cachedCopyStateSize());
 
         replications.cancelReplication(primaryDiscoveryNode);
         replications.cancelReplication(replicaDiscoveryNode);
-        assertEquals(0, copyState.refCount());
+        assertEquals(1, copyState.refCount());
         assertEquals(0, replications.size());
-        assertEquals(0, replications.cachedCopyStateSize());
         closeShards(secondReplica);
+        replications.close();
+        assertEquals(0, copyState.refCount());
     }
 
     public void testStartCopyWithoutPrepareStep() {
@@ -283,8 +298,10 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
         final FileChunkWriter segmentSegmentFileChunkWriter = (fileMetadata, position, content, lastChunk, totalTranslogOps, listener) -> {
             listener.onResponse(null);
         };
-        replications.prepareForReplication(request, segmentSegmentFileChunkWriter);
-        assertThrows(OpenSearchException.class, () -> { replications.prepareForReplication(request, segmentSegmentFileChunkWriter); });
+        replications.updateCopyState(primary);
+        final GatedCloseable<CopyState> copyStateGatedCloseable = replications.getLatestCopyState(primary.shardId());
+        replications.prepareForReplication(request, segmentSegmentFileChunkWriter, copyStateGatedCloseable);
+        assertThrows(OpenSearchException.class, () -> { replications.prepareForReplication(request, segmentSegmentFileChunkWriter, copyStateGatedCloseable); });
     }
 
     public void testStartReplicationWithNoFilesToFetch() throws IOException {
@@ -299,10 +316,12 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
         // mock the FileChunkWriter so we can assert its ever called.
         final FileChunkWriter segmentSegmentFileChunkWriter = mock(FileChunkWriter.class);
         // Prepare for replication step - and ensure copyState is added to cache.
-        final CopyState copyState = replications.prepareForReplication(request, segmentSegmentFileChunkWriter);
-        assertTrue(replications.isInCopyStateMap(request.getCheckpoint()));
+        replications.updateCopyState(primary);
+        final GatedCloseable<CopyState> copyStateGatedCloseable = replications.getLatestCopyState(primary.shardId());
+        replications.prepareForReplication(request, segmentSegmentFileChunkWriter, copyStateGatedCloseable);
+        final CopyState copyState = copyStateGatedCloseable.get();
         assertEquals(1, replications.size());
-        assertEquals(1, copyState.refCount());
+        assertEquals(2, copyState.refCount());
 
         getSegmentFilesRequest = new GetSegmentFilesRequest(
             1L,
@@ -317,9 +336,14 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
             @Override
             public void onResponse(GetSegmentFilesResponse getSegmentFilesResponse) {
                 assertEquals(Collections.emptyList(), getSegmentFilesResponse.files);
-                assertEquals(0, copyState.refCount());
-                assertFalse(replications.isInCopyStateMap(request.getCheckpoint()));
+                assertEquals(1, copyState.refCount());
                 verifyNoInteractions(segmentSegmentFileChunkWriter);
+                try {
+                    replications.close();
+                } catch (IOException e) {
+                    fail();
+                }
+                assertEquals(0, copyState.refCount());
             }
 
             @Override
@@ -343,8 +367,11 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
             testCheckpoint
         );
 
-        final CopyState copyState = replications.prepareForReplication(request, mock(FileChunkWriter.class));
-        assertEquals(1, copyState.refCount());
+        replications.updateCopyState(primary);
+        final GatedCloseable<CopyState> copyStateGatedCloseable = replications.getLatestCopyState(primary.shardId());
+        replications.prepareForReplication(request, mock(FileChunkWriter.class), copyStateGatedCloseable);
+        final CopyState copyState = copyStateGatedCloseable.get();
+        assertEquals(2, copyState.refCount());
 
         final CheckpointInfoRequest secondRequest = new CheckpointInfoRequest(
             1L,
@@ -352,17 +379,51 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
             replicaDiscoveryNode,
             testCheckpoint
         );
-        replications.prepareForReplication(secondRequest, mock(FileChunkWriter.class));
+        final GatedCloseable<CopyState> closeableTwo = replications.getLatestCopyState(primary.shardId());
+        replications.prepareForReplication(secondRequest, mock(FileChunkWriter.class), closeableTwo);
 
-        assertEquals(2, copyState.refCount());
+        assertEquals(3, copyState.refCount());
         assertEquals(2, replications.size());
-        assertEquals(1, replications.cachedCopyStateSize());
 
         // cancel the primary's ongoing replications.
         replications.cancel(primary, "Test");
         assertEquals(0, copyState.refCount());
         assertEquals(0, replications.size());
-        assertEquals(0, replications.cachedCopyStateSize());
         closeShards(replica_2);
+    }
+
+    public void testCopyStateRefCounts() throws IOException {
+        OngoingSegmentReplications replications = new OngoingSegmentReplications(mockIndicesService, recoverySettings);
+        replications.updateCopyState(primary);
+        final Map<ShardId, CopyState> copyStateMap = replications.getCopyStateMap();
+        assertEquals(1, copyStateMap.size());
+        final CopyState copyState = copyStateMap.get(primary.shardId());
+        assertEquals("CopyState is snapshotted until released", 1, copyState.refCount());
+        final GatedCloseable<CopyState> closeable = replications.getLatestCopyState(primary.shardId());
+        assertEquals("CopyState refCount is increased when accessed", 2, copyState.refCount());
+        final GatedCloseable<CopyState> closeable_2 = replications.getLatestCopyState(primary.shardId());
+        assertEquals("CopyState refCount is increased when accessed", 3, copyState.refCount());
+
+        // index a random doc and refresh.
+        indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
+        primary.refresh("test");
+
+        replications.updateCopyState(primary);
+        final CopyState copyState_2 = copyStateMap.get(primary.shardId());
+        assertEquals(1, copyState_2.refCount());
+        assertEquals("CopyState not in map remains refCounted until closed", 2, copyState.refCount());
+        final GatedCloseable<CopyState> closeable_3 = replications.getLatestCopyState(primary.shardId());
+        assertEquals("CopyState refCount is increased when accessed", 2, copyState_2.refCount());
+        assertEquals(copyState_2, closeable_3.get());
+
+        closeable.close();
+        closeable_2.close();
+        assertEquals(0, copyState.refCount());
+
+        closeable_3.close();
+        assertEquals(1, copyState_2.refCount());
+
+        replications.close();
+        assertEquals(0, copyState_2.refCount());
     }
 }

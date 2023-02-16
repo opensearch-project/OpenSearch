@@ -16,6 +16,7 @@ import org.opensearch.common.collect.Map;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
@@ -49,7 +50,7 @@ public class CopyStateTests extends IndexShardTestCase {
 
     public void testCopyStateCreation() throws IOException {
         final IndexShard mockIndexShard = createMockIndexShard();
-        CopyState copyState = new CopyState(ReplicationCheckpoint.empty(mockIndexShard.shardId()), mockIndexShard);
+        CopyState copyState = new CopyState(mockIndexShard);
         ReplicationCheckpoint checkpoint = copyState.getCheckpoint();
         assertEquals(TEST_SHARD_ID, checkpoint.getShardId());
         // version was never set so this should be zero
@@ -62,6 +63,7 @@ public class CopyStateTests extends IndexShardTestCase {
         when(mockShard.shardId()).thenReturn(TEST_SHARD_ID);
         when(mockShard.getOperationPrimaryTerm()).thenReturn(EXPECTED_LONG_VALUE);
         when(mockShard.getProcessedLocalCheckpoint()).thenReturn(EXPECTED_LONG_VALUE);
+        when(mockShard.state()).thenReturn(IndexShardState.STARTED);
 
         Store mockStore = mock(Store.class);
         when(mockShard.store()).thenReturn(mockStore);

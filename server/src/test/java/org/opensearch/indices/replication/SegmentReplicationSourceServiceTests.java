@@ -85,6 +85,7 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
             transportService,
             recoverySettings
         );
+        segmentReplicationSourceService.onPrimaryRefresh(mockIndexShard);
     }
 
     @Override

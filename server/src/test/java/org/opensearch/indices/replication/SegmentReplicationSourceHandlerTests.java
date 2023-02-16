@@ -17,6 +17,7 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.xcontent.XContentType;
@@ -67,12 +68,13 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
         chunkWriter = (fileMetadata, position, content, lastChunk, totalTranslogOps, listener) -> listener.onResponse(null);
 
         final ReplicationCheckpoint latestReplicationCheckpoint = primary.getLatestReplicationCheckpoint();
-        final CopyState copyState = new CopyState(latestReplicationCheckpoint, primary);
+
+        final CopyState copyState = new CopyState(primary);
+        final GatedCloseable<CopyState> copyStateGatedCloseable = new GatedCloseable<>(copyState, () -> {});
         SegmentReplicationSourceHandler handler = new SegmentReplicationSourceHandler(
             localNode,
             chunkWriter,
-            threadPool,
-            copyState,
+            copyStateGatedCloseable,
             primary.routingEntry().allocationId().getId(),
             5000,
             1
@@ -105,12 +107,12 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
         chunkWriter = mock(FileChunkWriter.class);
 
         final ReplicationCheckpoint latestReplicationCheckpoint = primary.getLatestReplicationCheckpoint();
-        final CopyState copyState = new CopyState(latestReplicationCheckpoint, primary);
+        final CopyState copyState = new CopyState(primary);
+        final GatedCloseable<CopyState> copyStateGatedCloseable = new GatedCloseable<>(copyState, () -> {});
         SegmentReplicationSourceHandler handler = new SegmentReplicationSourceHandler(
             localNode,
             chunkWriter,
-            threadPool,
-            copyState,
+            copyStateGatedCloseable,
             primary.routingEntry().allocationId().getId(),
             5000,
             1
@@ -147,12 +149,12 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
         );
 
         final ReplicationCheckpoint latestReplicationCheckpoint = primary.getLatestReplicationCheckpoint();
-        final CopyState copyState = new CopyState(latestReplicationCheckpoint, primary);
+        final CopyState copyState = new CopyState(primary);
+        final GatedCloseable<CopyState> copyStateGatedCloseable = new GatedCloseable<>(copyState, () -> {});
         SegmentReplicationSourceHandler handler = new SegmentReplicationSourceHandler(
             localNode,
             chunkWriter,
-            threadPool,
-            copyState,
+            copyStateGatedCloseable,
             primary.routingEntry().allocationId().getId(),
             5000,
             1
@@ -185,12 +187,12 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
         chunkWriter = mock(FileChunkWriter.class);
 
         final ReplicationCheckpoint latestReplicationCheckpoint = primary.getLatestReplicationCheckpoint();
-        final CopyState copyState = new CopyState(latestReplicationCheckpoint, primary);
+        final CopyState copyState = new CopyState(primary);
+        final GatedCloseable<CopyState> copyStateGatedCloseable = new GatedCloseable<>(copyState, () -> {});
         SegmentReplicationSourceHandler handler = new SegmentReplicationSourceHandler(
             localNode,
             chunkWriter,
-            threadPool,
-            copyState,
+            copyStateGatedCloseable,
             primary.routingEntry().allocationId().getId(),
             5000,
             1
@@ -213,12 +215,12 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
         chunkWriter = mock(FileChunkWriter.class);
 
         final ReplicationCheckpoint latestReplicationCheckpoint = primary.getLatestReplicationCheckpoint();
-        final CopyState copyState = new CopyState(latestReplicationCheckpoint, primary);
+        final CopyState copyState = new CopyState(primary);
+        final GatedCloseable<CopyState> copyStateGatedCloseable = new GatedCloseable<>(copyState, () -> {});
         SegmentReplicationSourceHandler handler = new SegmentReplicationSourceHandler(
             localNode,
             chunkWriter,
-            threadPool,
-            copyState,
+            copyStateGatedCloseable,
             primary.routingEntry().allocationId().getId(),
             5000,
             1

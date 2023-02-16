@@ -141,7 +141,6 @@ import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
-import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -3664,7 +3663,7 @@ public class IndexShardTests extends IndexShardTestCase {
      * here we are mocking a SegmentReplicationcheckpointPublisher and testing on index shard if CheckpointRefreshListener is added to the InternalrefreshListerners List
      */
     public void testCheckpointRefreshListener() throws IOException {
-        final SegmentReplicationCheckpointPublisher mock = mock(SegmentReplicationCheckpointPublisher.class);
+        final Consumer<IndexShard> mock = mock(Consumer.class);
         IndexShard shard = newStartedShard(p -> newShard(mock), true);
         List<ReferenceManager.RefreshListener> refreshListeners = shard.getEngine().config().getInternalRefreshListener();
         assertTrue(refreshListeners.stream().anyMatch(e -> e instanceof CheckpointRefreshListener));
@@ -3684,9 +3683,9 @@ public class IndexShardTests extends IndexShardTestCase {
     /**
      * creates a new initializing shard. The shard will be put in its proper path under the
      * current node id the shard is assigned to.
-     * @param checkpointPublisher               Segment Replication Checkpoint Publisher to publish checkpoint
+     * @param checkpointUpdateConsumer              Consumer of replication checkpoint updates.
      */
-    private IndexShard newShard(SegmentReplicationCheckpointPublisher checkpointPublisher) throws IOException {
+    private IndexShard newShard(Consumer<IndexShard> checkpointUpdateConsumer) throws IOException {
         final ShardId shardId = new ShardId("index", "_na_", 0);
         final ShardRouting shardRouting = TestShardRouting.newShardRouting(
             shardId,
@@ -3722,7 +3721,7 @@ public class IndexShardTests extends IndexShardTestCase {
             () -> {},
             RetentionLeaseSyncer.EMPTY,
             EMPTY_EVENT_LISTENER,
-            checkpointPublisher,
+            checkpointUpdateConsumer,
             null
         );
     }

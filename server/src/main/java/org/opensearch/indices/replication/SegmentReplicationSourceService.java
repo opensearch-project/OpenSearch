@@ -19,9 +19,11 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.component.AbstractLifecycleComponent;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexShardNotStartedException;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -31,10 +33,12 @@ import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
+import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -67,6 +71,14 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
     private final RecoverySettings recoverySettings;
     private final TransportService transportService;
     private final IndicesService indicesService;
+
+    public void onPrimaryRefresh(IndexShard indexShard) {
+        try {
+            ongoingSegmentReplications.updateCopyState(indexShard);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
     /**
      * Internal actions used by the segment replication source service on the primary shard
@@ -116,8 +128,37 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
         @Override
         public void messageReceived(CheckpointInfoRequest request, TransportChannel channel, Task task) throws Exception {
             final ReplicationTimer timer = new ReplicationTimer();
+            assert ongoingSegmentReplications != null;
             timer.start();
-            final RemoteSegmentFileChunkWriter segmentSegmentFileChunkWriter = new RemoteSegmentFileChunkWriter(
+            final GatedCloseable<CopyState> copyStateGatedCloseable = ongoingSegmentReplications.getLatestCopyState(request.getCheckpoint().getShardId());
+            final CopyState copyState = copyStateGatedCloseable.get();
+            if (request.getCheckpoint().isAheadOf(copyState.getCheckpoint()) || copyState.getMetadataMap().isEmpty()) {
+                // if there are no files to send, or the replica is already at this checkpoint, send the infos but do not hold snapshotted infos.
+                // During recovery of an empty cluster it is possible we have no files to send but the primary has flushed to set userData,
+                // in this case we still want to send over infos.
+                channel.sendResponse(new CheckpointInfoResponse(copyState.getCheckpoint(), Collections.emptyMap(), copyState.getInfosBytes()));
+                copyState.decRef();
+            } else {
+                final RemoteSegmentFileChunkWriter segmentSegmentFileChunkWriter = getRemoteSegmentFileChunkWriter(request);
+                ongoingSegmentReplications.prepareForReplication(request, segmentSegmentFileChunkWriter, copyStateGatedCloseable);
+                channel.sendResponse(
+                    new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
+                );
+                timer.stop();
+                logger.info(
+                    new ParameterizedMessage(
+                        "[replication id {}] Source node sent checkpoint info [{}] to target node [{}], timing: {}",
+                        request.getReplicationId(),
+                        copyState.getCheckpoint(),
+                        request.getTargetNode().getName(),
+                        timer.time()
+                    )
+                );
+            }
+        }
+
+        private RemoteSegmentFileChunkWriter getRemoteSegmentFileChunkWriter(CheckpointInfoRequest request) {
+            return new RemoteSegmentFileChunkWriter(
                 request.getReplicationId(),
                 recoverySettings,
                 new RetryableTransportClient(
@@ -129,21 +170,8 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
                 request.getCheckpoint().getShardId(),
                 SegmentReplicationTargetService.Actions.FILE_CHUNK,
                 new AtomicLong(0),
-                (throttleTime) -> {}
-            );
-            final CopyState copyState = ongoingSegmentReplications.prepareForReplication(request, segmentSegmentFileChunkWriter);
-            channel.sendResponse(
-                new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
-            );
-            timer.stop();
-            logger.trace(
-                new ParameterizedMessage(
-                    "[replication id {}] Source node sent checkpoint info [{}] to target node [{}], timing: {}",
-                    request.getReplicationId(),
-                    copyState.getCheckpoint(),
-                    request.getTargetNode().getId(),
-                    timer.time()
-                )
+                (throttleTime) -> {
+                }
             );
         }
     }
@@ -182,16 +210,17 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
 
     @Override
     protected void doClose() throws IOException {
-
+        logger.info("Closing?");
+        ongoingSegmentReplications.close();
     }
 
     /**
-     *
-     * Cancels any replications on this node to a replica shard that is about to be closed.
+     * Cancels any replications on this node for a primary shard that is about to be closed.
      */
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null) {
+            logger.info("Releasing for shard {}", indexShard.routingEntry());
             ongoingSegmentReplications.cancel(indexShard, "shard is closed");
         }
     }
@@ -203,6 +232,10 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
     public void shardRoutingChanged(IndexShard indexShard, @Nullable ShardRouting oldRouting, ShardRouting newRouting) {
         if (indexShard != null && oldRouting.primary() == false && newRouting.primary()) {
             ongoingSegmentReplications.cancel(indexShard.routingEntry().allocationId().getId(), "Relocating primary shard.");
+        }
+        if (indexShard != null && oldRouting.primary() && newRouting.primary() == false) {
+            logger.info("No longer primary {}", indexShard.routingEntry());
+            ongoingSegmentReplications.clearCopyStateForShard(indexShard.shardId());
         }
     }
 

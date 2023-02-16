@@ -174,7 +174,6 @@ import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
-import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.rest.RestStatus;
@@ -257,7 +256,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final GlobalCheckpointListeners globalCheckpointListeners;
     private final PendingReplicationActions pendingReplicationActions;
     private final ReplicationTracker replicationTracker;
-    private final SegmentReplicationCheckpointPublisher checkpointPublisher;
 
     protected volatile ShardRouting shardRouting;
     protected volatile IndexShardState state;
@@ -271,6 +269,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final IndexingOperationListener indexingOperationListeners;
     private final Runnable globalCheckpointSyncer;
+    private final Consumer<IndexShard> checkpointUpdateConsumer;
+    private final Consumer<IndexShard> segmentSyncer;
 
     Runnable getGlobalCheckpointSyncer() {
         return globalCheckpointSyncer;
@@ -347,10 +347,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final CircuitBreakerService circuitBreakerService,
         final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
-        @Nullable final SegmentReplicationCheckpointPublisher checkpointPublisher,
-        @Nullable final Store remoteStore
-    ) throws IOException {
+        final Consumer<IndexShard> checkpointUpdateConsumer,
+        @Nullable final Store remoteStore,
+        final Consumer<IndexShard> segmentSyncer) throws IOException {
         super(shardRouting.shardId(), indexSettings);
+        this.segmentSyncer = segmentSyncer;
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
         final Settings settings = indexSettings.getSettings();
@@ -437,7 +438,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         persistMetadata(path, indexSettings, shardRouting, null, logger);
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
-        this.checkpointPublisher = checkpointPublisher;
+        this.checkpointUpdateConsumer = checkpointUpdateConsumer;
         this.remoteStore = remoteStore;
         this.translogFactorySupplier = translogFactorySupplier;
     }
@@ -491,6 +492,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public boolean isSystem() {
         return indexSettings.getIndexMetadata().isSystem();
+    }
+
+    public void syncSegments() {
+        segmentSyncer.accept(this);
     }
 
     /**
@@ -563,7 +568,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 assert currentRouting.isRelocationTarget() == false
                     || currentRouting.primary() == false
                     || replicationTracker.isPrimaryMode()
-                    : "a primary relocation is completed by the cluster-managerr, but primary mode is not active " + currentRouting;
+                    : "a primary relocation is completed by the cluster-manager, but primary mode is not active " + currentRouting;
 
                 changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
             } else if (currentRouting.primary()
@@ -1508,16 +1513,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.warn("Attempting to perform segment replication when it is not enabled on the index");
             return false;
         }
-        if (getReplicationTracker().isPrimaryMode()) {
+        if (this.routingEntry().primary() && replicationTracker.isPrimaryMode()) {
             logger.warn("Shard is in primary mode and cannot perform segment replication as a replica.");
             return false;
         }
-        if (this.routingEntry().primary()) {
-            logger.warn("Shard is marked as primary and cannot perform segment replication as a replica");
-            return false;
-        }
-        if (state().equals(IndexShardState.STARTED) == false
-            && (state() == IndexShardState.POST_RECOVERY && shardRouting.state() == ShardRoutingState.INITIALIZING) == false) {
+        if ((state().equals(IndexShardState.STARTED) == false
+            && (state() == IndexShardState.POST_RECOVERY && shardRouting.state() == ShardRoutingState.INITIALIZING) == false)) {
             logger.warn(
                 () -> new ParameterizedMessage(
                     "Shard is not started or recovering {} {} and cannot perform segment replication as a replica",
@@ -1735,6 +1736,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void resetToWriteableEngine() throws IOException, InterruptedException, TimeoutException {
         indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> { resetEngineToGlobalCheckpoint(); });
+    }
+
+    public Translog.Location printLastWriteLocation() {
+        return getEngine().translogManager().getTranslogLastWriteLocation();
+    }
+
+    public List<String> pendingOperations() {
+        return indexShardOperationPermits.getActiveOperations();
     }
 
     /**
@@ -3452,8 +3461,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (isRemoteStoreEnabled()) {
             internalRefreshListener.add(new RemoteStoreRefreshListener(this));
         }
-        if (this.checkpointPublisher != null && indexSettings.isSegRepEnabled() && shardRouting.primary()) {
-            internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));
+        if (indexSettings.isSegRepEnabled() && shardRouting.primary()) {
+            internalRefreshListener.add(new CheckpointRefreshListener(this, checkpointUpdateConsumer));
         }
         /**
          * With segment replication enabled for primary relocation, recover replica shard initially as read only and

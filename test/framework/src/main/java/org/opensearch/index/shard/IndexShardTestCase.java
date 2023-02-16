@@ -124,7 +124,6 @@ import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTarget;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
-import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
@@ -505,7 +504,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             globalCheckpointSyncer,
             retentionLeaseSyncer,
             indexEventListener,
-            SegmentReplicationCheckpointPublisher.EMPTY,
+            (s) -> {},
             remoteStore,
             listeners
         );
@@ -534,7 +533,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         Runnable globalCheckpointSyncer,
         RetentionLeaseSyncer retentionLeaseSyncer,
         IndexEventListener indexEventListener,
-        SegmentReplicationCheckpointPublisher checkpointPublisher,
+        Consumer<IndexShard> checkpointPublisher,
         @Nullable Store remoteStore,
         IndexingOperationListener... listeners
     ) throws IOException {
@@ -600,8 +599,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 breakerService,
                 translogFactorySupplier,
                 checkpointPublisher,
-                remoteStore
-            );
+                remoteStore,
+                null);
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;
         } finally {
@@ -1299,7 +1298,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 ActionListener<CheckpointInfoResponse> listener
             ) {
                 try {
-                    final CopyState copyState = new CopyState(ReplicationCheckpoint.empty(primaryShard.shardId), primaryShard);
+                    final CopyState copyState = new CopyState(primaryShard);
                     listener.onResponse(
                         new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
                     );
@@ -1353,7 +1352,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         for (IndexShard replica : replicaShards) {
             final SegmentReplicationTargetService targetService = prepareForReplication(primaryShard, replica);
             final SegmentReplicationTarget target = targetService.startReplication(
-                ReplicationCheckpoint.empty(replica.shardId),
+                replica.getLatestReplicationCheckpoint(),
                 replica,
                 new SegmentReplicationTargetService.SegmentReplicationListener() {
                     @Override
