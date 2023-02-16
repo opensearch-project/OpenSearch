@@ -45,6 +45,7 @@ import org.gradle.plugins.ide.eclipse.model.AccessRule
 import org.gradle.plugins.ide.eclipse.model.EclipseJdt
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.gradle.api.Project;
+import org.gradle.api.internal.tasks.testing.junit.JUnitTestFramework
 import org.gradle.process.ExecResult;
 import org.gradle.util.DistributionLocator
 import org.gradle.util.GradleVersion
@@ -56,7 +57,7 @@ plugins {
   id 'opensearch.docker-support'
   id 'opensearch.global-build-info'
   id "com.diffplug.spotless" version "6.11.0" apply false
-  id "org.gradle.test-retry" version "1.4.1" apply false
+  id "org.gradle.test-retry" version "1.5.1" apply false
   id "test-report-aggregation"
   id 'jacoco-report-aggregation'
 }
@@ -77,6 +78,19 @@ allprojects {
   group = 'org.opensearch'
   version = VersionProperties.getOpenSearch()
   description = "OpenSearch subproject ${project.path}"
+
+  afterEvaluate {
+    project.tasks.withType(Test) { task ->
+      // This is so hacky: now, by default, test tasks uses JUnit framework and always includes 'junit'
+      // JARs from the Gradle distribution (no ways to override this behavior). It causes JAR hell on test 
+      // classpath, example of the report:
+      //
+      //  jar1: /home/ubuntu/.gradle/caches/modules-2/files-2.1/junit/junit/4.13.2/8ac9e16d933b6fb43bc7f576336b8f4d7eb5ba12/junit-4.13.2.jar
+      //  jar2: /home/ubuntu/.gradle/wrapper/dists/gradle-8.0-rc-1-all/2p8rgxxewg8l61n1p3vrzr9s8/gradle-8.0-rc-1/lib/junit-4.13.2.jar
+      // 
+      task.getTestFrameworkProperty().convention(getProviderFactory().provider(() -> new JUnitTestFramework(task, task.getFilter(), false)));
+    }
+  }
 }
 
 configure(allprojects - project(':distribution:archives:integ-test-zip')) {
