@@ -66,6 +66,8 @@ public class RunTask extends DefaultTestClustersTask {
 
     private Boolean debug = false;
 
+    private Boolean debugServer = false;
+
     private Boolean preserveData = false;
 
     private Path dataDir = null;
@@ -74,12 +76,28 @@ public class RunTask extends DefaultTestClustersTask {
 
     @Option(option = "debug-jvm", description = "Enable debugging configuration, to allow attaching a debugger to opensearch.")
     public void setDebug(boolean enabled) {
+        if (debugServer != null && debugServer == true) {
+            throw new IllegalStateException("Either --debug-jvm or --debug-server-jvm option should be specified (but not both)");
+        }
         this.debug = enabled;
+    }
+
+    @Option(option = "debug-server-jvm", description = "Enable debugging configuration, to allow running opensearch in debug mode.")
+    public void setDebugServer(boolean enabled) {
+        if (debug != null && debug == true) {
+            throw new IllegalStateException("Either --debug-jvm or --debug-server-jvm option should be specified (but not both)");
+        }
+        this.debugServer = enabled;
     }
 
     @Input
     public Boolean getDebug() {
         return debug;
+    }
+
+    @Input
+    public Boolean getDebugServer() {
+        return debugServer;
     }
 
     @Option(option = "data-dir", description = "Override the base data directory used by the testcluster")
@@ -164,6 +182,10 @@ public class RunTask extends DefaultTestClustersTask {
                 if (debug) {
                     logger.lifecycle("Running opensearch in debug mode, {} expecting running debug server on port {}", node, debugPort);
                     node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=" + debugPort);
+                    debugPort += 1;
+                } else if (debugServer) {
+                    logger.lifecycle("Running opensearch in debug mode, {} running server with debug port {}", node, debugPort);
+                    node.jvmArgs("-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=" + debugPort);
                     debugPort += 1;
                 }
                 if (keystorePassword.length() > 0) {
