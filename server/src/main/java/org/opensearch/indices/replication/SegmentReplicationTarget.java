@@ -175,12 +175,6 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     private void getFiles(CheckpointInfoResponse checkpointInfo, StepListener<GetSegmentFilesResponse> getFilesListener)
         throws IOException {
-        logger.info(
-            "Received checkpoint info as reponse {} {} {}",
-            state().getReplicationId(),
-            checkpointInfo.getCheckpoint(),
-            checkpointInfo.getMetadataMap()
-        );
         cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
         final Store.RecoveryDiff diff = Store.segmentReplicationDiff(checkpointInfo.getMetadataMap(), indexShard.getSegmentMetadataMap());
@@ -218,7 +212,6 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         ActionListener.completeWith(listener, () -> {
             cancellableThreads.checkForCancel();
             state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);
-            // Only if we received new files update the shard's reader.
             multiFileWriter.renameAllTempFiles();
             final Store store = store();
             store.incRef();

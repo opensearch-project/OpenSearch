@@ -1058,14 +1058,16 @@ public class Node implements Closeable {
                     b.bind(PeerRecoveryTargetService.class)
                         .toInstance(new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService));
                     if (FeatureFlags.isEnabled(REPLICATION_TYPE)) {
-                        final SegmentReplicationTargetService segmentReplicationTargetService = new SegmentReplicationTargetService(
-                            threadPool,
-                            recoverySettings,
-                            transportService,
-                            new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService),
-                            indicesService
-                        );
-                        b.bind(SegmentReplicationTargetService.class).toInstance(segmentReplicationTargetService);
+                        b.bind(SegmentReplicationTargetService.class)
+                            .toInstance(
+                                new SegmentReplicationTargetService(
+                                    threadPool,
+                                    recoverySettings,
+                                    transportService,
+                                    new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService),
+                                    indicesService
+                                )
+                            );
                         b.bind(SegmentReplicationSourceService.class)
                             .toInstance(new SegmentReplicationSourceService(indicesService, transportService, recoverySettings));
                     } else {
