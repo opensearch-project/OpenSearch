@@ -41,7 +41,7 @@ dependencies {
 ["0.0.1"].forEach { v ->
   ["opensearch", "other"].forEach { p ->
     tasks.register("broken-log4j-${p}-${v}", Jar) {
-      destinationDir = file("${buildDir}/testrepo/org/${p}/gradle/broken-log4j/${v}/")
+      destinationDirectory = file("${buildDir}/testrepo/org/${p}/gradle/broken-log4j/${v}/")
       archiveFileName = "broken-log4j-${v}.jar"
       from sourceSets.main.output
       include "**/TestingLog4j.class"
@@ -51,7 +51,7 @@ dependencies {
 }
 
 tasks.register("jarhellJdk", Jar) {
-  destinationDir = file("${buildDir}/testrepo/org/other/gradle/jarhellJdk/0.0.1/")
+  destinationDirectory = file("${buildDir}/testrepo/org/other/gradle/jarhellJdk/0.0.1/")
   archiveFileName = "jarhellJdk-0.0.1.jar"
   from sourceSets.main.output
   include "**/String.class"
