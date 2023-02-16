@@ -131,10 +131,16 @@ public class OpenSearchPermission implements Permission {
         return allRequestedPatternsMatchGranted;
     }
 
+    @Override
     public boolean equals(final Object obj) {
         if (this == obj) return true;
-        if (obj == null || getClass() != obj.getClass()) return false;
+        if (obj == null || this.getClass() != obj.getClass()) return false;
         final OpenSearchPermission that = (OpenSearchPermission) obj;
         return Objects.equals(this.getPermissionString(), that.getPermissionString());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(this.getPermissionString());
     }
 }
