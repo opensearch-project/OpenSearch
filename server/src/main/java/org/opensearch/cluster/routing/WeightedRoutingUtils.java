@@ -30,6 +30,9 @@ public class WeightedRoutingUtils {
      */
     public static boolean isWeighedAway(String nodeId, ClusterState clusterState) {
         DiscoveryNode node = clusterState.nodes().get(nodeId);
+        if (node == null) {
+            return false;
+        }
         WeightedRoutingMetadata weightedRoutingMetadata = clusterState.metadata().weightedRoutingMetadata();
         if (weightedRoutingMetadata != null) {
             WeightedRouting weightedRouting = weightedRoutingMetadata.getWeightedRouting();

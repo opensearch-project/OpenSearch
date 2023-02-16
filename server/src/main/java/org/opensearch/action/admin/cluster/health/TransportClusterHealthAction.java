@@ -281,6 +281,7 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
             ClusterHealthResponse clusterHealthResponse = getResponse(request, currentState, waitCount, TimeoutState.OK);
             if (request.ensureNodeWeighedIn() && clusterHealthResponse.hasDiscoveredClusterManager()) {
                 DiscoveryNode localNode = currentState.getNodes().getLocalNode();
+                // TODO: make this check more generic, check for node role instead
                 if (localNode.isDataNode()) {
                     assert request.local() == true : "local node request false for request for local node weighed in";
                     boolean weighedAway = WeightedRoutingUtils.isWeighedAway(localNode.getId(), currentState);
