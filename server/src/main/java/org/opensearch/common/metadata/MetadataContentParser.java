@@ -12,7 +12,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  * Parser interface for Metadata. Holds methods to convert to/from file content streams to metadata object holder - {@link T}
@@ -31,15 +30,4 @@ public interface MetadataContentParser<T> {
      * @param indexOutput metadata file input stream
      */
     void writeContent(IndexOutput indexOutput, T content) throws IOException;
-
-    /**
-     * Implements logic to write metadata content from {@code content} to metadata file output stream {@code indexOutput}
-     * This method only supports metadata content in the form {@code Map<String, String>} to support RemoteSegment store metadata content.
-     * @param indexOutput metadata file input stream
-     * @param content metadata content
-     *
-     * TODO - This will removed in future releases and only {@link #writeContent(IndexOutput, Object)} should be used.
-     */
-    @Deprecated
-    void writeContent(IndexOutput indexOutput, Map<String, String> content) throws IOException;
 }

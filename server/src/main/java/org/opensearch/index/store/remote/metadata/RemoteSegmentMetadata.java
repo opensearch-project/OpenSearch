@@ -45,6 +45,14 @@ public class RemoteSegmentMetadata {
     }
 
     /**
+     * Generate {@code Map<String, String>} from {@link RemoteSegmentMetadata}
+     * @return {@code Map<String, String>}
+     */
+    public Map<String, String> toMapOfStrings() {
+        return this.metadata.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().toString()));
+    }
+
+    /**
      * Generate {@link RemoteSegmentMetadata} from {@code segmentMetadata}
      * @param segmentMetadata metadata content in the form of {@code Map<String, String>}
      * @return {@link RemoteSegmentMetadata}

@@ -9,7 +9,6 @@
 package org.opensearch.index.store.remote.metadata;
 
 import java.io.IOException;
-import java.util.Map;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -35,15 +34,7 @@ public class RemoteSegmentMetadataContentParser implements MetadataContentParser
      * @param content {@link RemoteSegmentMetadata} from which metadata content would be generated
      */
     @Override
-    public void writeContent(IndexOutput indexOutput, RemoteSegmentMetadata content) throws IOException {}
-
-    /**
-     * Writes metadata to file output stream
-     * @param indexOutput metadata file input stream
-     * @param content metadata content
-     */
-    @Override
-    public void writeContent(IndexOutput indexOutput, Map<String, String> content) throws IOException {
-        indexOutput.writeMapOfStrings(content);
+    public void writeContent(IndexOutput indexOutput, RemoteSegmentMetadata content) throws IOException {
+        indexOutput.writeMapOfStrings(content.toMapOfStrings());
     }
 }

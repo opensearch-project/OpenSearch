@@ -9,7 +9,6 @@
 package org.opensearch.common.metadata;
 
 import java.io.IOException;
-import java.util.Map;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.BufferedChecksumIndexInput;
@@ -51,20 +50,6 @@ public class MetadataParser<T> {
         T metadata = this.parser.readContent(checksumIndexInput);
         checkFooter(checksumIndexInput);
         return metadata;
-    }
-
-    /**
-     * Writes metadata to file output stream {@code indexOutput}
-     * @param indexOutput file output stream which will store metadata content
-     * @param metadata metadata content.
-     *
-     * TODO - This will removed in future releases and only {@link #writeMetadata(IndexOutput, Object)} should be used.
-     */
-    @Deprecated
-    public void writeMetadata(IndexOutput indexOutput, Map<String, String> metadata) throws IOException {
-        this.writeHeader(indexOutput);
-        this.parser.writeContent(indexOutput, metadata);
-        this.writeFooter(indexOutput);
     }
 
     /**

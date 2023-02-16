@@ -361,7 +361,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
                     throw new NoSuchFileException(file);
                 }
             }
-            this.remoteMetadataParser.writeMetadata(indexOutput, uploadedSegments);
+            this.remoteMetadataParser.writeMetadata(indexOutput, RemoteSegmentMetadata.fromMapOfStrings(uploadedSegments));
             indexOutput.close();
             storeDirectory.sync(Collections.singleton(metadataFilename));
             remoteMetadataDirectory.copyFrom(storeDirectory, metadataFilename, metadataFilename, IOContext.DEFAULT);
