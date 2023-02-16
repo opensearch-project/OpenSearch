@@ -200,14 +200,6 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             startReplication(latestReplicationCheckpoint, indexShard, new SegmentReplicationListener() {
                 @Override
                 public void onReplicationDone(SegmentReplicationState state) {
-                    if (indexShard.getLatestReplicationCheckpoint().getSegmentInfosVersion() == latestReplicationCheckpoint
-                        .getSegmentInfosVersion()) {
-                        logger.trace(
-                            "Shard already on checkpoint {}",
-                            latestReplicationCheckpoint
-                        );
-                        indexShard.refresh("force-refresh-listeners");
-                    }
                     logger.trace(
                         () -> new ParameterizedMessage(
                             "[shardId {}] [Aid {}] [replication id {}] Replication complete to checkpoint {}",

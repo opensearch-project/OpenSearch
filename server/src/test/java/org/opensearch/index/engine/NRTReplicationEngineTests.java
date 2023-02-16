@@ -14,7 +14,6 @@ import org.apache.lucene.index.SegmentInfos;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
@@ -127,21 +126,6 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             nrtEngine.updateSegments(engine.getLatestSegmentInfos(), engine.getProcessedLocalCheckpoint());
             assertEquals(3, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
             assertEquals(3, nrtEngine.getLatestSegmentInfos().getGeneration());
-        }
-    }
-
-    public void testRefreshReaderWithNoSegmentUpdate() throws IOException {
-        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-
-        try (
-            final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
-            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore)
-        ) {
-            final OpenSearchDirectoryReader reader = nrtEngine.getReferenceManager(Engine.SearcherScope.EXTERNAL).acquire();
-            NRTReplicationReaderManager readerManager = new NRTReplicationReaderManager(reader);
-            assertNull(readerManager.refreshIfNeeded(reader));
-            assertEquals(nrtEngine.getLatestSegmentInfos(), readerManager.getSegmentInfos());
-            assertTrue(readerManager.maybeRefresh());
         }
     }
 

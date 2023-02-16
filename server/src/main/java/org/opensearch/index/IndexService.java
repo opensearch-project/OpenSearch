@@ -1142,6 +1142,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
 
         @Override
+        protected boolean mustReschedule() {
+            return indexService.getIndexSettings().isSegRepEnabled();
+        }
+
+        @Override
         protected String getThreadPool() {
             return ThreadPool.Names.REFRESH;
         }
