@@ -13,18 +13,17 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.Nullable;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexShardNotStartedException;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.FileChunkWriter;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.common.CopyState;
-import org.opensearch.indices.replication.common.ReplicationFailedException;
-import org.opensearch.indices.replication.common.RetryableReplicationException;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -196,7 +195,7 @@ class OngoingSegmentReplications implements Closeable {
         }
     }
 
-    public synchronized void updateCopyState(IndexShard indexShard) {
+    public synchronized void setCopyState(IndexShard indexShard) {
         // We can only compute CopyState for shards that have started.
         if (indexShard.state() == IndexShardState.STARTED) {
             final CopyState state;
@@ -234,10 +233,12 @@ class OngoingSegmentReplications implements Closeable {
             copyState.incRef();
             return new GatedCloseable<>(copyState, copyState::decRef);
         }
-        return new GatedCloseable<>(null, () -> {});
+        final IndexService indexService = indicesService.indexService(shardId.getIndex());
+        final IndexShard indexShard = indexService.getShard(shardId.id());
+        throw new IndexShardNotStartedException(shardId, indexShard.state());
     }
 
-    protected Map<ShardId, CopyState> getCopyStateMap() {
+    Map<ShardId, CopyState> getCopyStateMap() {
         return copyStateMap;
     }
 }

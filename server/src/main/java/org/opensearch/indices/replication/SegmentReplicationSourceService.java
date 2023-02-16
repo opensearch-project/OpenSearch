@@ -24,12 +24,12 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RetryableTransportClient;
 import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.indices.replication.common.ReplicationTimer;
-import org.opensearch.indices.replication.common.RetryableReplicationException;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
@@ -70,10 +70,6 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
     private final RecoverySettings recoverySettings;
     private final TransportService transportService;
     private final IndicesService indicesService;
-
-    public void onPrimaryRefresh(IndexShard indexShard) {
-        ongoingSegmentReplications.updateCopyState(indexShard);
-    }
 
     /**
      * Internal actions used by the segment replication source service on the primary shard
@@ -129,8 +125,9 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
                 request.getCheckpoint().getShardId()
             );
             final CopyState copyState = copyStateGatedCloseable.get();
-            if (copyState == null || copyState.getShard().verifyPrimaryMode() == false) {
-                throw new RetryableReplicationException("Primary has no computed copyState");
+            final IndexShard primaryShard = copyState.getShard();
+            if (primaryShard.verifyPrimaryMode() == false) {
+                throw new ShardNotInPrimaryModeException(primaryShard.shardId(), primaryShard.state());
             } else {
                 if (request.getCheckpoint().isAheadOf(copyState.getCheckpoint()) || copyState.getMetadataMap().isEmpty()) {
                     // if there are no files to send, or the replica is already at this checkpoint, send the infos but do not hold snapshotted
@@ -237,6 +234,10 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
         if (indexShard != null && oldRouting.primary() && newRouting.primary() == false) {
             ongoingSegmentReplications.clearCopyStateForShard(indexShard.shardId());
         }
+    }
+
+    public void onPrimaryRefresh(IndexShard indexShard) {
+        ongoingSegmentReplications.setCopyState(indexShard);
     }
 
 }

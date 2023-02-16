@@ -110,7 +110,7 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
         final FileChunkWriter segmentSegmentFileChunkWriter = (fileMetadata, position, content, lastChunk, totalTranslogOps, listener) -> {
             listener.onResponse(null);
         };
-        replications.updateCopyState(primary);
+        replications.setCopyState(primary);
         final GatedCloseable<CopyState> copyStateGatedCloseable = replications.getLatestCopyState(primary.shardId());
         replications.prepareForReplication(request, segmentSegmentFileChunkWriter, copyStateGatedCloseable);
         final CopyState copyState = copyStateGatedCloseable.get();
@@ -159,7 +159,7 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
             // this shouldn't be called in this test.
             Assert.fail();
         };
-        replications.updateCopyState(primary);
+        replications.setCopyState(primary);
         final GatedCloseable<CopyState> copyStateGatedCloseable = replications.getLatestCopyState(primary.shardId());
         replications.prepareForReplication(request, segmentSegmentFileChunkWriter, copyStateGatedCloseable);
         final CopyState copyState = copyStateGatedCloseable.get();
@@ -188,7 +188,7 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
             // cancel the replication as soon as the writer starts sending files.
             replications.cancel(replica.routingEntry().allocationId().getId(), "Test");
         };
-        replications.updateCopyState(primary);
+        replications.setCopyState(primary);
         final GatedCloseable<CopyState> copyStateGatedCloseable = replications.getLatestCopyState(primary.shardId());
         replications.prepareForReplication(request, segmentSegmentFileChunkWriter, copyStateGatedCloseable);
         final CopyState copyState = copyStateGatedCloseable.get();
@@ -236,7 +236,7 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
             Assert.fail();
         };
 
-        replications.updateCopyState(primary);
+        replications.setCopyState(primary);
         final GatedCloseable<CopyState> copyStateGatedCloseable = replications.getLatestCopyState(primary.shardId());
         replications.prepareForReplication(request, segmentSegmentFileChunkWriter, copyStateGatedCloseable);
         final CopyState copyState = copyStateGatedCloseable.get();
@@ -299,7 +299,7 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
         final FileChunkWriter segmentSegmentFileChunkWriter = (fileMetadata, position, content, lastChunk, totalTranslogOps, listener) -> {
             listener.onResponse(null);
         };
-        replications.updateCopyState(primary);
+        replications.setCopyState(primary);
         final GatedCloseable<CopyState> copyStateGatedCloseable = replications.getLatestCopyState(primary.shardId());
         replications.prepareForReplication(request, segmentSegmentFileChunkWriter, copyStateGatedCloseable);
         assertThrows(
@@ -320,7 +320,7 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
         // mock the FileChunkWriter so we can assert its ever called.
         final FileChunkWriter segmentSegmentFileChunkWriter = mock(FileChunkWriter.class);
         // Prepare for replication step - and ensure copyState is added to cache.
-        replications.updateCopyState(primary);
+        replications.setCopyState(primary);
         final GatedCloseable<CopyState> copyStateGatedCloseable = replications.getLatestCopyState(primary.shardId());
         replications.prepareForReplication(request, segmentSegmentFileChunkWriter, copyStateGatedCloseable);
         final CopyState copyState = copyStateGatedCloseable.get();
@@ -371,7 +371,7 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
             testCheckpoint
         );
 
-        replications.updateCopyState(primary);
+        replications.setCopyState(primary);
         final GatedCloseable<CopyState> copyStateGatedCloseable = replications.getLatestCopyState(primary.shardId());
         replications.prepareForReplication(request, mock(FileChunkWriter.class), copyStateGatedCloseable);
         final CopyState copyState = copyStateGatedCloseable.get();
@@ -398,7 +398,7 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
 
     public void testCopyStateRefCounts() throws IOException {
         OngoingSegmentReplications replications = new OngoingSegmentReplications(mockIndicesService, recoverySettings);
-        replications.updateCopyState(primary);
+        replications.setCopyState(primary);
         final Map<ShardId, CopyState> copyStateMap = replications.getCopyStateMap();
         assertEquals(1, copyStateMap.size());
         final CopyState copyState = copyStateMap.get(primary.shardId());
@@ -412,7 +412,7 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
         indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
         primary.refresh("test");
 
-        replications.updateCopyState(primary);
+        replications.setCopyState(primary);
         final CopyState copyState_2 = copyStateMap.get(primary.shardId());
         assertEquals(1, copyState_2.refCount());
         assertEquals("CopyState not in map remains refCounted until closed", 2, copyState.refCount());
