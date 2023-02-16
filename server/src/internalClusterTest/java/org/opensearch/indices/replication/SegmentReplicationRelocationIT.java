@@ -15,16 +15,13 @@ import org.opensearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.index.IndexModule;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
@@ -35,7 +32,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
-import static org.opensearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 /**
@@ -46,11 +42,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
     private final TimeValue ACCEPTABLE_RELOCATION_TIME = new TimeValue(5, TimeUnit.MINUTES);
 
     private void createIndex(int replicaCount) {
-        prepareCreate(
-            INDEX_NAME,
-            Settings.builder()
-                .put(SETTING_NUMBER_OF_REPLICAS, replicaCount)
-        ).get();
+        prepareCreate(INDEX_NAME, Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, replicaCount)).get();
     }
 
     /**
@@ -403,10 +395,8 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
      */
     public void testNewlyAddedReplicaIsUpdated() throws Exception {
         final String primary = internalCluster().startNode();
-        prepareCreate(
-            INDEX_NAME,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)
-        ).get();
+        prepareCreate(INDEX_NAME, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+            .get();
         for (int i = 0; i < 10; i++) {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
@@ -424,10 +414,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         ensureGreen(INDEX_NAME);
         // Update replica count settings to 1 so that peer recovery triggers and recover replica
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(INDEX_NAME)
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1))
+            client().admin().indices().prepareUpdateSettings(INDEX_NAME).setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1))
         );
 
         ClusterHealthResponse clusterHealthResponse = client().admin()
@@ -496,10 +483,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         ensureGreen(INDEX_NAME);
         // Add Replica shard to the new empty replica node
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(INDEX_NAME)
-                .setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1))
+            client().admin().indices().prepareUpdateSettings(INDEX_NAME).setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1))
         );
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, replica);
         waitForRecovery.await();

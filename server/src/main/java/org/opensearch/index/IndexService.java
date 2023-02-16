@@ -207,7 +207,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         IndexNameExpressionResolver expressionResolver,
         ValuesSourceRegistry valuesSourceRegistry,
         IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
-        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier) {
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier
+    ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.indexSettings = indexSettings;
@@ -982,9 +983,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    private void syncSegments() {
+    private void fetchSegments() {
         for (IndexShard shard : this.shards.values()) {
-            shard.syncSegments();
+            shard.fetchSegments();
         }
     }
 
@@ -1135,7 +1136,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
         @Override
         protected void runInternal() {
-            indexService.syncSegments();
+            indexService.fetchSegments();
         }
 
         @Override

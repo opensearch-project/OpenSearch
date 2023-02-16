@@ -41,7 +41,6 @@ import org.opensearch.common.ParseField;
 import org.opensearch.common.inject.AbstractModule;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.NamedWriteableRegistry.Entry;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.index.mapper.BinaryFieldMapper;
 import org.opensearch.index.mapper.BooleanFieldMapper;

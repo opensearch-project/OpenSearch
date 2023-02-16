@@ -349,7 +349,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         final Consumer<IndexShard> checkpointUpdateConsumer,
         @Nullable final Store remoteStore,
-        final Consumer<IndexShard> segmentSyncer) throws IOException {
+        final Consumer<IndexShard> segmentSyncer
+    ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         this.segmentSyncer = segmentSyncer;
         assert shardRouting.initializing();
@@ -494,8 +495,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return indexSettings.getIndexMetadata().isSystem();
     }
 
-    public void syncSegments() {
-        segmentSyncer.accept(this);
+    /**
+     * Use provided sync function to fetch new Segments.
+     */
+    public void fetchSegments() {
+        if (isSegmentReplicationAllowed()) {
+            segmentSyncer.accept(this);
+        }
     }
 
     /**
@@ -1514,6 +1520,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return false;
         }
         if (this.routingEntry().primary() && replicationTracker.isPrimaryMode()) {
+            // note - we will allow relocating shards that have primary routing but not yet in primary mode to sync segments.
             logger.warn("Shard is in primary mode and cannot perform segment replication as a replica.");
             return false;
         }
@@ -1736,14 +1743,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void resetToWriteableEngine() throws IOException, InterruptedException, TimeoutException {
         indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> { resetEngineToGlobalCheckpoint(); });
-    }
-
-    public Translog.Location printLastWriteLocation() {
-        return getEngine().translogManager().getTranslogLastWriteLocation();
-    }
-
-    public List<String> pendingOperations() {
-        return indexShardOperationPermits.getActiveOperations();
     }
 
     /**
@@ -3461,7 +3460,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (isRemoteStoreEnabled()) {
             internalRefreshListener.add(new RemoteStoreRefreshListener(this));
         }
-        if (indexSettings.isSegRepEnabled() && shardRouting.primary()) {
+        if (checkpointUpdateConsumer != null && indexSettings.isSegRepEnabled() && shardRouting.primary()) {
             internalRefreshListener.add(new CheckpointRefreshListener(this, checkpointUpdateConsumer));
         }
         /**

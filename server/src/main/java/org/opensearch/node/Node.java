@@ -1065,10 +1065,7 @@ public class Node implements Closeable {
                             new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService),
                             indicesService
                         );
-                        b.bind(SegmentReplicationTargetService.class)
-                            .toInstance(
-                                segmentReplicationTargetService
-                            );
+                        b.bind(SegmentReplicationTargetService.class).toInstance(segmentReplicationTargetService);
                         b.bind(SegmentReplicationSourceService.class)
                             .toInstance(new SegmentReplicationSourceService(indicesService, transportService, recoverySettings));
                     } else {

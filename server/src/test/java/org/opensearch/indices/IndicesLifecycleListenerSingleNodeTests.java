@@ -148,13 +148,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends OpenSearchSingleNod
             newRouting = newRouting.moveToUnassigned(unassignedInfo)
                 .updateUnassigned(unassignedInfo, RecoverySource.EmptyStoreRecoverySource.INSTANCE);
             newRouting = ShardRoutingHelper.initialize(newRouting, nodeId);
-            IndexShard shard = index.createShard(
-                newRouting,
-                s -> {},
-                RetentionLeaseSyncer.EMPTY,
-                s -> {},
-                (s) -> {}
-            );
+            IndexShard shard = index.createShard(newRouting, s -> {}, RetentionLeaseSyncer.EMPTY, s -> {}, (s) -> {});
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             assertEquals(5, counter.get());
             final DiscoveryNode localNode = new DiscoveryNode(

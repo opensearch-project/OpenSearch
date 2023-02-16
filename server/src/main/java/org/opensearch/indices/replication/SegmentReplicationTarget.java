@@ -175,7 +175,12 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     private void getFiles(CheckpointInfoResponse checkpointInfo, StepListener<GetSegmentFilesResponse> getFilesListener)
         throws IOException {
-        logger.info("Received checkpoint info as reponse {} {} {}", state().getReplicationId(), checkpointInfo.getCheckpoint(), checkpointInfo.getMetadataMap());
+        logger.info(
+            "Received checkpoint info as reponse {} {} {}",
+            state().getReplicationId(),
+            checkpointInfo.getCheckpoint(),
+            checkpointInfo.getMetadataMap()
+        );
         cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
         final Store.RecoveryDiff diff = Store.segmentReplicationDiff(checkpointInfo.getMetadataMap(), indexShard.getSegmentMetadataMap());
@@ -214,55 +219,55 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         ActionListener.completeWith(listener, () -> {
             cancellableThreads.checkForCancel();
             state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);
-             // Only if we received new files update the shard's reader.
-                multiFileWriter.renameAllTempFiles();
-                final Store store = store();
-                store.incRef();
+            // Only if we received new files update the shard's reader.
+            multiFileWriter.renameAllTempFiles();
+            final Store store = store();
+            store.incRef();
+            try {
+                // Deserialize the new SegmentInfos object sent from the primary.
+                final ReplicationCheckpoint responseCheckpoint = checkpointInfoResponse.getCheckpoint();
+                final SegmentInfos infos = SegmentInfos.readCommit(
+                    store.directory(),
+                    toIndexInput(checkpointInfoResponse.getInfosBytes()),
+                    responseCheckpoint.getSegmentsGen()
+                );
+                cancellableThreads.checkForCancel();
+                indexShard.finalizeReplication(infos, responseCheckpoint.getSeqNo());
+                store.cleanupAndPreserveLatestCommitPoint("finalize - clean with in memory infos", infos);
+            } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
+                // this is a fatal exception at this stage.
+                // this means we transferred files from the remote that have not be checksummed and they are
+                // broken. We have to clean up this shard entirely, remove all files and bubble it up to the
+                // source shard since this index might be broken there as well? The Source can handle this and checks
+                // its content on disk if possible.
                 try {
-                    // Deserialize the new SegmentInfos object sent from the primary.
-                    final ReplicationCheckpoint responseCheckpoint = checkpointInfoResponse.getCheckpoint();
-                    final SegmentInfos infos = SegmentInfos.readCommit(
-                        store.directory(),
-                        toIndexInput(checkpointInfoResponse.getInfosBytes()),
-                        responseCheckpoint.getSegmentsGen()
-                    );
-                    cancellableThreads.checkForCancel();
-                    indexShard.finalizeReplication(infos, responseCheckpoint.getSeqNo());
-                    store.cleanupAndPreserveLatestCommitPoint("finalize - clean with in memory infos", infos);
-                } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
-                    // this is a fatal exception at this stage.
-                    // this means we transferred files from the remote that have not be checksummed and they are
-                    // broken. We have to clean up this shard entirely, remove all files and bubble it up to the
-                    // source shard since this index might be broken there as well? The Source can handle this and checks
-                    // its content on disk if possible.
                     try {
-                        try {
-                            store.removeCorruptionMarker();
-                        } finally {
-                            Lucene.cleanLuceneIndex(store.directory()); // clean up and delete all files
-                        }
-                    } catch (Exception e) {
-                        logger.debug("Failed to clean lucene index", e);
-                        ex.addSuppressed(e);
+                        store.removeCorruptionMarker();
+                    } finally {
+                        Lucene.cleanLuceneIndex(store.directory()); // clean up and delete all files
                     }
-                    ReplicationFailedException rfe = new ReplicationFailedException(
-                        indexShard.shardId(),
-                        "failed to clean after replication",
-                        ex
-                    );
-                    fail(rfe, true);
-                    throw rfe;
-                } catch (Exception ex) {
-                    ReplicationFailedException rfe = new ReplicationFailedException(
-                        indexShard.shardId(),
-                        "failed to clean after replication",
-                        ex
-                    );
-                    fail(rfe, true);
-                    throw rfe;
-                } finally {
-                    store.decRef();
+                } catch (Exception e) {
+                    logger.debug("Failed to clean lucene index", e);
+                    ex.addSuppressed(e);
                 }
+                ReplicationFailedException rfe = new ReplicationFailedException(
+                    indexShard.shardId(),
+                    "failed to clean after replication",
+                    ex
+                );
+                fail(rfe, true);
+                throw rfe;
+            } catch (Exception ex) {
+                ReplicationFailedException rfe = new ReplicationFailedException(
+                    indexShard.shardId(),
+                    "failed to clean after replication",
+                    ex
+                );
+                fail(rfe, true);
+                throw rfe;
+            } finally {
+                store.decRef();
+            }
             return null;
         });
     }

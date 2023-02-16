@@ -67,7 +67,10 @@ public class NRTReplicationReaderManager extends OpenSearchReaderManager {
         logger.trace(
             () -> new ParameterizedMessage("updated to SegmentInfosVersion=" + currentInfos.getVersion() + " reader=" + innerReader)
         );
-        final OpenSearchDirectoryReader wrap = OpenSearchDirectoryReader.wrap(softDeletesDirectoryReaderWrapper, referenceToRefresh.shardId());
+        final OpenSearchDirectoryReader wrap = OpenSearchDirectoryReader.wrap(
+            softDeletesDirectoryReaderWrapper,
+            referenceToRefresh.shardId()
+        );
         return wrap;
     }
 

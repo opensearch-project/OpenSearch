@@ -701,7 +701,8 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             (indexSettings, shardRouting) -> new InternalTranslogFactory(),
             (s) -> {},
             null,
-                null);
+            null
+        );
     }
 
     private static ShardRouting getInitializingShardRouting(ShardRouting existingShardRouting) {

@@ -23,7 +23,6 @@ import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.IndexShardNotStartedException;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -33,7 +32,6 @@ import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
-import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
 
@@ -130,13 +128,18 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
             final ReplicationTimer timer = new ReplicationTimer();
             assert ongoingSegmentReplications != null;
             timer.start();
-            final GatedCloseable<CopyState> copyStateGatedCloseable = ongoingSegmentReplications.getLatestCopyState(request.getCheckpoint().getShardId());
+            final GatedCloseable<CopyState> copyStateGatedCloseable = ongoingSegmentReplications.getLatestCopyState(
+                request.getCheckpoint().getShardId()
+            );
             final CopyState copyState = copyStateGatedCloseable.get();
             if (request.getCheckpoint().isAheadOf(copyState.getCheckpoint()) || copyState.getMetadataMap().isEmpty()) {
-                // if there are no files to send, or the replica is already at this checkpoint, send the infos but do not hold snapshotted infos.
+                // if there are no files to send, or the replica is already at this checkpoint, send the infos but do not hold snapshotted
+                // infos.
                 // During recovery of an empty cluster it is possible we have no files to send but the primary has flushed to set userData,
                 // in this case we still want to send over infos.
-                channel.sendResponse(new CheckpointInfoResponse(copyState.getCheckpoint(), Collections.emptyMap(), copyState.getInfosBytes()));
+                channel.sendResponse(
+                    new CheckpointInfoResponse(copyState.getCheckpoint(), Collections.emptyMap(), copyState.getInfosBytes())
+                );
                 copyState.decRef();
             } else {
                 final RemoteSegmentFileChunkWriter segmentSegmentFileChunkWriter = getRemoteSegmentFileChunkWriter(request);
@@ -170,8 +173,7 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
                 request.getCheckpoint().getShardId(),
                 SegmentReplicationTargetService.Actions.FILE_CHUNK,
                 new AtomicLong(0),
-                (throttleTime) -> {
-                }
+                (throttleTime) -> {}
             );
         }
     }

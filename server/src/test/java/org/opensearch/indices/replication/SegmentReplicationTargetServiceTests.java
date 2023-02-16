@@ -35,7 +35,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doAnswer;
@@ -231,15 +230,12 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             replicaShard.updateShardState(
                 primaryRouting,
                 nextPrimaryTerm,
-                (shard, listener) -> {
-                },
+                (shard, listener) -> {},
                 0L,
                 Collections.singleton(primaryRouting.allocationId().getId()),
                 new IndexShardRoutingTable.Builder(primaryRouting.shardId()).addShard(primaryRouting).build()
             );
-            assertBusy(() -> {
-                assertEquals(replicaShard.getOperationPrimaryTerm(), nextPrimaryTerm);
-            }, 5, TimeUnit.SECONDS);
+            assertBusy(() -> { assertEquals(replicaShard.getOperationPrimaryTerm(), nextPrimaryTerm); }, 5, TimeUnit.SECONDS);
             serviceSpy.startReplication(replicaShard);
             try {
                 invocation.callRealMethod();

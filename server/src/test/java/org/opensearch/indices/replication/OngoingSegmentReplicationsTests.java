@@ -191,7 +191,8 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
         replications.updateCopyState(primary);
         final GatedCloseable<CopyState> copyStateGatedCloseable = replications.getLatestCopyState(primary.shardId());
         replications.prepareForReplication(request, segmentSegmentFileChunkWriter, copyStateGatedCloseable);
-        final CopyState copyState = copyStateGatedCloseable.get();        assertEquals(1, replications.size());
+        final CopyState copyState = copyStateGatedCloseable.get();
+        assertEquals(1, replications.size());
         getSegmentFilesRequest = new GetSegmentFilesRequest(
             1L,
             replica.routingEntry().allocationId().getId(),
@@ -301,7 +302,10 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
         replications.updateCopyState(primary);
         final GatedCloseable<CopyState> copyStateGatedCloseable = replications.getLatestCopyState(primary.shardId());
         replications.prepareForReplication(request, segmentSegmentFileChunkWriter, copyStateGatedCloseable);
-        assertThrows(OpenSearchException.class, () -> { replications.prepareForReplication(request, segmentSegmentFileChunkWriter, copyStateGatedCloseable); });
+        assertThrows(
+            OpenSearchException.class,
+            () -> { replications.prepareForReplication(request, segmentSegmentFileChunkWriter, copyStateGatedCloseable); }
+        );
     }
 
     public void testStartReplicationWithNoFilesToFetch() throws IOException {

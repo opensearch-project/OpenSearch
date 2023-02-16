@@ -13,10 +13,8 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.Nullable;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.opensearch.index.Index;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.ShardId;
@@ -25,6 +23,7 @@ import org.opensearch.indices.recovery.FileChunkWriter;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
+import org.opensearch.indices.replication.common.RetryableReplicationException;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -97,15 +96,12 @@ class OngoingSegmentReplications implements Closeable {
     }
 
     /**
-     * Prepare for a Replication event. This method constructs a {@link CopyState} holding files to be sent off of the current
-     * node's store.  This state is intended to be sent back to Replicas before copy is initiated so the replica can perform a diff against its
-     * local store.  It will then build a handler to orchestrate the segment copy that will be stored locally and started on a subsequent request from replicas
+     * Prepare for a Replication event. This method  builds a handler to orchestrate segment copy that will be stored locally and started on a subsequent request from replicas
      * with the list of required files.
      *
      * @param request         {@link CheckpointInfoRequest}
      * @param fileChunkWriter {@link FileChunkWriter} writer to handle sending files over the transport layer.
-     * @return {@link CopyState} the built CopyState for this replication event.
-     * @throws IOException - When there is an IO error building CopyState.
+     * @param copyState {@link GatedCloseable} containing {@link CopyState} that will be released upon copy completion.
      */
     void prepareForReplication(CheckpointInfoRequest request, FileChunkWriter fileChunkWriter, GatedCloseable<CopyState> copyState) {
         final SegmentReplicationSourceHandler segmentReplicationSourceHandler = allocationIdToHandlers.putIfAbsent(
@@ -232,7 +228,7 @@ class OngoingSegmentReplications implements Closeable {
             copyState.incRef();
             return new GatedCloseable<>(copyState, copyState::decRef);
         }
-        throw new ReplicationFailedException("Primary has no computed copyState");
+        throw new RetryableReplicationException("Primary has no computed copyState");
     }
 
     protected Map<ShardId, CopyState> getCopyStateMap() {

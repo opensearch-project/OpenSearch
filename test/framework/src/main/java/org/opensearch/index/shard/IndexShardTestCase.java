@@ -600,7 +600,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 translogFactorySupplier,
                 checkpointPublisher,
                 remoteStore,
-                null);
+                null
+            );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;
         } finally {

@@ -1427,17 +1427,19 @@ public final class InternalTestCluster extends TestCluster {
             for (NodeAndClient nodeAndClient : nodes.values()) {
                 IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
                 for (IndexService indexService : indexServices) {
-                    for (IndexShard indexShard : indexService) {
-                        try {
-                            Engine engine = IndexShardTestCase.getEngine(indexShard);
-                            if (engine instanceof InternalEngine) {
-                                assertFalse(
-                                    indexShard.routingEntry().toString() + " has unreleased snapshotted index commits",
-                                    EngineTestCase.hasSnapshottedCommits(engine)
-                                );
-                            }
-                        } catch (AlreadyClosedException ignored) {
+                    if (indexService.getIndexSettings().isSegRepEnabled() == false) {
+                        for (IndexShard indexShard : indexService) {
+                            try {
+                                Engine engine = IndexShardTestCase.getEngine(indexShard);
+                                if (engine instanceof InternalEngine) {
+                                    assertFalse(
+                                        indexShard.routingEntry().toString() + " has unreleased snapshotted index commits",
+                                        EngineTestCase.hasSnapshottedCommits(engine)
+                                    );
+                                }
+                            } catch (AlreadyClosedException ignored) {
 
+                            }
                         }
                     }
                 }
