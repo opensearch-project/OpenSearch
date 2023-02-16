@@ -338,7 +338,7 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
             currentBlock.close();
         }
 
-        currentBlock = fetchBlock(blockId).clone();
+        currentBlock = fetchBlock(blockId);
         currentBlockId = blockId;
     }
 
