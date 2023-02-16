@@ -654,13 +654,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return new PlainShardIterator(shardId, preferred);
     }
 
-    public boolean isNodeWeighedAway(WeightedRouting weightedRouting, DiscoveryNodes nodes, String localNodeId, double defaultWeight) {
-        String attVal = nodes.get(localNodeId).getAttributes().get(weightedRouting.attributeName());
-        // If weight for a zone is not defined, considering it as 1 by default
-        Double weight = weightedRouting.weights().getOrDefault(attVal, defaultWeight);
-        return weight.intValue() == WeightedRoutingMetadata.WEIGHED_AWAY_WEIGHT;
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
