@@ -130,9 +130,11 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
                 throw new ShardNotInPrimaryModeException(primaryShard.shardId(), primaryShard.state());
             } else {
                 if (request.getCheckpoint().isAheadOf(copyState.getCheckpoint()) || copyState.getMetadataMap().isEmpty()) {
-                    // if there are no files to send, or the replica is already at this checkpoint, send the infos but do not hold snapshotted
+                    // if there are no files to send, or the replica is already at this checkpoint, send the infos but do not hold
+                    // snapshotted
                     // infos.
-                    // During recovery of an empty cluster it is possible we have no files to send but the primary has flushed to set userData,
+                    // During recovery of an empty cluster it is possible we have no files to send but the primary has flushed to set
+                    // userData,
                     // in this case we still want to send over infos.
                     channel.sendResponse(
                         new CheckpointInfoResponse(copyState.getCheckpoint(), Collections.emptyMap(), copyState.getInfosBytes())
