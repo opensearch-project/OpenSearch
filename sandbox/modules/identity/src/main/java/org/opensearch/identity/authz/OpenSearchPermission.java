@@ -12,8 +12,10 @@ import org.apache.shiro.authz.Permission;
 import org.apache.shiro.authz.permission.WildcardPermission;
 import org.opensearch.common.Glob;
 
+import java.security.Principal;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 public class OpenSearchPermission implements Permission {
 
@@ -129,11 +131,16 @@ public class OpenSearchPermission implements Permission {
         return allRequestedPatternsMatchGranted;
     }
 
-    public boolean equals(OpenSearchPermission secondPermission) {
-        if (this.getPermissionString() == secondPermission.getPermissionString()) {
-            return true;
-        }
-        return false;
+    @Override
+    public boolean equals(final Object obj) {
+        if (this == obj) return true;
+        if (obj == null || this.getClass() != obj.getClass()) return false;
+        final OpenSearchPermission that = (OpenSearchPermission) obj;
+        return Objects.equals(this.getPermissionString(), that.getPermissionString());
     }
 
+    @Override
+    public int hashCode() {
+        return Objects.hash(this.getPermissionString());
+    }
 }
