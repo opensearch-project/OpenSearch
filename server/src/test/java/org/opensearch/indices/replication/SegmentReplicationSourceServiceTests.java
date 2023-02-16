@@ -48,6 +48,7 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
         super.setUp();
         // setup mocks
         IndexShard mockIndexShard = CopyStateTests.createMockIndexShard();
+        when(mockIndexShard.verifyPrimaryMode()).thenReturn(true);
         ShardId testShardId = mockIndexShard.shardId();
         IndicesService mockIndicesService = mock(IndicesService.class);
         IndexService mockIndexService = mock(IndexService.class);
