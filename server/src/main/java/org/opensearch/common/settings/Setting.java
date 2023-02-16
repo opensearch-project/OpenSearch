@@ -42,6 +42,9 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.TriConsumer;
 import org.opensearch.common.collect.Triplet;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.MemorySizeValue;
@@ -1385,6 +1388,53 @@ public class Setting<T> implements ToXContentObject {
             validator,
             properties
         );
+    }
+    /**
+     * Writeable Default Value
+     */
+    public static class WriteableDefaultValue implements Function<Setting, String>, Writeable {
+        private String defaultvalue;
+
+        public WriteableDefaultValue(){
+
+        }
+
+        public WriteableDefaultValue(StreamInput in){
+            
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            
+        }
+
+        @Override
+        public String apply(Setting t) {
+            return null;
+        }
+        
+    }
+
+    public static class WriteableDefaultValue implements Function<Setting, String>, Writeable {
+
+        public WriteableDefaultValue(){
+
+        }
+
+        public WriteableDefaultValue(StreamInput in){
+
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            
+        }
+
+        @Override
+        public String apply(Setting t) {
+            return null;
+        }
+        
     }
 
     // Integer
