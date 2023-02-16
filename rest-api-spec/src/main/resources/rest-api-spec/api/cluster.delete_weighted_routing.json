@@ -1,19 +1,31 @@
 {
   "cluster.delete_weighted_routing": {
     "documentation": {
-      "url": "https://opensearch.org/docs/latest/opensearch/rest-api/weighted-routing/delete",
+      "url": "https://opensearch.org/docs/2.5/api-reference/cluster-api/cluster-awareness/",
       "description": "Delete weighted shard routing weights"
     },
     "stability": "stable",
     "url": {
       "paths": [
         {
-          "path": "/_cluster/routing/awareness/weights",
+          "path": "/_cluster/routing/awareness/{attribute}/weights",
           "methods": [
             "DELETE"
-          ]
+          ],
+          "parts": {
+            "attribute": {
+              "type": "string",
+              "description": "Awareness attribute name"
+            }
+          }
         }
       ]
+    },
+    "params":{
+      "_version": {
+        "type":"String",
+        "description":"Implements optimistic concurrency control (OCC) through versioning. The parameter uses simple versioning, such as `1`, and increments upward based on each subsequent modification."
+      }
     }
   }
 }

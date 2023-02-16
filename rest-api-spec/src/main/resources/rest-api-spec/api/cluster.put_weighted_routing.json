@@ -1,7 +1,7 @@
 {
   "cluster.put_weighted_routing": {
     "documentation": {
-      "url": "https://opensearch.org/docs/latest/opensearch/rest-api/weighted-routing/put",
+      "url": "https://opensearch.org/docs/2.5/api-reference/cluster-api/cluster-awareness/",
       "description": "Updates weighted shard routing weights"
     },
     "stability": "stable",
@@ -20,6 +20,16 @@
           }
         }
       ]
+    },
+    "params":{
+      "_version": {
+        "type":"string",
+        "description":"Implements optimistic concurrency control (OCC) through versioning. The parameter uses simple versioning, such as `1`, and increments upward based on each subsequent modification."
+      },
+      "weights": {
+        "type":"JSON object",
+        "description": "Assigns weights to attributes within the request body of the PUT request. Weights can be set in any ratio, for example, {'zone_1':'2', 'zone_2':'3', 'zone_3':'5'"
+      }
     }
   }
 }

@@ -112,9 +112,9 @@
         "type":"string",
         "description":"The awareness attribute for which the health is required"
       },
-      "ensure_node_commissioned":{
+      "ensure_node_weighed_in":{
         "type":"boolean",
-        "description": "Checks whether local node is commissioned or not. If set to true on a local call it will throw exception if node is decommissioned (default: false)"
+        "description": "Checks whether local node is commissioned/weighed-in or not. If set to true on a local call it will throw exception if node is decommissioned/weighed-out (default: false)"
       }
     }
   }
