@@ -289,6 +289,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         ScrollContext scrollContext = new ScrollContext();
         TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader), scrollContext);
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+        context.sort(new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW }));
         scrollContext.lastEmittedDoc = null;
         scrollContext.maxScore = Float.NaN;
         scrollContext.totalHits = null;
@@ -299,12 +300,11 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
         assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
         assertNull(context.queryResult().terminatedEarly());
-        assertThat(context.terminateAfter(), equalTo(0));
         assertThat(context.queryResult().getTotalHits().value, equalTo((long) numDocs));
-        assertProfileData(context, "MatchAllDocsQuery", query -> {
+        assertProfileData(context, "ConstantScoreQuery", query -> {
             assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-            assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("score_count"), greaterThan(0L));
+            assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
+            assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
             assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
             assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
         }, collector -> {
@@ -316,13 +316,12 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         context.setSearcher(newEarlyTerminationContextSearcher(reader, size));
         QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
         assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
-        assertThat(context.terminateAfter(), equalTo(size));
         assertThat(context.queryResult().getTotalHits().value, equalTo((long) numDocs));
         assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0].doc, greaterThanOrEqualTo(size));
         assertProfileData(context, "ConstantScoreQuery", query -> {
             assertThat(query.getTimeBreakdown().keySet(), not(empty()));
-            assertThat(query.getTimeBreakdown().get("score"), greaterThan(0L));
-            assertThat(query.getTimeBreakdown().get("score_count"), greaterThan(0L));
+            assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
+            assertThat(query.getTimeBreakdown().get("score_count"), equalTo(0L));
             assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
             assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
             assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("score"), equalTo(0L));
@@ -330,11 +329,9 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("create_weight"), greaterThan(0L));
             assertThat(query.getProfiledChildren().get(0).getTimeBreakdown().get("create_weight_count"), equalTo(1L));
         }, collector -> {
-            assertThat(collector.getReason(), equalTo("search_terminate_after_count"));
+            assertThat(collector.getReason(), equalTo("search_top_hits"));
             assertThat(collector.getTime(), greaterThan(0L));
-            assertThat(collector.getProfiledChildren(), hasSize(1));
-            assertThat(collector.getProfiledChildren().get(0).getReason(), equalTo("search_top_hits"));
-            assertThat(collector.getProfiledChildren().get(0).getTime(), greaterThan(0L));
+            assertThat(collector.getProfiledChildren(), hasSize(0));
         });
 
         reader.close();

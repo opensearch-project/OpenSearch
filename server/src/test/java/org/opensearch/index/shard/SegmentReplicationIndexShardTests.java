@@ -35,6 +35,7 @@ import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
+import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -818,7 +819,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
             final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
-            SegmentReplicationSource source = new SegmentReplicationSource() {
+            SegmentReplicationSource source = new TestReplicationSource() {
                 @Override
                 public void getCheckpointMetadata(
                     long replicationId,
@@ -893,7 +894,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
             final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
-            SegmentReplicationSource source = new SegmentReplicationSource() {
+            SegmentReplicationSource source = new TestReplicationSource() {
                 @Override
                 public void getCheckpointMetadata(
                     long replicationId,
@@ -935,7 +936,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
             final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
-            SegmentReplicationSource source = new SegmentReplicationSource() {
+            SegmentReplicationSource source = new TestReplicationSource() {
                 @Override
                 public void getCheckpointMetadata(
                     long replicationId,
@@ -977,7 +978,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
             final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
-            SegmentReplicationSource source = new SegmentReplicationSource() {
+            SegmentReplicationSource source = new TestReplicationSource() {
                 @Override
                 public void getCheckpointMetadata(
                     long replicationId,

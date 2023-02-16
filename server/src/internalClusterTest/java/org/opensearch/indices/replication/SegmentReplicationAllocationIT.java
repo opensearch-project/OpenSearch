@@ -38,7 +38,7 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
         Settings.Builder builder = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount)
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, REPLICA_COUNT);
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, replicaCount);
         if (isSegRep) {
             builder = builder.put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
         } else {

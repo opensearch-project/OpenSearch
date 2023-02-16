@@ -3857,6 +3857,7 @@ public class InternalEngineTests extends EngineTestCase {
 
     private static class ThrowingIndexWriter extends IndexWriter {
         private AtomicReference<Supplier<Exception>> failureToThrow = new AtomicReference<>();
+        private AtomicReference<Supplier<Exception>> forceMergeFailureToThrow = new AtomicReference<>();
 
         ThrowingIndexWriter(Directory d, IndexWriterConfig conf) throws IOException {
             super(d, conf);
@@ -3864,13 +3865,13 @@ public class InternalEngineTests extends EngineTestCase {
 
         @Override
         public long addDocument(Iterable<? extends IndexableField> doc) throws IOException {
-            maybeThrowFailure();
+            maybeThrowFailure(failureToThrow.get());
             return super.addDocument(doc);
         }
 
-        private void maybeThrowFailure() throws IOException {
-            if (failureToThrow.get() != null) {
-                Exception failure = failureToThrow.get().get();
+        private void maybeThrowFailure(Supplier<Exception> failureToThrow) throws IOException {
+            if (failureToThrow != null) {
+                Exception failure = failureToThrow.get();
                 clearFailure(); // one shot
                 if (failure instanceof RuntimeException) {
                     throw (RuntimeException) failure;
@@ -3884,22 +3885,39 @@ public class InternalEngineTests extends EngineTestCase {
 
         @Override
         public long softUpdateDocument(Term term, Iterable<? extends IndexableField> doc, Field... softDeletes) throws IOException {
-            maybeThrowFailure();
+            maybeThrowFailure(failureToThrow.get());
             return super.softUpdateDocument(term, doc, softDeletes);
         }
 
         @Override
         public long deleteDocuments(Term... terms) throws IOException {
-            maybeThrowFailure();
+            maybeThrowFailure(failureToThrow.get());
             return super.deleteDocuments(terms);
+        }
+
+        @Override
+        public void forceMerge(int maxNumSegments) throws IOException {
+            maybeThrowFailure(forceMergeFailureToThrow.get());
+            super.forceMerge(maxNumSegments);
+        }
+
+        @Override
+        public void forceMerge(int maxNumSegments, boolean doWait) throws IOException {
+            maybeThrowFailure(forceMergeFailureToThrow.get());
+            super.forceMerge(maxNumSegments, doWait);
         }
 
         public void setThrowFailure(Supplier<Exception> failureSupplier) {
             failureToThrow.set(failureSupplier);
         }
 
+        public void setForceMergeThrowFailure(Supplier<Exception> failureSupplier) {
+            forceMergeFailureToThrow.set(failureSupplier);
+        }
+
         public void clearFailure() {
             failureToThrow.set(null);
+            forceMergeFailureToThrow.set(null);
         }
     }
 
@@ -3973,6 +3991,37 @@ public class InternalEngineTests extends EngineTestCase {
                 );
             }
         }
+    }
+
+    public void testHandleForceMergeFailureOnDiskFull() throws Exception {
+        try (Store store = createStore()) {
+            AtomicReference<ThrowingIndexWriter> throwingIndexWriter = new AtomicReference<>();
+            AtomicReference<Directory> dir = new AtomicReference<>();
+            try (InternalEngine engine = createEngine(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, (directory, iwc) -> {
+                dir.set(directory);
+                throwingIndexWriter.set(new ThrowingIndexWriter(directory, iwc));
+                return throwingIndexWriter.get();
+            })) {
+                throwingIndexWriter.get().setForceMergeThrowFailure(() -> new IOException("No space left on device"));
+                ParsedDocument doc = testParsedDocument(Integer.toString(0), null, testDocumentWithTextField(), SOURCE, null);
+                engine.index(indexForDoc(doc));
+                assertFalse(containsCompoundFiles(dir.get().listAll()));
+                engine.ensureOpen();
+                expectThrows(IOException.class, () -> engine.forceMerge(false, 1, false, false, false, UUIDs.randomBase64UUID()));
+                // Index writer flush gets called when forceMerge fails
+                assertTrue(containsCompoundFiles(dir.get().listAll()));
+            }
+        }
+    }
+
+    private boolean containsCompoundFiles(final String files[]) {
+        for (final String file : files) {
+            if (file.endsWith(".cfs") || file.endsWith(".cfe")) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public void testDeleteWithFatalError() throws Exception {

@@ -97,6 +97,12 @@ public class DiskThresholdSettings {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    public static final Setting<Boolean> CLUSTER_CREATE_INDEX_BLOCK_AUTO_RELEASE = Setting.boolSetting(
+        "cluster.blocks.create_index.auto_release",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     private volatile String lowWatermarkRaw;
     private volatile String highWatermarkRaw;
@@ -105,6 +111,7 @@ public class DiskThresholdSettings {
     private volatile ByteSizeValue freeBytesThresholdLow;
     private volatile ByteSizeValue freeBytesThresholdHigh;
     private volatile boolean includeRelocations;
+    private volatile boolean createIndexBlockAutoReleaseEnabled;
     private volatile boolean enabled;
     private volatile TimeValue rerouteInterval;
     private volatile Double freeDiskThresholdFloodStage;
@@ -132,12 +139,14 @@ public class DiskThresholdSettings {
         this.includeRelocations = CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.get(settings);
         this.rerouteInterval = CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(settings);
         this.enabled = CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
+        this.createIndexBlockAutoReleaseEnabled = CLUSTER_CREATE_INDEX_BLOCK_AUTO_RELEASE.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING, this::setLowWatermark);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING, this::setHighWatermark);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING, this::setFloodStage);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING, this::setIncludeRelocations);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING, this::setRerouteInterval);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_CREATE_INDEX_BLOCK_AUTO_RELEASE, this::setCreateIndexBlockAutoReleaseEnabled);
     }
 
     /**
@@ -331,6 +340,10 @@ public class DiskThresholdSettings {
         );
     }
 
+    private void setCreateIndexBlockAutoReleaseEnabled(boolean createIndexBlockAutoReleaseEnabled) {
+        this.createIndexBlockAutoReleaseEnabled = createIndexBlockAutoReleaseEnabled;
+    }
+
     /**
      * Gets the raw (uninterpreted) low watermark value as found in the settings.
      */
@@ -379,6 +392,10 @@ public class DiskThresholdSettings {
 
     public TimeValue getRerouteInterval() {
         return rerouteInterval;
+    }
+
+    public boolean isCreateIndexBlockAutoReleaseEnabled() {
+        return createIndexBlockAutoReleaseEnabled;
     }
 
     String describeLowThreshold() {

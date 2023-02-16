@@ -41,6 +41,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -57,6 +58,8 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     private final RecoverySettings recoverySettings;
 
     private final ReplicationCollection<SegmentReplicationTarget> onGoingReplications;
+
+    private final Map<ShardId, SegmentReplicationTarget> completedReplications = ConcurrentCollections.newConcurrentMap();
 
     private final SegmentReplicationSourceFactory sourceFactory;
 
@@ -153,6 +156,33 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     }
 
     /**
+     * returns SegmentReplicationState of on-going segment replication events.
+     */
+    @Nullable
+    public SegmentReplicationState getOngoingEventSegmentReplicationState(ShardId shardId) {
+        return Optional.ofNullable(onGoingReplications.getOngoingReplicationTarget(shardId))
+            .map(SegmentReplicationTarget::state)
+            .orElse(null);
+    }
+
+    /**
+     * returns SegmentReplicationState of latest completed segment replication events.
+     */
+    @Nullable
+    public SegmentReplicationState getlatestCompletedEventSegmentReplicationState(ShardId shardId) {
+        return Optional.ofNullable(completedReplications.get(shardId)).map(SegmentReplicationTarget::state).orElse(null);
+    }
+
+    /**
+     * returns SegmentReplicationState of on-going if present or completed segment replication events.
+     */
+    @Nullable
+    public SegmentReplicationState getSegmentReplicationState(ShardId shardId) {
+        return Optional.ofNullable(getOngoingEventSegmentReplicationState(shardId))
+            .orElseGet(() -> getlatestCompletedEventSegmentReplicationState(shardId));
+    }
+
+    /**
      * Invoked when a new checkpoint is received from a primary shard.
      * It checks if a new checkpoint should be processed or not and starts replication if needed.
      *
@@ -179,6 +209,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                         ongoingReplicationTarget.getCheckpoint().getPrimaryTerm()
                     );
                     onGoingReplications.cancel(ongoingReplicationTarget.getId(), "Cancelling stuck target after new primary");
+                    completedReplications.put(replicaShard.shardId(), ongoingReplicationTarget);
                 } else {
                     logger.trace(
                         () -> new ParameterizedMessage(
@@ -307,10 +338,15 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             if (replicationRef == null) {
                 return;
             }
+            SegmentReplicationTarget target = onGoingReplications.getTarget(replicationId);
             replicationRef.get().startReplication(new ActionListener<>() {
                 @Override
                 public void onResponse(Void o) {
                     onGoingReplications.markAsDone(replicationId);
+                    if (target.state().getIndex().recoveredFileCount() != 0 && target.state().getIndex().recoveredBytes() != 0) {
+                        completedReplications.put(target.shardId(), target);
+                    }
+
                 }
 
                 @Override
@@ -323,6 +359,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                             // but do not fail the shard. Cancellations initiated by this node from Index events will be removed with
                             // onGoingReplications.cancel and not appear in the collection when this listener resolves.
                             onGoingReplications.fail(replicationId, new ReplicationFailedException(indexShard, cause), false);
+                            completedReplications.put(target.shardId(), target);
                         }
                     } else {
                         onGoingReplications.fail(replicationId, new ReplicationFailedException("Segment Replication failed", e), true);
