@@ -45,6 +45,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.discovery.Discovery;
+import org.opensearch.env.NodeEnvironment;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.indices.IndicesService;
@@ -85,8 +86,8 @@ public class NodeService implements Closeable {
     private final AggregationUsageService aggregationUsageService;
     private final SearchBackpressureService searchBackpressureService;
     private final ClusterService clusterService;
-
     private final Discovery discovery;
+    private final NodeEnvironment nodeEnvironment;
 
     NodeService(
         Settings settings,
@@ -106,7 +107,8 @@ public class NodeService implements Closeable {
         SearchTransportService searchTransportService,
         IndexingPressureService indexingPressureService,
         AggregationUsageService aggregationUsageService,
-        SearchBackpressureService searchBackpressureService
+        SearchBackpressureService searchBackpressureService,
+        NodeEnvironment nodeEnvironment
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -126,6 +128,7 @@ public class NodeService implements Closeable {
         this.aggregationUsageService = aggregationUsageService;
         this.searchBackpressureService = searchBackpressureService;
         this.clusterService = clusterService;
+        this.nodeEnvironment = nodeEnvironment;
         clusterService.addStateApplier(ingestService);
     }
 
@@ -206,7 +209,7 @@ public class NodeService implements Closeable {
             searchBackpressure ? this.searchBackpressureService.nodeStats() : null,
             clusterManagerThrottling ? this.clusterService.getClusterManagerService().getThrottlingStats() : null,
             weightedRoutingStats ? WeightedRoutingStats.getInstance() : null,
-            fileCacheStats ? indicesService.getFileCacheStats() : null
+            fileCacheStats ? nodeEnvironment.fileCacheStats() : null
         );
     }
 

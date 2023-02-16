@@ -132,10 +132,6 @@ import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.IndexingStats;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.index.store.remote.filecache.FileCache;
-import org.opensearch.index.store.remote.filecache.FileCacheStats;
-import org.opensearch.index.store.remote.utils.cache.CacheUsage;
-import org.opensearch.index.store.remote.utils.cache.stats.CacheStats;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.TranslogFactory;
@@ -263,8 +259,6 @@ public class IndicesService extends AbstractLifecycleComponent
     private final TimeValue cleanInterval;
     final IndicesRequestCache indicesRequestCache; // pkg-private for testing
     private final IndicesQueryCache indicesQueryCache;
-
-    private final FileCache remoteStoreFileCache;
     private final MetaStateService metaStateService;
     private final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders;
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
@@ -310,8 +304,7 @@ public class IndicesService extends AbstractLifecycleComponent
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        FileCache remoteStoreFileCache
+        Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -325,7 +318,6 @@ public class IndicesService extends AbstractLifecycleComponent
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indicesRequestCache = new IndicesRequestCache(settings);
         this.indicesQueryCache = new IndicesQueryCache(settings);
-        this.remoteStoreFileCache = remoteStoreFileCache;
         this.mapperRegistry = mapperRegistry;
         this.namedWriteableRegistry = namedWriteableRegistry;
         indexingMemoryController = new IndexingMemoryController(
@@ -427,8 +419,7 @@ public class IndicesService extends AbstractLifecycleComponent
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory,
-        Supplier<RepositoriesService> repositoriesServiceSupplier,
-        FileCache remoteStoreFileCache
+        Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -436,7 +427,6 @@ public class IndicesService extends AbstractLifecycleComponent
         this.extensionsManager = extensionsManager;
         this.nodeEnv = nodeEnv;
         this.xContentRegistry = xContentRegistry;
-        this.remoteStoreFileCache = remoteStoreFileCache;
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.shardsClosedTimeout = settings.getAsTime(INDICES_SHARDS_CLOSED_TIMEOUT, new TimeValue(1, TimeUnit.DAYS));
         this.analysisRegistry = analysisRegistry;
@@ -1932,21 +1922,5 @@ public class IndicesService extends AbstractLifecycleComponent
     public boolean allPendingDanglingIndicesWritten() {
         return nodeWriteDanglingIndicesInfo == false
             || (danglingIndicesToWrite.isEmpty() && danglingIndicesThreadPoolExecutor.getActiveCount() == 0);
-    }
-
-    public FileCacheStats getFileCacheStats() {
-        CacheStats stats = remoteStoreFileCache.stats();
-        CacheUsage usage = remoteStoreFileCache.usage();
-        return new FileCacheStats(
-            System.currentTimeMillis(),
-            usage.activeUsage(),
-            remoteStoreFileCache.capacity(),
-            usage.usage(),
-            stats.evictionWeight(),
-            stats.removeWeight(),
-            stats.replaceCount(),
-            stats.hitCount(),
-            stats.missCount()
-        );
     }
 }
