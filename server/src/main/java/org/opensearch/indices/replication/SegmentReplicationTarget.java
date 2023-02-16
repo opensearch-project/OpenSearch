@@ -209,7 +209,6 @@ public class SegmentReplicationTarget extends ReplicationTarget {
             for (StoreFileMetadata file : diff.missing) {
                 state.getIndex().addFileDetail(file.name(), file.length(), false);
             }
-            // always send a req even if not fetching files so the primary can clear the copyState for this shard.
             cancellableThreads.checkForCancel();
             source.getSegmentFiles(getId(), checkpointInfo.getCheckpoint(), diff.missing, store, getFilesListener);
         }

@@ -9,10 +9,7 @@
 package org.opensearch.indices.replication.common;
 
 import org.opensearch.OpenSearchException;
-import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 
@@ -23,26 +20,6 @@ import java.io.IOException;
  */
 public class RetryableReplicationException extends OpenSearchException {
 
-    public RetryableReplicationException(IndexShard shard, Throwable cause) {
-        this(shard, null, cause);
-    }
-
-    public RetryableReplicationException(IndexShard shard, @Nullable String extraInfo, Throwable cause) {
-        this(shard.shardId(), extraInfo, cause);
-    }
-
-    public RetryableReplicationException(ShardId shardId, @Nullable String extraInfo, Throwable cause) {
-        super(shardId + ": Replication failed on " + (extraInfo == null ? "" : " (" + extraInfo + ")"), cause);
-    }
-
-    public RetryableReplicationException(StreamInput in) throws IOException {
-        super(in);
-    }
-
-    public RetryableReplicationException(Exception e) {
-        super(e);
-    }
-
     public RetryableReplicationException(String msg) {
         super(msg);
     }
@@ -50,4 +27,9 @@ public class RetryableReplicationException extends OpenSearchException {
     public RetryableReplicationException(String msg, Throwable cause) {
         super(msg, cause);
     }
+
+    public RetryableReplicationException(StreamInput in) throws IOException {
+        super(in);
+    }
+
 }

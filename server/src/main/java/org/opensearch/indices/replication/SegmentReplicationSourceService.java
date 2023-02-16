@@ -72,11 +72,7 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
     private final IndicesService indicesService;
 
     public void onPrimaryRefresh(IndexShard indexShard) {
-        try {
-            ongoingSegmentReplications.updateCopyState(indexShard);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        ongoingSegmentReplications.updateCopyState(indexShard);
     }
 
     /**
@@ -134,7 +130,7 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
             );
             final CopyState copyState = copyStateGatedCloseable.get();
             if (copyState == null || copyState.getShard().verifyPrimaryMode() == false) {
-                channel.sendResponse(new RetryableReplicationException("Primary has no computed copyState"));
+                throw new RetryableReplicationException("Primary has no computed copyState");
             } else {
                 if (request.getCheckpoint().isAheadOf(copyState.getCheckpoint()) || copyState.getMetadataMap().isEmpty()) {
                     // if there are no files to send, or the replica is already at this checkpoint, send the infos but do not hold snapshotted
@@ -217,7 +213,6 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
 
     @Override
     protected void doClose() throws IOException {
-        logger.info("Closing?");
         ongoingSegmentReplications.close();
     }
 
@@ -227,7 +222,6 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null) {
-            logger.info("Releasing for shard {}", indexShard.routingEntry());
             ongoingSegmentReplications.cancel(indexShard, "shard is closed");
         }
     }
@@ -241,7 +235,6 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
             ongoingSegmentReplications.cancel(indexShard.routingEntry().allocationId().getId(), "Relocating primary shard.");
         }
         if (indexShard != null && oldRouting.primary() && newRouting.primary() == false) {
-            logger.info("No longer primary {}", indexShard.routingEntry());
             ongoingSegmentReplications.clearCopyStateForShard(indexShard.shardId());
         }
     }

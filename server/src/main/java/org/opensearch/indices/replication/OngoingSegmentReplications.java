@@ -196,10 +196,15 @@ class OngoingSegmentReplications implements Closeable {
         }
     }
 
-    public synchronized void updateCopyState(IndexShard indexShard) throws IOException {
+    public synchronized void updateCopyState(IndexShard indexShard) {
         // We can only compute CopyState for shards that have started.
         if (indexShard.state() == IndexShardState.STARTED) {
-            final CopyState state = new CopyState(indexShard);
+            final CopyState state;
+            try {
+                state = new CopyState(indexShard);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
             final CopyState oldCopyState = copyStateMap.remove(indexShard.shardId());
             if (oldCopyState != null) {
                 oldCopyState.decRef();

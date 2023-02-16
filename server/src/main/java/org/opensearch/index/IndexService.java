@@ -985,7 +985,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     private void fetchSegments() {
         for (IndexShard shard : this.shards.values()) {
-            shard.fetchSegments();
+            if (shard.routingEntry().primary() == false) {
+                shard.fetchSegments();
+            }
         }
     }
 
