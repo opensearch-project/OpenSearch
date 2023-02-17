@@ -341,7 +341,7 @@ public class SettingTests extends OpenSearchTestCase {
             out.flush();
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 regexValidator = new RegexValidator(in);
-                assertEquals(expectedPattern, regexValidator.getPattern());
+                assertEquals(expectedPattern.toString(), regexValidator.getPattern().toString());
             }
         }
     }
