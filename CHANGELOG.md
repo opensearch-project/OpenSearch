@@ -25,3 +25,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Identity] Basic permissions check ([#6029](https://github.com/opensearch-project/OpenSearch/pull/6029))
 - [Identity] REST API for Create user ([#5990](https://github.com/opensearch-project/OpenSearch/pull/5990))
 - [Identity] Grant Permission REST API ([#6117](https://github.com/opensearch-project/OpenSearch/pull/6154))
+- [Identity] REST API to Create and Update user ([#5990](https://github.com/opensearch-project/OpenSearch/pull/5990))
+- [Identity] Extensions security setup and token creation ([#6204](https://github.com/opensearch-project/OpenSearch/pull/6204))
+- [Identity] REST API for user GET and DELETE ([#6189](https://github.com/opensearch-project/OpenSearch/pull/6189))
