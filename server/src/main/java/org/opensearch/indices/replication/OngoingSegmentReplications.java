@@ -46,8 +46,8 @@ class OngoingSegmentReplications implements Closeable {
     private final RecoverySettings recoverySettings;
     private final IndicesService indicesService;
     private final Map<String, SegmentReplicationSourceHandler> allocationIdToHandlers;
-    private static final Logger logger = LogManager.getLogger(OngoingSegmentReplications.class);
     private final Map<ShardId, CopyState> copyStateMap;
+    private static final Logger logger = LogManager.getLogger(OngoingSegmentReplications.class);
 
     /**
      * Constructor.
@@ -101,7 +101,7 @@ class OngoingSegmentReplications implements Closeable {
      *
      * @param request         {@link CheckpointInfoRequest}
      * @param fileChunkWriter {@link FileChunkWriter} writer to handle sending files over the transport layer.
-     * @param copyState {@link GatedCloseable} containing {@link CopyState} that will be released upon copy completion.
+     * @param copyState       {@link GatedCloseable} containing {@link CopyState} that will be released upon copy completion.
      */
     void prepareForReplication(CheckpointInfoRequest request, FileChunkWriter fileChunkWriter, GatedCloseable<CopyState> copyState) {
         final SegmentReplicationSourceHandler segmentReplicationSourceHandler = allocationIdToHandlers.putIfAbsent(
@@ -120,18 +120,38 @@ class OngoingSegmentReplications implements Closeable {
         }
     }
 
+    private SegmentReplicationSourceHandler createTargetHandler(
+        DiscoveryNode node,
+        GatedCloseable<CopyState> copyState,
+        String allocationId,
+        FileChunkWriter fileChunkWriter
+    ) {
+        return new SegmentReplicationSourceHandler(
+            node,
+            fileChunkWriter,
+            copyState,
+            allocationId,
+            Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
+            recoverySettings.getMaxConcurrentFileChunks()
+        );
+    }
+
     /**
      * Cancel all Replication events for the given shard, intended to be called when a primary is shutting down.
      *
      * @param shard  {@link IndexShard}
      * @param reason {@link String} - Reason for the cancel
      */
-    synchronized void cancel(IndexShard shard, String reason) {
-        cancelHandlers(handler -> handler.getCopyState().getShard().shardId().equals(shard.shardId()), reason);
+    void cancel(IndexShard shard, String reason) {
         if (shard.routingEntry().primary()) {
-            clearCopyStateForShard(shard.shardId());
+            cancelHandlers(handler -> handler.getCopyState().getShard().shardId().equals(shard.shardId()), reason);
+            final CopyState remove = copyStateMap.remove(shard.shardId());
+            if (remove != null) {
+                remove.decRef();
+            }
         }
     }
+
 
     /**
      * Cancel all Replication events for the given allocation ID, intended to be called when a primary is shutting down.
@@ -139,7 +159,7 @@ class OngoingSegmentReplications implements Closeable {
      * @param allocationId {@link String} - Allocation ID.
      * @param reason       {@link String} - Reason for the cancel
      */
-    synchronized void cancel(String allocationId, String reason) {
+    void cancel(String allocationId, String reason) {
         final SegmentReplicationSourceHandler handler = allocationIdToHandlers.remove(allocationId);
         if (handler != null) {
             handler.cancel(reason);
@@ -164,22 +184,6 @@ class OngoingSegmentReplications implements Closeable {
         return allocationIdToHandlers.size();
     }
 
-    private SegmentReplicationSourceHandler createTargetHandler(
-        DiscoveryNode node,
-        GatedCloseable<CopyState> copyState,
-        String allocationId,
-        FileChunkWriter fileChunkWriter
-    ) {
-        return new SegmentReplicationSourceHandler(
-            node,
-            fileChunkWriter,
-            copyState,
-            allocationId,
-            Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
-            recoverySettings.getMaxConcurrentFileChunks()
-        );
-    }
-
     /**
      * Remove handlers from allocationIdToHandlers map based on a filter predicate.
      * This will also decref the handler's CopyState reference.
@@ -195,39 +199,34 @@ class OngoingSegmentReplications implements Closeable {
         }
     }
 
-    public synchronized void setCopyState(IndexShard indexShard) {
-        // We can only compute CopyState for shards that have started.
-        if (indexShard.state() == IndexShardState.STARTED) {
-            final CopyState state;
+    /**
+     * Build and store a new {@link CopyState} for the given {@link IndexShard}.
+     *
+     * @param indexShard - Primary shard.
+     */
+    public void setCopyState(IndexShard indexShard) {
+        if (indexShard.state() == IndexShardState.STARTED && indexShard.verifyPrimaryMode()) {
             try {
-                state = new CopyState(indexShard);
+                final CopyState state = new CopyState(indexShard);
+                final CopyState oldCopyState = copyStateMap.remove(indexShard.shardId());
+                if (oldCopyState != null) {
+                    oldCopyState.decRef();
+                }
+                copyStateMap.put(indexShard.shardId(), state);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-            final CopyState oldCopyState = copyStateMap.remove(indexShard.shardId());
-            if (oldCopyState != null) {
-                oldCopyState.decRef();
-            }
-            // build the CopyState object and cache it before returning
-            copyStateMap.put(indexShard.shardId(), state);
         }
     }
 
-    @Override
-    public synchronized void close() throws IOException {
-        for (CopyState value : copyStateMap.values()) {
-            value.decRef();
-        }
-    }
-
-    public synchronized void clearCopyStateForShard(ShardId shardId) {
-        final CopyState remove = copyStateMap.remove(shardId);
-        if (remove != null) {
-            remove.decRef();
-        }
-    }
-
-    public synchronized GatedCloseable<CopyState> getLatestCopyState(ShardId shardId) {
+    /**
+     * Get the latest {@link CopyState} for the given shardId. This method returns an incref'd CopyState wrapped
+     * in a {@link GatedCloseable}, when released the copyState is decRef'd.
+     *
+     * @param shardId {@link ShardId}
+     * @return {@link GatedCloseable} Closeable containing the CopyState.
+     */
+    public GatedCloseable<CopyState> getCopyState(ShardId shardId) {
         final CopyState copyState = copyStateMap.get(shardId);
         if (copyState != null) {
             copyState.incRef();
@@ -238,7 +237,18 @@ class OngoingSegmentReplications implements Closeable {
         throw new IndexShardNotStartedException(shardId, indexShard.state());
     }
 
+    // for tests.
     Map<ShardId, CopyState> getCopyStateMap() {
         return copyStateMap;
+    }
+
+    @Override
+    public void close() throws IOException {
+        // Extra check to ensure all copyState has been cleaned up.
+        for (CopyState value : copyStateMap.values()) {
+             if (value.refCount() > 0) {
+                 value.decRef();
+             }
+        }
     }
 }

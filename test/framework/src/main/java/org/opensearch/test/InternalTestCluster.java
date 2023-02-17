@@ -109,6 +109,7 @@ import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.node.MockNode;
 import org.opensearch.node.Node;
 import org.opensearch.node.Node.DiscoverySettings;
@@ -1427,19 +1428,24 @@ public final class InternalTestCluster extends TestCluster {
             for (NodeAndClient nodeAndClient : nodes.values()) {
                 IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
                 for (IndexService indexService : indexServices) {
-                    if (indexService.getIndexSettings().isSegRepEnabled() == false) {
-                        for (IndexShard indexShard : indexService) {
-                            try {
-                                Engine engine = IndexShardTestCase.getEngine(indexShard);
-                                if (engine instanceof InternalEngine) {
-                                    assertFalse(
+                    // if segrep is enabled on the index, release our CopyState map,
+                    // this will happen on node shutdown, but allows us to assert no other open CopyStates are open.
+                        final SegmentReplicationSourceService segmentReplicationSourceService = getInstance(
+                            SegmentReplicationSourceService.class,
+                            nodeAndClient.name
+                        );
+                    for (IndexShard indexShard : indexService) {
+                        segmentReplicationSourceService.beforeIndexShardClosed(indexShard.shardId(), indexShard, indexShard.indexSettings().getSettings());
+                        try {
+                            Engine engine = IndexShardTestCase.getEngine(indexShard);
+                            if (engine instanceof InternalEngine) {
+                                assertFalse(
                                         indexShard.routingEntry().toString() + " has unreleased snapshotted index commits",
                                         EngineTestCase.hasSnapshottedCommits(engine)
                                     );
-                                }
-                            } catch (AlreadyClosedException ignored) {
-
                             }
+                        } catch (AlreadyClosedException ignored) {
+
                         }
                     }
                 }

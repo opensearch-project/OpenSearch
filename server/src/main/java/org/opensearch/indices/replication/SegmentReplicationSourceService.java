@@ -121,7 +121,7 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
             final ReplicationTimer timer = new ReplicationTimer();
             assert ongoingSegmentReplications != null;
             timer.start();
-            final GatedCloseable<CopyState> copyStateGatedCloseable = ongoingSegmentReplications.getLatestCopyState(
+            final GatedCloseable<CopyState> copyStateGatedCloseable = ongoingSegmentReplications.getCopyState(
                 request.getCheckpoint().getShardId()
             );
             final CopyState copyState = copyStateGatedCloseable.get();
@@ -131,11 +131,8 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
             } else {
                 if (request.getCheckpoint().isAheadOf(copyState.getCheckpoint()) || copyState.getMetadataMap().isEmpty()) {
                     // if there are no files to send, or the replica is already at this checkpoint, send the infos but do not hold
-                    // snapshotted
-                    // infos.
-                    // During recovery of an empty cluster it is possible we have no files to send but the primary has flushed to set
-                    // userData,
-                    // in this case we still want to send over infos.
+                    // snapshotted infos. During recovery of an empty cluster it is possible we have no files to send but the
+                    // primary has flushed to set userData, in this case we still want to send over infos.
                     channel.sendResponse(
                         new CheckpointInfoResponse(copyState.getCheckpoint(), Collections.emptyMap(), copyState.getInfosBytes())
                     );
@@ -221,25 +218,13 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null) {
-            ongoingSegmentReplications.cancel(indexShard, "shard is closed");
-        }
-    }
-
-    /**
-     * Cancels any replications on this node to a replica that has been promoted as primary.
-     */
-    @Override
-    public void shardRoutingChanged(IndexShard indexShard, @Nullable ShardRouting oldRouting, ShardRouting newRouting) {
-        if (indexShard != null && oldRouting.primary() == false && newRouting.primary()) {
-            ongoingSegmentReplications.cancel(indexShard.routingEntry().allocationId().getId(), "Relocating primary shard.");
-        }
-        if (indexShard != null && oldRouting.primary() && newRouting.primary() == false) {
-            ongoingSegmentReplications.clearCopyStateForShard(indexShard.shardId());
+            if (indexShard.routingEntry().primary()) {
+                ongoingSegmentReplications.cancel(indexShard, "shard is closed");
+            }
         }
     }
 
     public void onPrimaryRefresh(IndexShard indexShard) {
         ongoingSegmentReplications.setCopyState(indexShard);
     }
-
 }

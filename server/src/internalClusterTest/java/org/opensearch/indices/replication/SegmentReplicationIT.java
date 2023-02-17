@@ -18,7 +18,9 @@ import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.FileChunkRequest;
+import org.opensearch.indices.replication.common.CopyState;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.BackgroundIndexer;
 import org.opensearch.test.InternalTestCluster;
@@ -27,6 +29,7 @@ import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
