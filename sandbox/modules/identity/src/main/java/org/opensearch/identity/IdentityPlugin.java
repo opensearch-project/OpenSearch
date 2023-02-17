@@ -141,7 +141,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         handlers.add(new RestGetUserAction());
         handlers.add(new RestMultiGetUserAction());
         handlers.add(new RestDeleteUserAction());
-      handlers.add(new RestPutPermissionAction());
+        handlers.add(new RestPutPermissionAction());
         // TODO: Add handlers for future actions
         return handlers;
     }
