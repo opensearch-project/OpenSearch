@@ -218,7 +218,7 @@ public class WriteableSetting implements Writeable {
                     ? Setting.simpleString(key, (String) defaultValue, propertyArray)
                     : Setting.simpleString(key, (Setting<String>) fallback.getSetting(), propertyArray);
             case TimeValue:
-                if (parser instanceof Writeable && fallback == null) {
+                if (fallback == null && parser instanceof Writeable) {
                     if (parser instanceof MinMaxTimeValueParser) {
                         return Setting.timeSetting(
                             key,
@@ -235,7 +235,7 @@ public class WriteableSetting implements Writeable {
                 }
                 return Setting.timeSetting(key, (Setting<TimeValue>) fallback.getSetting(), propertyArray);
             case ByteSizeValue:
-                if (parser instanceof Writeable && fallback == null) {
+                if (fallback == null && parser instanceof Writeable) {
                     if (parser instanceof MemorySizeValueParser) {
                         return Setting.memorySizeSetting(key, (ByteSizeValue) defaultValue, propertyArray);
                     } else {
