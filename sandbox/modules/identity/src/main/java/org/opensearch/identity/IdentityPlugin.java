@@ -19,6 +19,10 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.component.Lifecycle;
+import org.opensearch.common.component.LifecycleComponent;
+import org.opensearch.common.component.LifecycleListener;
+import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
@@ -29,6 +33,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.identity.authmanager.internal.InternalAuthenticationManager;
 import org.opensearch.identity.authz.IndexNameExpressionResolverHolder;
 import org.opensearch.identity.configuration.ClusterInfoHolder;
@@ -37,8 +42,18 @@ import org.opensearch.identity.configuration.DynamicConfigFactory;
 import org.opensearch.identity.rest.permission.put.PutPermissionAction;
 import org.opensearch.identity.rest.permission.put.RestPutPermissionAction;
 import org.opensearch.identity.rest.permission.put.TransportPutPermissionAction;
+import org.opensearch.identity.jwt.IdentityJwtVerifier;
 import org.opensearch.identity.rest.configuration.IdentityConfigUpdateAction;
 import org.opensearch.identity.rest.configuration.TransportIdentityConfigUpdateAction;
+import org.opensearch.identity.rest.user.delete.DeleteUserAction;
+import org.opensearch.identity.rest.user.delete.RestDeleteUserAction;
+import org.opensearch.identity.rest.user.delete.TransportDeleteUserAction;
+import org.opensearch.identity.rest.user.get.multi.MultiGetUserAction;
+import org.opensearch.identity.rest.user.get.multi.RestMultiGetUserAction;
+import org.opensearch.identity.rest.user.get.multi.TransportMultiGetUserAction;
+import org.opensearch.identity.rest.user.get.single.GetUserAction;
+import org.opensearch.identity.rest.user.get.single.RestGetUserAction;
+import org.opensearch.identity.rest.user.get.single.TransportGetUserAction;
 import org.opensearch.identity.rest.user.put.PutUserAction;
 import org.opensearch.identity.rest.user.put.RestPutUserAction;
 import org.opensearch.identity.rest.user.put.TransportPutUserAction;
@@ -118,9 +133,15 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        final List<RestHandler> handlers = new ArrayList<>(2);
+        if (!enabled) {
+            return Collections.emptyList();
+        }
+        final List<RestHandler> handlers = new ArrayList<>(5);
         handlers.add(new RestPutUserAction());
-        handlers.add(new RestPutPermissionAction());
+        handlers.add(new RestGetUserAction());
+        handlers.add(new RestMultiGetUserAction());
+        handlers.add(new RestDeleteUserAction());
+      handlers.add(new RestPutPermissionAction());
         // TODO: Add handlers for future actions
         return handlers;
     }
@@ -135,8 +156,11 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         }
 
         return Arrays.asList(
-            new ActionHandler<>(PutUserAction.INSTANCE, TransportPutUserAction.class),
             new ActionHandler<>(IdentityConfigUpdateAction.INSTANCE, TransportIdentityConfigUpdateAction.class),
+            new ActionHandler<>(PutUserAction.INSTANCE, TransportPutUserAction.class),
+            new ActionHandler<>(GetUserAction.INSTANCE, TransportGetUserAction.class),
+            new ActionHandler<>(MultiGetUserAction.INSTANCE, TransportMultiGetUserAction.class),
+            new ActionHandler<>(DeleteUserAction.INSTANCE, TransportDeleteUserAction.class),
             new ActionHandler<>(PutPermissionAction.INSTANCE, TransportPutPermissionAction.class)
         );
     }
@@ -184,6 +208,9 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
             )
         );
         settings.add(
+            Setting.simpleString(IdentityConfigConstants.IDENTITY_SIGNING_KEY, Setting.Property.NodeScope, Setting.Property.Filtered)
+        );
+        settings.add(
             Setting.simpleString(IdentityConfigConstants.IDENTITY_CONFIG_INDEX_NAME, Setting.Property.NodeScope, Setting.Property.Filtered)
         );
 
@@ -196,6 +223,53 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         if (enabled) {
             cr.initOnNodeStart();
         }
+    }
+
+    @Override
+    public Collection<Class<? extends LifecycleComponent>> getGuiceServiceClasses() {
+
+        if (!enabled) {
+            return Collections.emptyList();
+        }
+
+        final List<Class<? extends LifecycleComponent>> services = new ArrayList<>(1);
+        services.add(GuiceHolder.class);
+        return services;
+    }
+
+    public static class GuiceHolder implements LifecycleComponent {
+
+        private static ExtensionsManager extensionsManager;
+
+        @Inject
+        public GuiceHolder(final ExtensionsManager extensionsManager) {
+            GuiceHolder.extensionsManager = extensionsManager;
+        }
+
+        public static ExtensionsManager getExtensionsManager() {
+            return extensionsManager;
+        }
+
+        @Override
+        public void close() {}
+
+        @Override
+        public Lifecycle.State lifecycleState() {
+            return null;
+        }
+
+        @Override
+        public void addLifecycleListener(LifecycleListener listener) {}
+
+        @Override
+        public void removeLifecycleListener(LifecycleListener listener) {}
+
+        @Override
+        public void start() {}
+
+        @Override
+        public void stop() {}
+
     }
 
     @Override
@@ -272,6 +346,9 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         // dcf.registerDCFListener(securityRestHandler);
 
         cr.setDynamicConfigFactory(dcf);
+
+        IdentityJwtVerifier verifier = IdentityJwtVerifier.getInstance();
+        verifier.init(this.settings.get(IdentityConfigConstants.IDENTITY_SIGNING_KEY));
 
         // required for dependency injections
         components.add(cr);

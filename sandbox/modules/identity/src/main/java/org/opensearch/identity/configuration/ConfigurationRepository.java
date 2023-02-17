@@ -8,6 +8,7 @@
 
 package org.opensearch.identity.configuration;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -22,10 +23,20 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import org.opensearch.action.DocWriteRequest;
+import org.opensearch.action.index.IndexRequest;
+import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.support.WriteRequest;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.identity.IdentityConfigConstants;
+import org.opensearch.identity.IdentityPlugin;
 import org.opensearch.identity.exception.ConfigUpdateAlreadyInProgressException;
 import org.opensearch.identity.exception.ExceptionUtils;
 import org.opensearch.identity.exception.InvalidConfigException;
+import org.opensearch.identity.extensions.ExtensionSecurityConfig;
+import org.opensearch.identity.extensions.ExtensionsSecretsGenerator;
 import org.opensearch.identity.support.ConfigHelper;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
@@ -112,6 +123,19 @@ public class ConfigurationRepository {
                                         CType.INTERNALUSERS,
                                         DEFAULT_CONFIG_VERSION
                                     );
+
+                                    SecurityDynamicConfiguration<ExtensionSecurityConfig> extensionsSecurityConfig =
+                                        SecurityDynamicConfiguration.empty();
+                                    final IndexRequest indexRequest = new IndexRequest(identityIndex).id(
+                                        CType.EXTENSIONSECURITY.toLCString()
+                                    )
+                                        .opType(DocWriteRequest.OpType.CREATE)
+                                        .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                                        .source(
+                                            CType.EXTENSIONSECURITY.toLCString(),
+                                            XContentHelper.toXContent(extensionsSecurityConfig, XContentType.JSON, false)
+                                        );
+                                    client.index(indexRequest).actionGet();
                                 }
                             } else {
                                 LOGGER.error("{} does not exist", confFile.toAbsolutePath().toString());
@@ -284,17 +308,17 @@ public class ConfigurationRepository {
         try (StoredContext ctx = threadContext.stashContext()) {
             threadContext.putHeader(IdentityConfigConstants.IDENTITY_CONF_REQUEST_HEADER, "true");
 
-            IndexMetadata securityMetadata = clusterService.state().metadata().index(this.identityIndex);
-            MappingMetadata mappingMetadata = securityMetadata == null ? null : securityMetadata.mapping();
+            IndexMetadata identityMetadata = clusterService.state().metadata().index(this.identityIndex);
+            MappingMetadata mappingMetadata = identityMetadata == null ? null : identityMetadata.mapping();
 
-            if (securityMetadata != null && mappingMetadata != null) {
+            if (identityMetadata != null && mappingMetadata != null) {
                 LOGGER.debug("identity index exists");
-                retVal.putAll(validate(cl.load(configTypes.toArray(new CType[0]), 5, TimeUnit.SECONDS), configTypes.size()));
+                retVal.putAll(validate(cl.load(configTypes.toArray(new CType[0]), 10, TimeUnit.SECONDS), configTypes.size()));
 
             } else {
                 // wait (and use new layout)
                 LOGGER.debug("identity index not exists (yet)");
-                retVal.putAll(validate(cl.load(configTypes.toArray(new CType[0]), 5, TimeUnit.SECONDS), configTypes.size()));
+                retVal.putAll(validate(cl.load(configTypes.toArray(new CType[0]), 10, TimeUnit.SECONDS), configTypes.size()));
             }
 
         } catch (Exception e) {
@@ -312,5 +336,44 @@ public class ConfigurationRepository {
         }
 
         return conf;
+    }
+
+    public void initializeExtensionsSecurity() {
+        SecurityDynamicConfiguration<ExtensionSecurityConfig> extensionsSecurityConfig = SecurityDynamicConfiguration.empty();
+        Map<String, DiscoveryExtensionNode> extensionIdMap = IdentityPlugin.GuiceHolder.getExtensionsManager().getExtensionIdMap();
+        if (extensionIdMap != null) {
+            for (String extensionId : extensionIdMap.keySet()) {
+                ExtensionSecurityConfig es = new ExtensionSecurityConfig();
+                es.setSigningKey(ExtensionsSecretsGenerator.generateSigningKey());
+                extensionsSecurityConfig.putCObject(extensionId, es);
+            }
+
+            String configType = CType.EXTENSIONSECURITY.toLCString();
+
+            try {
+                final IndexRequest indexRequest = new IndexRequest(this.identityIndex).id(configType)
+                    .opType(DocWriteRequest.OpType.INDEX)
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+                    .source(configType, XContentHelper.toXContent(extensionsSecurityConfig, XContentType.JSON, false));
+                IndexResponse response = client.index(indexRequest).actionGet();
+                final String res = response.getId();
+
+                if (!configType.equals(res)) {
+                    LOGGER.warn(
+                        "FAIL: Configuration for '{}' failed for unknown reasons. See OpenSearch logs for more details.",
+                        configType
+                    );
+                }
+            } catch (IOException e) {
+                throw ExceptionsHelper.convertToOpenSearchException(e);
+            }
+
+            try {
+                LOGGER.debug("Try to reload config ...");
+                reloadConfiguration(Arrays.asList(CType.values()));
+            } catch (Exception e) {
+                LOGGER.debug("Unable to load configuration due to {}", String.valueOf(ExceptionUtils.getRootCause(e)));
+            }
+        }
     }
 }

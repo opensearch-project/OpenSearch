@@ -17,9 +17,7 @@ import org.apache.cxf.rs.security.jose.jwt.JoseJwtProducer;
 import org.apache.cxf.rs.security.jose.jwt.JwtClaims;
 import org.apache.cxf.rs.security.jose.jwt.JwtToken;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Base64;
 import java.util.Map;
 
 import org.apache.cxf.rs.security.jose.jwt.JwtUtils;
@@ -31,20 +29,19 @@ public class JwtVendor {
 
     private static JsonMapObjectReaderWriter jsonMapReaderWriter = new JsonMapObjectReaderWriter();
 
-    static JsonWebKey getDefaultJsonWebKey() {
+    static JsonWebKey getDefaultJsonWebKeyWithSigningKey(String signingKey) {
         JsonWebKey jwk = new JsonWebKey();
 
         jwk.setKeyType(KeyType.OCTET);
         jwk.setAlgorithm("HS512");
         jwk.setPublicKeyUse(PublicKeyUse.SIGN);
-        String b64SigningKey = Base64.getEncoder().encodeToString("exchangeKey".getBytes(StandardCharsets.UTF_8));
-        jwk.setProperty("k", b64SigningKey);
+        jwk.setProperty("k", signingKey);
         return jwk;
     }
 
-    public static String createJwt(Map<String, String> claims) {
+    public static String createJwt(Map<String, String> claims, String signingKey) {
         JoseJwtProducer jwtProducer = new JoseJwtProducer();
-        jwtProducer.setSignatureProvider(JwsUtils.getSignatureProvider(getDefaultJsonWebKey()));
+        jwtProducer.setSignatureProvider(JwsUtils.getSignatureProvider(getDefaultJsonWebKeyWithSigningKey(signingKey)));
         JwtClaims jwtClaims = new JwtClaims();
         JwtToken jwt = new JwtToken(jwtClaims);
 
@@ -55,6 +52,7 @@ public class JwtVendor {
         if (claims.containsKey("sub")) {
             jwtClaims.setProperty("sub", claims.get("sub"));
         } else {
+            // TODO What exception should be thrown and how should it be handled?
             jwtClaims.setProperty("sub", "example_subject");
         }
 
