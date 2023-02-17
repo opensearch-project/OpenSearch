@@ -97,6 +97,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add a setting to control auto release of OpenSearch managed index creation block ([#6277](https://github.com/opensearch-project/OpenSearch/pull/6277))
 - Fix timeout error when adding a document to an index with extension running ([#6275](https://github.com/opensearch-project/OpenSearch/pull/6275))
 - Clean up temporary files created during segment merge incase segment merge fails ([#6324](https://github.com/opensearch-project/OpenSearch/pull/6324))
+- Create writeable implementations for parser([#6364](https://github.com/opensearch-project/OpenSearch/pull/5838))
 
 ### Dependencies
 - Update nebula-publishing-plugin to 19.2.0 ([#5704](https://github.com/opensearch-project/OpenSearch/pull/5704))
