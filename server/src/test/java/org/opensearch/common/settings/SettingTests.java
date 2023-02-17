@@ -334,7 +334,7 @@ public class SettingTests extends OpenSearchTestCase {
         // Test that the pattern is correctly initialized
         assertNotNull(expectedPattern);
         assertNotNull(regexValidator.getPattern());
-        assertEquals(expectedPattern, regexValidator.getPattern());
+        assertEquals(expectedPattern.toString(), regexValidator.getPattern().toString());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             regexValidator.writeTo(out);
