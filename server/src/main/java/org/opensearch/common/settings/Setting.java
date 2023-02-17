@@ -1389,53 +1389,32 @@ public class Setting<T> implements ToXContentObject {
             properties
         );
     }
+
     /**
      * Writeable Default Value
      */
-    public static class WriteableDefaultValue implements Function<Setting, String>, Writeable {
-        private String defaultvalue;
+    public static class WriteableDefaultValue implements Function<Settings, String>, Writeable {
+        private Settings defaultValue;
 
-        public WriteableDefaultValue(){
-
+        public WriteableDefaultValue(Settings defaultValue){
+            this.defaultValue = defaultValue;
         }
 
         public WriteableDefaultValue(StreamInput in){
-            
+            defaultValue = in.readDefaultValue();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            
+            out.writeSettings(defaultValue);
         }
 
         @Override
-        public String apply(Setting t) {
-            return null;
-        }
-        
+        public String apply(Settings t) {
+            return getRaw(defaultValue);
+        }  
     }
 
-    public static class WriteableDefaultValue implements Function<Setting, String>, Writeable {
-
-        public WriteableDefaultValue(){
-
-        }
-
-        public WriteableDefaultValue(StreamInput in){
-
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            
-        }
-
-        @Override
-        public String apply(Setting t) {
-            return null;
-        }
-        
-    }
 
     // Integer
 
