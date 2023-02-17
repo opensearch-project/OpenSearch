@@ -1384,19 +1384,19 @@ public class Setting<T> implements ToXContentObject {
             out.writeBoolean(isFiltered);
         }
 
-        float getMin() {
+        public float getMin() {
             return minValue;
         }
 
-        float getMax() {
+        public float getMax() {
             return maxValue;
         }
 
-        String getKey() {
+        public String getKey() {
             return key;
         }
 
-        boolean getFilterStatus() {
+        public boolean getFilterStatus() {
             return isFiltered;
         }
 
@@ -1554,19 +1554,19 @@ public class Setting<T> implements ToXContentObject {
             out.writeBoolean(isFiltered);
         }
 
-        int getMin() {
+        public int getMin() {
             return minValue;
         }
 
-        int getMax() {
+        public int getMax() {
             return maxValue;
         }
 
-        String getKey() {
+        public String getKey() {
             return key;
         }
 
-        boolean getFilterStatus() {
+        public boolean getFilterStatus() {
             return isFiltered;
         }
 
@@ -1716,19 +1716,19 @@ public class Setting<T> implements ToXContentObject {
             out.writeBoolean(isFiltered);
         }
 
-        long getMin() {
+        public long getMin() {
             return minValue;
         }
 
-        long getMax() {
+        public long getMax() {
             return maxValue;
         }
 
-        String getKey() {
+        public String getKey() {
             return key;
         }
 
-        boolean getFilterStatus() {
+        public boolean getFilterStatus() {
             return isFiltered;
         }
 
@@ -1878,19 +1878,19 @@ public class Setting<T> implements ToXContentObject {
             out.writeBoolean(isFiltered);
         }
 
-        double getMin() {
+        public double getMin() {
             return minValue;
         }
 
-        double getMax() {
+        public double getMax() {
             return maxValue;
         }
 
-        String getKey() {
+        public String getKey() {
             return key;
         }
 
-        boolean getFilterStatus() {
+        public boolean getFilterStatus() {
             return isFiltered;
         }
 
@@ -2072,11 +2072,11 @@ public class Setting<T> implements ToXContentObject {
             out.writeBoolean(isFiltered);
         }
 
-        String getKey() {
+        public String getKey() {
             return key;
         }
 
-        boolean getFilterStatus() {
+        public boolean getFilterStatus() {
             return isFiltered;
         }
 
@@ -2161,15 +2161,15 @@ public class Setting<T> implements ToXContentObject {
             out.writeString(key);
         }
 
-        ByteSizeValue getMin() {
+        public ByteSizeValue getMin() {
             return minValue;
         }
 
-        ByteSizeValue getMax() {
+        public ByteSizeValue getMax() {
             return maxValue;
         }
 
-        String getKey() {
+        public String getKey() {
             return key;
         }
 
@@ -2276,7 +2276,7 @@ public class Setting<T> implements ToXContentObject {
             out.writeString(key);
         }
 
-        String getKey() {
+        public String getKey() {
             return key;
         }
 
@@ -2582,15 +2582,15 @@ public class Setting<T> implements ToXContentObject {
             out.writeBoolean(isFiltered);
         }
 
-        TimeValue getMin() {
+        public TimeValue getMin() {
             return minValue;
         }
 
-        String getKey() {
+        public String getKey() {
             return key;
         }
 
-        boolean getFilterStatus() {
+        public boolean getFilterStatus() {
             return isFiltered;
         }
 
@@ -2674,19 +2674,19 @@ public class Setting<T> implements ToXContentObject {
             out.writeBoolean(isFiltered);
         }
 
-        TimeValue getMin() {
+        public TimeValue getMin() {
             return minValue;
         }
 
-        TimeValue getMax() {
+        public TimeValue getMax() {
             return maxValue;
         }
 
-        String getKey() {
+        public String getKey() {
             return key;
         }
 
-        boolean getFilterStatus() {
+        public boolean getFilterStatus() {
             return isFiltered;
         }
 
