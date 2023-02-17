@@ -213,7 +213,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
                 @Override
                 public void onReplicationFailure(SegmentReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
-                    logger.error(
+                    logger.trace(
                         () -> new ParameterizedMessage(
                             "[shardId {}] [replication id {}] Replication failed, timing data: {}",
                             indexShard.shardId().getId(),

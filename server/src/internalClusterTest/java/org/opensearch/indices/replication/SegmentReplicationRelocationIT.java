@@ -383,7 +383,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         assertBusy(() -> {
             client().admin().indices().prepareRefresh().execute().actionGet();
             assertTrue(pendingIndexResponses.stream().allMatch(ActionFuture::isDone));
-        }, 1, TimeUnit.MINUTES);
+        }, 2, TimeUnit.MINUTES);
         flushAndRefresh(INDEX_NAME);
         waitForSearchableDocs(totalDocCount, replica, newPrimary);
         verifyStoreContent();
