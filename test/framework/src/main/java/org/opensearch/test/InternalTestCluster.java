@@ -1350,6 +1350,7 @@ public final class InternalTestCluster extends TestCluster {
         assertNoPendingIndexOperations();
         assertAllPendingWriteLimitsReleased();
         assertOpenTranslogReferences();
+        closeShardCopyStates();
         assertNoSnapshottedIndexCommit();
     }
 
@@ -1423,19 +1424,31 @@ public final class InternalTestCluster extends TestCluster {
         }, 60, TimeUnit.SECONDS);
     }
 
+    // If segrep is enabled on the index, release our CopyState map,
+    // this will happen on node shutdown, but allows us to assert no other open CopyStates are open.
+    private void closeShardCopyStates() throws Exception {
+        assertBusy(() -> {
+            for (NodeAndClient nodeAndClient : nodes.values()) {
+                IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
+                for (IndexService indexService : indexServices) {
+                    final SegmentReplicationSourceService segmentReplicationSourceService = getInstance(
+                        SegmentReplicationSourceService.class,
+                        nodeAndClient.name
+                    );
+                    for (IndexShard indexShard : indexService) {
+                        segmentReplicationSourceService.beforeIndexShardClosed(indexShard.shardId(), indexShard, indexShard.indexSettings().getSettings());
+                    }
+                }
+            }
+        }, 60, TimeUnit.SECONDS);
+    }
+
     private void assertNoSnapshottedIndexCommit() throws Exception {
         assertBusy(() -> {
             for (NodeAndClient nodeAndClient : nodes.values()) {
                 IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
                 for (IndexService indexService : indexServices) {
-                    // if segrep is enabled on the index, release our CopyState map,
-                    // this will happen on node shutdown, but allows us to assert no other open CopyStates are open.
-                        final SegmentReplicationSourceService segmentReplicationSourceService = getInstance(
-                            SegmentReplicationSourceService.class,
-                            nodeAndClient.name
-                        );
                     for (IndexShard indexShard : indexService) {
-                        segmentReplicationSourceService.beforeIndexShardClosed(indexShard.shardId(), indexShard, indexShard.indexSettings().getSettings());
                         try {
                             Engine engine = IndexShardTestCase.getEngine(indexShard);
                             if (engine instanceof InternalEngine) {
