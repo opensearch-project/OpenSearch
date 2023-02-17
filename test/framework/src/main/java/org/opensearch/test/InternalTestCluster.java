@@ -1436,7 +1436,11 @@ public final class InternalTestCluster extends TestCluster {
                         nodeAndClient.name
                     );
                     for (IndexShard indexShard : indexService) {
-                        segmentReplicationSourceService.beforeIndexShardClosed(indexShard.shardId(), indexShard, indexShard.indexSettings().getSettings());
+                        segmentReplicationSourceService.beforeIndexShardClosed(
+                            indexShard.shardId(),
+                            indexShard,
+                            indexShard.indexSettings().getSettings()
+                        );
                     }
                 }
             }
@@ -1453,9 +1457,9 @@ public final class InternalTestCluster extends TestCluster {
                             Engine engine = IndexShardTestCase.getEngine(indexShard);
                             if (engine instanceof InternalEngine) {
                                 assertFalse(
-                                        indexShard.routingEntry().toString() + " has unreleased snapshotted index commits",
-                                        EngineTestCase.hasSnapshottedCommits(engine)
-                                    );
+                                    indexShard.routingEntry().toString() + " has unreleased snapshotted index commits",
+                                    EngineTestCase.hasSnapshottedCommits(engine)
+                                );
                             }
                         } catch (AlreadyClosedException ignored) {
 

@@ -152,7 +152,6 @@ class OngoingSegmentReplications implements Closeable {
         }
     }
 
-
     /**
      * Cancel all Replication events for the given allocation ID, intended to be called when a primary is shutting down.
      *
@@ -246,9 +245,9 @@ class OngoingSegmentReplications implements Closeable {
     public void close() throws IOException {
         // Extra check to ensure all copyState has been cleaned up.
         for (CopyState value : copyStateMap.values()) {
-             if (value.refCount() > 0) {
-                 value.decRef();
-             }
+            if (value.refCount() > 0) {
+                value.decRef();
+            }
         }
     }
 }

@@ -172,7 +172,6 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         assertEquals(0, latch.getCount());
     }
 
-
     public void testShardAlreadyReplicating() throws InterruptedException {
         // Create a spy of Target Service so that we can verify invocation of startReplication call with specific checkpoint on it.
         SegmentReplicationTargetService serviceSpy = spy(sut);
