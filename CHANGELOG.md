@@ -5,6 +5,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 3.0]
 ### Added
+# CHANGELOG
+All notable changes to this project are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See the [CONTRIBUTING guide](./CONTRIBUTING.md#Changelog) for instructions on how to add changelog entries.
+
+## [Unreleased 3.0]
+### Added
 - [Identity] Document identity roadmap and feature branch processes ([#4583](https://github.com/opensearch-project/OpenSearch/pull/4583))
 - [Identity] Add stubs for AccessTokenManager  ([#4612](https://github.com/opensearch-project/OpenSearch/pull/4612))
 - [Identity] Permissions check API ([#4516](https://github.com/opensearch-project/OpenSearch/pull/4516))
@@ -22,8 +29,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Identity] Move implementations of AuthenticationManager into Identity Module and keep interfaces in authn lib ([#5857](https://github.com/opensearch-project/OpenSearch/pull/5857))
 - [Identity] Define permission structure and basic handling ([#5909](https://github.com/opensearch-project/OpenSearch/pull/5909))
 - [Identity] Connect Identity Index to InternalRealm ([#5975](https://github.com/opensearch-project/OpenSearch/pull/5975))
+- [Identity] REST API to Create and Update user ([#5990](https://github.com/opensearch-project/OpenSearch/pull/5990))
 - [Identity] Basic permissions check ([#6029](https://github.com/opensearch-project/OpenSearch/pull/6029))
-- [Identity] REST API for Create user ([#5990](https://github.com/opensearch-project/OpenSearch/pull/5990))
+- [Identity] Grant Permission REST API ([#6117](https://github.com/opensearch-project/OpenSearch/pull/6154))
+- [Identity] REST API for user GET and DELETE ([#6189](https://github.com/opensearch-project/OpenSearch/pull/6189))
 - [Identity] Extensions security setup and token creation ([#6204](https://github.com/opensearch-project/OpenSearch/pull/6204))
-- [Identity] Grant Permission REST API ([#6154](https://github.com/opensearch-project/OpenSearch/pull/6154))
-- [Identity] Check and Deleter Permission REST API ([#6220](https://github.com/opensearch-project/OpenSearch/pull/6220))
+- [Identity] Check and Delete Permission REST API ([#6220](https://github.com/opensearch-project/OpenSearch/pull/6220))
