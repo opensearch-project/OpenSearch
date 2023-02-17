@@ -22,6 +22,7 @@ import static org.opensearch.test.rest.OpenSearchRestTestCase.entityAsMap;
 
 /**
  * Tests REST API for users against local cluster
+ * Can be flaky on github due to timing
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
