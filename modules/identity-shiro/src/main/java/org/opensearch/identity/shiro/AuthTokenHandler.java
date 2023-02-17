@@ -8,6 +8,8 @@
 
 package org.opensearch.identity.shiro;
 
+import java.util.Optional;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.shiro.authc.AuthenticationToken;
@@ -24,18 +26,16 @@ class AuthTokenHandler {
     private static final Logger logger = LogManager.getLogger(AuthTokenHandler.class);
 
     /**
-     * Translates shiro auth token from the given header token
+     * Translates into shiro auth token from the given header token
      * @param authenticationToken the token from which to translate
-     * @return the shiro auth token to be for login
+     * @return An optional of the shiro auth token for login
      */
-    public AuthenticationToken translateAuthToken(org.opensearch.identity.tokens.AuthToken authenticationToken) {
-        final AuthenticationToken authToken = null;
-
+    public Optional<AuthenticationToken> translateAuthToken(org.opensearch.identity.tokens.AuthToken authenticationToken) {
         if (authenticationToken instanceof BasicAuthToken) {
             final BasicAuthToken basicAuthToken = (BasicAuthToken) authenticationToken;
-            return new UsernamePasswordToken(basicAuthToken.getUser(), basicAuthToken.getPassword());
+            return Optional.of(new UsernamePasswordToken(basicAuthToken.getUser(), basicAuthToken.getPassword()));
         }
 
-        return authToken;
+        return Optional.empty();
     }
 }

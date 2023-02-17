@@ -8,7 +8,6 @@
 
 package org.opensearch.identity.shiro;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
@@ -28,8 +27,6 @@ import java.util.Collection;
  *
  * @opensearch.experimental
  */
-// TODO not sure why ThreadLeakScope.NONE is required
-@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 public abstract class HttpSmokeTestCaseWithIdentity extends OpenSearchIntegTestCase {
 
     private static String nodeTransportTypeKey;

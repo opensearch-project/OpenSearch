@@ -24,8 +24,8 @@ public class ShiroSubject implements Subject {
     private final org.apache.shiro.subject.Subject shiroSubject;
 
     public ShiroSubject(final AuthTokenHandler authTokenHandler, final org.apache.shiro.subject.Subject subject) {
-        this.authTokenHandler = authTokenHandler;
-        this.shiroSubject = subject;
+        this.authTokenHandler = Objects.requireNonNull(authTokenHandler);
+        this.shiroSubject = Objects.requireNonNull(subject);
     }
 
     @Override
@@ -58,7 +58,8 @@ public class ShiroSubject implements Subject {
      * Logs the user in via authenticating the user against current Shiro realm
      */
     public void login(AuthToken authenticationToken) {
-        final org.apache.shiro.authc.AuthenticationToken authToken = authTokenHandler.translateAuthToken(authenticationToken);
+        final org.apache.shiro.authc.AuthenticationToken authToken = authTokenHandler.translateAuthToken(authenticationToken)
+            .orElseThrow(() -> new UnsupportedAuthenticationToken());
         shiroSubject.login(authToken);
     }
 }

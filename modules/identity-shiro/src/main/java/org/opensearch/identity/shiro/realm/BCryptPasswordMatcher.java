@@ -24,9 +24,7 @@ public class BCryptPasswordMatcher implements CredentialsMatcher {
     @Override
     public boolean doCredentialsMatch(AuthenticationToken token, AuthenticationInfo info) {
         final UsernamePasswordToken userToken = (UsernamePasswordToken) token;
-        final String password = new String(userToken.getPassword());
-        final String hashedCredentials = (String) info.getCredentials();
-        return OpenBSDBCrypt.checkPassword(hashedCredentials, password.toCharArray());
+        return OpenBSDBCrypt.checkPassword((String) info.getCredentials(), userToken.getPassword());
     }
 
 }

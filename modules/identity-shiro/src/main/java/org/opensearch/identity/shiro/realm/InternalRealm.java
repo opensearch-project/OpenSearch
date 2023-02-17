@@ -23,6 +23,7 @@ import org.opensearch.identity.StringPrincipal;
 
 import java.util.Objects;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Internal Realm is a custom realm using the internal OpenSearch IdP
@@ -85,7 +86,6 @@ public class InternalRealm extends AuthenticatingRealm {
                 realmName
             );
 
-            // TODO: Doesn't appear to check the password
             final boolean successfulAuthentication = getCredentialsMatcher().doCredentialsMatch(token, sai);
 
             if (successfulAuthentication) {
@@ -102,6 +102,7 @@ public class InternalRealm extends AuthenticatingRealm {
         }
 
         // If the token was not handled, it was unsupported
-        throw new UnsupportedTokenException("Unable to support authentication token " + token.getClass().getName());
+        final String tokenClassName = Optional.ofNullable(token).map(Object::getClass).map(Class::getName).orElse("null");
+        throw new UnsupportedTokenException("Unable to support authentication token " + tokenClassName);
     }
 }

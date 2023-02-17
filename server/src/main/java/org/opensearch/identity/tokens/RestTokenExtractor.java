@@ -53,4 +53,4 @@ public class RestTokenExtractor {
         logger.trace("No auth token could be extracted");
         return null;
     }
-} 
+}

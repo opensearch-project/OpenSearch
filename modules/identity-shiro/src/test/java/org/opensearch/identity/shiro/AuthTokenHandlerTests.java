@@ -18,7 +18,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+
+import java.util.Optional;
 
 public class AuthTokenHandlerTests extends OpenSearchTestCase {
 
@@ -32,7 +33,7 @@ public class AuthTokenHandlerTests extends OpenSearchTestCase {
     public void testShouldExtractBasicAuthTokenSuccessfully() {
         final BasicAuthToken authToken = new BasicAuthToken("Basic YWRtaW46YWRtaW4="); // admin:admin
 
-        final AuthenticationToken translatedToken = authTokenHandler.translateAuthToken(authToken);
+        final AuthenticationToken translatedToken = authTokenHandler.translateAuthToken(authToken).get();
         assertThat(translatedToken, is(instanceOf(UsernamePasswordToken.class)));
 
         final UsernamePasswordToken usernamePasswordToken = (UsernamePasswordToken) translatedToken;
@@ -44,7 +45,7 @@ public class AuthTokenHandlerTests extends OpenSearchTestCase {
     public void testShouldExtractBasicAuthTokenSuccessfully_twoSemiColonPassword() {
         final BasicAuthToken authToken = new BasicAuthToken("Basic dGVzdDp0ZTpzdA=="); // test:te:st
 
-        final AuthenticationToken translatedToken = authTokenHandler.translateAuthToken(authToken);
+        final AuthenticationToken translatedToken = authTokenHandler.translateAuthToken(authToken).get();
         assertThat(translatedToken, is(instanceOf(UsernamePasswordToken.class)));
 
         final UsernamePasswordToken usernamePasswordToken = (UsernamePasswordToken) translatedToken;
@@ -54,8 +55,8 @@ public class AuthTokenHandlerTests extends OpenSearchTestCase {
     }
 
     public void testShouldReturnNullWhenExtractingNullToken() {
-        final AuthenticationToken translatedToken = authTokenHandler.translateAuthToken(null);
+        final Optional<AuthenticationToken> translatedToken = authTokenHandler.translateAuthToken(null);
 
-        assertThat(translatedToken, nullValue());
+        assertThat(translatedToken.isEmpty(), is(true));
     }
 }

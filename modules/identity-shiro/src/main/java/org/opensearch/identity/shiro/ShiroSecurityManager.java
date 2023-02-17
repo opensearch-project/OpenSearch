@@ -8,9 +8,9 @@
 
 package org.opensearch.identity.shiro;
 
-import org.apache.shiro.subject.Subject;
 import org.apache.shiro.mgt.DefaultSecurityManager;
-import org.apache.shiro.mgt.SubjectDAO;
+import org.apache.shiro.mgt.DefaultSessionStorageEvaluator;
+import org.apache.shiro.mgt.DefaultSubjectDAO;
 import org.opensearch.identity.shiro.realm.InternalRealm;
 
 /**
@@ -28,18 +28,11 @@ public class ShiroSecurityManager extends DefaultSecurityManager {
 
         // By default shiro stores session information into a cache, there were performance
         // issues with this sessions cache and so are defaulting to a stateless configuration
-        this.subjectDAO = new StatelessDAO();
-    }
+        final DefaultSessionStorageEvaluator evaluator = new DefaultSessionStorageEvaluator();
+        evaluator.setSessionStorageEnabled(false);
 
-    /**
-     *
-     * @opensearch.experimental
-     */
-    private static class StatelessDAO implements SubjectDAO {
-        public Subject save(final Subject s) {
-            return s;
-        }
-
-        public void delete(final Subject s) {}
+        final DefaultSubjectDAO subjectDAO = new DefaultSubjectDAO();
+        subjectDAO.setSessionStorageEvaluator(evaluator);
+        setSubjectDAO(subjectDAO);
     }
 }

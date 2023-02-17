@@ -403,8 +403,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         return;
                     }
                 } else {
-                    if (!handleAuthenticateUser(request, channel)) {
-                        return;
+                    if (FeatureFlags.isEnabled(FeatureFlags.IDENTITY)) {
+                        if (!handleAuthenticateUser(request, channel)) {
+                            return;
+                        }
                     }
                     dispatchRequest(request, channel, handler);
                     return;
@@ -522,14 +524,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @returns false if there was an error and the request should not continue being dispatched
      * */
     private boolean handleAuthenticateUser(final RestRequest request, final RestChannel channel) {    
-        if (!FeatureFlags.isEnabled(FeatureFlags.IDENTITY)) {
-            return true;
-        }
-
         try {
             final AuthToken token = RestTokenExtractor.extractToken(request);
             // If no token was found, continue executing the request
             if (token == null) {
+                // Authentication did not fail so return true.  Authorization is handled at the action level.
                 return true;
             }
             final Subject currentSubject = identityService.getSubject();
@@ -549,6 +548,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             return false;
         }
 
+        // Authentication did not fail so return true.  Authorization is handled at the action level.
         return true;
     }
 
