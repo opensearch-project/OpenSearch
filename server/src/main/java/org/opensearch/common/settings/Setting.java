@@ -1384,7 +1384,7 @@ public class Setting<T> implements ToXContentObject {
             out.writeBoolean(isFiltered);
         }
 
-        public float getMin() {
+        float getMin() {
             return minValue;
         }
 
