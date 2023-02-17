@@ -21,7 +21,10 @@ import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexShardNotStartedException;
+import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexShardTestCase;
+import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
@@ -57,8 +60,6 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     private ReplicationCheckpoint initialCheckpoint;
     private ReplicationCheckpoint aheadCheckpoint;
 
-    private ReplicationCheckpoint newPrimaryCheckpoint;
-
     @Override
     public void setUp() throws Exception {
         super.setUp();
@@ -79,13 +80,6 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         aheadCheckpoint = new ReplicationCheckpoint(
             initialCheckpoint.getShardId(),
             initialCheckpoint.getPrimaryTerm(),
-            initialCheckpoint.getSegmentsGen(),
-            initialCheckpoint.getSeqNo(),
-            initialCheckpoint.getSegmentInfosVersion() + 1
-        );
-        newPrimaryCheckpoint = new ReplicationCheckpoint(
-            initialCheckpoint.getShardId(),
-            initialCheckpoint.getPrimaryTerm() + 1,
             initialCheckpoint.getSegmentsGen(),
             initialCheckpoint.getSeqNo(),
             initialCheckpoint.getSegmentInfosVersion() + 1
@@ -117,9 +111,20 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         assertEquals(0, latch.getCount());
     }
 
+    public void testRetryIfPrimaryIsNotStarted() throws InterruptedException {
+        getCheckpointInfoAndThrow(new IndexShardNotStartedException(primaryShard.shardId(), IndexShardState.POST_RECOVERY), false);
+    }
+
+    public void testRetryIfPrimaryIsNotInPrimaryMode() throws InterruptedException {
+        getCheckpointInfoAndThrow(new ShardNotInPrimaryModeException(primaryShard.shardId(), IndexShardState.POST_RECOVERY), false);
+    }
+
     public void testReplicationFails() throws InterruptedException {
+        getCheckpointInfoAndThrow(new OpenSearchException("Fail"), true);
+    }
+
+    private void getCheckpointInfoAndThrow(Exception expectedError, boolean shardFailure) throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
-        final OpenSearchException expectedError = new OpenSearchException("Fail");
         SegmentReplicationSource source = new TestReplicationSource() {
 
             @Override
@@ -157,6 +162,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
                     // failures leave state object in last entered stage.
                     assertEquals(SegmentReplicationState.Stage.GET_CHECKPOINT_INFO, state.getStage());
                     assertEquals(expectedError, e.getCause());
+                    assertEquals(shardFailure, sendShardFailure);
                     latch.countDown();
                 }
             }
@@ -165,6 +171,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         latch.await(2, TimeUnit.SECONDS);
         assertEquals(0, latch.getCount());
     }
+
 
     public void testShardAlreadyReplicating() throws InterruptedException {
         // Create a spy of Target Service so that we can verify invocation of startReplication call with specific checkpoint on it.
