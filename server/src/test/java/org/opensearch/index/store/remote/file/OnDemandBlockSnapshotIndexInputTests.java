@@ -32,10 +32,13 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.concurrent.CompletableFuture;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
+@ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
     // params shared by all test cases
     private static final String RESOURCE_DESCRIPTION = "Test OnDemandBlockSnapshotIndexInput Block Size";
@@ -279,10 +282,10 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
         public static void testClone(OnDemandBlockSnapshotIndexInput blockedSnapshotFile, int blockSize) throws IOException {
             blockedSnapshotFile.seek(blockSize + 1);
             OnDemandBlockSnapshotIndexInput clonedFile = blockedSnapshotFile.clone();
-            assertEquals(clonedFile.currentBlock.getFilePointer(), blockedSnapshotFile.currentBlock.getFilePointer());
+            assertEquals(clonedFile.currentBlockPosition(), blockedSnapshotFile.currentBlockPosition());
             assertEquals(clonedFile.getFilePointer(), blockedSnapshotFile.getFilePointer());
             clonedFile.seek(blockSize + 11);
-            assertNotEquals(clonedFile.currentBlock.getFilePointer(), blockedSnapshotFile.currentBlock.getFilePointer());
+            assertNotEquals(clonedFile.currentBlockPosition(), blockedSnapshotFile.currentBlockPosition());
         }
 
         public static void testSlice(OnDemandBlockSnapshotIndexInput blockedSnapshotFile, int blockSize) throws IOException {
@@ -301,12 +304,10 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
 
             newSlice.seek(0);
             assertEquals(0, newSlice.getFilePointer());
-            assertEquals(0, newSlice.currentBlockId);
-            assertEquals(blockSize - 11, newSlice.currentBlock.getFilePointer());
+            assertEquals(blockSize - 11, newSlice.currentBlockPosition());
             newSlice.seek(21);
             assertEquals(21, newSlice.getFilePointer());
-            assertEquals(1, newSlice.currentBlockId);
-            assertEquals(10, newSlice.currentBlock.getFilePointer());
+            assertEquals(10, newSlice.currentBlockPosition());
 
             try {
                 newSlice.seek(23);
@@ -318,11 +319,11 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
 
         public static void testGetFilePointer(OnDemandBlockSnapshotIndexInput blockedSnapshotFile, int blockSize) throws IOException {
             blockedSnapshotFile.seek(blockSize - 11);
-            assertEquals(blockSize - 11, blockedSnapshotFile.currentBlock.getFilePointer());
+            assertEquals(blockSize - 11, blockedSnapshotFile.currentBlockPosition());
             blockedSnapshotFile.seek(blockSize + 5);
-            assertEquals(5, blockedSnapshotFile.currentBlock.getFilePointer());
+            assertEquals(5, blockedSnapshotFile.currentBlockPosition());
             blockedSnapshotFile.seek(blockSize * 2);
-            assertEquals(0, blockedSnapshotFile.currentBlock.getFilePointer());
+            assertEquals(0, blockedSnapshotFile.currentBlockPosition());
         }
 
         public static void testReadByte(OnDemandBlockSnapshotIndexInput blockedSnapshotFile, int blockSize) throws IOException {
@@ -406,10 +407,10 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
 
         public static void testSeek(OnDemandBlockSnapshotIndexInput blockedSnapshotFile, int blockSize, int fileSize) throws IOException {
             blockedSnapshotFile.seek(0);
-            assertEquals(0, blockedSnapshotFile.currentBlock.getFilePointer());
+            assertEquals(0, blockedSnapshotFile.currentBlockPosition());
 
             blockedSnapshotFile.seek(blockSize + 11);
-            assertEquals(11, blockedSnapshotFile.currentBlock.getFilePointer());
+            assertEquals(11, blockedSnapshotFile.currentBlockPosition());
 
             try {
                 blockedSnapshotFile.seek(fileSize + 1);
