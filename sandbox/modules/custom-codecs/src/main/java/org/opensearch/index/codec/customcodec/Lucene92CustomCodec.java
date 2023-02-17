@@ -18,8 +18,7 @@ abstract class Lucene92CustomCodec extends FilterCodec {
     /** Each mode represents a compression algorithm. */
     public enum Mode {
         ZSTD,
-        ZSTDNODICT,
-        LZ4
+        ZSTDNODICT
     }
 
     private final StoredFieldsFormat storedFieldsFormat;

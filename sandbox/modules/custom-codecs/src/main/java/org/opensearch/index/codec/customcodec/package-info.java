@@ -7,6 +7,6 @@
  */
 
 /**
- * A plugin that implements native codecs.
+ * A plugin that implements compression codecs with native implementation.
  */
 package org.opensearch.index.codec.customcodec;

@@ -16,9 +16,8 @@ import org.opensearch.index.IndexSettings;
 import java.util.Optional;
 
 /**
- * A plugin that implements custom codecs. Current custom codecs include:
+ * A plugin that implements custom codecs. Supports these codecs:
  * <ul>
- * <li>LZ4
  * <li>ZSTD
  * <li>ZSTDNODICT
  * </ul>

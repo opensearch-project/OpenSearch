@@ -19,7 +19,7 @@ import java.util.Arrays;
 import java.util.Map;
 
 /**
- * CustomCodecService provides ZSTD, ZSTDNODICT, and LZ4 compressors to be used in use-case specific file formats.
+ * CustomCodecService provides ZSTD and ZSTDNODICT compression codecs.
  */
 public class CustomCodecService extends CodecService {
     private final Map<String, Codec> codecs;
@@ -36,7 +36,6 @@ public class CustomCodecService extends CodecService {
         if (mapperService == null) {
             codecs.put(Lucene92CustomCodec.Mode.ZSTD.name(), new ZstdCodec());
             codecs.put(Lucene92CustomCodec.Mode.ZSTDNODICT.name(), new ZstdNoDictCodec());
-            codecs.put(Lucene92CustomCodec.Mode.LZ4.name(), new Lz4Codec());
         } else {
             codecs.put(
                 Lucene92CustomCodec.Mode.ZSTD.name(),
@@ -46,19 +45,15 @@ public class CustomCodecService extends CodecService {
                 Lucene92CustomCodec.Mode.ZSTDNODICT.name(),
                 new PerFieldMappingPostingFormatCodec(Lucene92CustomCodec.Mode.ZSTDNODICT, mapperService)
             );
-            codecs.put(
-                Lucene92CustomCodec.Mode.LZ4.name(),
-                new PerFieldMappingPostingFormatCodec(Lucene92CustomCodec.Mode.LZ4, mapperService)
-            );
         }
         this.codecs = codecs.immutableMap();
     }
 
     @Override
     public Codec codec(String name) {
-        Codec codec = super.codec(name);
+        Codec codec = codecs.get(name);
         if (codec == null) {
-            codec = codecs.get(name);
+            return super.codec(name);
         }
         return codec;
     }

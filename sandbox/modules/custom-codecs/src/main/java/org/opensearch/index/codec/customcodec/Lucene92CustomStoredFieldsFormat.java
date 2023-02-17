@@ -30,25 +30,20 @@ public class Lucene92CustomStoredFieldsFormat extends StoredFieldsFormat {
     private static final int ZSTD_MAX_DOCS_PER_BLOCK = 4096;
     private static final int ZSTD_BLOCK_SHIFT = 10;
 
-    private static final int LZ4_BLOCK_LENGTH = 10 * 8 * 1024;
-    private static final int LZ4_MAX_DOCS_PER_BLOCK = 1024;
-    private static final int LZ4_BLOCK_SHIFT = 10;
-
     private final CompressionMode zstdCompressionMode;
     private final CompressionMode zstdNoDictCompressionMode;
-    private final CompressionMode lz4CompressionMode;
 
     private final Lucene92CustomCodec.Mode mode;
 
     /** default constructor */
     public Lucene92CustomStoredFieldsFormat() {
-        this(Lucene92CustomCodec.Mode.LZ4, Lucene92CustomCodec.DEFAULT_COMPRESSION_LEVEL);
+        this(Lucene92CustomCodec.Mode.ZSTD, Lucene92CustomCodec.DEFAULT_COMPRESSION_LEVEL);
     }
 
     /**
      * Creates a new instance.
      *
-     * @param mode The mode represents ZSTD, ZSTDNODICT, or LZ4.
+     * @param mode The mode represents ZSTD or ZSTDNODICT
      */
     public Lucene92CustomStoredFieldsFormat(Lucene92CustomCodec.Mode mode) {
         this(mode, Lucene92CustomCodec.DEFAULT_COMPRESSION_LEVEL);
@@ -57,14 +52,13 @@ public class Lucene92CustomStoredFieldsFormat extends StoredFieldsFormat {
     /**
      * Creates a new instance with the specified mode and compression level.
      *
-     * @param mode The mode represents ZSTD, ZSTDNODICT, or LZ4.
+     * @param mode The mode represents ZSTD or ZSTDNODICT
      * @param compressionLevel The compression level for the mode.
      */
     public Lucene92CustomStoredFieldsFormat(Lucene92CustomCodec.Mode mode, int compressionLevel) {
         this.mode = Objects.requireNonNull(mode);
         zstdCompressionMode = new ZstdCompressionMode(compressionLevel);
         zstdNoDictCompressionMode = new ZstdNoDictCompressionMode(compressionLevel);
-        lz4CompressionMode = new Lz4CompressionMode();
     }
 
     @Override
@@ -105,14 +99,6 @@ public class Lucene92CustomStoredFieldsFormat extends StoredFieldsFormat {
                     ZSTD_BLOCK_LENGTH,
                     ZSTD_MAX_DOCS_PER_BLOCK,
                     ZSTD_BLOCK_SHIFT
-                );
-            case LZ4:
-                return new Lucene90CompressingStoredFieldsFormat(
-                    "CustomStoredFieldsLz4",
-                    lz4CompressionMode,
-                    LZ4_BLOCK_LENGTH,
-                    LZ4_MAX_DOCS_PER_BLOCK,
-                    LZ4_BLOCK_SHIFT
                 );
             default:
                 throw new AssertionError();

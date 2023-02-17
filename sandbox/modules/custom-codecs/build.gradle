@@ -14,18 +14,17 @@ apply plugin: 'opensearch.yaml-rest-test'
 
 opensearchplugin {
   name 'custom-codecs'
-  description 'A plugin that implements custom codecs, including zstd and lz4 (native).'
+  description 'A plugin that implements custom compression codecs.'
   classname 'org.opensearch.index.codec.customcodec.CustomCodecPlugin'
   licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
   noticeFile rootProject.file('NOTICE.txt')
 }
 
 dependencies {
-  api "org.lz4:lz4-java:1.8.0"
-  api "com.github.luben:zstd-jni:1.5.2-3"
+  api "com.github.luben:zstd-jni:1.5.4-1"
 }
 
-// lz4-java uses sun.misc.Unsafe in the UnsafeUtils class.
+// Ignore sun.misc.Unsafe
 thirdPartyAudit.ignoreViolations(
   'net.jpountz.util.UnsafeUtils'
 )

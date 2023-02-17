@@ -16,7 +16,7 @@ public class PerFieldMappingPostingFormatCodec extends Lucene92CustomCodec {
     /**
      * Creates a new instance.
      *
-     * @param compressionMode The compression mode (ZSTD, ZSTDNODICT, or LZ4).
+     * @param compressionMode The compression mode (ZSTD or ZSTDNODICT).
      * @param mapperService The mapper service.
      */
     public PerFieldMappingPostingFormatCodec(Lucene92CustomCodec.Mode compressionMode, MapperService mapperService) {

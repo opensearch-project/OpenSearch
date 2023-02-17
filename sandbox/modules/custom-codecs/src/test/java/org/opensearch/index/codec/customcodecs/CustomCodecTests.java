@@ -45,11 +45,6 @@ public class CustomCodecTests extends OpenSearchTestCase {
         assertStoredFieldsCustomCompressionEquals(Lucene92CustomCodec.Mode.ZSTDNODICT, codec);
     }
 
-    public void testLz4NativeCompression() throws Exception {
-        Codec codec = createCodecService().codec("LZ4");
-        assertStoredFieldsCustomCompressionEquals(Lucene92CustomCodec.Mode.LZ4, codec);
-    }
-
     private void assertStoredFieldsCustomCompressionEquals(Lucene92CustomCodec.Mode expected, Codec actual) throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(null);
