@@ -47,6 +47,7 @@ import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.node.DiscoveryNodeFilters;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.ImmutableOpenIntMap;
@@ -80,6 +81,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -89,6 +91,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static org.opensearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
 import static org.opensearch.cluster.node.DiscoveryNodeFilters.IP_VALIDATOR;
@@ -911,6 +914,27 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return INDEX_RESIZE_SOURCE_UUID.exists(settings)
             ? new Index(INDEX_RESIZE_SOURCE_NAME.get(settings), INDEX_RESIZE_SOURCE_UUID.get(settings))
             : null;
+    }
+
+    public boolean isSegRepEnabled() {
+        return INDEX_REPLICATION_TYPE_SETTING.exists(settings)
+            ? settings.get(INDEX_REPLICATION_TYPE_SETTING.getKey()).equals(ReplicationType.SEGMENT.toString())
+            : false;
+    }
+
+    private static final Comparator<ShardRouting> PRIMARY_FIRST = Comparator.comparing(ShardRouting::primary).reversed();
+
+    public Iterable<ShardRouting> getIndexShardRoutingIterator(Stream<ShardRouting> routingStream) {
+        if (this.isSegRepEnabled()) {
+            routingStream = routingStream.sorted(PRIMARY_FIRST);
+        }
+        return routingStream::iterator;
+    }
+
+    // For segrep shards, move primary shard first in place of replica/random shard, to have better primary balance
+    // This can be applied for all shard types but can be baked initially with segrep enabled indices only
+    public boolean movePrimaryFirst(ShardRouting shardRouting) {
+        return this.isSegRepEnabled() && shardRouting.primary();
     }
 
     ImmutableOpenMap<String, DiffableStringMap> getCustomData() {

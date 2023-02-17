@@ -30,7 +30,6 @@ import org.opensearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.gateway.PriorityComparator;
-import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -969,13 +968,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
     }
 
     private static final Comparator<ShardRouting> BY_DESCENDING_SHARD_ID = Comparator.comparing(ShardRouting::shardId).reversed();
-    private static final Comparator<ShardRouting> PRIMARY_FIRST = Comparator.comparing(ShardRouting::primary).reversed();
-
-    private boolean isSegRepEnabled(String index) {
-        IndexMetadata indexMetadata = metadata.index(index);
-        return indexMetadata.getSettings().get(IndexMetadata.SETTING_REPLICATION_TYPE) != null
-            && indexMetadata.getSettings().get(IndexMetadata.SETTING_REPLICATION_TYPE).equals(ReplicationType.SEGMENT.toString());
-    }
 
     /**
      * Tries to find a relocation from the max node to the minimal node for an arbitrary shard of the given index on the
@@ -986,14 +978,14 @@ public class LocalShardsBalancer extends ShardsBalancer {
         final BalancedShardsAllocator.ModelIndex index = maxNode.getIndex(idx);
         if (index != null) {
             logger.trace("Try relocating shard of [{}] from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
-            Stream stream = StreamSupport.stream(index.spliterator(), false)
+            Stream<ShardRouting> routingStream = StreamSupport.stream(index.spliterator(), false)
                 .filter(ShardRouting::started) // cannot rebalance unassigned, initializing or relocating shards anyway
-                .filter(maxNode::containsShard)
+                .filter(maxNode::containsShard) // check shards which are present on heaviest node
                 .sorted(BY_DESCENDING_SHARD_ID); // check in descending order of shard id so that the decision is deterministic
-            if (isSegRepEnabled(idx)) {
-                stream = stream.sorted(PRIMARY_FIRST);
-            }
-            final Iterable<ShardRouting> shardRoutings = stream::iterator;
+            final IndexMetadata indexMetadata = metadata.getIndices().get(idx);
+            final Iterable<ShardRouting> shardRoutings = indexMetadata != null
+                ? indexMetadata.getIndexShardRoutingIterator(routingStream)
+                : routingStream::iterator;
 
             final AllocationDeciders deciders = allocation.deciders();
             for (ShardRouting shard : shardRoutings) {
@@ -1006,8 +998,9 @@ public class LocalShardsBalancer extends ShardsBalancer {
                     continue;
                 }
 
-                // For segrep shards, move primary shard first in place of replica/random shard, to have better primary balance
-                if (isSegRepEnabled(idx) && shard.primary() && maxNode.numPrimaryShards() - minNode.numPrimaryShards() < 2) {
+                if (indexMetadata != null
+                    && indexMetadata.movePrimaryFirst(shard)
+                    && maxNode.numPrimaryShards() - minNode.numPrimaryShards() < 2) {
                     continue;
                 }
 
