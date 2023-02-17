@@ -11,6 +11,7 @@ package org.opensearch.identity;
 import org.junit.Before;
 import org.opensearch.authn.StringPrincipal;
 import org.opensearch.client.Request;
+import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.identity.authz.PermissionStorage;
@@ -39,6 +40,10 @@ public class PermissionApiIT extends HttpSmokeTestCaseWithIdentity {
     @SuppressWarnings("unchecked")
     public void testPermissionsRestApi() throws Exception {
 
+        final RequestOptions authHeaderOptions = RequestOptions.DEFAULT.toBuilder()
+            .addHeader("Authorization", "Basic YWRtaW46YWRtaW4=")
+            .build(); // admin:admin
+
         // _identity_api_permissions
         final String endpoint = IdentityRestConstants.IDENTITY_API_PERMISSION_PREFIX;
 
@@ -46,6 +51,7 @@ public class PermissionApiIT extends HttpSmokeTestCaseWithIdentity {
         // Add a permission
         Request putRequest = new Request("PUT", endpoint + "/" + username);
         putRequest.setJsonEntity("{ \"permission\" : \"cluster.admin/read\"}\n");
+        putRequest.setOptions(authHeaderOptions);
         Response putResponse = getRestClient().performRequest(putRequest);
         assertThat(putResponse.getStatusLine().getStatusCode(), is(200));
 
@@ -56,6 +62,7 @@ public class PermissionApiIT extends HttpSmokeTestCaseWithIdentity {
 
         // Check for the added permission
         Request checkRequest = new Request("GET", endpoint + "/" + username);
+        checkRequest.setOptions(authHeaderOptions);
         Response checkResponse = getRestClient().performRequest(checkRequest);
         assertThat(checkResponse.getStatusLine().getStatusCode(), is(200));
         assertTrue(
@@ -64,9 +71,9 @@ public class PermissionApiIT extends HttpSmokeTestCaseWithIdentity {
 
         // Check for the added permission in permission storage
         assertTrue(permissionsInStorage.contains("cluster.admin/read"));
-
         putRequest = new Request("PUT", endpoint + "/" + username);
         putRequest.setJsonEntity("{ \"permission\" : \":1:2:3\"}\n"); // Invalid permission
+        putRequest.setOptions(authHeaderOptions);
         try {
             putResponse = getRestClient().performRequest(putRequest);
         } catch (ResponseException ex) {
@@ -79,11 +86,13 @@ public class PermissionApiIT extends HttpSmokeTestCaseWithIdentity {
         // Delete the added permission
         Request deleteRequest = new Request("DELETE", endpoint + "/" + username);
         deleteRequest.setJsonEntity("{ \"permissionString\" : \"cluster.admin/read\"}\n");
+        deleteRequest.setOptions(authHeaderOptions);
         Response deleteResponse = getRestClient().performRequest(deleteRequest);
         assertThat(deleteResponse.getStatusLine().getStatusCode(), is(200));
 
         // Check the added permission is gone
         checkRequest = new Request("GET", endpoint + "/" + username);
+        checkRequest.setOptions(authHeaderOptions);
         checkResponse = getRestClient().performRequest(checkRequest);
         assertThat(checkResponse.getStatusLine().getStatusCode(), is(200));
         assertFalse(checkResponse.getEntity().toString().contains("cluster.admin/read"));
