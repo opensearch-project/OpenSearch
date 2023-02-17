@@ -30,16 +30,16 @@ import java.util.Optional;
  *
  * @opensearch.experimental
  */
-public class InternalRealm extends AuthenticatingRealm {
+public class OpenSearchRealm extends AuthenticatingRealm {
     private static final String DEFAULT_REALM_NAME = "internal";
 
-    public static final InternalRealm INSTANCE = new InternalRealm.Builder(DEFAULT_REALM_NAME).build();
+    public static final OpenSearchRealm INSTANCE = new OpenSearchRealm.Builder(DEFAULT_REALM_NAME).build();
 
     private final String realmName;
 
     private Map<String, User> internalUsers;
 
-    private InternalRealm(final String realmName, final Map<String, User> internalUsers) {
+    private OpenSearchRealm(final String realmName, final Map<String, User> internalUsers) {
         super(new BCryptPasswordMatcher());
         this.realmName = realmName;
         this.internalUsers = internalUsers;
@@ -53,13 +53,13 @@ public class InternalRealm extends AuthenticatingRealm {
             this.name = Objects.requireNonNull(name);
         }
 
-        public InternalRealm build() {
+        public OpenSearchRealm build() {
             // TODO: Replace hardcoded admin user / user map with an external provider
             final User adminUser = new User();
             adminUser.setUsername(new StringPrincipal("admin"));
             adminUser.setBcryptHash("$2a$12$VcCDgh2NDk07JGN0rjGbM.Ad41qVR/YFJcgHp0UGns5JDymv..TOG"); // Password 'admin'
             final Map<String, User> internalUsers = Map.of("admin", adminUser);
-            return new InternalRealm(name, internalUsers);
+            return new OpenSearchRealm(name, internalUsers);
         }
     }
 

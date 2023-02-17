@@ -30,7 +30,7 @@ public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
         final Response response = createHealthRequest("Basic YWRtaW46YWRtaW4="); // admin:admin
         final String content = new String(response.getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8);
 
-        assertEquals(RestStatus.OK.getStatus(), response.getStatusLine().getStatusCode());
+        assertThat(content, response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
         assertThat(content, containsString("green"));
     }
 

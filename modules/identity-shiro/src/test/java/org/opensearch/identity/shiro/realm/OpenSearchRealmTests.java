@@ -14,13 +14,13 @@ import org.apache.shiro.authc.UsernamePasswordToken;
 import org.junit.Before;
 import org.opensearch.test.OpenSearchTestCase;
 
-public class InternalRealmTests extends OpenSearchTestCase {
+public class OpenSearchRealmTests extends OpenSearchTestCase {
 
-    private InternalRealm realm;
+    private OpenSearchRealm realm;
 
     @Before
     public void setup() {
-        realm = new InternalRealm.Builder("test").build();
+        realm = new OpenSearchRealm.Builder("test").build();
     }
 
     public void testGetAuthenticationInfoUserExists() {

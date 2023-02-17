@@ -11,7 +11,7 @@ package org.opensearch.identity.shiro;
 import org.apache.shiro.mgt.DefaultSecurityManager;
 import org.apache.shiro.mgt.DefaultSessionStorageEvaluator;
 import org.apache.shiro.mgt.DefaultSubjectDAO;
-import org.opensearch.identity.shiro.realm.InternalRealm;
+import org.opensearch.identity.shiro.realm.OpenSearchRealm;
 
 /**
  * OpenSearch specific security manager implementation
@@ -24,7 +24,7 @@ public class ShiroSecurityManager extends DefaultSecurityManager {
      * Creates the security manager using a default realm and no session storage
      */
     public ShiroSecurityManager() {
-        super(InternalRealm.INSTANCE);
+        super(OpenSearchRealm.INSTANCE);
 
         // By default shiro stores session information into a cache, there were performance
         // issues with this sessions cache and so are defaulting to a stateless configuration
