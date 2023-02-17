@@ -51,6 +51,15 @@ import org.opensearch.identity.rest.permission.put.TransportPutPermissionAction;
 import org.opensearch.identity.jwt.IdentityJwtVerifier;
 import org.opensearch.identity.rest.configuration.IdentityConfigUpdateAction;
 import org.opensearch.identity.rest.configuration.TransportIdentityConfigUpdateAction;
+import org.opensearch.identity.rest.user.delete.DeleteUserAction;
+import org.opensearch.identity.rest.user.delete.RestDeleteUserAction;
+import org.opensearch.identity.rest.user.delete.TransportDeleteUserAction;
+import org.opensearch.identity.rest.user.get.multi.MultiGetUserAction;
+import org.opensearch.identity.rest.user.get.multi.RestMultiGetUserAction;
+import org.opensearch.identity.rest.user.get.multi.TransportMultiGetUserAction;
+import org.opensearch.identity.rest.user.get.single.GetUserAction;
+import org.opensearch.identity.rest.user.get.single.RestGetUserAction;
+import org.opensearch.identity.rest.user.get.single.TransportGetUserAction;
 import org.opensearch.identity.rest.user.put.PutUserAction;
 import org.opensearch.identity.rest.user.put.RestPutUserAction;
 import org.opensearch.identity.rest.user.put.TransportPutUserAction;
@@ -130,8 +139,14 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        final List<RestHandler> handlers = new ArrayList<>(4);
+        if (!enabled) {
+            return Collections.emptyList();
+        }
+        final List<RestHandler> handlers = new ArrayList<>(7);
         handlers.add(new RestPutUserAction());
+        handlers.add(new RestGetUserAction());
+        handlers.add(new RestMultiGetUserAction());
+        handlers.add(new RestDeleteUserAction());
         handlers.add(new RestPutPermissionAction());
         handlers.add(new RestGetPermissionAction());
         handlers.add(new RestDeletePermissionAction());
@@ -149,8 +164,11 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         }
 
         return Arrays.asList(
-            new ActionHandler<>(PutUserAction.INSTANCE, TransportPutUserAction.class),
             new ActionHandler<>(IdentityConfigUpdateAction.INSTANCE, TransportIdentityConfigUpdateAction.class),
+            new ActionHandler<>(PutUserAction.INSTANCE, TransportPutUserAction.class),
+            new ActionHandler<>(GetUserAction.INSTANCE, TransportGetUserAction.class),
+            new ActionHandler<>(MultiGetUserAction.INSTANCE, TransportMultiGetUserAction.class),
+            new ActionHandler<>(DeleteUserAction.INSTANCE, TransportDeleteUserAction.class),
             new ActionHandler<>(PutPermissionAction.INSTANCE, TransportPutPermissionAction.class),
             new ActionHandler<>(GetPermissionAction.INSTANCE, TransportGetPermissionAction.class),
             new ActionHandler<>(DeletePermissionAction.INSTANCE, TransportDeletePermissionAction.class)

@@ -15,6 +15,7 @@ import org.opensearch.client.Response;
 import org.opensearch.identity.rest.IdentityRestConstants;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.opensearch.test.rest.OpenSearchRestTestCase.entityAsMap;
@@ -36,18 +37,32 @@ public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
     @SuppressWarnings("unchecked")
     public void testUsersRestApi() throws Exception {
 
+        final Map<String, String> emptyMap = Map.of();
+        final List<String> emptyList = List.of();
+
+        final RequestOptions authHeaderOptions = RequestOptions.DEFAULT.toBuilder()
+            .addHeader("Authorization", "Basic YWRtaW46YWRtaW4=")
+            .build(); // admin:admin
+
         String username = "test-create";
-        String requestContent = "{ \"password\" : \"test\","
+        String createContent = "{ \"password\" : \"test\","
             + " \"attributes\": { \"attribute1\": \"value1\"},"
             + " \"permissions\": [\"indices:admin:create\"]"
             + " }\n";
 
+        String updateContent = "{ \"password\" : \"test\","
+            + " \"attributes\": { \"attribute1\": \"value2\"},"
+            + " \"permissions\": [\"indices:admin:update\"]"
+            + " }\n";
+
+        Map<String, String> expectedAttributes = Map.of("attribute1", "value2");
+        List<String> expectedPermissions = List.of("indices:admin:create");
+
         // Create a user
         String createSuccessMessage = username + " created successfully.";
         Request createRequest = new Request("PUT", ENDPOINT + "/users/" + username);
-        createRequest.setJsonEntity(requestContent);
-        RequestOptions options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Basic YWRtaW46YWRtaW4=").build(); // admin:admin
-        createRequest.setOptions(options);
+        createRequest.setJsonEntity(createContent);
+        createRequest.setOptions(authHeaderOptions);
         Response response = getRestClient().performRequest(createRequest);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
         Map<String, Object> userCreated = entityAsMap(response);
@@ -59,8 +74,8 @@ public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
         // Update a user (same user in this case)
         String updateSuccessMessage = username + " updated successfully.";
         Request updateRequest = new Request("PUT", ENDPOINT + "/users/" + username);
-        updateRequest.setJsonEntity(requestContent);
-        updateRequest.setOptions(options);
+        updateRequest.setJsonEntity(updateContent);
+        updateRequest.setOptions(authHeaderOptions);
         response = getRestClient().performRequest(updateRequest);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
         Map<String, Object> usersUpdated = entityAsMap(response);
@@ -69,7 +84,44 @@ public class UserCrudIT extends HttpSmokeTestCaseWithIdentity {
         assertEquals(usersUpdated.get("username"), username);
         assertEquals(usersUpdated.get("message"), updateSuccessMessage);
 
-        // TODO: Add other api tests here
+        // GET a user
+        Request getRequest = new Request("GET", ENDPOINT + "/users/" + username);
+        getRequest.setOptions(authHeaderOptions);
+        response = getRestClient().performRequest(getRequest);
+        assertEquals(response.getStatusLine().getStatusCode(), 200);
+        Map<String, Object> getResponse = entityAsMap(response);
+        Map<String, String> user = (Map<String, String>) getResponse.get(username);
+        assertNotEquals(user, null);
+        assertEquals(user.get("attributes"), expectedAttributes);
+        assertEquals(user.get("permissions"), expectedPermissions);
+
+        // GET all users
+        Request mGetRequest = new Request("GET", ENDPOINT + "/users");
+        mGetRequest.setOptions(authHeaderOptions);
+        response = getRestClient().performRequest(mGetRequest);
+        assertEquals(response.getStatusLine().getStatusCode(), 200);
+        Map<String, Object> mGetResponse = entityAsMap(response);
+        List<Map<String, Object>> users = (List<Map<String, Object>>) mGetResponse.get("users");
+        assertEquals(users.size(), 2);
+        assertTrue(users.get(0).containsKey("admin"));
+        Map<String, Object> user1 = (Map<String, Object>) users.get(0).get("admin");
+        assertEquals(user1.get("attributes"), emptyMap);
+        assertEquals(user1.get("permissions"), emptyList);
+        assertTrue(users.get(1).containsKey(username));
+        Map<String, Object> user2 = (Map<String, Object>) users.get(1).get(username);
+        assertEquals(user2.get("attributes"), expectedAttributes);
+        assertEquals(user2.get("permissions"), expectedPermissions);
+
+        // DELETE a user
+        String deletedMessage = username + " deleted successfully.";
+        Request deleteRequest = new Request("DELETE", ENDPOINT + "/users/" + username);
+        deleteRequest.setOptions(authHeaderOptions);
+        response = getRestClient().performRequest(deleteRequest);
+        assertEquals(response.getStatusLine().getStatusCode(), 200);
+        Map<String, Object> deletedUser = entityAsMap(response);
+        assertEquals(deletedUser.size(), 2);
+        assertEquals(deletedUser.get("successful"), true);
+        assertEquals(deletedUser.get("message"), deletedMessage);
     }
 
 }
