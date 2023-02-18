@@ -34,10 +34,14 @@ package org.opensearch.discovery;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Objects;
+import java.util.List;
 
 /**
  * PluginResponse to intialize plugin
@@ -46,18 +50,30 @@ import java.util.Objects;
  */
 public class InitializeExtensionResponse extends TransportResponse {
     private String name;
+    private List<ExtensionsManager.ExtensionInterfaceType> implementatedInterfaces;
 
-    public InitializeExtensionResponse(String name) {
+    public InitializeExtensionResponse(String name,List<ExtensionsManager.ExtensionInterfaceType> implementatedInterfaces) {
         this.name = name;
+        this.implementatedInterfaces = implementatedInterfaces;
     }
 
     public InitializeExtensionResponse(StreamInput in) throws IOException {
         name = in.readString();
+        int size = in.readVInt();
+        this.implementatedInterfaces = new ArrayList<ExtensionsManager.ExtensionInterfaceType>(size);
+        for(int i=0;i<size;i++){
+            ExtensionsManager.ExtensionInterfaceType extensionInterfaceType = in.readEnum(ExtensionsManager.ExtensionInterfaceType.class);
+            this.implementatedInterfaces.add(extensionInterfaceType);
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
+        out.writeVInt(implementatedInterfaces.size());
+        for (ExtensionsManager.ExtensionInterfaceType interfaceEnumVal : implementatedInterfaces) {
+            out.writeEnum(interfaceEnumVal);
+        }
     }
 
     /**
@@ -68,9 +84,17 @@ public class InitializeExtensionResponse extends TransportResponse {
         return this.name;
     }
 
+    /**
+     * @return interfaces implemented by an extension
+     */
+
+    public List<ExtensionsManager.ExtensionInterfaceType> getImplementedInterfaces(){
+        return implementatedInterfaces;
+    }
+
     @Override
     public String toString() {
-        return "PluginResponse{" + "name" + name + "}";
+        return "PluginResponse{" + "name" + name + "implementedInterfaces"+ implementatedInterfaces + "}";
     }
 
     @Override
@@ -78,11 +102,11 @@ public class InitializeExtensionResponse extends TransportResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         InitializeExtensionResponse that = (InitializeExtensionResponse) o;
-        return Objects.equals(name, that.name);
+        return Objects.equals(name, that.name) && Objects.equals(implementatedInterfaces, that.implementatedInterfaces);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name);
+        return Objects.hash(name,implementatedInterfaces);
     }
 }

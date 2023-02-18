@@ -51,9 +51,7 @@ import org.opensearch.extensions.action.TransportActionRequestFromExtension;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.rest.RestActionsRequestHandler;
 import org.opensearch.extensions.settings.CustomSettingsRequestHandler;
-import org.opensearch.extensions.settings.ImplimentedInterfaceRequestHandler;
 import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
-import org.opensearch.extensions.settings.RegisterImplimentedInterfaceRequest;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndicesModuleRequest;
@@ -131,18 +129,18 @@ public class ExtensionsManager {
     public static enum ExtensionInterfaceType{
         ACTION,
         ANALYSIS,
-        CIRCUITBREAKER,
+        CIRCUIT_BREAKER,
         ENGINE,
         EXTENSIBLE,
         INDEXSTORE,
         INGEST,
         MAPPER,
-        PERSISTANTTASK,
+        PERSISTANT_TASK,
         REPOSITORY,
         RELOADABLE,
         SCRIPT,
         SEARCH,
-        SYSTEMINDEX
+        SYSTEM_INDEX
     }
 
     private final Path extensionsPath;
@@ -152,7 +150,6 @@ public class ExtensionsManager {
     private Map<String, DiscoveryExtensionNode> extensionIdMap;
     private RestActionsRequestHandler restActionsRequestHandler;
     private CustomSettingsRequestHandler customSettingsRequestHandler;
-    private ImplimentedInterfaceRequestHandler implimentedInterfaceRequestHandler;
     private TransportService transportService;
     private ClusterService clusterService;
     private Settings environmentSettings;
@@ -209,7 +206,6 @@ public class ExtensionsManager {
     ) {
         this.restActionsRequestHandler = new RestActionsRequestHandler(restController, extensionIdMap, transportService);
         this.customSettingsRequestHandler = new CustomSettingsRequestHandler(settingsModule);
-        this.implimentedInterfaceRequestHandler = new ImplimentedInterfaceRequestHandler(extensionIdMap,transportService);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.environmentSettings = initialEnvironmentSettings;
@@ -248,14 +244,6 @@ public class ExtensionsManager {
             false,
             RegisterCustomSettingsRequest::new,
             ((request, channel, task) -> channel.sendResponse(customSettingsRequestHandler.handleRegisterCustomSettingsRequest(request)))
-        );
-        transportService.registerRequestHandler(
-            REQUEST_EXTENSION_REGISTER_IMPLIMENTED_INTERFACES,
-            ThreadPool.Names.GENERIC,
-            false,
-            false,
-            RegisterImplimentedInterfaceRequest::new,
-            ((request, channel, task) -> channel.sendResponse(implimentedInterfaceRequestHandler.handleImplimentedInterfaceRequest(request)))
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_CLUSTER_STATE,
@@ -399,7 +387,8 @@ public class ExtensionsManager {
             @Override
             public void handleResponse(InitializeExtensionResponse response) {
                 for (DiscoveryExtensionNode extension : extensionIdMap.values()) {
-                    if (extension.getName().equals(response.getName())) {
+                    if (extension.getName().equals(response.getName())) { 
+                        extension.setImplementedInterfaces(response.getImplementedInterfaces());
                         extensions.add(extension);
                         logger.info("Initialized extension: " + extension.getName());
                         break;
