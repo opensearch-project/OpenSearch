@@ -204,7 +204,7 @@ public enum XContentType implements MediaType {
         if (mediaType instanceof XContentType) {
             return (XContentType) mediaType;
         } else {
-            return MEDIA_TYPE_PARSER.fromMediaType(mediaType.mediaTypeWithoutParameters());
+            return mediaType != null ? MEDIA_TYPE_PARSER.fromMediaType(mediaType.mediaTypeWithoutParameters()) : null;
         }
     }
 }
