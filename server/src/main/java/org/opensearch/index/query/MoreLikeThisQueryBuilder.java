@@ -220,7 +220,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             }
             this.index = index;
             this.doc = BytesReference.bytes(doc);
-            this.xContentType = (XContentType) doc.contentType();
+            this.xContentType = XContentType.fromMediaType(doc.contentType());
         }
 
         /**

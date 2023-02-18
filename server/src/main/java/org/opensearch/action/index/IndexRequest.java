@@ -452,7 +452,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     public IndexRequest source(BytesReference source, MediaType mediaType) {
         this.source = Objects.requireNonNull(source);
-        this.contentType = (XContentType) Objects.requireNonNull(mediaType);
+        this.contentType = XContentType.fromMediaType(Objects.requireNonNull(mediaType));
         return this;
     }
 

@@ -88,7 +88,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
                 throw new IllegalArgumentException("PipelineConfiguration does not support media type [" + mediaType.getClass() + "]");
             }
             this.config = config;
-            this.xContentType = (XContentType) mediaType;
+            this.xContentType = XContentType.fromMediaType(mediaType);
         }
 
         PipelineConfiguration build() {
@@ -110,7 +110,7 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
     }
 
     public PipelineConfiguration(String id, BytesReference config, MediaType mediaType) {
-        this(id, config, (XContentType) mediaType);
+        this(id, config, XContentType.fromMediaType(mediaType));
     }
 
     public String getId() {

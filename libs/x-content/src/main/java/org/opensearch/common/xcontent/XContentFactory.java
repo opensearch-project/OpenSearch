@@ -131,7 +131,7 @@ public class XContentFactory {
      */
     public static XContentBuilder contentBuilder(MediaType type) throws IOException {
         if (type instanceof XContentType) {
-            return contentBuilder((XContentType) type);
+            return contentBuilder(XContentType.fromMediaType(type));
         }
         throw new IllegalArgumentException("Content type [" + type.getClass().getName() + "] not supported");
     }

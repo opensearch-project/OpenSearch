@@ -104,7 +104,7 @@ public class PutMappingRequest extends TimedRequest implements IndicesRequest, T
      */
     @Deprecated
     public XContentType xContentType() {
-        return (XContentType) mediaType;
+        return XContentType.fromMediaType(mediaType);
     }
 
     /**

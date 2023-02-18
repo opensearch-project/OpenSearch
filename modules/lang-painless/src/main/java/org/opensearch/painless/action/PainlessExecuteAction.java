@@ -182,7 +182,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
 
             static ContextSetup parse(XContentParser parser, Void context) throws IOException {
                 ContextSetup contextSetup = PARSER.parse(parser, null);
-                contextSetup.setXContentType((XContentType) parser.contentType());
+                contextSetup.setXContentType(XContentType.fromMediaType(parser.contentType()));
                 return contextSetup;
             }
 

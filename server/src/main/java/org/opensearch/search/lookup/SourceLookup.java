@@ -76,7 +76,7 @@ public class SourceLookup implements Map {
     }
 
     public XContentType sourceContentType() {
-        return (XContentType) sourceContentType;
+        return XContentType.fromMediaType(sourceContentType);
     }
 
     public int docId() {

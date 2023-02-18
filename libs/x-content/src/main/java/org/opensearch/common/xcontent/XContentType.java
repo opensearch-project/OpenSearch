@@ -198,4 +198,13 @@ public enum XContentType implements MediaType {
     public String format() {
         return subtype();
     }
+
+    /** Converts from a {@link MediaType} to an explicit {@link XContentType} */
+    public static XContentType fromMediaType(MediaType mediaType) {
+        if (mediaType instanceof XContentType) {
+            return (XContentType) mediaType;
+        } else {
+            return MEDIA_TYPE_PARSER.fromMediaType(mediaType.mediaTypeWithoutParameters());
+        }
+    }
 }

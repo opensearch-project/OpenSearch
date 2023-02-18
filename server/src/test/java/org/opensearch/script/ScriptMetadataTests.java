@@ -130,11 +130,11 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
             .endObject()
             .endObject()
             .endObject();
-        XContentType xContentType = (XContentType) sourceBuilder.contentType();
+        XContentType xContentType = XContentType.fromMediaType(sourceBuilder.contentType());
         builder.storeScript("source_template", StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), xContentType));
 
         sourceBuilder = XContentFactory.jsonBuilder();
-        xContentType = (XContentType) sourceBuilder.contentType();
+        xContentType = XContentType.fromMediaType(sourceBuilder.contentType());
         sourceBuilder.startObject().startObject("script").field("lang", "_lang").field("source", "_source").endObject().endObject();
         builder.storeScript("script", StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), xContentType));
 
@@ -303,7 +303,7 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
                 .endObject();
             builder.storeScript(
                 randomAlphaOfLength(i + 1),
-                StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), (XContentType) sourceBuilder.contentType())
+                StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), XContentType.fromMediaType(sourceBuilder.contentType()))
             );
         }
         return builder.build();

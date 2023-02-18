@@ -314,7 +314,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             this.id(String.valueOf(randomInt.getAndAdd(1)));
         }
         this.doc = doc;
-        this.xContentType = (XContentType) xContentType;
+        this.xContentType = XContentType.fromMediaType(xContentType);
         return this;
     }
 

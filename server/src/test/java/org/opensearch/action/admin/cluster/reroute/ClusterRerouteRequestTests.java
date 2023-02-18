@@ -244,7 +244,7 @@ public class ClusterRerouteRequestTests extends OpenSearchTestCase {
         FakeRestRequest.Builder requestBuilder = new FakeRestRequest.Builder(xContentRegistry());
         requestBuilder.withParams(params);
         if (hasBody) {
-            requestBuilder.withContent(BytesReference.bytes(builder), (XContentType) builder.contentType());
+            requestBuilder.withContent(BytesReference.bytes(builder), XContentType.fromMediaType(builder.contentType()));
         }
         return requestBuilder.build();
     }

@@ -250,7 +250,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
     public CreateIndexRequest mapping(BytesReference source, MediaType mediaType) {
         Objects.requireNonNull(mediaType);
         mappings = source;
-        mappingsXContentType = (XContentType) mediaType;
+        mappingsXContentType = XContentType.fromMediaType(mediaType);
         return this;
     }
 

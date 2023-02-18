@@ -98,7 +98,7 @@ public final class RandomObjects {
         List<Object> originalValues = randomStoredFieldValues(random, numValues);
         List<Object> expectedParsedValues = new ArrayList<>(numValues);
         for (Object originalValue : originalValues) {
-            expectedParsedValues.add(getExpectedParsedValue((XContentType) mediaType, originalValue));
+            expectedParsedValues.add(getExpectedParsedValue(XContentType.fromMediaType(mediaType), originalValue));
         }
         return Tuple.tuple(originalValues, expectedParsedValues);
     }

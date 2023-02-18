@@ -161,7 +161,10 @@ public class IngestClientIT extends OpenSearchRestHighLevelClientTestCase {
         }
         builder.endObject();
 
-        SimulatePipelineRequest request = new SimulatePipelineRequest(BytesReference.bytes(builder), (XContentType) builder.contentType());
+        SimulatePipelineRequest request = new SimulatePipelineRequest(
+            BytesReference.bytes(builder),
+            XContentType.fromMediaType(builder.contentType())
+        );
         request.setVerbose(isVerbose);
         SimulatePipelineResponse response = execute(
             request,

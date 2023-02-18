@@ -77,7 +77,7 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
         if (mediaType instanceof XContentType == false) {
             throw new IllegalArgumentException("PutPipelineRequest found unsupported media type [" + mediaType.getClass().getName() + "]");
         }
-        this.xContentType = (XContentType) Objects.requireNonNull(mediaType);
+        this.xContentType = XContentType.fromMediaType(Objects.requireNonNull(mediaType));
     }
 
     public PutPipelineRequest(StreamInput in) throws IOException {
