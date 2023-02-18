@@ -34,7 +34,7 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
 
     private Version minimumCompatibleVersion;
     private List<ExtensionDependency> dependencies = Collections.emptyList();
-    private List<ExtensionsManager.ExtensionInterfaceType> implementedInterfaces = Collections.emptyList();
+    private List<String> implementedInterfaces = Collections.emptyList();
 
     public DiscoveryExtensionNode(
         String name,
@@ -85,11 +85,11 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
         return minimumCompatibleVersion;
     }
 
-    public List<ExtensionsManager.ExtensionInterfaceType> getImplementedInterfaces(){
+    public List<String> getImplementedInterfaces(){
         return implementedInterfaces;
     }
 
-    public void setImplementedInterfaces(List<ExtensionsManager.ExtensionInterfaceType> implementedInterfaces){
+    public void setImplementedInterfaces(List<String> implementedInterfaces){
         this.implementedInterfaces = implementedInterfaces;
     }
 

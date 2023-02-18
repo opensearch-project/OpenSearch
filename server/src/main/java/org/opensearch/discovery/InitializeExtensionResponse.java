@@ -34,12 +34,10 @@ package org.opensearch.discovery;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.Objects;
 import java.util.List;
 
@@ -50,9 +48,9 @@ import java.util.List;
  */
 public class InitializeExtensionResponse extends TransportResponse {
     private String name;
-    private List<ExtensionsManager.ExtensionInterfaceType> implementatedInterfaces;
+    private List<String> implementatedInterfaces;
 
-    public InitializeExtensionResponse(String name,List<ExtensionsManager.ExtensionInterfaceType> implementatedInterfaces) {
+    public InitializeExtensionResponse(String name,List<String> implementatedInterfaces) {
         this.name = name;
         this.implementatedInterfaces = implementatedInterfaces;
     }
@@ -60,9 +58,9 @@ public class InitializeExtensionResponse extends TransportResponse {
     public InitializeExtensionResponse(StreamInput in) throws IOException {
         name = in.readString();
         int size = in.readVInt();
-        this.implementatedInterfaces = new ArrayList<ExtensionsManager.ExtensionInterfaceType>(size);
+        this.implementatedInterfaces = new ArrayList<String>(size);
         for(int i=0;i<size;i++){
-            ExtensionsManager.ExtensionInterfaceType extensionInterfaceType = in.readEnum(ExtensionsManager.ExtensionInterfaceType.class);
+            String extensionInterfaceType = in.readString();
             this.implementatedInterfaces.add(extensionInterfaceType);
         }
     }
@@ -71,8 +69,8 @@ public class InitializeExtensionResponse extends TransportResponse {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeVInt(implementatedInterfaces.size());
-        for (ExtensionsManager.ExtensionInterfaceType interfaceEnumVal : implementatedInterfaces) {
-            out.writeEnum(interfaceEnumVal);
+        for (String interfaceVal : implementatedInterfaces) {
+            out.writeString(interfaceVal);
         }
     }
 
@@ -88,7 +86,7 @@ public class InitializeExtensionResponse extends TransportResponse {
      * @return interfaces implemented by an extension
      */
 
-    public List<ExtensionsManager.ExtensionInterfaceType> getImplementedInterfaces(){
+    public List<String> getImplementedInterfaces(){
         return implementatedInterfaces;
     }
 
