@@ -50,7 +50,7 @@ public class InitializeExtensionResponse extends TransportResponse {
     private String name;
     private List<String> implementatedInterfaces;
 
-    public InitializeExtensionResponse(String name,List<String> implementatedInterfaces) {
+    public InitializeExtensionResponse(String name, List<String> implementatedInterfaces) {
         this.name = name;
         this.implementatedInterfaces = implementatedInterfaces;
     }
@@ -59,7 +59,7 @@ public class InitializeExtensionResponse extends TransportResponse {
         name = in.readString();
         int size = in.readVInt();
         this.implementatedInterfaces = new ArrayList<String>(size);
-        for(int i=0;i<size;i++){
+        for (int i = 0; i < size; i++) {
             String extensionInterfaceType = in.readString();
             this.implementatedInterfaces.add(extensionInterfaceType);
         }
@@ -86,13 +86,13 @@ public class InitializeExtensionResponse extends TransportResponse {
      * @return interfaces implemented by an extension
      */
 
-    public List<String> getImplementedInterfaces(){
+    public List<String> getImplementedInterfaces() {
         return implementatedInterfaces;
     }
 
     @Override
     public String toString() {
-        return "PluginResponse{" + "name" + name + "implementedInterfaces"+ implementatedInterfaces + "}";
+        return "PluginResponse{" + "name" + name + "implementedInterfaces" + implementatedInterfaces + "}";
     }
 
     @Override
@@ -105,6 +105,6 @@ public class InitializeExtensionResponse extends TransportResponse {
 
     @Override
     public int hashCode() {
-        return Objects.hash(name,implementatedInterfaces);
+        return Objects.hash(name, implementatedInterfaces);
     }
 }

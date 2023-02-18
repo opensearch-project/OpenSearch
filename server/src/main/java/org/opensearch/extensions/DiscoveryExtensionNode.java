@@ -85,11 +85,11 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
         return minimumCompatibleVersion;
     }
 
-    public List<String> getImplementedInterfaces(){
+    public List<String> getImplementedInterfaces() {
         return implementedInterfaces;
     }
 
-    public void setImplementedInterfaces(List<String> implementedInterfaces){
+    public void setImplementedInterfaces(List<String> implementedInterfaces) {
         this.implementedInterfaces = implementedInterfaces;
     }
 
