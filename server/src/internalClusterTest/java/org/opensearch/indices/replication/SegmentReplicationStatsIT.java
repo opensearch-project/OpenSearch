@@ -18,8 +18,6 @@ import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
-import static org.hamcrest.Matchers.greaterThan;
 import static java.util.Arrays.asList;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -39,12 +37,12 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
         refresh(INDEX_NAME);
         waitForSearchableDocs(10L, asList(primaryNode, replicaNode));
 
-        assertBusy(()-> {
+        assertBusy(() -> {
             final SegmentReplicationStatsResponse response = client().admin()
-            .indices()
-            .prepareSegmentReplicationStats(INDEX_NAME)
-            .execute()
-            .actionGet();
+                .indices()
+                .prepareSegmentReplicationStats(INDEX_NAME)
+                .execute()
+                .actionGet();
             // Verify API Response
             assertEquals(response.shardSegmentReplicationStates().size(), SHARD_COUNT);
             assertEquals(response.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getStage(), SegmentReplicationState.Stage.DONE);
