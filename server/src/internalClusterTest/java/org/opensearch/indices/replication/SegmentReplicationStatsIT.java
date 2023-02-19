@@ -18,10 +18,7 @@ import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 
 import java.util.concurrent.CountDownLatch;
-
 import static java.util.Arrays.asList;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
@@ -40,15 +37,17 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
         refresh(INDEX_NAME);
         waitForSearchableDocs(10L, asList(primaryNode, replicaNode));
 
-        SegmentReplicationStatsResponse response = client().admin()
-            .indices()
-            .prepareSegmentReplicationStats(INDEX_NAME)
-            .execute()
-            .actionGet();
-        // Verify API Response
-        assertThat(response.shardSegmentReplicationStates().size(), equalTo(SHARD_COUNT));
-        assertThat(response.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getStage(), equalTo(SegmentReplicationState.Stage.DONE));
-        assertThat(response.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getIndex().recoveredFileCount(), greaterThan(0));
+        assertBusy(() -> {
+            final SegmentReplicationStatsResponse response = client().admin()
+                .indices()
+                .prepareSegmentReplicationStats(INDEX_NAME)
+                .execute()
+                .actionGet();
+            // Verify API Response
+            assertEquals(response.shardSegmentReplicationStates().size(), SHARD_COUNT);
+            assertEquals(response.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getStage(), SegmentReplicationState.Stage.DONE);
+            assertTrue(response.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getIndex().recoveredFileCount() > 0);
+        });
     }
 
     public void testSegmentReplicationStatsResponseForActiveAndCompletedOnly() throws Exception {
@@ -105,9 +104,9 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
             .setActiveOnly(true)
             .execute()
             .actionGet();
-        assertThat(
+        assertEquals(
             activeOnlyResponse.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getStage(),
-            equalTo(SegmentReplicationState.Stage.GET_FILES)
+            SegmentReplicationState.Stage.GET_FILES
         );
 
         // verifying completed_only by checking if current stage is DONE
@@ -117,10 +116,10 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
             .setCompletedOnly(true)
             .execute()
             .actionGet();
-        assertThat(completedOnlyResponse.shardSegmentReplicationStates().size(), equalTo(SHARD_COUNT));
-        assertThat(
+        assertEquals(completedOnlyResponse.shardSegmentReplicationStates().size(), SHARD_COUNT);
+        assertEquals(
             completedOnlyResponse.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getStage(),
-            equalTo(SegmentReplicationState.Stage.DONE)
+            SegmentReplicationState.Stage.DONE
         );
         waitForAssertions.countDown();
     }
