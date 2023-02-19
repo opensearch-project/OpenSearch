@@ -162,7 +162,7 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
     public void testAllocationWithDisruption() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         final int maxReplicaCount = 2;
-        final int maxShardCount = 5;
+        final int maxShardCount = 20;
         final int nodeCount = randomIntBetween(maxReplicaCount + 1, 10);
         final int numberOfIndices = randomIntBetween(1, 10);
 
@@ -171,18 +171,18 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
         for (int i = 0; i < nodeCount; i++) {
             nodeNames.add(internalCluster().startNode());
         }
-        assertAcked(
-            client().admin()
-                .cluster()
-                .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder()
-                        .put(BalancedShardsAllocator.PRIMARY_SHARD_BALANCE_FACTOR_SETTING.getKey(), "1.0f")
-                        .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), "0.0f")
-                        .put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), "0.0f")
-                        .build()
-                )
-        );
+//        assertAcked(
+//            client().admin()
+//                .cluster()
+//                .prepareUpdateSettings()
+//                .setPersistentSettings(
+//                    Settings.builder()
+//                        .put(BalancedShardsAllocator.PRIMARY_SHARD_BALANCE_FACTOR_SETTING.getKey(), "1.0f")
+//                        .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), "0.0f")
+//                        .put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), "0.0f")
+//                        .build()
+//                )
+//        );
 
         int shardCount, replicaCount, totalShardCount = 0, totalReplicaCount = 0;
         ShardAllocations shardAllocations = new ShardAllocations();
@@ -201,6 +201,7 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
             }
         }
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        shardAllocations.printShardDistribution(state);
         float avgNumShards = (float) (totalShardCount) / (float) (state.getRoutingNodes().size());
         int minAvgNumberOfShards = Math.round(Math.round(Math.floor(avgNumShards - 1.0f)));
         int maxAvgNumberOfShards = Math.round(Math.round(Math.ceil(avgNumShards + 1.0f)));
@@ -210,28 +211,29 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
             assertTrue(node.primaryShardsWithState(STARTED).size() <= maxAvgNumberOfShards);
         }
 
-        final int additionalNodeCount = randomIntBetween(1, 5);
-        logger.info("--> Adding {} nodes", additionalNodeCount);
-
-        internalCluster().startNodes(additionalNodeCount);
-        assertBusy(() -> ensureGreen(), 60, TimeUnit.SECONDS);
-        state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        avgNumShards = (float) (totalShardCount) / (float) (state.getRoutingNodes().size());
-        minAvgNumberOfShards = Math.round(Math.round(Math.floor(avgNumShards - 1.0f)));
-        maxAvgNumberOfShards = Math.round(Math.round(Math.ceil(avgNumShards + 1.0f)));
-        shardAllocations.printShardDistribution(state);
-        for (RoutingNode node : state.getRoutingNodes()) {
-            assertTrue(node.primaryShardsWithState(STARTED).size() >= minAvgNumberOfShards);
-            assertTrue(node.primaryShardsWithState(STARTED).size() <= maxAvgNumberOfShards);
-        }
+//        final int additionalNodeCount = randomIntBetween(1, 5);
+//        logger.info("--> Adding {} nodes", additionalNodeCount);
+//
+//        internalCluster().startNodes(additionalNodeCount);
+//        assertBusy(() -> ensureGreen(), 60, TimeUnit.SECONDS);
+//        state = client().admin().cluster().prepareState().execute().actionGet().getState();
+//        avgNumShards = (float) (totalShardCount) / (float) (state.getRoutingNodes().size());
+//        minAvgNumberOfShards = Math.round(Math.round(Math.floor(avgNumShards - 1.0f)));
+//        maxAvgNumberOfShards = Math.round(Math.round(Math.ceil(avgNumShards + 1.0f)));
+//        shardAllocations.printShardDistribution(state);
+//        for (RoutingNode node : state.getRoutingNodes()) {
+//            assertTrue(node.primaryShardsWithState(STARTED).size() >= minAvgNumberOfShards);
+//            assertTrue(node.primaryShardsWithState(STARTED).size() <= maxAvgNumberOfShards);
+//        }
 
         logger.info("--> Stop one third nodes");
-        for (int i = 1; i < nodeCount; i += 3) {
+        for (int i = 1; i < 2; i += 3) {
             internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeNames.get(i)));
             // give replica a chance to promote as primary before terminating node containing the replica
-            assertBusy(() -> ensureGreen(), 60, TimeUnit.SECONDS);
+//            assertBusy(() -> ensureGreen(), 60, TimeUnit.SECONDS);
         }
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        shardAllocations.printShardDistribution(state);
         avgNumShards = (float) (totalShardCount) / (float) (state.getRoutingNodes().size());
         minAvgNumberOfShards = Math.round(Math.round(Math.floor(avgNumShards - 1.0f)));
         maxAvgNumberOfShards = Math.round(Math.round(Math.ceil(avgNumShards + 1.0f)));

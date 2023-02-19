@@ -969,7 +969,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private boolean tryRelocateShard(BalancedShardsAllocator.ModelNode minNode, BalancedShardsAllocator.ModelNode maxNode, String idx) {
         final BalancedShardsAllocator.ModelIndex index = maxNode.getIndex(idx);
         if (index != null) {
-            logger.trace("Try relocating shard of [{}] from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
             Stream<ShardRouting> routingStream = StreamSupport.stream(index.spliterator(), false)
                 .filter(ShardRouting::started) // cannot rebalance unassigned, initializing or relocating shards anyway
                 .filter(maxNode::containsShard) // check shards which are present on heaviest node
@@ -997,7 +996,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 }
 
                 final Decision decision = new Decision.Multi().add(allocationDecision).add(rebalanceDecision);
-
+                logger.info("--> Try relocating shard of [{}] from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
                 maxNode.removeShard(shard);
                 long shardSize = allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 
