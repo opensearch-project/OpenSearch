@@ -15,7 +15,6 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.Table;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentOpenSearchExtension;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.replication.SegmentReplicationState;
