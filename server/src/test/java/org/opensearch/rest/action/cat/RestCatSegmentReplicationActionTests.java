@@ -92,10 +92,6 @@ public class RestCatSegmentReplicationActionTests extends OpenSearchTestCase {
         final List<String> expectedHeaders = Arrays.asList(
             "index",
             "shardId",
-            "start_time",
-            "start_time_millis",
-            "stop_time",
-            "stop_time_millis",
             "time",
             "stage",
             "source_description",
@@ -118,10 +114,6 @@ public class RestCatSegmentReplicationActionTests extends OpenSearchTestCase {
             final List<Object> expectedValues = Arrays.asList(
                 "index",
                 i,
-                XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().startTime()),
-                state.getTimer().startTime(),
-                XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().stopTime()),
-                state.getTimer().stopTime(),
                 new TimeValue(state.getTimer().time()),
                 state.getStage().name().toLowerCase(Locale.ROOT),
                 state.getSourceDescription(),
