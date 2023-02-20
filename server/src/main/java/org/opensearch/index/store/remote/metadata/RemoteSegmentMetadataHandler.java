@@ -12,14 +12,14 @@ import java.io.IOException;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.opensearch.common.io.StreamReadWriteHandler;
+import org.opensearch.common.io.IndexIOStreamHandler;
 
 /**
  * Handler for {@link RemoteSegmentMetadata}
  *
  * @opensearch.internal
  */
-public class RemoteSegmentMetadataHandler implements StreamReadWriteHandler<RemoteSegmentMetadata> {
+public class RemoteSegmentMetadataHandler implements IndexIOStreamHandler<RemoteSegmentMetadata> {
     /**
      * Reads metadata content from metadata file input stream and parsed into {@link RemoteSegmentMetadata}
      * @param indexInput metadata file input stream with {@link IndexInput#getFilePointer()} pointing to metadata content

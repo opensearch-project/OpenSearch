@@ -24,17 +24,17 @@ import org.apache.lucene.store.IndexOutput;
  */
 public class VersionedCodecStreamWrapper<T> {
     // TODO This can be updated to hold a streamReadWriteHandlerFactory and get relevant handler based on the stream versions
-    private final StreamReadWriteHandler<T> streamReadWriteHandler;
+    private final IndexIOStreamHandler<T> indexIOStreamHandler;
     private final int currentVersion;
     private final String codec;
 
     /**
-     * @param streamReadWriteHandler handler to read/write stream from T
+     * @param indexIOStreamHandler handler to read/write stream from T
      * @param currentVersion latest supported version of the stream
      * @param codec: stream codec
      */
-    public VersionedCodecStreamWrapper(StreamReadWriteHandler<T> streamReadWriteHandler, int currentVersion, String codec) {
-        this.streamReadWriteHandler = streamReadWriteHandler;
+    public VersionedCodecStreamWrapper(IndexIOStreamHandler<T> indexIOStreamHandler, int currentVersion, String codec) {
+        this.indexIOStreamHandler = indexIOStreamHandler;
         this.currentVersion = currentVersion;
         this.codec = codec;
     }
@@ -104,9 +104,9 @@ public class VersionedCodecStreamWrapper<T> {
      * Returns relevant handler for the version
      * @param version stream content version
      */
-    private StreamReadWriteHandler<T> getHandlerForVersion(int version) {
+    private IndexIOStreamHandler<T> getHandlerForVersion(int version) {
         // TODO implement factory and pick relevant handler based on version.
         // It should also take into account min and max supported versions
-        return this.streamReadWriteHandler;
+        return this.indexIOStreamHandler;
     }
 }

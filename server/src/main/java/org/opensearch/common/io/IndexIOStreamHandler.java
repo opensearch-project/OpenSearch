@@ -19,7 +19,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public interface StreamReadWriteHandler<T> {
+public interface IndexIOStreamHandler<T> {
     /**
      * Implements logic to read content from file input stream {@code indexInput} and parse into {@link T}
      * @param indexInput file input stream

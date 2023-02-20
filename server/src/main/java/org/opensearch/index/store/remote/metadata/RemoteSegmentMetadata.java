@@ -11,7 +11,6 @@ package org.opensearch.index.store.remote.metadata;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 
 /**
@@ -70,13 +69,5 @@ public class RemoteSegmentMetadata {
                     )
                 )
         );
-    }
-
-    /**
-     * Constructs {@link VersionedCodecStreamWrapper} for {@link RemoteSegmentMetadata}
-     * @return {@link VersionedCodecStreamWrapper}
-     */
-    public static VersionedCodecStreamWrapper<RemoteSegmentMetadata> createMetadataHandler() {
-        return new VersionedCodecStreamWrapper<>(new RemoteSegmentMetadataHandler(), CURRENT_VERSION, METADATA_CODEC);
     }
 }
