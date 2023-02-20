@@ -11,7 +11,7 @@ package org.opensearch.index.store.remote.metadata;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import org.opensearch.common.metadata.MetadataParser;
+import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 
 /**
@@ -71,10 +71,10 @@ public class RemoteSegmentMetadata {
     }
 
     /**
-     * Constructs {@link MetadataParser} for {@link RemoteSegmentMetadata}
-     * @return {@link MetadataParser}
+     * Constructs {@link VersionedCodecStreamWrapper} for {@link RemoteSegmentMetadata}
+     * @return {@link VersionedCodecStreamWrapper}
      */
-    public static MetadataParser<RemoteSegmentMetadata> createMetadataParser() {
-        return new MetadataParser<>(new RemoteSegmentMetadataContentParser(), CURRENT_VERSION, METADATA_CODEC);
+    public static VersionedCodecStreamWrapper<RemoteSegmentMetadata> createMetadataHandler() {
+        return new VersionedCodecStreamWrapper<>(new RemoteSegmentMetadataHandler(), CURRENT_VERSION, METADATA_CODEC);
     }
 }

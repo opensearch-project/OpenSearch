@@ -18,7 +18,8 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.UUIDs;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
-import org.opensearch.common.metadata.MetadataParser;
+import org.opensearch.common.io.VersionedCodecStreamWrapper;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
 
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
@@ -77,19 +78,18 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      */
     private Map<String, UploadedSegmentMetadata> segmentsUploadedToRemoteStore;
 
-    private MetadataParser<RemoteSegmentMetadata> remoteMetadataParser;
+    private static final VersionedCodecStreamWrapper<RemoteSegmentMetadata> metadataStreamWrapper = new VersionedCodecStreamWrapper<>(
+        new RemoteSegmentMetadataHandler(),
+        RemoteSegmentMetadata.CURRENT_VERSION,
+        RemoteSegmentMetadata.METADATA_CODEC
+    );
 
     private static final Logger logger = LogManager.getLogger(RemoteSegmentStoreDirectory.class);
 
-    public RemoteSegmentStoreDirectory(
-        RemoteDirectory remoteDataDirectory,
-        RemoteDirectory remoteMetadataDirectory,
-        MetadataParser<RemoteSegmentMetadata> metadataParser
-    ) throws IOException {
+    public RemoteSegmentStoreDirectory(RemoteDirectory remoteDataDirectory, RemoteDirectory remoteMetadataDirectory) throws IOException {
         super(remoteDataDirectory);
         this.remoteDataDirectory = remoteDataDirectory;
         this.remoteMetadataDirectory = remoteMetadataDirectory;
-        this.remoteMetadataParser = metadataParser;
         init();
     }
 
@@ -135,7 +135,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
 
     private Map<String, UploadedSegmentMetadata> readMetadataFile(String metadataFilename) throws IOException {
         try (IndexInput indexInput = remoteMetadataDirectory.openInput(metadataFilename, IOContext.DEFAULT)) {
-            RemoteSegmentMetadata metadata = this.remoteMetadataParser.readMetadata(indexInput);
+            RemoteSegmentMetadata metadata = metadataStreamWrapper.readStream(indexInput);
             return metadata.getMetadata();
         }
     }
@@ -361,7 +361,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
                     throw new NoSuchFileException(file);
                 }
             }
-            this.remoteMetadataParser.writeMetadata(indexOutput, RemoteSegmentMetadata.fromMapOfStrings(uploadedSegments));
+            metadataStreamWrapper.writeStream(indexOutput, RemoteSegmentMetadata.fromMapOfStrings(uploadedSegments));
             indexOutput.close();
             storeDirectory.sync(Collections.singleton(metadataFilename));
             remoteMetadataDirectory.copyFrom(storeDirectory, metadataFilename, metadataFilename, IOContext.DEFAULT);

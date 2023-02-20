@@ -13,7 +13,6 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
-import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -48,7 +47,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Remo
             RemoteDirectory dataDirectory = createRemoteDirectory(repository, commonBlobPath, "data");
             RemoteDirectory metadataDirectory = createRemoteDirectory(repository, commonBlobPath, "metadata");
 
-            return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, RemoteSegmentMetadata.createMetadataParser());
+            return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory);
         } catch (RepositoryMissingException e) {
             throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", e);
         }

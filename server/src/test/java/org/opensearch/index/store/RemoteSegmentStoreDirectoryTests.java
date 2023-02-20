@@ -57,11 +57,7 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
         remoteDataDirectory = mock(RemoteDirectory.class);
         remoteMetadataDirectory = mock(RemoteDirectory.class);
 
-        remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
-            remoteDataDirectory,
-            remoteMetadataDirectory,
-            RemoteSegmentMetadata.createMetadataParser()
-        );
+        remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(remoteDataDirectory, remoteMetadataDirectory);
     }
 
     public void testUploadedSegmentMetadataToString() {
