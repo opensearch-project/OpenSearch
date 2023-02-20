@@ -45,6 +45,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bumps `com.azure:azure-storage-common` from 12.18.1 to 12.19.3
 - Bumps `io.projectreactor.netty:reactor-netty` from 1.1.2 to 1.1.3
 - Bumps `com.google.protobuf:protobuf-java` from 3.21.12 to 3.22.0
+- Bumps `com.google.cloud:google-cloud-storage` from 1.113.1 to 2.18.0
 
 ### Changed
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
