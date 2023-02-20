@@ -110,13 +110,13 @@ public class RemoteStoreIT extends OpenSearchIntegTestCase {
             .get();
     }
 
-    private Map<String, Long> indexData() {
+    private Map<String, Long> indexData(int numberOfIterations, boolean invokeFlush) {
         long totalOperations = 0;
         long refreshedOrFlushedOperations = 0;
         long maxSeqNo = -1;
         long maxSeqNoRefreshedOrFlushed = -1;
-        for (int i = 0; i < randomIntBetween(1, 10); i++) {
-            if (randomBoolean()) {
+        for (int i = 0; i < numberOfIterations; i++) {
+            if (invokeFlush) {
                 flush(INDEX_NAME);
             } else {
                 refresh(INDEX_NAME);
@@ -150,14 +150,17 @@ public class RemoteStoreIT extends OpenSearchIntegTestCase {
         assertHitCount(client().prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(statsGranularity) + 1);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6291")
-    public void testRemoteSegmentStoreRestore() throws IOException {
+    private void testRestoreFlow(boolean remoteTranslog, int numberOfIterations, boolean invokeFlush) throws IOException {
         internalCluster().startDataOnlyNodes(3);
-        createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
+        if (remoteTranslog) {
+            createIndex(INDEX_NAME, remoteTranslogIndexSettings(0));
+        } else {
+            createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
+        }
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
 
-        Map<String, Long> indexStats = indexData();
+        Map<String, Long> indexStats = indexData(numberOfIterations, invokeFlush);
 
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(INDEX_NAME)));
         assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
@@ -165,24 +168,44 @@ public class RemoteStoreIT extends OpenSearchIntegTestCase {
         client().admin().cluster().restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAME), PlainActionFuture.newFuture());
         ensureGreen(INDEX_NAME);
 
-        verifyRestoredData(indexStats, false);
+        if (remoteTranslog) {
+            verifyRestoredData(indexStats, true);
+        } else {
+            verifyRestoredData(indexStats, false);
+        }
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6291")
+    public void testRemoteSegmentStoreRestoreWithNoDataPostCommit() throws IOException {
+        testRestoreFlow(false, 1, true);
+    }
+
+    public void testRemoteSegmentStoreRestoreWithNoDataPostRefresh() throws IOException {
+        testRestoreFlow(false, 1, false);
+    }
+
+    public void testRemoteSegmentStoreRestoreWithRefreshedData() throws IOException {
+        testRestoreFlow(false, randomIntBetween(2, 5), false);
+    }
+
+    public void testRemoteSegmentStoreRestoreWithCommittedData() throws IOException {
+        testRestoreFlow(false, randomIntBetween(2, 5), true);
     }
 
     @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6188")
-    public void testRemoteTranslogRestore() throws IOException {
-        internalCluster().startDataOnlyNodes(3);
-        createIndex(INDEX_NAME, remoteTranslogIndexSettings(0));
-        ensureYellowAndNoInitializingShards(INDEX_NAME);
-        ensureGreen(INDEX_NAME);
+    public void testRemoteTranslogRestoreWithNoDataPostCommit() throws IOException {
+        testRestoreFlow(true, 1, true);
+    }
 
-        Map<String, Long> indexStats = indexData();
+    public void testRemoteTranslogRestoreWithNoDataPostRefresh() throws IOException {
+        testRestoreFlow(true, 1, false);
+    }
 
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName(INDEX_NAME)));
-        assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
+    public void testRemoteTranslogRestoreWithRefreshedData() throws IOException {
+        testRestoreFlow(true, randomIntBetween(2, 5), false);
+    }
 
-        client().admin().cluster().restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAME), PlainActionFuture.newFuture());
-        ensureGreen(INDEX_NAME);
-
-        verifyRestoredData(indexStats, true);
+    public void testRemoteTranslogRestoreWithCommittedData() throws IOException {
+        testRestoreFlow(true, randomIntBetween(2, 5), true);
     }
 }
