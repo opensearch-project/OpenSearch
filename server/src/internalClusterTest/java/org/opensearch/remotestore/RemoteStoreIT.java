@@ -175,7 +175,6 @@ public class RemoteStoreIT extends OpenSearchIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6291")
     public void testRemoteSegmentStoreRestoreWithNoDataPostCommit() throws IOException {
         testRestoreFlow(false, 1, true);
     }
