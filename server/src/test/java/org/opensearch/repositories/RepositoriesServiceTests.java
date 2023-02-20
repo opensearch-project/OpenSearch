@@ -58,6 +58,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
+import org.opensearch.index.snapshots.blobstore.BlobStoreRemStoreBasedIndexShardSnapshot;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
@@ -250,6 +251,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         public void finalizeSnapshot(
             ShardGenerations shardGenerations,
             long repositoryStateId,
+            RepositoriesService repositoriesService,
             Metadata clusterMetadata,
             SnapshotInfo snapshotInfo,
             Version repositoryMetaVersion,
@@ -264,6 +266,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
             Collection<SnapshotId> snapshotIds,
             long repositoryStateId,
             Version repositoryMetaVersion,
+            RepositoriesService repositoriesService,
             ActionListener<RepositoryData> listener
         ) {
             listener.onResponse(null);
@@ -302,6 +305,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         @Override
         public void snapshotShard(
             Store store,
+            Store remoteStore,
             MapperService mapperService,
             SnapshotId snapshotId,
             IndexId indexId,
@@ -325,6 +329,15 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
             ActionListener<Void> listener
         ) {
 
+        }
+
+        @Override
+        public BlobStoreRemStoreBasedIndexShardSnapshot getMetadataFileNameFromShardMetadata(Store store,
+                                                                                             Store remoteStore,
+                                                                                             SnapshotId snapshotId,
+                                                                                             IndexId indexId,
+                                                                                             ShardId snapshotShardId) {
+            return null;
         }
 
         @Override

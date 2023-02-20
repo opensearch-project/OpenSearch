@@ -53,6 +53,7 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.ShardGenerations;
@@ -296,6 +297,7 @@ class S3Repository extends MeteredBlobStoreRepository {
     public void finalizeSnapshot(
         ShardGenerations shardGenerations,
         long repositoryStateId,
+        RepositoriesService repositoriesService,
         Metadata clusterMetadata,
         SnapshotInfo snapshotInfo,
         Version repositoryMetaVersion,
@@ -305,6 +307,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         super.finalizeSnapshot(
             shardGenerations,
             repositoryStateId,
+            repositoriesService,
             clusterMetadata,
             snapshotInfo,
             repositoryMetaVersion,
@@ -318,9 +321,10 @@ class S3Repository extends MeteredBlobStoreRepository {
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
         Version repositoryMetaVersion,
+        RepositoriesService repositoriesService,
         ActionListener<RepositoryData> listener
     ) {
-        super.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, listener);
+        super.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, repositoriesService, listener);
     }
 
     @Override

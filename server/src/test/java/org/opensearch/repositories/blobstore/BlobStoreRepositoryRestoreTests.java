@@ -59,10 +59,7 @@ import org.opensearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.RecoverySettings;
-import org.opensearch.repositories.IndexId;
-import org.opensearch.repositories.Repository;
-import org.opensearch.repositories.RepositoryData;
-import org.opensearch.repositories.ShardGenerations;
+import org.opensearch.repositories.*;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
@@ -201,6 +198,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                 f -> repository.finalizeSnapshot(
                     shardGenerations,
                     RepositoryData.EMPTY_REPO_GEN,
+                    null,
                     Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
                     new SnapshotInfo(
                         snapshot.getSnapshotId(),

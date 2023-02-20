@@ -39,11 +39,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.store.RateLimiter;
+import org.apache.lucene.store.*;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
@@ -99,30 +95,19 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardRestoreFailedException;
 import org.opensearch.index.snapshots.IndexShardSnapshotFailedException;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
-import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
-import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshots;
-import org.opensearch.index.snapshots.blobstore.RateLimitingInputStream;
-import org.opensearch.index.snapshots.blobstore.SlicedInputStream;
-import org.opensearch.index.snapshots.blobstore.SnapshotFiles;
+import org.opensearch.index.snapshots.blobstore.*;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
-import org.opensearch.repositories.IndexId;
-import org.opensearch.repositories.IndexMetaDataGenerations;
-import org.opensearch.repositories.Repository;
-import org.opensearch.repositories.RepositoryCleanupResult;
-import org.opensearch.repositories.RepositoryData;
-import org.opensearch.repositories.RepositoryException;
-import org.opensearch.repositories.RepositoryOperation;
-import org.opensearch.repositories.RepositoryShardId;
-import org.opensearch.repositories.RepositoryStats;
-import org.opensearch.repositories.RepositoryVerificationException;
-import org.opensearch.repositories.ShardGenerations;
+import org.opensearch.repositories.*;
 import org.opensearch.snapshots.AbortedSnapshotException;
 import org.opensearch.snapshots.SnapshotException;
 import org.opensearch.snapshots.SnapshotId;
@@ -293,6 +278,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         SNAPSHOT_CODEC,
         SNAPSHOT_NAME_FORMAT,
         BlobStoreIndexShardSnapshot::fromXContent
+    );
+
+    public static final ChecksumBlobStoreFormat<BlobStoreRemStoreBasedIndexShardSnapshot> REM_STORE_BASED_INDEX_SHARD_SNAPSHOT_FORMAT = new ChecksumBlobStoreFormat<>(
+        SNAPSHOT_CODEC,
+        SNAPSHOT_NAME_FORMAT,
+        BlobStoreRemStoreBasedIndexShardSnapshot::fromXContent
     );
 
     public static final ChecksumBlobStoreFormat<BlobStoreIndexShardSnapshots> INDEX_SHARD_SNAPSHOTS_FORMAT = new ChecksumBlobStoreFormat<>(
@@ -717,6 +708,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
         Version repositoryMetaVersion,
+        RepositoriesService repositoriesService,
         ActionListener<RepositoryData> listener
     ) {
         if (isReadOnly()) {
@@ -737,6 +729,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         rootBlobs,
                         repositoryData,
                         repositoryMetaVersion,
+                        repositoriesService,
                         listener
                     );
                 }
@@ -816,11 +809,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Map<String, BlobMetadata> rootBlobs,
         RepositoryData repositoryData,
         Version repoMetaVersion,
+        RepositoriesService repositoriesService,
         ActionListener<RepositoryData> listener
     ) {
         // First write the new shard state metadata (with the removed snapshot) and compute deletion targets
         final StepListener<Collection<ShardSnapshotMetaDeleteResult>> writeShardMetaDataAndComputeDeletesStep = new StepListener<>();
-        writeUpdatedShardMetaDataAndComputeDeletes(snapshotIds, repositoryData, true, writeShardMetaDataAndComputeDeletesStep);
+        writeUpdatedShardMetaDataAndComputeDeletes(snapshotIds, repositoryData, true, repositoriesService, writeShardMetaDataAndComputeDeletesStep);
         // Once we have put the new shard-level metadata into place, we can update the repository metadata as follows:
         // 1. Remove the snapshots from the list of existing snapshots
         // 2. Update the index shard generations of all updated shard folders
@@ -939,6 +933,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Collection<SnapshotId> snapshotIds,
         RepositoryData oldRepositoryData,
         boolean useUUIDs,
+        RepositoriesService repositoriesService,
         ActionListener<Collection<ShardSnapshotMetaDeleteResult>> onAllShardsCompleted
     ) {
 
@@ -969,6 +964,27 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 shardCountListener,
                 indexMetaGenerations.size()
             );
+
+            for (SnapshotId snapshotId: survivingSnapshots) {
+                try {
+                    IndexMetadata indexMetadata = this.getSnapshotIndexMetaData(oldRepositoryData,
+                        snapshotId, indexId);
+                    String indexUUID = indexMetadata.getIndexUUID();
+                    String remoteStoreRepoForIndex = indexMetadata.getSettings().get(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY);
+                    if (remoteStoreRepoForIndex != null) {
+                        RemoteSegmentStoreDirectoryFactory directoryFactory = new RemoteSegmentStoreDirectoryFactory(
+                            () -> repositoriesService);
+                        RemoteSegmentStoreDirectory tempRemoteDirectory = (RemoteSegmentStoreDirectory) directoryFactory.newDirectory(
+                            remoteStoreRepoForIndex,
+                            indexUUID, String.valueOf(0));
+                        tempRemoteDirectory.releaseResourceLockForIndex(snapshotId.getUUID());
+                    }
+                } catch (IOException e) {
+                    //throw new RuntimeException(e);
+                    onAllShardsCompleted.onFailure(e);
+                }
+            }
+
             final BlobContainer indexContainer = indexContainer(indexId);
             for (String indexMetaGeneration : indexMetaGenerations) {
                 executor.execute(ActionRunnable.supply(allShardCountsListener, () -> {
@@ -1333,6 +1349,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public void finalizeSnapshot(
         final ShardGenerations shardGenerations,
         final long repositoryStateId,
+        RepositoriesService repositoriesService,
         final Metadata clusterMetadata,
         SnapshotInfo snapshotInfo,
         Version repositoryMetaVersion,
@@ -1398,6 +1415,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             for (IndexId index : indices) {
                 executor.execute(ActionRunnable.run(allMetaListener, () -> {
                     final IndexMetadata indexMetaData = clusterMetadata.index(index.getName());
+                    // TODO: this fails today, we need to make it working after adding lock manager logic.
+                    String remoteStoreRepoForIndex = indexMetaData.getSettings().get(
+                        IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY);
+                    String indexUUID = indexMetaData.getIndexUUID();
+                    if (remoteStoreRepoForIndex != null) {
+                        RemoteSegmentStoreDirectoryFactory directoryFactory = new RemoteSegmentStoreDirectoryFactory(
+                            () -> repositoriesService);
+                        RemoteSegmentStoreDirectory tempRemoteDirectory = (RemoteSegmentStoreDirectory) directoryFactory.newDirectory(
+                            remoteStoreRepoForIndex,
+                            indexUUID, String.valueOf(0));
+                        tempRemoteDirectory.addResourceLockForIndex(snapshotId.getUUID());
+                    }
+
                     final String identifiers = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetaData);
                     String metaUUID = existingRepositoryData.indexMetaDataGenerations().getIndexMetaBlobId(identifiers);
                     if (metaUUID == null) {
@@ -2272,8 +2302,149 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    public void snapshotRemoteStoreEnabledShard(
+        Store store,
+        Store remoteStore,
+        MapperService mapperService,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        IndexCommit snapshotIndexCommit,
+        String shardStateIdentifier,
+        IndexShardSnapshotStatus snapshotStatus,
+        Version repositoryMetaVersion,
+        Map<String, Object> userMetadata,
+        ActionListener<String> listener
+
+    ) {
+        if (isReadOnly()) {
+            listener.onFailure(new RepositoryException(metadata.name(), "cannot snapshot shard on a readonly repository"));
+            return;
+        }
+        final ShardId shardId = store.shardId();
+        final long startTime = threadPool.absoluteTimeInMillis();
+        try {
+            final String generation = snapshotStatus.generation();
+            logger.debug("[{}] [{}] snapshot to [{}] [{}] ...", shardId, snapshotId, metadata.name(), generation);
+            final BlobContainer shardContainer = shardContainer(indexId, shardId);
+
+            int indexIncrementalFileCount = 0;
+            int indexTotalNumberOfFiles = 0;
+            long indexIncrementalSize = 0;
+            long indexTotalFileSize = 0;
+
+            String remoteStoreShardMdFileName = this.getAndLockRemoteStoreMdFileForSnapshot(store, remoteStore,
+                snapshotId.getUUID());
+
+            String indexUUID = store.indexSettings().getUUID();
+
+            // TODO: need to check what info we can pass from remote store to be used in snapshot Status
+            snapshotStatus.moveToStarted(
+                startTime,
+                indexIncrementalFileCount,
+                indexTotalNumberOfFiles,
+                indexIncrementalSize,
+                indexTotalFileSize
+            );
+
+            final String indexGeneration;
+            // TODO: not writing index- file for remote store enabled indices, need to check if we need to add some md.
+
+            indexGeneration = UUIDs.randomBase64UUID();
+            final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.moveToFinalize(snapshotIndexCommit.getGeneration());
+
+            // now create and write the commit point
+            logger.trace("[{}] [{}] writing shard snapshot file", shardId, snapshotId);
+            try {
+                REM_STORE_BASED_INDEX_SHARD_SNAPSHOT_FORMAT.write(
+                    new BlobStoreRemStoreBasedIndexShardSnapshot(
+                        snapshotId.getName(),
+                        lastSnapshotStatus.getIndexVersion(),
+                        remoteStoreShardMdFileName,
+                        lastSnapshotStatus.getStartTime(),
+                        threadPool.absoluteTimeInMillis() - lastSnapshotStatus.getStartTime(),
+                        lastSnapshotStatus.getIncrementalFileCount(),
+                        lastSnapshotStatus.getIncrementalSize(),
+                        indexUUID
+                    ),
+                    shardContainer,
+                    snapshotId.getUUID(),
+                    compress
+                );
+            } catch (IOException e) {
+                throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
+            }
+            snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis(), indexGeneration);
+            listener.onResponse(indexGeneration);
+
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private String getAndLockRemoteStoreMdFileForSnapshot(Store store, Store remoteStore, String snapshotId) throws IOException {
+        assert remoteStore.directory() instanceof FilterDirectory : "Store.directory is not an instance of " +
+            "FilterDirectory";
+        FilterDirectory remoteStoreDirectory = (FilterDirectory) remoteStore.directory();
+        assert remoteStoreDirectory.getDelegate() instanceof FilterDirectory
+            : "Store.directory is not enclosing an instance of FilterDirectory";
+        FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
+        final Directory remoteDirectory = byteSizeCachingStoreDirectory.getDelegate();
+        // We need to call RemoteSegmentStoreDirectory.init() in order to get latest metadata of the files that
+        // are uploaded to the remote segment store.
+        assert remoteDirectory instanceof RemoteSegmentStoreDirectory : "remoteDirectory is not an instance of " +
+            "RemoteSegmentStoreDirectory";
+        ((RemoteSegmentStoreDirectory) remoteDirectory).init();
+        return ((RemoteSegmentStoreDirectory) remoteDirectory).getAndLockMetaDataFileForResource(store.directory(),
+            snapshotId);
+    }
+
+
     @Override
     public void snapshotShard(
+        Store store,
+        Store remoteStore,
+        MapperService mapperService,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        IndexCommit snapshotIndexCommit,
+        String shardStateIdentifier,
+        IndexShardSnapshotStatus snapshotStatus,
+        Version repositoryMetaVersion,
+        Map<String, Object> userMetadata,
+        ActionListener<String> listener
+    ) {
+        if (remoteStore == null) {
+            snapshotDocRepBasedShard(
+                store,
+                mapperService,
+                snapshotId,
+                indexId,
+                snapshotIndexCommit,
+                shardStateIdentifier,
+                snapshotStatus,
+                repositoryMetaVersion,
+                userMetadata,
+                listener
+            );
+        }
+        else {
+            snapshotRemoteStoreEnabledShard(
+                store,
+                remoteStore,
+                mapperService,
+                snapshotId,
+                indexId,
+                snapshotIndexCommit,
+                shardStateIdentifier,
+                snapshotStatus,
+                repositoryMetaVersion,
+                userMetadata,
+                listener
+            );
+        }
+    }
+
+    private void snapshotDocRepBasedShard(
         Store store,
         MapperService mapperService,
         SnapshotId snapshotId,
@@ -2523,6 +2694,19 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return true;
     }
 
+    public BlobStoreRemStoreBasedIndexShardSnapshot getMetadataFileNameFromShardMetadata(
+        Store store,
+        Store remoteStore,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        ShardId snapshotShardId
+    ) {
+        final BlobContainer container = shardContainer(indexId, snapshotShardId);
+        return loadRemStoreEnabledShardSnapshot(
+            container,
+            snapshotId
+        );
+    }
     @Override
     public void restoreShard(
         Store store,
@@ -2793,6 +2977,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     writtenGeneration = String.valueOf(indexGeneration);
                     writeShardIndexBlobAtomic(shardContainer, indexGeneration, updatedSnapshots);
                 }
+
+                // TODO: delete the resource lock here, if remote store is enabled.
+
                 final Set<String> survivingSnapshotUUIDs = survivingSnapshots.stream().map(SnapshotId::getUUID).collect(Collectors.toSet());
                 return new ShardSnapshotMetaDeleteResult(
                     indexId,
@@ -2850,6 +3037,24 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     || FsBlobContainer.isTempBlobName(blob)
             )
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Loads information about shard snapshot
+     */
+    public BlobStoreRemStoreBasedIndexShardSnapshot loadRemStoreEnabledShardSnapshot(BlobContainer shardContainer, SnapshotId snapshotId) {
+        try {
+            return REM_STORE_BASED_INDEX_SHARD_SNAPSHOT_FORMAT.read(shardContainer, snapshotId.getUUID(), namedXContentRegistry);
+        } catch (NoSuchFileException ex) {
+            throw new SnapshotMissingException(metadata.name(), snapshotId, ex);
+        } catch (IOException ex) {
+            throw new SnapshotException(
+                metadata.name(),
+                snapshotId,
+                "failed to read shard snapshot file for [" + shardContainer.path() + ']',
+                ex
+            );
+        }
     }
 
     /**

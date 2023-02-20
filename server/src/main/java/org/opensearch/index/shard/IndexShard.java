@@ -152,11 +152,8 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.opensearch.index.similarity.SimilarityService;
-import org.opensearch.index.store.RemoteSegmentStoreDirectory;
-import org.opensearch.index.store.Store;
+import org.opensearch.index.store.*;
 import org.opensearch.index.store.Store.MetadataSnapshot;
-import org.opensearch.index.store.StoreFileMetadata;
-import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogFactory;
@@ -2453,6 +2450,20 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         storeRecovery.recoverFromRemoteStore(this, repository, listener);
     }
 
+    public void restoreFromSnapshotAndRemoteStore(Repository repository,
+                                                  RemoteSegmentStoreDirectoryFactory directoryFactory,
+                                                  ActionListener<Boolean> listener) {
+        try {
+            assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
+            assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT : "invalid recovery type: "
+                + recoveryState.getRecoverySource();
+            StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
+            storeRecovery.recoverFromRepositoryAndRemoteStore(this, repository, directoryFactory, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
     public void restoreFromRepository(Repository repository, ActionListener<Boolean> listener) {
         try {
             assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
@@ -3248,6 +3259,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 final SnapshotRecoverySource recoverySource = (SnapshotRecoverySource) recoveryState.getRecoverySource();
                 if (recoverySource.isSearchableSnapshot()) {
                     executeRecovery("from snapshot (remote)", recoveryState, recoveryListener, this::recoverFromStore);
+                }
+                else if(recoverySource.isSnapshotRemStoreInteropEnabled()) {
+                    RemoteSegmentStoreDirectoryFactory directoryFactory = new RemoteSegmentStoreDirectoryFactory(
+                        ()-> repositoriesService);
+                    final String repo = recoverySource.snapshot().getRepository();
+                    executeRecovery(
+                        "from snapshot",
+                        recoveryState,
+                        recoveryListener,
+                        l -> restoreFromSnapshotAndRemoteStore(repositoriesService.repository(repo), directoryFactory, l)
+                    );
                 } else {
                     final String repo = recoverySource.snapshot().getRepository();
                     executeRecovery(
@@ -4399,6 +4421,83 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.info("Skipped download for segments: {}", skippedSegments);
             store.decRef();
             remoteStore.decRef();
+        }
+    }
+
+    private RemoteSegmentStoreDirectory getRemoteSegmentDirectoryForShard() {
+        FilterDirectory remoteStoreDirectory = (FilterDirectory) remoteStore.directory();
+        assert remoteStoreDirectory.getDelegate() instanceof FilterDirectory
+            : "Store.directory is not enclosing an instance of FilterDirectory";
+        FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
+        final Directory remoteDirectory = byteSizeCachingStoreDirectory.getDelegate();
+        // We need to call RemoteSegmentStoreDirectory.init() in order to get latest metadata of the files that
+        // are uploaded to the remote segment store.
+        assert remoteDirectory instanceof RemoteSegmentStoreDirectory : "remoteDirectory is not an instance of RemoteSegmentStoreDirectory";
+        return ((RemoteSegmentStoreDirectory) remoteDirectory);
+    }
+    /**
+     * Downloads segments from remote segment store.
+     * @param overrideLocal flag to override local segment files with those in remote store
+     * @throws IOException if exception occurs while reading segments from remote store
+     */
+    public void syncSegmentsFromGivenRemoteSegmentStore(boolean overrideLocal,
+                                                        RemoteSegmentStoreDirectory tempRemoteSegmentDirectory,
+                                                        String mdFileName
+    ) throws IOException {
+        assert indexSettings.isRemoteStoreEnabled();
+        logger.info("Downloading segments from remote segment store");
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = getRemoteSegmentDirectoryForShard();
+        remoteSegmentStoreDirectory.init();
+        tempRemoteSegmentDirectory.init();
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments =
+            tempRemoteSegmentDirectory.getSegmentsUploadedToRemoteStore(mdFileName);
+        final Directory storeDirectory = store.directory();
+        store.incRef();
+        // remoteStore.incRef();
+        List<String> downloadedSegments = new ArrayList<>();
+        List<String> skippedSegments = new ArrayList<>();
+        try {
+            String segmentInfosSnapshotFilename = null;
+            Set<String> localSegmentFiles = Sets.newHashSet(storeDirectory.listAll());
+            for (String file : uploadedSegments.keySet()) {
+                long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
+                if (overrideLocal || localDirectoryContains(storeDirectory, file, checksum) == false) {
+                    if (localSegmentFiles.contains(file)) {
+                        storeDirectory.deleteFile(file);
+                    }
+                    remoteSegmentStoreDirectory.copyFromRemote(tempRemoteSegmentDirectory, file, file, IOContext.DEFAULT);
+                    storeDirectory.copyFrom(tempRemoteSegmentDirectory, file, file, IOContext.DEFAULT);
+                    downloadedSegments.add(file);
+                    if (file.startsWith(SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX)) {
+                        assert segmentInfosSnapshotFilename == null : "There should be only one SegmentInfosSnapshot file";
+                        segmentInfosSnapshotFilename = file;
+                    }
+                } else {
+                    skippedSegments.add(file);
+                }
+            }
+            if (segmentInfosSnapshotFilename != null) {
+                try (
+                    ChecksumIndexInput indexInput = new BufferedChecksumIndexInput(
+                        storeDirectory.openInput(segmentInfosSnapshotFilename, IOContext.DEFAULT)
+                    )
+                ) {
+                    SegmentInfos infosSnapshot = SegmentInfos.readCommit(
+                        store.directory(),
+                        indexInput,
+                        Long.parseLong(segmentInfosSnapshotFilename.split("__")[1])
+                    );
+                    long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
+                    store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
+                }
+            }
+        } catch (IOException e) {
+            throw new IndexShardRecoveryException(shardId, "Exception while copying segment files from remote segment store", e);
+        } finally {
+            logger.info("Downloaded segments: {}", downloadedSegments);
+            logger.info("Skipped download for segments: {}", skippedSegments);
+            store.decRef();
+            //remoteStore.decRef();
         }
     }
 

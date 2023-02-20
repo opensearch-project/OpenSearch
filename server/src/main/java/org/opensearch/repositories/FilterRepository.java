@@ -45,6 +45,7 @@ import org.opensearch.common.component.LifecycleListener;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
+import org.opensearch.index.snapshots.blobstore.BlobStoreRemStoreBasedIndexShardSnapshot;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.snapshots.SnapshotId;
@@ -98,6 +99,7 @@ public class FilterRepository implements Repository {
     public void finalizeSnapshot(
         ShardGenerations shardGenerations,
         long repositoryStateId,
+        RepositoriesService repositoriesService,
         Metadata clusterMetadata,
         SnapshotInfo snapshotInfo,
         Version repositoryMetaVersion,
@@ -107,6 +109,7 @@ public class FilterRepository implements Repository {
         in.finalizeSnapshot(
             shardGenerations,
             repositoryStateId,
+            repositoriesService,
             clusterMetadata,
             snapshotInfo,
             repositoryMetaVersion,
@@ -120,9 +123,10 @@ public class FilterRepository implements Repository {
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
         Version repositoryMetaVersion,
+        RepositoriesService repositoriesService,
         ActionListener<RepositoryData> listener
     ) {
-        in.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, listener);
+        in.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, repositoriesService, listener);
     }
 
     @Override
@@ -158,6 +162,7 @@ public class FilterRepository implements Repository {
     @Override
     public void snapshotShard(
         Store store,
+        Store remoteStore,
         MapperService mapperService,
         SnapshotId snapshotId,
         IndexId indexId,
@@ -170,6 +175,7 @@ public class FilterRepository implements Repository {
     ) {
         in.snapshotShard(
             store,
+            remoteStore,
             mapperService,
             snapshotId,
             indexId,
@@ -192,6 +198,11 @@ public class FilterRepository implements Repository {
         ActionListener<Void> listener
     ) {
         in.restoreShard(store, snapshotId, indexId, snapshotShardId, recoveryState, listener);
+    }
+
+    @Override
+    public BlobStoreRemStoreBasedIndexShardSnapshot getMetadataFileNameFromShardMetadata(Store store, Store remoteStore, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId) {
+        return in.getMetadataFileNameFromShardMetadata(store, remoteStore, snapshotId, indexId, snapshotShardId);
     }
 
     @Override

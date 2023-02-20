@@ -44,12 +44,7 @@ import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.store.Store;
-import org.opensearch.repositories.IndexId;
-import org.opensearch.repositories.IndexMetaDataGenerations;
-import org.opensearch.repositories.Repository;
-import org.opensearch.repositories.RepositoryData;
-import org.opensearch.repositories.RepositoryShardId;
-import org.opensearch.repositories.ShardGenerations;
+import org.opensearch.repositories.*;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
 
@@ -119,6 +114,7 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     public void finalizeSnapshot(
         ShardGenerations shardGenerations,
         long repositoryStateId,
+        RepositoriesService repositoriesService,
         Metadata clusterMetadata,
         SnapshotInfo snapshotInfo,
         Version repositoryMetaVersion,
@@ -133,6 +129,7 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
         Version repositoryMetaVersion,
+        RepositoriesService repositoriesService,
         ActionListener<RepositoryData> listener
     ) {
         listener.onResponse(null);
@@ -164,6 +161,7 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     @Override
     public void snapshotShard(
         Store store,
+        Store remoteStore,
         MapperService mapperService,
         SnapshotId snapshotId,
         IndexId indexId,

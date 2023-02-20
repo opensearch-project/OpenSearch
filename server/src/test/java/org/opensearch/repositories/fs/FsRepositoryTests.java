@@ -120,6 +120,7 @@ public class FsRepositoryTests extends OpenSearchTestCase {
             IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("myindex", indexSettings);
             ShardId shardId = new ShardId(idxSettings.getIndex(), 1);
             Store store = new Store(shardId, idxSettings, directory, new DummyShardLock(shardId));
+            Store remoteStore = new Store(shardId, idxSettings, directory, new DummyShardLock(shardId));
             SnapshotId snapshotId = new SnapshotId("test", "test");
             IndexId indexId = new IndexId(idxSettings.getIndex().getName(), idxSettings.getUUID());
 
@@ -129,6 +130,7 @@ public class FsRepositoryTests extends OpenSearchTestCase {
                 IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
                 repository.snapshotShard(
                     store,
+                    remoteStore,
                     null,
                     snapshotId,
                     indexId,
@@ -171,6 +173,7 @@ public class FsRepositoryTests extends OpenSearchTestCase {
                 IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(shardGeneration);
                 repository.snapshotShard(
                     store,
+                    remoteStore,
                     null,
                     incSnapshotId,
                     indexId,

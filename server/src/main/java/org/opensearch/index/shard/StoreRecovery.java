@@ -59,6 +59,9 @@ import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.snapshots.IndexShardRestoreFailedException;
+import org.opensearch.index.snapshots.blobstore.BlobStoreRemStoreBasedIndexShardSnapshot;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.RemoteFsTranslog;
 import org.opensearch.index.translog.Translog;
@@ -341,6 +344,47 @@ final class StoreRecovery {
                 assert recoveryType == RecoverySource.Type.SNAPSHOT : "expected snapshot recovery type: " + recoveryType;
                 SnapshotRecoverySource recoverySource = (SnapshotRecoverySource) indexShard.recoveryState().getRecoverySource();
                 restore(indexShard, repository, recoverySource, recoveryListener(indexShard, listener));
+            } else {
+                listener.onResponse(false);
+            }
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    void recoverFromRepositoryAndRemoteStore(final IndexShard indexShard, Repository repository,
+                                             RemoteSegmentStoreDirectoryFactory directoryFactory,
+                                             ActionListener<Boolean> listener) {
+        try {
+            if (canRecover(indexShard)) {
+                indexShard.preRecovery();
+                RecoverySource.Type recoveryType = indexShard.recoveryState().getRecoverySource().getType();
+                assert recoveryType == RecoverySource.Type.SNAPSHOT : "expected snapshot recovery type: " + recoveryType;
+                SnapshotRecoverySource recoverySource = (SnapshotRecoverySource) indexShard.recoveryState().getRecoverySource();
+                assert indexShard.remoteStore() != null;
+                indexShard.prepareForIndexRecovery();
+
+                BlobStoreRemStoreBasedIndexShardSnapshot remStoreBasedShardMetadata = repository.getMetadataFileNameFromShardMetadata(
+                    indexShard.store(),
+                    indexShard.remoteStore(),
+                    recoverySource.snapshot().getSnapshotId(),
+                    recoverySource.index(),
+                    shardId
+                );
+
+                String mdFileName = remStoreBasedShardMetadata.getRemoteStoreMetadataFileName();
+                String indexUUID = remStoreBasedShardMetadata.getIndexUUID();
+                RemoteSegmentStoreDirectory tempRemoteDirectory = (RemoteSegmentStoreDirectory) directoryFactory.newDirectory(
+                    indexShard.remoteStore().indexSettings().getRemoteStoreRepository(),
+                    indexUUID, String.valueOf(shardId.id()));
+                indexShard.syncSegmentsFromGivenRemoteSegmentStore(true, tempRemoteDirectory, mdFileName);
+                bootstrap(indexShard, indexShard.store());
+                indexShard.recoveryState().getIndex().setFileDetailsComplete();
+                indexShard.openEngineAndRecoverFromTranslog();
+                indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
+                indexShard.finalizeRecovery();
+                indexShard.postRecovery("restore done");
+                listener.onResponse(true);
             } else {
                 listener.onResponse(false);
             }

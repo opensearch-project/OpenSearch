@@ -20,7 +20,8 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
-
+import org.opensearch.search.aggregations.bucket.filter.Filter;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.util.Collection;
@@ -64,6 +65,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      * remoteMetadataDirectory is used to store metadata files at path: cluster_UUID/index_UUID/shardId/segments/metadata
      */
     private final RemoteDirectory remoteMetadataDirectory;
+    private final RemoteDirectory remoteLockFilesDirectory;
+    private final RemoteDirectory lockAcquiringResourceDirectory;
 
     /**
      * To prevent explosion of refresh metadata files, we replace refresh files for the given primary term and generation
@@ -86,10 +89,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
 
     private static final Logger logger = LogManager.getLogger(RemoteSegmentStoreDirectory.class);
 
-    public RemoteSegmentStoreDirectory(RemoteDirectory remoteDataDirectory, RemoteDirectory remoteMetadataDirectory) throws IOException {
+    public RemoteSegmentStoreDirectory(RemoteDirectory remoteDataDirectory, RemoteDirectory remoteMetadataDirectory, RemoteDirectory remoteLockFilesDirectory, RemoteDirectory lockAcquiringResourceDirectory) throws IOException {
         super(remoteDataDirectory);
         this.remoteDataDirectory = remoteDataDirectory;
         this.remoteMetadataDirectory = remoteMetadataDirectory;
+        this.remoteLockFilesDirectory = remoteLockFilesDirectory;
+        this.lockAcquiringResourceDirectory = lockAcquiringResourceDirectory;
         init();
     }
 
@@ -131,6 +136,67 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
         }
 
         return segmentMetadataMap;
+    }
+
+    public String getLatestMetadataFileName() throws IOException {
+        Collection<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefix(MetadataFilenameUtils.METADATA_PREFIX);
+        Optional<String> latestMetadataFile = metadataFiles.stream().max(METADATA_FILENAME_COMPARATOR);
+
+        if(metadataFiles.isEmpty()) {
+            return "";
+        }
+        return latestMetadataFile.get();
+    }
+
+    // TODO: need to move this lock related logic out of this class and make it generic
+    public String getAndLockMetaDataFileForResource(Directory localDirectory, String resourceId) throws IOException {
+        String mdFileName = this.getLatestMetadataFileName();
+        addResourceLockForMetadataFile(mdFileName, resourceId, localDirectory);
+        return mdFileName;
+    }
+
+    private void addResourceLockForMetadataFile(String mdFileName, String resourceId, Directory localDirectory) throws IOException {
+        logger.info("came inside this lock metadata file");
+        String lockFileName = String.join("-",mdFileName, resourceId);
+        IndexOutput indexOutput = localDirectory.createOutput(lockFileName, IOContext.DEFAULT);
+        indexOutput.close();
+        localDirectory.sync(Collections.singleton(lockFileName));
+        remoteLockFilesDirectory.copyFrom(localDirectory, lockFileName, lockFileName, IOContext.DEFAULT);
+        localDirectory.deleteFile(lockFileName);
+
+        //String expiry_time = "0";
+        try {
+            String resourceName = resourceId;
+            indexOutput = localDirectory.createOutput(resourceName, IOContext.DEFAULT);
+            indexOutput.close();
+            localDirectory.sync(Collections.singleton(resourceName));
+            lockAcquiringResourceDirectory.copyFrom(localDirectory, resourceName, resourceName, IOContext.DEFAULT);
+            localDirectory.deleteFile(resourceName);
+        }
+        catch (IOException e) {
+            logger.error("failed to add resource lock with error: " + e);
+        }
+    }
+
+    public void addResourceLockForIndex(String resourceId) {
+        try {
+            FilterDirectory remoteStoreDirectory = (FilterDirectory)this.getDelegate();
+            IndexOutput indexOutput = remoteStoreDirectory.createOutput(resourceId, IOContext.DEFAULT);
+            indexOutput.close();
+        }
+        catch (Exception e) {
+            logger.debug("Failed to add Lock for the resource {}", resourceId);
+        }
+        //tempDirectory.sync(Collections.singleton(resourceId));
+    }
+
+    public void releaseResourceLockForIndex(String resourceId) throws IOException {
+        try {
+            lockAcquiringResourceDirectory.deleteFile(resourceId);
+        }
+        catch (FileNotFoundException e) {
+            logger.debug("Lock for resource {} was already released", resourceId);
+        }
     }
 
     private Map<String, UploadedSegmentMetadata> readMetadataFile(String metadataFilename) throws IOException {
@@ -318,6 +384,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
         segmentsUploadedToRemoteStore.put(src, segmentMetadata);
     }
 
+    public void copyFromRemote(Directory from, String src, String dest, IOContext context) throws IOException {
+        super.copyFrom(from, src, dest, context);
+    }
+
     /**
      * Copies an existing src file from directory from to a non-existent file dest in this directory.
      * Once the segment is uploaded to remote segment store, update the cache accordingly.
@@ -394,6 +464,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
     // Visible for testing
     public Map<String, UploadedSegmentMetadata> getSegmentsUploadedToRemoteStore() {
         return Collections.unmodifiableMap(this.segmentsUploadedToRemoteStore);
+    }
+
+    public Map<String, UploadedSegmentMetadata> getSegmentsUploadedToRemoteStore(String mdFileName) throws IOException {
+        Map<String, UploadedSegmentMetadata> segmentsUploadedToRemoteStore = new ConcurrentHashMap<>(
+            readMetadataFile(mdFileName));
+        return Collections.unmodifiableMap(segmentsUploadedToRemoteStore);
     }
 
     /**

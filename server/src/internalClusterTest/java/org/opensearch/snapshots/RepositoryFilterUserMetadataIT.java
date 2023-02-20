@@ -47,10 +47,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.RepositoryPlugin;
-import org.opensearch.repositories.IndexId;
-import org.opensearch.repositories.Repository;
-import org.opensearch.repositories.RepositoryData;
-import org.opensearch.repositories.ShardGenerations;
+import org.opensearch.repositories.*;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -124,6 +121,7 @@ public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {
                     public void finalizeSnapshot(
                         ShardGenerations shardGenerations,
                         long repositoryStateId,
+                        RepositoriesService repositoriesService,
                         Metadata clusterMetadata,
                         SnapshotInfo snapshotInfo,
                         Version repositoryMetaVersion,
@@ -133,6 +131,7 @@ public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {
                         super.finalizeSnapshot(
                             shardGenerations,
                             repositoryStateId,
+                            repositoriesService,
                             clusterMetadata,
                             snapshotInfo,
                             repositoryMetaVersion,
@@ -144,6 +143,7 @@ public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {
                     @Override
                     public void snapshotShard(
                         Store store,
+                        Store remoteStore,
                         MapperService mapperService,
                         SnapshotId snapshotId,
                         IndexId indexId,
@@ -157,6 +157,7 @@ public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {
                         assertThat(userMetadata, is(Collections.singletonMap(MOCK_FILTERED_META, initialMetaValue)));
                         super.snapshotShard(
                             store,
+                            remoteStore,
                             mapperService,
                             snapshotId,
                             indexId,

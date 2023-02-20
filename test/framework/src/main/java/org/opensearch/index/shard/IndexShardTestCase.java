@@ -632,7 +632,9 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         ShardPath remoteShardPath = new ShardPath(false, remoteNodePath.resolve(shardId), remoteNodePath.resolve(shardId), shardId);
         RemoteDirectory dataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
         RemoteDirectory metadataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
-        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory);
+        RemoteDirectory remoteLockDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
+        RemoteDirectory lockAcquiringResourceDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, remoteLockDirectory, lockAcquiringResourceDirectory);
         return createStore(shardId, new IndexSettings(metadata, nodeSettings), remoteSegmentStoreDirectory);
     }
 
@@ -1226,6 +1228,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         try (GatedCloseable<IndexCommit> wrappedIndexCommit = shard.acquireLastIndexCommit(true)) {
             repository.snapshotShard(
                 shard.store(),
+                shard.remoteStore(),
                 shard.mapperService(),
                 snapshot.getSnapshotId(),
                 indexId,

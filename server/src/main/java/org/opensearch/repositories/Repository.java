@@ -46,6 +46,7 @@ import org.opensearch.common.component.LifecycleComponent;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
+import org.opensearch.index.snapshots.blobstore.BlobStoreRemStoreBasedIndexShardSnapshot;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.snapshots.SnapshotId;
@@ -145,6 +146,7 @@ public interface Repository extends LifecycleComponent {
     void finalizeSnapshot(
         ShardGenerations shardGenerations,
         long repositoryStateId,
+        RepositoriesService repositoriesService,
         Metadata clusterMetadata,
         SnapshotInfo snapshotInfo,
         Version repositoryMetaVersion,
@@ -164,6 +166,7 @@ public interface Repository extends LifecycleComponent {
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
         Version repositoryMetaVersion,
+        RepositoriesService repositoriesService,
         ActionListener<RepositoryData> listener
     );
 
@@ -225,6 +228,7 @@ public interface Repository extends LifecycleComponent {
      * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
      * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
      * @param store                 store to be snapshotted
+     * @param remoteStore           remote store for the shard
      * @param mapperService         the shards mapper service
      * @param snapshotId            snapshot id
      * @param indexId               id for the index being snapshotted
@@ -239,6 +243,7 @@ public interface Repository extends LifecycleComponent {
      */
     void snapshotShard(
         Store store,
+        Store remoteStore,
         MapperService mapperService,
         SnapshotId snapshotId,
         IndexId indexId,
@@ -268,6 +273,24 @@ public interface Repository extends LifecycleComponent {
         ShardId snapshotShardId,
         RecoveryState recoveryState,
         ActionListener<Void> listener
+    );
+
+    /**
+     * Returns Remote Store Md FileName stored in Snapshot Shard Metadata.
+     * <p>
+     * The index can be renamed on restore, hence different {@code shardId} and {@code snapshotShardId} are supplied.
+     * @param store           the store to restore the index into
+     * @param remoteStore     the remote store for the index
+     * @param snapshotId      snapshot id
+     * @param indexId         id of the index in the repository from which the restore is occurring
+     * @param snapshotShardId shard id (in the snapshot)
+     */
+    public BlobStoreRemStoreBasedIndexShardSnapshot getMetadataFileNameFromShardMetadata(
+        Store store,
+        Store remoteStore,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        ShardId snapshotShardId
     );
 
     /**

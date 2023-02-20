@@ -1421,6 +1421,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 meta -> repo.finalizeSnapshot(
                     shardGenerations,
                     repositoryData.getGenId(),
+                    repositoriesService,
                     metadataForSnapshot(entry, meta),
                     snapshotInfo,
                     entry.version(),
@@ -2168,11 +2169,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             assert currentlyFinalizing.contains(deleteEntry.repository());
             final List<SnapshotId> snapshotIds = deleteEntry.getSnapshots();
             assert deleteEntry.state() == SnapshotDeletionsInProgress.State.STARTED : "incorrect state for entry [" + deleteEntry + "]";
+
             repositoriesService.repository(deleteEntry.repository())
                 .deleteSnapshots(
                     snapshotIds,
                     repositoryData.getGenId(),
                     minCompatibleVersion(minNodeVersion, repositoryData, snapshotIds),
+                    repositoriesService,
                     ActionListener.wrap(updatedRepoData -> {
                         logger.info("snapshots {} deleted", snapshotIds);
                         removeSnapshotDeletionFromClusterState(deleteEntry, null, updatedRepoData);

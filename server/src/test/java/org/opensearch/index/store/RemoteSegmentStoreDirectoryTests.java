@@ -50,14 +50,17 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
     private RemoteDirectory remoteDataDirectory;
     private RemoteDirectory remoteMetadataDirectory;
 
+    private RemoteDirectory remoteLockDirectory;
+
     private RemoteSegmentStoreDirectory remoteSegmentStoreDirectory;
 
     @Before
     public void setup() throws IOException {
         remoteDataDirectory = mock(RemoteDirectory.class);
         remoteMetadataDirectory = mock(RemoteDirectory.class);
+        remoteLockDirectory = mock(RemoteDirectory.class);
 
-        remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(remoteDataDirectory, remoteMetadataDirectory);
+        remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(remoteDataDirectory, remoteMetadataDirectory, remoteLockDirectory);
     }
 
     public void testUploadedSegmentMetadataToString() {
