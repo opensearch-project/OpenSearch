@@ -35,6 +35,8 @@ package org.opensearch.repositories.s3;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.services.s3.AmazonS3Client;
+
+import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
@@ -42,6 +44,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Map;
 
@@ -53,7 +56,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class S3ClientSettingsTests extends OpenSearchTestCase {
     public void testThereIsADefaultClientByDefault() {
-        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(Settings.EMPTY);
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(Settings.EMPTY, configPath());
         assertThat(settings.keySet(), contains("default"));
 
         final S3ClientSettings defaultSettings = settings.get("default");
@@ -68,7 +71,8 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
 
     public void testDefaultClientSettingsCanBeSet() {
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
-            Settings.builder().put("s3.client.default.max_retries", 10).build()
+            Settings.builder().put("s3.client.default.max_retries", 10).build(),
+            configPath()
         );
         assertThat(settings.keySet(), contains("default"));
 
@@ -78,7 +82,8 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
 
     public void testNondefaultClientCreatedBySettingItsSettings() {
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
-            Settings.builder().put("s3.client.another_client.max_retries", 10).build()
+            Settings.builder().put("s3.client.another_client.max_retries", 10).build(),
+            configPath()
         );
         assertThat(settings.keySet(), contains("default", "another_client"));
 
@@ -94,7 +99,7 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
         secureSettings.setString("s3.client.default.access_key", "aws_key");
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build())
+            () -> S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build(), configPath())
         );
         assertThat(e.getMessage(), is("Missing secret key for s3 client [default]"));
     }
@@ -104,7 +109,7 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
         secureSettings.setString("s3.client.default.secret_key", "aws_key");
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build())
+            () -> S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build(), configPath())
         );
         assertThat(e.getMessage(), is("Missing access key for s3 client [default]"));
     }
@@ -114,18 +119,19 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
         secureSettings.setString("s3.client.default.session_token", "aws_key");
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build())
+            () -> S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build(), configPath())
         );
         assertThat(e.getMessage(), is("Missing access key and secret key for s3 client [default]"));
     }
 
     public void testIrsaCredentialsTypeWithIdentityTokenFile() {
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
-            Settings.builder().put("s3.client.default.identity_token_file", "file").build()
+            Settings.builder().put("s3.client.default.identity_token_file", "file").build(),
+            configPath()
         );
         final S3ClientSettings defaultSettings = settings.get("default");
         final S3ClientSettings.IrsaCredentials credentials = defaultSettings.irsaCredentials;
-        assertThat(credentials.getIdentityTokenFile(), is("file"));
+        assertThat(credentials.getIdentityTokenFile(), is("config/file"));
         assertThat(credentials.getRoleArn(), is(nullValue()));
         assertThat(credentials.getRoleSessionName(), startsWith("s3-sdk-java-"));
     }
@@ -133,7 +139,10 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
     public void testIrsaCredentialsTypeRoleArn() {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("s3.client.default.role_arn", "role");
-        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build());
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().setSecureSettings(secureSettings).build(),
+            configPath()
+        );
         final S3ClientSettings defaultSettings = settings.get("default");
         final S3ClientSettings.IrsaCredentials credentials = defaultSettings.irsaCredentials;
         assertThat(credentials.getRoleArn(), is("role"));
@@ -144,23 +153,42 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("s3.client.default.role_arn", "role");
         secureSettings.setString("s3.client.default.role_session_name", "session");
-        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build());
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().setSecureSettings(secureSettings).build(),
+            configPath()
+        );
         final S3ClientSettings defaultSettings = settings.get("default");
         final S3ClientSettings.IrsaCredentials credentials = defaultSettings.irsaCredentials;
         assertThat(credentials.getRoleArn(), is("role"));
         assertThat(credentials.getRoleSessionName(), is("session"));
     }
 
-    public void testIrsaCredentialsTypeWithRoleArnAndRoleSessionNameAndIdentityTokeFile() {
+    public void testIrsaCredentialsTypeWithRoleArnAndRoleSessionNameAndIdentityTokeFileRelative() {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("s3.client.default.role_arn", "role");
         secureSettings.setString("s3.client.default.role_session_name", "session");
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
-            Settings.builder().setSecureSettings(secureSettings).put("s3.client.default.identity_token_file", "file").build()
+            Settings.builder().setSecureSettings(secureSettings).put("s3.client.default.identity_token_file", "file").build(),
+            configPath()
         );
         final S3ClientSettings defaultSettings = settings.get("default");
         final S3ClientSettings.IrsaCredentials credentials = defaultSettings.irsaCredentials;
-        assertThat(credentials.getIdentityTokenFile(), is("file"));
+        assertThat(credentials.getIdentityTokenFile(), is("config/file"));
+        assertThat(credentials.getRoleArn(), is("role"));
+        assertThat(credentials.getRoleSessionName(), is("session"));
+    }
+
+    public void testIrsaCredentialsTypeWithRoleArnAndRoleSessionNameAndIdentityTokeFileAbsolute() {
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("s3.client.default.role_arn", "role");
+        secureSettings.setString("s3.client.default.role_session_name", "session");
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().setSecureSettings(secureSettings).put("s3.client.default.identity_token_file", "/file").build(),
+            configPath()
+        );
+        final S3ClientSettings defaultSettings = settings.get("default");
+        final S3ClientSettings.IrsaCredentials credentials = defaultSettings.irsaCredentials;
+        assertThat(credentials.getIdentityTokenFile(), is("/file"));
         assertThat(credentials.getRoleArn(), is("role"));
         assertThat(credentials.getRoleSessionName(), is("session"));
     }
@@ -169,7 +197,10 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("s3.client.default.access_key", "access_key");
         secureSettings.setString("s3.client.default.secret_key", "secret_key");
-        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build());
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().setSecureSettings(secureSettings).build(),
+            configPath()
+        );
         final S3ClientSettings defaultSettings = settings.get("default");
         S3BasicCredentials credentials = defaultSettings.credentials;
         assertThat(credentials.getAWSAccessKeyId(), is("access_key"));
@@ -181,7 +212,10 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
         secureSettings.setString("s3.client.default.access_key", "access_key");
         secureSettings.setString("s3.client.default.secret_key", "secret_key");
         secureSettings.setString("s3.client.default.session_token", "session_token");
-        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build());
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().setSecureSettings(secureSettings).build(),
+            configPath()
+        );
         final S3ClientSettings defaultSettings = settings.get("default");
         S3BasicSessionCredentials credentials = (S3BasicSessionCredentials) defaultSettings.credentials;
         assertThat(credentials.getAWSAccessKeyId(), is("access_key"));
@@ -194,8 +228,10 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
         secureSettings.setString("s3.client.default.access_key", "access_key");
         secureSettings.setString("s3.client.default.secret_key", "secret_key");
         secureSettings.setString("s3.client.default.session_token", "session_token");
-        final S3ClientSettings baseSettings = S3ClientSettings.load(Settings.builder().setSecureSettings(secureSettings).build())
-            .get("default");
+        final S3ClientSettings baseSettings = S3ClientSettings.load(
+            Settings.builder().setSecureSettings(secureSettings).build(),
+            configPath()
+        ).get("default");
 
         {
             final S3ClientSettings refinedSettings = baseSettings.refine(Settings.EMPTY);
@@ -224,7 +260,8 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
 
     public void testPathStyleAccessCanBeSet() {
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
-            Settings.builder().put("s3.client.other.path_style_access", true).build()
+            Settings.builder().put("s3.client.other.path_style_access", true).build(),
+            configPath()
         );
         assertThat(settings.get("default").pathStyleAccess, is(false));
         assertThat(settings.get("other").pathStyleAccess, is(true));
@@ -232,7 +269,8 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
 
     public void testUseChunkedEncodingCanBeSet() {
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
-            Settings.builder().put("s3.client.other.disable_chunked_encoding", true).build()
+            Settings.builder().put("s3.client.other.disable_chunked_encoding", true).build(),
+            configPath()
         );
         assertThat(settings.get("default").disableChunkedEncoding, is(false));
         assertThat(settings.get("other").disableChunkedEncoding, is(true));
@@ -241,11 +279,12 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
     public void testRegionCanBeSet() {
         final String region = randomAlphaOfLength(5);
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
-            Settings.builder().put("s3.client.other.region", region).build()
+            Settings.builder().put("s3.client.other.region", region).build(),
+            configPath()
         );
         assertThat(settings.get("default").region, is(""));
         assertThat(settings.get("other").region, is(region));
-        try (S3Service s3Service = new S3Service()) {
+        try (S3Service s3Service = new S3Service(configPath())) {
             AmazonS3Client other = (AmazonS3Client) s3Service.buildClient(settings.get("other")).client();
             assertThat(other.getSignerRegionOverride(), is(region));
         }
@@ -254,7 +293,8 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
     public void testSignerOverrideCanBeSet() {
         final String signerOverride = randomAlphaOfLength(5);
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
-            Settings.builder().put("s3.client.other.signer_override", signerOverride).build()
+            Settings.builder().put("s3.client.other.signer_override", signerOverride).build(),
+            configPath()
         );
         assertThat(settings.get("default").region, is(""));
         assertThat(settings.get("other").signerOverride, is(signerOverride));
@@ -281,7 +321,7 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
             .setSecureSettings(secureSettings)
             .build();
 
-        final S3ClientSettings s3ClientSettings = S3ClientSettings.load(settings).get("default");
+        final S3ClientSettings s3ClientSettings = S3ClientSettings.load(settings, configPath()).get("default");
 
         assertEquals(ProxySettings.ProxyType.valueOf(proxyType.toUpperCase(Locale.ROOT)), s3ClientSettings.proxySettings.getType());
         assertEquals(new InetSocketAddress(InetAddress.getByName("127.0.0.10"), port), s3ClientSettings.proxySettings.getAddress());
@@ -295,7 +335,7 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
             .put("s3.client.default.proxy.host", "thisisnotavalidhostorwehavebeensuperunlucky")
             .put("s3.client.default.proxy.port", 8080)
             .build();
-        final SettingsException e = expectThrows(SettingsException.class, () -> S3ClientSettings.load(settings));
+        final SettingsException e = expectThrows(SettingsException.class, () -> S3ClientSettings.load(settings, configPath()));
         assertEquals("S3 proxy host is unknown.", e.getMessage());
     }
 
@@ -305,7 +345,7 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
             .put("s3.client.default.proxy.port", 8080)
             .build();
 
-        SettingsException e = expectThrows(SettingsException.class, () -> S3ClientSettings.load(hostPortSettings));
+        SettingsException e = expectThrows(SettingsException.class, () -> S3ClientSettings.load(hostPortSettings, configPath()));
         assertEquals("S3 proxy port or host or username or password have been set but proxy type is not defined.", e.getMessage());
 
         final MockSecureSettings secureSettings = new MockSecureSettings();
@@ -313,7 +353,7 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
         secureSettings.setString("s3.client.default.proxy.password", "bbbb");
         final Settings usernamePasswordSettings = Settings.builder().setSecureSettings(secureSettings).build();
 
-        e = expectThrows(SettingsException.class, () -> S3ClientSettings.load(usernamePasswordSettings));
+        e = expectThrows(SettingsException.class, () -> S3ClientSettings.load(usernamePasswordSettings, configPath()));
         assertEquals("S3 proxy port or host or username or password have been set but proxy type is not defined.", e.getMessage());
     }
 
@@ -322,7 +362,7 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
             .put("s3.client.default.proxy.port", 8080)
             .put("s3.client.default.proxy.type", randomFrom("socks", "http", "https"))
             .build();
-        final SettingsException e = expectThrows(SettingsException.class, () -> S3ClientSettings.load(settings));
+        final SettingsException e = expectThrows(SettingsException.class, () -> S3ClientSettings.load(settings, configPath()));
         assertEquals("S3 proxy type has been set but proxy host or port is not defined.", e.getMessage());
     }
 
@@ -333,7 +373,10 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
             .put("s3.client.default.protocol", "http")
             .put("s3.client.default.proxy.type", "socks")
             .build();
-        expectThrows(SettingsException.class, () -> S3ClientSettings.load(settings));
+        expectThrows(SettingsException.class, () -> S3ClientSettings.load(settings, configPath()));
     }
 
+    private Path configPath() {
+        return PathUtils.get("config");
+    }
 }

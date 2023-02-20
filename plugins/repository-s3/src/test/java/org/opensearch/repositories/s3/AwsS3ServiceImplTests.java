@@ -39,12 +39,14 @@ import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.http.IdleConnectionReaper;
 
 import org.junit.AfterClass;
+import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -64,7 +66,7 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase {
 
     public void testAWSCredentialsDefaultToInstanceProviders() {
         final String inexistentClientName = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
-        final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(Settings.EMPTY, inexistentClientName);
+        final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(Settings.EMPTY, inexistentClientName, configPath());
         final AWSCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, clientSettings);
         assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedInstanceProfileCredentialsProvider.class));
     }
@@ -79,7 +81,7 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase {
             secureSettings.setString("s3.client." + clientName + ".secret_key", clientName + "_aws_secret_key");
         }
         final Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
-        final Map<String, S3ClientSettings> allClientsSettings = S3ClientSettings.load(settings);
+        final Map<String, S3ClientSettings> allClientsSettings = S3ClientSettings.load(settings, configPath());
         // no less, no more
         assertThat(allClientsSettings.size(), is(clientsCount + 1)); // including default
         for (int i = 0; i < clientsCount; i++) {
@@ -114,7 +116,7 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase {
             plainSettings.put("s3.client." + clientName + ".identity_token_file", clientName + "_identity_token_file");
         }
         final Settings settings = Settings.builder().loadFromMap(plainSettings).setSecureSettings(secureSettings).build();
-        final Map<String, S3ClientSettings> allClientsSettings = S3ClientSettings.load(settings);
+        final Map<String, S3ClientSettings> allClientsSettings = S3ClientSettings.load(settings, configPath());
         // no less, no more
         assertThat(allClientsSettings.size(), is(clientsCount + 1)); // including default
         for (int i = 0; i < clientsCount; i++) {
@@ -148,7 +150,7 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase {
             plainSettings.put("s3.client." + clientName + ".region", "us-east1");
         }
         final Settings settings = Settings.builder().loadFromMap(plainSettings).setSecureSettings(secureSettings).build();
-        final Map<String, S3ClientSettings> allClientsSettings = S3ClientSettings.load(settings);
+        final Map<String, S3ClientSettings> allClientsSettings = S3ClientSettings.load(settings, configPath());
         // no less, no more
         assertThat(allClientsSettings.size(), is(clientsCount + 1)); // including default
         for (int i = 0; i < clientsCount; i++) {
@@ -175,7 +177,7 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase {
             secureSettings.setString("s3.client." + clientName + ".role_session_name", clientName + "_role_session_name");
         }
         final Settings settings = Settings.builder().loadFromMap(plainSettings).setSecureSettings(secureSettings).build();
-        final Map<String, S3ClientSettings> allClientsSettings = S3ClientSettings.load(settings);
+        final Map<String, S3ClientSettings> allClientsSettings = S3ClientSettings.load(settings, configPath());
         // no less, no more
         assertThat(allClientsSettings.size(), is(clientsCount + 1)); // including default
         for (int i = 0; i < clientsCount; i++) {
@@ -198,7 +200,7 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase {
         secureSettings.setString("s3.client.default.access_key", awsAccessKey);
         secureSettings.setString("s3.client.default.secret_key", awsSecretKey);
         final Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
-        final Map<String, S3ClientSettings> allClientsSettings = S3ClientSettings.load(settings);
+        final Map<String, S3ClientSettings> allClientsSettings = S3ClientSettings.load(settings, configPath());
         assertThat(allClientsSettings.size(), is(1));
         // test default exists and is an Instance provider
         final S3ClientSettings defaultClientSettings = allClientsSettings.get("default");
@@ -218,7 +220,7 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase {
             secureSettings.setString("s3.client." + clientName + ".secret_key", "aws_secret_key");
         }
         final Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
-        final Exception e = expectThrows(IllegalArgumentException.class, () -> S3ClientSettings.load(settings));
+        final Exception e = expectThrows(IllegalArgumentException.class, () -> S3ClientSettings.load(settings, configPath()));
         if (missingOrMissing) {
             assertThat(e.getMessage(), containsString("Missing secret key for s3 client [" + clientName + "]"));
         } else {
@@ -308,7 +310,7 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase {
             .put("s3.client.default.read_timeout", "10s")
             .build();
 
-        final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, "default");
+        final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, "default", configPath());
         final ClientConfiguration configuration = S3Service.buildConfiguration(clientSettings);
 
         assertEquals(Protocol.HTTPS, configuration.getProtocol());
@@ -342,7 +344,7 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase {
         int expectedReadTimeout
     ) {
 
-        final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, "default");
+        final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, "default", configPath());
         final ClientConfiguration configuration = S3Service.buildConfiguration(clientSettings);
 
         assertThat(configuration.getResponseMetadataCacheSize(), is(0));
@@ -363,8 +365,11 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase {
 
     private void assertEndpoint(Settings repositorySettings, Settings settings, String expectedEndpoint) {
         final String configName = S3Repository.CLIENT_NAME.get(repositorySettings);
-        final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, configName);
+        final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, configName, configPath());
         assertThat(clientSettings.endpoint, is(expectedEndpoint));
     }
 
+    private Path configPath() {
+        return PathUtils.get("config");
+    }
 }

@@ -41,6 +41,7 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.lucene.store.InputStreamIndexInput;
@@ -63,6 +64,7 @@ import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -87,7 +89,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     @Before
     public void setUp() throws Exception {
-        service = new S3Service();
+        service = new S3Service(configPath());
         super.setUp();
     }
 
@@ -140,7 +142,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         secureSettings.setString(S3ClientSettings.ACCESS_KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "access");
         secureSettings.setString(S3ClientSettings.SECRET_KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "secret");
         clientSettings.setSecureSettings(secureSettings);
-        service.refreshAndClearCache(S3ClientSettings.load(clientSettings.build()));
+        service.refreshAndClearCache(S3ClientSettings.load(clientSettings.build(), configPath()));
 
         final RepositoryMetadata repositoryMetadata = new RepositoryMetadata(
             "repository",
@@ -400,5 +402,9 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 assertThat(((ByteArrayInputStream) in).available(), equalTo(0));
             }
         }
+    }
+
+    private Path configPath() {
+        return PathUtils.get("config");
     }
 }

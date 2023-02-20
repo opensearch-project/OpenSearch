@@ -34,6 +34,7 @@ package org.opensearch.repositories.s3;
 
 import com.amazonaws.services.s3.AbstractAmazonS3;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
@@ -45,6 +46,7 @@ import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
+import java.nio.file.Path;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -63,6 +65,10 @@ public class S3RepositoryTests extends OpenSearchTestCase {
     }
 
     private static class DummyS3Service extends S3Service {
+        DummyS3Service(final Path configPath) {
+            super(configPath);
+        }
+
         @Override
         public AmazonS3Reference client(RepositoryMetadata repositoryMetadata) {
             return new AmazonS3Reference(new DummyS3Client());
@@ -139,7 +145,7 @@ public class S3RepositoryTests extends OpenSearchTestCase {
         return new S3Repository(
             metadata,
             NamedXContentRegistry.EMPTY,
-            new DummyS3Service(),
+            new DummyS3Service(configPath()),
             BlobStoreTestUtil.mockClusterService(),
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
         ) {
@@ -148,5 +154,9 @@ public class S3RepositoryTests extends OpenSearchTestCase {
                 // eliminate thread name check as we create repo manually on test/main threads
             }
         };
+    }
+
+    private Path configPath() {
+        return PathUtils.get("config");
     }
 }
