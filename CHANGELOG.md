@@ -37,6 +37,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bumps `com.azure:azure-storage-common` from 12.18.1 to 12.19.3 ([#6304](https://github.com/opensearch-project/OpenSearch/pull/6304))
 - Bumps `reactor-netty-http` from 1.0.24 to 1.1.2 ([#6309](https://github.com/opensearch-project/OpenSearch/pull/6309))
 - Bumps `io.projectreactor.netty:reactor-netty` from 1.1.2 to 1.1.3 ([#6386](https://github.com/opensearch-project/OpenSearch/pull/6386))
+- Bumps `com.diffplug.spotless` from 6.10.0 to 6.15.0 ([#6385](https://github.com/opensearch-project/OpenSearch/pull/6385))
 
 ### Changed
 - Use ReplicationFailedException instead of OpensearchException in ReplicationTarget ([#4725](https://github.com/opensearch-project/OpenSearch/pull/4725))
