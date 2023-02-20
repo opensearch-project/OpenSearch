@@ -21,9 +21,7 @@ import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.index.IndexModule;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
@@ -33,6 +31,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 /**
@@ -43,34 +42,26 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
     private final TimeValue ACCEPTABLE_RELOCATION_TIME = new TimeValue(5, TimeUnit.MINUTES);
 
     private void createIndex(int replicaCount) {
-        prepareCreate(
-            INDEX_NAME,
-            Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
-                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-                .put("index.number_of_replicas", replicaCount)
-                .put("index.refresh_interval", -1)
-        ).get();
+        prepareCreate(INDEX_NAME, Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, replicaCount)).get();
     }
 
     /**
      * This test verifies happy path when primary shard is relocated newly added node (target) in the cluster. Before
      * relocation and after relocation documents are indexed and documents are verified
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testPrimaryRelocation() throws Exception {
         final String oldPrimary = internalCluster().startNode();
         createIndex(1);
         final String replica = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
         final int initialDocCount = scaledRandomIntBetween(100, 1000);
+        final WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
         final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
         for (int i = 0; i < initialDocCount; i++) {
             pendingIndexResponses.add(
                 client().prepareIndex(INDEX_NAME)
                     .setId(Integer.toString(i))
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
+                    .setRefreshPolicy(refreshPolicy)
                     .setSource("field", "value" + i)
                     .execute()
             );
@@ -115,7 +106,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
             pendingIndexResponses.add(
                 client().prepareIndex(INDEX_NAME)
                     .setId(Integer.toString(i))
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
+                    .setRefreshPolicy(refreshPolicy)
                     .setSource("field", "value" + i)
                     .execute()
             );
@@ -135,19 +126,19 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
      * failure, more documents are ingested and verified on replica; which confirms older primary still refreshing the
      * replicas.
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testPrimaryRelocationWithSegRepFailure() throws Exception {
         final String oldPrimary = internalCluster().startNode();
         createIndex(1);
         final String replica = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
         final int initialDocCount = scaledRandomIntBetween(100, 1000);
+        final WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
         final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
         for (int i = 0; i < initialDocCount; i++) {
             pendingIndexResponses.add(
                 client().prepareIndex(INDEX_NAME)
                     .setId(Integer.toString(i))
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
+                    .setRefreshPolicy(refreshPolicy)
                     .setSource("field", "value" + i)
                     .execute()
             );
@@ -200,7 +191,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
             pendingIndexResponses.add(
                 client().prepareIndex(INDEX_NAME)
                     .setId(Integer.toString(i))
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
+                    .setRefreshPolicy(refreshPolicy)
                     .setSource("field", "value" + i)
                     .execute()
             );
@@ -220,7 +211,6 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
      * This test verifies primary recovery behavior with continuous ingestion
      *
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testRelocateWhileContinuouslyIndexingAndWaitingForRefresh() throws Exception {
         final String primary = internalCluster().startNode();
         createIndex(1);
@@ -297,7 +287,6 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
      * operations during handoff. The test verifies all docs ingested are searchable on new primary.
      *
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testRelocateWithQueuedOperationsDuringHandoff() throws Exception {
         final String primary = internalCluster().startNode();
         createIndex(1);
@@ -310,6 +299,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         }
         logger.info("--> flush to have segments on disk");
         client().admin().indices().prepareFlush().execute().actionGet();
+        final WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
 
         logger.info("--> index more docs so there are ops in the transaction log");
         final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
@@ -317,7 +307,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
             pendingIndexResponses.add(
                 client().prepareIndex(INDEX_NAME)
                     .setId(Integer.toString(i))
-                    .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
+                    .setRefreshPolicy(refreshPolicy)
                     .setSource("field", "value" + i)
                     .execute()
             );
@@ -396,7 +386,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         assertBusy(() -> {
             client().admin().indices().prepareRefresh().execute().actionGet();
             assertTrue(pendingIndexResponses.stream().allMatch(ActionFuture::isDone));
-        }, 1, TimeUnit.MINUTES);
+        }, 2, TimeUnit.MINUTES);
         flushAndRefresh(INDEX_NAME);
         waitForSearchableDocs(totalDocCount, replica, newPrimary);
         verifyStoreContent();
@@ -406,13 +396,10 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
      * This test verifies that adding a new node which results in peer recovery as replica; also bring replica's
      * replication checkpoint upto the primary's by performing a round of segment replication.
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testNewlyAddedReplicaIsUpdated() throws Exception {
         final String primary = internalCluster().startNode();
-        prepareCreate(
-            INDEX_NAME,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-        ).get();
+        prepareCreate(INDEX_NAME, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
+            .get();
         for (int i = 0; i < 10; i++) {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
@@ -430,10 +417,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         ensureGreen(INDEX_NAME);
         // Update replica count settings to 1 so that peer recovery triggers and recover replica
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(INDEX_NAME)
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+            client().admin().indices().prepareUpdateSettings(INDEX_NAME).setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1))
         );
 
         ClusterHealthResponse clusterHealthResponse = client().admin()
@@ -454,10 +438,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
 
     /**
      * This test verifies that replica shard is not added to the cluster when doing a round of segment replication fails during peer recovery.
-     *
-     * TODO: Ignoring this test as its flaky and needs separate fix
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/5669")
     public void testAddNewReplicaFailure() throws Exception {
         logger.info("--> starting [Primary Node] ...");
         final String primaryNode = internalCluster().startNode();
@@ -465,7 +446,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         logger.info("--> creating test index ...");
         prepareCreate(
             INDEX_NAME,
-            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0)
 
         ).get();
 
@@ -505,10 +486,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         ensureGreen(INDEX_NAME);
         // Add Replica shard to the new empty replica node
         assertAcked(
-            client().admin()
-                .indices()
-                .prepareUpdateSettings(INDEX_NAME)
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+            client().admin().indices().prepareUpdateSettings(INDEX_NAME).setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1))
         );
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, replica);
         waitForRecovery.await();
