@@ -16,6 +16,8 @@ import java.io.IOException;
 /**
  * Interface for reading/writing content streams to/from - {@link T}
  * @param <T> The type of content to be read/written to stream
+ *
+ * @opensearch.internal
  */
 public interface StreamReadWriteHandler<T> {
     /**

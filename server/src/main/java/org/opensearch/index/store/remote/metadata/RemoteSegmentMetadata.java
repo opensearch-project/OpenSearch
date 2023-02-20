@@ -16,6 +16,8 @@ import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 
 /**
  * Metadata object for Remote Segment
+ *
+ * @opensearch.internal
  */
 public class RemoteSegmentMetadata {
     /**

@@ -19,20 +19,22 @@ import org.apache.lucene.store.IndexOutput;
 /**
  * Manages versioning and checksum for a stream of content.
  * @param <T> Type of content to be read/written
+ *
+ * @opensearch.internal
  */
 public class VersionedCodecStreamWrapper<T> {
-    // This can be updated to hold a parserFactory and get relevant parsers based on the stream versions
-    private final StreamReadWriteHandler<T> parser;
+    // TODO This can be updated to hold a streamReadWriteHandlerFactory and get relevant handler based on the stream versions
+    private final StreamReadWriteHandler<T> streamReadWriteHandler;
     private final int currentVersion;
     private final String codec;
 
     /**
-     * @param parser parser to read/write stream from T
+     * @param streamReadWriteHandler handler to read/write stream from T
      * @param currentVersion latest supported version of the stream
      * @param codec: stream codec
      */
-    public VersionedCodecStreamWrapper(StreamReadWriteHandler<T> parser, int currentVersion, String codec) {
-        this.parser = parser;
+    public VersionedCodecStreamWrapper(StreamReadWriteHandler<T> streamReadWriteHandler, int currentVersion, String codec) {
+        this.streamReadWriteHandler = streamReadWriteHandler;
         this.currentVersion = currentVersion;
         this.codec = codec;
     }
@@ -47,7 +49,7 @@ public class VersionedCodecStreamWrapper<T> {
     public T readStream(IndexInput indexInput) throws IOException {
         ChecksumIndexInput checksumIndexInput = new BufferedChecksumIndexInput(indexInput);
         int readStreamVersion = checkHeader(checksumIndexInput);
-        T content = getParserForVersion(readStreamVersion).readContent(checksumIndexInput);
+        T content = getHandlerForVersion(readStreamVersion).readContent(checksumIndexInput);
         checkFooter(checksumIndexInput);
         return content;
     }
@@ -59,7 +61,7 @@ public class VersionedCodecStreamWrapper<T> {
      */
     public void writeStream(IndexOutput indexOutput, T content) throws IOException {
         this.writeHeader(indexOutput);
-        getParserForVersion(this.currentVersion).writeContent(indexOutput, content);
+        getHandlerForVersion(this.currentVersion).writeContent(indexOutput, content);
         this.writeFooter(indexOutput);
     }
 
@@ -69,6 +71,7 @@ public class VersionedCodecStreamWrapper<T> {
      * @return header version found in the input stream
      */
     private int checkHeader(IndexInput indexInput) throws IOException {
+        // TODO Once versioning strategy is decided we'll add support for min/max supported versions
         return CodecUtil.checkHeader(indexInput, this.codec, this.currentVersion, this.currentVersion);
     }
 
@@ -98,11 +101,12 @@ public class VersionedCodecStreamWrapper<T> {
     }
 
     /**
-     * Returns relevant parser for the version
+     * Returns relevant handler for the version
      * @param version stream content version
      */
-    private StreamReadWriteHandler<T> getParserForVersion(int version) {
-        // TODO implement parser factory and pick relevant parser based on version
-        return this.parser;
+    private StreamReadWriteHandler<T> getHandlerForVersion(int version) {
+        // TODO implement factory and pick relevant handler based on version.
+        // It should also take into account min and max supported versions
+        return this.streamReadWriteHandler;
     }
 }

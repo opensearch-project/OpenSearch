@@ -15,7 +15,9 @@ import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.io.StreamReadWriteHandler;
 
 /**
- * Parser for {@link RemoteSegmentMetadata}
+ * Handler for {@link RemoteSegmentMetadata}
+ *
+ * @opensearch.internal
  */
 public class RemoteSegmentMetadataHandler implements StreamReadWriteHandler<RemoteSegmentMetadata> {
     /**
