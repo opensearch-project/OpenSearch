@@ -146,6 +146,7 @@ public class PublishCheckpointAction extends TransportReplicationAction<
                                 timer.time()
                             )
                         );
+                        task.setPhase("finished");
                         taskManager.unregister(task);
                     }
 
