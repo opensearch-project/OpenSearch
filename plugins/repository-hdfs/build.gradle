@@ -62,13 +62,14 @@ dependencies {
   runtimeOnly "org.apache.hadoop:hadoop-client-runtime:${versions.hadoop3}"
   api("org.apache.hadoop:hadoop-hdfs:${versions.hadoop3}") {
     exclude module: 'jetty-server'
+    exclude group: 'org.codehaus.jackson'
   }
   api 'org.apache.htrace:htrace-core4:4.2.0-incubating'
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   api 'org.apache.avro:avro:1.11.1'
   api 'com.google.code.gson:gson:2.10.1'
-  runtimeOnly 'com.google.guava:guava:31.1-jre'
-  api 'com.google.protobuf:protobuf-java:3.21.12'
+  runtimeOnly "com.google.guava:guava:${versions.guava}"
+  api 'com.google.protobuf:protobuf-java:3.22.0'
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api 'commons-cli:commons-cli:1.5.0'
   api "commons-codec:commons-codec:${versions.commonscodec}"

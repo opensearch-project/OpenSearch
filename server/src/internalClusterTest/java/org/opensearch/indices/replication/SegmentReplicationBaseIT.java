@@ -114,9 +114,14 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
      */
     protected void waitForSearchableDocs(long docCount, List<String> nodes) throws Exception {
         // wait until the replica has the latest segment generation.
+        waitForSearchableDocs(INDEX_NAME, docCount, nodes);
+    }
+
+    public static void waitForSearchableDocs(String indexName, long docCount, List<String> nodes) throws Exception {
+        // wait until the replica has the latest segment generation.
         assertBusy(() -> {
             for (String node : nodes) {
-                final SearchResponse response = client(node).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get();
+                final SearchResponse response = client(node).prepareSearch(indexName).setSize(0).setPreference("_only_local").get();
                 final long hits = response.getHits().getTotalHits().value;
                 if (hits < docCount) {
                     fail("Expected search hits on node: " + node + " to be at least " + docCount + " but was: " + hits);

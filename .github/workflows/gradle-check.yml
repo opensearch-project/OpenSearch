@@ -41,7 +41,7 @@ jobs:
             repo_url="https://github.com/opensearch-project/OpenSearch"
             ref_id=$(git rev-parse HEAD)
             branch_name=$(git rev-parse --abbrev-ref HEAD)
-            echo "$branch_name=$branch_name" >> $GITHUB_ENV
+            echo "branch_name=$branch_name" >> $GITHUB_ENV
             echo "pr_from_sha=$ref_id" >> $GITHUB_ENV
             echo "pr_from_clone_url=$repo_url" >> $GITHUB_ENV
             echo "pr_to_clone_url=$repo_url" >> $GITHUB_ENV

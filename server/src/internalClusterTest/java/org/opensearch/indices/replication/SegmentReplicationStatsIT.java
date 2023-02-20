@@ -18,7 +18,6 @@ import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 
 import java.util.concurrent.CountDownLatch;
-
 import static java.util.Arrays.asList;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -115,9 +114,9 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
             .setActiveOnly(true)
             .execute()
             .actionGet();
-        assertThat(
+        assertEquals(
             activeOnlyResponse.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getStage(),
-            equalTo(SegmentReplicationState.Stage.GET_FILES)
+            SegmentReplicationState.Stage.GET_FILES
         );
 
         // verifying completed_only by checking if current stage is DONE
@@ -127,10 +126,10 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
             .setCompletedOnly(true)
             .execute()
             .actionGet();
-        assertThat(completedOnlyResponse.shardSegmentReplicationStates().size(), equalTo(SHARD_COUNT));
-        assertThat(
+        assertEquals(completedOnlyResponse.shardSegmentReplicationStates().size(), SHARD_COUNT);
+        assertEquals(
             completedOnlyResponse.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getStage(),
-            equalTo(SegmentReplicationState.Stage.DONE)
+            SegmentReplicationState.Stage.DONE
         );
         assertThat(
             completedOnlyResponse.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getIndex().recoveredFileCount(),

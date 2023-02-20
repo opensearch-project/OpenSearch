@@ -42,7 +42,7 @@ public class TranslogTransferMetadata {
 
     private final SetOnce<Map<String, String>> generationToPrimaryTermMapper = new SetOnce<>();
 
-    private static final String METADATA_SEPARATOR = "__";
+    public static final String METADATA_SEPARATOR = "__";
 
     private static final int BUFFER_SIZE = 4096;
 
@@ -92,7 +92,7 @@ public class TranslogTransferMetadata {
         return generationToPrimaryTermMapper.get();
     }
 
-    public String getFileName() {
+    public static String getFileName(long primaryTerm, long generation) {
         return String.join(METADATA_SEPARATOR, Arrays.asList(String.valueOf(primaryTerm), String.valueOf(generation)));
     }
 
@@ -101,7 +101,7 @@ public class TranslogTransferMetadata {
             try (
                 OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
                     "translog transfer metadata " + primaryTerm,
-                    getFileName(),
+                    getFileName(primaryTerm, generation),
                     output,
                     BUFFER_SIZE
                 )

@@ -502,21 +502,23 @@ public class ExtensionsManager {
                                     new IndicesModuleRequest(indexModule),
                                     acknowledgedResponseHandler
                                 );
-                                inProgressIndexNameFuture.whenComplete((r, e) -> {
-                                    if (e != null) {
-                                        inProgressFuture.complete(response);
-                                    } else if (e == null) {
-                                        inProgressFuture.completeExceptionally(e);
-                                    }
-                                });
-                            } catch (Exception ex) {
-                                inProgressFuture.completeExceptionally(ex);
+                                inProgressIndexNameFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
+                            } catch (CompletionException e) {
+                                if (e.getCause() instanceof TimeoutException) {
+                                    logger.info("No response from extension to request.");
+                                }
+                                if (e.getCause() instanceof RuntimeException) {
+                                    throw (RuntimeException) e.getCause();
+                                } else if (e.getCause() instanceof Error) {
+                                    throw (Error) e.getCause();
+                                } else {
+                                    throw new RuntimeException(e.getCause());
+                                }
                             }
                         }
                     });
-                } else {
-                    inProgressFuture.complete(response);
                 }
+                inProgressFuture.complete(response);
             }
 
             @Override
