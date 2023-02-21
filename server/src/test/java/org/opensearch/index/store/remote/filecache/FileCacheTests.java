@@ -9,10 +9,8 @@
 package org.opensearch.index.store.remote.filecache;
 
 import org.apache.lucene.store.IndexInput;
-import org.junit.After;
 import org.junit.Before;
 import org.opensearch.index.store.remote.utils.cache.CacheUsage;
-import org.opensearch.index.store.remote.PathTestUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -34,12 +32,7 @@ public class FileCacheTests extends OpenSearchTestCase {
 
     @Before
     public void init() throws Exception {
-        path = PathTestUtils.createTestPath("FileCacheTests");
-    }
-
-    @After
-    public void clean() {
-        PathTestUtils.cleanOrFail(path);
+        path = createTempDir("FileCacheTests");
     }
 
     private FileCache createFileCache(long capaticy) {
