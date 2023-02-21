@@ -23,7 +23,7 @@
     },
     "params":{
       "_version": {
-        "type":"String",
+        "type":"string",
         "description":"Implements optimistic concurrency control (OCC) through versioning. The parameter uses simple versioning, such as `1`, and increments upward based on each subsequent modification."
       }
     }
