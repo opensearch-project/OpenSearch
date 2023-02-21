@@ -399,7 +399,7 @@ public class WriteableSetting implements Writeable {
                     return new MemorySizeValueParser(in);
                 }
             default:
-                throw new IllegalArgumentException("A SettingType has been added to the enum and not handled here."); 
+                throw new IllegalArgumentException("A SettingType has been added to the enum and not handled here.");
         }
     }
 

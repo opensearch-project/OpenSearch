@@ -1264,6 +1264,11 @@ public class Setting<T> implements ToXContentObject {
             this.pattern = Pattern.compile(in.readString());
         }
 
+        // For testing
+        Pattern getPattern() {
+            return pattern;
+        }
+
         @Override
         public void validate(String value) {
             if (pattern.matcher(value).matches()) {
