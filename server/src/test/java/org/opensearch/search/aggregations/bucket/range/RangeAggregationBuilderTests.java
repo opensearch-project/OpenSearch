@@ -33,7 +33,7 @@
 package org.opensearch.search.aggregations.bucket.range;
 
 import org.opensearch.common.io.stream.Writeable.Reader;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.test.AbstractSerializingTestCase;
 

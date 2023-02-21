@@ -46,7 +46,7 @@ import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.FieldMemoryStats;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;

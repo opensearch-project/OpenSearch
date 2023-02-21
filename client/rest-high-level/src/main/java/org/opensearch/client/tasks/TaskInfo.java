@@ -31,9 +31,9 @@
 
 package org.opensearch.client.tasks;
 
-import org.opensearch.common.ParseField;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.util.HashMap;
 import java.util.Map;

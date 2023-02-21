@@ -34,11 +34,11 @@ package org.opensearch.script;
 
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.xcontent.DeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.script.ScriptContextInfo.ScriptMethodInfo;
 import org.opensearch.script.ScriptContextInfo.ScriptMethodInfo.ParameterInfo;

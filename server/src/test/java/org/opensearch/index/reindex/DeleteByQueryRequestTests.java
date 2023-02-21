@@ -35,7 +35,7 @@ package org.opensearch.index.reindex;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryBuilders;
 
 import java.io.IOException;

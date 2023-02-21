@@ -44,7 +44,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.http.AbstractHttpServerTransport;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpServerChannel;

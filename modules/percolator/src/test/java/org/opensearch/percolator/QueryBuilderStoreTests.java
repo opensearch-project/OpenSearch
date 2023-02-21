@@ -47,7 +47,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.opensearch.index.mapper.BinaryFieldMapper;
 import org.opensearch.index.mapper.ContentPath;

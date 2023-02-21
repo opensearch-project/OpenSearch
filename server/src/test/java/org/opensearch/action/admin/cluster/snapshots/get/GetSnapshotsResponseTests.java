@@ -34,7 +34,7 @@ package org.opensearch.action.admin.cluster.snapshots.get;
 
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;

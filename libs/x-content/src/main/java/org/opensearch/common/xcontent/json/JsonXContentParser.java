@@ -35,11 +35,11 @@ package org.opensearch.common.xcontent.json;
 import com.fasterxml.jackson.core.JsonLocation;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
-import org.opensearch.common.xcontent.DeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentLocation;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.xcontent.support.AbstractXContentParser;
+import org.opensearch.core.xcontent.AbstractXContentParser;
 import org.opensearch.core.internal.io.IOUtils;
 
 import java.io.IOException;

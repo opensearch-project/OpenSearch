@@ -24,7 +24,7 @@ import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.search.backpressure.stats.SearchShardTaskStats;
 import org.opensearch.search.backpressure.stats.SearchTaskStats;
 import org.opensearch.search.backpressure.trackers.NodeDuressTracker;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.backpressure.stats.SearchBackpressureStats;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTracker;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackerType;

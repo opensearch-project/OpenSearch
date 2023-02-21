@@ -106,6 +106,8 @@ public class ThirdPartyAuditTask extends DefaultTask {
 
     private final Property<JavaVersion> targetCompatibility = getProject().getObjects().property(JavaVersion.class);
 
+    public boolean jarHellEnabled = true;
+
     @Input
     public Property<JavaVersion> getTargetCompatibility() {
         return targetCompatibility;
@@ -234,7 +236,10 @@ public class ThirdPartyAuditTask extends DefaultTask {
             violationsClasses.add(violationMatcher.group(1));
         }
 
-        Set<String> jdkJarHellClasses = runJdkJarHellCheck();
+        Set<String> jdkJarHellClasses = null;
+        if (this.jarHellEnabled) {
+            jdkJarHellClasses = runJdkJarHellCheck();
+        }
 
         if (missingClassExcludes != null) {
             assertNoPointlessExclusions("are not missing", missingClassExcludes, missingClasses);
@@ -251,7 +256,9 @@ public class ThirdPartyAuditTask extends DefaultTask {
             missingClasses.removeAll(missingClassExcludes);
         }
         assertNoPointlessExclusions("have no violations", violationsExcludes, violationsClasses);
-        assertNoPointlessExclusions("do not generate jar hell with the JDK", jdkJarHellExcludes, jdkJarHellClasses);
+        if (this.jarHellEnabled) {
+            assertNoPointlessExclusions("do not generate jar hell with the JDK", jdkJarHellExcludes, jdkJarHellClasses);
+        }
 
         if (missingClassExcludes == null && (missingClasses.isEmpty() == false)) {
             getLogger().info("Found missing classes, but task is configured to ignore all of them:\n {}", formatClassList(missingClasses));
@@ -272,7 +279,9 @@ public class ThirdPartyAuditTask extends DefaultTask {
             throw new IllegalStateException("Audit of third party dependencies failed");
         }
 
-        assertNoJarHell(jdkJarHellClasses);
+        if (this.jarHellEnabled) {
+            assertNoJarHell(jdkJarHellClasses);
+        }
 
         // Mark successful third party audit check
         getSuccessMarker().getParentFile().mkdirs();

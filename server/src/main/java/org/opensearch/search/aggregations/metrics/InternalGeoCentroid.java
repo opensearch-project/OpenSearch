@@ -34,11 +34,11 @@ package org.opensearch.search.aggregations.metrics;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.opensearch.LegacyESVersion;
-import org.opensearch.common.ParseField;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;

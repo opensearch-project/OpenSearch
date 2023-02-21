@@ -33,11 +33,11 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.ObjectParser.ValueType;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParser.Token;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.ObjectParser.ValueType;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.search.aggregations.ParsedAggregation;
 
 import java.io.IOException;

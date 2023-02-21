@@ -40,7 +40,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.geo.GeoModulePluginIntegTestCase;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoGrid;
 import org.opensearch.geo.tests.common.AggregationBuilders;

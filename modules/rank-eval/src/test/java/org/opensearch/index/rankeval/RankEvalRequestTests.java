@@ -37,7 +37,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.Writeable.Reader;
 import org.opensearch.common.util.ArrayUtils;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 import org.junit.AfterClass;
 
