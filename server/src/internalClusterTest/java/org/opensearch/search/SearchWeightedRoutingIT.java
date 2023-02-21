@@ -934,7 +934,6 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
         setShardRoutingWeights(weights);
         String nodeInZoneA = nodeMap.get("a").get(0);
-        String customPreference = randomAlphaOfLength(10);
 
         assertThrows(
             PreferenceBasedSearchNotAllowedException.class,
