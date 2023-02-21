@@ -99,6 +99,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Segment Replication] Add primary weight factor for balanced primary distribution ([#6017](https://github.com/opensearch-project/OpenSearch/pull/6017))
 - Add a setting to control auto release of OpenSearch managed index creation block ([#6277](https://github.com/opensearch-project/OpenSearch/pull/6277))
 - Fix timeout error when adding a document to an index with extension running ([#6275](https://github.com/opensearch-project/OpenSearch/pull/6275))
+- Handle translog upload during primary relocation for remote-backed indexes ([#5804](https://github.com/opensearch-project/OpenSearch/pull/5804))
+- Batch translog sync/upload per x ms for remote-backed indexes ([#5854](https://github.com/opensearch-project/OpenSearch/pull/5854))
 
 ### Dependencies
 - Update nebula-publishing-plugin to 19.2.0 ([#5704](https://github.com/opensearch-project/OpenSearch/pull/5704))
