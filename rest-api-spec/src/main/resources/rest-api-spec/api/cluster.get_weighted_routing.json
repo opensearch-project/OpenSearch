@@ -1,7 +1,7 @@
 {
   "cluster.get_weighted_routing": {
     "documentation": {
-      "url": "https://opensearch.org/docs/2.5/api-reference/cluster-api/cluster-awareness/",
+      "url": "https://opensearch.org/docs/latest/api-reference/cluster-api/cluster-awareness/",
       "description": "Fetches weighted shard routing weights"
     },
     "stability": "stable",
