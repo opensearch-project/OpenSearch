@@ -31,6 +31,7 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
@@ -58,6 +59,8 @@ public class RemoteFsTranslog extends Translog {
 
     // clean up translog folder uploaded by previous primaries once
     private final SetOnce<Boolean> olderPrimaryCleaned = new SetOnce<>();
+    //
+    private final ReentrantLock remoteGenerationDeletionLock = new ReentrantLock();
 
     public RemoteFsTranslog(
         TranslogConfig config,
@@ -341,18 +344,24 @@ public class RemoteFsTranslog extends Translog {
         // clean up local translog files and updates readers
         super.trimUnreferencedReaders();
 
-        // cleans up remote translog files not referenced in latest uploaded metadata.
-        // This enables us to restore translog from the metadata in case of failover or relocation.
-        Set<Long> generationsToDelete = new HashSet<>();
-        for (long generation = minRemoteGenReferenced - 1; generation >= 0; generation--) {
-            if (fileTransferTracker.uploaded(Translog.getFilename(generation)) == false) {
-                break;
+        if (remoteGenerationDeletionLock.tryLock()) {
+            // cleans up remote translog files not referenced in latest uploaded metadata.
+            // This enables us to restore translog from the metadata in case of failover or relocation.
+            Set<Long> generationsToDelete = new HashSet<>();
+            for (long generation = minRemoteGenReferenced - 1; generation >= 0; generation--) {
+                if (fileTransferTracker.uploaded(Translog.getFilename(generation)) == false) {
+                    break;
+                }
+                generationsToDelete.add(generation);
             }
-            generationsToDelete.add(generation);
-        }
-        if (generationsToDelete.isEmpty() == false) {
-            deleteRemoteGeneration(generationsToDelete);
-            deleteStaleRemotePrimaryTermsAndMetadataFiles();
+            try {
+                if (generationsToDelete.isEmpty() == false) {
+                    deleteRemoteGeneration(generationsToDelete);
+                    deleteStaleRemotePrimaryTermsAndMetadataFiles();
+                }
+            } finally {
+                remoteGenerationDeletionLock.unlock();
+            }
         }
     }
 
