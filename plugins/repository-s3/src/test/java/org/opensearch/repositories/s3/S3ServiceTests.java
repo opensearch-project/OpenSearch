@@ -32,15 +32,13 @@
 package org.opensearch.repositories.s3;
 
 import org.opensearch.cluster.metadata.RepositoryMetadata;
-import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.nio.file.Path;
 import java.util.Map;
 
-public class S3ServiceTests extends OpenSearchTestCase {
+public class S3ServiceTests extends OpenSearchTestCase implements ConfigPathSupport {
 
     public void testCachedClientsAreReleased() {
         final S3Service s3Service = new S3Service(configPath());
@@ -85,9 +83,5 @@ public class S3ServiceTests extends OpenSearchTestCase {
         s3Service.close();
         final S3ClientSettings clientSettingsReloaded = s3Service.settings(metadata1);
         assertNotSame(clientSettings, clientSettingsReloaded);
-    }
-
-    private Path configPath() {
-        return PathUtils.get("config");
     }
 }

@@ -36,7 +36,6 @@ import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.services.s3.AmazonS3Client;
 
-import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
@@ -44,7 +43,6 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Map;
 
@@ -54,7 +52,7 @@ import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
-public class S3ClientSettingsTests extends OpenSearchTestCase {
+public class S3ClientSettingsTests extends OpenSearchTestCase implements ConfigPathSupport {
     public void testThereIsADefaultClientByDefault() {
         final Map<String, S3ClientSettings> settings = S3ClientSettings.load(Settings.EMPTY, configPath());
         assertThat(settings.keySet(), contains("default"));
@@ -374,9 +372,5 @@ public class S3ClientSettingsTests extends OpenSearchTestCase {
             .put("s3.client.default.proxy.type", "socks")
             .build();
         expectThrows(SettingsException.class, () -> S3ClientSettings.load(settings, configPath()));
-    }
-
-    private Path configPath() {
-        return PathUtils.get("config");
     }
 }

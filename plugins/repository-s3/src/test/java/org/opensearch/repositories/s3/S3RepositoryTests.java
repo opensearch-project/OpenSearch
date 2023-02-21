@@ -34,7 +34,6 @@ package org.opensearch.repositories.s3;
 
 import com.amazonaws.services.s3.AbstractAmazonS3;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
-import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
@@ -54,7 +53,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class S3RepositoryTests extends OpenSearchTestCase {
+public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathSupport {
 
     private static class DummyS3Client extends AbstractAmazonS3 {
 
@@ -154,9 +153,5 @@ public class S3RepositoryTests extends OpenSearchTestCase {
                 // eliminate thread name check as we create repo manually on test/main threads
             }
         };
-    }
-
-    private Path configPath() {
-        return PathUtils.get("config");
     }
 }

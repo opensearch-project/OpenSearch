@@ -39,14 +39,12 @@ import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.http.IdleConnectionReaper;
 
 import org.junit.AfterClass;
-import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -57,7 +55,7 @@ import static org.hamcrest.Matchers.is;
 import static org.opensearch.repositories.s3.S3ClientSettings.PROTOCOL_SETTING;
 import static org.opensearch.repositories.s3.S3ClientSettings.PROXY_TYPE_SETTING;
 
-public class AwsS3ServiceImplTests extends OpenSearchTestCase {
+public class AwsS3ServiceImplTests extends OpenSearchTestCase implements ConfigPathSupport {
     @AfterClass
     public static void shutdownIdleConnectionReaper() {
         // created by default STS client
@@ -367,9 +365,5 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase {
         final String configName = S3Repository.CLIENT_NAME.get(repositorySettings);
         final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(settings, configName, configPath());
         assertThat(clientSettings.endpoint, is(expectedEndpoint));
-    }
-
-    private Path configPath() {
-        return PathUtils.get("config");
     }
 }
