@@ -60,8 +60,10 @@ public class RemoteFsTranslog extends Translog {
     // clean up translog folder uploaded by previous primaries once
     private final SetOnce<Boolean> olderPrimaryCleaned = new SetOnce<>();
 
+    private static final int REMOTE_DELETION_PERMITS = 2;
+
     // Semaphore used to allow only single remote generation to happen at a time
-    private final Semaphore remoteGenerationDeletionPermits = new Semaphore(2);
+    private final Semaphore remoteGenerationDeletionPermits = new Semaphore(REMOTE_DELETION_PERMITS);
 
     public RemoteFsTranslog(
         TranslogConfig config,
@@ -348,7 +350,7 @@ public class RemoteFsTranslog extends Translog {
         // Since remote generation deletion is async, this ensures that only one generation deletion happens at a time.
         // Remote generations involves 2 async operations - 1) Delete translog generation files 2) Delete metadata files
         // We try to acquire 2 permits and if we can not, we return from here itself.
-        if (remoteGenerationDeletionPermits.tryAcquire(2) == false) {
+        if (remoteGenerationDeletionPermits.tryAcquire(REMOTE_DELETION_PERMITS) == false) {
             return;
         }
 
@@ -365,7 +367,7 @@ public class RemoteFsTranslog extends Translog {
             deleteRemoteGeneration(generationsToDelete);
             deleteStaleRemotePrimaryTermsAndMetadataFiles();
         } else {
-            remoteGenerationDeletionPermits.release(2);
+            remoteGenerationDeletionPermits.release(REMOTE_DELETION_PERMITS);
         }
     }
 
