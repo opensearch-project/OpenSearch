@@ -344,7 +344,14 @@ public class RemoteFsTranslog extends Translog {
         // clean up local translog files and updates readers
         super.trimUnreferencedReaders();
 
-        if (remoteGenerationDeletionLock.tryLock()) {
+        // Since remote generation deletion is async, this ensures that only generation deletion is happening at a time.
+        // If the lock is already acquired, we return from here itself.
+        if (remoteGenerationDeletionLock.tryLock() == false) {
+            return;
+        }
+
+        // If we have come here, it means we were able to acquire the lock. we release the lock in finally.
+        try {
             // cleans up remote translog files not referenced in latest uploaded metadata.
             // This enables us to restore translog from the metadata in case of failover or relocation.
             Set<Long> generationsToDelete = new HashSet<>();
@@ -354,14 +361,12 @@ public class RemoteFsTranslog extends Translog {
                 }
                 generationsToDelete.add(generation);
             }
-            try {
-                if (generationsToDelete.isEmpty() == false) {
-                    deleteRemoteGeneration(generationsToDelete);
-                    deleteStaleRemotePrimaryTermsAndMetadataFiles();
-                }
-            } finally {
-                remoteGenerationDeletionLock.unlock();
+            if (generationsToDelete.isEmpty() == false) {
+                deleteRemoteGeneration(generationsToDelete);
+                deleteStaleRemotePrimaryTermsAndMetadataFiles();
             }
+        } finally {
+            remoteGenerationDeletionLock.unlock();
         }
     }
 
