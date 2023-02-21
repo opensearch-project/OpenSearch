@@ -32,7 +32,7 @@
 
 package org.opensearch.rest.action;
 
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestResponse;
 

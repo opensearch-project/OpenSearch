@@ -34,7 +34,7 @@ package org.opensearch.index.mapper.size;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.plugin.mapper.MapperSizePlugin;
 import org.opensearch.plugins.Plugin;

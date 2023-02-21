@@ -44,9 +44,9 @@ import java.util.Collections;
 import java.util.List;
 
 import org.apache.lucene.index.IndexableField;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.geo.GeometryTestUtils;
 import org.opensearch.geometry.Circle;
 import org.opensearch.geometry.Geometry;

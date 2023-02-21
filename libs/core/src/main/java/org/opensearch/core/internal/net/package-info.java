@@ -6,5 +6,5 @@
  * compatible open source license.
  */
 
-/** Internal Network Utility classes - todo refactor to common */
+/** Common Network Utility Classes */
 package org.opensearch.core.internal.net;

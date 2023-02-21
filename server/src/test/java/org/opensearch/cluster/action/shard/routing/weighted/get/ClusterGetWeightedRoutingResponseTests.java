@@ -10,7 +10,7 @@ package org.opensearch.cluster.action.shard.routing.weighted.get;
 
 import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingResponse;
 import org.opensearch.cluster.routing.WeightedRouting;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;

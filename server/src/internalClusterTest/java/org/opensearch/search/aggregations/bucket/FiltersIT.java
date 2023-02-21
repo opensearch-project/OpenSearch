@@ -35,7 +35,7 @@ package org.opensearch.search.aggregations.bucket;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.search.aggregations.InternalAggregation;

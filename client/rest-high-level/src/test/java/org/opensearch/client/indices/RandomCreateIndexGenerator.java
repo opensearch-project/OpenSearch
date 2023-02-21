@@ -32,7 +32,7 @@
 
 package org.opensearch.client.indices;
 
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;

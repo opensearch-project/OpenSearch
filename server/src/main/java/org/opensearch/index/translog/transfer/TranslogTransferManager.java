@@ -201,11 +201,9 @@ public class TranslogTransferManager {
      *
      * @param primaryTerm primary term where the generations will be deleted.
      * @param generations set of generation to delete.
+     * @param onCompletion runnable to run on completion of deletion regardless of success/failure.
      */
-    public void deleteGenerationAsync(long primaryTerm, Set<Long> generations) {
-        if (generations.isEmpty()) {
-            return;
-        }
+    public void deleteGenerationAsync(long primaryTerm, Set<Long> generations, Runnable onCompletion) {
         List<String> translogFiles = new ArrayList<>();
         List<String> metadataFiles = new ArrayList<>();
         generations.forEach(generation -> {
@@ -218,9 +216,9 @@ public class TranslogTransferManager {
             metadataFiles.add(metadataFileName);
         });
         // Delete the translog and checkpoint files asynchronously
-        deleteTranslogFilesAsync(primaryTerm, translogFiles);
+        deleteTranslogFilesAsync(primaryTerm, translogFiles, onCompletion);
         // Delete the metadata files asynchronously
-        deleteMetadataFilesAsync(metadataFiles);
+        deleteMetadataFilesAsync(metadataFiles, onCompletion);
     }
 
     /**
@@ -305,50 +303,74 @@ public class TranslogTransferManager {
      *
      * @param primaryTerm primary term of translog files.
      * @param files       list of translog files to be deleted.
+     * @param onCompletion runnable to run on completion of deletion regardless of success/failure.
      */
-    private void deleteTranslogFilesAsync(long primaryTerm, List<String> files) {
-        transferService.deleteBlobsAsync(
-            ThreadPool.Names.REMOTE_PURGE,
-            remoteBaseTransferPath.add(String.valueOf(primaryTerm)),
-            files,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(Void unused) {
-                    fileTransferTracker.delete(files);
-                    logger.trace("Deleted translogs for primaryTerm={} files={}", primaryTerm, files);
-                }
+    private void deleteTranslogFilesAsync(long primaryTerm, List<String> files, Runnable onCompletion) {
+        try {
+            transferService.deleteBlobsAsync(
+                ThreadPool.Names.REMOTE_PURGE,
+                remoteBaseTransferPath.add(String.valueOf(primaryTerm)),
+                files,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        fileTransferTracker.delete(files);
+                        logger.trace("Deleted translogs for primaryTerm={} files={}", primaryTerm, files);
+                        onCompletion.run();
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error(
-                        () -> new ParameterizedMessage(
-                            "Exception occurred while deleting translog for primaryTerm={} files={}",
-                            primaryTerm,
-                            files
-                        ),
-                        e
-                    );
+                    @Override
+                    public void onFailure(Exception e) {
+                        onCompletion.run();
+                        logger.error(
+                            () -> new ParameterizedMessage(
+                                "Exception occurred while deleting translog for primaryTerm={} files={}",
+                                primaryTerm,
+                                files
+                            ),
+                            e
+                        );
+                    }
                 }
-            }
-        );
+            );
+        } catch (Exception e) {
+            onCompletion.run();
+            throw e;
+        }
     }
 
     /**
      * Deletes metadata files asynchronously using the {@code REMOTE_PURGE} threadpool.
+     * @param metadataFilesToDelete list of metadata files to be deleted.
+     */
+    private void deleteMetadataFilesAsync(List<String> metadataFilesToDelete) {
+        deleteMetadataFilesAsync(metadataFilesToDelete, () -> {});
+    }
+
+    /**
+     * Deletes metadata files asynchronously using the {@code REMOTE_PURGE} threadpool. On success or failure, runs {@code onCompletion}.
      *
      * @param files list of metadata files to be deleted.
+     * @param onCompletion runnable to run on completion of deletion regardless of success/failure.
      */
-    private void deleteMetadataFilesAsync(List<String> files) {
-        transferService.deleteBlobsAsync(ThreadPool.Names.REMOTE_PURGE, remoteMetadataTransferPath, files, new ActionListener<>() {
-            @Override
-            public void onResponse(Void unused) {
-                logger.trace("Deleted remote translog metadata files {}", files);
-            }
+    private void deleteMetadataFilesAsync(List<String> files, Runnable onCompletion) {
+        try {
+            transferService.deleteBlobsAsync(ThreadPool.Names.REMOTE_PURGE, remoteMetadataTransferPath, files, new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    onCompletion.run();
+                    logger.trace("Deleted remote translog metadata files {}", files);
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.error(new ParameterizedMessage("Exception occurred while deleting remote translog metadata files {}", files), e);
-            }
-        });
+                @Override
+                public void onFailure(Exception e) {
+                    onCompletion.run();
+                    logger.error(new ParameterizedMessage("Exception occurred while deleting remote translog metadata files {}", files), e);
+                }
+            });
+        } catch (Exception e) {
+            onCompletion.run();
+            throw e;
+        }
     }
 }

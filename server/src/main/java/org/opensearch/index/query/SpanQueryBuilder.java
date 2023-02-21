@@ -33,7 +33,7 @@
 package org.opensearch.index.query;
 
 import org.opensearch.common.ParsingException;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 
 /**
  * Marker interface for a specific type of {@link QueryBuilder} that allows to build span queries.

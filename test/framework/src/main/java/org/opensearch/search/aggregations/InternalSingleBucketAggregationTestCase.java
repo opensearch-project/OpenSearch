@@ -33,7 +33,7 @@
 package org.opensearch.search.aggregations;
 
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.search.aggregations.bucket.InternalSingleBucketAggregation;

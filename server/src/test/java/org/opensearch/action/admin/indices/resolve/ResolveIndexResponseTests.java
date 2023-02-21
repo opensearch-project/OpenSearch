@@ -38,8 +38,8 @@ import org.opensearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedIn
 import org.opensearch.action.admin.indices.resolve.ResolveIndexAction.Response;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;

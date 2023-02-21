@@ -42,7 +42,7 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.SizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;

@@ -22,7 +22,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bumps `org.gradle.test-retry` from 1.4.0 to 1.4.1 ([#4411](https://github.com/opensearch-project/OpenSearch/pull/4411))
 - Bumps `reactor-netty-core` from 1.0.19 to 1.0.22 ([#4447](https://github.com/opensearch-project/OpenSearch/pull/4447))
 - Bumps `reactive-streams` from 1.0.3 to 1.0.4 ([#4488](https://github.com/opensearch-project/OpenSearch/pull/4488))
-- Bumps `com.diffplug.spotless` from 6.10.0 to 6.11.0 ([#4547](https://github.com/opensearch-project/OpenSearch/pull/4547))
+- Bumps `com.diffplug.spotless` from 6.11.0 to 6.15.0
+- Bumps `com.diffplug.spotless` from 6.10.0 to 6.15.0
 - Bumps `reactor-core` from 3.4.23 to 3.5.1 ([#5604](https://github.com/opensearch-project/OpenSearch/pull/5604))
 - Bumps `jempbox` from 1.8.16 to 1.8.17 ([#4550](https://github.com/opensearch-project/OpenSearch/pull/4550))
 - Bumps `spock-core` from 2.1-groovy-3.0 to 2.3-groovy-3.0 ([#5315](https://github.com/opensearch-project/OpenSearch/pull/5315))
@@ -42,6 +43,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bumps `org.jruby.joni:joni` from 2.1.45 to 2.1.48
 - Bumps `org.apache.ant:ant` from 1.10.12 to 1.10.13
 - Bumps `com.azure:azure-storage-common` from 12.18.1 to 12.19.3
+- Bumps `io.projectreactor.netty:reactor-netty` from 1.1.2 to 1.1.3
+- Bumps `com.google.protobuf:protobuf-java` from 3.21.12 to 3.22.0
 
 ### Changed
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
@@ -96,7 +99,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Segment Replication] Add primary weight factor for balanced primary distribution ([#6017](https://github.com/opensearch-project/OpenSearch/pull/6017))
 - Add a setting to control auto release of OpenSearch managed index creation block ([#6277](https://github.com/opensearch-project/OpenSearch/pull/6277))
 - Fix timeout error when adding a document to an index with extension running ([#6275](https://github.com/opensearch-project/OpenSearch/pull/6275))
-- Clean up temporary files created during segment merge incase segment merge fails ([#6324](https://github.com/opensearch-project/OpenSearch/pull/6324))
+- Handle translog upload during primary relocation for remote-backed indexes ([#5804](https://github.com/opensearch-project/OpenSearch/pull/5804))
+- Batch translog sync/upload per x ms for remote-backed indexes ([#5854](https://github.com/opensearch-project/OpenSearch/pull/5854))
 - Enable sort optimization for all NumericTypes ([#6240](https://github.com/opensearch-project/OpenSearch/pull/6420))
 
 ### Dependencies
@@ -114,7 +118,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Refactor] Use local opensearch.common.SetOnce instead of lucene's utility class ([#5947](https://github.com/opensearch-project/OpenSearch/pull/5947))
 - Cluster health call to throw decommissioned exception for local decommissioned node([#6008](https://github.com/opensearch-project/OpenSearch/pull/6008))
 - [Refactor] core.common to new opensearch-common library ([#5976](https://github.com/opensearch-project/OpenSearch/pull/5976))
-- Cluster local health call to throw exception if node is decommissioned or weighed away ([#6198](https://github.com/opensearch-project/OpenSearch/pull/6198))
+- Update API spec for cluster health API ([#6399](https://github.com/opensearch-project/OpenSearch/pull/6399))
+- [Refactor] XContent base classes from xcontent to core library ([#5902](https://github.com/opensearch-project/OpenSearch/pull/5902))
 
 ### Deprecated
 

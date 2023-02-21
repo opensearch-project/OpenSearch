@@ -9,7 +9,7 @@
 package org.opensearch.cluster.awarenesshealth;
 
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
