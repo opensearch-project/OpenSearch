@@ -878,11 +878,35 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
 
         String customPreference = randomAlphaOfLength(10);
         String nodeInZoneA = nodeMap.get("a").get(0);
+        String nodeInZoneB = nodeMap.get("b").get(0);
+        String nodeInZoneC = nodeMap.get("c").get(0);
+
+        Map<String, String> nodeIDMap = new HashMap<>();
+        DiscoveryNodes dataNodes = internalCluster().clusterService().state().nodes();
+        for (DiscoveryNode node : dataNodes) {
+            nodeIDMap.put(node.getName(), node.getId());
+        }
 
         SearchResponse searchResponse = internalCluster().client(nodeMap.get("b").get(0))
             .prepareSearch()
             .setSize(0)
-            .setPreference(randomFrom("_local", "_only_nodes:" + nodeInZoneA, "_prefer_nodes:" + nodeInZoneA, customPreference))
+            .setPreference("_local")
+            .get();
+        assertEquals(RestStatus.OK.getStatus(), searchResponse.status().getStatus());
+
+        searchResponse = internalCluster().client(nodeMap.get("b").get(0))
+            .prepareSearch()
+            .setSize(0)
+            .setPreference(
+                "_only_nodes:" + nodeIDMap.get(nodeInZoneA) + "," + nodeIDMap.get(nodeInZoneB) + "," + nodeIDMap.get(nodeInZoneC)
+            )
+            .get();
+        assertEquals(RestStatus.OK.getStatus(), searchResponse.status().getStatus());
+
+        searchResponse = internalCluster().client(nodeMap.get("b").get(0))
+            .prepareSearch()
+            .setSize(0)
+            .setPreference("_prefer_nodes:zone:a")
             .get();
         assertEquals(RestStatus.OK.getStatus(), searchResponse.status().getStatus());
     }
@@ -914,10 +938,24 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
 
         assertThrows(
             PreferenceBasedSearchNotAllowedException.class,
+            () -> internalCluster().client(nodeMap.get("b").get(0)).prepareSearch().setSize(0).setPreference("_local").get()
+        );
+
+        assertThrows(
+            PreferenceBasedSearchNotAllowedException.class,
             () -> internalCluster().client(nodeMap.get("b").get(0))
                 .prepareSearch()
                 .setSize(0)
-                .setPreference(randomFrom("_local", "_only_nodes:" + nodeInZoneA, "_prefer_nodes:" + nodeInZoneA, customPreference))
+                .setPreference("_only_nodes:" + nodeInZoneA)
+                .get()
+        );
+
+        assertThrows(
+            PreferenceBasedSearchNotAllowedException.class,
+            () -> internalCluster().client(nodeMap.get("b").get(0))
+                .prepareSearch()
+                .setSize(0)
+                .setPreference("_prefer_nodes:" + nodeInZoneA)
                 .get()
         );
 
