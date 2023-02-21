@@ -380,6 +380,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
                         throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
                     }
                     String[] fieldNameParts = fieldName.split("\\.");
+                    // field name is just ".", which is invalid
+                    if (fieldNameParts.length < 1) {
+                        throw new MapperParsingException("Invalid field name " + fieldName);
+                    }
                     String realFieldName = fieldNameParts[fieldNameParts.length - 1];
                     Mapper.Builder<?> fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
                     for (int i = fieldNameParts.length - 2; i >= 0; --i) {
