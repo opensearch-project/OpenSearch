@@ -17,12 +17,10 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.SimpleFSLockFactory;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.Version;
-import org.junit.After;
 import org.junit.Before;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.opensearch.index.store.StoreFileMetadata;
-import org.opensearch.index.store.remote.PathTestUtils;
 import org.opensearch.index.store.remote.utils.BlobFetchRequest;
 import org.opensearch.index.store.remote.utils.TransferManager;
 import org.opensearch.test.OpenSearchTestCase;
@@ -47,6 +45,7 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
     private static final String BLOCK_FILE_PREFIX = FILE_NAME;
     private static final boolean IS_CLONE = false;
     private static final ByteSizeValue BYTE_SIZE_VALUE = new ByteSizeValue(1L);
+    private static final int FILE_SIZE = 29360128;
     private TransferManager transferManager;
     private LockFactory lockFactory;
     private BlobStoreIndexShardSnapshot.FileInfo fileInfo;
@@ -54,61 +53,33 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
 
     @Before
     public void init() {
+        assumeFalse("Awaiting Windows fix https://github.com/opensearch-project/OpenSearch/issues/5396", Constants.WINDOWS);
         transferManager = mock(TransferManager.class);
         lockFactory = SimpleFSLockFactory.INSTANCE;
-        path = PathTestUtils.createTestPath("OnDemandBlockSnapshotIndexInputTests");
+        path = createTempDir("OnDemandBlockSnapshotIndexInputTests");
     }
 
-    @After
-    public void clean() {
-        PathTestUtils.cleanOrFail(path);
+    public void test8MBBlock() throws Exception {
+        runAllTestsFor(23);
     }
 
-    public void testVariousBlockSize() throws Exception {
-        assumeFalse("Awaiting Windows fix https://github.com/opensearch-project/OpenSearch/issues/5396", Constants.WINDOWS);
-        int fileSize = 29360128;
-        int blockSizeShift;
-
-        // block size 8MB, default one
-        blockSizeShift = 23;
-        OnDemandBlockSnapshotIndexInput ondemandBlockSnapshotIndexInput_8MB = createOnDemandBlockSnapshotIndexInput(
-            blockSizeShift,
-            fileSize
-        );
-        runAllTestsFor(ondemandBlockSnapshotIndexInput_8MB, 1 << blockSizeShift, fileSize);
-        PathTestUtils.cleanDirectory(path);
-
-        // block size 4KB
-        blockSizeShift = 12;
-        OnDemandBlockSnapshotIndexInput ondemandBlockSnapshotIndexInput_4KB = createOnDemandBlockSnapshotIndexInput(
-            blockSizeShift,
-            fileSize
-        );
-        runAllTestsFor(ondemandBlockSnapshotIndexInput_4KB, 1 << blockSizeShift, fileSize);
-        PathTestUtils.cleanDirectory(path);
-
-        // block size 1MB
-        blockSizeShift = 20;
-        OnDemandBlockSnapshotIndexInput ondemandBlockSnapshotIndexInput_1MB = createOnDemandBlockSnapshotIndexInput(
-            blockSizeShift,
-            fileSize
-        );
-        runAllTestsFor(ondemandBlockSnapshotIndexInput_1MB, 1 << blockSizeShift, fileSize);
-        PathTestUtils.cleanDirectory(path);
-
-        // block size 4MB
-        blockSizeShift = 22;
-        OnDemandBlockSnapshotIndexInput ondemandBlockSnapshotIndexInput_4MB = createOnDemandBlockSnapshotIndexInput(
-            blockSizeShift,
-            fileSize
-        );
-        runAllTestsFor(ondemandBlockSnapshotIndexInput_4MB, 1 << blockSizeShift, fileSize);
-        PathTestUtils.cleanDirectory(path);
+    public void test4KBBlock() throws Exception {
+        runAllTestsFor(12);
     }
 
-    public void runAllTestsFor(OnDemandBlockSnapshotIndexInput blockedSnapshotFile, int blockSize, int fileSize) throws Exception {
-        TestGroup.testGetBlock(blockedSnapshotFile, blockSize, fileSize);
-        TestGroup.testGetBlockOffset(blockedSnapshotFile, blockSize, fileSize);
+    public void test1MBBlock() throws Exception {
+        runAllTestsFor(20);
+    }
+
+    public void test4MBBlock() throws Exception {
+        runAllTestsFor(22);
+    }
+
+    public void runAllTestsFor(int blockSizeShift) throws Exception {
+        final OnDemandBlockSnapshotIndexInput blockedSnapshotFile = createOnDemandBlockSnapshotIndexInput(blockSizeShift);
+        final int blockSize = 1 << blockSizeShift;
+        TestGroup.testGetBlock(blockedSnapshotFile, blockSize, FILE_SIZE);
+        TestGroup.testGetBlockOffset(blockedSnapshotFile, blockSize, FILE_SIZE);
         TestGroup.testGetBlockStart(blockedSnapshotFile, blockSize);
         TestGroup.testCurrentBlockStart(blockedSnapshotFile, blockSize);
         TestGroup.testCurrentBlockPosition(blockedSnapshotFile, blockSize);
@@ -120,7 +91,7 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
         TestGroup.testReadInt(blockedSnapshotFile, blockSize);
         TestGroup.testReadLong(blockedSnapshotFile, blockSize);
         TestGroup.testReadVInt(blockedSnapshotFile, blockSize);
-        TestGroup.testSeek(blockedSnapshotFile, blockSize, fileSize);
+        TestGroup.testSeek(blockedSnapshotFile, blockSize, FILE_SIZE);
         TestGroup.testReadByteWithPos(blockedSnapshotFile, blockSize);
         TestGroup.testReadShortWithPos(blockedSnapshotFile, blockSize);
         TestGroup.testReadIntWithPos(blockedSnapshotFile, blockSize);
@@ -129,12 +100,12 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
     }
 
     // create OnDemandBlockSnapshotIndexInput for each block size
-    private OnDemandBlockSnapshotIndexInput createOnDemandBlockSnapshotIndexInput(int blockSizeShift, long fileSize) {
+    private OnDemandBlockSnapshotIndexInput createOnDemandBlockSnapshotIndexInput(int blockSizeShift) {
 
         // file info should be initialized per test method since file size need to be calculated
         fileInfo = new BlobStoreIndexShardSnapshot.FileInfo(
             FILE_NAME,
-            new StoreFileMetadata(FILE_NAME, fileSize, "", Version.LATEST),
+            new StoreFileMetadata(FILE_NAME, FILE_SIZE, "", Version.LATEST),
             BYTE_SIZE_VALUE
         );
 
@@ -149,20 +120,19 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
 
         FSDirectory directory = null;
         try {
-            PathTestUtils.cleanDirectory(path);
             // use MMapDirectory to create block
             directory = new MMapDirectory(path, lockFactory);
         } catch (IOException e) {
             fail("fail to create MMapDirectory: " + e.getMessage());
         }
 
-        initBlockFiles(blockSize, fileSize, directory);
+        initBlockFiles(blockSize, directory);
 
         return new OnDemandBlockSnapshotIndexInput(
             OnDemandBlockIndexInput.builder()
                 .resourceDescription(RESOURCE_DESCRIPTION)
                 .offset(BLOCK_SNAPSHOT_FILE_OFFSET)
-                .length(fileSize)
+                .length(FILE_SIZE)
                 .blockSizeShift(blockSizeShift)
                 .isClone(IS_CLONE),
             fileInfo,
@@ -171,12 +141,10 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
         );
     }
 
-    private void initBlockFiles(int blockSize, long fileSize, FSDirectory fsDirectory) {
-        // for this test, it's safe to convert long to int
-        int intFileSize = (int) fileSize;
-        int numOfBlocks = intFileSize / blockSize;
+    private void initBlockFiles(int blockSize, FSDirectory fsDirectory) {
+        int numOfBlocks = FILE_SIZE / blockSize;
 
-        int sizeOfLastBlock = intFileSize % blockSize;
+        int sizeOfLastBlock = FILE_SIZE % blockSize;
 
         try {
 
