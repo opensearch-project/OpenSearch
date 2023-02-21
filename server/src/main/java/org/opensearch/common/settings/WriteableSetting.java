@@ -13,6 +13,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.settings.Setting.WriteableStringDefaultValue;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import java.io.IOException;
@@ -78,7 +79,13 @@ public class WriteableSetting implements Writeable {
         // Read the key
         String key = in.readString();
         // Read the default value
-        Object defaultValue = readDefaultValue(in);
+        Object defaultValue = null;
+        boolean isDefaultValueWriteable = in.readBoolean();
+        if (isDefaultValueWriteable) {
+            defaultValue = new WriteableStringDefaultValue(in);
+        } else {
+            defaultValue = readDefaultValue(in);
+        }
         // Read a boolean specifying whether the fallback settings is null
         WriteableSetting fallback = null;
         boolean hasFallback = in.readBoolean();
@@ -163,9 +170,12 @@ public class WriteableSetting implements Writeable {
                     ? Setting.doubleSetting(key, (double) defaultValue, propertyArray)
                     : Setting.doubleSetting(key, (Setting<Double>) fallback.getSetting(), propertyArray);
             case String:
-                return fallback == null
-                    ? Setting.simpleString(key, (String) defaultValue, propertyArray)
-                    : Setting.simpleString(key, (Setting<String>) fallback.getSetting(), propertyArray);
+                if (fallback == null && defaultValue instanceof Writeable) {
+                    return Setting.simpleString(key, propertyArray);
+                } else if (fallback == null) {
+                    return Setting.simpleString(key, (String) defaultValue, propertyArray);
+                }
+                return Setting.simpleString(key, (Setting<String>) fallback.getSetting(), propertyArray);
             case TimeValue:
                 return fallback == null
                     ? Setting.timeSetting(key, (TimeValue) defaultValue, propertyArray)
@@ -190,7 +200,13 @@ public class WriteableSetting implements Writeable {
         // Write the key
         out.writeString(setting.getKey());
         // Write the default value
-        writeDefaultValue(out, setting.getDefault(Settings.EMPTY));
+        boolean isDefaultValueWriteable = setting.defaultValue instanceof Writeable;
+        out.writeBoolean(isDefaultValueWriteable);
+        if (isDefaultValueWriteable) {
+            ((WriteableStringDefaultValue) setting.defaultValue).writeTo(out);
+        } else {
+            writeDefaultValue(out, setting.getDefault(Settings.EMPTY));
+        }
         // Write a boolean specifying whether the fallback settings is null
         boolean hasFallback = setting.fallbackSetting != null;
         out.writeBoolean(hasFallback);

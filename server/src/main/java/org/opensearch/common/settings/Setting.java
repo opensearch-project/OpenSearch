@@ -1391,30 +1391,29 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
-     * Writeable Default Value
+     * Writeable Default Value when the default value is String type
      */
-    public static class WriteableDefaultValue implements Function<Settings, String>, Writeable {
-        private Settings defaultValue;
+    public static class WriteableStringDefaultValue implements Function<Settings, String>, Writeable {
+        private String defaultValue;
 
-        public WriteableDefaultValue(Settings defaultValue){
+        public WriteableStringDefaultValue(String defaultValue) {
             this.defaultValue = defaultValue;
         }
 
-        public WriteableDefaultValue(StreamInput in){
-            defaultValue = in.readDefaultValue();
+        public WriteableStringDefaultValue(StreamInput in) throws IOException {
+            defaultValue = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeSettings(defaultValue);
+            out.writeString(defaultValue);
         }
 
         @Override
         public String apply(Settings t) {
-            return getRaw(defaultValue);
-        }  
+            return defaultValue;
+        }
     }
-
 
     // Integer
 
@@ -1713,7 +1712,7 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<String> simpleString(String key, Validator<String> validator, Property... properties) {
-        return new Setting<>(new SimpleKey(key), null, s -> "", Function.identity(), validator, properties);
+        return new Setting<>(new SimpleKey(key), null, new WriteableStringDefaultValue(""), Function.identity(), validator, properties);
     }
 
     public static Setting<String> simpleString(String key, Validator<String> validator, Setting<String> fallback, Property... properties) {
@@ -1722,7 +1721,14 @@ public class Setting<T> implements ToXContentObject {
 
     public static Setting<String> simpleString(String key, String defaultValue, Validator<String> validator, Property... properties) {
         validator.validate(defaultValue);
-        return new Setting<>(new SimpleKey(key), null, s -> defaultValue, Function.identity(), validator, properties);
+        return new Setting<>(
+            new SimpleKey(key),
+            null,
+            new WriteableStringDefaultValue(defaultValue),
+            Function.identity(),
+            validator,
+            properties
+        );
     }
 
     public static Setting<String> simpleString(String key, Setting<String> fallback, Property... properties) {
