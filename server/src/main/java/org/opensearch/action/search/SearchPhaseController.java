@@ -35,17 +35,22 @@ package org.opensearch.action.search;
 import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.LeafFieldComparator;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
+import org.apache.lucene.search.comparators.NumericComparator;
 import org.apache.lucene.search.grouping.CollapseTopFieldDocs;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.collect.HppcMaps;
@@ -72,6 +77,7 @@ import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.Suggest.Suggestion;
 import org.opensearch.search.suggest.completion.CompletionSuggestion;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -237,11 +243,13 @@ public final class SearchPhaseController {
         } else if (topDocs instanceof CollapseTopFieldDocs) {
             CollapseTopFieldDocs firstTopDocs = (CollapseTopFieldDocs) topDocs;
             final Sort sort = new Sort(firstTopDocs.fields);
+            applySortFieldWidening(sort);
             final CollapseTopFieldDocs[] shardTopDocs = results.toArray(new CollapseTopFieldDocs[numShards]);
             mergedTopDocs = CollapseTopFieldDocs.merge(sort, from, topN, shardTopDocs, false);
         } else if (topDocs instanceof TopFieldDocs) {
             TopFieldDocs firstTopDocs = (TopFieldDocs) topDocs;
             final Sort sort = new Sort(firstTopDocs.fields);
+            applySortFieldWidening(sort);
             final TopFieldDocs[] shardTopDocs = results.toArray(new TopFieldDocs[numShards]);
             mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
         } else {
@@ -598,6 +606,94 @@ public final class SearchPhaseController {
                 }
             }
         }
+    }
+
+    /**
+     * It is necessary to widen the SortField.Type to maximum byte size for merging sorted docs.
+     * Different indices might have different types. This will avoid user to do re-index of data
+     * in case of mapping field change for newly indexed data.
+     * This will support Int to Long and Float to Double.
+     * Earlier widening of type was taken care in IndexNumericFieldData, but since we now want to
+     * support sort optimization, we removed type widening there and taking care here during merging.
+     * More details here https://github.com/opensearch-project/OpenSearch/issues/6326
+     * @param sort
+     */
+    private static void applySortFieldWidening(Sort sort) {
+        for (int i = 0; i < sort.getSort().length; i++) {
+            if (sort.getSort()[i] instanceof SortedNumericSortField) {
+                final SortedNumericSortField delegate = (SortedNumericSortField) sort.getSort()[i];
+                switch (delegate.getNumericType()) {
+                    case INT:
+                    case LONG:
+                        sort.getSort()[i] = getWidenedSortField(delegate, SortField.Type.LONG, Long.BYTES);
+                        break;
+                    case FLOAT:
+                    case DOUBLE:
+                        sort.getSort()[i] = getWidenedSortField(delegate, SortField.Type.DOUBLE, Double.BYTES);
+                        break;
+                    default:
+                        // No action required
+                        // As of now lucene support only two 8 byte size Long & Double, which is covered above
+                }
+            }
+        }
+    }
+
+    /**
+     * Retrieves Sort field with widened ComparValue() logic.
+     * It will always compare with maximum byte size (Long/Double)
+     * @param delegate
+     * @param type
+     * @param bytes
+     * @return
+     */
+    private static SortedNumericSortField getWidenedSortField(SortedNumericSortField delegate, SortField.Type type, int bytes) {
+        return new SortedNumericSortField(delegate.getField(), type, delegate.getReverse()) {
+            @Override
+            public FieldComparator<?> getComparator(int numHits, boolean enableSkipping) {
+                return new NumericComparator<Number>(
+                    delegate.getField(),
+                    (Number) delegate.getMissingValue(),
+                    delegate.getReverse(),
+                    enableSkipping,
+                    bytes
+                ) {
+                    @Override
+                    public int compare(int slot1, int slot2) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public Number value(int slot) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public int compareValues(Number first, Number second) {
+                        if (first == null) {
+                            if (second == null) {
+                                return 0;
+                            } else {
+                                return -1;
+                            }
+                        } else if (second == null) {
+                            return 1;
+                        } else {
+                            if (type == Type.LONG) {
+                                return Long.compare(first.longValue(), second.longValue());
+                            } else {
+                                return Double.compare(first.doubleValue(), second.doubleValue());
+                            }
+                        }
+                    }
+                };
+            }
+        };
     }
 
     /*
