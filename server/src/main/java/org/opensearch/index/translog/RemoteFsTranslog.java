@@ -9,7 +9,6 @@
 package org.opensearch.index.translog;
 
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.ReleasableLock;
@@ -132,13 +131,11 @@ public class RemoteFsTranslog extends Translog {
                 String generation = Long.toString(i);
                 boolean ckpExists = Files.exists(location.resolve(Translog.getCommitCheckpointFileName(i)));
                 boolean tlogExists = Files.exists(location.resolve(Translog.getFilename(i)));
-                if(ckpExists || tlogExists) {
-                    if (ckpExists) {
-                        Files.delete(location.resolve(Translog.getCommitCheckpointFileName(i)));
-                    }
-                    if (tlogExists) {
-                        Files.delete(location.resolve(Translog.getFilename(i)));
-                    }
+                if (ckpExists) {
+                    Files.delete(location.resolve(Translog.getCommitCheckpointFileName(i)));
+                }
+                if (tlogExists) {
+                    Files.delete(location.resolve(Translog.getFilename(i)));
                 }
                 translogTransferManager.downloadTranslog(generationToPrimaryTermMapper.get(generation), generation, location);
             }
