@@ -158,11 +158,15 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.Store.MetadataSnapshot;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.StoreStats;
+import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
+import org.opensearch.index.translog.RemoteFsTranslog;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.index.translog.TranslogRecoveryRunner;
 import org.opensearch.index.translog.TranslogStats;
+import org.opensearch.index.translog.transfer.FileTransferTracker;
+import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.index.warmer.ShardIndexWarmerService;
 import org.opensearch.index.warmer.WarmerStats;
 import org.opensearch.indices.IndexingMemoryController;
@@ -178,6 +182,7 @@ import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.threadpool.ThreadPool;
@@ -2181,6 +2186,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (indexSettings.isRemoteStoreEnabled()) {
                 syncSegmentsFromRemoteSegmentStore(false);
             }
+            if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
+                syncTranslogFilesFromRemoteTranslog();
+                loadGlobalCheckpointToReplicationTracker();
+            }
             // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
             final Engine newEngine = engineFactory.newReadWriteEngine(config);
             onNewEngine(newEngine);
@@ -2462,10 +2471,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         storeRecovery.recoverFromStore(this, listener);
     }
 
-    public void restoreFromRemoteStore(Repository repository, ActionListener<Boolean> listener) {
+    public void restoreFromRemoteStore(ActionListener<Boolean> listener) {
         assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
         StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
-        storeRecovery.recoverFromRemoteStore(this, repository, listener);
+        storeRecovery.recoverFromRemoteStore(this, listener);
     }
 
     public void restoreFromRepository(Repository repository, ActionListener<Boolean> listener) {
@@ -3079,7 +3088,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
              * while the global checkpoint update may have emanated from the primary when we were in that state, we could subsequently move
              * to recovery finalization, or even finished recovery before the update arrives here.
              */
-            assert state() != IndexShardState.POST_RECOVERY && state() != IndexShardState.STARTED
+            assert (state() != IndexShardState.POST_RECOVERY && state() != IndexShardState.STARTED)
+                || (indexSettings.isRemoteTranslogStoreEnabled() == true && state() != IndexShardState.RECOVERING)
                 : "supposedly in-sync shard copy received a global checkpoint ["
                     + globalCheckpoint
                     + "] "
@@ -3264,14 +3274,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 executeRecovery("from store", recoveryState, recoveryListener, this::recoverFromStore);
                 break;
             case REMOTE_STORE:
-                final Repository remoteTranslogRepo;
-                final String remoteTranslogRepoName = indexSettings.getRemoteStoreTranslogRepository();
-                if (remoteTranslogRepoName != null) {
-                    remoteTranslogRepo = repositoriesService.repository(remoteTranslogRepoName);
-                } else {
-                    remoteTranslogRepo = null;
-                }
-                executeRecovery("from remote store", recoveryState, recoveryListener, l -> restoreFromRemoteStore(remoteTranslogRepo, l));
+                executeRecovery("from remote store", recoveryState, recoveryListener, this::restoreFromRemoteStore);
                 break;
             case PEER:
                 try {
@@ -4338,6 +4341,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (indexSettings.isRemoteStoreEnabled()) {
                 syncSegmentsFromRemoteSegmentStore(false);
             }
+            if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
+                syncTranslogFilesFromRemoteTranslog();
+                loadGlobalCheckpointToReplicationTracker();
+            }
             newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));
             onNewEngine(newEngineReference.get());
         }
@@ -4369,6 +4376,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // time elapses after the engine is created above (pulling the config settings) until we set the engine reference, during
         // which settings changes could possibly have happened, so here we forcefully push any config changes to the new engine.
         onSettingsChanged();
+    }
+
+    public void syncTranslogFilesFromRemoteTranslog() throws IOException {
+        TranslogFactory translogFactory = translogFactorySupplier.apply(indexSettings, shardRouting);
+        assert translogFactory instanceof RemoteBlobStoreInternalTranslogFactory;
+        Repository repository = ((RemoteBlobStoreInternalTranslogFactory) translogFactory).getRepository();
+        assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
+        BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
+        FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId);
+        TranslogTransferManager translogTransferManager = RemoteFsTranslog.buildTranslogTransferManager(
+            blobStoreRepository,
+            getThreadPool(),
+            shardId,
+            fileTransferTracker
+        );
+        RemoteFsTranslog.download(translogTransferManager, shardPath().resolveTranslog());
     }
 
     /**

@@ -14,6 +14,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.FileTransferTracker;
@@ -85,6 +86,9 @@ public class RemoteFsTranslog extends Translog {
         try {
             download(translogTransferManager, location);
             Checkpoint checkpoint = readCheckpoint(location);
+            assert globalCheckpointSupplier instanceof ReplicationTracker
+                : "globalCheckpointSupplier is not instance of ReplicationTracker";
+            ((ReplicationTracker) globalCheckpointSupplier).updateGlobalCheckpoint(checkpoint.globalCheckpoint, "RemoteFsTranslog init");
             this.readers.addAll(recoverFromFiles(checkpoint));
             if (readers.isEmpty()) {
                 throw new IllegalStateException("at least one reader must be recovered");
@@ -123,14 +127,23 @@ public class RemoteFsTranslog extends Translog {
             if (Files.notExists(location)) {
                 Files.createDirectories(location);
             }
-            // Delete translog files on local before downloading from remote
-            for (Path file : FileSystemUtils.files(location)) {
-                Files.delete(file);
-            }
             Map<String, String> generationToPrimaryTermMapper = translogMetadata.getGenerationToPrimaryTermMapper();
             for (long i = translogMetadata.getGeneration(); i >= translogMetadata.getMinTranslogGeneration(); i--) {
                 String generation = Long.toString(i);
+                boolean ckpExists = Files.exists(location.resolve(Translog.getCommitCheckpointFileName(i)));
+                boolean tlogExists = Files.exists(location.resolve(Translog.getFilename(i)));
+                if(ckpExists || tlogExists) {
+                    if (ckpExists) {
+                        Files.delete(location.resolve(Translog.getCommitCheckpointFileName(i)));
+                    }
+                    if (tlogExists) {
+                        Files.delete(location.resolve(Translog.getFilename(i)));
+                    }
+                }
                 translogTransferManager.downloadTranslog(generationToPrimaryTermMapper.get(generation), generation, location);
+            }
+            if (Files.exists(location.resolve(Translog.CHECKPOINT_FILE_NAME))) {
+                Files.delete(location.resolve(Translog.CHECKPOINT_FILE_NAME));
             }
             // We copy the latest generation .ckp file to translog.ckp so that flows that depend on
             // existence of translog.ckp file work in the same way

@@ -1118,8 +1118,12 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      * @param reason              the reason the global checkpoint was updated
      */
     public synchronized void updateGlobalCheckpointOnReplica(final long newGlobalCheckpoint, final String reason) {
-        assert invariant();
         assert primaryMode == false;
+        updateGlobalCheckpoint(newGlobalCheckpoint, reason);
+    }
+
+    public synchronized void updateGlobalCheckpoint(final long newGlobalCheckpoint, final String reason) {
+        assert invariant();
         /*
          * The global checkpoint here is a local knowledge which is updated under the mandate of the primary. It can happen that the primary
          * information is lagging compared to a replica (e.g., if a replica is promoted to primary but has stale info relative to other
