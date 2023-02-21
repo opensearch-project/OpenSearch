@@ -31,7 +31,7 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.Semaphore;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
@@ -59,8 +59,9 @@ public class RemoteFsTranslog extends Translog {
 
     // clean up translog folder uploaded by previous primaries once
     private final SetOnce<Boolean> olderPrimaryCleaned = new SetOnce<>();
-    //
-    private final ReentrantLock remoteGenerationDeletionLock = new ReentrantLock();
+
+    // Semaphore used to allow only single remote generation to happen at a time
+    private final Semaphore remoteGenerationDeletionPermits = new Semaphore(2);
 
     public RemoteFsTranslog(
         TranslogConfig config,
@@ -344,29 +345,27 @@ public class RemoteFsTranslog extends Translog {
         // clean up local translog files and updates readers
         super.trimUnreferencedReaders();
 
-        // Since remote generation deletion is async, this ensures that only generation deletion is happening at a time.
-        // If the lock is already acquired, we return from here itself.
-        if (remoteGenerationDeletionLock.tryLock() == false) {
+        // Since remote generation deletion is async, this ensures that only one generation deletion happens at a time.
+        // Remote generations involves 2 async operations - 1) Delete translog generation files 2) Delete metadata files
+        // We try to acquire 2 permits and if we can not, we return from here itself.
+        if (remoteGenerationDeletionPermits.tryAcquire(2) == false) {
             return;
         }
 
-        // If we have come here, it means we were able to acquire the lock. we release the lock in finally.
-        try {
-            // cleans up remote translog files not referenced in latest uploaded metadata.
-            // This enables us to restore translog from the metadata in case of failover or relocation.
-            Set<Long> generationsToDelete = new HashSet<>();
-            for (long generation = minRemoteGenReferenced - 1; generation >= 0; generation--) {
-                if (fileTransferTracker.uploaded(Translog.getFilename(generation)) == false) {
-                    break;
-                }
-                generationsToDelete.add(generation);
+        // cleans up remote translog files not referenced in latest uploaded metadata.
+        // This enables us to restore translog from the metadata in case of failover or relocation.
+        Set<Long> generationsToDelete = new HashSet<>();
+        for (long generation = minRemoteGenReferenced - 1; generation >= 0; generation--) {
+            if (fileTransferTracker.uploaded(Translog.getFilename(generation)) == false) {
+                break;
             }
-            if (generationsToDelete.isEmpty() == false) {
-                deleteRemoteGeneration(generationsToDelete);
-                deleteStaleRemotePrimaryTermsAndMetadataFiles();
-            }
-        } finally {
-            remoteGenerationDeletionLock.unlock();
+            generationsToDelete.add(generation);
+        }
+        if (generationsToDelete.isEmpty() == false) {
+            deleteRemoteGeneration(generationsToDelete);
+            deleteStaleRemotePrimaryTermsAndMetadataFiles();
+        } else {
+            remoteGenerationDeletionPermits.release(2);
         }
     }
 
@@ -375,7 +374,11 @@ public class RemoteFsTranslog extends Translog {
      * @param generations generations to be deleted.
      */
     private void deleteRemoteGeneration(Set<Long> generations) {
-        translogTransferManager.deleteGenerationAsync(primaryTermSupplier.getAsLong(), generations);
+        translogTransferManager.deleteGenerationAsync(
+            primaryTermSupplier.getAsLong(),
+            generations,
+            remoteGenerationDeletionPermits::release
+        );
     }
 
     /**
