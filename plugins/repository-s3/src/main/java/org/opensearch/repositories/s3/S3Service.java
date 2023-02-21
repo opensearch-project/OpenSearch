@@ -72,6 +72,7 @@ import java.net.InetSocketAddress;
 import java.net.PasswordAuthentication;
 import java.net.Proxy;
 import java.net.Socket;
+import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.util.Map;
 
@@ -90,15 +91,19 @@ class S3Service implements Closeable {
     /**
      * Client settings calculated from static configuration and settings in the keystore.
      */
-    private volatile Map<String, S3ClientSettings> staticClientSettings = MapBuilder.<String, S3ClientSettings>newMapBuilder()
-        .put("default", S3ClientSettings.getClientSettings(Settings.EMPTY, "default"))
-        .immutableMap();
+    private volatile Map<String, S3ClientSettings> staticClientSettings;
 
     /**
      * Client settings derived from those in {@link #staticClientSettings} by combining them with settings
      * in the {@link RepositoryMetadata}.
      */
     private volatile Map<Settings, S3ClientSettings> derivedClientSettings = emptyMap();
+
+    S3Service(final Path configPath) {
+        staticClientSettings = MapBuilder.<String, S3ClientSettings>newMapBuilder()
+            .put("default", S3ClientSettings.getClientSettings(Settings.EMPTY, "default", configPath))
+            .immutableMap();
+    }
 
     /**
      * Refreshes the settings for the AmazonS3 clients and clears the cache of
