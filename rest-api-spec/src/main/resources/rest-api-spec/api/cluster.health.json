@@ -114,7 +114,7 @@
       },
       "ensure_node_weighed_in":{
         "type":"boolean",
-        "description": "Checks whether local node is commissioned/weighed-in or not. If set to true on a local call it will throw exception if node is decommissioned/weighed-out (default: false)"
+        "description": "Ensures whether the local node is commissioned and weighed in or not. (default: false)"
       }
     }
   }

@@ -25,7 +25,6 @@ import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
-import java.util.function.Supplier;
 
 /**
  * This acts as entry point to fetch {@link BlobFetchRequest} and return actual {@link IndexInput}. Utilizes the BlobContainer interface to
@@ -53,21 +52,20 @@ public class TransferManager {
      * @return future of IndexInput augmented with internal caching maintenance tasks
      */
     public CompletableFuture<IndexInput> asyncFetchBlob(BlobFetchRequest blobFetchRequest) {
-        return asyncFetchBlob(blobFetchRequest.getFilePath(), () -> {
+        return invocationLinearizer.linearize(blobFetchRequest.getFilePath(), p -> {
             try {
                 return fetchBlob(blobFetchRequest);
             } catch (IOException e) {
                 throw new IllegalStateException(e);
             }
-        });
+        }).thenApply(IndexInput::clone);
     }
 
-    public CompletableFuture<IndexInput> asyncFetchBlob(Path path, Supplier<IndexInput> indexInputSupplier) {
-        return invocationLinearizer.linearize(path, p -> indexInputSupplier.get());
-    }
-
-    /*
-    This method accessed through the ConcurrentInvocationLinearizer so read-check-write is acceptable here
+    /**
+     * Fetches the "origin" IndexInput from the cache, downloading it first if it is
+     * not already cached. This instance must be cloned before using. This method is
+     * accessed through the ConcurrentInvocationLinearizer so read-check-write is
+     * acceptable here
      */
     private IndexInput fetchBlob(BlobFetchRequest blobFetchRequest) throws IOException {
         // check if the origin is already in block cache
@@ -101,8 +99,7 @@ public class TransferManager {
             fileCache.put(blobFetchRequest.getFilePath(), newOrigin);
             origin = newOrigin;
         }
-        // always, need to clone to do refcount += 1, and rely on GC to clean these IndexInput which will refcount -= 1
-        return origin.clone();
+        return origin;
     }
 
     private IndexInput downloadBlockLocally(BlobFetchRequest blobFetchRequest) throws IOException {
