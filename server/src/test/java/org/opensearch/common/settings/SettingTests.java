@@ -40,7 +40,6 @@ import org.opensearch.common.collect.Triplet;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.AbstractScopedSettings.SettingUpdater;
-import org.opensearch.common.settings.Setting.BooleanParser;
 import org.opensearch.common.settings.Setting.ByteSizeValueParser;
 import org.opensearch.common.settings.Setting.DoubleParser;
 import org.opensearch.common.settings.Setting.FloatParser;
@@ -1385,26 +1384,6 @@ public class SettingTests extends OpenSearchTestCase {
                 assertEquals(expectedMinValue, doubleParser.getMin(), 0.01);
                 assertEquals(expectedMaxValue, doubleParser.getMax(), 0.01);
                 assertEquals(expectedFilteredStatus, doubleParser.getFilterStatus());
-            }
-        }
-    }
-
-    // Boolean
-    public void testBooleanParser() throws Exception {
-        String expectedKey = "test key";
-        Boolean expectedFilteredStatus = true;
-        BooleanParser booleanParser = new BooleanParser(expectedKey, expectedFilteredStatus);
-
-        assertEquals(expectedKey, booleanParser.getKey());
-        assertEquals(expectedFilteredStatus, booleanParser.getFilterStatus());
-
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            booleanParser.writeTo(out);
-            out.flush();
-            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
-                booleanParser = new BooleanParser(in);
-                assertEquals(expectedKey, booleanParser.getKey());
-                assertEquals(expectedFilteredStatus, booleanParser.getFilterStatus());
             }
         }
     }

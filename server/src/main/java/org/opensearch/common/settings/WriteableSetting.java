@@ -9,10 +9,10 @@
 package org.opensearch.common.settings;
 
 import org.opensearch.Version;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.settings.Setting.BooleanParser;
 import org.opensearch.common.settings.Setting.ByteSizeValueParser;
 import org.opensearch.common.settings.Setting.DoubleParser;
 import org.opensearch.common.settings.Setting.FloatParser;
@@ -152,7 +152,7 @@ public class WriteableSetting implements Writeable {
         SettingType type,
         String key,
         Object defaultValue,
-        Object parser,
+        @Nullable Object parser,
         WriteableSetting fallback,
         Property[] propertyArray
     ) {
@@ -288,9 +288,6 @@ public class WriteableSetting implements Writeable {
 
     private void writeParser(StreamOutput out, Object parser) throws IOException {
         switch (type) {
-            case Boolean:
-                ((BooleanParser) parser).writeTo(out);
-                break;
             case Integer:
                 ((IntegerParser) parser).writeTo(out);
                 break;
@@ -366,8 +363,6 @@ public class WriteableSetting implements Writeable {
 
     private Object readParser(StreamInput in, Object parser) throws IOException {
         switch (type) {
-            case Boolean:
-                return new BooleanParser(in);
             case Integer:
                 return new IntegerParser(in);
             case Long:

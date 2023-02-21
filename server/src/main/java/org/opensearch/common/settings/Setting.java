@@ -2022,7 +2022,7 @@ public class Setting<T> implements ToXContentObject {
             new SimpleKey(key),
             fallbackSetting,
             fallbackSetting::getRaw,
-            new BooleanParser(key, isFiltered(properties)),
+            b -> parseBoolean(b, key, isFiltered(properties)),
             validator,
             properties
         );
@@ -2045,55 +2045,6 @@ public class Setting<T> implements ToXContentObject {
             } else {
                 throw ex;
             }
-        }
-    }
-
-    /**
-     * A writeable parser for boolean
-     *
-     */
-    public static class BooleanParser implements Function<String, Boolean>, Writeable {
-        private String key;
-        private boolean isFiltered;
-
-        public BooleanParser(String key, boolean isFiltered) {
-            this.key = key;
-            this.isFiltered = isFiltered;
-        }
-
-        public BooleanParser(StreamInput in) throws IOException {
-            key = in.readString();
-            isFiltered = in.readBoolean();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(key);
-            out.writeBoolean(isFiltered);
-        }
-
-        public String getKey() {
-            return key;
-        }
-
-        public boolean getFilterStatus() {
-            return isFiltered;
-        }
-
-        @Override
-        public Boolean apply(String b) {
-            return parseBoolean(b, key, isFiltered);
-        }
-
-        public boolean equals(Object obj) {
-            if (this == obj) return true;
-            if (obj == null || getClass() != obj.getClass()) return false;
-            IntegerParser that = (IntegerParser) obj;
-            return Objects.equals(key, that.key) && Objects.equals(isFiltered, that.isFiltered);
-        }
-
-        public int hashCode() {
-            return Objects.hash(key, isFiltered);
         }
     }
 
