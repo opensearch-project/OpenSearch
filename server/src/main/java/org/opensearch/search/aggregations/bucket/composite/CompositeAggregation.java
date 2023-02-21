@@ -32,7 +32,7 @@
 
 package org.opensearch.search.aggregations.bucket.composite;
 
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.io.IOException;

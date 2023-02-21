@@ -34,8 +34,8 @@ package org.opensearch.action.admin.indices.shrink;
 
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
 
 public class ResizeResponseTests extends AbstractSerializingTestCase<ResizeResponse> {

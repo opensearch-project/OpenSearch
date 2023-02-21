@@ -32,9 +32,9 @@
 
 package org.opensearch.search.aggregations.matrix.spi;
 
-import org.opensearch.common.ParseField;
-import org.opensearch.common.xcontent.ContextParser;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ContextParser;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.plugins.spi.NamedXContentProvider;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;

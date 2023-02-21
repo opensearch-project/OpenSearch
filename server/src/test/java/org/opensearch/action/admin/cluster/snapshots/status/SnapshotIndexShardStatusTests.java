@@ -36,7 +36,7 @@ import java.io.IOException;
 import java.util.function.Predicate;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParserUtils;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;

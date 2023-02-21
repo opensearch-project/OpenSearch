@@ -44,7 +44,7 @@ import org.opensearch.action.bulk.TransportShardBulkAction;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.client.Client;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;

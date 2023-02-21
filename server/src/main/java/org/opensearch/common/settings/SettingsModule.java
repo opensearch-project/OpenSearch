@@ -38,8 +38,8 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.inject.Binder;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;

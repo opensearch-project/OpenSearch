@@ -60,12 +60,12 @@ import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.DeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.suggest.Suggest;
@@ -683,11 +683,11 @@ public class OpenSearchAssertions {
 
     /**
      * Asserts that the provided {@link BytesReference}s created through
-     * {@link org.opensearch.common.xcontent.ToXContent#toXContent(XContentBuilder, ToXContent.Params)} hold the same content.
+     * {@link ToXContent#toXContent(XContentBuilder, ToXContent.Params)} hold the same content.
      * The comparison is done by parsing both into a map and comparing those two, so that keys ordering doesn't matter.
      * Also binary values (byte[]) are properly compared through arrays comparisons.
      */
-    public static void assertToXContentEquivalent(BytesReference expected, BytesReference actual, XContentType xContentType)
+    public static void assertToXContentEquivalent(BytesReference expected, BytesReference actual, MediaType xContentType)
         throws IOException {
         // we tried comparing byte per byte, but that didn't fly for a couple of reasons:
         // 1) whenever anything goes through a map while parsing, ordering is not preserved, which is perfectly ok

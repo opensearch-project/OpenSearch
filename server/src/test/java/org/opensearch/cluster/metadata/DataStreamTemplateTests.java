@@ -10,7 +10,7 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;

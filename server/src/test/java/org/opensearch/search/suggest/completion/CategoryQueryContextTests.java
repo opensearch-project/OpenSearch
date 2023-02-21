@@ -32,7 +32,7 @@
 
 package org.opensearch.search.suggest.completion;
 
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.suggest.completion.context.CategoryQueryContext;
 
 import java.io.IOException;

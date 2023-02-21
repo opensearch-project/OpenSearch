@@ -33,9 +33,9 @@
 package org.opensearch.common;
 
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;

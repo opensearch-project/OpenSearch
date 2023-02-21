@@ -32,8 +32,8 @@
 package org.opensearch.common.geo;
 
 import org.opensearch.common.geo.parsers.ShapeParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.geometry.utils.GeographyValidator;
 import org.opensearch.index.mapper.GeoShapeIndexer;
 import org.opensearch.test.OpenSearchTestCase;

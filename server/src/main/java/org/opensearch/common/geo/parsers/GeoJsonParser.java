@@ -41,8 +41,8 @@ import org.opensearch.common.geo.builders.GeometryCollectionBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.opensearch.common.unit.DistanceUnit;
-import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentSubParser;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentSubParser;
 import org.opensearch.index.mapper.AbstractShapeGeometryFieldMapper;
 
 import java.io.IOException;
