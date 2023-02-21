@@ -38,8 +38,19 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.collect.Triplet;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.AbstractScopedSettings.SettingUpdater;
+import org.opensearch.common.settings.Setting.ByteSizeValueParser;
+import org.opensearch.common.settings.Setting.DoubleParser;
+import org.opensearch.common.settings.Setting.FloatParser;
+import org.opensearch.common.settings.Setting.IntegerParser;
+import org.opensearch.common.settings.Setting.LongParser;
+import org.opensearch.common.settings.Setting.MemorySizeValueParser;
+import org.opensearch.common.settings.Setting.MinMaxTimeValueParser;
+import org.opensearch.common.settings.Setting.MinTimeValueParser;
 import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.BytesStreamInput;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
@@ -1172,6 +1183,31 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(1, integerSetting.get(Settings.EMPTY).intValue());
     }
 
+    public void testIntegerParser() throws Exception {
+        String expectedKey = "test key";
+        int expectedMinValue = Integer.MIN_VALUE;
+        int expectedMaxValue = Integer.MAX_VALUE;
+        boolean expectedFilteredStatus = true;
+        IntegerParser integerParser = new IntegerParser(expectedMinValue, expectedMaxValue, expectedKey, expectedFilteredStatus);
+
+        assertEquals(expectedKey, integerParser.getKey());
+        assertEquals(expectedMinValue, integerParser.getMin());
+        assertEquals(expectedMaxValue, integerParser.getMax());
+        assertEquals(expectedFilteredStatus, integerParser.getFilterStatus());
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            integerParser.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                integerParser = new IntegerParser(in);
+                assertEquals(expectedKey, integerParser.getKey());
+                assertEquals(expectedMinValue, integerParser.getMin());
+                assertEquals(expectedMaxValue, integerParser.getMax());
+                assertEquals(expectedFilteredStatus, integerParser.getFilterStatus());
+            }
+        }
+    }
+
     // Long
 
     public void testLongWithDefaultValue() {
@@ -1205,6 +1241,31 @@ public class SettingTests extends OpenSearchTestCase {
 
         assertEquals(5, longSetting.get(Settings.builder().put("foo.bar", 5).build()).longValue());
         assertEquals(1, longSetting.get(Settings.EMPTY).longValue());
+    }
+
+    public void testLongParser() throws Exception {
+        String expectedKey = "test key";
+        long expectedMinValue = Long.MIN_VALUE;
+        long expectedMaxValue = Long.MAX_VALUE;
+        boolean expectedFilteredStatus = true;
+        LongParser longParser = new LongParser(expectedMinValue, expectedMaxValue, expectedKey, expectedFilteredStatus);
+
+        assertEquals(expectedKey, longParser.getKey());
+        assertEquals(expectedMinValue, longParser.getMin());
+        assertEquals(expectedMaxValue, longParser.getMax());
+        assertEquals(expectedFilteredStatus, longParser.getFilterStatus());
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            longParser.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                longParser = new LongParser(in);
+                assertEquals(expectedKey, longParser.getKey());
+                assertEquals(expectedMinValue, longParser.getMin());
+                assertEquals(expectedMaxValue, longParser.getMax());
+                assertEquals(expectedFilteredStatus, longParser.getFilterStatus());
+            }
+        }
     }
 
     // Float
@@ -1242,6 +1303,31 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(1.2, floatSetting.get(Settings.EMPTY).floatValue(), 0.01);
     }
 
+    public void testFloatParser() throws Exception {
+        String expectedKey = "test key";
+        float expectedMinValue = Float.MIN_VALUE;
+        float expectedMaxValue = Float.MAX_VALUE;
+        boolean expectedFilteredStatus = true;
+        FloatParser floatParser = new FloatParser(expectedMinValue, expectedMaxValue, expectedKey, expectedFilteredStatus);
+
+        assertEquals(expectedKey, floatParser.getKey());
+        assertEquals(expectedMinValue, floatParser.getMin(), 0.01);
+        assertEquals(expectedMaxValue, floatParser.getMax(), 0.01);
+        assertEquals(expectedFilteredStatus, floatParser.getFilterStatus());
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            floatParser.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                floatParser = new FloatParser(in);
+                assertEquals(expectedKey, floatParser.getKey());
+                assertEquals(expectedMinValue, floatParser.getMin(), 0.01);
+                assertEquals(expectedMaxValue, floatParser.getMax(), 0.01);
+                assertEquals(expectedFilteredStatus, floatParser.getFilterStatus());
+            }
+        }
+    }
+
     // Double
 
     public void testDoubleWithDefaultValue() {
@@ -1257,7 +1343,7 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(doubleSetting.get(Settings.builder().put("foo.baz", 3.2).build()), Double.valueOf(3.2));
     }
 
-    public void testDoubleWithMinMax() {
+    public void testDoubleWithMinMax() throws Exception {
         Setting<Double> doubleSetting = Setting.doubleSetting("foo.bar", 1.2, 0, 10, Property.NodeScope);
         try {
             doubleSetting.get(Settings.builder().put("foo.bar", 11.3).build());
@@ -1275,6 +1361,71 @@ public class SettingTests extends OpenSearchTestCase {
 
         assertEquals(5.6, doubleSetting.get(Settings.builder().put("foo.bar", 5.6).build()).doubleValue(), 0.01);
         assertEquals(1.2, doubleSetting.get(Settings.EMPTY).doubleValue(), 0.01);
+    }
+
+    public void testDoubleParser() throws Exception {
+        String expectedKey = "test key";
+        double expectedMinValue = Double.MIN_VALUE;
+        double expectedMaxValue = Double.MAX_VALUE;
+        boolean expectedFilteredStatus = true;
+        DoubleParser doubleParser = new DoubleParser(expectedMinValue, expectedMaxValue, expectedKey, expectedFilteredStatus);
+
+        assertEquals(expectedKey, doubleParser.getKey());
+        assertEquals(expectedMinValue, doubleParser.getMin(), 0.01);
+        assertEquals(expectedMaxValue, doubleParser.getMax(), 0.01);
+        assertEquals(expectedFilteredStatus, doubleParser.getFilterStatus());
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            doubleParser.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                doubleParser = new DoubleParser(in);
+                assertEquals(expectedKey, doubleParser.getKey());
+                assertEquals(expectedMinValue, doubleParser.getMin(), 0.01);
+                assertEquals(expectedMaxValue, doubleParser.getMax(), 0.01);
+                assertEquals(expectedFilteredStatus, doubleParser.getFilterStatus());
+            }
+        }
+    }
+
+    // ByteSizeValue
+    public void testByteSizeValueParser() throws Exception {
+        String expectedKey = "test key";
+        ByteSizeValue expectedMinValue = new ByteSizeValue((long) 1);
+        ByteSizeValue expectedMaxValue = new ByteSizeValue(Long.MAX_VALUE);
+        ByteSizeValueParser byteSizeValueParser = new ByteSizeValueParser(expectedMinValue, expectedMaxValue, expectedKey);
+
+        assertEquals(expectedKey, byteSizeValueParser.getKey());
+        assertEquals(expectedMinValue, byteSizeValueParser.getMin());
+        assertEquals(expectedMaxValue, byteSizeValueParser.getMax());
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            byteSizeValueParser.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                byteSizeValueParser = new ByteSizeValueParser(in);
+                assertEquals(expectedKey, byteSizeValueParser.getKey());
+                assertEquals(expectedMinValue, byteSizeValueParser.getMin());
+                assertEquals(expectedMaxValue, byteSizeValueParser.getMax());
+            }
+        }
+    }
+
+    // MemorySizeValue
+    public void testMemorySizeValueParser() throws Exception {
+        String expectedKey = "test key";
+        MemorySizeValueParser memorySizeValueParser = new MemorySizeValueParser(expectedKey);
+
+        assertEquals(expectedKey, memorySizeValueParser.getKey());
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            memorySizeValueParser.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                memorySizeValueParser = new MemorySizeValueParser(in);
+                assertEquals(expectedKey, memorySizeValueParser.getKey());
+            }
+        }
     }
 
     /**
@@ -1353,6 +1504,58 @@ public class SettingTests extends OpenSearchTestCase {
         setting = Setting.timeSetting("foo", (s) -> TimeValue.timeValueMillis(random.getMillis() * factor), TimeValue.ZERO);
         assertThat(setting.get(Settings.builder().put("foo", "12h").build()), equalTo(TimeValue.timeValueHours(12)));
         assertThat(setting.get(Settings.EMPTY).getMillis(), equalTo(random.getMillis() * factor));
+    }
+
+    public void testMinTimeValueParser() throws Exception {
+        String expectedKey = "test key";
+        TimeValue expectedMinValue = TimeValue.timeValueSeconds(0);
+        boolean expectedFilteredStatus = true;
+        MinTimeValueParser minTimeValueParser = new MinTimeValueParser(expectedKey, expectedMinValue, expectedFilteredStatus);
+
+        assertEquals(expectedKey, minTimeValueParser.getKey());
+        assertEquals(expectedMinValue, minTimeValueParser.getMin());
+        assertEquals(expectedFilteredStatus, minTimeValueParser.getFilterStatus());
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            minTimeValueParser.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                minTimeValueParser = new MinTimeValueParser(in);
+                assertEquals(expectedKey, minTimeValueParser.getKey());
+                assertEquals(expectedMinValue, minTimeValueParser.getMin());
+                assertEquals(expectedFilteredStatus, minTimeValueParser.getFilterStatus());
+            }
+        }
+    }
+
+    public void testMinMaxTimeValueParser() throws Exception {
+        String expectedKey = "test key";
+        TimeValue expectedMinValue = TimeValue.timeValueSeconds(0);
+        TimeValue expectedMaxValue = TimeValue.MAX_VALUE;
+        boolean expectedFilteredStatus = true;
+        MinMaxTimeValueParser minMaxTimeValueParser = new MinMaxTimeValueParser(
+            expectedKey,
+            expectedMinValue,
+            expectedMaxValue,
+            expectedFilteredStatus
+        );
+
+        assertEquals(expectedKey, minMaxTimeValueParser.getKey());
+        assertEquals(expectedMinValue, minMaxTimeValueParser.getMin());
+        assertEquals(expectedMaxValue, minMaxTimeValueParser.getMax());
+        assertEquals(expectedFilteredStatus, minMaxTimeValueParser.getFilterStatus());
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            minMaxTimeValueParser.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                minMaxTimeValueParser = new MinMaxTimeValueParser(in);
+                assertEquals(expectedKey, minMaxTimeValueParser.getKey());
+                assertEquals(expectedMinValue, minMaxTimeValueParser.getMin());
+                assertEquals(expectedMaxValue, minMaxTimeValueParser.getMax());
+                assertEquals(expectedFilteredStatus, minMaxTimeValueParser.getFilterStatus());
+            }
+        }
     }
 
     public void testTimeValueBounds() {
