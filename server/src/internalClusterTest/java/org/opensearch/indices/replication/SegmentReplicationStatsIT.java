@@ -18,36 +18,55 @@ import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
 import static java.util.Arrays.asList;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
 
     public void testSegmentReplicationStatsResponse() throws Exception {
-        final String primaryNode = internalCluster().startNode();
-        createIndex(INDEX_NAME);
-        ensureYellowAndNoInitializingShards(INDEX_NAME);
-        final String replicaNode = internalCluster().startNode();
-        ensureGreen(INDEX_NAME);
+        internalCluster().startClusterManagerOnlyNode();
+        String dataNode = internalCluster().startDataOnlyNode();
+        String anotherDataNode = internalCluster().startDataOnlyNode();
 
-        // index 10 docs
-        for (int i = 0; i < 10; i++) {
-            client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+        int numShards = 4;
+        assertAcked(
+            prepareCreate(
+                INDEX_NAME,
+                0,
+                Settings.builder()
+                    .put("number_of_shards", numShards)
+                    .put("number_of_replicas", 1)
+                    .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            )
+        );
+        ensureGreen();
+        final long numDocs = scaledRandomIntBetween(50, 100);
+        for (int i = 0; i < numDocs; i++) {
+            index(INDEX_NAME, "doc", Integer.toString(i));
         }
         refresh(INDEX_NAME);
-        waitForSearchableDocs(10L, asList(primaryNode, replicaNode));
+        ensureSearchable(INDEX_NAME);
 
         assertBusy(() -> {
-            final SegmentReplicationStatsResponse response = client().admin()
+            SegmentReplicationStatsResponse segmentReplicationStatsResponse = dataNodeClient().admin()
                 .indices()
                 .prepareSegmentReplicationStats(INDEX_NAME)
                 .execute()
                 .actionGet();
-            // Verify API Response
-            assertEquals(response.shardSegmentReplicationStates().size(), SHARD_COUNT);
-            assertEquals(response.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getStage(), SegmentReplicationState.Stage.DONE);
-            assertTrue(response.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getIndex().recoveredFileCount() > 0);
-        });
+            assertEquals(segmentReplicationStatsResponse.shardSegmentReplicationStates().size(), 1);
+            assertEquals(segmentReplicationStatsResponse.getTotalShards(), numShards * 2);
+            assertEquals(segmentReplicationStatsResponse.getSuccessfulShards(), numShards * 2);
+            assertEquals(
+                segmentReplicationStatsResponse.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getStage(),
+                SegmentReplicationState.Stage.DONE
+            );
+            assertTrue(
+                segmentReplicationStatsResponse.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getIndex().recoveredFileCount() > 0
+            );
+        }, 1, TimeUnit.MINUTES);
     }
 
     public void testSegmentReplicationStatsResponseForActiveAndCompletedOnly() throws Exception {
@@ -121,6 +140,7 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
             completedOnlyResponse.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getStage(),
             SegmentReplicationState.Stage.DONE
         );
+        assertTrue(completedOnlyResponse.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getIndex().recoveredFileCount() > 0);
         waitForAssertions.countDown();
     }
 
