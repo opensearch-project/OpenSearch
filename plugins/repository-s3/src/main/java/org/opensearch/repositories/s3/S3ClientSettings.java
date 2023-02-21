@@ -35,6 +35,8 @@ package org.opensearch.repositories.s3;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import org.opensearch.common.Strings;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.SecureSetting;
 import org.opensearch.common.settings.SecureString;
@@ -46,6 +48,7 @@ import org.opensearch.common.unit.TimeValue;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.file.Path;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
@@ -348,16 +351,16 @@ final class S3ClientSettings {
      *
      * Note this will always at least return a client named "default".
      */
-    static Map<String, S3ClientSettings> load(Settings settings) {
+    static Map<String, S3ClientSettings> load(final Settings settings, final Path configPath) {
         final Set<String> clientNames = settings.getGroups(PREFIX).keySet();
         final Map<String, S3ClientSettings> clients = new HashMap<>();
         for (final String clientName : clientNames) {
-            clients.put(clientName, getClientSettings(settings, clientName));
+            clients.put(clientName, getClientSettings(settings, clientName, configPath));
         }
         if (clients.containsKey("default") == false) {
             // this won't find any settings under the default client,
             // but it will pull all the fallback static settings
-            clients.put("default", getClientSettings(settings, "default"));
+            clients.put("default", getClientSettings(settings, "default", configPath));
         }
         return Collections.unmodifiableMap(clients);
     }
@@ -425,8 +428,17 @@ final class S3ClientSettings {
         }
     }
 
-    private static IrsaCredentials loadIrsaCredentials(Settings settings, String clientName) {
+    @SuppressForbidden(reason = "PathUtils#get")
+    private static IrsaCredentials loadIrsaCredentials(Settings settings, String clientName, Path configPath) {
         String identityTokenFile = getConfigValue(settings, clientName, IDENTITY_TOKEN_FILE_SETTING);
+        if (identityTokenFile.length() != 0) {
+            final Path identityTokenFilePath = PathUtils.get(identityTokenFile);
+            // If the path is not absolute, resolve it relatively to config path
+            if (!identityTokenFilePath.isAbsolute()) {
+                identityTokenFile = PathUtils.get(new Path[] { configPath }, identityTokenFile).toString();
+            }
+        }
+
         try (
             SecureString roleArn = getConfigValue(settings, clientName, ROLE_ARN_SETTING);
             SecureString roleSessionName = getConfigValue(settings, clientName, ROLE_SESSION_NAME_SETTING)
@@ -441,11 +453,11 @@ final class S3ClientSettings {
 
     // pkg private for tests
     /** Parse settings for a single client. */
-    static S3ClientSettings getClientSettings(final Settings settings, final String clientName) {
+    static S3ClientSettings getClientSettings(final Settings settings, final String clientName, final Path configPath) {
         final Protocol awsProtocol = getConfigValue(settings, clientName, PROTOCOL_SETTING);
         return new S3ClientSettings(
             S3ClientSettings.loadCredentials(settings, clientName),
-            S3ClientSettings.loadIrsaCredentials(settings, clientName),
+            S3ClientSettings.loadIrsaCredentials(settings, clientName, configPath),
             getConfigValue(settings, clientName, ENDPOINT_SETTING),
             awsProtocol,
             Math.toIntExact(getConfigValue(settings, clientName, READ_TIMEOUT_SETTING).millis()),
