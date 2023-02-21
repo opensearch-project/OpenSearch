@@ -19,14 +19,12 @@ import org.opensearch.transport.TransportService;
 
 import java.util.concurrent.CountDownLatch;
 import static java.util.Arrays.asList;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
 
-    public void testSegmentReplicationStatsResponse() {
+    public void testSegmentReplicationStatsResponse() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         String dataNode = internalCluster().startDataOnlyNode();
         String anotherDataNode = internalCluster().startDataOnlyNode();
@@ -50,14 +48,23 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
         refresh(INDEX_NAME);
         ensureSearchable(INDEX_NAME);
 
-        SegmentReplicationStatsResponse segmentReplicationStatsResponse = dataNodeClient().admin()
-            .indices()
-            .prepareSegmentReplicationStats(INDEX_NAME)
-            .execute()
-            .actionGet();
-        assertThat(segmentReplicationStatsResponse.shardSegmentReplicationStates().size(), equalTo(1));
-        assertThat(segmentReplicationStatsResponse.getTotalShards(), equalTo(numShards * 2));
-        assertThat(segmentReplicationStatsResponse.getSuccessfulShards(), equalTo(numShards * 2));
+        assertBusy(() -> {
+            SegmentReplicationStatsResponse segmentReplicationStatsResponse = dataNodeClient().admin()
+                .indices()
+                .prepareSegmentReplicationStats(INDEX_NAME)
+                .execute()
+                .actionGet();
+            assertEquals(segmentReplicationStatsResponse.shardSegmentReplicationStates().size(), 1);
+            assertEquals(segmentReplicationStatsResponse.getTotalShards(), numShards * 2);
+            assertEquals(segmentReplicationStatsResponse.getSuccessfulShards(), numShards * 2);
+            assertEquals(
+                segmentReplicationStatsResponse.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getStage(),
+                SegmentReplicationState.Stage.DONE
+            );
+            assertTrue(
+                segmentReplicationStatsResponse.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getIndex().recoveredFileCount() > 0
+            );
+        });
     }
 
     public void testSegmentReplicationStatsResponseForActiveAndCompletedOnly() throws Exception {
@@ -131,10 +138,7 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
             completedOnlyResponse.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getStage(),
             SegmentReplicationState.Stage.DONE
         );
-        assertThat(
-            completedOnlyResponse.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getIndex().recoveredFileCount(),
-            greaterThan(0)
-        );
+        assertTrue(completedOnlyResponse.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getIndex().recoveredFileCount() > 0);
         waitForAssertions.countDown();
     }
 
