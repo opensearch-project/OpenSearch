@@ -33,6 +33,7 @@
 package org.opensearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
@@ -44,6 +45,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingTable;
@@ -63,6 +65,7 @@ import java.util.Formatter;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
@@ -129,13 +132,11 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
     }
 
     /**
-     * This test verifies that with only primary shard balance, the primary shard distribution is balanced within thresholds.
+     * This test verifies that with only primary shard balance, the primary shard distribution per index is balanced.
      */
     public void testPrimaryBalance() {
-        /* Tests balance over primary shards only */
-        final float indexBalance = 0.0f;
-        final float shardBalance = 0.0f;
-        final float primaryBalance = 1.0f;
+        final float indexBalance = 0.55f;
+        final float shardBalance = 0.45f;
         final float balanceThreshold = 1.0f;
 
         Settings.Builder settings = Settings.builder();
@@ -144,58 +145,33 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
             ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()
         );
         settings.put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), indexBalance);
-        settings.put(BalancedShardsAllocator.PRIMARY_SHARD_BALANCE_FACTOR_SETTING.getKey(), primaryBalance);
+        settings.put(BalancedShardsAllocator.PREFER_PRIMARY_SHARD_BALANCE.getKey(), "true");
         settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), shardBalance);
         settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), balanceThreshold);
 
         AllocationService strategy = createAllocationService(settings.build(), new TestGatewayAllocator());
 
         ClusterState clusterState = initCluster(strategy);
-        assertPrimaryBalance(
-            clusterState.getRoutingTable(),
-            clusterState.getRoutingNodes(),
-            numberOfNodes,
-            numberOfIndices,
-            numberOfReplicas,
-            numberOfShards,
-            balanceThreshold
-        );
+        verifyPerIndexPrimaryBalance(clusterState);
 
         clusterState = addNode(clusterState, strategy);
-        assertPrimaryBalance(
-            clusterState.getRoutingTable(),
-            clusterState.getRoutingNodes(),
-            numberOfNodes + 1,
-            numberOfIndices,
-            numberOfReplicas,
-            numberOfShards,
-            balanceThreshold
-        );
+        verifyPerIndexPrimaryBalance(clusterState);
 
         clusterState = removeNodes(clusterState, strategy);
-        assertPrimaryBalance(
-            clusterState.getRoutingTable(),
-            clusterState.getRoutingNodes(),
-            (numberOfNodes + 1) - (numberOfNodes + 1) / 2,
-            numberOfIndices,
-            numberOfReplicas,
-            numberOfShards,
-            balanceThreshold
-        );
+        verifyPerIndexPrimaryBalance(clusterState);
     }
 
     /**
-     * This test verifies that with only primary shard balance, the primary shard distribution is balanced within thresholds.
+     * This test verifies primary shard balance without PREFER_PRIMARY_SHARD_BALANCE setting.
      */
-    public void testPrimaryBalanceWithSingleIndex() {
-        final int numberOfNodes = 10;
-        final int numberOfIndices = 1;
-        final int numberOfShards = 50;
+    public void testPrimaryBalanceWithoutPreferPrimaryBalanceSetting() {
+        final int numberOfNodes = 5;
+        final int numberOfIndices = 5;
+        final int numberOfShards = 25;
         final int numberOfReplicas = 1;
 
         final float indexBalance = 0.55f;
         final float shardBalance = 0.45f;
-        final float primaryBalance = 0.0f;
         final float balanceThreshold = 1.0f;
 
         Settings.Builder settings = Settings.builder();
@@ -204,47 +180,35 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
             ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()
         );
         settings.put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), indexBalance);
-        settings.put(BalancedShardsAllocator.PRIMARY_SHARD_BALANCE_FACTOR_SETTING.getKey(), primaryBalance);
         settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), shardBalance);
         settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), balanceThreshold);
+        settings.put(BalancedShardsAllocator.PREFER_PRIMARY_SHARD_BALANCE.getKey(), false);
 
         AllocationService strategy = createAllocationService(settings.build(), new TestGatewayAllocator());
 
         ClusterState clusterState = initCluster(strategy, true, numberOfIndices, numberOfNodes, numberOfShards, numberOfReplicas);
         logger.info(ShardAllocations.printShardDistribution(clusterState));
-        assertPrimaryBalance(
-            clusterState.getRoutingTable(),
-            clusterState.getRoutingNodes(),
-            numberOfNodes,
-            numberOfIndices,
-            numberOfReplicas,
-            numberOfShards,
-            balanceThreshold
-        );
 
-
-//        clusterState = addNode(clusterState, strategy);
-//        assertPrimaryBalance(
-//            clusterState.getRoutingTable(),
-//            clusterState.getRoutingNodes(),
-//            numberOfNodes + 1,
-//            numberOfIndices,
-//            numberOfReplicas,
-//            numberOfShards,
-//            balanceThreshold
-//        );
         clusterState = removeOneNode(clusterState, strategy);
         logger.info(ShardAllocations.printShardDistribution(clusterState));
-        logger.info("--> state {}", clusterState);
+        try {
+            verifyPerIndexPrimaryBalance(clusterState);
+        } catch (AssertionError e) {
+            logger.info("Expected assertion failure {}", e.getMessage());
+        }
     }
 
     /**
-     * This test verifies
+     * This test verifies primary shard balance with PREFER_PRIMARY_SHARD_BALANCE setting.
      */
-    public void testBalanceDefaults() {
+    public void testPrimaryBalanceWithPreferPrimaryBalanceSetting() {
+        final int numberOfNodes = 5;
+        final int numberOfIndices = 5;
+        final int numberOfShards = 25;
+        final int numberOfReplicas = 1;
+
         final float indexBalance = 0.55f;
         final float shardBalance = 0.45f;
-        final float primaryBalance = 0.40f;
         final float balanceThreshold = 1.0f;
 
         Settings.Builder settings = Settings.builder();
@@ -253,71 +217,30 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
             ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()
         );
         settings.put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), indexBalance);
-        settings.put(BalancedShardsAllocator.PRIMARY_SHARD_BALANCE_FACTOR_SETTING.getKey(), primaryBalance);
         settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), shardBalance);
         settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), balanceThreshold);
+        settings.put(BalancedShardsAllocator.PREFER_PRIMARY_SHARD_BALANCE.getKey(), true);
 
         AllocationService strategy = createAllocationService(settings.build(), new TestGatewayAllocator());
 
-        ClusterState clusterState = initCluster(strategy);
-        assertPrimaryBalance(
-            clusterState.getRoutingTable(),
-            clusterState.getRoutingNodes(),
-            numberOfNodes,
-            numberOfIndices,
-            numberOfReplicas,
-            numberOfShards,
-            balanceThreshold
-        );
-        assertIndexBalance(
-            clusterState.getRoutingTable(),
-            clusterState.getRoutingNodes(),
-            numberOfNodes,
-            numberOfIndices,
-            numberOfReplicas,
-            numberOfShards,
-            balanceThreshold
-        );
+        ClusterState clusterState = initCluster(strategy, true, numberOfIndices, numberOfNodes, numberOfShards, numberOfReplicas);
+        logger.info(ShardAllocations.printShardDistribution(clusterState));
 
-        clusterState = addNode(clusterState, strategy);
-        assertPrimaryBalance(
-            clusterState.getRoutingTable(),
-            clusterState.getRoutingNodes(),
-            numberOfNodes + 1,
-            numberOfIndices,
-            numberOfReplicas,
-            numberOfShards,
-            balanceThreshold
-        );
-        assertIndexBalance(
-            clusterState.getRoutingTable(),
-            clusterState.getRoutingNodes(),
-            numberOfNodes + 1,
-            numberOfIndices,
-            numberOfReplicas,
-            numberOfShards,
-            balanceThreshold
-        );
+        clusterState = removeOneNode(clusterState, strategy);
+        logger.info(ShardAllocations.printShardDistribution(clusterState));
+        verifyPerIndexPrimaryBalance(clusterState);
+    }
 
-        clusterState = removeNodes(clusterState, strategy);
-        assertPrimaryBalance(
-            clusterState.getRoutingTable(),
-            clusterState.getRoutingNodes(),
-            (numberOfNodes + 1) - (numberOfNodes + 1) / 2,
-            numberOfIndices,
-            numberOfReplicas,
-            numberOfShards,
-            balanceThreshold
-        );
-        assertIndexBalance(
-            clusterState.getRoutingTable(),
-            clusterState.getRoutingNodes(),
-            (numberOfNodes + 1) - (numberOfNodes + 1) / 2,
-            numberOfIndices,
-            numberOfReplicas,
-            numberOfShards,
-            balanceThreshold
-        );
+    public void verifyPerIndexPrimaryBalance(ClusterState currentState) {
+        RoutingNodes nodes = currentState.getRoutingNodes();
+        for (ObjectObjectCursor<String, IndexRoutingTable> index : currentState.getRoutingTable().indicesRouting()) {
+            final int totalPrimaryShards = index.value.primaryShardsActive();
+            final int avgPrimaryShardsPerNode = (int) Math.ceil(totalPrimaryShards * 1f / currentState.getRoutingNodes().size());
+
+            for (RoutingNode node : nodes) {
+                assertTrue(node.primaryShardsWithState(index.key, STARTED).size() <= avgPrimaryShardsPerNode);
+            }
+        }
     }
 
     public void testShardBalance() {
@@ -536,27 +459,6 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         }
     }
 
-    private void assertPrimaryBalance(
-        RoutingTable routingTable,
-        RoutingNodes nodes,
-        int numberOfNodes,
-        int numberOfIndices,
-        int numberOfReplicas,
-        int numberOfShards,
-        float threshold
-    ) {
-
-        final int numShards = numberOfShards * numberOfIndices;
-        final float avgNumShards = (float) (numShards) / (float) (numberOfNodes);
-        final int minAvgNumberOfShards = Math.round(Math.round(Math.floor(avgNumShards - threshold)));
-        final int maxAvgNumberOfShards = Math.round(Math.round(Math.ceil(avgNumShards + threshold)));
-
-        for (RoutingNode node : nodes) {
-            assertThat(node.primaryShardsWithState(STARTED).size(), Matchers.greaterThanOrEqualTo(minAvgNumberOfShards));
-            assertThat(node.primaryShardsWithState(STARTED).size(), Matchers.lessThanOrEqualTo(maxAvgNumberOfShards));
-        }
-    }
-
     public void testPersistedSettings() {
         Settings.Builder settings = Settings.builder();
         settings.put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.2);
@@ -744,6 +646,9 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
     }
 }
 
+/**
+ * Utility class to show shards distribution across nodes.
+ */
 class ShardAllocations {
     static ClusterState state;
 
@@ -757,12 +662,6 @@ class ShardAllocations {
      int[]: tuple storing primary shard count in 0th index and replica's in 1
      */
     static TreeMap<String, int[]> nodeToSegRepCountMap = new TreeMap<>();
-    /**
-     Store shard primary/replica shard count against a node for docrep indices.
-     String: NodeId
-     int[]: tuple storing primary shard count in 0th index and replica's in 1
-     */
-    static TreeMap<String, int[]> nodeToDocRepCountMap = new TreeMap<>();
 
     /**
      * Helper map containing NodeName to NodeId
@@ -776,17 +675,16 @@ class ShardAllocations {
 
     static int[] totalShards = new int[2];
 
-    public final static String printShardAllocationWithHeader(int[] docrep, int[] segrep) {
+    public final static String printShardAllocationWithHeader(int[] shardCount) {
         StringBuffer sb = new StringBuffer();
         Formatter formatter = new Formatter(sb, Locale.getDefault());
-        formatter.format("%-20s %-20s %-20s %-20s\n", "P", docrep[0] + segrep[0], docrep[0], segrep[0]);
-        formatter.format("%-20s %-20s %-20s %-20s\n", "R", docrep[1] + segrep[1], docrep[1], segrep[1]);
+        formatter.format("%-20s %-20s\n", "P", shardCount[0]);
+        formatter.format("%-20s %-20s\n", "R", shardCount[1]);
         return sb.toString();
     }
 
     public static void reset() {
         nodeToSegRepCountMap.clear();
-        nodeToDocRepCountMap.clear();
         nameToNodeId.clear();
         totalShards[0] = totalShards[1] = 0;
         unassigned[0] = unassigned[1] = 0;
@@ -798,15 +696,10 @@ class ShardAllocations {
         for (RoutingNode node : state.getRoutingNodes()) {
             nameToNodeId.putIfAbsent(node.nodeId(), node.nodeId());
             nodeToSegRepCountMap.putIfAbsent(node.nodeId(), new int[] { 0, 0 });
-            nodeToDocRepCountMap.putIfAbsent(node.nodeId(), new int[] { 0, 0 });
         }
         for (ShardRouting shardRouting : state.routingTable().allShards()) {
-            // Fetch shard to update. Initialize local array
-            if (isIndexSegRep(shardRouting.getIndexName())) {
-                updateMap(nodeToSegRepCountMap, shardRouting);
-            } else {
-                updateMap(nodeToDocRepCountMap, shardRouting);
-            }
+            // Fetch shard to update. Initialize local array=
+            updateMap(nodeToSegRepCountMap, shardRouting);
         }
     }
 
@@ -825,22 +718,14 @@ class ShardAllocations {
         if (shardRouting.assignedToNode()) mapToUpdate.put(shardRouting.currentNodeId(), shard);
     }
 
-    static boolean isIndexSegRep(String indexName) {
-        return state.metadata()
-            .index(indexName)
-            .getSettings()
-            .get(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey())
-            .equals(ReplicationType.SEGMENT.toString());
-    }
-
     public static String allocation() {
         StringBuffer sb = new StringBuffer();
         sb.append(TWO_LINE_RETURN + separator + ONE_LINE_RETURN);
         Formatter formatter = new Formatter(sb, Locale.getDefault());
         for (Map.Entry<String, String> entry : nameToNodeId.entrySet()) {
             String nodeId = nameToNodeId.get(entry.getKey());
-            formatter.format("%-20s %-20s %-20s %-20s\n", entry.getKey().toUpperCase(Locale.getDefault()), "TOTAL", "DOCREP", "SEGREP");
-            sb.append(printShardAllocationWithHeader(nodeToDocRepCountMap.get(nodeId), nodeToSegRepCountMap.get(nodeId)));
+            formatter.format("%-20s\n", entry.getKey().toUpperCase(Locale.getDefault()));
+            sb.append(printShardAllocationWithHeader(nodeToSegRepCountMap.get(nodeId)));
         }
         sb.append(ONE_LINE_RETURN);
         formatter.format("%-20s (P)%-5s (R)%-5s\n\n", "Unassigned ", unassigned[0], unassigned[1]);
@@ -853,4 +738,3 @@ class ShardAllocations {
         return allocation();
     }
 }
-

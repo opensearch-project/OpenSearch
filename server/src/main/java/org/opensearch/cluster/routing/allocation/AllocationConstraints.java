@@ -8,58 +8,55 @@ package org.opensearch.cluster.routing.allocation;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.opensearch.cluster.routing.allocation.allocator.ShardsBalancer;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Predicate;
+
+import static org.opensearch.cluster.routing.allocation.RebalanceConstraints.PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_ID;
+import static org.opensearch.cluster.routing.allocation.RebalanceConstraints.PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_WEIGHT;
+import static org.opensearch.cluster.routing.allocation.RebalanceConstraints.isIndexPrimaryShardsPerNodeBreached;
 
 /**
  * Allocation constraints specify conditions which, if breached, reduce the
- * priority of a node for receiving shard allocations.
+ * priority of a node for receiving unassigned shard allocations.
  *
  * @opensearch.internal
  */
 public class AllocationConstraints {
-    public final long CONSTRAINT_WEIGHT = 1000000L;
-    private List<Predicate<ConstraintParams>> constraintPredicates;
 
-    public AllocationConstraints() {
-        this.constraintPredicates = new ArrayList<>(1);
-        this.constraintPredicates.add(isIndexShardsPerNodeBreached());
-    }
-
-    class ConstraintParams {
-        private ShardsBalancer balancer;
-        private BalancedShardsAllocator.ModelNode node;
-        private String index;
-
-        ConstraintParams(ShardsBalancer balancer, BalancedShardsAllocator.ModelNode node, String index) {
-            this.balancer = balancer;
-            this.node = node;
-            this.index = index;
-        }
-    }
+    public final static long INDEX_SHARD_PER_NODE_BREACH_WEIGHT = 1000000L;
 
     /**
-     * Evaluates configured allocation constraint predicates for given node - index
-     * combination; and returns a weight value based on the number of breached
-     * constraints.
      *
-     * Constraint weight should be added to the weight calculated via weight
-     * function, to reduce priority of allocating on nodes with breached
-     * constraints.
-     *
-     * This weight function is used only in case of unassigned shards to avoid overloading a newly added node.
-     * Weight calculation in other scenarios like shard movement and re-balancing remain unaffected by this function.
+     * This constraint is only applied for unassigned shards to avoid overloading a newly added node.
+     * Weight calculation in other scenarios like shard movement and re-balancing remain unaffected by this constraint.
      */
+    public final static String INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID = "index.shard.breach.constraint";
+    private Map<String, Constraint> constraintSet;
+
+    public void updateAllocationConstraint(String constraint, boolean enable) {
+        this.constraintSet.get(constraint).setEnable(enable);
+    }
+
     public long weight(ShardsBalancer balancer, BalancedShardsAllocator.ModelNode node, String index) {
-        int constraintsBreached = 0;
-        ConstraintParams params = new ConstraintParams(balancer, node, index);
-        for (Predicate<ConstraintParams> predicate : constraintPredicates) {
-            if (predicate.test(params)) {
-                constraintsBreached++;
-            }
-        }
-        return constraintsBreached * CONSTRAINT_WEIGHT;
+        Constraint.ConstraintParams params = new Constraint.ConstraintParams(balancer, node, index);
+        return params.weight(constraintSet);
+    }
+
+    public AllocationConstraints() {
+        this.constraintSet = new HashMap<>();
+        this.constraintSet.putIfAbsent(
+            INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID,
+            new Constraint(INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID, isIndexShardsPerNodeBreached(), INDEX_SHARD_PER_NODE_BREACH_WEIGHT)
+        );
+        this.constraintSet.putIfAbsent(
+            PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_ID,
+            new Constraint(
+                PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_ID,
+                isIndexPrimaryShardsPerNodeBreached(),
+                PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_WEIGHT
+            )
+        );
     }
 
     /**
@@ -76,12 +73,11 @@ public class AllocationConstraints {
      * This constraint is breached when balancer attempts to allocate more than
      * average shards per index per node.
      */
-    private Predicate<ConstraintParams> isIndexShardsPerNodeBreached() {
+    public static Predicate<Constraint.ConstraintParams> isIndexShardsPerNodeBreached() {
         return (params) -> {
-            int currIndexShardsOnNode = params.node.numShards(params.index);
-            int allowedIndexShardsPerNode = (int) Math.ceil(params.balancer.avgShardsPerNode(params.index));
+            int currIndexShardsOnNode = params.getNode().numShards(params.getIndex());
+            int allowedIndexShardsPerNode = (int) Math.ceil(params.getBalancer().avgShardsPerNode(params.getIndex()));
             return (currIndexShardsOnNode >= allowedIndexShardsPerNode);
         };
     }
-
 }
