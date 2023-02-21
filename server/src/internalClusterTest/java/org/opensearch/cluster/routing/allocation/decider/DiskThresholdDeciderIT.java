@@ -436,6 +436,41 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
         assertBusyWithDiskUsageRefresh(dataNode0Id, indexName, hasSize(1));
     }
 
+    public void testDiskMonitorResetLastRuntimeMilliSecOnlyInFirstCall() throws Exception {
+        final Settings settings = Settings.builder()
+            .put(DiskThresholdSettings.CLUSTER_CREATE_INDEX_BLOCK_AUTO_RELEASE.getKey(), false)
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+            .build();
+
+        internalCluster().startClusterManagerOnlyNode(settings);
+        internalCluster().startDataOnlyNodes(2, settings);
+        ensureStableCluster(3);
+
+        final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
+        // Reduce disk space of all node.
+        clusterInfoService.setDiskUsageFunctionAndRefresh((discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, TOTAL_SPACE_BYTES, 0));
+
+        // Validate if cluster block is applied on the cluster
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
+            assertTrue(state.blocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()));
+        }, 30L, TimeUnit.SECONDS);
+
+        // User removes index create block.
+        Settings removeBlockSetting = Settings.builder().put(Metadata.SETTING_CREATE_INDEX_BLOCK_SETTING.getKey(), "false").build();
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(removeBlockSetting).get());
+        // Free all the space
+        clusterInfoService.setDiskUsageFunctionAndRefresh(
+            (discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, TOTAL_SPACE_BYTES, TOTAL_SPACE_BYTES)
+        );
+
+        // Validate index create block is removed on the cluster
+        assertBusy(() -> {
+            ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
+            assertFalse(state.blocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()));
+        }, 30L, TimeUnit.SECONDS);
+    }
+
     private String populateNode(final String dataNodeName) throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createAndPopulateIndex(indexName, dataNodeName);
