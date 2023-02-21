@@ -258,7 +258,6 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
     public void testIndexCreateBlockIsRemovedWhenAnyNodesNotExceedHighWatermarkWithAutoReleaseDisabled() throws Exception {
         final Settings settings = Settings.builder()
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
-            .put(DiskThresholdSettings.CLUSTER_CREATE_INDEX_BLOCK_AUTO_RELEASE.getKey(), false)
             .build();
 
         internalCluster().startClusterManagerOnlyNode(settings);
@@ -287,6 +286,14 @@ public class DiskThresholdDeciderIT extends OpenSearchIntegTestCase {
             ClusterState state1 = client().admin().cluster().prepareState().setLocal(true).get().getState();
             assertTrue(state1.blocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()));
         }, 30L, TimeUnit.SECONDS);
+
+        Settings createBlockSetting = Settings.builder().put(Metadata.SETTING_CREATE_INDEX_BLOCK_SETTING.getKey(), "false").build();
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(createBlockSetting).get());
+        assertBusy(() -> {
+            ClusterState state1 = client().admin().cluster().prepareState().setLocal(true).get().getState();
+            assertFalse(state1.blocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()));
+        }, 30L, TimeUnit.SECONDS);
+
     }
 
     public void testDiskMonitorAppliesBlockBackWhenUserRemovesIndexCreateBlock() throws Exception {

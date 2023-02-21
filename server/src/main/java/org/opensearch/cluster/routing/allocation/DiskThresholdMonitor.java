@@ -264,8 +264,6 @@ public class DiskThresholdMonitor {
                         if (lastRunTimeMillis.get() <= currentTimeMillis - diskThresholdSettings.getRerouteInterval().millis()) {
                             reroute = true;
                             explanation = "one or more nodes has gone under the high or low watermark";
-                            nodesOverLowThreshold.remove(node);
-                            nodesOverHighThreshold.remove(node);
 
                             logger.info(
                                 "low disk watermark [{}] no longer exceeded on {}",
@@ -281,6 +279,9 @@ public class DiskThresholdMonitor {
                                 diskThresholdSettings.getRerouteInterval()
                             );
                         }
+
+                        nodesOverLowThreshold.remove(node);
+                        nodesOverHighThreshold.remove(node);
                     }
 
                 }
