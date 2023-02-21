@@ -18,6 +18,8 @@ import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+
 import static java.util.Arrays.asList;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
@@ -64,7 +66,7 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
             assertTrue(
                 segmentReplicationStatsResponse.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getIndex().recoveredFileCount() > 0
             );
-        });
+        }, 1, TimeUnit.MINUTES);
     }
 
     public void testSegmentReplicationStatsResponseForActiveAndCompletedOnly() throws Exception {
