@@ -58,6 +58,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -149,8 +150,8 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
      */
     public static class TestS3RepositoryPlugin extends S3RepositoryPlugin {
 
-        public TestS3RepositoryPlugin(final Settings settings) {
-            super(settings);
+        public TestS3RepositoryPlugin(final Settings settings, final Path configPath) {
+            super(settings, configPath);
         }
 
         @Override
