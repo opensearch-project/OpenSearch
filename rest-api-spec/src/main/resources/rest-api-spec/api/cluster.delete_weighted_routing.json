@@ -21,11 +21,9 @@
         }
       ]
     },
-    "params":{
-      "_version": {
-        "type":"string",
-        "description":"Implements optimistic concurrency control (OCC) through versioning. The parameter uses simple versioning, such as `1`, and increments upward based on each subsequent modification."
-      }
+    "body":{
+        "description":"The version to be deleted eg {\"_version\":\"1\"}",
+        "required": true
     }
   }
 }
