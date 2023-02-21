@@ -8,15 +8,12 @@
 
 package org.opensearch.indices.replication;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.hamcrest.Matchers;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
-import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.opensearch.common.settings.Settings;
@@ -28,11 +25,9 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.util.ArrayList;
 import java.util.Formatter;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
@@ -60,9 +55,7 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setPersistentSettings(
-                    Settings.builder().put(BalancedShardsAllocator.PREFER_PRIMARY_SHARD_BALANCE.getKey(), "true")
-                )
+                .setPersistentSettings(Settings.builder().put(BalancedShardsAllocator.PREFER_PRIMARY_SHARD_BALANCE.getKey(), "true"))
         );
     }
 
@@ -233,6 +226,19 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
         verifyPerIndexPrimaryBalance();
     }
 
+    public void testReplicaSwap() {
+        internalCluster().startClusterManagerOnlyNode();
+        enablePreferPrimaryBalance();
+        String primary = internalCluster().startDataOnlyNode();
+        createIndex("test", 2, 1, true);
+        String replica = internalCluster().startDataOnlyNode();
+        ensureGreen("test");
+        ShardAllocations shardAllocations = new ShardAllocations();
+        ClusterState state;
+        state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        shardAllocations.printShardDistribution(state);
+    }
+
     public void verifyPerIndexPrimaryBalance() throws Exception {
         assertBusy(() -> {
             final ClusterState currentState = client().admin().cluster().prepareState().execute().actionGet().getState();
@@ -276,8 +282,7 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
          */
         TreeMap<String, String> nameToNodeId = new TreeMap<>();
 
-        Map<String,TreeMap<String,int[]>> nodeToIndexCountMap = new HashMap<>();
-
+        Map<String, TreeMap<String, int[]>> nodeToIndexCountMap = new HashMap<>();
 
         /*
         Unassigned array containing primary at 0, replica at 1
@@ -363,9 +368,15 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
             Formatter formatter = new Formatter(sb, Locale.getDefault());
             for (Map.Entry<String, String> entry : nameToNodeId.entrySet()) {
                 String nodeId = nameToNodeId.get(entry.getKey());
-                formatter.format("%-40s %-20s %-20s %-20s\n", entry.getKey().toUpperCase(Locale.getDefault()) + "("+ nodeId +")", "TOTAL", "DOCREP", "SEGREP");
+                formatter.format(
+                    "%-40s %-20s %-20s %-20s\n",
+                    entry.getKey().toUpperCase(Locale.getDefault()) + "(" + nodeId + ")",
+                    "TOTAL",
+                    "DOCREP",
+                    "SEGREP"
+                );
                 sb.append(printShardAllocationWithHeader(nodeToDocRepCountMap.get(nodeId), nodeToSegRepCountMap.get(nodeId)));
-                for (Map.Entry<String, int[]> indexCountMap: nodeToIndexCountMap.get(nodeId).entrySet()) {
+                for (Map.Entry<String, int[]> indexCountMap : nodeToIndexCountMap.get(nodeId).entrySet()) {
                     formatter.format("[%s %s,%s], ", indexCountMap.getKey(), indexCountMap.getValue()[0], indexCountMap.getValue()[1]);
                 }
                 sb.append(ONE_LINE_RETURN);

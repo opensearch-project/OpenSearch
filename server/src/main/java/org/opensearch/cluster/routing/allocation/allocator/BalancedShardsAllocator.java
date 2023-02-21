@@ -116,7 +116,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
 
     /**
-     * Prefer per index primary shard balance by using {@link RebalanceConstraints#isIndexPrimaryShardsPerNodeBreached()}
+     * Prefer per index primary shard balance by using {@link RebalanceConstraints#isPrimaryShardsPerIndexPerNodeBreached()}
      * constraint which is used during unassigned shard allocation {@link LocalShardsBalancer#allocateUnassigned()} and
      * shard re-balance/relocation to a different node{@link LocalShardsBalancer#balance()} .
      */

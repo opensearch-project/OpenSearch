@@ -1008,6 +1008,21 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 }
                 final Decision allocationDecision = deciders.canAllocate(shard, minNode.getRoutingNode(), allocation);
                 if (allocationDecision.type() == Decision.Type.NO) {
+                    // Try swapping the shards
+                    if (preferPrimaryBalance == true && shard.primary()) {
+                        for (Iterator<ShardRouting> it = minNode.getIndex(shard.getIndexName()).iterator(); it.hasNext(); ) {
+                            ShardRouting routing = it.next();
+                            if (routing.primary() == false && routing.shardId().equals(shard.shardId())) {
+                                logger.info("--> Found a suitable replica for match");
+                                maxNode.removeShard(shard);
+                                maxNode.addShard(routing);
+                                minNode.removeShard(routing);
+                                minNode.addShard(shard);
+                                routingNodes.swapPrimaryWithReplica(logger, shard, routing, allocation.changes());
+                                return true;
+                            }
+                        }
+                    }
                     continue;
                 }
                 // Skip moving the primary relocation when target has less primaries and is skewed due to

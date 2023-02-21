@@ -66,6 +66,7 @@ public class AllocationDeciders extends AllocationDecider {
             Decision decision = allocationDecider.canRebalance(shardRouting, allocation);
             // short track if a NO is returned.
             if (decision == Decision.NO) {
+                logger.info("--> decision {}", decision.toString());
                 if (allocation.debugDecision() == false) {
                     return decision;
                 } else {
@@ -88,14 +89,12 @@ public class AllocationDeciders extends AllocationDecider {
             Decision decision = allocationDecider.canAllocate(shardRouting, node, allocation);
             // short track if a NO is returned.
             if (decision == Decision.NO) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace(
-                        "Can not allocate [{}] on node [{}] due to [{}]",
-                        shardRouting,
-                        node.node(),
-                        allocationDecider.getClass().getSimpleName()
-                    );
-                }
+                logger.info(
+                    "Can not allocate [{}] on node [{}] due to [{}]",
+                    shardRouting,
+                    node.node(),
+                    allocationDecider.getClass().getSimpleName()
+                );
                 // short circuit only if debugging is not enabled
                 if (allocation.debugDecision() == false) {
                     return decision;

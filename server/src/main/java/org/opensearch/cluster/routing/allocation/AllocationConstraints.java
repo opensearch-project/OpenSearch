@@ -14,7 +14,7 @@ import java.util.function.Predicate;
 
 import static org.opensearch.cluster.routing.allocation.RebalanceConstraints.PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_ID;
 import static org.opensearch.cluster.routing.allocation.RebalanceConstraints.PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_WEIGHT;
-import static org.opensearch.cluster.routing.allocation.RebalanceConstraints.isIndexPrimaryShardsPerNodeBreached;
+import static org.opensearch.cluster.routing.allocation.RebalanceConstraints.isPrimaryShardsPerIndexPerNodeBreached;
 
 /**
  * Allocation constraints specify conditions which, if breached, reduce the
@@ -53,7 +53,7 @@ public class AllocationConstraints {
             PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_ID,
             new Constraint(
                 PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_ID,
-                isIndexPrimaryShardsPerNodeBreached(),
+                isPrimaryShardsPerIndexPerNodeBreached(),
                 PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_WEIGHT
             )
         );
