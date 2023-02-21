@@ -118,7 +118,7 @@ public class GetResponseTests extends OpenSearchTestCase {
                     null
                 )
             );
-            String output = Strings.toString(getResponse);
+            String output = Strings.toString(XContentType.JSON, getResponse);
             assertEquals(
                 "{\"_index\":\"index\",\"_id\":\"id\",\"_version\":1,\"_seq_no\":0,\"_primary_term\":1,"
                     + "\"found\":true,\"_source\":{ \"field1\" : \"value1\", \"field2\":\"value2\"},\"fields\":{\"field1\":[\"value1\"]}}",
@@ -127,7 +127,7 @@ public class GetResponseTests extends OpenSearchTestCase {
         }
         {
             GetResponse getResponse = new GetResponse(new GetResult("index", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null));
-            String output = Strings.toString(getResponse);
+            String output = Strings.toString(XContentType.JSON, getResponse);
             assertEquals("{\"_index\":\"index\",\"_id\":\"id\",\"found\":false}", output);
         }
     }

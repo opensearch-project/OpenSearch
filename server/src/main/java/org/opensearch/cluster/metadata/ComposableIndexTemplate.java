@@ -47,6 +47,7 @@ import org.opensearch.common.xcontent.ConstructingObjectParser;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.DataStreamFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 
@@ -286,7 +287,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
     /**

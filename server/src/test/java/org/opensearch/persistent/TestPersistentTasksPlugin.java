@@ -65,6 +65,7 @@ import org.opensearch.common.xcontent.ConstructingObjectParser;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.opensearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.opensearch.plugins.ActionPlugin;
@@ -299,7 +300,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
 
         @Override
         public String toString() {
-            return Strings.toString(this);
+            return Strings.toString(XContentType.JSON, this);
         }
 
         // Implements equals and hashcode for testing

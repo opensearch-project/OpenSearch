@@ -15,6 +15,7 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -88,7 +89,7 @@ public class TaskResourceStats implements Writeable, ToXContentFragment {
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, true);
+        return Strings.toString(XContentType.JSON, this, true, true);
     }
 
     // Implements equals and hashcode for testing

@@ -46,6 +46,7 @@ import org.opensearch.common.xcontent.ObjectParser;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotId;
 
@@ -215,7 +216,7 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, false);
+        return Strings.toString(XContentType.JSON, this, true, false);
     }
 
     /**

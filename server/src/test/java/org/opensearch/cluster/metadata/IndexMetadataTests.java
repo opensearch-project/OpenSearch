@@ -50,6 +50,7 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesModule;
@@ -128,7 +129,10 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder));
         final IndexMetadata fromXContentMeta = IndexMetadata.fromXContent(parser);
         assertEquals(
-            "expected: " + Strings.toString(metadata) + "\nactual  : " + Strings.toString(fromXContentMeta),
+            "expected: "
+                + Strings.toString(XContentType.JSON, metadata)
+                + "\nactual  : "
+                + Strings.toString(XContentType.JSON, fromXContentMeta),
             metadata,
             fromXContentMeta
         );
