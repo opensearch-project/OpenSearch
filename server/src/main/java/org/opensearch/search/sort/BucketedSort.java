@@ -786,7 +786,7 @@ public abstract class BucketedSort implements Releasable {
 
         @Override
         protected final int getNextGatherOffset(long rootIndex) {
-            return (int) values.get(rootIndex);
+            return values.get(rootIndex);
         }
 
         @Override
