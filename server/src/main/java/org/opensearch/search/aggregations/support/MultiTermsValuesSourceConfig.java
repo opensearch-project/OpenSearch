@@ -57,7 +57,7 @@ public class MultiTermsValuesSourceConfig extends BaseMultiValuesSourceFieldConf
             MultiTermsValuesSourceConfig.Builder::new
         );
 
-        BaseMultiValuesSourceFieldConfig.PARSER.accept(parser, scriptable, timezoneAware);
+        BaseMultiValuesSourceFieldConfig.PARSER.apply(parser, scriptable, timezoneAware);
 
         if (valueTypeHinted) {
             parser.declareField(
