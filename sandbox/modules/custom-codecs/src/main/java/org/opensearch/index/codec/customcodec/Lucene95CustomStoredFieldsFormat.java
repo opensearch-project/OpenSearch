@@ -21,10 +21,10 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 
 /** Stored field format used by pluggable codec */
-public class Lucene92CustomStoredFieldsFormat extends StoredFieldsFormat {
+public class Lucene95CustomStoredFieldsFormat extends StoredFieldsFormat {
 
     /** A key that we use to map to a mode */
-    public static final String MODE_KEY = Lucene92CustomStoredFieldsFormat.class.getSimpleName() + ".mode";
+    public static final String MODE_KEY = Lucene95CustomStoredFieldsFormat.class.getSimpleName() + ".mode";
 
     private static final int ZSTD_BLOCK_LENGTH = 10 * 48 * 1024;
     private static final int ZSTD_MAX_DOCS_PER_BLOCK = 4096;
@@ -33,11 +33,11 @@ public class Lucene92CustomStoredFieldsFormat extends StoredFieldsFormat {
     private final CompressionMode zstdCompressionMode;
     private final CompressionMode zstdNoDictCompressionMode;
 
-    private final Lucene92CustomCodec.Mode mode;
+    private final Lucene95CustomCodec.Mode mode;
 
     /** default constructor */
-    public Lucene92CustomStoredFieldsFormat() {
-        this(Lucene92CustomCodec.Mode.ZSTD, Lucene92CustomCodec.DEFAULT_COMPRESSION_LEVEL);
+    public Lucene95CustomStoredFieldsFormat() {
+        this(Lucene95CustomCodec.Mode.ZSTD, Lucene95CustomCodec.DEFAULT_COMPRESSION_LEVEL);
     }
 
     /**
@@ -45,8 +45,8 @@ public class Lucene92CustomStoredFieldsFormat extends StoredFieldsFormat {
      *
      * @param mode The mode represents ZSTD or ZSTDNODICT
      */
-    public Lucene92CustomStoredFieldsFormat(Lucene92CustomCodec.Mode mode) {
-        this(mode, Lucene92CustomCodec.DEFAULT_COMPRESSION_LEVEL);
+    public Lucene95CustomStoredFieldsFormat(Lucene95CustomCodec.Mode mode) {
+        this(mode, Lucene95CustomCodec.DEFAULT_COMPRESSION_LEVEL);
     }
 
     /**
@@ -55,7 +55,7 @@ public class Lucene92CustomStoredFieldsFormat extends StoredFieldsFormat {
      * @param mode The mode represents ZSTD or ZSTDNODICT
      * @param compressionLevel The compression level for the mode.
      */
-    public Lucene92CustomStoredFieldsFormat(Lucene92CustomCodec.Mode mode, int compressionLevel) {
+    public Lucene95CustomStoredFieldsFormat(Lucene95CustomCodec.Mode mode, int compressionLevel) {
         this.mode = Objects.requireNonNull(mode);
         zstdCompressionMode = new ZstdCompressionMode(compressionLevel);
         zstdNoDictCompressionMode = new ZstdNoDictCompressionMode(compressionLevel);
@@ -67,7 +67,7 @@ public class Lucene92CustomStoredFieldsFormat extends StoredFieldsFormat {
         if (value == null) {
             throw new IllegalStateException("missing value for " + MODE_KEY + " for segment: " + si.name);
         }
-        Lucene92CustomCodec.Mode mode = Lucene92CustomCodec.Mode.valueOf(value);
+        Lucene95CustomCodec.Mode mode = Lucene95CustomCodec.Mode.valueOf(value);
         return impl(mode).fieldsReader(directory, si, fn, context);
     }
 
@@ -82,7 +82,7 @@ public class Lucene92CustomStoredFieldsFormat extends StoredFieldsFormat {
         return impl(mode).fieldsWriter(directory, si, context);
     }
 
-    private StoredFieldsFormat impl(Lucene92CustomCodec.Mode mode) {
+    private StoredFieldsFormat impl(Lucene95CustomCodec.Mode mode) {
         switch (mode) {
             case ZSTD:
                 return new Lucene90CompressingStoredFieldsFormat(

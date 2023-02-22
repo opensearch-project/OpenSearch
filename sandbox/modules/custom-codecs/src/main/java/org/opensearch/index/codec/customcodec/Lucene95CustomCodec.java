@@ -10,9 +10,9 @@ package org.opensearch.index.codec.customcodec;
 
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.FilterCodec;
-import org.apache.lucene.codecs.lucene92.Lucene92Codec;
+import org.apache.lucene.codecs.lucene95.Lucene95Codec;
 
-abstract class Lucene92CustomCodec extends FilterCodec {
+abstract class Lucene95CustomCodec extends FilterCodec {
     public static final int DEFAULT_COMPRESSION_LEVEL = 6;
 
     /** Each mode represents a compression algorithm. */
@@ -24,13 +24,13 @@ abstract class Lucene92CustomCodec extends FilterCodec {
     private final StoredFieldsFormat storedFieldsFormat;
 
     /** new codec for a given compression algorithm and default compression level */
-    public Lucene92CustomCodec(Mode mode) {
+    public Lucene95CustomCodec(Mode mode) {
         this(mode, DEFAULT_COMPRESSION_LEVEL);
     }
 
-    public Lucene92CustomCodec(Mode mode, int compressionLevel) {
-        super(mode.name(), new Lucene92Codec());
-        this.storedFieldsFormat = new Lucene92CustomStoredFieldsFormat(mode, compressionLevel);
+    public Lucene95CustomCodec(Mode mode, int compressionLevel) {
+        super(mode.name(), new Lucene95Codec());
+        this.storedFieldsFormat = new Lucene95CustomStoredFieldsFormat(mode, compressionLevel);
     }
 
     @Override

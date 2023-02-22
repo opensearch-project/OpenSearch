@@ -24,10 +24,5 @@ dependencies {
   api "com.github.luben:zstd-jni:1.5.4-1"
 }
 
-// Ignore sun.misc.Unsafe
-thirdPartyAudit.ignoreViolations(
-  'net.jpountz.util.UnsafeUtils'
-)
-
 yamlRestTest.enabled = false;
 testingConventions.enabled = false;

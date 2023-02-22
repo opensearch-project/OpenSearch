@@ -15,6 +15,7 @@ import org.apache.lucene.codecs.compressing.Compressor;
 import org.apache.lucene.codecs.compressing.Decompressor;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
+import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 
@@ -65,8 +66,7 @@ public class ZstdNoDictCompressionMode extends CompressionMode {
         @Override
         public void close() throws IOException {}
 
-        @Override
-        public void compress(byte[] bytes, int off, int len, DataOutput out) throws IOException {
+        private void compress(byte[] bytes, int off, int len, DataOutput out) throws IOException {
 
             int blockLength = (len + NUM_SUB_BLOCKS - 1) / NUM_SUB_BLOCKS;
             out.writeVInt(blockLength);
@@ -97,6 +97,14 @@ public class ZstdNoDictCompressionMode extends CompressionMode {
                 out.writeVInt(compressedSize);
                 out.writeBytes(compressedBuffer, compressedSize);
             }
+        }
+
+        @Override
+        public void compress(ByteBuffersDataInput buffersInput, DataOutput out) throws IOException {
+            final int len = (int) buffersInput.size();
+            byte[] bytes = new byte[len];
+            buffersInput.readBytes(bytes, 0, len);
+            compress(bytes, 0, len, out);
         }
     }
 

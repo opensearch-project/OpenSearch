@@ -34,16 +34,16 @@ public class CustomCodecService extends CodecService {
         super(mapperService, logger);
         final MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
         if (mapperService == null) {
-            codecs.put(Lucene92CustomCodec.Mode.ZSTD.name(), new ZstdCodec());
-            codecs.put(Lucene92CustomCodec.Mode.ZSTDNODICT.name(), new ZstdNoDictCodec());
+            codecs.put(Lucene95CustomCodec.Mode.ZSTD.name(), new ZstdCodec());
+            codecs.put(Lucene95CustomCodec.Mode.ZSTDNODICT.name(), new ZstdNoDictCodec());
         } else {
             codecs.put(
-                Lucene92CustomCodec.Mode.ZSTD.name(),
-                new PerFieldMappingPostingFormatCodec(Lucene92CustomCodec.Mode.ZSTD, mapperService)
+                Lucene95CustomCodec.Mode.ZSTD.name(),
+                new PerFieldMappingPostingFormatCodec(Lucene95CustomCodec.Mode.ZSTD, mapperService)
             );
             codecs.put(
-                Lucene92CustomCodec.Mode.ZSTDNODICT.name(),
-                new PerFieldMappingPostingFormatCodec(Lucene92CustomCodec.Mode.ZSTDNODICT, mapperService)
+                Lucene95CustomCodec.Mode.ZSTDNODICT.name(),
+                new PerFieldMappingPostingFormatCodec(Lucene95CustomCodec.Mode.ZSTDNODICT, mapperService)
             );
         }
         this.codecs = codecs.immutableMap();

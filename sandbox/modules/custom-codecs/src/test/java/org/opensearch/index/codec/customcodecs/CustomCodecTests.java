@@ -37,15 +37,15 @@ public class CustomCodecTests extends OpenSearchTestCase {
 
     public void testZstdCompression() throws Exception {
         Codec codec = createCodecService().codec("ZSTD");
-        assertStoredFieldsCustomCompressionEquals(Lucene92CustomCodec.Mode.ZSTD, codec);
+        assertStoredFieldsCustomCompressionEquals(Lucene95CustomCodec.Mode.ZSTD, codec);
     }
 
     public void testZstdNoDictCompression() throws Exception {
         Codec codec = createCodecService().codec("ZSTDNODICT");
-        assertStoredFieldsCustomCompressionEquals(Lucene92CustomCodec.Mode.ZSTDNODICT, codec);
+        assertStoredFieldsCustomCompressionEquals(Lucene95CustomCodec.Mode.ZSTDNODICT, codec);
     }
 
-    private void assertStoredFieldsCustomCompressionEquals(Lucene92CustomCodec.Mode expected, Codec actual) throws Exception {
+    private void assertStoredFieldsCustomCompressionEquals(Lucene95CustomCodec.Mode expected, Codec actual) throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(null);
         iwc.setCodec(actual);
@@ -55,9 +55,9 @@ public class CustomCodecTests extends OpenSearchTestCase {
         iw.close();
         DirectoryReader ir = DirectoryReader.open(dir);
         SegmentReader sr = (SegmentReader) ir.leaves().get(0).reader();
-        String v = sr.getSegmentInfo().info.getAttribute(Lucene92CustomStoredFieldsFormat.MODE_KEY);
+        String v = sr.getSegmentInfo().info.getAttribute(Lucene95CustomStoredFieldsFormat.MODE_KEY);
         assertNotNull(v);
-        assertEquals(expected, Lucene92CustomCodec.Mode.valueOf(v));
+        assertEquals(expected, Lucene95CustomCodec.Mode.valueOf(v));
         ir.close();
         dir.close();
     }
