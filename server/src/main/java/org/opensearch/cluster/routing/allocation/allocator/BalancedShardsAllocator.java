@@ -107,14 +107,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.NodeScope
     );
 
-    public static final Setting<Float> PRIMARY_SHARD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
-        "cluster.routing.allocation.balance.primary",
-        0.0f,
-        0.0f,
-        Property.Dynamic,
-        Property.NodeScope
-    );
-
     private volatile boolean movePrimaryFirst;
     private volatile WeightFunction weightFunction;
     private volatile float threshold;
@@ -125,19 +117,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     @Inject
     public BalancedShardsAllocator(Settings settings, ClusterSettings clusterSettings) {
-        setWeightFunction(
-            INDEX_BALANCE_FACTOR_SETTING.get(settings),
-            SHARD_BALANCE_FACTOR_SETTING.get(settings),
-            PRIMARY_SHARD_BALANCE_FACTOR_SETTING.get(settings)
-        );
+        setWeightFunction(INDEX_BALANCE_FACTOR_SETTING.get(settings), SHARD_BALANCE_FACTOR_SETTING.get(settings));
         setThreshold(THRESHOLD_SETTING.get(settings));
         clusterSettings.addSettingsUpdateConsumer(SHARD_MOVE_PRIMARY_FIRST_SETTING, this::setMovePrimaryFirst);
-        clusterSettings.addSettingsUpdateConsumer(
-            INDEX_BALANCE_FACTOR_SETTING,
-            SHARD_BALANCE_FACTOR_SETTING,
-            PRIMARY_SHARD_BALANCE_FACTOR_SETTING,
-            this::setWeightFunction
-        );
+        clusterSettings.addSettingsUpdateConsumer(INDEX_BALANCE_FACTOR_SETTING, SHARD_BALANCE_FACTOR_SETTING, this::setWeightFunction);
         clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTING, this::setThreshold);
     }
 
@@ -145,8 +128,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         this.movePrimaryFirst = movePrimaryFirst;
     }
 
-    private void setWeightFunction(float indexBalance, float shardBalanceFactor, float primaryShardBalance) {
-        weightFunction = new WeightFunction(indexBalance, shardBalanceFactor, primaryShardBalance);
+    private void setWeightFunction(float indexBalance, float shardBalanceFactor) {
+        weightFunction = new WeightFunction(indexBalance, shardBalanceFactor);
     }
 
     private void setThreshold(float threshold) {
@@ -269,22 +252,17 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final float shardBalance;
         private final float theta0;
         private final float theta1;
-        private final float theta2;
-        private final float primaryShardBalance;
         private AllocationConstraints constraints;
 
-        WeightFunction(float indexBalance, float shardBalance, float primaryShardBalance) {
-            float sum = indexBalance + shardBalance + primaryShardBalance;
+        WeightFunction(float indexBalance, float shardBalance) {
+            float sum = indexBalance + shardBalance;
             if (sum <= 0.0f) {
                 throw new IllegalArgumentException("Balance factors must sum to a value > 0 but was: " + sum);
             }
             theta0 = shardBalance / sum;
             theta1 = indexBalance / sum;
-            theta2 = primaryShardBalance / sum;
-
             this.indexBalance = indexBalance;
             this.shardBalance = shardBalance;
-            this.primaryShardBalance = primaryShardBalance;
             this.constraints = new AllocationConstraints();
         }
 
@@ -296,9 +274,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         float weight(ShardsBalancer balancer, ModelNode node, String index) {
             final float weightShard = node.numShards() - balancer.avgShardsPerNode();
             final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
-            final float primaryWeightShard = node.numPrimaryShards() - balancer.avgPrimaryShardsPerNode();
-
-            return theta0 * weightShard + theta1 * weightIndex + theta2 * primaryWeightShard;
+            return theta0 * weightShard + theta1 * weightIndex;
         }
     }
 
@@ -311,8 +287,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final Map<String, ModelIndex> indices = new HashMap<>();
         private int numShards = 0;
         private final RoutingNode routingNode;
-
-        private int primaryNumShards = 0;
 
         ModelNode(RoutingNode routingNode) {
             this.routingNode = routingNode;
@@ -339,10 +313,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return index == null ? 0 : index.numShards();
         }
 
-        public int numPrimaryShards() {
-            return primaryNumShards;
-        }
-
         public int highestPrimary(String index) {
             ModelIndex idx = indices.get(index);
             if (idx != null) {
@@ -359,9 +329,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             }
             index.addShard(shard);
             numShards++;
-            if (shard.primary()) {
-                primaryNumShards++;
-            }
         }
 
         public void removeShard(ShardRouting shard) {
@@ -371,9 +338,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                 if (index.numShards() == 0) {
                     indices.remove(shard.getIndexName());
                 }
-            }
-            if (shard.primary()) {
-                primaryNumShards--;
             }
             numShards--;
         }
@@ -417,14 +381,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     }
 
     /**
-     * A model index that stores info about specific index
+     * A model index.
      *
      * @opensearch.internal
      */
     static final class ModelIndex implements Iterable<ShardRouting> {
         private final String id;
         private final Set<ShardRouting> shards = new HashSet<>(4); // expect few shards of same index to be allocated on same node
-        private final Set<ShardRouting> primaryShards = new HashSet<>();
         private int highestPrimary = -1;
 
         ModelIndex(String id) {
@@ -452,10 +415,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             return shards.size();
         }
 
-        public int numPrimaryShards() {
-            return primaryShards.size();
-        }
-
         @Override
         public Iterator<ShardRouting> iterator() {
             return shards.iterator();
@@ -464,20 +423,12 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         public void removeShard(ShardRouting shard) {
             highestPrimary = -1;
             assert shards.contains(shard) : "Shard not allocated on current node: " + shard;
-            if (shard.primary()) {
-                assert primaryShards.contains(shard) : "Primary shard not allocated on current node: " + shard;
-                primaryShards.remove(shard);
-            }
             shards.remove(shard);
         }
 
         public void addShard(ShardRouting shard) {
             highestPrimary = -1;
-            assert shards.contains(shard) == false : "Shard already allocated on current node: " + shard;
-            if (shard.primary()) {
-                assert primaryShards.contains(shard) == false : "Primary shard already allocated on current node: " + shard;
-                primaryShards.add(shard);
-            }
+            assert !shards.contains(shard) : "Shard already allocated on current node: " + shard;
             shards.add(shard);
         }
 
