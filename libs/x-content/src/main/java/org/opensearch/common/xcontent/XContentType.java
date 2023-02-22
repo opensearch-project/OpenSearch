@@ -186,12 +186,6 @@ public enum XContentType implements MediaType {
         return index;
     }
 
-    public String mediaType() {
-        return mediaTypeWithoutParameters();
-    }
-
-    public abstract String mediaTypeWithoutParameters();
-
     @Override
     public String type() {
         return "application";

@@ -37,6 +37,7 @@ import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.xcontent.MediaType;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
@@ -57,11 +58,26 @@ public class PutPipelineRequest extends AcknowledgedRequest<PutPipelineRequest> 
 
     /**
      * Create a new pipeline request with the id and source along with the content type of the source
+     *
+     * @deprecated use {@link #PutPipelineRequest(String, BytesReference, MediaType)} instead
      */
+    @Deprecated
     public PutPipelineRequest(String id, BytesReference source, XContentType xContentType) {
         this.id = Objects.requireNonNull(id);
         this.source = Objects.requireNonNull(source);
         this.xContentType = Objects.requireNonNull(xContentType);
+    }
+
+    /**
+     * Create a new pipeline request with the id and source along with the content type of the source
+     */
+    public PutPipelineRequest(String id, BytesReference source, MediaType mediaType) {
+        this.id = Objects.requireNonNull(id);
+        this.source = Objects.requireNonNull(source);
+        if (mediaType instanceof XContentType == false) {
+            throw new IllegalArgumentException("PutPipelineRequest found unsupported media type [" + mediaType.getClass().getName() + "]");
+        }
+        this.xContentType = (XContentType) Objects.requireNonNull(mediaType);
     }
 
     public PutPipelineRequest(StreamInput in) throws IOException {
