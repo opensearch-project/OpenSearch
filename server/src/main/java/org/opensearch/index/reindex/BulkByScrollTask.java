@@ -48,6 +48,7 @@ import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParseException;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParser.Token;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
@@ -1047,9 +1048,9 @@ public class BulkByScrollTask extends CancellableTask {
         @Override
         public String toString() {
             if (exception != null) {
-                return "BulkByScrollTask{error=" + Strings.toString(this) + "}";
+                return "BulkByScrollTask{error=" + Strings.toString(XContentType.JSON, this) + "}";
             } else {
-                return "BulkByScrollTask{status=" + Strings.toString(this) + "}";
+                return "BulkByScrollTask{status=" + Strings.toString(XContentType.JSON, this) + "}";
             }
         }
 

@@ -41,6 +41,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -130,7 +131,7 @@ public final class MappingStats implements ToXContentFragment, Writeable {
 
     @Override
     public String toString() {
-        return Strings.toString(this, true, true);
+        return Strings.toString(XContentType.JSON, this, true, true);
     }
 
     @Override

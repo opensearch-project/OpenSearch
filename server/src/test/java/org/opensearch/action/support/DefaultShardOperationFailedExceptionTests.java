@@ -92,7 +92,7 @@ public class DefaultShardOperationFailedExceptionTests extends OpenSearchTestCas
             assertEquals(
                 "{\"shard\":-1,\"index\":null,\"status\":\"INTERNAL_SERVER_ERROR\","
                     + "\"reason\":{\"type\":\"exception\",\"reason\":\"foo\"}}",
-                Strings.toString(exception)
+                Strings.toString(XContentType.JSON, exception)
             );
         }
         {
@@ -102,7 +102,7 @@ public class DefaultShardOperationFailedExceptionTests extends OpenSearchTestCas
             assertEquals(
                 "{\"shard\":-1,\"index\":null,\"status\":\"INTERNAL_SERVER_ERROR\",\"reason\":{\"type\":\"exception\","
                     + "\"reason\":\"foo\",\"caused_by\":{\"type\":\"illegal_argument_exception\",\"reason\":\"bar\"}}}",
-                Strings.toString(exception)
+                Strings.toString(XContentType.JSON, exception)
             );
         }
         {
@@ -112,7 +112,7 @@ public class DefaultShardOperationFailedExceptionTests extends OpenSearchTestCas
             assertEquals(
                 "{\"shard\":2,\"index\":\"test\",\"status\":\"INTERNAL_SERVER_ERROR\","
                     + "\"reason\":{\"type\":\"illegal_state_exception\",\"reason\":\"bar\"}}",
-                Strings.toString(exception)
+                Strings.toString(XContentType.JSON, exception)
             );
         }
         {
@@ -124,7 +124,7 @@ public class DefaultShardOperationFailedExceptionTests extends OpenSearchTestCas
             assertEquals(
                 "{\"shard\":1,\"index\":\"test\",\"status\":\"BAD_REQUEST\","
                     + "\"reason\":{\"type\":\"illegal_argument_exception\",\"reason\":\"foo\"}}",
-                Strings.toString(exception)
+                Strings.toString(XContentType.JSON, exception)
             );
         }
     }

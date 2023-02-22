@@ -35,6 +35,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.opensearch.search.aggregations.support.AggregationPath;
 
@@ -171,6 +172,6 @@ public abstract class BucketOrder implements ToXContentObject, Writeable {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 }

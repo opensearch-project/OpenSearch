@@ -98,7 +98,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         Request searchRequest = new Request("GET", "/test/_search");
         SearchSourceBuilder searchSource = new SearchSourceBuilder().query(scriptQuery(
             new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap())));
-        searchRequest.setJsonEntity(Strings.toString(searchSource));
+        searchRequest.setJsonEntity(Strings.toString(XContentType.JSON, searchSource));
         verifyCancellationDuringQueryPhase(SearchAction.NAME, searchRequest);
     }
 
@@ -147,7 +147,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         Request searchRequest = new Request("GET", "/test/_search");
         SearchSourceBuilder searchSource = new SearchSourceBuilder().scriptField("test_field",
             new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap()));
-        searchRequest.setJsonEntity(Strings.toString(searchSource));
+        searchRequest.setJsonEntity(Strings.toString(XContentType.JSON, searchSource));
         verifyCancellationDuringFetchPhase(SearchAction.NAME, searchRequest);
     }
 

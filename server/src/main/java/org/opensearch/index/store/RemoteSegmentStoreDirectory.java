@@ -17,6 +17,9 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.UUIDs;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
+import org.opensearch.common.io.VersionedCodecStreamWrapper;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
 
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
@@ -75,6 +78,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      */
     private Map<String, UploadedSegmentMetadata> segmentsUploadedToRemoteStore;
 
+    private static final VersionedCodecStreamWrapper<RemoteSegmentMetadata> metadataStreamWrapper = new VersionedCodecStreamWrapper<>(
+        new RemoteSegmentMetadataHandler(),
+        RemoteSegmentMetadata.CURRENT_VERSION,
+        RemoteSegmentMetadata.METADATA_CODEC
+    );
+
     private static final Logger logger = LogManager.getLogger(RemoteSegmentStoreDirectory.class);
 
     public RemoteSegmentStoreDirectory(RemoteDirectory remoteDataDirectory, RemoteDirectory remoteMetadataDirectory) throws IOException {
@@ -126,10 +135,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
 
     private Map<String, UploadedSegmentMetadata> readMetadataFile(String metadataFilename) throws IOException {
         try (IndexInput indexInput = remoteMetadataDirectory.openInput(metadataFilename, IOContext.DEFAULT)) {
-            Map<String, String> segmentMetadata = indexInput.readMapOfStrings();
-            return segmentMetadata.entrySet()
-                .stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, entry -> UploadedSegmentMetadata.fromString(entry.getValue())));
+            RemoteSegmentMetadata metadata = metadataStreamWrapper.readStream(indexInput);
+            return metadata.getMetadata();
         }
     }
 
@@ -139,6 +146,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
     public static class UploadedSegmentMetadata {
         // Visible for testing
         static final String SEPARATOR = "::";
+
         private final String originalFilename;
         private final String uploadedFilename;
         private final String checksum;
@@ -353,7 +361,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
                     throw new NoSuchFileException(file);
                 }
             }
-            indexOutput.writeMapOfStrings(uploadedSegments);
+            metadataStreamWrapper.writeStream(indexOutput, RemoteSegmentMetadata.fromMapOfStrings(uploadedSegments));
             indexOutput.close();
             storeDirectory.sync(Collections.singleton(metadataFilename));
             remoteMetadataDirectory.copyFrom(storeDirectory, metadataFilename, metadataFilename, IOContext.DEFAULT);

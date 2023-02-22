@@ -150,7 +150,7 @@ public abstract class AbstractBroadcastResponseTestCase<T extends BroadcastRespo
 
     public void testToXContent() {
         T response = createTestInstance(10, 10, 0, null);
-        String output = Strings.toString(response);
+        String output = Strings.toString(XContentType.JSON, response);
         assertEquals("{\"_shards\":{\"total\":10,\"successful\":10,\"failed\":0}}", output);
     }
 }

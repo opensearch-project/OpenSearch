@@ -43,6 +43,7 @@ import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParserUtils;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.script.Script;
 
 import java.io.IOException;
@@ -249,7 +250,7 @@ public class RankEvalSpec implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
     @Override

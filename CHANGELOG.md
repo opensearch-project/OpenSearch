@@ -21,6 +21,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Segment Replication] Add primary weight factor for balanced primary distribution ([#6017](https://github.com/opensearch-project/OpenSearch/pull/6017))
 - Add a setting to control auto release of OpenSearch managed index creation block ([#6277](https://github.com/opensearch-project/OpenSearch/pull/6277))
 - Fix timeout error when adding a document to an index with extension running ([#6275](https://github.com/opensearch-project/OpenSearch/pull/6275))
+- Handle translog upload during primary relocation for remote-backed indexes ([#5804](https://github.com/opensearch-project/OpenSearch/pull/5804))
+- Batch translog sync/upload per x ms for remote-backed indexes ([#5854](https://github.com/opensearch-project/OpenSearch/pull/5854))
 
 ### Dependencies
 - Update nebula-publishing-plugin to 19.2.0 ([#5704](https://github.com/opensearch-project/OpenSearch/pull/5704))
@@ -37,14 +39,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bumps `com.azure:azure-storage-common` from 12.18.1 to 12.19.3 ([#6304](https://github.com/opensearch-project/OpenSearch/pull/6304))
 - Bumps `reactor-netty-http` from 1.0.24 to 1.1.2 ([#6309](https://github.com/opensearch-project/OpenSearch/pull/6309))
 - Bumps `com.google.protobuf:protobuf-java` from 3.21.12 to 3.22.0 ([#6387](https://github.com/opensearch-project/OpenSearch/pull/6387))
+- Bumps `io.projectreactor.netty:reactor-netty` from 1.1.2 to 1.1.3 ([#6386](https://github.com/opensearch-project/OpenSearch/pull/6386))
+- Bumps `com.diffplug.spotless` from 6.10.0 to 6.15.0 ([#6385](https://github.com/opensearch-project/OpenSearch/pull/6385))
+- Bumps `jettison` from 1.5.1 to 1.5.3 ([#6391](https://github.com/opensearch-project/OpenSearch/pull/6391))
 
 ### Changed
 - Use ReplicationFailedException instead of OpensearchException in ReplicationTarget ([#4725](https://github.com/opensearch-project/OpenSearch/pull/4725))
 - [Refactor] Use local opensearch.common.SetOnce instead of lucene's utility class ([#5947](https://github.com/opensearch-project/OpenSearch/pull/5947))
 - Cluster health call to throw decommissioned exception for local decommissioned node([#6008](https://github.com/opensearch-project/OpenSearch/pull/6008))
 - [Refactor] core.common to new opensearch-common library ([#5976](https://github.com/opensearch-project/OpenSearch/pull/5976))
-- Cluster local health call to throw exception if node is decommissioned or weighed away ([#6198](https://github.com/opensearch-project/OpenSearch/pull/6198))
+- Update API spec for cluster health API ([#6399](https://github.com/opensearch-project/OpenSearch/pull/6399))
 - Remove deprecated org.gradle.util.DistributionLocator usage ([#6212](https://github.com/opensearch-project/OpenSearch/pull/6212))
+- Require MediaType in Strings.toString API ([#6009](https://github.com/opensearch-project/OpenSearch/pull/6009))
 
 ### Deprecated
 
@@ -55,6 +61,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix weighted shard routing state across search requests([#6004](https://github.com/opensearch-project/OpenSearch/pull/6004))
 - [Segment Replication] Fix bug where inaccurate sequence numbers are sent during replication ([#6122](https://github.com/opensearch-project/OpenSearch/pull/6122))
 - Enable numeric sort optimisation for few numerical sort types ([#6321](https://github.com/opensearch-project/OpenSearch/pull/6321))
+- Fix Opensearch repository-s3 plugin cannot read ServiceAccount token ([#6390](https://github.com/opensearch-project/OpenSearch/pull/6390)
 
 ### Security
 
