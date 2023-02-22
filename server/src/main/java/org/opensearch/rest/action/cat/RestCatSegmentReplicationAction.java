@@ -92,10 +92,6 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
         t.startHeaders()
             .addCell("index", "alias:i,idx;desc:index name")
             .addCell("shardId", "alias:s;desc: shard Id")
-            .addCell("start_time", "default:false;alias:start;desc:segment replication start time")
-            .addCell("start_time_millis", "default:false;alias:start_millis;desc:segment replication start time in epoch milliseconds")
-            .addCell("stop_time", "default:false;alias:stop;desc:segment replication stop time")
-            .addCell("stop_time_millis", "default:false;alias:stop_millis;desc:segment replication stop time in epoch milliseconds")
             .addCell("time", "alias:t,ti;desc:segment replication time")
             .addCell("stage", "alias:st;desc:segment replication stage")
             .addCell("source_description", "alias:sdesc;desc:source description")
@@ -106,7 +102,11 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
             .addCell("bytes_fetched", "alias:bf;desc:bytes fetched")
             .addCell("bytes_percent", "alias:bp;desc:percent of bytes fetched");
         if (detailed) {
-            t.addCell("files", "alias:f;desc:number of files to fetch")
+            t.addCell("start_time", "alias:start;desc:segment replication start time")
+                .addCell("start_time_millis", "alias:start_millis;desc:segment replication start time in epoch milliseconds")
+                .addCell("stop_time", "alias:stop;desc:segment replication stop time")
+                .addCell("stop_time_millis", "alias:stop_millis;desc:segment replication stop time in epoch milliseconds")
+                .addCell("files", "alias:f;desc:number of files to fetch")
                 .addCell("files_total", "alias:tf;desc:total number of files")
                 .addCell("bytes", "alias:b;desc:number of bytes to fetch")
                 .addCell("bytes_total", "alias:tb;desc:total number of bytes")
@@ -162,10 +162,6 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
                 t.startRow();
                 t.addCell(index);
                 t.addCell(state.getShardRouting().shardId().id());
-                t.addCell(XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().startTime()));
-                t.addCell(state.getTimer().startTime());
-                t.addCell(XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().stopTime()));
-                t.addCell(state.getTimer().stopTime());
                 t.addCell(new TimeValue(state.getTimer().time()));
                 t.addCell(state.getStage().toString().toLowerCase(Locale.ROOT));
                 t.addCell(state.getSourceDescription());
@@ -176,6 +172,10 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
                 t.addCell(state.getIndex().recoveredBytes());
                 t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredBytesPercent()));
                 if (detailed) {
+                    t.addCell(XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().startTime()));
+                    t.addCell(state.getTimer().startTime());
+                    t.addCell(XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().stopTime()));
+                    t.addCell(state.getTimer().stopTime());
                     t.addCell(state.getIndex().totalRecoverFiles());
                     t.addCell(state.getIndex().totalFileCount());
                     t.addCell(state.getIndex().totalRecoverBytes());
