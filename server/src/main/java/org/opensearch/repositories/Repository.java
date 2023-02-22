@@ -53,7 +53,6 @@ import org.opensearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -128,19 +127,6 @@ public interface Repository extends LifecycleComponent {
      * if there was an error in reading the data.
      */
     void getRepositoryData(ActionListener<RepositoryData> listener);
-
-    /**
-     * Starts snapshotting process
-     *
-     * @param snapshotId snapshot id
-     * @param indices    list of indices to be snapshotted
-     * @param metadata   cluster metadata
-     *
-     * @deprecated this method is only used when taking snapshots in a mixed version cluster where a cluster-manager node older than
-     *             {@link org.opensearch.snapshots.SnapshotsService#NO_REPO_INITIALIZE_VERSION} is present.
-     */
-    @Deprecated
-    void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, Metadata metadata);
 
     /**
      * Finalizes snapshotting process

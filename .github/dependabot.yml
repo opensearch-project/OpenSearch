@@ -4,869 +4,1391 @@ updates:
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /benchmarks/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /buildSrc/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /buildSrc/reaper/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /buildSrc/src/integTest/resources/org/opensearch/gradle/internal/fake_git/remote/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /buildSrc/src/integTest/resources/org/opensearch/gradle/internal/fake_git/remote/distribution/archives/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /buildSrc/src/integTest/resources/org/opensearch/gradle/internal/fake_git/remote/distribution/archives/darwin-tar/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /buildSrc/src/integTest/resources/org/opensearch/gradle/internal/fake_git/remote/distribution/archives/oss-darwin-tar/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /buildSrc/src/integTest/resources/org/opensearch/gradle/internal/fake_git/remote/distribution/bwc/bugfix/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /buildSrc/src/integTest/resources/org/opensearch/gradle/internal/fake_git/remote/distribution/bwc/minor/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /buildSrc/src/testKit/opensearch-build-resources/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /buildSrc/src/testKit/opensearch.build/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /buildSrc/src/testKit/reaper/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /buildSrc/src/testKit/symbolic-link-preserving-tar/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /buildSrc/src/testKit/testingConventions/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /buildSrc/src/testKit/thirdPartyAudit/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /buildSrc/src/testKit/thirdPartyAudit/sample_jars/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /client/benchmark/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /client/client-benchmark-noop-api-plugin/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /client/rest/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /client/rest-high-level/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /client/sniffer/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /client/test/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/archives/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/archives/darwin-tar/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/archives/integ-test-zip/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/archives/linux-arm64-tar/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/archives/linux-tar/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/archives/no-jdk-darwin-tar/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/archives/no-jdk-linux-tar/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/archives/no-jdk-windows-zip/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/archives/windows-zip/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/bwc/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/bwc/bugfix/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/bwc/maintenance/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/bwc/minor/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/bwc/staged/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/docker/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/docker/docker-arm64-export/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/docker/docker-build-context/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/docker/docker-export/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/packages/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/packages/arm64-deb/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/packages/arm64-rpm/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/packages/deb/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/packages/no-jdk-deb/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/packages/no-jdk-rpm/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/packages/rpm/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/tools/java-version-checker/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/tools/keystore-cli/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/tools/launchers/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/tools/plugin-cli/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/tools/upgrade-cli/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /doc-tools/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /doc-tools/missing-doclet/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /libs/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /libs/cli/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /libs/core/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /libs/dissect/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /libs/geo/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /libs/grok/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /libs/nio/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /libs/plugin-classloader/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /libs/secure-sm/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /libs/ssl-config/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /libs/x-content/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /modules/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /modules/aggs-matrix-stats/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /modules/analysis-common/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /modules/geo/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /modules/ingest-common/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /modules/ingest-geoip/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /modules/ingest-user-agent/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /modules/lang-expression/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /modules/lang-mustache/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /modules/lang-painless/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /modules/lang-painless/spi/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /modules/mapper-extras/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /modules/opensearch-dashboards/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /modules/parent-join/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /modules/percolator/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /modules/rank-eval/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /modules/reindex/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /modules/repository-url/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /modules/systemd/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /modules/transport-netty4/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/analysis-icu/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/analysis-kuromoji/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/analysis-nori/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/analysis-phonetic/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/analysis-smartcn/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/analysis-stempel/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/analysis-ukrainian/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/discovery-azure-classic/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/discovery-ec2/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/discovery-ec2/qa/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/discovery-ec2/qa/amazon-ec2/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/discovery-gce/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/discovery-gce/qa/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/discovery-gce/qa/gce/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/examples/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/examples/custom-settings/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/examples/custom-significance-heuristic/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/examples/custom-suggester/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/examples/painless-allowlist/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/examples/rescore/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/examples/rest-handler/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/examples/script-expert-scoring/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/ingest-attachment/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/mapper-annotated-text/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/mapper-murmur3/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/mapper-size/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/repository-azure/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/repository-gcs/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/repository-hdfs/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/repository-s3/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/store-smb/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/transport-nio/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/ccs-unavailable-clusters/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/die-with-dignity/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/evil-tests/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/full-cluster-restart/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/logging-config/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/mixed-cluster/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/multi-cluster-search/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/no-bootstrap-tests/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/os/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/os/centos-6/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/os/centos-7/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/os/debian-8/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/os/debian-9/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/os/fedora-28/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/os/fedora-29/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/os/oel-6/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/os/oel-7/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/os/sles-12/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/os/ubuntu-1604/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/os/ubuntu-1804/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/os/windows-2012r2/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/os/windows-2016/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/remote-clusters/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/repository-multi-version/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/rolling-upgrade/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/smoke-test-http/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/smoke-test-ingest-disabled/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/smoke-test-ingest-with-all-dependencies/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/smoke-test-multinode/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/smoke-test-plugins/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/translog-policy/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/unconfigured-node-name/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/verify-version-constants/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /qa/wildfly/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /rest-api-spec/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /sandbox/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /sandbox/libs/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /sandbox/modules/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /sandbox/plugins/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /server/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /test/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /test/external-modules/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /test/external-modules/delayed-aggs/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /test/fixtures/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /test/fixtures/azure-fixture/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /test/fixtures/gcs-fixture/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /test/fixtures/hdfs-fixture/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /test/fixtures/krb5kdc-fixture/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /test/fixtures/minio-fixture/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /test/fixtures/old-elasticsearch/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /test/fixtures/s3-fixture/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /test/framework/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /test/logger-usage/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:
       interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
 version: 2

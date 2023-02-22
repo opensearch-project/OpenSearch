@@ -33,7 +33,7 @@ import java.util.Set;
  *
  * @opensearch.internal
  */
-public final class RemoteDirectory extends Directory {
+public class RemoteDirectory extends Directory {
 
     private final BlobContainer blobContainer;
 
@@ -48,6 +48,16 @@ public final class RemoteDirectory extends Directory {
     @Override
     public String[] listAll() throws IOException {
         return blobContainer.listBlobs().keySet().stream().sorted().toArray(String[]::new);
+    }
+
+    /**
+     * Returns names of files with given prefix in this directory.
+     * @param filenamePrefix The prefix to match against file names in the directory
+     * @return A list of the matching filenames in the directory
+     * @throws IOException if there were any failures in reading from the blob container
+     */
+    public Collection<String> listFilesByPrefix(String filenamePrefix) throws IOException {
+        return blobContainer.listBlobsByPrefix(filenamePrefix).keySet();
     }
 
     /**

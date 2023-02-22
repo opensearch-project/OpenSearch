@@ -8,9 +8,9 @@
 
 package org.opensearch.indices.recovery;
 
-import org.opensearch.OpenSearchException;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
+import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationState;
 
@@ -49,7 +49,7 @@ public class RecoveryListener implements ReplicationListener {
     }
 
     @Override
-    public void onFailure(ReplicationState state, OpenSearchException e, boolean sendShardFailure) {
+    public void onFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
         indicesClusterStateService.handleRecoveryFailure(shardRouting, sendShardFailure, e);
     }
 }

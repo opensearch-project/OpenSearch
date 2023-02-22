@@ -37,7 +37,6 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.opensearch.Assertions;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -56,15 +55,19 @@ import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.replication.common.ReplicationCollection;
+import org.opensearch.indices.replication.common.ReplicationFailedException;
+import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationTarget;
-import org.opensearch.indices.replication.common.ReplicationListener;
-import org.opensearch.indices.replication.common.ReplicationCollection;
 
 import java.io.IOException;
+import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+
+import static org.opensearch.index.translog.Translog.TRANSLOG_UUID_KEY;
 
 /**
  * Represents a recovery where the current node is the target node of the recovery. To track recoveries in a central place, instances of
@@ -132,7 +135,7 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
     }
 
     @Override
-    public void notifyListener(OpenSearchException e, boolean sendShardFailure) {
+    public void notifyListener(ReplicationFailedException e, boolean sendShardFailure) {
         listener.onFailure(state(), new RecoveryFailedException(state(), e.getMessage(), e), sendShardFailure);
     }
 
@@ -174,51 +177,6 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
         return false;
     }
 
-    /**
-     * cancel the recovery. calling this method will clean temporary files and release the store
-     * unless this object is in use (in which case it will be cleaned once all ongoing users call
-     * {@link #decRef()}
-     * <p>
-     * if {@link #cancellableThreads()} was used, the threads will be interrupted.
-     */
-    public void cancel(String reason) {
-        if (finished.compareAndSet(false, true)) {
-            try {
-                logger.debug("recovery canceled (reason: [{}])", reason);
-                cancellableThreads.cancel(reason);
-            } finally {
-                // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
-                decRef();
-            }
-        }
-    }
-
-    /**
-     * fail the recovery and call listener
-     *
-     * @param e                exception that encapsulating the failure
-     * @param sendShardFailure indicates whether to notify the cluster-manager of the shard failure
-     */
-    public void fail(RecoveryFailedException e, boolean sendShardFailure) {
-        super.fail(e, sendShardFailure);
-    }
-
-    /** mark the current recovery as done */
-    public void markAsDone() {
-        if (finished.compareAndSet(false, true)) {
-            assert multiFileWriter.tempFileNames.isEmpty() : "not all temporary files are renamed";
-            try {
-                // this might still throw an exception ie. if the shard is CLOSED due to some other event.
-                // it's safer to decrement the reference in a try finally here.
-                indexShard.postRecovery("peer recovery done");
-            } finally {
-                // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
-                decRef();
-            }
-            listener.onDone(state());
-        }
-    }
-
     @Override
     protected void closeInternal() {
         try {
@@ -243,8 +201,6 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
     @Override
     protected void onDone() {
         assert multiFileWriter.tempFileNames.isEmpty() : "not all temporary files are renamed";
-        // this might still throw an exception ie. if the shard is CLOSED due to some other event.
-        // it's safer to decrement the reference in a try finally here.
         indexShard.postRecovery("peer recovery done");
     }
 
@@ -258,6 +214,11 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
             indexShard().openEngineAndSkipTranslogRecovery();
             return null;
         });
+    }
+
+    @Override
+    public void forceSegmentFileSync() {
+        throw new UnsupportedOperationException("Method not supported on target!");
     }
 
     @Override
@@ -398,13 +359,31 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
             store.incRef();
             try {
                 store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetadata);
-                final String translogUUID = Translog.createEmptyTranslog(
-                    indexShard.shardPath().resolveTranslog(),
-                    globalCheckpoint,
-                    shardId(),
-                    indexShard.getPendingPrimaryTerm()
-                );
-                store.associateIndexWithNewTranslog(translogUUID);
+
+                // Replicas for segment replication or remote snapshot indices do not create
+                // their own commit points and therefore do not modify the commit user data
+                // in their store. In these cases, reuse the primary's translog UUID.
+                final boolean reuseTranslogUUID = indexShard.indexSettings().isSegRepEnabled()
+                    || indexShard.indexSettings().isRemoteSnapshot();
+                if (reuseTranslogUUID) {
+                    final String translogUUID = store.getMetadata().getCommitUserData().get(TRANSLOG_UUID_KEY);
+                    Translog.createEmptyTranslog(
+                        indexShard.shardPath().resolveTranslog(),
+                        shardId(),
+                        globalCheckpoint,
+                        indexShard.getPendingPrimaryTerm(),
+                        translogUUID,
+                        FileChannel::open
+                    );
+                } else {
+                    final String translogUUID = Translog.createEmptyTranslog(
+                        indexShard.shardPath().resolveTranslog(),
+                        globalCheckpoint,
+                        shardId(),
+                        indexShard.getPendingPrimaryTerm()
+                    );
+                    store.associateIndexWithNewTranslog(translogUUID);
+                }
 
                 if (indexShard.getRetentionLeases().leases().isEmpty()) {
                     // if empty, may be a fresh IndexShard, so write an empty leases file to disk

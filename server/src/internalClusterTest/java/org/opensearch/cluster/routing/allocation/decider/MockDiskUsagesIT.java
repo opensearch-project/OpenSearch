@@ -270,7 +270,7 @@ public class MockDiskUsagesIT extends OpenSearchIntegTestCase {
         final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
 
         final AtomicReference<ClusterState> clusterManagerAppliedClusterState = new AtomicReference<>();
-        internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
+        internalCluster().getCurrentClusterManagerNodeInstance(ClusterService.class).addListener(event -> {
             clusterManagerAppliedClusterState.set(event.state());
             clusterInfoService.refresh(); // so that a subsequent reroute sees disk usage according to the current state
         });
@@ -358,7 +358,7 @@ public class MockDiskUsagesIT extends OpenSearchIntegTestCase {
             false
         ).map(RoutingNode::nodeId).collect(Collectors.toList());
 
-        internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> {
+        internalCluster().getCurrentClusterManagerNodeInstance(ClusterService.class).addListener(event -> {
             assertThat(event.state().getRoutingNodes().node(nodeIds.get(2)).size(), lessThanOrEqualTo(1));
             clusterManagerAppliedClusterState.set(event.state());
             clusterInfoService.refresh(); // so that a subsequent reroute sees disk usage according to the current state
@@ -544,7 +544,7 @@ public class MockDiskUsagesIT extends OpenSearchIntegTestCase {
     }
 
     private MockInternalClusterInfoService getMockInternalClusterInfoService() {
-        return (MockInternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
+        return (MockInternalClusterInfoService) internalCluster().getCurrentClusterManagerNodeInstance(ClusterInfoService.class);
     }
 
 }

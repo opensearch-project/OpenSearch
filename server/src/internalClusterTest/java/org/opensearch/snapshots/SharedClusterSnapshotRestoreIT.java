@@ -149,7 +149,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 }
             }
             if (!indicesToFlush.isEmpty()) {
-                String[] indices = indicesToFlush.toArray(new String[indicesToFlush.size()]);
+                String[] indices = indicesToFlush.toArray(new String[0]);
                 logger.info("--> starting asynchronous flush for indices {}", Arrays.toString(indices));
                 flushResponseFuture = client().admin().indices().prepareFlush(indices).execute();
             }
@@ -1804,7 +1804,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(snapshotInfos.get(0).state(), equalTo(SnapshotState.SUCCESS));
         assertThat(snapshotInfos.get(0).snapshotId().getName(), equalTo("test-snap"));
 
-        assertAcked(client().admin().indices().prepareDelete(nbDocsPerIndex.keySet().toArray(new String[nbDocsPerIndex.size()])));
+        assertAcked(client().admin().indices().prepareDelete(nbDocsPerIndex.keySet().toArray(new String[0])));
 
         Predicate<String> isRestorableIndex = index -> corruptedIndex.getName().equals(index) == false;
 
@@ -1916,7 +1916,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         waitForBlock(blockedNode, repo, TimeValue.timeValueSeconds(10));
 
         logger.info("--> removing primary shard that is being snapshotted");
-        ClusterState clusterState = internalCluster().clusterService(internalCluster().getMasterName()).state();
+        ClusterState clusterState = internalCluster().clusterService(internalCluster().getClusterManagerName()).state();
         IndexRoutingTable indexRoutingTable = clusterState.getRoutingTable().index(index);
         String nodeWithPrimary = clusterState.nodes().get(indexRoutingTable.shard(0).primaryShard().currentNodeId()).getName();
         assertNotNull("should be at least one node with a primary shard", nodeWithPrimary);
@@ -2368,7 +2368,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         final String repoName = "test-repo";
         final Path repoPath = randomRepoPath();
         createRepository(repoName, "mock", repoPath);
-        final MockRepository repository = (MockRepository) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class)
+        final MockRepository repository = (MockRepository) internalCluster().getCurrentClusterManagerNodeInstance(RepositoriesService.class)
             .repository(repoName);
         repository.setFailOnIndexLatest(true);
         createFullSnapshot(repoName, "snapshot-1");

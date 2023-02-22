@@ -42,7 +42,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 /**
- * A cli tool for adding, removing and listing plugins for opensearch.
+ * A CLI tool for adding, removing and listing plugins for OpenSearch.
  */
 public class PluginCli extends LoggingAwareMultiCommand {
 
@@ -56,6 +56,12 @@ public class PluginCli extends LoggingAwareMultiCommand {
         commands = Collections.unmodifiableCollection(subcommands.values());
     }
 
+    /**
+     * Main entry point for the OpenSearch Plugin CLI tool.
+     *
+     * @param args  CLI commands for managing plugins.
+     * @throws Exception if an exception was encountered executing the command.
+     */
     public static void main(String[] args) throws Exception {
         exit(new PluginCli().main(args, Terminal.DEFAULT));
     }

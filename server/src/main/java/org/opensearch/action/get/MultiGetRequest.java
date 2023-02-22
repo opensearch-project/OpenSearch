@@ -32,7 +32,6 @@
 
 package org.opensearch.action.get;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequest;
@@ -43,17 +42,18 @@ import org.opensearch.action.RealtimeRequest;
 import org.opensearch.action.ValidateActions;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.lucene.uid.Versions;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParser.Token;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
@@ -114,9 +114,6 @@ public class MultiGetRequest extends ActionRequest
             }
             id = in.readString();
             routing = in.readOptionalString();
-            if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
-                in.readOptionalString(); // _parent
-            }
             storedFields = in.readOptionalStringArray();
             version = in.readLong();
             versionType = VersionType.fromValue(in.readByte());
@@ -211,9 +208,6 @@ public class MultiGetRequest extends ActionRequest
             }
             out.writeString(id);
             out.writeOptionalString(routing);
-            if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
-                out.writeOptionalString(null); // _parent
-            }
             out.writeOptionalStringArray(storedFields);
             out.writeLong(version);
             out.writeByte(versionType.getValue());
@@ -267,7 +261,7 @@ public class MultiGetRequest extends ActionRequest
         }
 
         public String toString() {
-            return Strings.toString(this);
+            return Strings.toString(XContentType.JSON, this);
         }
 
     }
@@ -516,15 +510,15 @@ public class MultiGetRequest extends ActionRequest
 
                         fetchSourceContext = new FetchSourceContext(
                             fetchSourceContext.fetchSource(),
-                            includes == null ? Strings.EMPTY_ARRAY : includes.toArray(new String[includes.size()]),
-                            excludes == null ? Strings.EMPTY_ARRAY : excludes.toArray(new String[excludes.size()])
+                            includes == null ? Strings.EMPTY_ARRAY : includes.toArray(new String[0]),
+                            excludes == null ? Strings.EMPTY_ARRAY : excludes.toArray(new String[0])
                         );
                     }
                 }
             }
             String[] aFields;
             if (storedFields != null) {
-                aFields = storedFields.toArray(new String[storedFields.size()]);
+                aFields = storedFields.toArray(new String[0]);
             } else {
                 aFields = defaultFields;
             }

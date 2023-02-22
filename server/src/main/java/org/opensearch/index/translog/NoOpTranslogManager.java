@@ -96,6 +96,9 @@ public class NoOpTranslogManager implements TranslogManager {
     public void ensureCanFlush() {}
 
     @Override
+    public void setMinSeqNoToKeep(long seqNo) {}
+
+    @Override
     public int restoreLocalHistoryFromTranslog(long processedCheckpoint, TranslogRecoveryRunner translogRecoveryRunner) throws IOException {
         return 0;
     }
@@ -111,5 +114,10 @@ public class NoOpTranslogManager implements TranslogManager {
     @Override
     public Translog.Location add(Translog.Operation operation) throws IOException {
         return new Translog.Location(0, 0, 0);
+    }
+
+    @Override
+    public Translog.Snapshot newChangesSnapshot(long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
+        throw new UnsupportedOperationException("Translog snapshot unsupported with no-op translogs");
     }
 }

@@ -51,7 +51,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.gateway.GatewayService;
@@ -109,7 +109,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
             }
             return upgradedTemplates;
         };
-        if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
+        if (DiscoveryNode.isClusterManagerNode(clusterService.getSettings())) {
             clusterService.addListener(this);
         }
     }
@@ -117,7 +117,7 @@ public class TemplateUpgradeService implements ClusterStateListener {
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         ClusterState state = event.state();
-        if (state.nodes().isLocalNodeElectedMaster() == false) {
+        if (state.nodes().isLocalNodeElectedClusterManager() == false) {
             return;
         }
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {

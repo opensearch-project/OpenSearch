@@ -32,8 +32,8 @@
 
 package org.opensearch.index.reindex.remote;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.nio.entity.NStringEntity;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchRequest;
@@ -43,10 +43,10 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortBuilder;
@@ -240,7 +240,7 @@ final class RemoteRequestBuilders {
 
         if (remoteVersion.before(Version.fromId(2000099))) {
             // Versions before 2.0.0 extract the plain scroll_id from the body
-            request.setEntity(new NStringEntity(scroll, ContentType.TEXT_PLAIN));
+            request.setEntity(new StringEntity(scroll, ContentType.TEXT_PLAIN));
             return request;
         }
 
@@ -258,7 +258,7 @@ final class RemoteRequestBuilders {
 
         if (remoteVersion.before(Version.fromId(2000099))) {
             // Versions before 2.0.0 extract the plain scroll_id from the body
-            request.setEntity(new NStringEntity(scroll, ContentType.TEXT_PLAIN));
+            request.setEntity(new StringEntity(scroll, ContentType.TEXT_PLAIN));
             return request;
         }
         try (XContentBuilder entity = JsonXContent.contentBuilder()) {

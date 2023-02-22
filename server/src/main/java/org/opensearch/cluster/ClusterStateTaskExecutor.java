@@ -31,6 +31,7 @@
 
 package org.opensearch.cluster;
 
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.common.Nullable;
 
 import java.util.IdentityHashMap;
@@ -52,8 +53,18 @@ public interface ClusterStateTaskExecutor<T> {
     /**
      * indicates whether this executor should only run if the current node is cluster-manager
      */
-    default boolean runOnlyOnMaster() {
+    default boolean runOnlyOnClusterManager() {
         return true;
+    }
+
+    /**
+     * indicates whether this executor should only run if the current node is cluster-manager
+     *
+     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #runOnlyOnClusterManager()}
+     */
+    @Deprecated
+    default boolean runOnlyOnMaster() {
+        return runOnlyOnClusterManager();
     }
 
     /**
@@ -76,6 +87,16 @@ public interface ClusterStateTaskExecutor<T> {
      */
     default String describeTasks(List<T> tasks) {
         return String.join(", ", tasks.stream().map(t -> (CharSequence) t.toString()).filter(t -> t.length() > 0)::iterator);
+    }
+
+    /**
+     * Throttling key associated with the task, on which cluster manager node will do aggregation count
+     * and perform throttling based on configured threshold in cluster setting.
+     */
+    default ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+        // Default task is not registered with clusterService.registerClusterMangerTask,
+        // User can't configure throttling limit on it and will be bypassed while throttling on cluster manager
+        return ClusterManagerTaskThrottler.DEFAULT_THROTTLING_KEY;
     }
 
     /**

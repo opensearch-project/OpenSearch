@@ -32,14 +32,14 @@
 
 package org.opensearch.client;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.client.methods.HttpDelete;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpHead;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.entity.ContentType;
-import org.apache.http.nio.entity.NByteArrayEntity;
+import org.apache.hc.client5.http.classic.methods.HttpDelete;
+import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.classic.methods.HttpHead;
+import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.classic.methods.HttpPut;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -54,6 +54,8 @@ import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.search.ClearScrollRequest;
+import org.opensearch.action.search.CreatePitRequest;
+import org.opensearch.action.search.DeletePitRequest;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchScrollRequest;
@@ -76,14 +78,15 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CollectionUtils;
-import org.opensearch.common.xcontent.DeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContent;
-import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.rankeval.RankEvalRequest;
@@ -92,6 +95,7 @@ import org.opensearch.index.reindex.DeleteByQueryRequest;
 import org.opensearch.index.reindex.ReindexRequest;
 import org.opensearch.index.reindex.UpdateByQueryRequest;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.rest.action.search.RestCreatePitAction;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.script.mustache.MultiSearchTemplateRequest;
 import org.opensearch.script.mustache.SearchTemplateRequest;
@@ -109,6 +113,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
 
+/**
+ * Converts OpenSearch writeable requests to an HTTP Request
+ *
+ * @opensearch.api
+ */
 final class RequestConverters {
     static final XContentType REQUEST_BODY_CONTENT_TYPE = XContentType.JSON;
 
@@ -266,7 +275,7 @@ final class RequestConverters {
             }
         }
         request.addParameters(parameters.asMap());
-        request.setEntity(new NByteArrayEntity(content.toByteArray(), 0, content.size(), requestContentType));
+        request.setEntity(new ByteArrayEntity(content.toByteArray(), 0, content.size(), requestContentType));
         return request;
     }
 
@@ -355,7 +364,7 @@ final class RequestConverters {
         BytesRef source = indexRequest.source().toBytesRef();
         ContentType contentType = createContentType(indexRequest.getContentType());
         request.addParameters(parameters.asMap());
-        request.setEntity(new NByteArrayEntity(source.bytes, source.offset, source.length, contentType));
+        request.setEntity(new ByteArrayEntity(source.bytes, source.offset, source.length, contentType));
         return request;
     }
 
@@ -433,9 +442,19 @@ final class RequestConverters {
         params.putParam(RestSearchAction.TYPED_KEYS_PARAM, "true");
         params.withRouting(searchRequest.routing());
         params.withPreference(searchRequest.preference());
-        params.withIndicesOptions(searchRequest.indicesOptions());
+        if (searchRequest.pointInTimeBuilder() == null) {
+            params.withIndicesOptions(searchRequest.indicesOptions());
+        }
         params.withSearchType(searchRequest.searchType().name().toLowerCase(Locale.ROOT));
-        params.putParam("ccs_minimize_roundtrips", Boolean.toString(searchRequest.isCcsMinimizeRoundtrips()));
+        /**
+         * Merging search responses as part of CCS flow to reduce roundtrips is not supported for point in time -
+         * refer to org.opensearch.action.search.SearchResponseMerger
+         */
+        if (searchRequest.pointInTimeBuilder() != null) {
+            params.putParam("ccs_minimize_roundtrips", "false");
+        } else {
+            params.putParam("ccs_minimize_roundtrips", Boolean.toString(searchRequest.isCcsMinimizeRoundtrips()));
+        }
         if (searchRequest.getPreFilterShardSize() != null) {
             params.putParam("pre_filter_shard_size", Integer.toString(searchRequest.getPreFilterShardSize()));
         }
@@ -464,6 +483,31 @@ final class RequestConverters {
         return request;
     }
 
+    static Request createPit(CreatePitRequest createPitRequest) throws IOException {
+        Params params = new Params();
+        params.putParam(RestCreatePitAction.ALLOW_PARTIAL_PIT_CREATION, Boolean.toString(createPitRequest.shouldAllowPartialPitCreation()));
+        params.putParam(RestCreatePitAction.KEEP_ALIVE, createPitRequest.getKeepAlive());
+        params.withIndicesOptions(createPitRequest.indicesOptions());
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint(createPitRequest.indices(), "_search/point_in_time"));
+        request.addParameters(params.asMap());
+        request.setEntity(createEntity(createPitRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request deletePit(DeletePitRequest deletePitRequest) throws IOException {
+        Request request = new Request(HttpDelete.METHOD_NAME, "/_search/point_in_time");
+        request.setEntity(createEntity(deletePitRequest, REQUEST_BODY_CONTENT_TYPE));
+        return request;
+    }
+
+    static Request deleteAllPits() {
+        return new Request(HttpDelete.METHOD_NAME, "/_search/point_in_time/_all");
+    }
+
+    static Request getAllPits() {
+        return new Request(HttpGet.METHOD_NAME, "/_search/point_in_time/_all");
+    }
+
     static Request multiSearch(MultiSearchRequest multiSearchRequest) throws IOException {
         Request request = new Request(HttpPost.METHOD_NAME, "/_msearch");
 
@@ -476,7 +520,7 @@ final class RequestConverters {
         XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
         byte[] source = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, xContent);
         request.addParameters(params.asMap());
-        request.setEntity(new NByteArrayEntity(source, createContentType(xContent.type())));
+        request.setEntity(new ByteArrayEntity(source, createContentType(xContent.mediaType())));
         return request;
     }
 
@@ -511,7 +555,7 @@ final class RequestConverters {
 
         XContent xContent = REQUEST_BODY_CONTENT_TYPE.xContent();
         byte[] source = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, xContent);
-        request.setEntity(new NByteArrayEntity(source, createContentType(xContent.type())));
+        request.setEntity(new ByteArrayEntity(source, createContentType(xContent.mediaType())));
         return request;
     }
 
@@ -779,7 +823,7 @@ final class RequestConverters {
     static HttpEntity createEntity(ToXContent toXContent, XContentType xContentType, ToXContent.Params toXContentParams)
         throws IOException {
         BytesRef source = XContentHelper.toXContent(toXContent, xContentType, toXContentParams, false).toBytesRef();
-        return new NByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
+        return new ByteArrayEntity(source.bytes, source.offset, source.length, createContentType(xContentType));
     }
 
     static String endpoint(String index, String id) {
@@ -829,10 +873,24 @@ final class RequestConverters {
      *
      * @param xContentType the {@link XContentType}
      * @return the {@link ContentType}
+     *
+     * @deprecated use {@link #createContentType(MediaType)} instead
      */
+    @Deprecated
     @SuppressForbidden(reason = "Only allowed place to convert a XContentType to a ContentType")
     public static ContentType createContentType(final XContentType xContentType) {
         return ContentType.create(xContentType.mediaTypeWithoutParameters(), (Charset) null);
+    }
+
+    /**
+     * Returns a {@link ContentType} from a given {@link XContentType}.
+     *
+     * @param mediaType the {@link MediaType}
+     * @return the {@link ContentType}
+     */
+    @SuppressForbidden(reason = "Only allowed place to convert a XContentType to a ContentType")
+    public static ContentType createContentType(final MediaType mediaType) {
+        return ContentType.create(mediaType.mediaTypeWithoutParameters(), (Charset) null);
     }
 
     /**

@@ -32,9 +32,9 @@
 
 package org.opensearch.client;
 
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
+import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.classic.methods.HttpPut;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.admin.indices.alias.Alias;
@@ -116,7 +116,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -1437,8 +1437,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(
             exception.getMessage(),
             startsWith(
-                "OpenSearch exception [type=illegal_argument_exception, "
-                    + "reason=final index setting [index.number_of_shards], not updateable"
+                "OpenSearch exception [type=settings_exception, " + "reason=final index setting [index.number_of_shards], not updateable"
             )
         );
     }
@@ -1475,7 +1474,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(
             exception.getMessage(),
             equalTo(
-                "OpenSearch exception [type=illegal_argument_exception, "
+                "OpenSearch exception [type=settings_exception, "
                     + "reason=unknown setting [index.no_idea_what_you_are_talking_about] please check that any required plugins are installed, "
                     + "or check the breaking changes documentation for removed settings]"
             )

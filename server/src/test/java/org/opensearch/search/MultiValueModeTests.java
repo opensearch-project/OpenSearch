@@ -765,7 +765,7 @@ public class MultiValueModeTests extends OpenSearchTestCase {
             }
 
             @Override
-            public long docValueCount() {
+            public int docValueCount() {
                 return array[doc].length;
             }
         };

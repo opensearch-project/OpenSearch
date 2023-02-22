@@ -43,8 +43,9 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 
@@ -60,7 +61,6 @@ import static org.opensearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.opensearch.common.settings.Settings.readSettingsFromStream;
 import static org.opensearch.common.settings.Settings.writeSettingsToStream;
 import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
-import static org.opensearch.snapshots.SnapshotInfo.METADATA_FIELD_INTRODUCED;
 
 /**
  * Create snapshot request
@@ -124,9 +124,7 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
         includeGlobalState = in.readBoolean();
         waitForCompletion = in.readBoolean();
         partial = in.readBoolean();
-        if (in.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
-            userMetadata = in.readMap();
-        }
+        userMetadata = in.readMap();
     }
 
     @Override
@@ -140,9 +138,7 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
         out.writeBoolean(includeGlobalState);
         out.writeBoolean(waitForCompletion);
         out.writeBoolean(partial);
-        if (out.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
-            out.writeMap(userMetadata);
-        }
+        out.writeMap(userMetadata);
     }
 
     @Override
@@ -258,7 +254,7 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
      * @return this request
      */
     public CreateSnapshotRequest indices(List<String> indices) {
-        this.indices = indices.toArray(new String[indices.size()]);
+        this.indices = indices.toArray(new String[0]);
         return this;
     }
 
@@ -373,11 +369,11 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
      * See repository documentation for more information.
      *
      * @param source repository-specific snapshot settings
-     * @param xContentType the content type of the source
+     * @param mediaType the content type of the source
      * @return this request
      */
-    public CreateSnapshotRequest settings(String source, XContentType xContentType) {
-        this.settings = Settings.builder().loadFromSource(source, xContentType).build();
+    public CreateSnapshotRequest settings(String source, MediaType mediaType) {
+        this.settings = Settings.builder().loadFromSource(source, mediaType).build();
         return this;
     }
 

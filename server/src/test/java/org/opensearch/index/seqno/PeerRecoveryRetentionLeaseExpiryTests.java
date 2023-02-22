@@ -95,7 +95,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
             (leases, listener) -> {},
             () -> safeCommitInfo
         );
-        replicationTracker.updateFromMaster(
+        replicationTracker.updateFromClusterManager(
             1L,
             Collections.singleton(primaryAllocationId.getId()),
             routingTable(Collections.emptySet(), primaryAllocationId)
@@ -107,7 +107,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
             Collections.singleton(replicaAllocationId),
             primaryAllocationId
         );
-        replicationTracker.updateFromMaster(2L, Collections.singleton(primaryAllocationId.getId()), routingTableWithReplica);
+        replicationTracker.updateFromClusterManager(2L, Collections.singleton(primaryAllocationId.getId()), routingTableWithReplica);
         replicationTracker.addPeerRecoveryRetentionLease(
             routingTableWithReplica.getByAllocationId(replicaAllocationId.getId()).currentNodeId(),
             randomCheckpoint(),
@@ -127,7 +127,7 @@ public class PeerRecoveryRetentionLeaseExpiryTests extends ReplicationTrackerTes
         final IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(replicationTracker.routingTable);
         builder.removeShard(replicaShardRouting);
         builder.addShard(replicaShardRouting.moveToStarted());
-        replicationTracker.updateFromMaster(
+        replicationTracker.updateFromClusterManager(
             replicationTracker.appliedClusterStateVersion + 1,
             replicationTracker.routingTable.shards().stream().map(sr -> sr.allocationId().getId()).collect(Collectors.toSet()),
             builder.build()

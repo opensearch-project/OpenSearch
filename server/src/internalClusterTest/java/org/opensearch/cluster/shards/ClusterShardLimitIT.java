@@ -41,20 +41,36 @@ import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResp
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.Priority;
+import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.snapshots.SnapshotState;
+import org.opensearch.snapshots.mockstore.MockRepository;
+import org.opensearch.test.InternalSettingsPlugin;
+import org.opensearch.test.InternalTestCluster;
+import org.opensearch.test.MockHttpTransport;
+import org.opensearch.test.NodeConfigurationSource;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.nio.MockNioTransportPlugin;
 
+import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
+import static org.opensearch.indices.ShardLimitValidator.SETTING_MAX_SHARDS_PER_CLUSTER_KEY;
 import static org.opensearch.test.NodeRoles.dataNode;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -62,11 +78,17 @@ import static org.hamcrest.Matchers.greaterThan;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
-    private static final String shardsPerNodeKey = ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey();
+    private static final String shardsPerNodeKey = SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey();
+    private static final String ignoreDotIndexKey = ShardLimitValidator.SETTING_CLUSTER_IGNORE_DOT_INDEXES.getKey();
 
     public void testSettingClusterMaxShards() {
         int shardsPerNode = between(1, 500_000);
-        setShardsPerNode(shardsPerNode);
+        setMaxShardLimit(shardsPerNode, shardsPerNodeKey);
+    }
+
+    public void testSettingIgnoreDotIndexes() {
+        boolean ignoreDotIndexes = randomBoolean();
+        setIgnoreDotIndex(ignoreDotIndexes);
     }
 
     public void testMinimumPerNode() {
@@ -99,8 +121,7 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
 
         ShardCounts counts = ShardCounts.forDataNodeCount(dataNodes);
 
-        setShardsPerNode(counts.getShardsPerNode());
-
+        setMaxShardLimit(counts.getShardsPerNode(), shardsPerNodeKey);
         // Create an index that will bring us up to the limit
         createIndex(
             "test",
@@ -127,12 +148,185 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
         assertFalse(clusterState.getMetadata().hasIndex("should-fail"));
     }
 
+    /**
+     * The test checks if the index starting with the dot can be created if the node has
+     * number of shards equivalent to the cluster.max_shards_per_node and the cluster.ignore_Dot_indexes
+     * setting is set to true. If the cluster.ignore_Dot_indexes is set to true index creation of
+     * indexes starting with dot would succeed.
+     */
+    public void testIndexCreationOverLimitForDotIndexesSucceeds() {
+        int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
+
+        // Setting the cluster.max_shards_per_node setting according to the data node count.
+        setMaxShardLimit(dataNodes, shardsPerNodeKey);
+        setIgnoreDotIndex(true);
+
+        /*
+            Create an index that will bring us up to the limit. It would create index with primary equal to the
+            dataNodes * dataNodes so that cluster.max_shards_per_node setting is reached.
+         */
+        createIndex(
+            "test",
+            Settings.builder()
+                .put(indexSettings())
+                .put(SETTING_NUMBER_OF_SHARDS, dataNodes * dataNodes)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()
+        );
+
+        // Getting total active shards in the cluster.
+        int currentActiveShards = client().admin().cluster().prepareHealth().get().getActiveShards();
+
+        // Getting cluster.max_shards_per_node setting
+        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        String maxShardsPerNode = clusterState.getMetadata().settings().get(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey());
+
+        // Checking if the total shards created are equivalent to dataNodes * cluster.max_shards_per_node
+        assertEquals(dataNodes * Integer.parseInt(maxShardsPerNode), currentActiveShards);
+
+        createIndex(
+            ".test-index",
+            Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).build()
+        );
+
+        clusterState = client().admin().cluster().prepareState().get().getState();
+        assertTrue(clusterState.getMetadata().hasIndex(".test-index"));
+    }
+
+    /**
+     * The test checks if the index starting with the dot should not be created if the node has
+     * number of shards equivalent to the cluster.max_shards_per_node and the cluster.ignore_Dot_indexes
+     * setting is set to false. If the cluster.ignore_Dot_indexes is set to false index creation of
+     * indexes starting with dot would fail as well.
+     */
+    public void testIndexCreationOverLimitForDotIndexesFail() {
+        int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
+        int maxAllowedShards = dataNodes * dataNodes;
+
+        // Setting the cluster.max_shards_per_node setting according to the data node count.
+        setMaxShardLimit(dataNodes, shardsPerNodeKey);
+
+        /*
+            Create an index that will bring us up to the limit. It would create index with primary equal to the
+            dataNodes * dataNodes so that cluster.max_shards_per_node setting is reached.
+         */
+        createIndex(
+            "test",
+            Settings.builder()
+                .put(indexSettings())
+                .put(SETTING_NUMBER_OF_SHARDS, maxAllowedShards)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()
+        );
+
+        // Getting total active shards in the cluster.
+        int currentActiveShards = client().admin().cluster().prepareHealth().get().getActiveShards();
+
+        // Getting cluster.max_shards_per_node setting
+        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        String maxShardsPerNode = clusterState.getMetadata().settings().get(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey());
+
+        // Checking if the total shards created are equivalent to dataNodes * cluster.max_shards_per_node
+        assertEquals(dataNodes * Integer.parseInt(maxShardsPerNode), currentActiveShards);
+
+        int extraShardCount = 1;
+        try {
+            createIndex(
+                ".test-index",
+                Settings.builder()
+                    .put(indexSettings())
+                    .put(SETTING_NUMBER_OF_SHARDS, extraShardCount)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                    .build()
+            );
+        } catch (IllegalArgumentException e) {
+            verifyException(maxAllowedShards, currentActiveShards, extraShardCount, e);
+        }
+        clusterState = client().admin().cluster().prepareState().get().getState();
+        assertFalse(clusterState.getMetadata().hasIndex(".test-index"));
+    }
+
+    public void testCreateIndexWithMaxClusterShardSetting() {
+        int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
+        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        setMaxShardLimit(dataNodes, shardsPerNodeKey);
+
+        int maxAllowedShards = dataNodes + 1;
+        int extraShardCount = maxAllowedShards + 1;
+        // Getting total active shards in the cluster.
+        int currentActiveShards = client().admin().cluster().prepareHealth().get().getActiveShards();
+        try {
+            setMaxShardLimit(maxAllowedShards, SETTING_MAX_SHARDS_PER_CLUSTER_KEY);
+            prepareCreate("test_index_with_cluster_shard_limit").setSettings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, extraShardCount).put(SETTING_NUMBER_OF_REPLICAS, 0).build()
+            ).get();
+        } catch (final IllegalArgumentException ex) {
+            verifyException(Math.min(maxAllowedShards, dataNodes * dataNodes), currentActiveShards, extraShardCount, ex);
+        } finally {
+            setMaxShardLimit(-1, SETTING_MAX_SHARDS_PER_CLUSTER_KEY);
+        }
+    }
+
+    /**
+     * The test checks if the index starting with the .ds- can be created if the node has
+     * number of shards equivalent to the cluster.max_shards_per_node and the cluster.ignore_Dot_indexes
+     * setting is set to true. If the cluster.ignore_Dot_indexes is set to true index creation of
+     * indexes starting with dot would only succeed and dataStream indexes would still have validation applied.
+     */
+    public void testIndexCreationOverLimitForDataStreamIndexes() {
+        int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
+        int maxAllowedShards = dataNodes * dataNodes;
+
+        // Setting the cluster.max_shards_per_node setting according to the data node count.
+        setMaxShardLimit(dataNodes, shardsPerNodeKey);
+        setIgnoreDotIndex(true);
+
+        /*
+            Create an index that will bring us up to the limit. It would create index with primary equal to the
+            dataNodes * dataNodes so that cluster.max_shards_per_node setting is reached.
+         */
+        createIndex(
+            "test",
+            Settings.builder()
+                .put(indexSettings())
+                .put(SETTING_NUMBER_OF_SHARDS, maxAllowedShards)
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .build()
+        );
+
+        // Getting total active shards in the cluster.
+        int currentActiveShards = client().admin().cluster().prepareHealth().get().getActiveShards();
+
+        // Getting cluster.max_shards_per_node setting
+        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        String maxShardsPerNode = clusterState.getMetadata().settings().get(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey());
+
+        // Checking if the total shards created are equivalent to dataNodes * cluster.max_shards_per_node
+        assertEquals(dataNodes * Integer.parseInt(maxShardsPerNode), currentActiveShards);
+
+        int extraShardCount = 1;
+        try {
+            createIndex(
+                ".ds-test-index",
+                Settings.builder()
+                    .put(indexSettings())
+                    .put(SETTING_NUMBER_OF_SHARDS, extraShardCount)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                    .build()
+            );
+        } catch (IllegalArgumentException e) {
+            verifyException(maxAllowedShards, currentActiveShards, extraShardCount, e);
+        }
+        clusterState = client().admin().cluster().prepareState().get().getState();
+        assertFalse(clusterState.getMetadata().hasIndex(".ds-test-index"));
+    }
+
     public void testIndexCreationOverLimitFromTemplate() {
         int dataNodes = client().admin().cluster().prepareState().get().getState().getNodes().getDataNodes().size();
 
         final ShardCounts counts = ShardCounts.forDataNodeCount(dataNodes);
 
-        setShardsPerNode(counts.getShardsPerNode());
+        setMaxShardLimit(counts.getShardsPerNode(), shardsPerNodeKey);
 
         if (counts.getFirstIndexShards() > 0) {
             createIndex(
@@ -175,7 +369,7 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
 
         int firstShardCount = between(2, 10);
         int shardsPerNode = firstShardCount - 1;
-        setShardsPerNode(shardsPerNode);
+        setMaxShardLimit(shardsPerNode, shardsPerNodeKey);
 
         prepareCreate(
             "growing-should-fail",
@@ -221,7 +415,7 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
         int secondIndexReplicas = dataNodes;
 
         int shardsPerNode = firstIndexFactor + (secondIndexFactor * (1 + secondIndexReplicas));
-        setShardsPerNode(shardsPerNode);
+        setMaxShardLimit(shardsPerNode, shardsPerNodeKey);
 
         createIndex(
             "test-1-index",
@@ -272,7 +466,7 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
 
         int firstShardCount = between(2, 10);
         int shardsPerNode = firstShardCount - 1;
-        setShardsPerNode(shardsPerNode);
+        setMaxShardLimit(shardsPerNode, shardsPerNodeKey);
 
         prepareCreate(
             "test-index",
@@ -345,7 +539,7 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
         cluster().wipeIndices("snapshot-index");
 
         // Reduce the shard limit and fill it up
-        setShardsPerNode(counts.getShardsPerNode());
+        setMaxShardLimit(counts.getShardsPerNode(), shardsPerNodeKey);
         createIndex(
             "test-fill",
             Settings.builder()
@@ -394,7 +588,7 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
         assertTrue(closeIndexResponse.isAcknowledged());
 
         // Fill up the cluster
-        setShardsPerNode(counts.getShardsPerNode());
+        setMaxShardLimit(counts.getShardsPerNode(), shardsPerNodeKey);
         createIndex(
             "test-fill",
             Settings.builder()
@@ -412,6 +606,100 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
         }
         ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
         assertFalse(clusterState.getMetadata().hasIndex("snapshot-index"));
+    }
+
+    public void testIgnoreDotSettingOnMultipleNodes() throws IOException, InterruptedException {
+        int maxAllowedShardsPerNode = 10, indexPrimaryShards = 11, indexReplicaShards = 1;
+
+        InternalTestCluster cluster = new InternalTestCluster(
+            randomLong(),
+            createTempDir(),
+            true,
+            true,
+            0,
+            0,
+            "cluster",
+            new NodeConfigurationSource() {
+                @Override
+                public Settings nodeSettings(int nodeOrdinal) {
+                    return Settings.builder()
+                        .put(ClusterShardLimitIT.this.nodeSettings(nodeOrdinal))
+                        .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
+                        .build();
+                }
+
+                @Override
+                public Path nodeConfigPath(int nodeOrdinal) {
+                    return null;
+                }
+            },
+            0,
+            "cluster-",
+            Arrays.asList(
+                TestSeedPlugin.class,
+                MockHttpTransport.TestPlugin.class,
+                MockTransportService.TestPlugin.class,
+                MockNioTransportPlugin.class,
+                InternalSettingsPlugin.class,
+                MockRepository.Plugin.class
+            ),
+            Function.identity()
+        );
+        cluster.beforeTest(random());
+
+        // Starting 3 ClusterManagerOnlyNode nodes
+        cluster.startClusterManagerOnlyNode(Settings.builder().put("cluster.ignore_dot_indexes", true).build());
+        cluster.startClusterManagerOnlyNode(Settings.builder().put("cluster.ignore_dot_indexes", false).build());
+        cluster.startClusterManagerOnlyNode(Settings.builder().put("cluster.ignore_dot_indexes", false).build());
+
+        // Starting 2 data nodes
+        cluster.startDataOnlyNode(Settings.builder().put("cluster.ignore_dot_indexes", false).build());
+        cluster.startDataOnlyNode(Settings.builder().put("cluster.ignore_dot_indexes", false).build());
+
+        // Setting max shards per node to be 10
+        cluster.client()
+            .admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(shardsPerNodeKey, maxAllowedShardsPerNode))
+            .get();
+
+        // Creating an index starting with dot having shards greater thn the desired node limit
+        cluster.client()
+            .admin()
+            .indices()
+            .prepareCreate(".test-index")
+            .setSettings(
+                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, indexPrimaryShards).put(SETTING_NUMBER_OF_REPLICAS, indexReplicaShards)
+            )
+            .get();
+
+        // As active ClusterManagerNode setting takes precedence killing the active one.
+        // This would be the first one where cluster.ignore_dot_indexes is true because the above calls are blocking.
+        cluster.stopCurrentClusterManagerNode();
+
+        // Waiting for all shards to get assigned
+        cluster.client().admin().cluster().prepareHealth().setWaitForGreenStatus().get();
+
+        // Creating an index starting with dot having shards greater thn the desired node limit
+        try {
+            cluster.client()
+                .admin()
+                .indices()
+                .prepareCreate(".test-index1")
+                .setSettings(
+                    Settings.builder().put(SETTING_NUMBER_OF_SHARDS, indexPrimaryShards).put(SETTING_NUMBER_OF_REPLICAS, indexReplicaShards)
+                )
+                .get();
+        } catch (IllegalArgumentException e) {
+            ClusterHealthResponse clusterHealth = cluster.client().admin().cluster().prepareHealth().get();
+            int currentActiveShards = clusterHealth.getActiveShards();
+            int dataNodeCount = clusterHealth.getNumberOfDataNodes();
+            int extraShardCount = indexPrimaryShards * (1 + indexReplicaShards);
+            verifyException(maxAllowedShardsPerNode * dataNodeCount, currentActiveShards, extraShardCount, e);
+        }
+
+        IOUtils.close(cluster);
     }
 
     private int ensureMultipleDataNodes(int dataNodes) {
@@ -434,23 +722,53 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
         return dataNodes;
     }
 
-    private void setShardsPerNode(int shardsPerNode) {
+    /**
+     * Set max shard limit on either per node level or on cluster level.
+     *
+     * @param limit the limit value to set.
+     * @param key node level or cluster level setting key.
+     */
+    private void setMaxShardLimit(int limit, String key) {
         try {
             ClusterUpdateSettingsResponse response;
             if (frequently()) {
                 response = client().admin()
                     .cluster()
                     .prepareUpdateSettings()
-                    .setPersistentSettings(Settings.builder().put(shardsPerNodeKey, shardsPerNode).build())
+                    .setPersistentSettings(Settings.builder().put(key, limit).build())
                     .get();
-                assertEquals(shardsPerNode, response.getPersistentSettings().getAsInt(shardsPerNodeKey, -1).intValue());
+                assertEquals(limit, response.getPersistentSettings().getAsInt(key, -1).intValue());
             } else {
                 response = client().admin()
                     .cluster()
                     .prepareUpdateSettings()
-                    .setTransientSettings(Settings.builder().put(shardsPerNodeKey, shardsPerNode).build())
+                    .setTransientSettings(Settings.builder().put(key, limit).build())
                     .get();
-                assertEquals(shardsPerNode, response.getTransientSettings().getAsInt(shardsPerNodeKey, -1).intValue());
+                assertEquals(limit, response.getTransientSettings().getAsInt(key, -1).intValue());
+            }
+        } catch (IllegalArgumentException ex) {
+            fail(ex.getMessage());
+        }
+
+    }
+
+    private void setIgnoreDotIndex(boolean ignoreDotIndex) {
+        try {
+            ClusterUpdateSettingsResponse response;
+            if (frequently()) {
+                response = client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setPersistentSettings(Settings.builder().put(ignoreDotIndexKey, ignoreDotIndex).build())
+                    .get();
+                assertEquals(ignoreDotIndex, response.getPersistentSettings().getAsBoolean(ignoreDotIndexKey, true));
+            } else {
+                response = client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().put(ignoreDotIndexKey, ignoreDotIndex).build())
+                    .get();
+                assertEquals(ignoreDotIndex, response.getTransientSettings().getAsBoolean(ignoreDotIndexKey, true));
             }
         } catch (IllegalArgumentException ex) {
             fail(ex.getMessage());
@@ -463,6 +781,17 @@ public class ClusterShardLimitIT extends OpenSearchIntegTestCase {
         int maxShards = counts.getShardsPerNode() * dataNodes;
         String expectedError = "Validation Failed: 1: this action would add ["
             + totalShards
+            + "] total shards, but this cluster currently has ["
+            + currentShards
+            + "]/["
+            + maxShards
+            + "] maximum shards open;";
+        assertEquals(expectedError, e.getMessage());
+    }
+
+    private void verifyException(int maxShards, int currentShards, int extraShards, IllegalArgumentException e) {
+        String expectedError = "Validation Failed: 1: this action would add ["
+            + extraShards
             + "] total shards, but this cluster currently has ["
             + currentShards
             + "]/["

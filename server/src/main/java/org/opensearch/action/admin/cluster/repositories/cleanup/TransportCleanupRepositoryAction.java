@@ -34,8 +34,6 @@ package org.opensearch.action.admin.cluster.repositories.cleanup;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.StepListener;
@@ -91,8 +89,6 @@ public final class TransportCleanupRepositoryAction extends TransportClusterMana
 
     private static final Logger logger = LogManager.getLogger(TransportCleanupRepositoryAction.class);
 
-    private static final Version MIN_VERSION = LegacyESVersion.V_7_4_0;
-
     private final RepositoriesService repositoriesService;
 
     private final SnapshotsService snapshotsService;
@@ -126,14 +122,14 @@ public final class TransportCleanupRepositoryAction extends TransportClusterMana
         // We add a state applier that will remove any dangling repository cleanup actions on cluster-manager failover.
         // This is safe to do since cleanups will increment the repository state id before executing any operations to prevent concurrent
         // operations from corrupting the repository. This is the same safety mechanism used by snapshot deletes.
-        if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
+        if (DiscoveryNode.isClusterManagerNode(clusterService.getSettings())) {
             addClusterStateApplier(clusterService);
         }
     }
 
     private static void addClusterStateApplier(ClusterService clusterService) {
         clusterService.addStateApplier(event -> {
-            if (event.localNodeMaster() && event.previousState().nodes().isLocalNodeElectedMaster() == false) {
+            if (event.localNodeClusterManager() && event.previousState().nodes().isLocalNodeElectedClusterManager() == false) {
                 final RepositoryCleanupInProgress repositoryCleanupInProgress = event.state()
                     .custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY);
                 if (repositoryCleanupInProgress.hasCleanupInProgress() == false) {
@@ -174,22 +170,12 @@ public final class TransportCleanupRepositoryAction extends TransportClusterMana
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         CleanupRepositoryRequest request,
         ClusterState state,
         ActionListener<CleanupRepositoryResponse> listener
     ) {
-        if (state.nodes().getMinNodeVersion().onOrAfter(MIN_VERSION)) {
-            cleanupRepo(request.name(), ActionListener.map(listener, CleanupRepositoryResponse::new));
-        } else {
-            throw new IllegalArgumentException(
-                "Repository cleanup is only supported from version ["
-                    + MIN_VERSION
-                    + "] but the oldest node version in the cluster is ["
-                    + state.nodes().getMinNodeVersion()
-                    + ']'
-            );
-        }
+        cleanupRepo(request.name(), ActionListener.map(listener, CleanupRepositoryResponse::new));
     }
 
     @Override

@@ -32,21 +32,20 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.metadata.DataStream.TimestampField;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.DataStreamFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 
@@ -163,11 +162,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         this.priority = in.readOptionalVLong();
         this.version = in.readOptionalVLong();
         this.metadata = in.readMap();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
-        } else {
-            this.dataStreamTemplate = null;
-        }
+        this.dataStreamTemplate = in.readOptionalWriteable(DataStreamTemplate::new);
     }
 
     public List<String> indexPatterns() {
@@ -222,9 +217,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         out.writeOptionalVLong(this.priority);
         out.writeOptionalVLong(this.version);
         out.writeMap(this.metadata);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            out.writeOptionalWriteable(dataStreamTemplate);
-        }
+        out.writeOptionalWriteable(dataStreamTemplate);
     }
 
     @Override
@@ -286,7 +279,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
     /**
@@ -319,11 +312,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         }
 
         public DataStreamTemplate(StreamInput in) throws IOException {
-            if (in.getVersion().onOrAfter(Version.V_1_0_0)) {
-                this.timestampField = in.readOptionalWriteable(TimestampField::new);
-            } else {
-                this.timestampField = DataStreamFieldMapper.Defaults.TIMESTAMP_FIELD;
-            }
+            this.timestampField = in.readOptionalWriteable(TimestampField::new);
         }
 
         public TimestampField getTimestampField() {
@@ -342,9 +331,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_1_0_0)) {
-                out.writeOptionalWriteable(timestampField);
-            }
+            out.writeOptionalWriteable(timestampField);
         }
 
         @Override

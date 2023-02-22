@@ -78,6 +78,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.TestTranslog;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogStats;
@@ -287,7 +288,14 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         final Path indexDataPath = sharedDataPath.resolve("start-" + randomAsciiLettersOfLength(10));
 
         logger.info("--> creating index [{}] with data_path [{}]", index, indexDataPath);
-        createIndex(index, Settings.builder().put(IndexMetadata.SETTING_DATA_PATH, indexDataPath.toAbsolutePath().toString()).build());
+        createIndex(
+            index,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_DATA_PATH, indexDataPath.toAbsolutePath().toString())
+                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
+                .put(IndexSettings.INDEX_MERGE_ON_FLUSH_ENABLED.getKey(), false)
+                .build()
+        );
         client().prepareIndex(index).setId("1").setSource("foo", "bar").setRefreshPolicy(IMMEDIATE).get();
         ensureGreen(index);
 
@@ -305,6 +313,16 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         // Now, try closing and changing the settings
         logger.info("--> closing the index [{}] before updating data_path", index);
         assertAcked(client().admin().indices().prepareClose(index).setWaitForActiveShards(ActiveShardCount.DEFAULT));
+
+        // race condition: async flush may cause translog file deletion resulting in an inconsistent stream from
+        // Files.walk below during copy phase
+        // temporarily disable refresh to avoid any flushes or syncs that may inadvertently cause the deletion
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareUpdateSettings(index)
+                .setSettings(Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "-1").build())
+        );
 
         final Path newIndexDataPath = sharedDataPath.resolve("end-" + randomAlphaOfLength(10));
         IOUtils.rm(newIndexDataPath);
@@ -325,11 +343,17 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         }
 
         logger.info("--> updating data_path to [{}] for index [{}]", newIndexDataPath, index);
+        // update data path and re-enable refresh
         assertAcked(
             client().admin()
                 .indices()
                 .prepareUpdateSettings(index)
-                .setSettings(Settings.builder().put(IndexMetadata.SETTING_DATA_PATH, newIndexDataPath.toAbsolutePath().toString()).build())
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_DATA_PATH, newIndexDataPath.toAbsolutePath().toString())
+                        .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), IndexSettings.DEFAULT_REFRESH_INTERVAL.toString())
+                        .build()
+                )
                 .setIndicesOptions(IndicesOptions.fromOptions(true, false, true, true))
         );
 
@@ -429,7 +453,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             final FlushStats flushStats = shard.flushStats();
             logger.info(
                 "--> translog stats [{}] gen [{}] commit_stats [{}] flush_stats [{}/{}]",
-                Strings.toString(translogStats),
+                Strings.toString(XContentType.JSON, translogStats),
                 translog.getGeneration().translogFileGeneration,
                 commitStats.getUserData(),
                 flushStats.getPeriodic(),
@@ -675,6 +699,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             () -> {},
             RetentionLeaseSyncer.EMPTY,
             cbs,
+            (indexSettings, shardRouting) -> new InternalTranslogFactory(),
             SegmentReplicationCheckpointPublisher.EMPTY,
             null
         );

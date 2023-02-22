@@ -33,15 +33,14 @@
 package org.opensearch.index.query.functionscore;
 
 import org.apache.lucene.search.Query;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.search.function.ScriptScoreQuery;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.InnerHitContextBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
@@ -55,8 +54,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
@@ -123,22 +122,14 @@ public class ScriptScoreQueryBuilder extends AbstractQueryBuilder<ScriptScoreQue
     public ScriptScoreQueryBuilder(StreamInput in) throws IOException {
         super(in);
         query = in.readNamedWriteable(QueryBuilder.class);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_5_0)) {
-            script = new Script(in);
-        } else {
-            script = in.readNamedWriteable(ScriptScoreFunctionBuilder.class).getScript();
-        }
+        script = new Script(in);
         minScore = in.readOptionalFloat();
     }
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(query);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_5_0)) {
-            script.writeTo(out);
-        } else {
-            out.writeNamedWriteable(new ScriptScoreFunctionBuilder(script));
-        }
+        script.writeTo(out);
         out.writeOptionalFloat(minScore);
     }
 

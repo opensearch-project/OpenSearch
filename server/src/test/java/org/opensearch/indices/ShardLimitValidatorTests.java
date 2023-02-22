@@ -53,13 +53,17 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
-import static org.opensearch.cluster.metadata.IndexMetadata.*;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.MetadataIndexStateServiceTests.addClosedIndex;
 import static org.opensearch.cluster.metadata.MetadataIndexStateServiceTests.addOpenedIndex;
 import static org.opensearch.cluster.shards.ShardCounts.forDataNodeCount;
-import static org.opensearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.opensearch.indices.ShardLimitValidator.SETTING_CLUSTER_IGNORE_DOT_INDEXES;
+import static org.opensearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
+import static org.opensearch.indices.ShardLimitValidator.SETTING_MAX_SHARDS_PER_CLUSTER_KEY;
 
 public class ShardLimitValidatorTests extends OpenSearchTestCase {
 
@@ -72,11 +76,41 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         ClusterState state = createClusterForShardLimitTest(nodesInCluster, counts.getFirstIndexShards(), counts.getFirstIndexReplicas());
 
         int shardsToAdd = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
-        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(shardsToAdd, state, counts.getShardsPerNode());
+        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(shardsToAdd, state, counts.getShardsPerNode(), -1);
 
         int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
         int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
         int maxShards = counts.getShardsPerNode() * nodesInCluster;
+        assertTrue(errorMessage.isPresent());
+        assertEquals(
+            "this action would add ["
+                + totalShards
+                + "] total shards, but this cluster currently has ["
+                + currentShards
+                + "]/["
+                + maxShards
+                + "] maximum shards open",
+            errorMessage.get()
+        );
+    }
+
+    public void testOverShardLimitWithMaxShardCountLimit() {
+        int nodesInCluster = randomIntBetween(1, 90);
+        ShardCounts counts = forDataNodeCount(nodesInCluster);
+
+        ClusterState state = createClusterForShardLimitTest(nodesInCluster, counts.getFirstIndexShards(), counts.getFirstIndexReplicas());
+        int shardsToAdd = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
+        int maxShardLimitOnCluster = shardsToAdd - 1;
+        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(
+            shardsToAdd,
+            state,
+            counts.getShardsPerNode(),
+            maxShardLimitOnCluster
+        );
+
+        int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
+        int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
+        int maxShards = Math.min(counts.getShardsPerNode() * nodesInCluster, maxShardLimitOnCluster);
         assertTrue(errorMessage.isPresent());
         assertEquals(
             "this action would add ["
@@ -101,7 +135,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
 
         int existingShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
         int shardsToAdd = randomIntBetween(1, (counts.getShardsPerNode() * nodesInCluster) - existingShards);
-        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(shardsToAdd, state, counts.getShardsPerNode());
+        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(shardsToAdd, state, counts.getShardsPerNode(), -1);
 
         assertFalse(errorMessage.isPresent());
     }
@@ -111,7 +145,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
      * even though it exceeds the cluster max shard limit
      */
     public void testSystemIndexCreationSucceeds() {
-        final ShardLimitValidator shardLimitValidator = createTestShardLimitService(1);
+        final ShardLimitValidator shardLimitValidator = createTestShardLimitService(1, false);
         final Settings settings = Settings.builder()
             .put(SETTING_VERSION_CREATED, Version.CURRENT)
             .put(SETTING_NUMBER_OF_SHARDS, 1)
@@ -126,7 +160,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
      * fails when it exceeds the cluster max shard limit
      */
     public void testNonSystemIndexCreationFails() {
-        final ShardLimitValidator shardLimitValidator = createTestShardLimitService(1);
+        final ShardLimitValidator shardLimitValidator = createTestShardLimitService(1, false);
         final Settings settings = Settings.builder()
             .put(SETTING_VERSION_CREATED, Version.CURRENT)
             .put(SETTING_NUMBER_OF_SHARDS, 1)
@@ -147,6 +181,139 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
                 + "] maximum shards open;",
             exception.getMessage()
         );
+    }
+
+    public void testNonSystemIndexCreationFailsWithMaxShardLimitOnCluster() {
+        final int maxShardLimitOnCluster = 1;
+        Settings limitOnlySettings = Settings.builder()
+            .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), 1)
+            .put(SETTING_CLUSTER_IGNORE_DOT_INDEXES.getKey(), false)
+            .put(SETTING_MAX_SHARDS_PER_CLUSTER_KEY, maxShardLimitOnCluster)
+            .build();
+        final ShardLimitValidator shardLimitValidator = createTestShardLimitService(limitOnlySettings);
+        final Settings settings = Settings.builder()
+            .put(SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(SETTING_NUMBER_OF_SHARDS, 1)
+            .put(SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+        final ClusterState state = createClusterForShardLimitTest(1, 1, 0);
+        final ValidationException exception = expectThrows(
+            ValidationException.class,
+            () -> shardLimitValidator.validateShardLimit("abc", settings, state)
+        );
+        assertEquals(
+            "Validation Failed: 1: this action would add ["
+                + 2
+                + "] total shards, but this cluster currently has ["
+                + 1
+                + "]/["
+                + maxShardLimitOnCluster
+                + "] maximum shards open;",
+            exception.getMessage()
+        );
+    }
+
+    public void testNonSystemIndexCreationPassesWithMaxShardLimitOnCluster() {
+        final int maxShardLimitOnCluster = 5;
+        Settings limitOnlySettings = Settings.builder()
+            .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), 3)
+            .put(SETTING_CLUSTER_IGNORE_DOT_INDEXES.getKey(), false)
+            .put(SETTING_MAX_SHARDS_PER_CLUSTER_KEY, maxShardLimitOnCluster)
+            .build();
+        final ShardLimitValidator shardLimitValidator = createTestShardLimitService(limitOnlySettings);
+        final Settings settings = Settings.builder()
+            .put(SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(SETTING_NUMBER_OF_SHARDS, 1)
+            .put(SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+        final ClusterState state = createClusterForShardLimitTest(1, 1, 0);
+        shardLimitValidator.validateShardLimit("abc", settings, state);
+    }
+
+    /**
+     * This test validates that index starting with dot creation Succeeds
+     * when the setting cluster.ignore_dot_indexes is set to true.
+     */
+    public void testDotIndexCreationSucceeds() {
+        final ShardLimitValidator shardLimitValidator = createTestShardLimitService(1, true);
+        final Settings settings = Settings.builder()
+            .put(SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(SETTING_NUMBER_OF_SHARDS, 1)
+            .put(SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+        final ClusterState state = createClusterForShardLimitTest(1, 1, 0);
+        shardLimitValidator.validateShardLimit(".test-index", settings, state);
+    }
+
+    /**
+     * This test validates that index starting with dot creation fails
+     * when the setting cluster.ignore_dot_indexes is set to false.
+     */
+    public void testDotIndexCreationFails() {
+        final ShardLimitValidator shardLimitValidator = createTestShardLimitService(1, false);
+        final Settings settings = Settings.builder()
+            .put(SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(SETTING_NUMBER_OF_SHARDS, 1)
+            .put(SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+        final ClusterState state = createClusterForShardLimitTest(1, 1, 0);
+        final ValidationException exception = expectThrows(
+            ValidationException.class,
+            () -> shardLimitValidator.validateShardLimit(".test-index", settings, state)
+        );
+        assertEquals(
+            "Validation Failed: 1: this action would add ["
+                + 2
+                + "] total shards, but this cluster currently has ["
+                + 1
+                + "]/["
+                + 1
+                + "] maximum shards open;",
+            exception.getMessage()
+        );
+    }
+
+    /**
+     * This test validates that dataStream index creation fails
+     * when the cluster.ignore_dot_indexes is set to true, and we reach the max shard per node limit.
+     */
+    public void testDataStreamIndexCreationFails() {
+        final ShardLimitValidator shardLimitValidator = createTestShardLimitService(1, true);
+        final Settings settings = Settings.builder()
+            .put(SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(SETTING_NUMBER_OF_SHARDS, 1)
+            .put(SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+        final ClusterState state = createClusterForShardLimitTest(1, 1, 0);
+        final ValidationException exception = expectThrows(
+            ValidationException.class,
+            () -> shardLimitValidator.validateShardLimit(".ds-test-index", settings, state)
+        );
+        assertEquals(
+            "Validation Failed: 1: this action would add ["
+                + 2
+                + "] total shards, but this cluster currently has ["
+                + 1
+                + "]/["
+                + 1
+                + "] maximum shards open;",
+            exception.getMessage()
+        );
+    }
+
+    /**
+     * This test validates that dataStream index creation succeeds
+     * when the cluster.ignore_dot_indexes is set to true, and we don't reach the max shard per node limit.
+     */
+    public void testDataStreamIndexCreationSucceeds() {
+        final ShardLimitValidator shardLimitValidator = createTestShardLimitService(4, true);
+        final Settings settings = Settings.builder()
+            .put(SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(SETTING_NUMBER_OF_SHARDS, 1)
+            .put(SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+        final ClusterState state = createClusterForShardLimitTest(1, 1, 0);
+        shardLimitValidator.validateShardLimit(".ds-test-index", settings, state);
     }
 
     /**
@@ -172,7 +339,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
         int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
         int maxShards = counts.getShardsPerNode() * nodesInCluster;
-        ShardLimitValidator shardLimitValidator = createTestShardLimitService(counts.getShardsPerNode());
+        ShardLimitValidator shardLimitValidator = createTestShardLimitService(counts.getShardsPerNode(), false);
         ValidationException exception = expectThrows(
             ValidationException.class,
             () -> shardLimitValidator.validateShardLimit(state, indices)
@@ -212,8 +379,122 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
             .toArray(new Index[2]);
 
         // Shard limit validation succeeds without any issues as system index is being opened
-        ShardLimitValidator shardLimitValidator = createTestShardLimitService(counts.getShardsPerNode());
+        ShardLimitValidator shardLimitValidator = createTestShardLimitService(counts.getShardsPerNode(), false);
         shardLimitValidator.validateShardLimit(state, indices);
+    }
+
+    /**
+     * This test validates that index having '.' in the first character
+     * opening of such indexes succeeds even when it exceeds the cluster max shard limit if the
+     * cluster.ignore_dot_indexes setting is set to true.
+     */
+    public void testDotIndexOpeningSucceeds() {
+        int nodesInCluster = randomIntBetween(2, 90);
+        ShardCounts counts = forDataNodeCount(nodesInCluster);
+        ClusterState state = createClusterForShardLimitTest(
+            nodesInCluster,
+            randomAlphaOfLengthBetween(5, 15),
+            counts.getFirstIndexShards(),
+            counts.getFirstIndexReplicas(),
+            ".test-index",               // Adding closed index starting with dot to cluster state
+            counts.getFailingIndexShards(),
+            counts.getFailingIndexReplicas()
+        );
+
+        Index[] indices = Arrays.stream(state.metadata().indices().values().toArray(IndexMetadata.class))
+            .map(IndexMetadata::getIndex)
+            .collect(Collectors.toList())
+            .toArray(new Index[2]);
+
+        // Shard limit validation succeeds without any issues
+        ShardLimitValidator shardLimitValidator = createTestShardLimitService(counts.getShardsPerNode(), true);
+        shardLimitValidator.validateShardLimit(state, indices);
+    }
+
+    /**
+     * This test validates that index having '.' in the first character
+     * opening fails when it exceeds the cluster max shard limit if the
+     * cluster.ignore_dot_indexes is set to false.
+     */
+    public void testDotIndexOpeningFails() {
+        int nodesInCluster = randomIntBetween(2, 90);
+        ShardCounts counts = forDataNodeCount(nodesInCluster);
+        ClusterState state = createClusterForShardLimitTest(
+            nodesInCluster,
+            randomAlphaOfLengthBetween(5, 15),
+            counts.getFirstIndexShards(),
+            counts.getFirstIndexReplicas(),
+            ".test-index",               // Adding closed index starting with dot to cluster state
+            counts.getFailingIndexShards(),
+            counts.getFailingIndexReplicas()
+        );
+
+        Index[] indices = Arrays.stream(state.metadata().indices().values().toArray(IndexMetadata.class))
+            .map(IndexMetadata::getIndex)
+            .collect(Collectors.toList())
+            .toArray(new Index[2]);
+
+        int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
+        int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
+        int maxShards = counts.getShardsPerNode() * nodesInCluster;
+        ShardLimitValidator shardLimitValidator = createTestShardLimitService(counts.getShardsPerNode(), false);
+        ValidationException exception = expectThrows(
+            ValidationException.class,
+            () -> shardLimitValidator.validateShardLimit(state, indices)
+        );
+        assertEquals(
+            "Validation Failed: 1: this action would add ["
+                + totalShards
+                + "] total shards, but this cluster currently has ["
+                + currentShards
+                + "]/["
+                + maxShards
+                + "] maximum shards open;",
+            exception.getMessage()
+        );
+    }
+
+    /**
+     * This test validates that index starting with '.ds-'
+     * opening fails when it exceeds the cluster max shard limit if the
+     * cluster.ignore_dot_indexes is set to true.
+     */
+    public void testDataStreamIndexOpeningFails() {
+        int nodesInCluster = randomIntBetween(2, 90);
+        ShardCounts counts = forDataNodeCount(nodesInCluster);
+        ClusterState state = createClusterForShardLimitTest(
+            nodesInCluster,
+            randomAlphaOfLengthBetween(5, 15),
+            counts.getFirstIndexShards(),
+            counts.getFirstIndexReplicas(),
+            ".ds-test-index",               // Adding closed data stream index to cluster state
+            counts.getFailingIndexShards(),
+            counts.getFailingIndexReplicas()
+        );
+
+        Index[] indices = Arrays.stream(state.metadata().indices().values().toArray(IndexMetadata.class))
+            .map(IndexMetadata::getIndex)
+            .collect(Collectors.toList())
+            .toArray(new Index[2]);
+
+        int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
+        int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
+        int maxShards = counts.getShardsPerNode() * nodesInCluster;
+        ShardLimitValidator shardLimitValidator = createTestShardLimitService(counts.getShardsPerNode(), true);
+        ValidationException exception = expectThrows(
+            ValidationException.class,
+            () -> shardLimitValidator.validateShardLimit(state, indices)
+        );
+        assertEquals(
+            "Validation Failed: 1: this action would add ["
+                + totalShards
+                + "] total shards, but this cluster currently has ["
+                + currentShards
+                + "]/["
+                + maxShards
+                + "] maximum shards open;",
+            exception.getMessage()
+        );
     }
 
     public static ClusterState createClusterForShardLimitTest(int nodesInCluster, int shardsInIndex, int replicas) {
@@ -289,13 +570,33 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
     /**
      * Creates a {@link ShardLimitValidator} for testing with the given setting and a mocked cluster service.
      *
-     * @param maxShardsPerNode the value to use for the max shards per node setting
+     * @param limitOnlySettings the setting used for creating ShardLimitValidator.
      * @return a test instance
      */
-    public static ShardLimitValidator createTestShardLimitService(int maxShardsPerNode) {
+    private static ShardLimitValidator createTestShardLimitService(final Settings limitOnlySettings) {
         // Use a mocked clusterService - for unit tests we won't be updating the setting anyway.
         ClusterService clusterService = mock(ClusterService.class);
-        Settings limitOnlySettings = Settings.builder().put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), maxShardsPerNode).build();
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(limitOnlySettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+
+        return new ShardLimitValidator(limitOnlySettings, clusterService, new SystemIndices(emptyMap()));
+    }
+
+    /**
+     * Creates a {@link ShardLimitValidator} for testing with the given setting and a mocked cluster service.
+     *
+     * @param maxShardsPerNode the value to use for the max shards per node setting
+     * @param ignoreDotIndexes validates if index starting with dot should be ignored or not
+     * @return a test instance
+     */
+    public static ShardLimitValidator createTestShardLimitService(int maxShardsPerNode, boolean ignoreDotIndexes) {
+        // Use a mocked clusterService - for unit tests we won't be updating the setting anyway.
+        ClusterService clusterService = mock(ClusterService.class);
+        Settings limitOnlySettings = Settings.builder()
+            .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), maxShardsPerNode)
+            .put(SETTING_CLUSTER_IGNORE_DOT_INDEXES.getKey(), ignoreDotIndexes)
+            .build();
         when(clusterService.getClusterSettings()).thenReturn(
             new ClusterSettings(limitOnlySettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
@@ -307,11 +608,19 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
      * Creates a {@link ShardLimitValidator} for testing with the given setting and a given cluster service.
      *
      * @param maxShardsPerNode the value to use for the max shards per node setting
+     * @param ignoreDotIndexes validates if index starting with dot should be ignored or not
      * @param clusterService   the cluster service to use
      * @return a test instance
      */
-    public static ShardLimitValidator createTestShardLimitService(int maxShardsPerNode, ClusterService clusterService) {
-        Settings limitOnlySettings = Settings.builder().put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), maxShardsPerNode).build();
+    public static ShardLimitValidator createTestShardLimitService(
+        int maxShardsPerNode,
+        boolean ignoreDotIndexes,
+        ClusterService clusterService
+    ) {
+        Settings limitOnlySettings = Settings.builder()
+            .put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), maxShardsPerNode)
+            .put(SETTING_CLUSTER_IGNORE_DOT_INDEXES.getKey(), ignoreDotIndexes)
+            .build();
 
         return new ShardLimitValidator(limitOnlySettings, clusterService, new SystemIndices(emptyMap()));
     }

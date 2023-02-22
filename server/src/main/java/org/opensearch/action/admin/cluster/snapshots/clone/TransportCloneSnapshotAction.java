@@ -90,7 +90,11 @@ public final class TransportCloneSnapshotAction extends TransportClusterManagerN
     }
 
     @Override
-    protected void masterOperation(CloneSnapshotRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
+    protected void clusterManagerOperation(
+        CloneSnapshotRequest request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         snapshotsService.cloneSnapshot(request, ActionListener.map(listener, v -> new AcknowledgedResponse(true)));
     }
 

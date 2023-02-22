@@ -84,7 +84,7 @@ public class BinaryRangeAggregatorTests extends OpenSearchTestCase {
         }
 
         @Override
-        public long docValueCount() {
+        public int docValueCount() {
             return ords.length;
         }
     }

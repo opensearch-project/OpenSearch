@@ -44,7 +44,6 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.SetOnce.AlreadySetException;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -54,11 +53,14 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.SetOnce;
+import org.opensearch.common.SetOnce.AlreadySetException;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
@@ -89,7 +91,10 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.NonNegativeScoresSimilarity;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.FsDirectoryFactory;
-import org.opensearch.index.store.RemoteDirectoryFactory;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
+import org.opensearch.index.translog.InternalTranslogFactory;
+import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
+import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.analysis.AnalysisModule;
@@ -120,6 +125,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -217,6 +223,18 @@ public class IndexModuleTests extends OpenSearchTestCase {
     }
 
     private IndexService newIndexService(IndexModule module) throws IOException {
+        final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
+        repositoriesServiceReference.set(repositoriesService);
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier = (indexSettings, shardRouting) -> {
+            if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
+                return new RemoteBlobStoreInternalTranslogFactory(
+                    repositoriesServiceReference::get,
+                    threadPool,
+                    indexSettings.getRemoteStoreTranslogRepository()
+                );
+            }
+            return new InternalTranslogFactory();
+        };
         return module.newIndexService(
             CREATE_INDEX,
             nodeEnvironment,
@@ -234,7 +252,8 @@ public class IndexModuleTests extends OpenSearchTestCase {
             writableRegistry(),
             () -> false,
             null,
-            new RemoteDirectoryFactory(() -> repositoriesService)
+            new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService),
+            translogFactorySupplier
         );
     }
 
@@ -314,7 +333,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
         try {
             module.addSettingsUpdateConsumer(booleanSetting2, atomicBoolean::set);
             fail("not registered");
-        } catch (IllegalArgumentException ex) {
+        } catch (SettingsException ex) {
 
         }
 

@@ -31,10 +31,10 @@
 
 package org.opensearch.common.util;
 
-import org.apache.lucene.util.SetOnce;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;

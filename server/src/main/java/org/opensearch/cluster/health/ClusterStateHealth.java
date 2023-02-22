@@ -31,7 +31,6 @@
 
 package org.opensearch.cluster.health;
 
-import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
@@ -86,7 +85,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
     public ClusterStateHealth(final ClusterState clusterState, final String[] concreteIndices) {
         numberOfNodes = clusterState.nodes().getSize();
         numberOfDataNodes = clusterState.nodes().getDataNodes().size();
-        hasDiscoveredClusterManager = clusterState.nodes().getMasterNodeId() != null;
+        hasDiscoveredClusterManager = clusterState.nodes().getClusterManagerNodeId() != null;
         indices = new HashMap<>();
         for (String index : concreteIndices) {
             IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
@@ -154,11 +153,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         unassignedShards = in.readVInt();
         numberOfNodes = in.readVInt();
         numberOfDataNodes = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_1_0_0)) {
-            hasDiscoveredClusterManager = in.readBoolean();
-        } else {
-            hasDiscoveredClusterManager = true;
-        }
+        hasDiscoveredClusterManager = in.readBoolean();
         status = ClusterHealthStatus.fromValue(in.readByte());
         int size = in.readVInt();
         indices = new HashMap<>(size);
@@ -238,8 +233,14 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         return activeShardsPercent;
     }
 
-    public boolean hasDiscoveredMaster() {
+    public boolean hasDiscoveredClusterManager() {
         return hasDiscoveredClusterManager;
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #hasDiscoveredClusterManager()} */
+    @Deprecated
+    public boolean hasDiscoveredMaster() {
+        return hasDiscoveredClusterManager();
     }
 
     @Override
@@ -256,9 +257,7 @@ public final class ClusterStateHealth implements Iterable<ClusterIndexHealth>, W
         out.writeVInt(unassignedShards);
         out.writeVInt(numberOfNodes);
         out.writeVInt(numberOfDataNodes);
-        if (out.getVersion().onOrAfter(Version.V_1_0_0)) {
-            out.writeBoolean(hasDiscoveredClusterManager);
-        }
+        out.writeBoolean(hasDiscoveredClusterManager);
         out.writeByte(status.value());
         out.writeVInt(indices.size());
         for (ClusterIndexHealth indexHealth : this) {

@@ -64,7 +64,7 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
                 .put("index.analysis.filter.my_word_delimiter.catenate_all", "true")
                 .put("index.analysis.filter.my_word_delimiter.preserve_original", "true")
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
 
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
@@ -114,7 +114,7 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
                 .put("index.analysis.filter.my_word_delimiter.catenate_words", "true")
                 .put("index.analysis.filter.my_word_delimiter.generate_word_parts", "true")
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
         String source = "PowerShot";
@@ -146,7 +146,7 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
                 .put("index.analysis.filter.my_word_delimiter.generate_word_parts", "true")
                 .put("index.analysis.filter.my_word_delimiter.adjust_offsets", "false")
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_word_delimiter");
         String source = "PowerShot";
@@ -181,7 +181,10 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
             .put("index.analysis.analyzer.my_analyzer.filter", "my_keyword, my_word_delimiter")
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
+            settings,
+            new CommonAnalysisModulePlugin()
+        );
         String source = "PowerShot PowerHungry";
         int[] expectedStartOffsets = new int[] { 0, 5, 10, 15 };
         int[] expectedEndOffsets = new int[] { 5, 9, 15, 21 };
@@ -191,7 +194,7 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
 
         // test with keywords but ignore_keywords is set as true
         settings = Settings.builder().put(settings).put("index.analysis.filter.my_word_delimiter.ignore_keywords", "true").build();
-        analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+        analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisModulePlugin());
         analyzer = analysis.indexAnalyzers.get("my_analyzer");
         expectedStartOffsets = new int[] { 0, 5, 10 };
         expectedEndOffsets = new int[] { 5, 9, 21 };
@@ -213,7 +216,7 @@ public class WordDelimiterGraphTokenFilterFactoryTests extends BaseWordDelimiter
             try (
                 IndexAnalyzers indexAnalyzers = new AnalysisModule(
                     TestEnvironment.newEnvironment(settings),
-                    Collections.singletonList(new CommonAnalysisPlugin())
+                    Collections.singletonList(new CommonAnalysisModulePlugin())
                 ).getAnalysisRegistry().build(idxSettings)
             ) {
 

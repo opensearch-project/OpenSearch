@@ -10,13 +10,12 @@ package org.opensearch.indices.replication;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
-import java.util.Set;
+import java.util.Map;
 
 /**
  * Response returned from a {@link SegmentReplicationSource} that includes the file metadata, and SegmentInfos
@@ -28,52 +27,41 @@ import java.util.Set;
 public class CheckpointInfoResponse extends TransportResponse {
 
     private final ReplicationCheckpoint checkpoint;
-    private final Store.MetadataSnapshot snapshot;
+    private final Map<String, StoreFileMetadata> metadataMap;
     private final byte[] infosBytes;
-    // pendingDeleteFiles are segments that have been merged away in the latest in memory SegmentInfos
-    // but are still referenced by the latest commit point (Segments_N).
-    private final Set<StoreFileMetadata> pendingDeleteFiles;
 
     public CheckpointInfoResponse(
         final ReplicationCheckpoint checkpoint,
-        final Store.MetadataSnapshot snapshot,
-        final byte[] infosBytes,
-        final Set<StoreFileMetadata> additionalFiles
+        final Map<String, StoreFileMetadata> metadataMap,
+        final byte[] infosBytes
     ) {
         this.checkpoint = checkpoint;
-        this.snapshot = snapshot;
+        this.metadataMap = metadataMap;
         this.infosBytes = infosBytes;
-        this.pendingDeleteFiles = additionalFiles;
     }
 
     public CheckpointInfoResponse(StreamInput in) throws IOException {
         this.checkpoint = new ReplicationCheckpoint(in);
-        this.snapshot = new Store.MetadataSnapshot(in);
+        this.metadataMap = in.readMap(StreamInput::readString, StoreFileMetadata::new);
         this.infosBytes = in.readByteArray();
-        this.pendingDeleteFiles = in.readSet(StoreFileMetadata::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         checkpoint.writeTo(out);
-        snapshot.writeTo(out);
+        out.writeMap(metadataMap, StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
         out.writeByteArray(infosBytes);
-        out.writeCollection(pendingDeleteFiles);
     }
 
     public ReplicationCheckpoint getCheckpoint() {
         return checkpoint;
     }
 
-    public Store.MetadataSnapshot getSnapshot() {
-        return snapshot;
+    public Map<String, StoreFileMetadata> getMetadataMap() {
+        return metadataMap;
     }
 
     public byte[] getInfosBytes() {
         return infosBytes;
-    }
-
-    public Set<StoreFileMetadata> getPendingDeleteFiles() {
-        return pendingDeleteFiles;
     }
 }

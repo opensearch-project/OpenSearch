@@ -35,7 +35,7 @@ import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.transport.Netty4Plugin;
+import org.opensearch.transport.Netty4ModulePlugin;
 import org.opensearch.transport.nio.MockNioTransportPlugin;
 import org.opensearch.transport.nio.NioTransportPlugin;
 import org.junit.BeforeClass;
@@ -52,9 +52,9 @@ public abstract class HttpSmokeTestCase extends OpenSearchIntegTestCase {
     @SuppressWarnings("unchecked")
     @BeforeClass
     public static void setUpTransport() {
-        nodeTransportTypeKey = getTypeKey(randomFrom(getTestTransportPlugin(), Netty4Plugin.class, NioTransportPlugin.class));
-        nodeHttpTypeKey = getHttpTypeKey(randomFrom(Netty4Plugin.class, NioTransportPlugin.class));
-        clientTypeKey = getTypeKey(randomFrom(getTestTransportPlugin(), Netty4Plugin.class, NioTransportPlugin.class));
+        nodeTransportTypeKey = getTypeKey(randomFrom(getTestTransportPlugin(), Netty4ModulePlugin.class, NioTransportPlugin.class));
+        nodeHttpTypeKey = getHttpTypeKey(randomFrom(Netty4ModulePlugin.class, NioTransportPlugin.class));
+        clientTypeKey = getTypeKey(randomFrom(getTestTransportPlugin(), Netty4ModulePlugin.class, NioTransportPlugin.class));
     }
 
     private static String getTypeKey(Class<? extends Plugin> clazz) {
@@ -63,8 +63,8 @@ public abstract class HttpSmokeTestCase extends OpenSearchIntegTestCase {
         } else if (clazz.equals(NioTransportPlugin.class)) {
             return NioTransportPlugin.NIO_TRANSPORT_NAME;
         } else {
-            assert clazz.equals(Netty4Plugin.class);
-            return Netty4Plugin.NETTY_TRANSPORT_NAME;
+            assert clazz.equals(Netty4ModulePlugin.class);
+            return Netty4ModulePlugin.NETTY_TRANSPORT_NAME;
         }
     }
 
@@ -72,8 +72,8 @@ public abstract class HttpSmokeTestCase extends OpenSearchIntegTestCase {
         if (clazz.equals(NioTransportPlugin.class)) {
             return NioTransportPlugin.NIO_HTTP_TRANSPORT_NAME;
         } else {
-            assert clazz.equals(Netty4Plugin.class);
-            return Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME;
+            assert clazz.equals(Netty4ModulePlugin.class);
+            return Netty4ModulePlugin.NETTY_HTTP_TRANSPORT_NAME;
         }
     }
 
@@ -92,7 +92,7 @@ public abstract class HttpSmokeTestCase extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(getTestTransportPlugin(), Netty4Plugin.class, NioTransportPlugin.class);
+        return Arrays.asList(getTestTransportPlugin(), Netty4ModulePlugin.class, NioTransportPlugin.class);
     }
 
     @Override

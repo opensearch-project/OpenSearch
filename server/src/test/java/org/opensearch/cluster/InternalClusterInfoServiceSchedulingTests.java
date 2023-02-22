@@ -42,14 +42,14 @@ import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.coordination.DeterministicTaskQueue;
 import org.opensearch.cluster.coordination.MockSinglePrioritizingExecutor;
-import org.opensearch.cluster.coordination.NoMasterBlockService;
+import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterApplier;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.cluster.service.FakeThreadPoolMasterService;
-import org.opensearch.cluster.service.MasterService;
+import org.opensearch.cluster.service.FakeThreadPoolClusterManagerService;
+import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
@@ -69,7 +69,9 @@ public class InternalClusterInfoServiceSchedulingTests extends OpenSearchTestCas
     public void testScheduling() {
         final DiscoveryNode discoveryNode = new DiscoveryNode("test", buildNewFakeTransportAddress(), Version.CURRENT);
         final DiscoveryNodes noClusterManager = DiscoveryNodes.builder().add(discoveryNode).localNodeId(discoveryNode.getId()).build();
-        final DiscoveryNodes localClusterManager = DiscoveryNodes.builder(noClusterManager).masterNodeId(discoveryNode.getId()).build();
+        final DiscoveryNodes localClusterManager = DiscoveryNodes.builder(noClusterManager)
+            .clusterManagerNodeId(discoveryNode.getId())
+            .build();
 
         final Settings.Builder settingsBuilder = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), discoveryNode.getName());
         if (randomBoolean()) {
@@ -87,7 +89,7 @@ public class InternalClusterInfoServiceSchedulingTests extends OpenSearchTestCas
             }
         };
 
-        final MasterService clusterManagerService = new FakeThreadPoolMasterService(
+        final ClusterManagerService clusterManagerService = new FakeThreadPoolClusterManagerService(
             "test",
             "clusterManagerService",
             threadPool,
@@ -208,7 +210,9 @@ public class InternalClusterInfoServiceSchedulingTests extends OpenSearchTestCas
                 requestCount++;
                 // ClusterInfoService handles ClusterBlockExceptions quietly, so we invent such an exception to avoid excess logging
                 listener.onFailure(
-                    new ClusterBlockException(org.opensearch.common.collect.Set.of(NoMasterBlockService.NO_MASTER_BLOCK_ALL))
+                    new ClusterBlockException(
+                        org.opensearch.common.collect.Set.of(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ALL)
+                    )
                 );
             } else {
                 fail("unexpected action: " + action.name());

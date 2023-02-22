@@ -39,7 +39,6 @@ import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
@@ -91,6 +90,7 @@ public class ReadOnlyEngine extends Engine {
     private final CompletionStatsCache completionStatsCache;
     private final boolean requireCompleteHistory;
     private final TranslogManager translogManager;
+    private final Version minimumSupportedVersion;
 
     protected volatile TranslogStats translogStats;
 
@@ -117,6 +117,8 @@ public class ReadOnlyEngine extends Engine {
     ) {
         super(config);
         this.requireCompleteHistory = requireCompleteHistory;
+        // fetch the minimum Version for extended backward compatibility use-cases
+        this.minimumSupportedVersion = config.getIndexSettings().getExtendedCompatibilitySnapshotVersion();
         try {
             Store store = config.getStore();
             store.incRef();
@@ -128,7 +130,11 @@ public class ReadOnlyEngine extends Engine {
                 // we obtain the IW lock even though we never modify the index.
                 // yet this makes sure nobody else does. including some testing tools that try to be messy
                 indexWriterLock = obtainLock ? directory.obtainLock(IndexWriter.WRITE_LOCK_NAME) : null;
-                this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
+                if (isExtendedCompatibility()) {
+                    this.lastCommittedSegmentInfos = Lucene.readSegmentInfosExtendedCompatibility(directory, this.minimumSupportedVersion);
+                } else {
+                    this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
+                }
                 if (seqNoStats == null) {
                     seqNoStats = buildSeqNoStats(config, lastCommittedSegmentInfos);
                     ensureMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats);
@@ -174,25 +180,21 @@ public class ReadOnlyEngine extends Engine {
         if (requireCompleteHistory == false) {
             return;
         }
-        // Before 8.0 the global checkpoint is not known and up to date when the engine is created after
+        // Before 3.0 the global checkpoint is not known and up to date when the engine is created after
         // peer recovery, so we only check the max seq no / global checkpoint coherency when the global
         // checkpoint is different from the unassigned sequence number value.
         // In addition to that we only execute the check if the index the engine belongs to has been
         // created after the refactoring of the Close Index API and its TransportVerifyShardBeforeCloseAction
         // that guarantee that all operations have been flushed to Lucene.
-        final Version indexVersionCreated = engineConfig.getIndexSettings().getIndexVersionCreated();
-        if (indexVersionCreated.onOrAfter(LegacyESVersion.V_7_2_0)
-            || (seqNoStats.getGlobalCheckpoint() != SequenceNumbers.UNASSIGNED_SEQ_NO)) {
-            assert assertMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats.getMaxSeqNo(), seqNoStats.getGlobalCheckpoint());
-            if (seqNoStats.getMaxSeqNo() != seqNoStats.getGlobalCheckpoint()) {
-                throw new IllegalStateException(
-                    "Maximum sequence number ["
-                        + seqNoStats.getMaxSeqNo()
-                        + "] from last commit does not match global checkpoint ["
-                        + seqNoStats.getGlobalCheckpoint()
-                        + "]"
-                );
-            }
+        assert assertMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats.getMaxSeqNo(), seqNoStats.getGlobalCheckpoint());
+        if (seqNoStats.getMaxSeqNo() != seqNoStats.getGlobalCheckpoint()) {
+            throw new IllegalStateException(
+                "Maximum sequence number ["
+                    + seqNoStats.getMaxSeqNo()
+                    + "] from last commit does not match global checkpoint ["
+                    + seqNoStats.getGlobalCheckpoint()
+                    + "]"
+            );
         }
     }
 
@@ -221,7 +223,17 @@ public class ReadOnlyEngine extends Engine {
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {
         assert Transports.assertNotTransportThread("opening index commit of a read-only engine");
-        return new SoftDeletesDirectoryReaderWrapper(DirectoryReader.open(commit), Lucene.SOFT_DELETES_FIELD);
+        DirectoryReader reader;
+        if (isExtendedCompatibility()) {
+            reader = DirectoryReader.open(commit, this.minimumSupportedVersion.luceneVersion.major, null);
+        } else {
+            reader = DirectoryReader.open(commit);
+        }
+        return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
+    }
+
+    private boolean isExtendedCompatibility() {
+        return Version.CURRENT.minimumIndexCompatibilityVersion().onOrAfter(this.minimumSupportedVersion);
     }
 
     @Override
@@ -258,14 +270,16 @@ public class ReadOnlyEngine extends Engine {
         final long localCheckpoint = Long.parseLong(infos.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
         translogDeletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
         try (
-            Translog translog = new Translog(
-                translogConfig,
-                translogUuid,
-                translogDeletionPolicy,
-                config.getGlobalCheckpointSupplier(),
-                config.getPrimaryTermSupplier(),
-                seqNo -> {}
-            )
+            Translog translog = config.getTranslogFactory()
+                .newTranslog(
+                    translogConfig,
+                    translogUuid,
+                    translogDeletionPolicy,
+                    config.getGlobalCheckpointSupplier(),
+                    config.getPrimaryTermSupplier(),
+                    seqNo -> {},
+                    config.getPrimaryModeSupplier()
+                )
         ) {
             return translog.stats();
         }

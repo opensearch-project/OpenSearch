@@ -35,11 +35,11 @@ package org.opensearch.index.rankeval;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.query.MatchAllQueryBuilder;
@@ -71,7 +71,7 @@ public class RankEvalSpecTests extends OpenSearchTestCase {
     @SuppressWarnings("resource")
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new RankEvalPlugin().getNamedXContent());
+        return new NamedXContentRegistry(new RankEvalModulePlugin().getNamedXContent());
     }
 
     private static <T> List<T> randomList(Supplier<T> randomSupplier) {

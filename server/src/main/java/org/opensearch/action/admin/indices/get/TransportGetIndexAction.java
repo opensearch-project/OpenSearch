@@ -98,7 +98,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
     }
 
     @Override
-    protected void doMasterOperation(
+    protected void doClusterManagerOperation(
         final GetIndexRequest request,
         String[] concreteIndices,
         final ClusterState state,

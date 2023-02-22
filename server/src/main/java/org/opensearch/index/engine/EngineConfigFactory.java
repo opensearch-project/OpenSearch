@@ -28,6 +28,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
+import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.PluginsService;
@@ -37,6 +38,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -147,39 +149,42 @@ public class EngineConfigFactory {
         Supplier<RetentionLeases> retentionLeasesSupplier,
         LongSupplier primaryTermSupplier,
         EngineConfig.TombstoneDocSupplier tombstoneDocSupplier,
-        boolean isReadOnlyReplica
+        boolean isReadOnlyReplica,
+        BooleanSupplier primaryModeSupplier,
+        TranslogFactory translogFactory
     ) {
         CodecService codecServiceToUse = codecService;
         if (codecService == null && this.codecServiceFactory != null) {
             codecServiceToUse = newCodecServiceOrDefault(indexSettings, null, null, null);
         }
 
-        return new EngineConfig(
-            shardId,
-            threadPool,
-            indexSettings,
-            warmer,
-            store,
-            mergePolicy,
-            analyzer,
-            similarity,
-            codecServiceToUse,
-            eventListener,
-            queryCache,
-            queryCachingPolicy,
-            translogConfig,
-            translogDeletionPolicyFactory,
-            flushMergesAfter,
-            externalRefreshListener,
-            internalRefreshListener,
-            indexSort,
-            circuitBreakerService,
-            globalCheckpointSupplier,
-            retentionLeasesSupplier,
-            primaryTermSupplier,
-            tombstoneDocSupplier,
-            isReadOnlyReplica
-        );
+        return new EngineConfig.Builder().shardId(shardId)
+            .threadPool(threadPool)
+            .indexSettings(indexSettings)
+            .warmer(warmer)
+            .store(store)
+            .mergePolicy(mergePolicy)
+            .analyzer(analyzer)
+            .similarity(similarity)
+            .codecService(codecServiceToUse)
+            .eventListener(eventListener)
+            .queryCache(queryCache)
+            .queryCachingPolicy(queryCachingPolicy)
+            .translogConfig(translogConfig)
+            .translogDeletionPolicyFactory(translogDeletionPolicyFactory)
+            .flushMergesAfter(flushMergesAfter)
+            .externalRefreshListener(externalRefreshListener)
+            .internalRefreshListener(internalRefreshListener)
+            .indexSort(indexSort)
+            .circuitBreakerService(circuitBreakerService)
+            .globalCheckpointSupplier(globalCheckpointSupplier)
+            .retentionLeasesSupplier(retentionLeasesSupplier)
+            .primaryTermSupplier(primaryTermSupplier)
+            .tombstoneDocSupplier(tombstoneDocSupplier)
+            .readOnlyReplica(isReadOnlyReplica)
+            .primaryModeSupplier(primaryModeSupplier)
+            .translogFactory(translogFactory)
+            .build();
     }
 
     public CodecService newCodecServiceOrDefault(

@@ -8,13 +8,13 @@
 
 package org.opensearch.search.aggregations.support;
 
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.script.Script;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.IncludeExclude;
@@ -57,7 +57,7 @@ public class MultiTermsValuesSourceConfig extends BaseMultiValuesSourceFieldConf
             MultiTermsValuesSourceConfig.Builder::new
         );
 
-        BaseMultiValuesSourceFieldConfig.PARSER.apply(parser, scriptable, timezoneAware);
+        BaseMultiValuesSourceFieldConfig.PARSER.accept(parser, scriptable, timezoneAware);
 
         if (valueTypeHinted) {
             parser.declareField(

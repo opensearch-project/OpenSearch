@@ -195,11 +195,12 @@ public final class PainlessScriptEngine implements ScriptEngine {
             }
         }
 
-        for (int count = 0; count < newFactory.getParameterTypes().length; ++count) {
+        final Class<?>[] parameterTypes = newFactory.getParameterTypes();
+        for (int count = 0; count < parameterTypes.length; ++count) {
             writer.visitField(
                 Opcodes.ACC_PRIVATE | Opcodes.ACC_FINAL,
                 "$arg" + count,
-                Type.getType(newFactory.getParameterTypes()[count]).getDescriptor(),
+                Type.getType(parameterTypes[count]).getDescriptor(),
                 null,
                 null
             ).visitEnd();
@@ -211,7 +212,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
         );
         org.objectweb.asm.commons.Method init = new org.objectweb.asm.commons.Method(
             "<init>",
-            MethodType.methodType(void.class, newFactory.getParameterTypes()).toMethodDescriptorString()
+            MethodType.methodType(void.class, parameterTypes).toMethodDescriptorString()
         );
 
         GeneratorAdapter constructor = new GeneratorAdapter(
@@ -223,10 +224,10 @@ public final class PainlessScriptEngine implements ScriptEngine {
         constructor.loadThis();
         constructor.invokeConstructor(OBJECT_TYPE, base);
 
-        for (int count = 0; count < newFactory.getParameterTypes().length; ++count) {
+        for (int count = 0; count < parameterTypes.length; ++count) {
             constructor.loadThis();
             constructor.loadArg(count);
-            constructor.putField(Type.getType("L" + className + ";"), "$arg" + count, Type.getType(newFactory.getParameterTypes()[count]));
+            constructor.putField(Type.getType("L" + className + ";"), "$arg" + count, Type.getType(parameterTypes[count]));
         }
 
         constructor.returnValue();
@@ -247,7 +248,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
             MethodType.methodType(newInstance.getReturnType(), newInstance.getParameterTypes()).toMethodDescriptorString()
         );
 
-        List<Class<?>> parameters = new ArrayList<>(Arrays.asList(newFactory.getParameterTypes()));
+        List<Class<?>> parameters = new ArrayList<>(Arrays.asList(parameterTypes));
         parameters.addAll(Arrays.asList(newInstance.getParameterTypes()));
 
         org.objectweb.asm.commons.Method constru = new org.objectweb.asm.commons.Method(
@@ -264,9 +265,9 @@ public final class PainlessScriptEngine implements ScriptEngine {
         adapter.newInstance(WriterConstants.CLASS_TYPE);
         adapter.dup();
 
-        for (int count = 0; count < newFactory.getParameterTypes().length; ++count) {
+        for (int count = 0; count < parameterTypes.length; ++count) {
             adapter.loadThis();
-            adapter.getField(Type.getType("L" + className + ";"), "$arg" + count, Type.getType(newFactory.getParameterTypes()[count]));
+            adapter.getField(Type.getType("L" + className + ";"), "$arg" + count, Type.getType(parameterTypes[count]));
         }
 
         adapter.loadArgs();
@@ -334,13 +335,14 @@ public final class PainlessScriptEngine implements ScriptEngine {
             }
         }
 
+        final Class<?>[] parameterTypes = reflect.getParameterTypes();
         org.objectweb.asm.commons.Method instance = new org.objectweb.asm.commons.Method(
             reflect.getName(),
-            MethodType.methodType(reflect.getReturnType(), reflect.getParameterTypes()).toMethodDescriptorString()
+            MethodType.methodType(reflect.getReturnType(), parameterTypes).toMethodDescriptorString()
         );
         org.objectweb.asm.commons.Method constru = new org.objectweb.asm.commons.Method(
             "<init>",
-            MethodType.methodType(void.class, reflect.getParameterTypes()).toMethodDescriptorString()
+            MethodType.methodType(void.class, parameterTypes).toMethodDescriptorString()
         );
 
         GeneratorAdapter adapter = new GeneratorAdapter(
@@ -421,9 +423,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
     private void writeNeedsMethods(Class<?> clazz, ClassWriter writer, Set<String> extractedVariables) {
         for (Method method : clazz.getMethods()) {
-            if (method.getName().startsWith("needs")
-                && method.getReturnType().equals(boolean.class)
-                && method.getParameterTypes().length == 0) {
+            if (method.getName().startsWith("needs") && method.getReturnType().equals(boolean.class) && method.getParameterCount() == 0) {
                 String name = method.getName();
                 name = name.substring(5);
                 name = Character.toLowerCase(name.charAt(0)) + name.substring(1);

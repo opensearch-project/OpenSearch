@@ -37,7 +37,7 @@ import org.opensearch.common.geo.parsers.GeoWKTParser;
 import org.opensearch.common.geo.parsers.ShapeParser;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.geometry.Line;
 import org.opensearch.geometry.MultiLine;
 import org.locationtech.jts.geom.Coordinate;
@@ -153,7 +153,7 @@ public class MultiLineStringBuilder extends ShapeBuilder<JtsGeometry, org.opense
             if (parts.size() == 1) {
                 geometry = parts.get(0);
             } else {
-                LineString[] lineStrings = parts.toArray(new LineString[parts.size()]);
+                LineString[] lineStrings = parts.toArray(new LineString[0]);
                 geometry = FACTORY.createMultiLineString(lineStrings);
             }
         } else {

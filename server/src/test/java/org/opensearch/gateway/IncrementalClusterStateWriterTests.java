@@ -53,9 +53,9 @@ import org.opensearch.cluster.routing.allocation.decider.ClusterRebalanceAllocat
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.Index;
 import org.opensearch.test.MockLogAppender;
@@ -188,7 +188,7 @@ public class IncrementalClusterStateWriterTests extends OpenSearchAllocationTest
             .add(newNode("node1", clusterManagerEligible ? CLUSTER_MANAGER_DATA_ROLES : dataOnlyRoles))
             .add(newNode("cluster_manager_node", CLUSTER_MANAGER_DATA_ROLES))
             .localNodeId("node1")
-            .masterNodeId(clusterManagerEligible ? "node1" : "cluster_manager_node");
+            .clusterManagerNodeId(clusterManagerEligible ? "node1" : "cluster_manager_node");
     }
 
     private IndexMetadata createIndexMetadata(String name) {

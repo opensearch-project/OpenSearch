@@ -70,7 +70,7 @@ allprojects {
       classpath = sourceSets.main.compileClasspath
       srcDirSet = sourceSets.main.java
 
-      outputDir = project.javadoc.destinationDir
+      outputDir = file("${project.buildDir}/tmp/missingJavadoc/")
     }
   }
 }
@@ -95,20 +95,7 @@ configure([
   project(":client:client-benchmark-noop-api-plugin"),
   project(":client:rest-high-level"),
   project(":client:test"),
-  project(":distribution:tools:java-version-checker"),
-  project(":distribution:tools:keystore-cli"),
-  project(":distribution:tools:launchers"),
-  project(":distribution:tools:plugin-cli"),
-  project(":doc-tools"),
-  project(":example-plugins:custom-settings"),
-  project(":example-plugins:custom-significance-heuristic"),
-  project(":example-plugins:custom-suggester"),
-  project(":example-plugins:painless-allowlist"),
-  project(":example-plugins:rescore"),
-  project(":example-plugins:rest-handler"),
-  project(":example-plugins:script-expert-scoring"),
   project(":libs:opensearch-cli"),
-  project(":libs:opensearch-core"),
   project(":libs:opensearch-dissect"),
   project(":libs:opensearch-geo"),
   project(":libs:opensearch-grok"),
@@ -159,9 +146,7 @@ configure([
   project(":plugins:store-smb"),
   project(":plugins:transport-nio"),
   project(":qa:die-with-dignity"),
-  project(":qa:os"),
   project(":qa:wildfly"),
-  project(":rest-api-spec"),
   project(":test:external-modules:test-delayed-aggs"),
   project(":test:fixtures:azure-fixture"),
   project(":test:fixtures:gcs-fixture"),
@@ -176,13 +161,18 @@ configure([
   }
 }
 
-configure(project(":server")) {
+configure([
+  project(":libs:opensearch-common"),
+  project(":libs:opensearch-core"),
+  project(":server")
+]) {
   project.tasks.withType(MissingJavadocTask) {
     // TODO: bump to variable missing level after increasing javadoc coverage
     javadocMissingLevel = "class"
   }
 }
 
+@CacheableTask
 class MissingJavadocTask extends DefaultTask {
   @InputFiles
   @SkipWhenEmpty
@@ -227,7 +217,8 @@ class MissingJavadocTask extends DefaultTask {
   @Input
   def executable
 
-  @Input
+  @InputFiles
+  @PathSensitive(PathSensitivity.RELATIVE)
   def taskResources
 
   /** Utility method to recursively collect all tasks with same name like this one that we depend on */

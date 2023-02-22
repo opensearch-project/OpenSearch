@@ -11,7 +11,6 @@ package org.opensearch.indices.replication.common;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.common.CheckedFunction;
@@ -49,7 +48,6 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
     private final long id;
 
     protected final AtomicBoolean finished = new AtomicBoolean();
-    private final ShardId shardId;
     protected final IndexShard indexShard;
     protected final Store store;
     protected final ReplicationListener listener;
@@ -79,7 +77,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
         return cancellableThreads;
     }
 
-    public abstract void notifyListener(OpenSearchException e, boolean sendShardFailure);
+    public abstract void notifyListener(ReplicationFailedException e, boolean sendShardFailure);
 
     public ReplicationTarget(String name, IndexShard indexShard, ReplicationLuceneIndex stateIndex, ReplicationListener listener) {
         super(name);
@@ -89,7 +87,6 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
         this.stateIndex = stateIndex;
         this.indexShard = indexShard;
         this.store = indexShard.store();
-        this.shardId = indexShard.shardId();
         // make sure the store is not released until we are done.
         this.cancellableThreads = new CancellableThreads();
         store.incRef();
@@ -131,7 +128,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
     }
 
     public ShardId shardId() {
-        return shardId;
+        return indexShard.shardId();
     }
 
     /**
@@ -157,7 +154,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
     public void cancel(String reason) {
         if (finished.compareAndSet(false, true)) {
             try {
-                logger.debug("replication cancelled (reason: [{}])", reason);
+                logger.debug("replication/recovery cancelled (reason: [{}])", reason);
                 onCancel(reason);
             } finally {
                 // release the initial reference. replication files will be cleaned as soon as ref count goes to zero, potentially now
@@ -172,7 +169,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
      * @param e                exception that encapsulates the failure
      * @param sendShardFailure indicates whether to notify the master of the shard failure
      */
-    public void fail(OpenSearchException e, boolean sendShardFailure) {
+    public void fail(ReplicationFailedException e, boolean sendShardFailure) {
         if (finished.compareAndSet(false, true)) {
             try {
                 notifyListener(e, sendShardFailure);
@@ -189,7 +186,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
 
     protected void ensureRefCount() {
         if (refCount() <= 0) {
-            throw new OpenSearchException(
+            throw new ReplicationFailedException(
                 "ReplicationTarget is used but it's refcount is 0. Probably a mismatch between incRef/decRef calls"
             );
         }

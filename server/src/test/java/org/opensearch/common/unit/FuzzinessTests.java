@@ -33,8 +33,8 @@ package org.opensearch.common.unit;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -174,6 +174,12 @@ public class FuzzinessTests extends OpenSearchTestCase {
         assertNotSame(original, deserializedFuzziness);
         assertEquals(original, deserializedFuzziness);
         assertEquals(original.asString(), deserializedFuzziness.asString());
+
+        original = Fuzziness.customAuto(4, 7);
+        deserializedFuzziness = doSerializeRoundtrip(original);
+        assertNotSame(original, deserializedFuzziness);
+        assertEquals(original, deserializedFuzziness);
+        assertEquals(original.asString(), deserializedFuzziness.asString());
     }
 
     private static Fuzziness doSerializeRoundtrip(Fuzziness in) throws IOException {
@@ -205,5 +211,11 @@ public class FuzzinessTests extends OpenSearchTestCase {
         assertEquals(1, fuzziness.asDistance("abcdef"));
         assertEquals(2, fuzziness.asDistance("abcdefg"));
 
+        fuzziness = Fuzziness.customAuto(5, 7);
+        assertEquals(0, fuzziness.asDistance(""));
+        assertEquals(0, fuzziness.asDistance("abcd"));
+        assertEquals(1, fuzziness.asDistance("abcde"));
+        assertEquals(1, fuzziness.asDistance("abcdef"));
+        assertEquals(2, fuzziness.asDistance("abcdefg"));
     }
 }

@@ -33,35 +33,43 @@ package org.opensearch.client;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.apache.http.ConnectionClosedException;
-import org.apache.http.Header;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpRequest;
-import org.apache.http.HttpResponse;
-import org.apache.http.client.AuthCache;
-import org.apache.http.client.ClientProtocolException;
-import org.apache.http.client.entity.GzipCompressingEntity;
-import org.apache.http.client.entity.GzipDecompressingEntity;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.client.methods.HttpEntityEnclosingRequestBase;
-import org.apache.http.client.methods.HttpHead;
-import org.apache.http.client.methods.HttpOptions;
-import org.apache.http.client.methods.HttpPatch;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.client.methods.HttpRequestBase;
-import org.apache.http.client.methods.HttpTrace;
-import org.apache.http.client.protocol.HttpClientContext;
-import org.apache.http.client.utils.URIBuilder;
-import org.apache.http.concurrent.FutureCallback;
-import org.apache.http.conn.ConnectTimeoutException;
-import org.apache.http.impl.auth.BasicScheme;
-import org.apache.http.impl.client.BasicAuthCache;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.nio.client.methods.HttpAsyncMethods;
-import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
-import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
+import org.apache.hc.core5.http.ClassicHttpResponse;
+import org.apache.hc.core5.http.ConnectionClosedException;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.io.entity.HttpEntityWrapper;
+import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.HttpRequest;
+import org.apache.hc.client5.http.auth.AuthCache;
+import org.apache.hc.client5.http.auth.AuthScheme;
+import org.apache.hc.client5.http.auth.AuthScope;
+import org.apache.hc.client5.http.auth.Credentials;
+import org.apache.hc.client5.http.auth.CredentialsProvider;
+import org.apache.hc.client5.http.ConnectTimeoutException;
+import org.apache.hc.client5.http.ClientProtocolException;
+import org.apache.hc.client5.http.entity.GzipDecompressingEntity;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.classic.methods.HttpDelete;
+import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.classic.methods.HttpHead;
+import org.apache.hc.client5.http.classic.methods.HttpOptions;
+import org.apache.hc.client5.http.classic.methods.HttpPatch;
+import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.classic.methods.HttpPut;
+import org.apache.hc.client5.http.classic.methods.HttpUriRequestBase;
+import org.apache.hc.client5.http.classic.methods.HttpTrace;
+import org.apache.hc.client5.http.protocol.HttpClientContext;
+import org.apache.hc.core5.http.message.RequestLine;
+import org.apache.hc.core5.http.nio.AsyncRequestProducer;
+import org.apache.hc.core5.http.nio.AsyncResponseConsumer;
+import org.apache.hc.core5.net.URIBuilder;
+import org.apache.hc.core5.reactor.IOReactorStatus;
+import org.apache.hc.core5.util.Args;
+import org.opensearch.client.http.HttpUriRequestProducer;
+import org.apache.hc.core5.concurrent.FutureCallback;
+import org.apache.hc.client5.http.impl.auth.BasicScheme;
+import org.apache.hc.client5.http.impl.auth.BasicAuthCache;
+import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
 
 import javax.net.ssl.SSLHandshakeException;
 import java.io.ByteArrayInputStream;
@@ -69,6 +77,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.net.URI;
@@ -91,6 +100,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.zip.GZIPOutputStream;
@@ -131,6 +141,29 @@ public class RestClient implements Closeable {
     private volatile NodeTuple<List<Node>> nodeTuple;
     private final WarningsHandler warningsHandler;
     private final boolean compressionEnabled;
+    private final Optional<Boolean> chunkedEnabled;
+
+    RestClient(
+        CloseableHttpAsyncClient client,
+        Header[] defaultHeaders,
+        List<Node> nodes,
+        String pathPrefix,
+        FailureListener failureListener,
+        NodeSelector nodeSelector,
+        boolean strictDeprecationMode,
+        boolean compressionEnabled,
+        boolean chunkedEnabled
+    ) {
+        this.client = client;
+        this.defaultHeaders = Collections.unmodifiableList(Arrays.asList(defaultHeaders));
+        this.failureListener = failureListener;
+        this.pathPrefix = pathPrefix;
+        this.nodeSelector = nodeSelector;
+        this.warningsHandler = strictDeprecationMode ? WarningsHandler.STRICT : WarningsHandler.PERMISSIVE;
+        this.compressionEnabled = compressionEnabled;
+        this.chunkedEnabled = Optional.of(chunkedEnabled);
+        setNodes(nodes);
+    }
 
     RestClient(
         CloseableHttpAsyncClient client,
@@ -149,6 +182,7 @@ public class RestClient implements Closeable {
         this.nodeSelector = nodeSelector;
         this.warningsHandler = strictDeprecationMode ? WarningsHandler.STRICT : WarningsHandler.PERMISSIVE;
         this.compressionEnabled = compressionEnabled;
+        this.chunkedEnabled = Optional.empty();
         setNodes(nodes);
     }
 
@@ -193,7 +227,7 @@ public class RestClient implements Closeable {
         }
 
         String url = decodedParts[1] + "." + domain;
-        return builder(new HttpHost(url, port, "https"));
+        return builder(new HttpHost("https", url, port));
     }
 
     /**
@@ -262,7 +296,7 @@ public class RestClient implements Closeable {
      * @return client running status
      */
     public boolean isRunning() {
-        return client.isRunning();
+        return client.getStatus() == IOReactorStatus.ACTIVE;
     }
 
     /**
@@ -298,7 +332,7 @@ public class RestClient implements Closeable {
     private Response performRequest(final NodeTuple<Iterator<Node>> nodeTuple, final InternalRequest request, Exception previousException)
         throws IOException {
         RequestContext context = request.createContextForNextAttempt(nodeTuple.nodes.next(), nodeTuple.authCache);
-        HttpResponse httpResponse;
+        ClassicHttpResponse httpResponse;
         try {
             httpResponse = client.execute(context.requestProducer, context.asyncResponseConsumer, context.context, null).get();
         } catch (Exception e) {
@@ -328,18 +362,18 @@ public class RestClient implements Closeable {
         throw responseOrResponseException.responseException;
     }
 
-    private ResponseOrResponseException convertResponse(InternalRequest request, Node node, HttpResponse httpResponse) throws IOException {
+    private ResponseOrResponseException convertResponse(InternalRequest request, Node node, ClassicHttpResponse httpResponse)
+        throws IOException {
         RequestLogger.logResponse(logger, request.httpRequest, node.getHost(), httpResponse);
-        int statusCode = httpResponse.getStatusLine().getStatusCode();
+        int statusCode = httpResponse.getCode();
 
         Optional.ofNullable(httpResponse.getEntity())
             .map(HttpEntity::getContentEncoding)
-            .map(Header::getValue)
             .filter("gzip"::equalsIgnoreCase)
             .map(gzipHeaderValue -> new GzipDecompressingEntity(httpResponse.getEntity()))
             .ifPresent(httpResponse::setEntity);
 
-        Response response = new Response(request.httpRequest.getRequestLine(), node.getHost(), httpResponse);
+        Response response = new Response(new RequestLine(request.httpRequest), node.getHost(), httpResponse);
         if (isSuccessfulResponse(statusCode) || request.ignoreErrorCodes.contains(response.getStatusLine().getStatusCode())) {
             onResponse(node);
             if (request.warningsHandler.warningsShouldFailRequest(response.getWarnings())) {
@@ -393,47 +427,56 @@ public class RestClient implements Closeable {
     ) {
         request.cancellable.runIfNotCancelled(() -> {
             final RequestContext context = request.createContextForNextAttempt(nodeTuple.nodes.next(), nodeTuple.authCache);
-            client.execute(context.requestProducer, context.asyncResponseConsumer, context.context, new FutureCallback<HttpResponse>() {
-                @Override
-                public void completed(HttpResponse httpResponse) {
-                    try {
-                        ResponseOrResponseException responseOrResponseException = convertResponse(request, context.node, httpResponse);
-                        if (responseOrResponseException.responseException == null) {
-                            listener.onSuccess(responseOrResponseException.response);
-                        } else {
+            Future<ClassicHttpResponse> future = client.execute(
+                context.requestProducer,
+                context.asyncResponseConsumer,
+                context.context,
+                new FutureCallback<ClassicHttpResponse>() {
+                    @Override
+                    public void completed(ClassicHttpResponse httpResponse) {
+                        try {
+                            ResponseOrResponseException responseOrResponseException = convertResponse(request, context.node, httpResponse);
+                            if (responseOrResponseException.responseException == null) {
+                                listener.onSuccess(responseOrResponseException.response);
+                            } else {
+                                if (nodeTuple.nodes.hasNext()) {
+                                    listener.trackFailure(responseOrResponseException.responseException);
+                                    performRequestAsync(nodeTuple, request, listener);
+                                } else {
+                                    listener.onDefinitiveFailure(responseOrResponseException.responseException);
+                                }
+                            }
+                        } catch (Exception e) {
+                            listener.onDefinitiveFailure(e);
+                        }
+                    }
+
+                    @Override
+                    public void failed(Exception failure) {
+                        try {
+                            RequestLogger.logFailedRequest(logger, request.httpRequest, context.node, failure);
+                            onFailure(context.node);
                             if (nodeTuple.nodes.hasNext()) {
-                                listener.trackFailure(responseOrResponseException.responseException);
+                                listener.trackFailure(failure);
                                 performRequestAsync(nodeTuple, request, listener);
                             } else {
-                                listener.onDefinitiveFailure(responseOrResponseException.responseException);
+                                listener.onDefinitiveFailure(failure);
                             }
+                        } catch (Exception e) {
+                            listener.onDefinitiveFailure(e);
                         }
-                    } catch (Exception e) {
-                        listener.onDefinitiveFailure(e);
+                    }
+
+                    @Override
+                    public void cancelled() {
+                        listener.onDefinitiveFailure(Cancellable.newCancellationException());
                     }
                 }
+            );
 
-                @Override
-                public void failed(Exception failure) {
-                    try {
-                        RequestLogger.logFailedRequest(logger, request.httpRequest, context.node, failure);
-                        onFailure(context.node);
-                        if (nodeTuple.nodes.hasNext()) {
-                            listener.trackFailure(failure);
-                            performRequestAsync(nodeTuple, request, listener);
-                        } else {
-                            listener.onDefinitiveFailure(failure);
-                        }
-                    } catch (Exception e) {
-                        listener.onDefinitiveFailure(e);
-                    }
-                }
-
-                @Override
-                public void cancelled() {
-                    listener.onDefinitiveFailure(Cancellable.newCancellationException());
-                }
-            });
+            if (future instanceof org.apache.hc.core5.concurrent.Cancellable) {
+                request.httpRequest.setDependency((org.apache.hc.core5.concurrent.Cancellable) future);
+            }
         });
     }
 
@@ -558,6 +601,9 @@ public class RestClient implements Closeable {
         failureListener.onFailure(node);
     }
 
+    /**
+     * Close the underlying {@link CloseableHttpAsyncClient} instance
+     */
     @Override
     public void close() throws IOException {
         client.close();
@@ -583,41 +629,43 @@ public class RestClient implements Closeable {
         }
     }
 
-    private static HttpRequestBase createHttpRequest(String method, URI uri, HttpEntity entity, boolean compressionEnabled) {
+    private HttpUriRequestBase createHttpRequest(String method, URI uri, HttpEntity entity) {
         switch (method.toUpperCase(Locale.ROOT)) {
-            case HttpDeleteWithEntity.METHOD_NAME:
-                return addRequestBody(new HttpDeleteWithEntity(uri), entity, compressionEnabled);
-            case HttpGetWithEntity.METHOD_NAME:
-                return addRequestBody(new HttpGetWithEntity(uri), entity, compressionEnabled);
+            case HttpDelete.METHOD_NAME:
+                return addRequestBody(new HttpDelete(uri), entity);
+            case HttpGet.METHOD_NAME:
+                return addRequestBody(new HttpGet(uri), entity);
             case HttpHead.METHOD_NAME:
-                return addRequestBody(new HttpHead(uri), entity, compressionEnabled);
+                return addRequestBody(new HttpHead(uri), entity);
             case HttpOptions.METHOD_NAME:
-                return addRequestBody(new HttpOptions(uri), entity, compressionEnabled);
+                return addRequestBody(new HttpOptions(uri), entity);
             case HttpPatch.METHOD_NAME:
-                return addRequestBody(new HttpPatch(uri), entity, compressionEnabled);
+                return addRequestBody(new HttpPatch(uri), entity);
             case HttpPost.METHOD_NAME:
                 HttpPost httpPost = new HttpPost(uri);
-                addRequestBody(httpPost, entity, compressionEnabled);
+                addRequestBody(httpPost, entity);
                 return httpPost;
             case HttpPut.METHOD_NAME:
-                return addRequestBody(new HttpPut(uri), entity, compressionEnabled);
+                return addRequestBody(new HttpPut(uri), entity);
             case HttpTrace.METHOD_NAME:
-                return addRequestBody(new HttpTrace(uri), entity, compressionEnabled);
+                return addRequestBody(new HttpTrace(uri), entity);
             default:
                 throw new UnsupportedOperationException("http method not supported: " + method);
         }
     }
 
-    private static HttpRequestBase addRequestBody(HttpRequestBase httpRequest, HttpEntity entity, boolean compressionEnabled) {
+    private HttpUriRequestBase addRequestBody(HttpUriRequestBase httpRequest, HttpEntity entity) {
         if (entity != null) {
-            if (httpRequest instanceof HttpEntityEnclosingRequestBase) {
-                if (compressionEnabled) {
+            if (compressionEnabled) {
+                if (chunkedEnabled.isPresent()) {
+                    entity = new ContentCompressingEntity(entity, chunkedEnabled.get());
+                } else {
                     entity = new ContentCompressingEntity(entity);
                 }
-                ((HttpEntityEnclosingRequestBase) httpRequest).setEntity(entity);
-            } else {
-                throw new UnsupportedOperationException(httpRequest.getMethod() + " with body is not supported");
+            } else if (chunkedEnabled.isPresent()) {
+                entity = new ContentHttpEntity(entity, chunkedEnabled.get());
             }
+            httpRequest.setEntity(entity);
         }
         return httpRequest;
     }
@@ -642,7 +690,12 @@ public class RestClient implements Closeable {
             for (Map.Entry<String, String> param : params.entrySet()) {
                 uriBuilder.addParameter(param.getKey(), param.getValue());
             }
-            return uriBuilder.build();
+
+            // The Apache HttpClient 5.x **does not** encode URIs but Apache HttpClient 4.x does. It leads
+            // to the issues with Unicode characters (f.e. document IDs could contain Unicode characters) and
+            // weird characters are being passed instead. By using `toASCIIString()`, the URI is already created
+            // with proper encoding.
+            return new URI(uriBuilder.build().toASCIIString());
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException(e.getMessage(), e);
         }
@@ -771,7 +824,7 @@ public class RestClient implements Closeable {
     private class InternalRequest {
         private final Request request;
         private final Set<Integer> ignoreErrorCodes;
-        private final HttpRequestBase httpRequest;
+        private final HttpUriRequestBase httpRequest;
         private final Cancellable cancellable;
         private final WarningsHandler warningsHandler;
 
@@ -782,7 +835,7 @@ public class RestClient implements Closeable {
             String ignoreString = params.remove("ignore");
             this.ignoreErrorCodes = getIgnoreErrorCodes(ignoreString, request.getMethod());
             URI uri = buildUri(pathPrefix, request.getEndpoint(), params);
-            this.httpRequest = createHttpRequest(request.getMethod(), uri, request.getEntity(), compressionEnabled);
+            this.httpRequest = createHttpRequest(request.getMethod(), uri, request.getEntity());
             this.cancellable = Cancellable.fromRequest(httpRequest);
             setHeaders(httpRequest, request.getOptions().getHeaders());
             setRequestConfig(httpRequest, request.getOptions().getRequestConfig());
@@ -808,7 +861,7 @@ public class RestClient implements Closeable {
             }
         }
 
-        private void setRequestConfig(HttpRequestBase httpRequest, RequestConfig requestConfig) {
+        private void setRequestConfig(HttpUriRequestBase httpRequest, RequestConfig requestConfig) {
             if (requestConfig != null) {
                 httpRequest.setConfig(requestConfig);
             }
@@ -820,21 +873,81 @@ public class RestClient implements Closeable {
         }
     }
 
+    /**
+     * The Apache HttpClient 5 adds "Authorization" header even if the credentials for basic authentication are not provided
+     * (effectively, username and password are 'null'). To workaround that, wrapping the AuthCache around current HttpClientContext
+     * and ensuring that the credentials are indeed provided for particular HttpHost, otherwise returning no authentication scheme
+     * even if it is present in the cache.
+     */
+    private static class WrappingAuthCache implements AuthCache {
+        private final HttpClientContext context;
+        private final AuthCache delegate;
+        private final boolean usePersistentCredentials = true;
+
+        public WrappingAuthCache(HttpClientContext context, AuthCache delegate) {
+            this.context = context;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void put(HttpHost host, AuthScheme authScheme) {
+            delegate.put(host, authScheme);
+        }
+
+        @Override
+        public AuthScheme get(HttpHost host) {
+            AuthScheme authScheme = delegate.get(host);
+
+            if (authScheme != null) {
+                final CredentialsProvider credsProvider = context.getCredentialsProvider();
+                if (credsProvider != null) {
+                    final String schemeName = authScheme.getName();
+                    final AuthScope authScope = new AuthScope(host, null, schemeName);
+                    final Credentials creds = credsProvider.getCredentials(authScope, context);
+
+                    // See please https://issues.apache.org/jira/browse/HTTPCLIENT-2203
+                    if (authScheme instanceof BasicScheme) {
+                        ((BasicScheme) authScheme).initPreemptive(creds);
+                    }
+
+                    if (creds == null) {
+                        return null;
+                    }
+                }
+            }
+
+            return authScheme;
+        }
+
+        @Override
+        public void remove(HttpHost host) {
+            if (!usePersistentCredentials) {
+                delegate.remove(host);
+            }
+        }
+
+        @Override
+        public void clear() {
+            delegate.clear();
+        }
+
+    }
+
     private static class RequestContext {
         private final Node node;
-        private final HttpAsyncRequestProducer requestProducer;
-        private final HttpAsyncResponseConsumer<HttpResponse> asyncResponseConsumer;
+        private final AsyncRequestProducer requestProducer;
+        private final AsyncResponseConsumer<ClassicHttpResponse> asyncResponseConsumer;
         private final HttpClientContext context;
 
         RequestContext(InternalRequest request, Node node, AuthCache authCache) {
             this.node = node;
             // we stream the request body if the entity allows for it
-            this.requestProducer = HttpAsyncMethods.create(node.getHost(), request.httpRequest);
+            this.requestProducer = HttpUriRequestProducer.create(request.httpRequest, node.getHost());
             this.asyncResponseConsumer = request.request.getOptions()
                 .getHttpAsyncResponseConsumerFactory()
                 .createHttpAsyncResponseConsumer();
             this.context = HttpClientContext.create();
-            context.setAuthCache(authCache);
+            context.setAuthCache(new WrappingAuthCache(context, authCache));
         }
     }
 
@@ -935,7 +1048,10 @@ public class RestClient implements Closeable {
     /**
      * A gzip compressing entity that also implements {@code getContent()}.
      */
-    public static class ContentCompressingEntity extends GzipCompressingEntity {
+    public static class ContentCompressingEntity extends HttpEntityWrapper {
+        private static final String GZIP_CODEC = "gzip";
+
+        private Optional<Boolean> chunkedEnabled;
 
         /**
          * Creates a {@link ContentCompressingEntity} instance with the provided HTTP entity.
@@ -944,15 +1060,127 @@ public class RestClient implements Closeable {
          */
         public ContentCompressingEntity(HttpEntity entity) {
             super(entity);
+            this.chunkedEnabled = Optional.empty();
         }
 
+        /**
+         * Returns content encoding of the entity, if known.
+         */
+        @Override
+        public String getContentEncoding() {
+            return GZIP_CODEC;
+        }
+
+        /**
+         * Creates a {@link ContentCompressingEntity} instance with the provided HTTP entity.
+         *
+         * @param entity the HTTP entity.
+         * @param chunkedEnabled force enable/disable chunked transfer-encoding.
+         */
+        public ContentCompressingEntity(HttpEntity entity, boolean chunkedEnabled) {
+            super(entity);
+            this.chunkedEnabled = Optional.of(chunkedEnabled);
+        }
+
+        /**
+         * Returns a content stream of the entity.
+         */
         @Override
         public InputStream getContent() throws IOException {
             ByteArrayInputOutputStream out = new ByteArrayInputOutputStream(1024);
             try (GZIPOutputStream gzipOut = new GZIPOutputStream(out)) {
-                wrappedEntity.writeTo(gzipOut);
+                super.writeTo(gzipOut);
             }
             return out.asInput();
+        }
+
+        /**
+         * A gzip compressing entity doesn't work with chunked encoding with sigv4
+         *
+         * @return false
+         */
+        @Override
+        public boolean isChunked() {
+            return chunkedEnabled.orElseGet(super::isChunked);
+        }
+
+        /**
+         * A gzip entity requires content length in http headers.
+         *
+         * @return content length of gzip entity
+         */
+        @Override
+        public long getContentLength() {
+            if (chunkedEnabled.isPresent()) {
+                if (chunkedEnabled.get()) {
+                    return -1L;
+                } else {
+                    long size;
+                    try (InputStream is = getContent()) {
+                        size = is.readAllBytes().length;
+                    } catch (IOException ex) {
+                        size = -1L;
+                    }
+
+                    return size;
+                }
+            } else {
+                return -1;
+            }
+        }
+
+        /**
+         * Writes the entity content out to the output stream.
+         * @param outStream the output stream to write entity content to
+         * @throws IOException if an I/O error occurs
+         */
+        @Override
+        public void writeTo(final OutputStream outStream) throws IOException {
+            Args.notNull(outStream, "Output stream");
+            final GZIPOutputStream gzip = new GZIPOutputStream(outStream);
+            super.writeTo(gzip);
+            // Only close output stream if the wrapped entity has been
+            // successfully written out
+            gzip.close();
+        }
+    }
+
+    /**
+     * An entity that lets the caller specify the return value of {@code isChunked()}.
+     */
+    public static class ContentHttpEntity extends HttpEntityWrapper {
+        private Optional<Boolean> chunkedEnabled;
+
+        /**
+         * Creates a {@link ContentHttpEntity} instance with the provided HTTP entity.
+         *
+         * @param entity the HTTP entity.
+         */
+        public ContentHttpEntity(HttpEntity entity) {
+            super(entity);
+            this.chunkedEnabled = Optional.empty();
+        }
+
+        /**
+         * Creates a {@link ContentHttpEntity} instance with the provided HTTP entity.
+         *
+         * @param entity the HTTP entity.
+         * @param chunkedEnabled force enable/disable chunked transfer-encoding.
+         */
+        public ContentHttpEntity(HttpEntity entity, boolean chunkedEnabled) {
+            super(entity);
+            this.chunkedEnabled = Optional.of(chunkedEnabled);
+        }
+
+        /**
+         * A chunked entity requires transfer-encoding:chunked in http headers
+         * which requires isChunked to be true
+         *
+         * @return true
+         */
+        @Override
+        public boolean isChunked() {
+            return chunkedEnabled.orElseGet(super::isChunked);
         }
     }
 

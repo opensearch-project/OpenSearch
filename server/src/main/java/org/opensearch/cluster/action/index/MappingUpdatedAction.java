@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.action.index;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.mapping.put.AutoPutMappingAction;
@@ -111,7 +110,7 @@ public class MappingUpdatedAction {
      * {@code timeout} is the cluster-manager node timeout ({@link ClusterManagerNodeRequest#clusterManagerNodeTimeout()}),
      * potentially waiting for a cluster-manager node to be available.
      */
-    public void updateMappingOnMaster(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
+    public void updateMappingOnClusterManager(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
 
         final RunOnce release = new RunOnce(() -> semaphore.release());
         try {
@@ -132,6 +131,19 @@ public class MappingUpdatedAction {
         }
     }
 
+    /**
+     * Update mappings on the cluster-manager node, waiting for the change to be committed,
+     * but not for the mapping update to be applied on all nodes. The timeout specified by
+     * {@code timeout} is the cluster-manager node timeout ({@link ClusterManagerNodeRequest#clusterManagerNodeTimeout()}),
+     * potentially waiting for a cluster-manager node to be available.
+     *
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #updateMappingOnClusterManager(Index, Mapping, ActionListener)}
+     */
+    @Deprecated
+    public void updateMappingOnMaster(Index index, Mapping mappingUpdate, ActionListener<Void> listener) {
+        updateMappingOnClusterManager(index, mappingUpdate, listener);
+    }
+
     // used by tests
     int blockedThreads() {
         return semaphore.getQueueLength();
@@ -144,18 +156,11 @@ public class MappingUpdatedAction {
         putMappingRequest.source(mappingUpdate.toString(), XContentType.JSON);
         putMappingRequest.clusterManagerNodeTimeout(dynamicMappingUpdateTimeout);
         putMappingRequest.timeout(TimeValue.ZERO);
-        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            client.execute(
-                AutoPutMappingAction.INSTANCE,
-                putMappingRequest,
-                ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure)
-            );
-        } else {
-            client.putMapping(
-                putMappingRequest,
-                ActionListener.wrap(r -> listener.onResponse(null), e -> listener.onFailure(unwrapException(e)))
-            );
-        }
+        client.execute(
+            AutoPutMappingAction.INSTANCE,
+            putMappingRequest,
+            ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure)
+        );
     }
 
     // todo: this explicit unwrap should not be necessary, but is until guessRootCause is fixed to allow wrapped non-es exception.

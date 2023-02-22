@@ -150,7 +150,10 @@ public class CloseWhileRelocatingShardsIT extends OpenSearchIntegTestCase {
         ensureClusterSizeConsistency(); // wait for the cluster-manager to finish processing join.
 
         try {
-            final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
+            final ClusterService clusterService = internalCluster().getInstance(
+                ClusterService.class,
+                internalCluster().getClusterManagerName()
+            );
             final ClusterState state = clusterService.state();
             final CountDownLatch latch = new CountDownLatch(indices.length);
             final CountDownLatch release = new CountDownLatch(indices.length);

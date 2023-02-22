@@ -52,7 +52,7 @@ public class EdgeNGramTokenFilterFactoryTests extends OpenSearchTokenStreamTestC
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put("index.analysis.filter.my_edge_ngram.type", "edge_ngram")
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_edge_ngram");
         String source = "foo";
@@ -69,7 +69,7 @@ public class EdgeNGramTokenFilterFactoryTests extends OpenSearchTokenStreamTestC
                 .put("index.analysis.filter.my_edge_ngram.type", "edge_ngram")
                 .put("index.analysis.filter.my_edge_ngram.preserve_original", true)
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_edge_ngram");
         String source = "foo";

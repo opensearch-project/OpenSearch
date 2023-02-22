@@ -32,7 +32,7 @@
 
 package org.opensearch.client;
 
-import org.apache.http.HttpHost;
+import org.apache.hc.core5.http.HttpHost;
 import org.opensearch.client.Node.Roles;
 
 import java.util.Arrays;
@@ -48,7 +48,9 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.hamcrest.CoreMatchers.equalTo;
 
 public class NodeTests extends RestClientTestCase {
     public void testToString() {
@@ -160,5 +162,10 @@ public class NodeTests extends RestClientTestCase {
                 )
             )
         );
+    }
+
+    public void testIsSearchNode() {
+        Roles searchRole = new Roles(Collections.singleton("search"));
+        assertThat(searchRole.isSearch(), equalTo(true));
     }
 }

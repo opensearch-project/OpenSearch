@@ -39,8 +39,8 @@ import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
@@ -66,7 +66,7 @@ public class ReplicationResponseTests extends OpenSearchTestCase {
     public void testShardInfoToXContent() throws IOException {
         {
             ShardInfo shardInfo = new ShardInfo(5, 3);
-            String output = Strings.toString(shardInfo);
+            String output = Strings.toString(XContentType.JSON, shardInfo);
             assertEquals("{\"total\":5,\"successful\":3,\"failed\":0}", output);
         }
         {
@@ -88,7 +88,7 @@ public class ReplicationResponseTests extends OpenSearchTestCase {
                     true
                 )
             );
-            String output = Strings.toString(shardInfo);
+            String output = Strings.toString(XContentType.JSON, shardInfo);
             assertEquals(
                 "{\"total\":6,\"successful\":4,\"failed\":2,\"failures\":[{\"_index\":\"index\",\"_shard\":3,"
                     + "\"_node\":\"_node_id\",\"reason\":{\"type\":\"illegal_argument_exception\",\"reason\":\"Wrong\"},"

@@ -28,18 +28,26 @@
  * under the License.
  */
 apply plugin: 'opensearch.yaml-rest-test'
+apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'Placeholder plugin for geospatial features in OpenSearch. only registers geo_shape field mapper for now'
-  classname 'org.opensearch.geo.GeoPlugin'
+  description 'Plugin for geospatial features in OpenSearch. Registering the geo_shape and aggregations on GeoShape and GeoPoint'
+  classname 'org.opensearch.geo.GeoModulePlugin'
 }
 
 restResources {
   restApi {
-    includeCore '_common', 'indices', 'index', 'search'
+    includeCore '_common', 'indices', 'index', 'search', 'bulk'
   }
 }
+
 artifacts {
   restTests(project.file('src/yamlRestTest/resources/rest-api-spec/test'))
 }
-test.enabled = false
+/**
+ * These compiler arguments needs to be removed, as there are raw types being used in the GeoGrid and GeoTile aggregations.
+ */
+tasks.withType(JavaCompile).configureEach {
+  options.compilerArgs -= '-Xlint:rawtypes'
+  options.compilerArgs -= '-Xlint:unchecked'
+}

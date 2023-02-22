@@ -385,7 +385,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
             builder,
             new MatchAllDocsQuery(),
             writer -> writer.addDocuments(docs),
-            internalSum -> verify.apply(finalSum, docs, internalSum),
+            internalSum -> verify.accept(finalSum, docs, internalSum),
             fieldType
         );
     }

@@ -50,7 +50,7 @@ import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.plugins.RepositoryPlugin;
@@ -473,6 +473,9 @@ public class MockRepository extends FsRepository {
             public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
                 if (blockOnDeleteIndexN && blobNames.stream().anyMatch(name -> name.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX))) {
                     blockExecutionAndMaybeWait("index-{N}");
+                }
+                if (setThrowExceptionWhileDelete) {
+                    throw new IOException("Random exception");
                 }
                 super.deleteBlobsIgnoringIfNotExists(blobNames);
             }

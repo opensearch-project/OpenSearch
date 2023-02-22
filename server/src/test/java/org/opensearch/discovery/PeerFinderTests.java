@@ -140,7 +140,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
                     for (final Map.Entry<TransportAddress, DiscoveryNode> addressAndNode : reachableNodes.entrySet()) {
                         if (addressAndNode.getKey().equals(transportAddress)) {
                             final DiscoveryNode discoveryNode = addressAndNode.getValue();
-                            if (discoveryNode.isMasterNode()) {
+                            if (discoveryNode.isClusterManagerNode()) {
                                 disconnectedNodes.remove(discoveryNode);
                                 connectedNodes.add(discoveryNode);
                                 assertTrue(inFlightConnectionAttempts.remove(transportAddress));
@@ -477,7 +477,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
 
         peerFinder.activate(lastAcceptedNodes);
         final PeersResponse peersResponse1 = peerFinder.handlePeersRequest(new PeersRequest(sourceNode, Collections.emptyList()));
-        assertFalse(peersResponse1.getMasterNode().isPresent());
+        assertFalse(peersResponse1.getClusterManagerNode().isPresent());
         assertThat(peersResponse1.getKnownPeers(), empty()); // sourceNode is not yet known
         assertThat(peersResponse1.getTerm(), is(0L));
 
@@ -488,7 +488,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
         final long updatedTerm = randomNonNegativeLong();
         peerFinder.setCurrentTerm(updatedTerm);
         final PeersResponse peersResponse2 = peerFinder.handlePeersRequest(new PeersRequest(sourceNode, Collections.emptyList()));
-        assertFalse(peersResponse2.getMasterNode().isPresent());
+        assertFalse(peersResponse2.getClusterManagerNode().isPresent());
         assertThat(peersResponse2.getKnownPeers(), contains(sourceNode));
         assertThat(peersResponse2.getTerm(), is(updatedTerm));
     }
@@ -531,7 +531,7 @@ public class PeerFinderTests extends OpenSearchTestCase {
                 @Override
                 public void handleResponse(PeersResponse response) {
                     assertTrue(responseReceived.compareAndSet(false, true));
-                    assertFalse(response.getMasterNode().isPresent());
+                    assertFalse(response.getClusterManagerNode().isPresent());
                     assertThat(response.getKnownPeers(), empty()); // sourceNode is not yet known
                     assertThat(response.getTerm(), is(0L));
                 }
@@ -807,6 +807,42 @@ public class PeerFinderTests extends OpenSearchTestCase {
         assertFoundPeers(rebootedOtherNode);
     }
 
+    public void testConnectionAttemptDuringDecommissioning() {
+        boolean localNodeCommissioned = randomBoolean();
+        peerFinder.onNodeCommissionStatusChange(localNodeCommissioned);
+
+        long findPeersInterval = peerFinder.getFindPeersInterval().millis();
+
+        final DiscoveryNode otherNode = newDiscoveryNode("node-1");
+        providedAddresses.add(otherNode.getAddress());
+        transportAddressConnector.addReachableNode(otherNode);
+
+        peerFinder.activate(lastAcceptedNodes);
+        runAllRunnableTasks();
+        assertFoundPeers(otherNode);
+
+        transportAddressConnector.reachableNodes.clear();
+        final DiscoveryNode newNode = new DiscoveryNode("new-node", otherNode.getAddress(), Version.CURRENT);
+        transportAddressConnector.addReachableNode(newNode);
+
+        connectedNodes.remove(otherNode);
+        disconnectedNodes.add(otherNode);
+
+        // peer discovery will be delayed now
+        if (localNodeCommissioned == false) {
+            deterministicTaskQueue.advanceTime();
+            runAllRunnableTasks();
+            assertPeersNotDiscovered(newNode);
+        }
+
+        final long expectedTime = CONNECTION_TIMEOUT_MILLIS + findPeersInterval;
+        while (deterministicTaskQueue.getCurrentTimeMillis() < expectedTime) {
+            deterministicTaskQueue.advanceTime();
+            runAllRunnableTasks();
+        }
+        assertFoundPeers(newNode);
+    }
+
     private void respondToRequests(Function<DiscoveryNode, PeersResponse> responseFactory) {
         final CapturedRequest[] capturedRequests = capturingTransport.getCapturedRequestsAndClear();
         for (final CapturedRequest capturedRequest : capturedRequests) {
@@ -826,6 +862,16 @@ public class PeerFinderTests extends OpenSearchTestCase {
         assertThat(actualNodesSet, equalTo(expectedNodes));
         assertTrue("no duplicates in " + actualNodesList, actualNodesSet.size() == actualNodesList.size());
         assertNotifiedOfAllUpdates();
+    }
+
+    private void assertPeersNotDiscovered(DiscoveryNode... undiscoveredNodesArray) {
+        final Set<DiscoveryNode> undiscoveredNodes = Arrays.stream(undiscoveredNodesArray).collect(Collectors.toSet());
+        final List<DiscoveryNode> actualNodesList = StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false)
+            .collect(Collectors.toList());
+        final HashSet<DiscoveryNode> actualNodesSet = new HashSet<>(actualNodesList);
+        Set<DiscoveryNode> intersection = new HashSet<>(actualNodesSet);
+        intersection.retainAll(undiscoveredNodes);
+        assertEquals(intersection.size(), 0);
     }
 
     private void assertNotifiedOfAllUpdates() {

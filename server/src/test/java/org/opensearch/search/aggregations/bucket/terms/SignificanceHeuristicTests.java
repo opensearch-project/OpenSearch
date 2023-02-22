@@ -32,7 +32,6 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.InputStreamStreamInput;
@@ -41,11 +40,11 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.OutputStreamStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParseException;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParseException;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.SearchModule;
@@ -57,7 +56,6 @@ import org.opensearch.search.aggregations.bucket.terms.heuristic.JLHScore;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.MutualInformation;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.PercentageScore;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
-import org.opensearch.search.aggregations.pipeline.PipelineAggregator;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.InternalAggregationTestCase;
 
@@ -95,9 +93,6 @@ public class SignificanceHeuristicTests extends OpenSearchTestCase {
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
         out.setVersion(version);
-        if (version.before(LegacyESVersion.V_7_8_0)) {
-            sigTerms.mergePipelineTreeForBWCSerialization(PipelineAggregator.PipelineTree.EMPTY);
-        }
         out.writeNamedWriteable(sigTerms);
 
         // read

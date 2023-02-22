@@ -34,6 +34,11 @@ public interface TranslogManager {
     int recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long localCheckpoint, long recoverUpToSeqNo) throws IOException;
 
     /**
+     * Creates a new history snapshot from the translog file instead of the lucene index.
+     */
+    Translog.Snapshot newChangesSnapshot(long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException;
+
+    /**
      * Checks if the underlying storage sync is required.
      */
     boolean isTranslogSyncNeeded();
@@ -98,15 +103,15 @@ public interface TranslogManager {
      * Reads operations for the translog
      * @param location the location in the translog
      * @return the translog operation
-     * @throws IOException
+     * @throws IOException throws an IO exception when reading the file fails
      */
     Translog.Operation readOperation(Translog.Location location) throws IOException;
 
     /**
      * Adds an operation to the translog
-     * @param operation
+     * @param operation to add to translog
      * @return the location in the translog
-     * @throws IOException
+     * @throws IOException throws an IO exception if adding an operation fails
      */
     Translog.Location add(Translog.Operation operation) throws IOException;
 
@@ -114,4 +119,11 @@ public interface TranslogManager {
      * Checks if the translog has a pending recovery
      */
     void ensureCanFlush();
+
+    /**
+     *
+     * @param seqNo : operations greater or equal to seqNo should be persisted
+     * This might be required when segments are persisted via other mechanism than flush.
+     */
+    void setMinSeqNoToKeep(long seqNo);
 }

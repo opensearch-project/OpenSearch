@@ -16,7 +16,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.action.admin.cluster.RestClusterGetSettingsAction;
@@ -67,9 +67,10 @@ import org.opensearch.rest.action.admin.cluster.RestDeleteStoredScriptAction;
 import org.opensearch.rest.action.admin.cluster.RestGetStoredScriptAction;
 import org.opensearch.rest.action.admin.cluster.RestPutStoredScriptAction;
 import org.opensearch.rest.action.cat.RestAllocationAction;
+import org.opensearch.rest.action.cat.RestMasterAction;
 import org.opensearch.rest.action.cat.RestRepositoriesAction;
 import org.opensearch.rest.action.cat.RestThreadPoolAction;
-import org.opensearch.rest.action.cat.RestMasterAction;
+import org.opensearch.rest.action.cat.RestClusterManagerAction;
 import org.opensearch.rest.action.cat.RestShardsAction;
 import org.opensearch.rest.action.cat.RestPluginsAction;
 import org.opensearch.rest.action.cat.RestNodeAttrsAction;
@@ -161,6 +162,13 @@ public class RenamedTimeoutRequestParameterTests extends OpenSearchTestCase {
     }
 
     public void testCatClusterManager() {
+        RestClusterManagerAction action = new RestClusterManagerAction();
+        Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithBothParams(), client));
+        assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));
+        assertWarnings(MASTER_TIMEOUT_DEPRECATED_MESSAGE);
+    }
+
+    public void testCatMaster() {
         RestMasterAction action = new RestMasterAction();
         Exception e = assertThrows(OpenSearchParseException.class, () -> action.doCatRequest(getRestRequestWithBothParams(), client));
         assertThat(e.getMessage(), containsString(DUPLICATE_PARAMETER_ERROR_MESSAGE));

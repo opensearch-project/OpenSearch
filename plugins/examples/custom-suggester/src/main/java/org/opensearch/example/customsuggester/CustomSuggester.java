@@ -41,7 +41,15 @@ import org.opensearch.search.suggest.Suggester;
 import java.io.IOException;
 import java.util.Locale;
 
+/**
+ * A custom suggester supportiong suggestion-based search.
+ */
 public class CustomSuggester extends Suggester<CustomSuggestionContext> {
+
+    /**
+     * Instantiate this object.
+     */
+    public CustomSuggester() {}
 
     // This is a pretty dumb implementation which returns the original text + fieldName + custom config option + 12 or 123
     @Override

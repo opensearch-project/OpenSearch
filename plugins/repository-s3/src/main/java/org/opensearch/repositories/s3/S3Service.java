@@ -72,6 +72,7 @@ import java.net.InetSocketAddress;
 import java.net.PasswordAuthentication;
 import java.net.Proxy;
 import java.net.Socket;
+import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.util.Map;
 
@@ -90,15 +91,19 @@ class S3Service implements Closeable {
     /**
      * Client settings calculated from static configuration and settings in the keystore.
      */
-    private volatile Map<String, S3ClientSettings> staticClientSettings = MapBuilder.<String, S3ClientSettings>newMapBuilder()
-        .put("default", S3ClientSettings.getClientSettings(Settings.EMPTY, "default"))
-        .immutableMap();
+    private volatile Map<String, S3ClientSettings> staticClientSettings;
 
     /**
      * Client settings derived from those in {@link #staticClientSettings} by combining them with settings
      * in the {@link RepositoryMetadata}.
      */
     private volatile Map<Settings, S3ClientSettings> derivedClientSettings = emptyMap();
+
+    S3Service(final Path configPath) {
+        staticClientSettings = MapBuilder.<String, S3ClientSettings>newMapBuilder()
+            .put("default", S3ClientSettings.getClientSettings(Settings.EMPTY, "default", configPath))
+            .immutableMap();
+    }
 
     /**
      * Refreshes the settings for the AmazonS3 clients and clears the cache of
@@ -305,21 +310,28 @@ class S3Service implements Closeable {
             }
 
             if (irsaCredentials.getIdentityTokenFile() == null) {
-                return new PrivilegedSTSAssumeRoleSessionCredentialsProvider<>(
-                    securityTokenService,
+                final STSAssumeRoleSessionCredentialsProvider.Builder stsCredentialsProviderBuilder =
                     new STSAssumeRoleSessionCredentialsProvider.Builder(irsaCredentials.getRoleArn(), irsaCredentials.getRoleSessionName())
-                        .withStsClient(securityTokenService)
-                        .build()
+                        .withStsClient(securityTokenService);
+
+                final STSAssumeRoleSessionCredentialsProvider stsCredentialsProvider = SocketAccess.doPrivileged(
+                    stsCredentialsProviderBuilder::build
                 );
+
+                return new PrivilegedSTSAssumeRoleSessionCredentialsProvider<>(securityTokenService, stsCredentialsProvider);
             } else {
-                return new PrivilegedSTSAssumeRoleSessionCredentialsProvider<>(
-                    securityTokenService,
+                final STSAssumeRoleWithWebIdentitySessionCredentialsProvider.Builder stsCredentialsProviderBuilder =
                     new STSAssumeRoleWithWebIdentitySessionCredentialsProvider.Builder(
                         irsaCredentials.getRoleArn(),
                         irsaCredentials.getRoleSessionName(),
                         irsaCredentials.getIdentityTokenFile()
-                    ).withStsClient(securityTokenService).build()
+                    ).withStsClient(securityTokenService);
+
+                final STSAssumeRoleWithWebIdentitySessionCredentialsProvider stsCredentialsProvider = SocketAccess.doPrivileged(
+                    stsCredentialsProviderBuilder::build
                 );
+
+                return new PrivilegedSTSAssumeRoleSessionCredentialsProvider<>(securityTokenService, stsCredentialsProvider);
             }
         } else if (basicCredentials != null) {
             logger.debug("Using basic key/secret credentials");

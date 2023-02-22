@@ -34,6 +34,7 @@ package org.opensearch.indices;
 
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.cache.RemovalNotification;
+import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.shard.IndexShard;
 
@@ -66,10 +67,6 @@ abstract class AbstractIndexShardCacheEntity implements IndicesRequestCache.Cach
 
     @Override
     public final void onRemoval(RemovalNotification<IndicesRequestCache.Key, BytesReference> notification) {
-        stats().onRemoval(
-            notification.getKey(),
-            notification.getValue(),
-            notification.getRemovalReason() == RemovalNotification.RemovalReason.EVICTED
-        );
+        stats().onRemoval(notification.getKey(), notification.getValue(), notification.getRemovalReason() == RemovalReason.EVICTED);
     }
 }

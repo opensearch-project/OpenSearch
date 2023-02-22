@@ -307,7 +307,10 @@ public class ClusterHealthIT extends OpenSearchIntegTestCase {
             .execute();
 
         final AtomicBoolean keepSubmittingTasks = new AtomicBoolean(true);
-        final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
+        final ClusterService clusterService = internalCluster().getInstance(
+            ClusterService.class,
+            internalCluster().getClusterManagerName()
+        );
         final PlainActionFuture<Void> completionFuture = new PlainActionFuture<>();
         clusterService.submitStateUpdateTask("looping task", new ClusterStateUpdateTask(Priority.LOW) {
             @Override
@@ -377,7 +380,7 @@ public class ClusterHealthIT extends OpenSearchIntegTestCase {
                     .setClusterManagerNodeTimeout(TimeValue.timeValueMinutes(2))
                     .execute()
             );
-            internalCluster().restartNode(internalCluster().getMasterName(), InternalTestCluster.EMPTY_CALLBACK);
+            internalCluster().restartNode(internalCluster().getClusterManagerName(), InternalTestCluster.EMPTY_CALLBACK);
         }
         if (withIndex) {
             assertAcked(
@@ -396,7 +399,10 @@ public class ClusterHealthIT extends OpenSearchIntegTestCase {
 
     public void testWaitForEventsTimesOutIfClusterManagerBusy() {
         final AtomicBoolean keepSubmittingTasks = new AtomicBoolean(true);
-        final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
+        final ClusterService clusterService = internalCluster().getInstance(
+            ClusterService.class,
+            internalCluster().getClusterManagerName()
+        );
         final PlainActionFuture<Void> completionFuture = new PlainActionFuture<>();
         clusterService.submitStateUpdateTask("looping task", new ClusterStateUpdateTask(Priority.LOW) {
             @Override

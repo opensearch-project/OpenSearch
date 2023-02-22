@@ -191,7 +191,6 @@ public class RelocationIT extends OpenSearchIntegTestCase {
         assertThat(client().prepareSearch("test").setSize(0).execute().actionGet().getHits().getTotalHits().value, equalTo(20L));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/2063")
     public void testRelocationWhileIndexingRandom() throws Exception {
         int numberOfRelocations = scaledRandomIntBetween(1, rarely() ? 10 : 4);
         int numberOfReplicas = randomBoolean() ? 0 : 1;
@@ -590,7 +589,7 @@ public class RelocationIT extends OpenSearchIntegTestCase {
             logger.info(" --> checking iteration {}", i);
             SearchResponse afterRelocation = client().prepareSearch().setSize(ids.size()).get();
             assertNoFailures(afterRelocation);
-            assertSearchHits(afterRelocation, ids.toArray(new String[ids.size()]));
+            assertSearchHits(afterRelocation, ids.toArray(new String[0]));
         }
         stopped.set(true);
         for (Thread searchThread : searchThreads) {

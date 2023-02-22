@@ -121,7 +121,7 @@ public class TransportIndicesShardStoresAction extends TransportClusterManagerNo
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         IndicesShardStoresRequest request,
         ClusterState state,
         ActionListener<IndicesShardStoresResponse> listener

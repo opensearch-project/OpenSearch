@@ -85,7 +85,7 @@ public class GetPipelineTransportAction extends TransportClusterManagerNodeReadA
     }
 
     @Override
-    protected void masterOperation(GetPipelineRequest request, ClusterState state, ActionListener<GetPipelineResponse> listener)
+    protected void clusterManagerOperation(GetPipelineRequest request, ClusterState state, ActionListener<GetPipelineResponse> listener)
         throws Exception {
         listener.onResponse(new GetPipelineResponse(IngestService.getPipelines(state, request.getIds())));
     }

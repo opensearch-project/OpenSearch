@@ -22,6 +22,7 @@ import org.opensearch.index.translog.listener.TranslogEventListener;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -54,7 +55,9 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         Supplier<LocalCheckpointTracker> localCheckpointTrackerSupplier,
         String translogUUID,
         TranslogEventListener translogEventListener,
-        LifecycleAware engineLifeCycleAware
+        LifecycleAware engineLifeCycleAware,
+        TranslogFactory translogFactory,
+        BooleanSupplier primaryModeSupplier
     ) throws IOException {
         this.shardId = shardId;
         this.readLock = readLock;
@@ -67,7 +70,7 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
             if (tracker != null) {
                 tracker.markSeqNoAsPersisted(seqNo);
             }
-        }, translogUUID);
+        }, translogUUID, translogFactory, primaryModeSupplier);
         assert translog.getGeneration() != null;
         this.translog = translog;
         assert pendingTranslogRecovery.get() == false : "translog recovery can't be pending before we set it";
@@ -95,6 +98,11 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
             }
             throw new TranslogException(shardId, "failed to roll translog", e);
         }
+    }
+
+    @Override
+    public Translog.Snapshot newChangesSnapshot(long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
+        return translog.newSnapshot(fromSeqNo, toSeqNo, requiredFullRange);
     }
 
     /**
@@ -283,11 +291,16 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         }
     }
 
+    @Override
+    public void setMinSeqNoToKeep(long seqNo) {
+        translog.setMinSeqNoToKeep(seqNo);
+    }
+
     /**
      * Reads operations from the translog
-     * @param location
+     * @param location location of translog
      * @return the translog operation
-     * @throws IOException
+     * @throws IOException throws an IO exception
      */
     @Override
     public Translog.Operation readOperation(Translog.Location location) throws IOException {
@@ -296,9 +309,9 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
 
     /**
      * Adds an operation to the translog
-     * @param operation
+     * @param operation operation to add to translog
      * @return the location in the translog
-     * @throws IOException
+     * @throws IOException throws an IO exception
      */
     @Override
     public Translog.Location add(Translog.Operation operation) throws IOException {
@@ -333,16 +346,18 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         TranslogDeletionPolicy translogDeletionPolicy,
         LongSupplier globalCheckpointSupplier,
         LongConsumer persistedSequenceNumberConsumer,
-        String translogUUID
+        String translogUUID,
+        TranslogFactory translogFactory,
+        BooleanSupplier primaryModeSupplier
     ) throws IOException {
-
-        return new Translog(
+        return translogFactory.newTranslog(
             translogConfig,
             translogUUID,
             translogDeletionPolicy,
             globalCheckpointSupplier,
             primaryTermSupplier,
-            persistedSequenceNumberConsumer
+            persistedSequenceNumberConsumer,
+            primaryModeSupplier
         );
     }
 
@@ -396,8 +411,8 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
 
     /**
      *
-     * @param localCheckpointOfLastCommit
-     * @param flushThreshold
+     * @param localCheckpointOfLastCommit local checkpoint reference of last commit to translog
+     * @param flushThreshold threshold to flush to translog
      * @return if the translog should be flushed
      */
     public boolean shouldPeriodicallyFlush(long localCheckpointOfLastCommit, long flushThreshold) {

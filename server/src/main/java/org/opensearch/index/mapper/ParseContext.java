@@ -37,7 +37,7 @@ import com.carrotsearch.hppc.ObjectObjectMap;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 
 import java.util.ArrayList;
@@ -143,7 +143,7 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
                     f.add(field);
                 }
             }
-            return f.toArray(new IndexableField[f.size()]);
+            return f.toArray(new IndexableField[0]);
         }
 
         public IndexableField getField(String name) {

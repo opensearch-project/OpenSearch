@@ -54,8 +54,8 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
@@ -105,7 +105,7 @@ import static org.mockito.Mockito.when;
 public final class BlobStoreTestUtil {
 
     public static void assertRepoConsistency(InternalTestCluster testCluster, String repoName) {
-        final BlobStoreRepository repo = (BlobStoreRepository) testCluster.getCurrentMasterNodeInstance(RepositoriesService.class)
+        final BlobStoreRepository repo = (BlobStoreRepository) testCluster.getCurrentClusterManagerNodeInstance(RepositoriesService.class)
             .repository(repoName);
         BlobStoreTestUtil.assertConsistency(repo, repo.threadPool().executor(ThreadPool.Names.GENERIC));
     }
@@ -136,7 +136,7 @@ public final class BlobStoreTestUtil {
                     XContentParser parser = XContentType.JSON.xContent()
                         .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, blob)
                 ) {
-                    repositoryData = RepositoryData.snapshotsFromXContent(parser, latestGen, false);
+                    repositoryData = RepositoryData.snapshotsFromXContent(parser, latestGen);
                 }
                 assertIndexUUIDs(repository, repositoryData);
                 assertSnapshotUUIDs(repository, repositoryData);
@@ -414,7 +414,9 @@ public final class BlobStoreTestUtil {
         final DiscoveryNode localNode = new DiscoveryNode("", buildNewFakeTransportAddress(), Version.CURRENT);
         final AtomicReference<ClusterState> currentState = new AtomicReference<>(
             ClusterState.builder(initialState)
-                .nodes(DiscoveryNodes.builder().add(localNode).masterNodeId(localNode.getId()).localNodeId(localNode.getId()).build())
+                .nodes(
+                    DiscoveryNodes.builder().add(localNode).clusterManagerNodeId(localNode.getId()).localNodeId(localNode.getId()).build()
+                )
                 .build()
         );
         when(clusterService.state()).then(invocationOnMock -> currentState.get());

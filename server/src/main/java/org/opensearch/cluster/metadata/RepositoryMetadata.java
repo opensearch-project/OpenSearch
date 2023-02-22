@@ -31,8 +31,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.LegacyESVersion;
-import org.opensearch.Version;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -48,8 +46,6 @@ import java.util.Objects;
  * @opensearch.internal
  */
 public class RepositoryMetadata implements Writeable {
-
-    public static final Version REPO_GEN_IN_CS_VERSION = LegacyESVersion.V_7_6_0;
 
     private final String name;
     private final String type;
@@ -148,13 +144,8 @@ public class RepositoryMetadata implements Writeable {
         name = in.readString();
         type = in.readString();
         settings = Settings.readSettingsFromStream(in);
-        if (in.getVersion().onOrAfter(REPO_GEN_IN_CS_VERSION)) {
-            generation = in.readLong();
-            pendingGeneration = in.readLong();
-        } else {
-            generation = RepositoryData.UNKNOWN_REPO_GEN;
-            pendingGeneration = RepositoryData.EMPTY_REPO_GEN;
-        }
+        generation = in.readLong();
+        pendingGeneration = in.readLong();
     }
 
     /**
@@ -167,10 +158,8 @@ public class RepositoryMetadata implements Writeable {
         out.writeString(name);
         out.writeString(type);
         Settings.writeSettingsToStream(settings, out);
-        if (out.getVersion().onOrAfter(REPO_GEN_IN_CS_VERSION)) {
-            out.writeLong(generation);
-            out.writeLong(pendingGeneration);
-        }
+        out.writeLong(generation);
+        out.writeLong(pendingGeneration);
     }
 
     /**

@@ -34,7 +34,11 @@ package org.opensearch.search.profile.query;
 
 import org.apache.lucene.tests.util.English;
 import org.opensearch.action.index.IndexRequestBuilder;
-import org.opensearch.action.search.*;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.search.MultiSearchResponse;
+import org.opensearch.action.search.SearchType;
+import org.opensearch.action.search.SearchRequestBuilder;
+import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -44,7 +48,11 @@ import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
-import java.util.*;
+import java.util.List;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.greaterThan;

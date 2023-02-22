@@ -89,7 +89,9 @@ public interface NodeSelector {
             for (Iterator<Node> itr = nodes.iterator(); itr.hasNext();) {
                 Node node = itr.next();
                 if (node.getRoles() == null) continue;
-                if (node.getRoles().isMasterEligible() && false == node.getRoles().isData() && false == node.getRoles().isIngest()) {
+                if (node.getRoles().isClusterManagerEligible()
+                    && false == node.getRoles().isData()
+                    && false == node.getRoles().isIngest()) {
                     itr.remove();
                 }
             }
@@ -97,7 +99,7 @@ public interface NodeSelector {
 
         @Override
         public String toString() {
-            return "SKIP_DEDICATED_MASTERS";
+            return "SKIP_DEDICATED_CLUSTER_MANAGERS";
         }
     };
 }

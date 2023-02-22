@@ -43,12 +43,11 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParseException;
+import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.index.RandomCreateIndexGenerator;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.test.OpenSearchTestCase;
@@ -215,22 +214,4 @@ public class RolloverRequestTests extends OpenSearchTestCase {
         conditionsGenerator.add((request) -> request.addMaxIndexAgeCondition(new TimeValue(randomNonNegativeLong())));
     }
 
-    private static RolloverRequest createTestItem() throws IOException {
-        RolloverRequest rolloverRequest = new RolloverRequest();
-        if (randomBoolean()) {
-            rolloverRequest.getCreateIndexRequest().mapping(RandomCreateIndexGenerator.randomMapping());
-        }
-        if (randomBoolean()) {
-            RandomCreateIndexGenerator.randomAliases(rolloverRequest.getCreateIndexRequest());
-        }
-        if (randomBoolean()) {
-            rolloverRequest.getCreateIndexRequest().settings(RandomCreateIndexGenerator.randomIndexSettings());
-        }
-        int numConditions = randomIntBetween(0, 3);
-        List<Consumer<RolloverRequest>> conditions = randomSubsetOf(numConditions, conditionsGenerator);
-        for (Consumer<RolloverRequest> consumer : conditions) {
-            consumer.accept(rolloverRequest);
-        }
-        return rolloverRequest;
-    }
 }

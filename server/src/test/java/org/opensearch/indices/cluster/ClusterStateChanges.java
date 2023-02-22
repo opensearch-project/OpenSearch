@@ -72,6 +72,7 @@ import org.opensearch.cluster.coordination.NodeRemovalClusterStateTaskExecutor;
 import org.opensearch.cluster.metadata.AliasValidator;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.MetadataDeleteIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexStateService;
@@ -81,6 +82,7 @@ import org.opensearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.routing.allocation.FailedShard;
 import org.opensearch.cluster.routing.allocation.RandomAllocationDeciderTests;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -95,7 +97,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.Index;
@@ -189,7 +191,13 @@ public class ClusterStateChanges {
 
         // mocks
         clusterService = mock(ClusterService.class);
+        Metadata metadata = Metadata.builder().build();
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .build();
+        when(clusterService.state()).thenReturn(clusterState);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        when(clusterService.getSettings()).thenReturn(SETTINGS);
         IndicesService indicesService = mock(IndicesService.class);
         // MetadataCreateIndexService uses withTempIndexService to check mappings -> fake it here
         try {
@@ -272,13 +280,17 @@ public class ClusterStateChanges {
             transportVerifyShardIndexBlockAction
         );
         MetadataDeleteIndexService deleteIndexService = new MetadataDeleteIndexService(SETTINGS, clusterService, allocationService);
+
+        final AwarenessReplicaBalance awarenessReplicaBalance = new AwarenessReplicaBalance(SETTINGS, clusterService.getClusterSettings());
+
         MetadataUpdateSettingsService metadataUpdateSettingsService = new MetadataUpdateSettingsService(
             clusterService,
             allocationService,
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             indicesService,
             shardLimitValidator,
-            threadPool
+            threadPool,
+            awarenessReplicaBalance
         );
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
             SETTINGS,
@@ -292,7 +304,8 @@ public class ClusterStateChanges {
             threadPool,
             xContentRegistry,
             systemIndices,
-            true
+            true,
+            awarenessReplicaBalance
         );
 
         transportCloseIndexAction = new TransportCloseIndexAction(
@@ -350,7 +363,7 @@ public class ClusterStateChanges {
         );
 
         nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
-        joinTaskExecutor = new JoinTaskExecutor(Settings.EMPTY, allocationService, logger, (s, p, r) -> {}, transportService);
+        joinTaskExecutor = new JoinTaskExecutor(Settings.EMPTY, allocationService, logger, (s, p, r) -> {});
     }
 
     public ClusterState createIndex(ClusterState state, CreateIndexRequest request) {
@@ -397,13 +410,19 @@ public class ClusterStateChanges {
         );
     }
 
-    public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
+    public ClusterState joinNodesAndBecomeClusterManager(ClusterState clusterState, List<DiscoveryNode> nodes) {
         List<JoinTaskExecutor.Task> joinNodes = new ArrayList<>();
-        joinNodes.add(JoinTaskExecutor.newBecomeMasterTask());
+        joinNodes.add(JoinTaskExecutor.newBecomeClusterManagerTask());
         joinNodes.add(JoinTaskExecutor.newFinishElectionTask());
         joinNodes.addAll(nodes.stream().map(node -> new JoinTaskExecutor.Task(node, "dummy reason")).collect(Collectors.toList()));
 
         return runTasks(joinTaskExecutor, clusterState, joinNodes);
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #joinNodesAndBecomeClusterManager(ClusterState, List)} */
+    @Deprecated
+    public ClusterState joinNodesAndBecomeMaster(ClusterState clusterState, List<DiscoveryNode> nodes) {
+        return joinNodesAndBecomeClusterManager(clusterState, nodes);
     }
 
     public ClusterState removeNodes(ClusterState clusterState, List<DiscoveryNode> nodes) {

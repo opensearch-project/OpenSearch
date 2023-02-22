@@ -34,15 +34,15 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.opensearch.Version;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 
@@ -54,7 +54,7 @@ import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.opensearch.common.xcontent.ObjectParser.fromList;
+import static org.opensearch.core.xcontent.ObjectParser.fromList;
 
 /**
  * A query that will return only documents matching specific ids (and a type).
@@ -99,7 +99,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
             // types not supported so send an empty array to previous versions
             out.writeStringArray(Strings.EMPTY_ARRAY);
         }
-        out.writeStringArray(ids.toArray(new String[ids.size()]));
+        out.writeStringArray(ids.toArray(new String[0]));
     }
 
     /**

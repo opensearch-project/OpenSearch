@@ -32,8 +32,8 @@
 
 package org.opensearch.client;
 
-import org.opensearch.common.ParseField;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
 
 /**
  * Base class for responses that are node responses. These responses always contain the cluster

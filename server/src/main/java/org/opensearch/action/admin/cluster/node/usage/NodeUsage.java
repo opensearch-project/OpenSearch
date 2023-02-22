@@ -32,13 +32,12 @@
 
 package org.opensearch.action.admin.cluster.node.usage;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -61,11 +60,7 @@ public class NodeUsage extends BaseNodeResponse implements ToXContentFragment {
         timestamp = in.readLong();
         sinceTime = in.readLong();
         restUsage = (Map<String, Long>) in.readGenericValue();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
-            aggregationUsage = (Map<String, Object>) in.readGenericValue();
-        } else {
-            aggregationUsage = null;
-        }
+        aggregationUsage = (Map<String, Object>) in.readGenericValue();
     }
 
     /**
@@ -144,9 +139,7 @@ public class NodeUsage extends BaseNodeResponse implements ToXContentFragment {
         out.writeLong(timestamp);
         out.writeLong(sinceTime);
         out.writeGenericValue(restUsage);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
-            out.writeGenericValue(aggregationUsage);
-        }
+        out.writeGenericValue(aggregationUsage);
     }
 
 }

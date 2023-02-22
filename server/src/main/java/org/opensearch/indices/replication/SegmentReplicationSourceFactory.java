@@ -23,9 +23,9 @@ import org.opensearch.transport.TransportService;
  */
 public class SegmentReplicationSourceFactory {
 
-    private TransportService transportService;
-    private RecoverySettings recoverySettings;
-    private ClusterService clusterService;
+    private final TransportService transportService;
+    private final RecoverySettings recoverySettings;
+    private final ClusterService clusterService;
 
     public SegmentReplicationSourceFactory(
         TransportService transportService,
@@ -39,7 +39,7 @@ public class SegmentReplicationSourceFactory {
 
     public SegmentReplicationSource get(IndexShard shard) {
         return new PrimaryShardReplicationSource(
-            clusterService.localNode(),
+            shard.recoveryState().getTargetNode(),
             shard.routingEntry().allocationId().getId(),
             transportService,
             recoverySettings,

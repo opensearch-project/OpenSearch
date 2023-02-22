@@ -189,7 +189,7 @@ public class AutoExpandReplicasTests extends OpenSearchTestCase {
                 assertThat(postTable.toString(), postTable.getAllAllocationIds(), everyItem(is(in(preTable.getAllAllocationIds()))));
             } else {
                 // fake an election where conflicting nodes are removed and readded
-                state = ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).masterNodeId(null).build()).build();
+                state = ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).clusterManagerNodeId(null).build()).build();
 
                 List<DiscoveryNode> conflictingNodes = randomSubsetOf(2, dataNodes);
                 unchangedNodeIds = dataNodes.stream()
@@ -214,7 +214,7 @@ public class AutoExpandReplicasTests extends OpenSearchTestCase {
                     nodesToAdd.add(createNode(DiscoveryNodeRole.DATA_ROLE));
                 }
 
-                state = cluster.joinNodesAndBecomeMaster(state, nodesToAdd);
+                state = cluster.joinNodesAndBecomeClusterManager(state, nodesToAdd);
                 postTable = state.routingTable().index("index").shard(0);
             }
 
@@ -243,7 +243,7 @@ public class AutoExpandReplicasTests extends OpenSearchTestCase {
         try {
             List<DiscoveryNode> allNodes = new ArrayList<>();
             DiscoveryNode oldNode = createNode(
-                VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.V_1_2_1),
+                VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_2_2_1),
                 DiscoveryNodeRole.CLUSTER_MANAGER_ROLE,
                 DiscoveryNodeRole.DATA_ROLE
             ); // local node is the cluster-manager
@@ -265,7 +265,7 @@ public class AutoExpandReplicasTests extends OpenSearchTestCase {
                 state = cluster.reroute(state, new ClusterRerouteRequest());
             }
 
-            DiscoveryNode newNode = createNode(Version.V_1_3_0, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE); // local
+            DiscoveryNode newNode = createNode(Version.V_2_3_0, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE); // local
                                                                                                                                       // node
                                                                                                                                       // is
                                                                                                                                       // the

@@ -102,7 +102,7 @@ public class TransportUpgradeSettingsAction extends TransportClusterManagerNodeA
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final UpgradeSettingsRequest request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener

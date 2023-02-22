@@ -34,8 +34,8 @@ package org.opensearch.example.customsigheuristic;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 
 import java.io.IOException;
@@ -44,13 +44,25 @@ import java.io.IOException;
  * A simple {@linkplain SignificanceHeuristic} used an example of declaring a custom heuristic.
  */
 public class SimpleHeuristic extends SignificanceHeuristic {
+    /**
+     * The name of this NamedWriteable heuristic.
+     */
     public static final String NAME = "simple";
+
+    /**
+     * The parser with which to deserialize this object from XContent.
+     */
     public static final ObjectParser<SimpleHeuristic, Void> PARSER = new ObjectParser<>(NAME, SimpleHeuristic::new);
 
+    /**
+     * Instantiates this object.
+     */
     public SimpleHeuristic() {}
 
     /**
      * Read from a stream.
+     *
+     * @param in Input to read the value from
      */
     public SimpleHeuristic(StreamInput in) throws IOException {
         // Nothing to read

@@ -188,7 +188,7 @@ public class MultiBucketCollector extends BucketCollector {
         private int numCollectors;
 
         private MultiLeafBucketCollector(List<LeafBucketCollector> collectors, boolean cacheScores) {
-            this.collectors = collectors.toArray(new LeafBucketCollector[collectors.size()]);
+            this.collectors = collectors.toArray(new LeafBucketCollector[0]);
             this.cacheScores = cacheScores;
             this.numCollectors = this.collectors.length;
         }

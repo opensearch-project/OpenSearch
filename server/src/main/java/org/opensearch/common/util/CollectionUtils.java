@@ -384,4 +384,16 @@ public class CollectionUtils {
 
         return result;
     }
+
+    /**
+     * Check if a collection is empty or not. Empty collection mean either it is null or it has no elements in it. If
+     * collection contains a null element it means it is not empty.
+     *
+     * @param collection {@link Collection}
+     * @return boolean
+     * @param <E> Element
+     */
+    public static <E> boolean isEmpty(final Collection<E> collection) {
+        return collection == null || collection.isEmpty();
+    }
 }

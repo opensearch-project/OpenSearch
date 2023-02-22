@@ -48,7 +48,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 public class QueryStringWithAnalyzersIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(CommonAnalysisPlugin.class);
+        return Arrays.asList(CommonAnalysisModulePlugin.class);
     }
 
     /**

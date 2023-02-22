@@ -42,6 +42,7 @@ import org.opensearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
+import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.index.fieldvisitor.FieldsVisitor;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
@@ -68,14 +69,14 @@ public class SourceLookup implements Map {
 
     private BytesReference sourceAsBytes;
     private Map<String, Object> source;
-    private XContentType sourceContentType;
+    private MediaType sourceContentType;
 
     public Map<String, Object> source() {
         return source;
     }
 
     public XContentType sourceContentType() {
-        return sourceContentType;
+        return XContentType.fromMediaType(sourceContentType);
     }
 
     public int docId() {
@@ -137,7 +138,7 @@ public class SourceLookup implements Map {
                     // So we do a little hack here and pretend we're going to do merges in order to
                     // get better sequential access.
                     SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) context.reader();
-                    fieldReader = lf.getSequentialStoredFieldsReader()::visitDocument;
+                    fieldReader = lf.getSequentialStoredFieldsReader()::document;
                 } else {
                     fieldReader = context.reader()::document;
                 }

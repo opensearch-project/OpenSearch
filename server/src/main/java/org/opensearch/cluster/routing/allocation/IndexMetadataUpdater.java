@@ -202,7 +202,8 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
                 if (recoverySource == RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE) {
                     allocationId = RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID;
                 } else {
-                    assert recoverySource instanceof RecoverySource.SnapshotRecoverySource : recoverySource;
+                    assert (recoverySource instanceof RecoverySource.SnapshotRecoverySource
+                        || recoverySource instanceof RecoverySource.RemoteStoreRecoverySource) : recoverySource;
                     allocationId = updates.initializedPrimary.allocationId().getId();
                 }
                 // forcing a stale primary resets the in-sync allocations to the singleton set with the stale id

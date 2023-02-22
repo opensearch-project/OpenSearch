@@ -35,8 +35,6 @@ package org.opensearch.index.analysis;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.apache.lucene.analysis.shingle.ShingleFilter;
-import org.opensearch.LegacyESVersion;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
@@ -47,8 +45,6 @@ import org.opensearch.index.IndexSettings;
  * @opensearch.internal
  */
 public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
-
-    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(ShingleTokenFilterFactory.class);
 
     private final Factory factory;
 
@@ -61,27 +57,17 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
 
         int shingleDiff = maxShingleSize - minShingleSize + (outputUnigrams ? 1 : 0);
         if (shingleDiff > maxAllowedShingleDiff) {
-            if (indexSettings.getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_0_0)) {
-                throw new IllegalArgumentException(
-                    "In Shingle TokenFilter the difference between max_shingle_size and min_shingle_size (and +1 if outputting unigrams)"
-                        + " must be less than or equal to: ["
-                        + maxAllowedShingleDiff
-                        + "] but was ["
-                        + shingleDiff
-                        + "]. This limit"
-                        + " can be set by changing the ["
-                        + IndexSettings.MAX_SHINGLE_DIFF_SETTING.getKey()
-                        + "] index level setting."
-                );
-            } else {
-                deprecationLogger.deprecate(
-                    "excessive_shingle_diff",
-                    "Deprecated big difference between maxShingleSize and minShingleSize"
-                        + " in Shingle TokenFilter, expected difference must be less than or equal to: ["
-                        + maxAllowedShingleDiff
-                        + "]"
-                );
-            }
+            throw new IllegalArgumentException(
+                "In Shingle TokenFilter the difference between max_shingle_size and min_shingle_size (and +1 if outputting unigrams)"
+                    + " must be less than or equal to: ["
+                    + maxAllowedShingleDiff
+                    + "] but was ["
+                    + shingleDiff
+                    + "]. This limit"
+                    + " can be set by changing the ["
+                    + IndexSettings.MAX_SHINGLE_DIFF_SETTING.getKey()
+                    + "] index level setting."
+            );
         }
 
         Boolean outputUnigramsIfNoShingles = settings.getAsBoolean("output_unigrams_if_no_shingles", false);
@@ -105,16 +91,7 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenFilterFactory getSynonymFilter() {
-        if (indexSettings.getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
-        } else {
-            DEPRECATION_LOGGER.deprecate(
-                name() + "_synonym_tokenfilters",
-                "Token filter " + name() + "] will not be usable to parse synonyms after v7.0"
-            );
-        }
-        return this;
-
+        throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
     }
 
     public Factory getInnerFactory() {

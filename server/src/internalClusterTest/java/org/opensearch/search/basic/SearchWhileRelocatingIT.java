@@ -85,7 +85,7 @@ public class SearchWhileRelocatingIT extends OpenSearchIntegTestCase {
                     )
             );
         }
-        indexRandom(true, indexBuilders.toArray(new IndexRequestBuilder[indexBuilders.size()]));
+        indexRandom(true, indexBuilders.toArray(new IndexRequestBuilder[0]));
         assertHitCount(client().prepareSearch().get(), (numDocs));
         final int numIters = scaledRandomIntBetween(5, 20);
         for (int i = 0; i < numIters; i++) {

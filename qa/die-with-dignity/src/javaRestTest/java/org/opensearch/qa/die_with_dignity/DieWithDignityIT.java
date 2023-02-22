@@ -98,15 +98,6 @@ public class DieWithDignityIT extends OpenSearchRestTestCase {
         }
     }
 
-    private boolean containsAll(String line, String... subStrings) {
-        for (String subString : subStrings) {
-            if (line.matches(subString) == false) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     private void debugLogs(Path path) throws IOException {
         try (BufferedReader reader = Files.newBufferedReader(path)) {
             reader.lines().forEach(line -> logger.info(line));

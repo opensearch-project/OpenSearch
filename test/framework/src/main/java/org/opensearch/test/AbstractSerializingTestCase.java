@@ -34,10 +34,11 @@ package org.opensearch.test;
 
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContent;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -108,8 +109,8 @@ public abstract class AbstractSerializingTestCase<T extends ToXContent & Writeab
     }
 
     /**
-     * Whether or not to assert equivalence of the {@link org.opensearch.common.xcontent.XContent} of the test instance and the instance
-     * parsed from the {@link org.opensearch.common.xcontent.XContent} of the test instance.
+     * Whether or not to assert equivalence of the {@link XContent} of the test instance and the instance
+     * parsed from the {@link XContent} of the test instance.
      *
      * @return true if equivalence should be asserted, otherwise false
      */

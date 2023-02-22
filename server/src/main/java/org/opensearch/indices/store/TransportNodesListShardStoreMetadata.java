@@ -33,13 +33,11 @@
 package org.opensearch.indices.store;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.nodes.BaseNodeRequest;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.action.support.nodes.BaseNodesRequest;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
@@ -68,6 +66,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
@@ -253,20 +252,14 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         public StoreFilesMetadata(StreamInput in) throws IOException {
             this.shardId = new ShardId(in);
             this.metadataSnapshot = new Store.MetadataSnapshot(in);
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_5_0)) {
-                this.peerRecoveryRetentionLeases = in.readList(RetentionLease::new);
-            } else {
-                this.peerRecoveryRetentionLeases = Collections.emptyList();
-            }
+            this.peerRecoveryRetentionLeases = in.readList(RetentionLease::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             shardId.writeTo(out);
             metadataSnapshot.writeTo(out);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_5_0)) {
-                out.writeList(peerRecoveryRetentionLeases);
-            }
+            out.writeList(peerRecoveryRetentionLeases);
         }
 
         public ShardId shardId() {
@@ -342,11 +335,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         public Request(StreamInput in) throws IOException {
             super(in);
             shardId = new ShardId(in);
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-                customDataPath = in.readString();
-            } else {
-                customDataPath = null;
-            }
+            customDataPath = in.readString();
         }
 
         public Request(ShardId shardId, String customDataPath, DiscoveryNode[] nodes) {
@@ -373,9 +362,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-                out.writeString(customDataPath);
-            }
+            out.writeString(customDataPath);
         }
     }
 
@@ -410,7 +397,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
      *
      * @opensearch.internal
      */
-    public static class NodeRequest extends BaseNodeRequest {
+    public static class NodeRequest extends TransportRequest {
 
         private final ShardId shardId;
         @Nullable
@@ -419,11 +406,7 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
             shardId = new ShardId(in);
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-                customDataPath = in.readString();
-            } else {
-                customDataPath = null;
-            }
+            customDataPath = in.readString();
         }
 
         public NodeRequest(Request request) {
@@ -435,10 +418,8 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             shardId.writeTo(out);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-                assert customDataPath != null;
-                out.writeString(customDataPath);
-            }
+            assert customDataPath != null;
+            out.writeString(customDataPath);
         }
 
         public ShardId getShardId() {

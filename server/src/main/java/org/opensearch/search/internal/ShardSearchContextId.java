@@ -32,7 +32,6 @@
 
 package org.opensearch.search.internal;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -56,19 +55,13 @@ public final class ShardSearchContextId implements Writeable {
 
     public ShardSearchContextId(StreamInput in) throws IOException {
         this.id = in.readLong();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            this.sessionId = in.readString();
-        } else {
-            this.sessionId = "";
-        }
+        this.sessionId = in.readString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(id);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            out.writeString(sessionId);
-        }
+        out.writeString(sessionId);
     }
 
     public String getSessionId() {

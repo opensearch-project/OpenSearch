@@ -136,7 +136,7 @@ public class NodeRemovalClusterStateTaskExecutor
     }
 
     @Override
-    public void onNoLongerMaster(String source) {
+    public void onNoLongerClusterManager(String source) {
         logger.debug("no longer cluster-manager while processing node removal [{}]", source);
     }
 

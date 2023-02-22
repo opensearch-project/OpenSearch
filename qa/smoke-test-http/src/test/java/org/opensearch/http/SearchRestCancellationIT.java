@@ -31,10 +31,9 @@
 
 package org.opensearch.http;
 
-import org.apache.http.entity.ContentType;
-import org.apache.http.nio.entity.NByteArrayEntity;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
 import org.apache.logging.log4j.LogManager;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -48,6 +47,7 @@ import org.opensearch.client.Cancellable;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseListener;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.Strings;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.plugins.Plugin;
@@ -98,7 +98,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         Request searchRequest = new Request("GET", "/test/_search");
         SearchSourceBuilder searchSource = new SearchSourceBuilder().query(scriptQuery(
             new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap())));
-        searchRequest.setJsonEntity(Strings.toString(searchSource));
+        searchRequest.setJsonEntity(Strings.toString(XContentType.JSON, searchSource));
         verifyCancellationDuringQueryPhase(SearchAction.NAME, searchRequest);
     }
 
@@ -109,7 +109,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
                 new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap()))));
         Request restRequest = new Request("POST", "/_msearch");
         byte[] requestBody = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, contentType.xContent());
-        restRequest.setEntity(new NByteArrayEntity(requestBody, createContentType(contentType)));
+        restRequest.setEntity(new ByteArrayEntity(requestBody, createContentType(contentType)));
         verifyCancellationDuringQueryPhase(MultiSearchAction.NAME, restRequest);
     }
 
@@ -147,7 +147,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         Request searchRequest = new Request("GET", "/test/_search");
         SearchSourceBuilder searchSource = new SearchSourceBuilder().scriptField("test_field",
             new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap()));
-        searchRequest.setJsonEntity(Strings.toString(searchSource));
+        searchRequest.setJsonEntity(Strings.toString(XContentType.JSON, searchSource));
         verifyCancellationDuringFetchPhase(SearchAction.NAME, searchRequest);
     }
 
@@ -158,7 +158,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
                 new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap()))));
         Request restRequest = new Request("POST", "/_msearch");
         byte[] requestBody = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, contentType.xContent());
-        restRequest.setEntity(new NByteArrayEntity(requestBody, createContentType(contentType)));
+        restRequest.setEntity(new ByteArrayEntity(requestBody, createContentType(contentType)));
         verifyCancellationDuringFetchPhase(MultiSearchAction.NAME, restRequest);
     }
 

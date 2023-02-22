@@ -105,7 +105,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
         // close to have some unassigned started shards shards..
         client().admin().indices().prepareClose(index).get();
 
-        final String clusterManagerName = internalCluster().getMasterName();
+        final String clusterManagerName = internalCluster().getClusterManagerName();
         final ClusterService clusterService = internalCluster().clusterService(clusterManagerName);
         final AllocationService allocationService = internalCluster().getInstance(AllocationService.class, clusterManagerName);
         clusterService.submitStateUpdateTask("test-inject-node-and-reroute", new ClusterStateUpdateTask() {
@@ -159,7 +159,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
     ) throws Exception {
         // Wait for no publication in progress to not accidentally cancel a publication different from the one triggered by the given
         // request.
-        final Coordinator clusterManagerCoordinator = (Coordinator) internalCluster().getCurrentMasterNodeInstance(Discovery.class);
+        final Coordinator clusterManagerCoordinator = (Coordinator) internalCluster().getCurrentClusterManagerNodeInstance(Discovery.class);
         assertBusy(() -> {
             assertFalse(clusterManagerCoordinator.publicationInProgress());
             final long applierVersion = clusterManagerCoordinator.getApplierState().version();
@@ -202,7 +202,9 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
         ensureGreen(TimeValue.timeValueMinutes(30), "test");
         // due to publish_timeout of 0, wait for data node to have cluster state fully applied
         assertBusy(() -> {
-            long clusterManagerClusterStateVersion = internalCluster().clusterService(internalCluster().getMasterName()).state().version();
+            long clusterManagerClusterStateVersion = internalCluster().clusterService(internalCluster().getClusterManagerName())
+                .state()
+                .version();
             long dataClusterStateVersion = internalCluster().clusterService(dataNode).state().version();
             assertThat(clusterManagerClusterStateVersion, equalTo(dataClusterStateVersion));
         });
@@ -220,7 +222,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
         final List<String> nodeNames = internalCluster().startNodes(2);
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 
-        final String clusterManager = internalCluster().getMasterName();
+        final String clusterManager = internalCluster().getClusterManagerName();
         assertThat(nodeNames, hasItem(clusterManager));
         String otherNode = null;
         for (String node : nodeNames) {
@@ -244,13 +246,13 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
 
         // Check routing tables
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        assertEquals(clusterManager, state.nodes().getMasterNode().getName());
+        assertEquals(clusterManager, state.nodes().getClusterManagerNode().getName());
         List<ShardRouting> shards = state.routingTable().allShards("index");
         assertThat(shards, hasSize(1));
         for (ShardRouting shard : shards) {
             if (shard.primary()) {
                 // primary must not be on the cluster-manager node
-                assertFalse(state.nodes().getMasterNodeId().equals(shard.currentNodeId()));
+                assertFalse(state.nodes().getClusterManagerNodeId().equals(shard.currentNodeId()));
             } else {
                 fail(); // only primaries
             }
@@ -308,7 +310,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
         final List<String> nodeNames = internalCluster().startNodes(2);
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 
-        final String clusterManager = internalCluster().getMasterName();
+        final String clusterManager = internalCluster().getClusterManagerName();
         assertThat(nodeNames, hasItem(clusterManager));
         String otherNode = null;
         for (String node : nodeNames) {
@@ -336,13 +338,13 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
 
         // Check routing tables
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        assertEquals(clusterManager, state.nodes().getMasterNode().getName());
+        assertEquals(clusterManager, state.nodes().getClusterManagerNode().getName());
         List<ShardRouting> shards = state.routingTable().allShards("index");
         assertThat(shards, hasSize(2));
         for (ShardRouting shard : shards) {
             if (shard.primary()) {
                 // primary must be on the cluster-manager
-                assertEquals(state.nodes().getMasterNodeId(), shard.currentNodeId());
+                assertEquals(state.nodes().getClusterManagerNodeId(), shard.currentNodeId());
             } else {
                 assertTrue(shard.active());
             }

@@ -35,15 +35,15 @@ apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
   description 'Ingest processor that uses looksup geo data based on ip adresses using the Maxmind geo database'
-  classname 'org.opensearch.ingest.geoip.IngestGeoIpPlugin'
+  classname 'org.opensearch.ingest.geoip.IngestGeoIpModulePlugin'
 }
 
 dependencies {
-  api('com.maxmind.geoip2:geoip2:3.0.1')
+  api('com.maxmind.geoip2:geoip2:4.0.0')
   // geoip2 dependencies:
+  api('com.maxmind.db:maxmind-db:3.0.0')
   api("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
   api("com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}")
-  api('com.maxmind.db:maxmind-db:2.0.0')
 
   testImplementation 'org.elasticsearch:geolite2-databases:20191119'
 }

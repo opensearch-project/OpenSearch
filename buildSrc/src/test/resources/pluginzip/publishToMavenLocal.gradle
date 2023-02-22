@@ -1,0 +1,47 @@
+plugins {
+  // The java-gradle-plugin adds a new publication called 'pluginMaven' that causes some warnings because it
+  // clashes a bit with other publications defined in this file. If you are running at the --info level then you can
+  // expect some warning like the following:
+  // "Multiple publications with coordinates 'org.custom.group:sample-plugin:2.0.0.0' are published to repository 'mavenLocal'."
+  id 'java-gradle-plugin'
+  id 'opensearch.pluginzip'
+}
+
+group="org.custom.group"
+version='2.0.0.0'
+
+// A bundlePlugin task mockup
+tasks.register('bundlePlugin', Zip.class) {
+  archiveFileName = "sample-plugin-${version}.zip"
+  destinationDirectory = layout.buildDirectory.dir('distributions')
+  from layout.projectDirectory.file('sample-plugin-source.txt')
+}
+
+// A task to prepare directory for a temporary maven local repository
+tasks.register('prepareLocalMVNRepo') {
+  dependsOn ':bundlePlugin'
+  doFirst {
+    File localMVNRepo = new File (layout.buildDirectory.get().getAsFile().getPath(), 'local-staging-repo')
+    System.out.println('Creating temporary folder for mavenLocal repo: '+ localMVNRepo.toString())
+    System.out.println("Success: " + localMVNRepo.mkdir())
+  }
+}
+
+publishing {
+  publications {
+    // Plugin zip publication
+    pluginZip(MavenPublication) {
+      pom {
+        url = 'http://www.example.com/library'
+        description = 'pluginZip publication'
+      }
+    }
+    // Standard maven publication
+    mavenJava(MavenPublication) {
+      pom {
+        url = 'http://www.example.com/library'
+        description = 'mavenJava publication'
+      }
+    }
+  }
+}

@@ -31,6 +31,7 @@
 
 package org.opensearch.gradle.plugin;
 
+import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.opensearch.gradle.BwcVersions;
 import org.opensearch.gradle.test.GradleUnitTestCase;
 import org.gradle.api.Project;
@@ -64,6 +65,10 @@ public class PluginBuildPluginTests extends GradleUnitTestCase {
         assertNotNull("plugin extensions has the right type", project.getExtensions().findByType(PluginPropertiesExtension.class));
 
         assertNull("plugin should not create the integTest task", project.getTasks().findByName("integTest"));
+        project.getTasks().withType(AbstractArchiveTask.class).forEach(t -> {
+            assertFalse(String.format("task '%s' should not preserve timestamps", t.getName()), t.isPreserveFileTimestamps());
+            assertTrue(String.format("task '%s' should have reproducible file order", t.getName()), t.isReproducibleFileOrder());
+        });
     }
 
     @Ignore("https://github.com/elastic/elasticsearch/issues/47123")

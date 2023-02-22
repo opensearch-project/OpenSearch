@@ -32,20 +32,19 @@
 
 package org.opensearch.action.admin.indices.alias;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilder;
 
@@ -90,11 +89,7 @@ public class Alias implements Writeable, ToXContentFragment {
         indexRouting = in.readOptionalString();
         searchRouting = in.readOptionalString();
         writeIndex = in.readOptionalBoolean();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            isHidden = in.readOptionalBoolean();
-        } else {
-            isHidden = null;
-        }
+        isHidden = in.readOptionalBoolean();
     }
 
     public Alias(String name) {
@@ -236,9 +231,7 @@ public class Alias implements Writeable, ToXContentFragment {
         out.writeOptionalString(indexRouting);
         out.writeOptionalString(searchRouting);
         out.writeOptionalBoolean(writeIndex);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            out.writeOptionalBoolean(isHidden);
-        }
+        out.writeOptionalBoolean(isHidden);
     }
 
     /**
@@ -312,7 +305,7 @@ public class Alias implements Writeable, ToXContentFragment {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
     @Override

@@ -32,7 +32,7 @@
 
 package org.opensearch.client.sniff.documentation;
 
-import org.apache.http.HttpHost;
+import org.apache.hc.core5.http.HttpHost;
 import org.opensearch.client.Node;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.sniff.OpenSearchNodesSniffer;
@@ -69,7 +69,7 @@ public class SnifferDocumentation {
         {
             //tag::sniffer-init
             RestClient restClient = RestClient.builder(
-                new HttpHost("localhost", 9200, "http"))
+                new HttpHost("http", "localhost", 9200))
                 .build();
             Sniffer sniffer = Sniffer.builder(restClient).build();
             //end::sniffer-init
@@ -82,7 +82,7 @@ public class SnifferDocumentation {
         {
             //tag::sniffer-interval
             RestClient restClient = RestClient.builder(
-                new HttpHost("localhost", 9200, "http"))
+                new HttpHost("http", "localhost", 9200))
                 .build();
             Sniffer sniffer = Sniffer.builder(restClient)
                 .setSniffIntervalMillis(60000).build();
@@ -105,7 +105,7 @@ public class SnifferDocumentation {
         {
             //tag::sniffer-https
             RestClient restClient = RestClient.builder(
-                    new HttpHost("localhost", 9200, "http"))
+                    new HttpHost("http", "localhost", 9200))
                     .build();
             NodesSniffer nodesSniffer = new OpenSearchNodesSniffer(
                     restClient,
@@ -118,7 +118,7 @@ public class SnifferDocumentation {
         {
             //tag::sniff-request-timeout
             RestClient restClient = RestClient.builder(
-                new HttpHost("localhost", 9200, "http"))
+                new HttpHost("http", "localhost", 9200))
                 .build();
             NodesSniffer nodesSniffer = new OpenSearchNodesSniffer(
                 restClient,
@@ -131,7 +131,7 @@ public class SnifferDocumentation {
         {
             //tag::custom-nodes-sniffer
             RestClient restClient = RestClient.builder(
-                new HttpHost("localhost", 9200, "http"))
+                new HttpHost("http", "localhost", 9200))
                 .build();
             NodesSniffer nodesSniffer = new NodesSniffer() {
                     @Override

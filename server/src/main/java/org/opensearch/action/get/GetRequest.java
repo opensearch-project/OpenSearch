@@ -32,7 +32,6 @@
 
 package org.opensearch.action.get;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.RealtimeRequest;
@@ -89,9 +88,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         }
         id = in.readString();
         routing = in.readOptionalString();
-        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            in.readOptionalString();
-        }
         preference = in.readOptionalString();
         refresh = in.readBoolean();
         storedFields = in.readOptionalStringArray();
@@ -260,9 +256,6 @@ public class GetRequest extends SingleShardRequest<GetRequest> implements Realti
         }
         out.writeString(id);
         out.writeOptionalString(routing);
-        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            out.writeOptionalString(null);
-        }
         out.writeOptionalString(preference);
 
         out.writeBoolean(refresh);

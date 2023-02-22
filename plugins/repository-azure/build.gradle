@@ -44,9 +44,9 @@ opensearchplugin {
 }
 
 dependencies {
-  api 'com.azure:azure-core:1.27.0'
-  api 'com.azure:azure-storage-common:12.16.0'
-  api 'com.azure:azure-core-http-netty:1.12.0'
+  api 'com.azure:azure-core:1.34.0'
+  api 'com.azure:azure-storage-common:12.19.3'
+  api 'com.azure:azure-core-http-netty:1.12.8'
   api "io.netty:netty-codec-dns:${versions.netty}"
   api "io.netty:netty-codec-socks:${versions.netty}"
   api "io.netty:netty-codec-http2:${versions.netty}"
@@ -54,12 +54,12 @@ dependencies {
   api "io.netty:netty-resolver-dns:${versions.netty}"
   api "io.netty:netty-transport-native-unix-common:${versions.netty}"
   implementation project(':modules:transport-netty4')
-  api 'com.azure:azure-storage-blob:12.16.1'
-  api 'org.reactivestreams:reactive-streams:1.0.3'
-  api 'io.projectreactor:reactor-core:3.4.18'
-  api 'io.projectreactor.netty:reactor-netty:1.0.18'
-  api 'io.projectreactor.netty:reactor-netty-core:1.0.19'
-  api 'io.projectreactor.netty:reactor-netty-http:1.0.18'
+  api 'com.azure:azure-storage-blob:12.20.0'
+  api 'org.reactivestreams:reactive-streams:1.0.4'
+  api 'io.projectreactor:reactor-core:3.5.1'
+  api 'io.projectreactor.netty:reactor-netty:1.1.3'
+  api 'io.projectreactor.netty:reactor-netty-core:1.0.24'
+  api 'io.projectreactor.netty:reactor-netty-http:1.1.3'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
@@ -67,7 +67,7 @@ dependencies {
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.jackson}"
   api "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.jackson}"
   api 'org.codehaus.woodstox:stax2-api:4.2.1'
-  implementation 'com.fasterxml.woodstox:woodstox-core:6.2.8'
+  implementation "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
   runtimeOnly 'com.google.guava:guava:31.1-jre'
   api 'org.apache.commons:commons-lang3:3.12.0'
   testImplementation project(':test:fixtures:azure-fixture')
@@ -99,6 +99,10 @@ thirdPartyAudit {
     'com.azure.storage.internal.avro.implementation.AvroReaderFactory',
     'com.azure.storage.internal.avro.implementation.schema.AvroSchema',
     'com.ctc.wstx.shaded.msv_core.driver.textui.Driver',
+    'io.micrometer.context.ContextAccessor',
+    'io.micrometer.context.ContextRegistry',
+    'io.micrometer.context.ContextSnapshot',
+    'io.micrometer.context.ContextSnapshot$Scope',
     'io.micrometer.core.instrument.Clock',
     'io.micrometer.core.instrument.Counter',
     'io.micrometer.core.instrument.Counter$Builder',
@@ -137,7 +141,7 @@ thirdPartyAudit {
     'javax.xml.bind.annotation.XmlAccessOrder',
     'javax.xml.bind.annotation.XmlAccessType',
     'javax.xml.bind.annotation.XmlAccessorOrder',
-    'javax.xml.bind.annotation.XmlAccessorType', 
+    'javax.xml.bind.annotation.XmlAccessorType',
     'javax.xml.bind.annotation.XmlAttribute',
     'javax.xml.bind.annotation.XmlElement',
     'javax.xml.bind.annotation.XmlElement$DEFAULT',
@@ -158,24 +162,35 @@ thirdPartyAudit {
     'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter',
     'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapter$DEFAULT',
     'javax.xml.bind.annotation.adapters.XmlJavaTypeAdapters',
-    'kotlin.collections.ArraysKt',
-    'kotlin.jvm.JvmClassMappingKt',
-    'kotlin.jvm.functions.Function0',
-    'kotlin.jvm.functions.Function1',
-    'kotlin.jvm.internal.FunctionReference',
-    'kotlin.jvm.internal.Intrinsics',
-    'kotlin.jvm.internal.Reflection',
-    'kotlin.jvm.internal.markers.KMappedMarker',
-    'kotlin.reflect.KClass',
-    'kotlin.reflect.KDeclarationContainer',
-    'kotlin.sequences.Sequence',
     'org.osgi.framework.BundleActivator',
     'org.osgi.framework.BundleContext',
     'org.slf4j.impl.StaticLoggerBinder',
     'org.slf4j.impl.StaticMDCBinder',
     'org.slf4j.impl.StaticMarkerBinder',
     'reactor.blockhound.BlockHound$Builder',
-    'reactor.blockhound.integration.BlockHoundIntegration'
+    'reactor.blockhound.integration.BlockHoundIntegration',
+    'io.micrometer.common.KeyValue',
+    'io.micrometer.common.KeyValues',
+    'io.micrometer.common.docs.KeyName',
+    'io.micrometer.core.instrument.Meter$Type',
+    'io.micrometer.core.instrument.docs.MeterDocumentation',
+    'io.micrometer.observation.Observation',
+    'io.micrometer.observation.Observation$Context',
+    'io.micrometer.observation.docs.ObservationDocumentation',
+    'io.micrometer.observation.transport.ReceiverContext',
+    'io.micrometer.observation.transport.RequestReplyReceiverContext',
+    'io.micrometer.observation.transport.RequestReplySenderContext',
+    'io.micrometer.observation.transport.SenderContext',
+    'io.micrometer.tracing.Span',
+    'io.micrometer.tracing.Tracer',
+    'io.micrometer.tracing.docs.SpanDocumentation',
+    'io.micrometer.tracing.handler.PropagatingReceiverTracingObservationHandler',
+    'io.micrometer.tracing.handler.PropagatingSenderTracingObservationHandler',
+    'io.micrometer.tracing.propagation.Propagator',
+    'reactor.netty.channel.ChannelMeters',
+    'reactor.netty.channel.ChannelMeters$ChannelMetersTags',
+    'reactor.netty.internal.util.Metrics',
+    'reactor.netty.observability.ReactorNettyHandlerContext'
   )
 
   ignoreViolations(

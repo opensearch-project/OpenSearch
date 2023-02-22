@@ -73,12 +73,14 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
             .create("distributionArchiveCheck", DistributionArchiveCheckExtension.class);
 
         File archiveExtractionDir = calculateArchiveExtractionDir(project);
-
         // sanity checks if archives can be extracted
         TaskProvider<Copy> checkExtraction = registerCheckExtractionTask(project, buildDistTask, archiveExtractionDir);
+        checkExtraction.configure(InternalDistributionArchiveSetupPlugin.configure(buildTaskName));
         TaskProvider<Task> checkLicense = registerCheckLicenseTask(project, checkExtraction);
+        checkLicense.configure(InternalDistributionArchiveSetupPlugin.configure(buildTaskName));
 
         TaskProvider<Task> checkNotice = registerCheckNoticeTask(project, checkExtraction);
+        checkNotice.configure(InternalDistributionArchiveSetupPlugin.configure(buildTaskName));
         TaskProvider<Task> checkTask = project.getTasks().named("check");
         checkTask.configure(task -> {
             task.dependsOn(checkExtraction);
@@ -118,7 +120,7 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
     }
 
     private TaskProvider<Task> registerCheckLicenseTask(Project project, TaskProvider<Copy> checkExtraction) {
-        TaskProvider<Task> checkLicense = project.getTasks().register("checkLicense", task -> {
+        return project.getTasks().register("checkLicense", task -> {
             task.dependsOn(checkExtraction);
             task.doLast(new Action<Task>() {
                 @Override
@@ -138,7 +140,6 @@ public class InternalDistributionArchiveCheckPlugin implements Plugin<Project> {
                 }
             });
         });
-        return checkLicense;
     }
 
     private TaskProvider<Copy> registerCheckExtractionTask(Project project, TaskProvider<Task> buildDistTask, File archiveExtractionDir) {

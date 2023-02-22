@@ -53,13 +53,13 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.Index;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -313,7 +313,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         }
 
         @Override
-        protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+        protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
             List<DataStream> dataStreams = getDataStreams(state, indexNameExpressionResolver, request);
             List<Response.DataStreamInfo> dataStreamInfos = new ArrayList<>(dataStreams.size());
             for (DataStream dataStream : dataStreams) {

@@ -167,7 +167,10 @@ public abstract class AbstractDisruptionTestCase extends OpenSearchIntegTestCase
         assertBusy(() -> {
             ClusterState state = getNodeClusterState(node);
             final DiscoveryNodes nodes = state.nodes();
-            assertNull("node [" + node + "] still has [" + nodes.getMasterNode() + "] as cluster-manager", nodes.getMasterNode());
+            assertNull(
+                "node [" + node + "] still has [" + nodes.getClusterManagerNode() + "] as cluster-manager",
+                nodes.getClusterManagerNode()
+            );
             if (expectedBlocks != null) {
                 for (ClusterBlockLevel level : expectedBlocks.levels()) {
                     assertTrue(
@@ -183,10 +186,10 @@ public abstract class AbstractDisruptionTestCase extends OpenSearchIntegTestCase
         assertBusy(() -> {
             ClusterState state = getNodeClusterState(node);
             String clusterManagerNode = null;
-            if (state.nodes().getMasterNode() != null) {
-                clusterManagerNode = state.nodes().getMasterNode().getName();
+            if (state.nodes().getClusterManagerNode() != null) {
+                clusterManagerNode = state.nodes().getClusterManagerNode().getName();
             }
-            logger.trace("[{}] cluster-manager is [{}]", node, state.nodes().getMasterNode());
+            logger.trace("[{}] cluster-manager is [{}]", node, state.nodes().getClusterManagerNode());
             assertThat(
                 "node [" + node + "] still has [" + clusterManagerNode + "] as cluster-manager",
                 oldClusterManagerNode,
@@ -201,7 +204,9 @@ public abstract class AbstractDisruptionTestCase extends OpenSearchIntegTestCase
                 ClusterState state = getNodeClusterState(node);
                 String failMsgSuffix = "cluster_state:\n" + state;
                 assertThat("wrong node count on [" + node + "]. " + failMsgSuffix, state.nodes().getSize(), equalTo(nodes.size()));
-                String otherClusterManagerNodeName = state.nodes().getMasterNode() != null ? state.nodes().getMasterNode().getName() : null;
+                String otherClusterManagerNodeName = state.nodes().getClusterManagerNode() != null
+                    ? state.nodes().getClusterManagerNode().getName()
+                    : null;
                 assertThat(
                     "wrong cluster-manager on node [" + node + "]. " + failMsgSuffix,
                     otherClusterManagerNodeName,

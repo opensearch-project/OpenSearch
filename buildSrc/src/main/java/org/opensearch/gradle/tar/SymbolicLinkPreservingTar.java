@@ -65,6 +65,11 @@ import java.util.Set;
  * This task is necessary because the built-in task {@link org.gradle.api.tasks.bundling.Tar} does not preserve symbolic links.
  */
 public class SymbolicLinkPreservingTar extends Tar {
+    private long lastModifiedTimestamp = 0;
+
+    public void setLastModifiedTimestamp(long lastModifiedTimestamp) {
+        this.lastModifiedTimestamp = lastModifiedTimestamp;
+    }
 
     @Override
     protected CopyAction createCopyAction() {
@@ -80,7 +85,7 @@ public class SymbolicLinkPreservingTar extends Tar {
                 compressor = new SimpleCompressor();
                 break;
         }
-        return new SymbolicLinkPreservingTarCopyAction(getArchiveFile(), compressor, isPreserveFileTimestamps());
+        return new SymbolicLinkPreservingTarCopyAction(getArchiveFile(), compressor, isPreserveFileTimestamps(), lastModifiedTimestamp);
     }
 
     private static class SymbolicLinkPreservingTarCopyAction implements CopyAction {
@@ -88,15 +93,18 @@ public class SymbolicLinkPreservingTar extends Tar {
         private final Provider<RegularFile> tarFile;
         private final ArchiveOutputStreamFactory compressor;
         private final boolean isPreserveFileTimestamps;
+        private final long lastModifiedTimestamp;
 
         SymbolicLinkPreservingTarCopyAction(
             final Provider<RegularFile> tarFile,
             final ArchiveOutputStreamFactory compressor,
-            final boolean isPreserveFileTimestamps
+            final boolean isPreserveFileTimestamps,
+            final long lastModifiedTimestamp
         ) {
             this.tarFile = tarFile;
             this.compressor = compressor;
             this.isPreserveFileTimestamps = isPreserveFileTimestamps;
+            this.lastModifiedTimestamp = lastModifiedTimestamp;
         }
 
         @Override
@@ -219,7 +227,7 @@ public class SymbolicLinkPreservingTar extends Tar {
         }
 
         private long getModTime(final FileCopyDetails details) {
-            return isPreserveFileTimestamps ? details.getLastModified() : 0;
+            return isPreserveFileTimestamps ? details.getLastModified() : lastModifiedTimestamp;
         }
 
     }

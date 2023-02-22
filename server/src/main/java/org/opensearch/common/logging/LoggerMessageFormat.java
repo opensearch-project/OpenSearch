@@ -79,34 +79,34 @@ public class LoggerMessageFormat {
                     return messagePattern;
                 } else { // add the tail string which contains no variables and return
                     // the result.
-                    sbuf.append(messagePattern.substring(i, messagePattern.length()));
+                    sbuf.append(messagePattern.substring(i));
                     return sbuf.toString();
                 }
             } else {
                 if (isEscapedDelimiter(messagePattern, j)) {
                     if (!isDoubleEscaped(messagePattern, j)) {
                         L--; // DELIM_START was escaped, thus should not be incremented
-                        sbuf.append(messagePattern.substring(i, j - 1));
+                        sbuf.append(messagePattern, i, j - 1);
                         sbuf.append(DELIM_START);
                         i = j + 1;
                     } else {
                         // The escape character preceding the delimiter start is
                         // itself escaped: "abc x:\\{}"
                         // we have to consume one backward slash
-                        sbuf.append(messagePattern.substring(i, j - 1));
-                        deeplyAppendParameter(sbuf, argArray[L], new HashSet<Object[]>());
+                        sbuf.append(messagePattern, i, j - 1);
+                        deeplyAppendParameter(sbuf, argArray[L], new HashSet<>());
                         i = j + 2;
                     }
                 } else {
                     // normal case
-                    sbuf.append(messagePattern.substring(i, j));
-                    deeplyAppendParameter(sbuf, argArray[L], new HashSet<Object[]>());
+                    sbuf.append(messagePattern, i, j);
+                    deeplyAppendParameter(sbuf, argArray[L], new HashSet<>());
                     i = j + 2;
                 }
             }
         }
         // append the characters following the last {} pair.
-        sbuf.append(messagePattern.substring(i, messagePattern.length()));
+        sbuf.append(messagePattern.substring(i));
         return sbuf.toString();
     }
 
@@ -116,19 +116,11 @@ public class LoggerMessageFormat {
             return false;
         }
         char potentialEscape = messagePattern.charAt(delimiterStartIndex - 1);
-        if (potentialEscape == ESCAPE_CHAR) {
-            return true;
-        } else {
-            return false;
-        }
+        return potentialEscape == ESCAPE_CHAR;
     }
 
     static boolean isDoubleEscaped(String messagePattern, int delimiterStartIndex) {
-        if (delimiterStartIndex >= 2 && messagePattern.charAt(delimiterStartIndex - 2) == ESCAPE_CHAR) {
-            return true;
-        } else {
-            return false;
-        }
+        return delimiterStartIndex >= 2 && messagePattern.charAt(delimiterStartIndex - 2) == ESCAPE_CHAR;
     }
 
     private static void deeplyAppendParameter(StringBuilder sbuf, Object o, Set<Object[]> seen) {

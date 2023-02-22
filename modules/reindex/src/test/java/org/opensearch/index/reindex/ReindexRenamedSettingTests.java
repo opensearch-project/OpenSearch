@@ -24,7 +24,7 @@ import static org.hamcrest.Matchers.hasItems;
  * The test can be removed along with removing support of the deprecated setting.
  */
 public class ReindexRenamedSettingTests extends OpenSearchTestCase {
-    private final ReindexPlugin plugin = new ReindexPlugin();
+    private final ReindexModulePlugin plugin = new ReindexModulePlugin();
 
     /**
      * Validate the both settings are known and supported.

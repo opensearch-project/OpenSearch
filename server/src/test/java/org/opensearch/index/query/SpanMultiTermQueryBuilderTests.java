@@ -56,7 +56,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.test.AbstractQueryTestCase;
 

@@ -41,7 +41,7 @@ import org.opensearch.action.search.SearchType;
 import org.opensearch.common.lucene.search.function.CombineFunction;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.Settings.Builder;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.query.Operator;
 import org.opensearch.index.query.QueryBuilder;

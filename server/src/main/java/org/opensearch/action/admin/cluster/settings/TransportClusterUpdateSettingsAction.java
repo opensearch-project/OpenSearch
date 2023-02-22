@@ -47,6 +47,8 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -73,6 +75,8 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
 
     private final ClusterSettings clusterSettings;
 
+    private final ClusterManagerTaskThrottler.ThrottlingKey clusterUpdateSettingTaskKey;
+
     @Inject
     public TransportClusterUpdateSettingsAction(
         TransportService transportService,
@@ -95,6 +99,10 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
         );
         this.allocationService = allocationService;
         this.clusterSettings = clusterSettings;
+
+        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        clusterUpdateSettingTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CLUSTER_UPDATE_SETTINGS_KEY, true);
+
     }
 
     @Override
@@ -124,7 +132,7 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final ClusterUpdateSettingsRequest request,
         final ClusterState state,
         final ActionListener<ClusterUpdateSettingsResponse> listener
@@ -135,6 +143,11 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
             new AckedClusterStateUpdateTask<ClusterUpdateSettingsResponse>(Priority.IMMEDIATE, request, listener) {
 
                 private volatile boolean changed = false;
+
+                @Override
+                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                    return clusterUpdateSettingTaskKey;
+                }
 
                 @Override
                 protected ClusterUpdateSettingsResponse newResponse(boolean acknowledged) {
@@ -163,7 +176,7 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
                     // We're about to send a second update task, so we need to check if we're still the elected cluster-manager
                     // For example the minimum_master_node could have been breached and we're no longer elected cluster-manager,
                     // so we should *not* execute the reroute.
-                    if (!clusterService.state().nodes().isLocalNodeElectedMaster()) {
+                    if (!clusterService.state().nodes().isLocalNodeElectedClusterManager()) {
                         logger.debug("Skipping reroute after cluster update settings, because node is no longer cluster-manager");
                         listener.onResponse(
                             new ClusterUpdateSettingsResponse(
@@ -201,7 +214,7 @@ public class TransportClusterUpdateSettingsAction extends TransportClusterManage
                             }
 
                             @Override
-                            public void onNoLongerMaster(String source) {
+                            public void onNoLongerClusterManager(String source) {
                                 logger.debug(
                                     "failed to preform reroute after cluster settings were updated - current node is no longer a cluster-manager"
                                 );

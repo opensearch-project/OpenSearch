@@ -63,7 +63,10 @@ public class KeepTypesFilterFactoryTests extends OpenSearchTokenStreamTestCase {
             );
         }
         Settings settings = settingsBuilder.build();
-        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
+            settings,
+            new CommonAnalysisModulePlugin()
+        );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("keep_numbers");
         assertThat(tokenFilter, instanceOf(KeepTypesFilterFactory.class));
         String source = "Hello 123 world";
@@ -80,7 +83,10 @@ public class KeepTypesFilterFactoryTests extends OpenSearchTokenStreamTestCase {
             .putList(BASE_SETTING + "." + KeepTypesFilterFactory.KEEP_TYPES_KEY, new String[] { "<NUM>", "<SOMETHINGELSE>" })
             .put(BASE_SETTING + "." + KeepTypesFilterFactory.KEEP_TYPES_MODE_KEY, KeepTypesFilterFactory.KeepTypesMode.EXCLUDE)
             .build();
-        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+        OpenSearchTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(
+            settings,
+            new CommonAnalysisModulePlugin()
+        );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("keep_numbers");
         assertThat(tokenFilter, instanceOf(KeepTypesFilterFactory.class));
         String source = "Hello 123 world";
@@ -99,7 +105,7 @@ public class KeepTypesFilterFactoryTests extends OpenSearchTokenStreamTestCase {
             .build();
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin())
+            () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisModulePlugin())
         );
         assertEquals("`keep_types` tokenfilter mode can only be [include] or [exclude] but was [bad_parameter].", ex.getMessage());
     }

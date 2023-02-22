@@ -232,7 +232,7 @@ public class PublicationTransportHandler {
 
     private PublishWithJoinResponse acceptState(ClusterState incomingState) {
         // if the state is coming from the current node, use original request instead (see currentPublishRequestToSelf for explanation)
-        if (transportService.getLocalNode().equals(incomingState.nodes().getMasterNode())) {
+        if (transportService.getLocalNode().equals(incomingState.nodes().getClusterManagerNode())) {
             final PublishRequest publishRequest = currentPublishRequestToSelf.get();
             if (publishRequest == null || publishRequest.getAcceptedState().stateUUID().equals(incomingState.stateUUID()) == false) {
                 throw new IllegalStateException("publication to self failed for " + publishRequest);

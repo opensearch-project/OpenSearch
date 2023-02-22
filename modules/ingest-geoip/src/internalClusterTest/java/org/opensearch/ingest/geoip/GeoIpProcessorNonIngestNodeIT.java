@@ -39,7 +39,7 @@ import org.opensearch.action.ingest.PutPipelineRequest;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.ingest.IngestService;
@@ -75,7 +75,7 @@ public class GeoIpProcessorNonIngestNodeIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(IngestGeoIpPlugin.class, IngestGeoIpSettingsPlugin.class);
+        return Arrays.asList(IngestGeoIpModulePlugin.class, IngestGeoIpSettingsPlugin.class);
     }
 
     @Override

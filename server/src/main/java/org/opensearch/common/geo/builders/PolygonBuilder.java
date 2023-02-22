@@ -38,7 +38,7 @@ import org.opensearch.common.geo.parsers.ShapeParser;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -308,7 +308,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.opensearch.geo
     }
 
     protected static LinearRing linearRingS4J(GeometryFactory factory, List<Coordinate> coordinates) {
-        return factory.createLinearRing(coordinates.toArray(new Coordinate[coordinates.size()]));
+        return factory.createLinearRing(coordinates.toArray(new Coordinate[0]));
     }
 
     @Override
@@ -506,7 +506,7 @@ public class PolygonBuilder extends ShapeBuilder<JtsGeometry, org.opensearch.geo
             }
         }
 
-        return mainEdges.toArray(new Edge[mainEdges.size()]);
+        return mainEdges.toArray(new Edge[0]);
     }
 
     private static Coordinate[][][] compose(Edge[] edges, Edge[] holes, int numHoles) {

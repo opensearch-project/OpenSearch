@@ -36,7 +36,8 @@ import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.apache.http.HttpHost;
+
+import org.apache.hc.core5.http.HttpHost;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.util.LuceneTestCase;
@@ -49,6 +50,7 @@ import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
@@ -78,20 +80,17 @@ import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientBuilder;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.RestoreInProgress;
-import org.opensearch.cluster.SnapshotDeletionsInProgress;
-import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.coordination.OpenSearchNodeCommand;
 import org.opensearch.cluster.health.ClusterHealthStatus;
-import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
+import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
@@ -103,6 +102,7 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.common.settings.FeatureFlagSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -112,11 +112,11 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.smile.SmileXContent;
 import org.opensearch.core.internal.io.IOUtils;
@@ -137,7 +137,6 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.IndicesRequestCache;
 import org.opensearch.indices.store.IndicesStore;
-import org.opensearch.ingest.IngestMetadata;
 import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.node.NodeMocksPlugin;
 import org.opensearch.plugins.NetworkPlugin;
@@ -145,7 +144,6 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.action.RestCancellableNodeClient;
 import org.opensearch.script.MockScriptService;
-import org.opensearch.script.ScriptMetadata;
 import org.opensearch.search.MockSearchService;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchService;
@@ -411,7 +409,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * Creates a randomized index template. This template is used to pass in randomized settings on a
      * per index basis. Allows to enable/disable the randomization for number of shards and replicas
      */
-    private void randomIndexTemplate() {
+    protected void randomIndexTemplate() {
 
         // TODO move settings for random directory etc here into the index based randomized settings.
         if (cluster().size() > 0) {
@@ -713,7 +711,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      * @return disruption
      */
     protected static NetworkDisruption isolateClusterManagerDisruption(NetworkDisruption.NetworkLinkDisruptionType disruptionType) {
-        final String clusterManagerNode = internalCluster().getMasterName();
+        final String clusterManagerNode = internalCluster().getClusterManagerName();
         return new NetworkDisruption(
             new NetworkDisruption.TwoPartitions(
                 Collections.singleton(clusterManagerNode),
@@ -767,6 +765,20 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
     }
 
     /**
+     * Setting all feature flag settings at base IT, which can be overridden later by individual
+     * IT classes.
+     *
+     * @return Feature flag settings.
+     */
+    protected Settings featureFlagSettings() {
+        Settings.Builder featureSettings = Settings.builder();
+        for (Setting builtInFlag : FeatureFlagSettings.BUILT_IN_FEATURE_FLAGS) {
+            featureSettings.put(builtInFlag.getKey(), builtInFlag.getDefaultRaw(Settings.EMPTY));
+        }
+        return featureSettings.build();
+    }
+
+    /**
      * Creates one or more indices and asserts that the indices are acknowledged. If one of the indices
      * already exists this method will fail and wipe all the indices created so far.
      */
@@ -781,7 +793,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 success = true;
             } finally {
                 if (!success && !created.isEmpty()) {
-                    cluster().wipeIndices(created.toArray(new String[created.size()]));
+                    cluster().wipeIndices(created.toArray(new String[0]));
                 }
             }
         }
@@ -925,6 +937,13 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
      */
     public ClusterHealthStatus ensureYellow(String... indices) {
         return ensureColor(ClusterHealthStatus.YELLOW, TimeValue.timeValueSeconds(30), false, indices);
+    }
+
+    /**
+     * Ensures the cluster has a red state via the cluster health API.
+     */
+    public ClusterHealthStatus ensureRed(String... indices) {
+        return ensureColor(ClusterHealthStatus.RED, TimeValue.timeValueSeconds(30), false, indices);
     }
 
     /**
@@ -1100,7 +1119,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             clusterManagerClusterState = ClusterState.Builder.fromBytes(masterClusterStateBytes, null, namedWriteableRegistry);
             Map<String, Object> clusterManagerStateMap = convertToMap(clusterManagerClusterState);
             int clusterManagerClusterStateSize = clusterManagerClusterState.toString().length();
-            String clusterManagerId = clusterManagerClusterState.nodes().getMasterNodeId();
+            String clusterManagerId = clusterManagerClusterState.nodes().getClusterManagerNodeId();
             for (Client client : cluster().getClients()) {
                 ClusterState localClusterState = client.admin().cluster().prepareState().all().setLocal(true).get().getState();
                 byte[] localClusterStateBytes = ClusterState.Builder.toBytes(localClusterState);
@@ -1112,7 +1131,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 // that the cluster-manager node matches the cluster-manager (otherwise there is no requirement for the cluster state to
                 // match)
                 if (clusterManagerClusterState.version() == localClusterState.version()
-                    && clusterManagerId.equals(localClusterState.nodes().getMasterNodeId())) {
+                    && clusterManagerId.equals(localClusterState.nodes().getClusterManagerNodeId())) {
                     try {
                         assertEquals(
                             "cluster state UUID does not match",
@@ -1242,37 +1261,6 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 );
             }
         }
-    }
-
-    private static final Set<String> SAFE_METADATA_CUSTOMS = Collections.unmodifiableSet(
-        new HashSet<>(Arrays.asList(IndexGraveyard.TYPE, IngestMetadata.TYPE, RepositoriesMetadata.TYPE, ScriptMetadata.TYPE))
-    );
-
-    private static final Set<String> SAFE_CUSTOMS = Collections.unmodifiableSet(
-        new HashSet<>(Arrays.asList(RestoreInProgress.TYPE, SnapshotDeletionsInProgress.TYPE, SnapshotsInProgress.TYPE))
-    );
-
-    /**
-     * Remove any customs except for customs that we know all clients understand.
-     *
-     * @param clusterState the cluster state to remove possibly-unknown customs from
-     * @return the cluster state with possibly-unknown customs removed
-     */
-    private ClusterState removePluginCustoms(final ClusterState clusterState) {
-        final ClusterState.Builder builder = ClusterState.builder(clusterState);
-        clusterState.customs().keysIt().forEachRemaining(key -> {
-            if (SAFE_CUSTOMS.contains(key) == false) {
-                builder.removeCustom(key);
-            }
-        });
-        final Metadata.Builder mdBuilder = Metadata.builder(clusterState.metadata());
-        clusterState.metadata().customs().keysIt().forEachRemaining(key -> {
-            if (SAFE_METADATA_CUSTOMS.contains(key) == false) {
-                mdBuilder.removeCustom(key);
-            }
-        });
-        builder.metadata(mdBuilder);
-        return builder.build();
     }
 
     /**
@@ -1894,7 +1882,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             // randomly enable low-level search cancellation to make sure it does not alter results
             .put(SearchService.LOW_LEVEL_CANCELLATION_SETTING.getKey(), randomBoolean())
             .putList(DISCOVERY_SEED_HOSTS_SETTING.getKey()) // empty list disables a port scan for other nodes
-            .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file");
+            .putList(DISCOVERY_SEED_PROVIDERS_SETTING.getKey(), "file")
+            .put(featureFlagSettings());
         return builder.build();
     }
 
@@ -2094,6 +2083,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         if (addMockGeoShapeFieldMapper()) {
             mocks.add(TestGeoShapeFieldMapperPlugin.class);
         }
+
         return Collections.unmodifiableList(mocks);
     }
 
@@ -2340,10 +2330,10 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             if (node.getInfo(HttpInfo.class) != null) {
                 TransportAddress publishAddress = node.getInfo(HttpInfo.class).address().publishAddress();
                 InetSocketAddress address = publishAddress.address();
-                hosts.add(new HttpHost(NetworkAddress.format(address.getAddress()), address.getPort(), protocol));
+                hosts.add(new HttpHost(protocol, NetworkAddress.format(address.getAddress()), address.getPort()));
             }
         }
-        RestClientBuilder builder = RestClient.builder(hosts.toArray(new HttpHost[hosts.size()]));
+        RestClientBuilder builder = RestClient.builder(hosts.toArray(new HttpHost[0]));
         if (httpClientConfigCallback != null) {
             builder.setHttpClientConfigCallback(httpClientConfigCallback);
         }
@@ -2407,5 +2397,56 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .anyMatch(ni -> ni.getInfo(OsInfo.class).getPrettyName().equals("Debian GNU/Linux 8 (jessie)"));
         boolean java15Plus = Runtime.version().compareTo(Version.parse("15")) >= 0;
         return anyDebian8Nodes && java15Plus == false;
+    }
+
+    public void manageReplicaBalanceSetting(boolean apply) {
+        Settings settings;
+        if (apply) {
+            settings = Settings.builder()
+                .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
+                .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values", "a, b")
+                .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), true)
+                .build();
+        } else {
+            settings = Settings.builder()
+                .putNull(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey())
+                .putNull(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values")
+                .putNull(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey())
+                .build();
+        }
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.persistentSettings(settings);
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+    }
+
+    public void manageReplicaSettingForDefaultReplica(boolean apply) {
+        Settings settings;
+        if (apply) {
+            settings = Settings.builder()
+                .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
+                .put(
+                    AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values",
+                    "a, b, c"
+                )
+                .put(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey(), true)
+                .put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 2)
+                .build();
+        } else {
+            settings = Settings.builder()
+                .putNull(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey())
+                .putNull(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values")
+                .putNull(AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING.getKey())
+                .putNull(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey())
+                .build();
+        }
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.persistentSettings(settings);
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+    }
+
+    protected String primaryNodeName(String indexName) {
+        ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
+        String nodeId = clusterState.getRoutingTable().index(indexName).shard(0).primaryShard().currentNodeId();
+        return clusterState.getRoutingNodes().node(nodeId).node().getName();
     }
 }

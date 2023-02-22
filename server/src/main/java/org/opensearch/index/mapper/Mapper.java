@@ -37,7 +37,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
-import org.opensearch.common.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.similarity.SimilarityProvider;

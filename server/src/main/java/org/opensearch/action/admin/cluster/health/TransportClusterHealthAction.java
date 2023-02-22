@@ -44,12 +44,17 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.LocalClusterUpdateTask;
-import org.opensearch.cluster.NotMasterException;
+import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlockException;
+import org.opensearch.cluster.coordination.Coordinator;
+import org.opensearch.cluster.decommission.NodeDecommissionedException;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.NodeWeighedAwayException;
 import org.opensearch.cluster.routing.UnassignedInfo;
+import org.opensearch.cluster.routing.WeightedRoutingUtils;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
@@ -57,6 +62,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.discovery.Discovery;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
@@ -77,6 +83,7 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
     private static final Logger logger = LogManager.getLogger(TransportClusterHealthAction.class);
 
     private final AllocationService allocationService;
+    private final Discovery discovery;
 
     @Inject
     public TransportClusterHealthAction(
@@ -85,7 +92,8 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        AllocationService allocationService
+        AllocationService allocationService,
+        Discovery discovery
     ) {
         super(
             ClusterHealthAction.NAME,
@@ -98,6 +106,7 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
             indexNameExpressionResolver
         );
         this.allocationService = allocationService;
+        this.discovery = discovery;
     }
 
     @Override
@@ -118,19 +127,28 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
     }
 
     @Override
-    protected final void masterOperation(ClusterHealthRequest request, ClusterState state, ActionListener<ClusterHealthResponse> listener)
-        throws Exception {
+    protected final void clusterManagerOperation(
+        ClusterHealthRequest request,
+        ClusterState state,
+        ActionListener<ClusterHealthResponse> listener
+    ) throws Exception {
         logger.warn("attempt to execute a cluster health operation without a task");
         throw new UnsupportedOperationException("task parameter is required for this operation");
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final Task task,
         final ClusterHealthRequest request,
         final ClusterState unusedState,
         final ActionListener<ClusterHealthResponse> listener
     ) {
+        if (request.ensureNodeWeighedIn()
+            && discovery instanceof Coordinator
+            && ((Coordinator) discovery).localNodeCommissioned() == false) {
+            listener.onFailure(new NodeDecommissionedException("local node is decommissioned"));
+            return;
+        }
 
         final int waitCount = getWaitCount(request);
 
@@ -221,13 +239,14 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
                     }
 
                     @Override
-                    public void onNoLongerMaster(String source) {
+                    public void onNoLongerClusterManager(String source) {
                         logger.trace(
                             "stopped being cluster-manager while waiting for events with priority [{}]. retrying.",
                             request.waitForEvents()
                         );
-                        // TransportMasterNodeAction implements the retry logic, which is triggered by passing a NotMasterException
-                        listener.onFailure(new NotMasterException("no longer cluster-manager. source: [" + source + "]"));
+                        // TransportClusterManagerNodeAction implements the retry logic,
+                        // which is triggered by passing a NotClusterManagerException
+                        listener.onFailure(new NotClusterManagerException("no longer cluster-manager. source: [" + source + "]"));
                     }
 
                     @Override
@@ -259,7 +278,20 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
 
         final Predicate<ClusterState> validationPredicate = newState -> validateRequest(request, newState, waitCount);
         if (validationPredicate.test(currentState)) {
-            listener.onResponse(getResponse(request, currentState, waitCount, TimeoutState.OK));
+            ClusterHealthResponse clusterHealthResponse = getResponse(request, currentState, waitCount, TimeoutState.OK);
+            if (request.ensureNodeWeighedIn() && clusterHealthResponse.hasDiscoveredClusterManager()) {
+                DiscoveryNode localNode = currentState.getNodes().getLocalNode();
+                // TODO: make this check more generic, check for node role instead
+                if (localNode.isDataNode()) {
+                    assert request.local() == true : "local node request false for request for local node weighed in";
+                    boolean weighedAway = WeightedRoutingUtils.isWeighedAway(localNode.getId(), currentState);
+                    if (weighedAway) {
+                        listener.onFailure(new NodeWeighedAwayException("local node is weighed away"));
+                        return;
+                    }
+                }
+            }
+            listener.onResponse(clusterHealthResponse);
         } else {
             final ClusterStateObserver observer = new ClusterStateObserver(
                 currentState,
@@ -315,9 +347,9 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
         ClusterHealthResponse response = clusterHealth(
             request,
             clusterState,
-            clusterService.getMasterService().numberOfPendingTasks(),
+            clusterService.getClusterManagerService().numberOfPendingTasks(),
             allocationService.getNumberOfInFlightFetches(),
-            clusterService.getMasterService().getMaxTaskWaitTime()
+            clusterService.getClusterManagerService().getMaxTaskWaitTime()
         );
         return prepareResponse(request, response, clusterState, indexNameExpressionResolver) == waitCount;
     }
@@ -337,9 +369,9 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
         ClusterHealthResponse response = clusterHealth(
             request,
             clusterState,
-            clusterService.getMasterService().numberOfPendingTasks(),
+            clusterService.getClusterManagerService().numberOfPendingTasks(),
             allocationService.getNumberOfInFlightFetches(),
-            clusterService.getMasterService().getMaxTaskWaitTime()
+            clusterService.getClusterManagerService().getMaxTaskWaitTime()
         );
         int readyCounter = prepareResponse(request, response, clusterState, indexNameExpressionResolver);
         boolean valid = (readyCounter == waitFor);
@@ -453,6 +485,22 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
         }
 
         String[] concreteIndices;
+        if (request.level().equals(ClusterHealthRequest.Level.AWARENESS_ATTRIBUTES)) {
+            String awarenessAttribute = request.getAwarenessAttribute();
+            concreteIndices = clusterState.getMetadata().getConcreteAllIndices();
+            return new ClusterHealthResponse(
+                clusterState.getClusterName().value(),
+                clusterState,
+                clusterService.getClusterSettings(),
+                concreteIndices,
+                awarenessAttribute,
+                numberOfPendingTasks,
+                numberOfInFlightFetch,
+                UnassignedInfo.getNumberOfDelayedUnassigned(clusterState),
+                pendingTaskTimeInQueue
+            );
+        }
+
         try {
             concreteIndices = indexNameExpressionResolver.concreteIndexNames(clusterState, request);
         } catch (IndexNotFoundException e) {

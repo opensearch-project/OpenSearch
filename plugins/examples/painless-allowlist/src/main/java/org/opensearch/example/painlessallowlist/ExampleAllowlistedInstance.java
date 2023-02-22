@@ -32,17 +32,38 @@
 
 package org.opensearch.example.painlessallowlist;
 
+/**
+ * An example of an instance to be allowlisted for use by painless scripts.
+ *
+ * Each of the members and methods below are allowlisted for use in search scripts but only from this instance.
+ */
 public class ExampleAllowlistedInstance {
     private final int value;
 
+    /**
+     * Instantiate this instance with a value.
+     *
+     * @param value A base value to set.
+     */
     public ExampleAllowlistedInstance(int value) {
         this.value = value;
     }
 
+    /**
+     * A method that can be allowlisted to add an input value to the stored base value.
+     *
+     * @param value The value to add.
+     * @return The sum of the base value and the new value. The base value remains unchanged.
+     */
     public int addValue(int value) {
         return this.value + value;
     }
 
+    /**
+     * Get the stored base value.
+     *
+     * @return The base value.
+     */
     public int getValue() {
         return value;
     }

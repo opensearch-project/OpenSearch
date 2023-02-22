@@ -33,7 +33,6 @@
 package org.opensearch.common.settings;
 
 import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.indices.IndexingMemoryController;
@@ -83,9 +82,13 @@ public class MemorySizeSettingsTests extends OpenSearchTestCase {
     }
 
     public void testCircuitBreakerSettings() {
-        // default is chosen based on actual heap size
+        final Settings settings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), randomBoolean())
+            .build();
+
+        // default is chosen based on USE_REAL_MEMORY_USAGE_SETTING setting
         double defaultTotalPercentage;
-        if (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() < new ByteSizeValue(1, ByteSizeUnit.GB).getBytes()) {
+        if (HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.get(settings)) {
             defaultTotalPercentage = 0.95d;
         } else {
             defaultTotalPercentage = 0.7d;
@@ -93,22 +96,26 @@ public class MemorySizeSettingsTests extends OpenSearchTestCase {
         assertMemorySizeSetting(
             HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
             "indices.breaker.total.limit",
-            new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * defaultTotalPercentage))
+            new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * defaultTotalPercentage)),
+            settings
         );
         assertMemorySizeSetting(
             HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_LIMIT_SETTING,
             "indices.breaker.fielddata.limit",
-            new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.4))
+            new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.4)),
+            settings
         );
         assertMemorySizeSetting(
             HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING,
             "indices.breaker.request.limit",
-            new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.6))
+            new ByteSizeValue((long) (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() * 0.6)),
+            settings
         );
         assertMemorySizeSetting(
             HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING,
             "network.breaker.inflight_requests.limit",
-            new ByteSizeValue((JvmInfo.jvmInfo().getMem().getHeapMax().getBytes()))
+            new ByteSizeValue((JvmInfo.jvmInfo().getMem().getHeapMax().getBytes())),
+            settings
         );
     }
 
@@ -121,10 +128,14 @@ public class MemorySizeSettingsTests extends OpenSearchTestCase {
     }
 
     private void assertMemorySizeSetting(Setting<ByteSizeValue> setting, String settingKey, ByteSizeValue defaultValue) {
+        assertMemorySizeSetting(setting, settingKey, defaultValue, Settings.EMPTY);
+    }
+
+    private void assertMemorySizeSetting(Setting<ByteSizeValue> setting, String settingKey, ByteSizeValue defaultValue, Settings settings) {
         assertThat(setting, notNullValue());
         assertThat(setting.getKey(), equalTo(settingKey));
         assertThat(setting.getProperties(), hasItem(Property.NodeScope));
-        assertThat(setting.getDefault(Settings.EMPTY), equalTo(defaultValue));
+        assertThat(setting.getDefault(settings), equalTo(defaultValue));
         Settings settingWithPercentage = Settings.builder().put(settingKey, "25%").build();
         assertThat(
             setting.get(settingWithPercentage),

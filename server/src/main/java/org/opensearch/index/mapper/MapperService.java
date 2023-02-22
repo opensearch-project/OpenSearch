@@ -36,7 +36,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.opensearch.Assertions;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
@@ -48,10 +47,10 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.AbstractIndexComponent;
 import org.opensearch.index.IndexSettings;
@@ -228,8 +227,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.mapperRegistry = mapperRegistry;
         this.idFieldDataEnabled = idFieldDataEnabled;
 
-        if (INDEX_MAPPER_DYNAMIC_SETTING.exists(indexSettings.getSettings())
-            && indexSettings.getIndexVersionCreated().onOrAfter(LegacyESVersion.V_7_0_0)) {
+        if (INDEX_MAPPER_DYNAMIC_SETTING.exists(indexSettings.getSettings())) {
             throw new IllegalArgumentException("Setting " + INDEX_MAPPER_DYNAMIC_SETTING.getKey() + " was removed after version 6.0.0");
         }
     }
@@ -350,7 +348,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                         + "to be the same as new mapping ["
                         + newSource
                         + "]";
-                    final CompressedXContent mapperSource = new CompressedXContent(Strings.toString(mapper));
+                    final CompressedXContent mapperSource = new CompressedXContent(Strings.toString(XContentType.JSON, mapper));
                     assert currentSource.equals(mapperSource) : "expected current mapping ["
                         + currentSource
                         + "] for type ["
@@ -674,7 +672,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * this method considers all mapper plugins
      */
     public boolean isMetadataField(String field) {
-        return mapperRegistry.isMetadataField(indexVersionCreated, field);
+        return mapperRegistry.isMetadataField(field);
     }
 
     /**

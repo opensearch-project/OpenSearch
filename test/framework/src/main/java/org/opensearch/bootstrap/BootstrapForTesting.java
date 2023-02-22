@@ -130,8 +130,9 @@ public class BootstrapForTesting {
                 // java.io.tmpdir
                 FilePermissionUtils.addDirectoryPath(perms, "java.io.tmpdir", javaTmpDir, "read,readlink,write,delete", false);
                 // custom test config file
-                if (Strings.hasLength(System.getProperty("tests.config"))) {
-                    FilePermissionUtils.addSingleFilePath(perms, PathUtils.get(System.getProperty("tests.config")), "read,readlink");
+                String testConfigFile = System.getProperty("tests.config");
+                if (Strings.hasLength(testConfigFile)) {
+                    FilePermissionUtils.addSingleFilePath(perms, PathUtils.get(testConfigFile), "read,readlink");
                 }
                 // intellij hack: intellij test runner wants setIO and will
                 // screw up all test logging without it!

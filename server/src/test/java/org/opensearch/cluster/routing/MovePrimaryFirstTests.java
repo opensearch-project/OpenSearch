@@ -56,7 +56,7 @@ public class MovePrimaryFirstTests extends OpenSearchIntegTestCase {
      * enabled, cluster should not become red and zone2 nodes have all the primaries
      */
     public void testClusterGreenAfterPartialRelocation() throws InterruptedException {
-        internalCluster().startMasterOnlyNodes(1);
+        internalCluster().startClusterManagerOnlyNodes(1);
         final String z1 = "zone-1", z2 = "zone-2";
         final int primaryShardCount = 6;
         assertTrue("Primary shard count must be even for equal distribution across two nodes", primaryShardCount % 2 == 0);

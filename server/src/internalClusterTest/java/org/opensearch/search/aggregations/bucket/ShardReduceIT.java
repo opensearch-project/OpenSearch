@@ -37,7 +37,6 @@ import org.opensearch.geometry.utils.Geohash;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.opensearch.search.aggregations.bucket.filter.Filter;
-import org.opensearch.search.aggregations.bucket.geogrid.GeoGrid;
 import org.opensearch.search.aggregations.bucket.global.Global;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
@@ -51,8 +50,6 @@ import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateRange;
 import static org.opensearch.search.aggregations.AggregationBuilders.filter;
-import static org.opensearch.search.aggregations.AggregationBuilders.geohashGrid;
-import static org.opensearch.search.aggregations.AggregationBuilders.geotileGrid;
 import static org.opensearch.search.aggregations.AggregationBuilders.global;
 import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.ipRange;
@@ -336,38 +333,6 @@ public class ShardReduceIT extends OpenSearchIntegTestCase {
         Histogram histo = topHisto.getBuckets().iterator().next().getAggregations().get("histo");
         assertThat(histo.getBuckets().size(), equalTo(4));
 
-    }
-
-    public void testGeoHashGrid() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .setQuery(QueryBuilders.matchAllQuery())
-            .addAggregation(
-                geohashGrid("grid").field("location")
-                    .subAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY).minDocCount(0))
-            )
-            .get();
-
-        assertSearchResponse(response);
-
-        GeoGrid grid = response.getAggregations().get("grid");
-        Histogram histo = grid.getBuckets().iterator().next().getAggregations().get("histo");
-        assertThat(histo.getBuckets().size(), equalTo(4));
-    }
-
-    public void testGeoTileGrid() throws Exception {
-        SearchResponse response = client().prepareSearch("idx")
-            .setQuery(QueryBuilders.matchAllQuery())
-            .addAggregation(
-                geotileGrid("grid").field("location")
-                    .subAggregation(dateHistogram("histo").field("date").dateHistogramInterval(DateHistogramInterval.DAY).minDocCount(0))
-            )
-            .get();
-
-        assertSearchResponse(response);
-
-        GeoGrid grid = response.getAggregations().get("grid");
-        Histogram histo = grid.getBuckets().iterator().next().getAggregations().get("histo");
-        assertThat(histo.getBuckets().size(), equalTo(4));
     }
 
 }

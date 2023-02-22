@@ -54,7 +54,7 @@ import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.IndicesService;
@@ -127,7 +127,7 @@ public class TransportSimulateIndexTemplateAction extends TransportClusterManage
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         SimulateIndexTemplateRequest request,
         ClusterState state,
         ActionListener<SimulateIndexTemplateResponse> listener

@@ -99,7 +99,7 @@ public class TransportPutComposableIndexTemplateAction extends TransportClusterM
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         final PutComposableIndexTemplateAction.Request request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener

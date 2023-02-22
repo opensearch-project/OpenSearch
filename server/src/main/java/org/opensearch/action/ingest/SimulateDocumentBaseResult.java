@@ -31,19 +31,18 @@
 
 package org.opensearch.action.ingest;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.ingest.IngestDocument;
 
 import java.io.IOException;
 
-import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Holds the end result of what a pipeline did to sample document provided via the simulate api.
@@ -94,34 +93,14 @@ public final class SimulateDocumentBaseResult implements SimulateDocumentResult 
      * Read from a stream.
      */
     public SimulateDocumentBaseResult(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_4_0)) {
-            failure = in.readException();
-            ingestDocument = in.readOptionalWriteable(WriteableIngestDocument::new);
-        } else {
-            if (in.readBoolean()) {
-                ingestDocument = null;
-                failure = in.readException();
-            } else {
-                ingestDocument = new WriteableIngestDocument(in);
-                failure = null;
-            }
-        }
+        failure = in.readException();
+        ingestDocument = in.readOptionalWriteable(WriteableIngestDocument::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_4_0)) {
-            out.writeException(failure);
-            out.writeOptionalWriteable(ingestDocument);
-        } else {
-            if (failure == null) {
-                out.writeBoolean(false);
-                ingestDocument.writeTo(out);
-            } else {
-                out.writeBoolean(true);
-                out.writeException(failure);
-            }
-        }
+        out.writeException(failure);
+        out.writeOptionalWriteable(ingestDocument);
     }
 
     public IngestDocument getIngestDocument() {

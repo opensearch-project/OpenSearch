@@ -41,7 +41,6 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.bulk.BulkShardRequest;
@@ -61,6 +60,7 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.engine.InternalEngineTests;
+import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.replication.RecoveryDuringReplicationTests;
@@ -69,8 +69,10 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.SnapshotMatchers;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationState;
+import org.opensearch.indices.replication.common.ReplicationType;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -100,6 +102,17 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             boolean softDeletesEnabled = replica.indexSettings().isSoftDeleteEnabled();
             assertThat(getTranslog(replica).totalOperations(), equalTo(softDeletesEnabled ? 0 : docs + moreDocs));
             shards.assertAllEqual(docs + moreDocs);
+        }
+    }
+
+    public void testWithSegmentReplication_ReplicaUsesPrimaryTranslogUUID() throws Exception {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
+        try (ReplicationGroup shards = createGroup(2, settings, new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            final String expectedUUID = getTranslog(shards.getPrimary()).getTranslogUUID();
+            assertTrue(
+                shards.getReplicas().stream().allMatch(indexShard -> getTranslog(indexShard).getTranslogUUID().equals(expectedUUID))
+            );
         }
     }
 
@@ -458,7 +471,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
                     }
 
                     @Override
-                    public void onFailure(ReplicationState state, OpenSearchException e, boolean sendShardFailure) {
+                    public void onFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
                         assertThat(ExceptionsHelper.unwrap(e, IOException.class).getMessage(), equalTo("simulated"));
                     }
                 }))

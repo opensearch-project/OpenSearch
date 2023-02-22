@@ -112,7 +112,7 @@ public class TransportGetAliasesAction extends TransportClusterManagerNodeReadAc
     }
 
     @Override
-    protected void masterOperation(GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) {
+    protected void clusterManagerOperation(GetAliasesRequest request, ClusterState state, ActionListener<GetAliasesResponse> listener) {
         String[] concreteIndices;
         // Switch to a context which will drop any deprecation warnings, because there may be indices resolved here which are not
         // returned in the final response. We'll add warnings back later if necessary in checkSystemIndexAccess.

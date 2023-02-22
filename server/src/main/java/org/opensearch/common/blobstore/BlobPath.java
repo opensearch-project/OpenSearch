@@ -68,7 +68,7 @@ public class BlobPath implements Iterable<String> {
     }
 
     public String[] toArray() {
-        return paths.toArray(new String[paths.size()]);
+        return paths.toArray(new String[0]);
     }
 
     public BlobPath add(String path) {

@@ -29,13 +29,13 @@
 package org.opensearch.gradle.plugin
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
+import org.gradle.api.tasks.bundling.AbstractArchiveTask
 import org.opensearch.gradle.BuildPlugin
 import org.opensearch.gradle.NoticeTask
 import org.opensearch.gradle.Version
 import org.opensearch.gradle.VersionProperties
 import org.opensearch.gradle.dependencies.CompileOnlyResolvePlugin
 import org.opensearch.gradle.info.BuildParams
-import org.opensearch.gradle.plugin.PluginPropertiesExtension
 import org.opensearch.gradle.test.RestTestBasePlugin
 import org.opensearch.gradle.testclusters.RunTask
 import org.opensearch.gradle.util.Util
@@ -134,6 +134,12 @@ class PluginBuildPlugin implements Plugin<Project> {
         }
         project.configurations.getByName('default')
                 .extendsFrom(project.configurations.getByName('runtimeClasspath'))
+        project.tasks.withType(AbstractArchiveTask.class).configureEach { task ->
+            // ignore file timestamps
+            // be consistent in archive file order
+            task.preserveFileTimestamps = false
+            task.reproducibleFileOrder = true
+        }
         // allow running ES with this plugin in the foreground of a build
         project.tasks.register('run', RunTask) {
             dependsOn(project.tasks.bundlePlugin)
@@ -143,7 +149,7 @@ class PluginBuildPlugin implements Plugin<Project> {
     private void configurePublishing(Project project, PluginPropertiesExtension extension) {
         // Only configure publishing if applied externally
         if (extension.hasClientJar) {
-            project.pluginManager.apply('nebula.maven-base-publish')
+            project.pluginManager.apply('com.netflix.nebula.maven-base-publish')
             // Only change Jar tasks, we don't want a -client zip so we can't change archivesBaseName
             project.tasks.withType(Jar) {
                 archiveBaseName = archiveBaseName.get() +  "-client"

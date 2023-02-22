@@ -299,26 +299,15 @@ public class BuildTests extends OpenSearchTestCase {
             new Build(Build.Type.DOCKER, randomAlphaOfLength(6), randomAlphaOfLength(6), randomBoolean(), randomAlphaOfLength(6), "other")
         );
 
-        final List<Version> versions = Version.getDeclaredVersions(LegacyESVersion.class);
-        final Version post70Version = randomFrom(
-            versions.stream().filter(v -> v.onOrAfter(LegacyESVersion.V_7_0_0)).collect(Collectors.toList())
-        );
-        final Version post10OpenSearchVersion = randomFrom(
-            versions.stream().filter(v -> v.onOrAfter(Version.V_1_0_0)).collect(Collectors.toList())
-        );
+        final List<Version> versions = Version.getDeclaredVersions(Version.class);
 
-        final WriteableBuild post70 = copyWriteable(dockerBuild, writableRegistry(), WriteableBuild::new, post70Version);
+        final Version post10OpenSearchVersion = randomFrom(versions.stream().collect(Collectors.toList()));
         final WriteableBuild post10OpenSearch = copyWriteable(
             dockerBuild,
             writableRegistry(),
             WriteableBuild::new,
             post10OpenSearchVersion
         );
-
-        assertThat(post70.build.type(), equalTo(dockerBuild.build.type()));
-
-        assertThat(post70.build.getQualifiedVersion(), equalTo(dockerBuild.build.getQualifiedVersion()));
-        assertThat(post70.build.getDistribution(), equalTo(dockerBuild.build.getDistribution()));
         assertThat(post10OpenSearch.build.getQualifiedVersion(), equalTo(dockerBuild.build.getQualifiedVersion()));
         assertThat(post10OpenSearch.build.getDistribution(), equalTo(dockerBuild.build.getDistribution()));
     }

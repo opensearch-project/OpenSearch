@@ -31,7 +31,6 @@
 
 package org.opensearch.action.admin.cluster.configuration;
 
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.Version;
 import org.opensearch.action.support.ActionFilters;
@@ -45,6 +44,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.node.DiscoveryNodes.Builder;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -126,7 +126,11 @@ public class TransportClearVotingConfigExclusionsActionTests extends OpenSearchT
         transportService.acceptIncomingRequests();
 
         final ClusterState.Builder builder = builder(new ClusterName("cluster")).nodes(
-            new Builder().add(localNode).add(otherNode1).add(otherNode2).localNodeId(localNode.getId()).masterNodeId(localNode.getId())
+            new Builder().add(localNode)
+                .add(otherNode1)
+                .add(otherNode2)
+                .localNodeId(localNode.getId())
+                .clusterManagerNodeId(localNode.getId())
         );
         builder.metadata(
             Metadata.builder()

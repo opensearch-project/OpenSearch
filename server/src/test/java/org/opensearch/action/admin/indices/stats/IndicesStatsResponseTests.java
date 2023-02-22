@@ -36,7 +36,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
@@ -100,13 +100,7 @@ public class IndicesStatsResponseTests extends OpenSearchTestCase {
                 shardsCounter.incrementAndGet();
             }
         }
-        final IndicesStatsResponse indicesStatsResponse = new IndicesStatsResponse(
-            shards.toArray(new ShardStats[shards.size()]),
-            0,
-            0,
-            0,
-            null
-        );
+        final IndicesStatsResponse indicesStatsResponse = new IndicesStatsResponse(shards.toArray(new ShardStats[0]), 0, 0, 0, null);
         Map<String, IndexStats> indexStats = indicesStatsResponse.getIndices();
 
         assertThat(indexStats.size(), is(noOfIndexes));

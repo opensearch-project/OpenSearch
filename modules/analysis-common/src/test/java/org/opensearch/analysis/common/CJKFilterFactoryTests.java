@@ -52,7 +52,7 @@ public class CJKFilterFactoryTests extends OpenSearchTokenStreamTestCase {
 
     @Before
     public void setup() throws IOException {
-        analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(createTempDir(), RESOURCE, new CommonAnalysisPlugin());
+        analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(createTempDir(), RESOURCE, new CommonAnalysisModulePlugin());
     }
 
     public void testDefault() throws IOException {

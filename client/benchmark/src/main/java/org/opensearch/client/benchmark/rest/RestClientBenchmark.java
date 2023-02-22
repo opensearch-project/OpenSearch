@@ -31,10 +31,10 @@
 
 package org.opensearch.client.benchmark.rest;
 
-import org.apache.http.HttpHeaders;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpStatus;
-import org.apache.http.message.BasicHeader;
+import org.apache.hc.core5.http.HttpHeaders;
+import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.HttpStatus;
+import org.apache.hc.core5.http.message.BasicHeader;
 import org.opensearch.OpenSearchException;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;

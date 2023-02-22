@@ -39,12 +39,16 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.opensearch.cluster.decommission.DecommissionAttribute;
+import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
+import org.opensearch.cluster.decommission.DecommissionStatus;
+import org.opensearch.cluster.decommission.NodeDecommissionedException;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.cluster.service.FakeThreadPoolMasterService;
-import org.opensearch.cluster.service.MasterService;
+import org.opensearch.cluster.service.FakeThreadPoolClusterManagerService;
+import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.cluster.service.MasterServiceTests;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.settings.ClusterSettings;
@@ -98,7 +102,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
 
     private static ThreadPool threadPool;
 
-    private MasterService clusterManagerService;
+    private ClusterManagerService clusterManagerService;
     private Coordinator coordinator;
     private DeterministicTaskQueue deterministicTaskQueue;
     private Transport transport;
@@ -144,7 +148,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
             random()
         );
         final ThreadPool fakeThreadPool = deterministicTaskQueue.getThreadPool();
-        FakeThreadPoolMasterService fakeClusterManagerService = new FakeThreadPoolMasterService(
+        FakeThreadPoolClusterManagerService fakeClusterManagerService = new FakeThreadPoolClusterManagerService(
             "test_node",
             "test",
             fakeThreadPool,
@@ -166,7 +170,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
     }
 
     private void setupRealClusterManagerServiceAndCoordinator(long term, ClusterState initialState) {
-        MasterService clusterManagerService = new MasterService(
+        ClusterManagerService clusterManagerService = new ClusterManagerService(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test_node").build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool
@@ -191,13 +195,13 @@ public class NodeJoinTests extends OpenSearchTestCase {
     private void setupClusterManagerServiceAndCoordinator(
         long term,
         ClusterState initialState,
-        MasterService clusterManagerService,
+        ClusterManagerService clusterManagerService,
         ThreadPool threadPool,
         Random random,
         NodeHealthService nodeHealthService
     ) {
         if (this.clusterManagerService != null || coordinator != null) {
-            throw new IllegalStateException("method setupMasterServiceAndCoordinator can only be called once");
+            throw new IllegalStateException("method setupClusterManagerServiceAndCoordinator can only be called once");
         }
         this.clusterManagerService = clusterManagerService;
         CapturingTransport capturingTransport = new CapturingTransport() {
@@ -336,17 +340,17 @@ public class NodeJoinTests extends OpenSearchTestCase {
             () -> new StatusInfo(HEALTHY, "healthy-info")
         );
         assertFalse(isLocalNodeElectedMaster());
-        assertNull(coordinator.getStateForClusterManagerService().nodes().getMasterNodeId());
+        assertNull(coordinator.getStateForClusterManagerService().nodes().getClusterManagerNodeId());
         long newTerm = initialTerm + randomLongBetween(1, 10);
         SimpleFuture fut = joinNodeAsync(
             new JoinRequest(node1, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion)))
         );
         assertEquals(Coordinator.Mode.LEADER, coordinator.getMode());
-        assertNull(coordinator.getStateForClusterManagerService().nodes().getMasterNodeId());
+        assertNull(coordinator.getStateForClusterManagerService().nodes().getClusterManagerNodeId());
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(fut.isDone());
         assertTrue(isLocalNodeElectedMaster());
-        assertTrue(coordinator.getStateForClusterManagerService().nodes().isLocalNodeElectedMaster());
+        assertTrue(coordinator.getStateForClusterManagerService().nodes().isLocalNodeElectedClusterManager());
     }
 
     public void testJoinWithHigherTermButBetterStateGetsRejected() {
@@ -775,11 +779,79 @@ public class NodeJoinTests extends OpenSearchTestCase {
         assertTrue(clusterStateHasNode(node1));
     }
 
+    public void testJoinFailsWhenDecommissioned() {
+        DiscoveryNode node0 = newNode(0, true);
+        DiscoveryNode node1 = newNode(1, true);
+        long initialTerm = randomLongBetween(1, 10);
+        long initialVersion = randomLongBetween(1, 10);
+        setupFakeClusterManagerServiceAndCoordinator(
+            initialTerm,
+            initialStateWithDecommissionedAttribute(
+                initialState(node0, initialTerm, initialVersion, VotingConfiguration.of(node0)),
+                new DecommissionAttribute("zone", "zone1")
+            ),
+            () -> new StatusInfo(HEALTHY, "healthy-info")
+        );
+        assertFalse(isLocalNodeElectedMaster());
+        long newTerm = initialTerm + randomLongBetween(1, 10);
+        joinNodeAndRun(new JoinRequest(node0, newTerm, Optional.of(new Join(node0, node0, newTerm, initialTerm, initialVersion))));
+        assertTrue(isLocalNodeElectedMaster());
+        assertFalse(clusterStateHasNode(node1));
+        joinNodeAndRun(new JoinRequest(node1, newTerm, Optional.of(new Join(node1, node0, newTerm, initialTerm, initialVersion))));
+        assertTrue(isLocalNodeElectedMaster());
+        assertTrue(clusterStateHasNode(node1));
+        DiscoveryNode decommissionedNode = new DiscoveryNode(
+            "data_2",
+            2 + "",
+            buildNewFakeTransportAddress(),
+            Collections.singletonMap("zone", "zone1"),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        long anotherTerm = newTerm + randomLongBetween(1, 10);
+
+        assertThat(
+            expectThrows(
+                NodeDecommissionedException.class,
+                () -> joinNodeAndRun(new JoinRequest(decommissionedNode, anotherTerm, Optional.empty()))
+            ).getMessage(),
+            containsString("with current status of decommissioning")
+        );
+        assertFalse(clusterStateHasNode(decommissionedNode));
+
+        DiscoveryNode node3 = new DiscoveryNode(
+            "data_3",
+            3 + "",
+            buildNewFakeTransportAddress(),
+            Collections.singletonMap("zone", "zone2"),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        long termForNode3 = anotherTerm + randomLongBetween(1, 10);
+
+        joinNodeAndRun(new JoinRequest(node3, termForNode3, Optional.empty()));
+        assertTrue(clusterStateHasNode(node3));
+    }
+
     private boolean isLocalNodeElectedMaster() {
         return MasterServiceTests.discoveryState(clusterManagerService).nodes().isLocalNodeElectedMaster();
     }
 
     private boolean clusterStateHasNode(DiscoveryNode node) {
         return node.equals(MasterServiceTests.discoveryState(clusterManagerService).nodes().get(node.getId()));
+    }
+
+    private static ClusterState initialStateWithDecommissionedAttribute(
+        ClusterState clusterState,
+        DecommissionAttribute decommissionAttribute
+    ) {
+        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
+            decommissionAttribute,
+            DecommissionStatus.SUCCESSFUL,
+            randomAlphaOfLength(10)
+        );
+        return ClusterState.builder(clusterState)
+            .metadata(Metadata.builder(clusterState.metadata()).decommissionAttributeMetadata(decommissionAttributeMetadata))
+            .build();
     }
 }

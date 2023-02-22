@@ -40,7 +40,7 @@ import java.util.Objects;
 /**
  * Base Action Request Builder
  *
- * @opensearch.internal
+ * @opensearch.api
  */
 public abstract class ActionRequestBuilder<Request extends ActionRequest, Response extends ActionResponse> {
 

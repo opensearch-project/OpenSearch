@@ -59,12 +59,13 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.gateway.MetadataStateFormat;
 import org.opensearch.index.Index;
 import org.opensearch.index.mapper.MapperService;
@@ -146,6 +147,16 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         false,
         true,
         RestStatus.TOO_MANY_REQUESTS,
+        EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.WRITE)
+    );
+
+    public static final ClusterBlock REMOTE_READ_ONLY_ALLOW_DELETE = new ClusterBlock(
+        13,
+        "remote index is read-only",
+        false,
+        false,
+        true,
+        RestStatus.FORBIDDEN,
         EnumSet.of(ClusterBlockLevel.METADATA_WRITE, ClusterBlockLevel.WRITE)
     );
 
@@ -283,13 +294,196 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Property.Final
     );
 
-    public static final String SETTING_REMOTE_STORE = "index.remote_store";
+    public static final String SETTING_REMOTE_STORE_ENABLED = "index.remote_store.enabled";
+
+    public static final String SETTING_REMOTE_STORE_REPOSITORY = "index.remote_store.repository";
+
+    public static final String SETTING_REMOTE_TRANSLOG_STORE_ENABLED = "index.remote_store.translog.enabled";
+
+    public static final String SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY = "index.remote_store.translog.repository";
+
+    public static final String SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL = "index.remote_store.translog.buffer_interval";
+
     /**
      * Used to specify if the index data should be persisted in the remote store.
      */
-    public static final Setting<Boolean> INDEX_REMOTE_STORE_SETTING = Setting.boolSetting(
-        SETTING_REMOTE_STORE,
+    public static final Setting<Boolean> INDEX_REMOTE_STORE_ENABLED_SETTING = Setting.boolSetting(
+        SETTING_REMOTE_STORE_ENABLED,
         false,
+        new Setting.Validator<>() {
+
+            @Override
+            public void validate(final Boolean value) {}
+
+            @Override
+            public void validate(final Boolean value, final Map<Setting<?>, Object> settings) {
+                final Object replicationType = settings.get(INDEX_REPLICATION_TYPE_SETTING);
+                if (replicationType != ReplicationType.SEGMENT && value == true) {
+                    throw new IllegalArgumentException(
+                        "To enable "
+                            + INDEX_REMOTE_STORE_ENABLED_SETTING.getKey()
+                            + ", "
+                            + INDEX_REPLICATION_TYPE_SETTING.getKey()
+                            + " should be set to "
+                            + ReplicationType.SEGMENT
+                    );
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = Collections.singletonList(INDEX_REPLICATION_TYPE_SETTING);
+                return settings.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
+     * Used to specify remote store repository to use for this index.
+     */
+    public static final Setting<String> INDEX_REMOTE_STORE_REPOSITORY_SETTING = Setting.simpleString(
+        SETTING_REMOTE_STORE_REPOSITORY,
+        new Setting.Validator<>() {
+
+            @Override
+            public void validate(final String value) {}
+
+            @Override
+            public void validate(final String value, final Map<Setting<?>, Object> settings) {
+                if (value == null || value.isEmpty()) {
+                    throw new IllegalArgumentException(
+                        "Setting " + INDEX_REMOTE_STORE_REPOSITORY_SETTING.getKey() + " should be provided with non-empty repository ID"
+                    );
+                } else {
+                    validateRemoteStoreSettingEnabled(settings, INDEX_REMOTE_STORE_REPOSITORY_SETTING);
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = Collections.singletonList(INDEX_REMOTE_STORE_ENABLED_SETTING);
+                return settings.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Final
+    );
+
+    private static void validateRemoteStoreSettingEnabled(final Map<Setting<?>, Object> settings, Setting<?> setting) {
+        final Boolean isRemoteSegmentStoreEnabled = (Boolean) settings.get(INDEX_REMOTE_STORE_ENABLED_SETTING);
+        if (isRemoteSegmentStoreEnabled == false) {
+            throw new IllegalArgumentException(
+                "Settings "
+                    + setting.getKey()
+                    + " can ont be set/enabled when "
+                    + INDEX_REMOTE_STORE_ENABLED_SETTING.getKey()
+                    + " is set to true"
+            );
+        }
+    }
+
+    /**
+     * Used to specify if the index translog operations should be persisted in the remote store.
+     */
+    public static final Setting<Boolean> INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING = Setting.boolSetting(
+        SETTING_REMOTE_TRANSLOG_STORE_ENABLED,
+        false,
+        new Setting.Validator<>() {
+
+            @Override
+            public void validate(final Boolean value) {}
+
+            @Override
+            public void validate(final Boolean value, final Map<Setting<?>, Object> settings) {
+                if (value == true) {
+                    validateRemoteStoreSettingEnabled(settings, INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING);
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = Collections.singletonList(INDEX_REMOTE_STORE_ENABLED_SETTING);
+                return settings.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Final
+    );
+
+    public static final Setting<String> INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING = Setting.simpleString(
+        SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY,
+        new Setting.Validator<>() {
+
+            @Override
+            public void validate(final String value) {}
+
+            @Override
+            public void validate(final String value, final Map<Setting<?>, Object> settings) {
+                if (value == null || value.isEmpty()) {
+                    throw new IllegalArgumentException(
+                        "Setting " + INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey() + " should be provided with non-empty repository ID"
+                    );
+                } else {
+                    final Boolean isRemoteTranslogStoreEnabled = (Boolean) settings.get(INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING);
+                    if (isRemoteTranslogStoreEnabled == null || isRemoteTranslogStoreEnabled == false) {
+                        throw new IllegalArgumentException(
+                            "Settings "
+                                + INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey()
+                                + " can only be set/enabled when "
+                                + INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey()
+                                + " is set to true"
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = Collections.singletonList(INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING);
+                return settings.iterator();
+            }
+        },
+        Property.IndexScope,
+        Property.Final
+    );
+
+    public static final Setting<TimeValue> INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING = Setting.timeSetting(
+        SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL,
+        TimeValue.timeValueMillis(100),
+        TimeValue.timeValueMillis(50),
+        new Setting.Validator<>() {
+
+            @Override
+            public void validate(final TimeValue value) {}
+
+            @Override
+            public void validate(final TimeValue value, final Map<Setting<?>, Object> settings) {
+                if (value == null) {
+                    throw new IllegalArgumentException(
+                        "Setting " + SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL + " should be provided with a valid time value"
+                    );
+                } else {
+                    final Boolean isRemoteTranslogStoreEnabled = (Boolean) settings.get(INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING);
+                    if (isRemoteTranslogStoreEnabled == null || isRemoteTranslogStoreEnabled == false) {
+                        throw new IllegalArgumentException(
+                            "Setting "
+                                + SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL
+                                + " can only be set when "
+                                + SETTING_REMOTE_TRANSLOG_STORE_ENABLED
+                                + " is set to true"
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                final List<Setting<?>> settings = Collections.singletonList(INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING);
+                return settings.iterator();
+            }
+        },
         Property.IndexScope,
         Property.Final
     );
@@ -483,8 +677,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final String KEY_PRIMARY_TERMS = "primary_terms";
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
-
-    static final Version SYSTEM_INDEX_FLAG_ADDED = LegacyESVersion.V_7_10_0;
 
     private final int routingNumShards;
     private final int routingFactor;
@@ -914,11 +1106,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             version = in.readLong();
             mappingVersion = in.readVLong();
             settingsVersion = in.readVLong();
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-                aliasesVersion = in.readVLong();
-            } else {
-                aliasesVersion = 1;
-            }
+            aliasesVersion = in.readVLong();
             state = State.fromId(in.readByte());
             settings = Settings.readSettingsFromStream(in);
             primaryTerms = in.readVLongArray();
@@ -935,11 +1123,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 DiffableUtils.getStringKeySerializer(),
                 ROLLOVER_INFO_DIFF_VALUE_READER
             );
-            if (in.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
-                isSystem = in.readBoolean();
-            } else {
-                isSystem = false;
-            }
+            isSystem = in.readBoolean();
         }
 
         @Override
@@ -949,9 +1133,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             out.writeLong(version);
             out.writeVLong(mappingVersion);
             out.writeVLong(settingsVersion);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-                out.writeVLong(aliasesVersion);
-            }
+            out.writeVLong(aliasesVersion);
             out.writeByte(state.id);
             Settings.writeSettingsToStream(settings, out);
             out.writeVLongArray(primaryTerms);
@@ -960,9 +1142,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             customData.writeTo(out);
             inSyncAllocationIds.writeTo(out);
             rolloverInfos.writeTo(out);
-            if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
-                out.writeBoolean(isSystem);
-            }
+            out.writeBoolean(isSystem);
         }
 
         @Override
@@ -991,11 +1171,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         builder.version(in.readLong());
         builder.mappingVersion(in.readVLong());
         builder.settingsVersion(in.readVLong());
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-            builder.aliasesVersion(in.readVLong());
-        } else {
-            builder.aliasesVersion(1);
-        }
+        builder.aliasesVersion(in.readVLong());
         builder.setRoutingNumShards(in.readInt());
         builder.state(State.fromId(in.readByte()));
         builder.settings(readSettingsFromStream(in));
@@ -1026,9 +1202,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         for (int i = 0; i < rolloverAliasesSize; i++) {
             builder.putRolloverInfo(new RolloverInfo(in));
         }
-        if (in.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
-            builder.system(in.readBoolean());
-        }
+        builder.system(in.readBoolean());
         return builder.build();
     }
 
@@ -1038,9 +1212,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         out.writeLong(version);
         out.writeVLong(mappingVersion);
         out.writeVLong(settingsVersion);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-            out.writeVLong(aliasesVersion);
-        }
+        out.writeVLong(aliasesVersion);
         out.writeInt(routingNumShards);
         out.writeByte(state.id());
         writeSettingsToStream(settings, out);
@@ -1067,9 +1239,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         for (ObjectCursor<RolloverInfo> cursor : rolloverInfos.values()) {
             cursor.value.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
-            out.writeBoolean(isSystem);
-        }
+        out.writeBoolean(isSystem);
     }
 
     public boolean isSystem() {
@@ -1713,14 +1883,18 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     throw new IllegalArgumentException("Unexpected token " + token);
                 }
             }
-            if (Assertions.ENABLED) {
+
+            final Version indexCreatedVersion = Version.indexCreated(builder.settings);
+            // Reference:
+            // https://github.com/opensearch-project/OpenSearch/blob/4dde0f2a3b445b2fc61dab29c5a2178967f4a3e3/server/src/main/java/org/opensearch/cluster/metadata/IndexMetadata.java#L1620-L1628
+            if (Assertions.ENABLED && indexCreatedVersion.onOrAfter(LegacyESVersion.V_6_5_0)) {
                 assert mappingVersion : "mapping version should be present for indices";
-            }
-            if (Assertions.ENABLED) {
                 assert settingsVersion : "settings version should be present for indices";
             }
-            if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(LegacyESVersion.V_7_2_0)) {
-                assert aliasesVersion : "aliases version should be present for indices created on or after 7.2.0";
+            // Reference:
+            // https://github.com/opensearch-project/OpenSearch/blob/2e4b27b243d8bd2c515f66cf86c6d1d6a601307f/server/src/main/java/org/opensearch/cluster/metadata/IndexMetadata.java#L1824
+            if (Assertions.ENABLED && indexCreatedVersion.onOrAfter(LegacyESVersion.V_7_2_0)) {
+                assert aliasesVersion : "aliases version should be present for indices";
             }
             return builder.build();
         }

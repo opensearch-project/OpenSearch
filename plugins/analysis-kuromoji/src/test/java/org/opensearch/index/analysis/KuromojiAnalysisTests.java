@@ -379,6 +379,15 @@ public class KuromojiAnalysisTests extends OpenSearchTestCase {
         );
     }
 
+    public void testKuromojiAnalyzerEmptyDictRule() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.analysis.analyzer.my_analyzer.type", "kuromoji")
+            .putList("index.analysis.analyzer.my_analyzer.user_dictionary_rules", "\"")
+            .build();
+        RuntimeException exc = expectThrows(RuntimeException.class, () -> createTestAnalysis(settings));
+        assertThat(exc.getMessage(), equalTo("Line [1]: Malformed csv in user dictionary."));
+    }
+
     public void testKuromojiAnalyzerDuplicateUserDictRule() throws Exception {
         Settings settings = Settings.builder()
             .put("index.analysis.analyzer.my_analyzer.type", "kuromoji")
@@ -390,8 +399,8 @@ public class KuromojiAnalysisTests extends OpenSearchTestCase {
                 "制限スピード,制限スピード,セイゲンスピード,テスト名詞"
             )
             .build();
-        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> createTestAnalysis(settings));
-        assertThat(exc.getMessage(), containsString("[制限スピード] in user dictionary at line [3]"));
+        RuntimeException exc = expectThrows(RuntimeException.class, () -> createTestAnalysis(settings));
+        assertThat(exc.getMessage(), equalTo("Line [4]: Found duplicate term [制限スピード] in user dictionary."));
     }
 
     public void testDiscardCompoundToken() throws Exception {

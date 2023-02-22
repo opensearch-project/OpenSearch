@@ -33,7 +33,7 @@
 package org.opensearch.index.reindex;
 
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 

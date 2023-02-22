@@ -39,7 +39,7 @@ public class ValidateInputTaskTests extends OpenSearchTestCase {
 
     public void testUnsupportedEsVersion() {
         TaskInput taskInput = new TaskInput(env);
-        taskInput.setVersion(LegacyESVersion.V_7_10_1);
+        taskInput.setVersion(LegacyESVersion.fromId(7100199));
 
         final RuntimeException e = expectThrows(RuntimeException.class, () -> task.accept(new Tuple<>(taskInput, terminal)));
 
@@ -51,7 +51,7 @@ public class ValidateInputTaskTests extends OpenSearchTestCase {
         taskInput.setEsConfig(PathUtils.get("es_home"));
         taskInput.setCluster("some-cluster");
         taskInput.setNode("some-node");
-        taskInput.setVersion(LegacyESVersion.V_7_10_2);
+        taskInput.setVersion(LegacyESVersion.fromId(7100299));
         taskInput.setBaseUrl("some-url");
         taskInput.setPlugins(Arrays.asList("plugin-1", "plugin-2"));
 

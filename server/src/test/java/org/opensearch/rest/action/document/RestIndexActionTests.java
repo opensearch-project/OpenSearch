@@ -32,7 +32,6 @@
 
 package org.opensearch.rest.action.document;
 
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.Version;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.index.IndexRequest;
@@ -40,6 +39,7 @@ import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestRequest;

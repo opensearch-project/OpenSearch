@@ -39,7 +39,7 @@ import org.opensearch.cluster.ClusterState;
 public class TransportMasterNodeActionUtils {
 
     /**
-     * Allows to directly call {@link TransportClusterManagerNodeAction#masterOperation(ClusterManagerNodeRequest, ClusterState, ActionListener)} which is
+     * Allows to directly call {@link TransportClusterManagerNodeAction#clusterManagerOperation(ClusterManagerNodeRequest, ClusterState, ActionListener)} which is
      * a protected method.
      */
     public static <Request extends ClusterManagerNodeRequest<Request>, Response extends ActionResponse> void runClusterManagerOperation(
@@ -49,6 +49,6 @@ public class TransportMasterNodeActionUtils {
         ActionListener<Response> actionListener
     ) throws Exception {
         assert clusterManagerNodeAction.checkBlock(request, clusterState) == null;
-        clusterManagerNodeAction.masterOperation(request, clusterState, actionListener);
+        clusterManagerNodeAction.clusterManagerOperation(request, clusterState, actionListener);
     }
 }

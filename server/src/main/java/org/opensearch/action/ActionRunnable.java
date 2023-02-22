@@ -41,7 +41,7 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
  * Base class for {@link Runnable}s that need to call {@link ActionListener#onFailure(Exception)} in case an uncaught
  * exception or error is thrown while the actual action is run.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
 public abstract class ActionRunnable<Response> extends AbstractRunnable {
 

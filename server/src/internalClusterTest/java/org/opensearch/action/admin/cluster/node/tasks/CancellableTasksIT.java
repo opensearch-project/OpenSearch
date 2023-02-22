@@ -31,7 +31,6 @@
 
 package org.opensearch.action.admin.cluster.node.tasks;
 
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.ActionFuture;
@@ -50,6 +49,7 @@ import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;

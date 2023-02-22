@@ -65,7 +65,7 @@ public class RankEvalRequestIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(RankEvalPlugin.class);
+        return Arrays.asList(RankEvalModulePlugin.class);
     }
 
     @Before

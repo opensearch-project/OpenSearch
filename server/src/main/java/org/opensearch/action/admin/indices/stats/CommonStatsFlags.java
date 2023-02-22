@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.indices.stats;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
@@ -87,13 +86,9 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         fieldDataFields = in.readStringArray();
         completionDataFields = in.readStringArray();
         includeSegmentFileSizes = in.readBoolean();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-            includeUnloadedSegments = in.readBoolean();
-        }
-        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
-            includeAllShardIndexingPressureTrackers = in.readBoolean();
-            includeOnlyTopIndexingPressureMetrics = in.readBoolean();
-        }
+        includeUnloadedSegments = in.readBoolean();
+        includeAllShardIndexingPressureTrackers = in.readBoolean();
+        includeOnlyTopIndexingPressureMetrics = in.readBoolean();
     }
 
     @Override
@@ -111,13 +106,9 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         out.writeStringArrayNullable(fieldDataFields);
         out.writeStringArrayNullable(completionDataFields);
         out.writeBoolean(includeSegmentFileSizes);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-            out.writeBoolean(includeUnloadedSegments);
-        }
-        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-            out.writeBoolean(includeAllShardIndexingPressureTrackers);
-            out.writeBoolean(includeOnlyTopIndexingPressureMetrics);
-        }
+        out.writeBoolean(includeUnloadedSegments);
+        out.writeBoolean(includeAllShardIndexingPressureTrackers);
+        out.writeBoolean(includeOnlyTopIndexingPressureMetrics);
     }
 
     /**
@@ -155,7 +146,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
     }
 
     public Flag[] getFlags() {
-        return flags.toArray(new Flag[flags.size()]);
+        return flags.toArray(new Flag[0]);
     }
 
     /**

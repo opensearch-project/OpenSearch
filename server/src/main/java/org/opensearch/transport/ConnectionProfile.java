@@ -103,7 +103,10 @@ public final class ConnectionProfile {
         builder.addConnections(connectionsPerNodeBulk, TransportRequestOptions.Type.BULK);
         builder.addConnections(connectionsPerNodePing, TransportRequestOptions.Type.PING);
         // if we are not cluster-manager eligible we don't need a dedicated channel to publish the state
-        builder.addConnections(DiscoveryNode.isMasterNode(settings) ? connectionsPerNodeState : 0, TransportRequestOptions.Type.STATE);
+        builder.addConnections(
+            DiscoveryNode.isClusterManagerNode(settings) ? connectionsPerNodeState : 0,
+            TransportRequestOptions.Type.STATE
+        );
         // if we are not a data-node we don't need any dedicated channels for recovery
         builder.addConnections(DiscoveryNode.isDataNode(settings) ? connectionsPerNodeRecovery : 0, TransportRequestOptions.Type.RECOVERY);
         builder.addConnections(connectionsPerNodeReg, TransportRequestOptions.Type.REG);

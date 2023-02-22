@@ -54,14 +54,14 @@ public class AzureTwoStartedNodesTests extends AbstractAzureComputeServiceTestCa
         final String node1 = internalCluster().startNode(settings);
         registerAzureNode(node1);
         assertNotNull(
-            client().admin().cluster().prepareState().setClusterManagerNodeTimeout("1s").get().getState().nodes().getMasterNodeId()
+            client().admin().cluster().prepareState().setClusterManagerNodeTimeout("1s").get().getState().nodes().getClusterManagerNodeId()
         );
 
         logger.info("--> start another node");
         final String node2 = internalCluster().startNode(settings);
         registerAzureNode(node2);
         assertNotNull(
-            client().admin().cluster().prepareState().setClusterManagerNodeTimeout("1s").get().getState().nodes().getMasterNodeId()
+            client().admin().cluster().prepareState().setClusterManagerNodeTimeout("1s").get().getState().nodes().getClusterManagerNodeId()
         );
 
         // We expect having 2 nodes as part of the cluster, let's test that

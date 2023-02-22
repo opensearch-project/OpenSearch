@@ -169,7 +169,7 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
         // Get the cluster info service on the cluster-manager node
         final InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster.getInstance(
             ClusterInfoService.class,
-            internalTestCluster.getMasterName()
+            internalTestCluster.getClusterManagerName()
         );
         infoService.setUpdateFrequency(TimeValue.timeValueMillis(200));
         ClusterInfo info = infoService.refresh();
@@ -193,7 +193,7 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
             logger.info("--> shard size: {}", size.value);
             assertThat("shard size is greater than 0", size.value, greaterThanOrEqualTo(0L));
         }
-        ClusterService clusterService = internalTestCluster.getInstance(ClusterService.class, internalTestCluster.getMasterName());
+        ClusterService clusterService = internalTestCluster.getInstance(ClusterService.class, internalTestCluster.getClusterManagerName());
         ClusterState state = clusterService.state();
         for (ShardRouting shard : state.routingTable().allShards()) {
             String dataPath = info.getDataPath(shard);
@@ -221,7 +221,7 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
         InternalTestCluster internalTestCluster = internalCluster();
         InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster.getInstance(
             ClusterInfoService.class,
-            internalTestCluster.getMasterName()
+            internalTestCluster.getClusterManagerName()
         );
         // get one healthy sample
         ClusterInfo info = infoService.refresh();
@@ -231,7 +231,7 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
 
         MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
-            internalTestCluster.getMasterName()
+            internalTestCluster.getClusterManagerName()
         );
 
         final AtomicBoolean timeout = new AtomicBoolean(false);
@@ -272,7 +272,7 @@ public class ClusterInfoServiceIT extends OpenSearchIntegTestCase {
 
         // now we cause an exception
         timeout.set(false);
-        ActionFilters actionFilters = internalTestCluster.getInstance(ActionFilters.class, internalTestCluster.getMasterName());
+        ActionFilters actionFilters = internalTestCluster.getInstance(ActionFilters.class, internalTestCluster.getClusterManagerName());
         BlockingActionFilter blockingActionFilter = null;
         for (ActionFilter filter : actionFilters.filters()) {
             if (filter instanceof BlockingActionFilter) {

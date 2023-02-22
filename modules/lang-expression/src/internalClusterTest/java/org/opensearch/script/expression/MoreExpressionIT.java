@@ -38,7 +38,7 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.action.update.UpdateRequestBuilder;
 import org.opensearch.common.lucene.search.function.CombineFunction;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.functionscore.ScoreFunctionBuilders;
@@ -78,7 +78,7 @@ public class MoreExpressionIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(ExpressionPlugin.class);
+        return Collections.singleton(ExpressionModulePlugin.class);
     }
 
     private SearchRequestBuilder buildRequest(String script, Object... params) {

@@ -43,7 +43,7 @@ import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
-import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.Balancer;
+import org.opensearch.cluster.routing.allocation.allocator.ShardsBalancer;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
@@ -65,7 +65,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
- * Tests for balancing a single shard, see {@link Balancer#decideRebalance(ShardRouting)}.
+ * Tests for balancing a single shard, see {@link ShardsBalancer#decideRebalance(ShardRouting)}.
  */
 public class BalancedSingleShardTests extends OpenSearchAllocationTestCase {
 

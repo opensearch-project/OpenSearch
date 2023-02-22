@@ -46,9 +46,9 @@ import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.indices.TermsLookup;
 import org.opensearch.test.AbstractQueryTestCase;
@@ -232,7 +232,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
             builder.startObject();
-            builder.array(termsPath, randomTerms.toArray(new Object[randomTerms.size()]));
+            builder.array(termsPath, randomTerms.toArray(new Object[0]));
             builder.endObject();
             json = Strings.toString(builder);
         } catch (IOException ex) {

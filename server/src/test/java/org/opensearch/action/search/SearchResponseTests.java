@@ -39,11 +39,11 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.search.SearchHit;
@@ -282,7 +282,7 @@ public class SearchResponseTests extends OpenSearchTestCase {
                 }
             }
             expectedString.append("}");
-            assertEquals(expectedString.toString(), Strings.toString(response));
+            assertEquals(expectedString.toString(), Strings.toString(XContentType.JSON, response));
         }
         {
             SearchResponse response = new SearchResponse(
@@ -329,7 +329,7 @@ public class SearchResponseTests extends OpenSearchTestCase {
                 }
             }
             expectedString.append("}");
-            assertEquals(expectedString.toString(), Strings.toString(response));
+            assertEquals(expectedString.toString(), Strings.toString(XContentType.JSON, response));
         }
     }
 

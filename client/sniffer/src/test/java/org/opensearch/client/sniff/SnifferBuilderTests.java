@@ -33,7 +33,8 @@
 package org.opensearch.client.sniff;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
-import org.apache.http.HttpHost;
+
+import org.apache.hc.core5.http.HttpHost;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientTestCase;
 

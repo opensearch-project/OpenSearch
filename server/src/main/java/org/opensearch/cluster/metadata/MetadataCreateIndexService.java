@@ -36,7 +36,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.Version;
@@ -59,6 +58,9 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -71,7 +73,7 @@ import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.env.Environment;
 import org.opensearch.index.Index;
@@ -102,6 +104,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
@@ -120,6 +123,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DAT
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SETTING;
 
 /**
  * Service responsible for submitting create index requests
@@ -145,6 +149,8 @@ public class MetadataCreateIndexService {
     private final ShardLimitValidator shardLimitValidator;
     private final boolean forbidPrivateIndexSettings;
     private final Set<IndexSettingProvider> indexSettingProviders = new HashSet<>();
+    private final ClusterManagerTaskThrottler.ThrottlingKey createIndexTaskKey;
+    private AwarenessReplicaBalance awarenessReplicaBalance;
 
     public MetadataCreateIndexService(
         final Settings settings,
@@ -158,7 +164,8 @@ public class MetadataCreateIndexService {
         final ThreadPool threadPool,
         final NamedXContentRegistry xContentRegistry,
         final SystemIndices systemIndices,
-        final boolean forbidPrivateIndexSettings
+        final boolean forbidPrivateIndexSettings,
+        final AwarenessReplicaBalance awarenessReplicaBalance
     ) {
         this.settings = settings;
         this.clusterService = clusterService;
@@ -172,6 +179,10 @@ public class MetadataCreateIndexService {
         this.systemIndices = systemIndices;
         this.forbidPrivateIndexSettings = forbidPrivateIndexSettings;
         this.shardLimitValidator = shardLimitValidator;
+        this.awarenessReplicaBalance = awarenessReplicaBalance;
+
+        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        createIndexTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_INDEX_KEY, true);
     }
 
     /**
@@ -319,6 +330,11 @@ public class MetadataCreateIndexService {
                 @Override
                 protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                     return new ClusterStateUpdateResponse(acknowledged);
+                }
+
+                @Override
+                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                    return createIndexTaskKey;
                 }
 
                 @Override
@@ -539,7 +555,6 @@ public class MetadataCreateIndexService {
                 xContentRegistry
             )
         );
-
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
             currentState,
             request,
@@ -847,7 +862,7 @@ public class MetadataCreateIndexService {
             indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, INDEX_NUMBER_OF_SHARDS_SETTING.get(settings));
         }
         if (INDEX_NUMBER_OF_REPLICAS_SETTING.exists(indexSettingsBuilder) == false) {
-            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings));
+            indexSettingsBuilder.put(SETTING_NUMBER_OF_REPLICAS, DEFAULT_REPLICA_COUNT_SETTING.get(currentState.metadata().settings()));
         }
         if (settings.get(SETTING_AUTO_EXPAND_REPLICAS) != null && indexSettingsBuilder.get(SETTING_AUTO_EXPAND_REPLICAS) == null) {
             indexSettingsBuilder.put(SETTING_AUTO_EXPAND_REPLICAS, settings.get(SETTING_AUTO_EXPAND_REPLICAS));
@@ -1150,7 +1165,7 @@ public class MetadataCreateIndexService {
 
     public void validateIndexSettings(String indexName, final Settings settings, final boolean forbidPrivateIndexSettings)
         throws IndexCreationException {
-        List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings);
+        List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings, indexName);
 
         if (validationErrors.isEmpty() == false) {
             ValidationException validationException = new ValidationException();
@@ -1159,10 +1174,31 @@ public class MetadataCreateIndexService {
         }
     }
 
-    List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings) {
+    List<String> getIndexSettingsValidationErrors(final Settings settings, final boolean forbidPrivateIndexSettings, String indexName) {
+        List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings, Optional.of(indexName));
+        return validationErrors;
+    }
+
+    List<String> getIndexSettingsValidationErrors(
+        final Settings settings,
+        final boolean forbidPrivateIndexSettings,
+        Optional<String> indexName
+    ) {
         List<String> validationErrors = validateIndexCustomPath(settings, env.sharedDataDir());
         if (forbidPrivateIndexSettings) {
             validationErrors.addAll(validatePrivateSettingsNotExplicitlySet(settings, indexScopedSettings));
+        }
+        if (indexName.isEmpty() || indexName.get().charAt(0) != '.') {
+            // Apply aware replica balance validation only to non system indices
+            int replicaCount = settings.getAsInt(
+                IndexMetadata.SETTING_NUMBER_OF_REPLICAS,
+                DEFAULT_REPLICA_COUNT_SETTING.get(this.clusterService.state().metadata().settings())
+            );
+            AutoExpandReplicas autoExpandReplica = AutoExpandReplicas.SETTING.get(settings);
+            Optional<String> error = awarenessReplicaBalance.validate(replicaCount, autoExpandReplica);
+            if (error.isPresent()) {
+                validationErrors.add(error.get());
+            }
         }
         return validationErrors;
     }
@@ -1360,21 +1396,17 @@ public class MetadataCreateIndexService {
      * the less default split operations are supported
      */
     public static int calculateNumRoutingShards(int numShards, Version indexVersionCreated) {
-        if (indexVersionCreated.onOrAfter(LegacyESVersion.V_7_0_0)) {
-            // only select this automatically for indices that are created on or after 7.0 this will prevent this new behaviour
-            // until we have a fully upgraded cluster. Additionally it will make integratin testing easier since mixed clusters
-            // will always have the behavior of the min node in the cluster.
-            //
-            // We use as a default number of routing shards the higher number that can be expressed
-            // as {@code numShards * 2^x`} that is less than or equal to the maximum number of shards: 1024.
-            int log2MaxNumShards = 10; // logBase2(1024)
-            int log2NumShards = 32 - Integer.numberOfLeadingZeros(numShards - 1); // ceil(logBase2(numShards))
-            int numSplits = log2MaxNumShards - log2NumShards;
-            numSplits = Math.max(1, numSplits); // Ensure the index can be split at least once
-            return numShards * 1 << numSplits;
-        } else {
-            return numShards;
-        }
+        // only select this automatically for indices that are created on or after 7.0 this will prevent this new behaviour
+        // until we have a fully upgraded cluster. Additionally it will make integratin testing easier since mixed clusters
+        // will always have the behavior of the min node in the cluster.
+        //
+        // We use as a default number of routing shards the higher number that can be expressed
+        // as {@code numShards * 2^x`} that is less than or equal to the maximum number of shards: 1024.
+        int log2MaxNumShards = 10; // logBase2(1024)
+        int log2NumShards = 32 - Integer.numberOfLeadingZeros(numShards - 1); // ceil(logBase2(numShards))
+        int numSplits = log2MaxNumShards - log2NumShards;
+        numSplits = Math.max(1, numSplits); // Ensure the index can be split at least once
+        return numShards * 1 << numSplits;
     }
 
     public static void validateTranslogRetentionSettings(Settings indexSettings) {

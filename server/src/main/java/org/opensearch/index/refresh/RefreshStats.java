@@ -32,13 +32,12 @@
 
 package org.opensearch.index.refresh;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -68,10 +67,8 @@ public class RefreshStats implements Writeable, ToXContentFragment {
     public RefreshStats(StreamInput in) throws IOException {
         total = in.readVLong();
         totalTimeInMillis = in.readVLong();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-            externalTotal = in.readVLong();
-            externalTotalTimeInMillis = in.readVLong();
-        }
+        externalTotal = in.readVLong();
+        externalTotalTimeInMillis = in.readVLong();
         listeners = in.readVInt();
     }
 
@@ -79,10 +76,8 @@ public class RefreshStats implements Writeable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(total);
         out.writeVLong(totalTimeInMillis);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-            out.writeVLong(externalTotal);
-            out.writeVLong(externalTotalTimeInMillis);
-        }
+        out.writeVLong(externalTotal);
+        out.writeVLong(externalTotalTimeInMillis);
         out.writeVInt(listeners);
     }
 

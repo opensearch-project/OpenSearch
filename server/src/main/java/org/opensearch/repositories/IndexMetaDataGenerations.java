@@ -92,10 +92,9 @@ public final class IndexMetaDataGenerations {
     }
 
     /**
-     * Get the blob id by {@link SnapshotId} and {@link IndexId} and fall back to the value of {@link SnapshotId#getUUID()} if none is
-     * known to enable backwards compatibility with versions older than
-     * {@link org.opensearch.snapshots.SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION} which used the snapshot uuid as index metadata
-     * blob uuid.
+     * Get the blob id by {@link SnapshotId} and {@link IndexId}. If none is found, we fall back to the value
+     * of {@link SnapshotId#getUUID()} to allow for extended backwards compatibility use-cases with
+     * {@link org.opensearch.LegacyESVersion} versions which used the snapshot UUID as the index metadata blob id.
      *
      * @param snapshotId Snapshot Id
      * @param indexId    Index Id

@@ -112,7 +112,7 @@ import static org.opensearch.index.translog.TranslogConfig.EMPTY_TRANSLOG_BUFFER
  *
  * @opensearch.internal
  */
-public class Translog extends AbstractIndexShardComponent implements IndexShardComponent, Closeable {
+public abstract class Translog extends AbstractIndexShardComponent implements IndexShardComponent, Closeable {
 
     /*
      * TODO
@@ -134,21 +134,21 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     public static final int DEFAULT_HEADER_SIZE_IN_BYTES = TranslogHeader.headerSizeInBytes(UUIDs.randomBase64UUID());
 
     // the list of translog readers is guaranteed to be in order of translog generation
-    private final List<TranslogReader> readers = new ArrayList<>();
-    private final BigArrays bigArrays;
+    protected final List<TranslogReader> readers = new ArrayList<>();
+    protected final BigArrays bigArrays;
     protected final ReleasableLock readLock;
     protected final ReleasableLock writeLock;
-    private final Path location;
-    private TranslogWriter current;
+    protected final Path location;
+    protected TranslogWriter current;
 
     protected final TragicExceptionHolder tragedy = new TragicExceptionHolder();
-    private final AtomicBoolean closed = new AtomicBoolean();
-    private final TranslogConfig config;
-    private final LongSupplier globalCheckpointSupplier;
-    private final LongSupplier primaryTermSupplier;
-    private final String translogUUID;
-    private final TranslogDeletionPolicy deletionPolicy;
-    private final LongConsumer persistedSequenceNumberConsumer;
+    protected final AtomicBoolean closed = new AtomicBoolean();
+    protected final TranslogConfig config;
+    protected final LongSupplier globalCheckpointSupplier;
+    protected final LongSupplier primaryTermSupplier;
+    protected final String translogUUID;
+    protected final TranslogDeletionPolicy deletionPolicy;
+    protected final LongConsumer persistedSequenceNumberConsumer;
 
     /**
      * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogGeneration} is
@@ -190,61 +190,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         writeLock = new ReleasableLock(rwl.writeLock());
         this.location = config.getTranslogPath();
         Files.createDirectories(this.location);
-
-        try {
-            final Checkpoint checkpoint = readCheckpoint(location);
-            final Path nextTranslogFile = location.resolve(getFilename(checkpoint.generation + 1));
-            final Path currentCheckpointFile = location.resolve(getCommitCheckpointFileName(checkpoint.generation));
-            // this is special handling for error condition when we create a new writer but we fail to bake
-            // the newly written file (generation+1) into the checkpoint. This is still a valid state
-            // we just need to cleanup before we continue
-            // we hit this before and then blindly deleted the new generation even though we managed to bake it in and then hit this:
-            // https://discuss.elastic.co/t/cannot-recover-index-because-of-missing-tanslog-files/38336 as an example
-            //
-            // For this to happen we must have already copied the translog.ckp file into translog-gen.ckp so we first check if that
-            // file exists. If not we don't even try to clean it up and wait until we fail creating it
-            assert Files.exists(nextTranslogFile) == false || Files.size(nextTranslogFile) <= TranslogHeader.headerSizeInBytes(translogUUID)
-                : "unexpected translog file: [" + nextTranslogFile + "]";
-            if (Files.exists(currentCheckpointFile) // current checkpoint is already copied
-                && Files.deleteIfExists(nextTranslogFile)) { // delete it and log a warning
-                logger.warn(
-                    "deleted previously created, but not yet committed, next generation [{}]. This can happen due to a"
-                        + " tragic exception when creating a new generation",
-                    nextTranslogFile.getFileName()
-                );
-            }
-            this.readers.addAll(recoverFromFiles(checkpoint));
-            if (readers.isEmpty()) {
-                throw new IllegalStateException("at least one reader must be recovered");
-            }
-            boolean success = false;
-            current = null;
-            try {
-                current = createWriter(
-                    checkpoint.generation + 1,
-                    getMinFileGeneration(),
-                    checkpoint.globalCheckpoint,
-                    persistedSequenceNumberConsumer
-                );
-                success = true;
-            } finally {
-                // we have to close all the recovered ones otherwise we leak file handles here
-                // for instance if we have a lot of tlog and we can't create the writer we keep on holding
-                // on to all the uncommitted tlog files if we don't close
-                if (success == false) {
-                    IOUtils.closeWhileHandlingException(readers);
-                }
-            }
-        } catch (Exception e) {
-            // close the opened translog files if we fail to create a new translog...
-            IOUtils.closeWhileHandlingException(current);
-            IOUtils.closeWhileHandlingException(readers);
-            throw e;
-        }
     }
 
     /** recover all translog files found on disk */
-    private ArrayList<TranslogReader> recoverFromFiles(Checkpoint checkpoint) throws IOException {
+    protected ArrayList<TranslogReader> recoverFromFiles(Checkpoint checkpoint) throws IOException {
         boolean success = false;
         ArrayList<TranslogReader> foundTranslogs = new ArrayList<>();
         try (ReleasableLock ignored = writeLock.acquire()) {
@@ -255,7 +204,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             // the generation id we found in the lucene commit. This gives for better error messages if the wrong
             // translog was found.
             for (long i = checkpoint.generation; i >= minGenerationToRecoverFrom; i--) {
-                Path committedTranslogFile = location.resolve(getFilename(i));
+                Path committedTranslogFile = location.resolve(Translog.getFilename(i));
                 if (Files.exists(committedTranslogFile) == false) {
                     throw new TranslogCorruptedException(
                         committedTranslogFile.toString(),
@@ -270,7 +219,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 }
                 final Checkpoint readerCheckpoint = i == checkpoint.generation
                     ? checkpoint
-                    : Checkpoint.read(location.resolve(getCommitCheckpointFileName(i)));
+                    : Checkpoint.read(location.resolve(Translog.getCommitCheckpointFileName(i)));
                 final TranslogReader reader = openReader(committedTranslogFile, readerCheckpoint);
                 assert reader.getPrimaryTerm() <= primaryTermSupplier.getAsLong() : "Primary terms go backwards; current term ["
                     + primaryTermSupplier.getAsLong()
@@ -287,11 +236,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             // when we clean up files, we first update the checkpoint with a new minReferencedTranslog and then delete them;
             // if we crash just at the wrong moment, it may be that we leave one unreferenced file behind so we delete it if there
             IOUtils.deleteFilesIgnoringExceptions(
-                location.resolve(getFilename(minGenerationToRecoverFrom - 1)),
-                location.resolve(getCommitCheckpointFileName(minGenerationToRecoverFrom - 1))
+                location.resolve(Translog.getFilename(minGenerationToRecoverFrom - 1)),
+                location.resolve(Translog.getCommitCheckpointFileName(minGenerationToRecoverFrom - 1))
             );
 
-            Path commitCheckpoint = location.resolve(getCommitCheckpointFileName(checkpoint.generation));
+            Path commitCheckpoint = location.resolve(Translog.getCommitCheckpointFileName(checkpoint.generation));
             if (Files.exists(commitCheckpoint)) {
                 Checkpoint checkpointFromDisk = Checkpoint.read(commitCheckpoint);
                 if (checkpoint.equals(checkpointFromDisk) == false) {
@@ -317,7 +266,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return foundTranslogs;
     }
 
-    private void copyCheckpointTo(Path targetPath) throws IOException {
+    protected void copyCheckpointTo(Path targetPath) throws IOException {
         // a temp file to copy checkpoint to - note it must be in on the same FS otherwise atomic move won't work
         final Path tempFile = Files.createTempFile(location, TRANSLOG_FILE_PREFIX, CHECKPOINT_SUFFIX);
         boolean tempFileRenamed = false;
@@ -383,7 +332,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return closed.get() == false;
     }
 
-    private static boolean calledFromOutsideOrViaTragedyClose() {
+    protected static boolean calledFromOutsideOrViaTragedyClose() {
         List<StackTraceElement> frames = Stream.of(Thread.currentThread().getStackTrace()).skip(3). // skip getStackTrace, current method
                                                                                                     // and close method frames
             limit(10). // limit depth of analysis to 10 frames, it should be enough to catch closing with, e.g. IOUtils
@@ -817,7 +766,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return TRANSLOG_FILE_PREFIX + generation + TRANSLOG_FILE_SUFFIX;
     }
 
-    static String getCommitCheckpointFileName(long generation) {
+    public static String getCommitCheckpointFileName(long generation) {
         return TRANSLOG_FILE_PREFIX + generation + CHECKPOINT_SUFFIX;
     }
 
@@ -868,18 +817,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      *
      * @return Returns <code>true</code> iff this call caused an actual sync operation otherwise <code>false</code>
      */
-    public boolean ensureSynced(Location location) throws IOException {
-        try (ReleasableLock lock = readLock.acquire()) {
-            if (location.generation == current.getGeneration()) { // if we have a new one it's already synced
-                ensureOpen();
-                return current.syncUpTo(location.translogLocation + location.size);
-            }
-        } catch (final Exception ex) {
-            closeOnTragicEvent(ex);
-            throw ex;
-        }
-        return false;
-    }
+    public abstract boolean ensureSynced(Location location) throws IOException;
 
     /**
      * Ensures that all locations in the given stream have been synced / written to the underlying storage.
@@ -1746,7 +1684,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    private static long minGenerationForSeqNo(long seqNo, TranslogWriter writer, List<TranslogReader> readers) {
+    static long minGenerationForSeqNo(long seqNo, TranslogWriter writer, List<TranslogReader> readers) {
         long minGen = writer.generation;
         for (final TranslogReader reader : readers) {
             if (seqNo <= reader.getCheckpoint().maxEffectiveSeqNo()) {
@@ -1843,7 +1781,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    private long getMinReferencedGen() throws IOException {
+    protected long getMinReferencedGen() throws IOException {
         assert readLock.isHeldByCurrentThread() || writeLock.isHeldByCurrentThread();
         long minReferencedGen = Math.min(
             deletionPolicy.minTranslogGenRequired(readers, current),
@@ -1861,6 +1799,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             + "]";
         return minReferencedGen;
     }
+
+    /*
+    Min Seq number required in translog to restore the complete data .
+    This might be required when segments are persisted via other mechanism than flush.
+     */
+    protected void setMinSeqNoToKeep(long seqNo) {}
 
     /**
      * deletes all files associated with a reader. package-private to be able to simulate node failures at this point
@@ -1910,7 +1854,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         return current.getFirstOperationOffset();
     }
 
-    private void ensureOpen() {
+    protected void ensureOpen() {
         if (closed.get()) {
             throw new AlreadyClosedException("translog is already closed", tragedy.get());
         }

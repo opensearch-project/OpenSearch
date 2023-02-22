@@ -184,9 +184,10 @@ public class ClusterFormationFailureHelper {
             if (statusInfo.getStatus() == UNHEALTHY) {
                 return String.format(Locale.ROOT, "this node is unhealthy: %s", statusInfo.getInfo());
             }
-            final List<String> clusterStateNodes = StreamSupport.stream(clusterState.nodes().getMasterNodes().values().spliterator(), false)
-                .map(n -> n.value.toString())
-                .collect(Collectors.toList());
+            final List<String> clusterStateNodes = StreamSupport.stream(
+                clusterState.nodes().getClusterManagerNodes().values().spliterator(),
+                false
+            ).map(n -> n.value.toString()).collect(Collectors.toList());
 
             final String discoveryWillContinueDescription = String.format(
                 Locale.ROOT,
@@ -206,7 +207,7 @@ public class ClusterFormationFailureHelper {
                 discoveryWillContinueDescription
             );
 
-            if (clusterState.nodes().getLocalNode().isMasterNode() == false) {
+            if (clusterState.nodes().getLocalNode().isClusterManagerNode() == false) {
                 return String.format(Locale.ROOT, "cluster-manager not discovered yet: %s", discoveryStateIgnoringQuorum);
             }
 

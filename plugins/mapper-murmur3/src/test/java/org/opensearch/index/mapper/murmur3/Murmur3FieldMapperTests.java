@@ -35,7 +35,7 @@ package org.opensearch.index.mapper.murmur3;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperTestCase;
 import org.opensearch.index.mapper.ParsedDocument;

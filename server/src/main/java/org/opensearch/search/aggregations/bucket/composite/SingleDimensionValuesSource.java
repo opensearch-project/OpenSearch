@@ -53,7 +53,7 @@ import static org.opensearch.search.aggregations.bucket.missing.MissingOrder.LAS
  *
  * @opensearch.internal
  */
-abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements Releasable {
+public abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements Releasable {
     protected final BigArrays bigArrays;
     protected final DocValueFormat format;
     @Nullable

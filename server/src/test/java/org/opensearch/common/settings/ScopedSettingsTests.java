@@ -80,7 +80,7 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
         ClusterSettings service = new ClusterSettings(currentSettings, new HashSet<>(Arrays.asList(dynamicSetting, staticSetting)));
 
         expectThrows(
-            IllegalArgumentException.class,
+            SettingsException.class,
             () -> service.updateDynamicSettings(
                 Settings.builder().put("some.dyn.setting", 8).putNull("some.static.setting").build(),
                 Settings.builder().put(currentSettings),
@@ -173,7 +173,7 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
         try {
             service.addSettingsUpdateConsumer(testSetting2, consumer2::set);
             fail("setting not registered");
-        } catch (IllegalArgumentException ex) {
+        } catch (SettingsException ex) {
             assertEquals("Setting is not registered for key [foo.bar.baz]", ex.getMessage());
         }
 
@@ -183,7 +183,7 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
                 consumer2.set(b);
             });
             fail("setting not registered");
-        } catch (IllegalArgumentException ex) {
+        } catch (SettingsException ex) {
             assertEquals("Setting is not registered for key [foo.bar.baz]", ex.getMessage());
         }
         assertEquals(0, consumer.get());
@@ -208,11 +208,11 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
 
         AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(intSetting, stringSetting)));
 
-        IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
+        SettingsException e = expectThrows(
+            SettingsException.class,
             () -> service.validate(Settings.builder().put("foo.test.bar", 7).build(), true)
         );
-        assertEquals("missing required setting [foo.test.name] for setting [foo.test.bar]", iae.getMessage());
+        assertEquals("missing required setting [foo.test.name] for setting [foo.test.bar]", e.getMessage());
 
         service.validate(Settings.builder().put("foo.test.name", "test").put("foo.test.bar", 7).build(), true);
 
@@ -247,11 +247,11 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
 
         AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(intSetting, stringSetting)));
 
-        SettingsException iae = expectThrows(
+        SettingsException e = expectThrows(
             SettingsException.class,
             () -> service.validate(Settings.builder().put("foo.test.bar", 7).put("foo.test.name", "invalid").build(), true)
         );
-        assertEquals("[foo.test.bar] is set but [name] is [invalid]", iae.getMessage());
+        assertEquals("[foo.test.bar] is set but [name] is [invalid]", e.getMessage());
 
         service.validate(Settings.builder().put("foo.test.bar", 7).put("foo.test.name", "valid").build(), true);
 
@@ -288,8 +288,8 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
             new HashSet<>(Arrays.asList(nameFallbackSetting, nameSetting, barSetting))
         );
 
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        final SettingsException e = expectThrows(
+            SettingsException.class,
             () -> service.validate(Settings.builder().put("foo.test.bar", 7).build(), true)
         );
         assertThat(e, hasToString(containsString("missing required setting [foo.test.name] for setting [foo.test.bar]")));
@@ -963,11 +963,11 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
 
     public void testValidateWithSuggestion() {
         IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
-        IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
+        SettingsException e = expectThrows(
+            SettingsException.class,
             () -> settings.validate(Settings.builder().put("index.numbe_of_replica", "1").build(), false)
         );
-        assertEquals(iae.getMessage(), "unknown setting [index.numbe_of_replica] did you mean [index.number_of_replicas]?");
+        assertEquals(e.getMessage(), "unknown setting [index.numbe_of_replica] did you mean [index.number_of_replicas]?");
     }
 
     public void testValidate() {
@@ -976,13 +976,13 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
             + " removed settings";
         settings.validate(Settings.builder().put("index.store.type", "boom").build(), false);
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        SettingsException settingsException = expectThrows(
+            SettingsException.class,
             () -> settings.validate(Settings.builder().put("index.store.type", "boom").put("i.am.not.a.setting", true).build(), false)
         );
-        assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, e.getMessage());
+        assertEquals("unknown setting [i.am.not.a.setting]" + unknownMsgSuffix, settingsException.getMessage());
 
-        e = expectThrows(
+        IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> settings.validate(Settings.builder().put("index.store.type", "boom").put("index.number_of_replicas", true).build(), false)
         );
@@ -1011,7 +1011,7 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
         Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
         final ClusterSettings clusterSettings = new ClusterSettings(settings, Collections.emptySet());
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(settings, false));
+        SettingsException e = expectThrows(SettingsException.class, () -> clusterSettings.validate(settings, false));
         assertThat(e.getMessage(), startsWith("unknown secure setting [some.secure.setting]"));
 
         ClusterSettings clusterSettings2 = new ClusterSettings(
@@ -1071,14 +1071,14 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
         try {
             new IndexScopedSettings(Settings.EMPTY, Collections.singleton(Setting.groupSetting("index. foo.", Property.IndexScope)));
             fail();
-        } catch (IllegalArgumentException e) {
+        } catch (SettingsException e) {
             assertEquals("illegal settings key: [index. foo.]", e.getMessage());
         }
         new IndexScopedSettings(Settings.EMPTY, Collections.singleton(Setting.groupSetting("index.", Property.IndexScope)));
         try {
             new IndexScopedSettings(Settings.EMPTY, Collections.singleton(Setting.boolSetting("index.", true, Property.IndexScope)));
             fail();
-        } catch (IllegalArgumentException e) {
+        } catch (SettingsException e) {
             assertEquals("illegal settings key: [index.]", e.getMessage());
         }
         new IndexScopedSettings(Settings.EMPTY, Collections.singleton(Setting.boolSetting("index.boo", true, Property.IndexScope)));
@@ -1152,7 +1152,7 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
         try {
             new ClusterSettings(Settings.EMPTY, settings);
             fail("an exception should have been thrown because settings overlap");
-        } catch (IllegalArgumentException e) {
+        } catch (SettingsException e) {
             if (groupFirst) {
                 assertEquals("complex setting key: [foo.bar] overlaps existing setting key: [foo.]", e.getMessage());
             } else {
@@ -1163,8 +1163,8 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
 
     public void testUpdateNumberOfShardsFail() {
         IndexScopedSettings settings = new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS);
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
+        SettingsException ex = expectThrows(
+            SettingsException.class,
             () -> settings.updateSettings(
                 Settings.builder().put("index.number_of_shards", 8).build(),
                 Settings.builder(),
@@ -1181,8 +1181,8 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
         Settings currentSettings = Settings.builder().put("some.final.setting", 9).put("some.final.group.foo", 7).build();
         ClusterSettings service = new ClusterSettings(currentSettings, new HashSet<>(Arrays.asList(finalSetting, finalGroupSetting)));
 
-        IllegalArgumentException exc = expectThrows(
-            IllegalArgumentException.class,
+        SettingsException exc = expectThrows(
+            SettingsException.class,
             () -> service.updateDynamicSettings(
                 Settings.builder().put("some.final.setting", 8).build(),
                 Settings.builder().put(currentSettings),
@@ -1193,7 +1193,7 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
         assertThat(exc.getMessage(), containsString("final node setting [some.final.setting]"));
 
         exc = expectThrows(
-            IllegalArgumentException.class,
+            SettingsException.class,
             () -> service.updateDynamicSettings(
                 Settings.builder().putNull("some.final.setting").build(),
                 Settings.builder().put(currentSettings),
@@ -1204,7 +1204,7 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
         assertThat(exc.getMessage(), containsString("final node setting [some.final.setting]"));
 
         exc = expectThrows(
-            IllegalArgumentException.class,
+            SettingsException.class,
             () -> service.updateSettings(
                 Settings.builder().put("some.final.group.new", 8).build(),
                 Settings.builder().put(currentSettings),
@@ -1215,7 +1215,7 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
         assertThat(exc.getMessage(), containsString("final node setting [some.final.group.new]"));
 
         exc = expectThrows(
-            IllegalArgumentException.class,
+            SettingsException.class,
             () -> service.updateSettings(
                 Settings.builder().put("some.final.group.foo", 5).build(),
                 Settings.builder().put(currentSettings),
@@ -1232,7 +1232,7 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
             Settings.EMPTY,
             Collections.singleton(indexInternalSetting)
         );
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+        final SettingsException e = expectThrows(SettingsException.class, () -> {
             final Settings settings = Settings.builder().put("index.internal", "internal").build();
             indexScopedSettings.validate(settings, false, /* validateInternalOrPrivateIndex */ true);
         });
@@ -1246,7 +1246,7 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
             Settings.EMPTY,
             Collections.singleton(indexInternalSetting)
         );
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+        final SettingsException e = expectThrows(SettingsException.class, () -> {
             final Settings settings = Settings.builder().put("index.private", "private").build();
             indexScopedSettings.validate(settings, false, /* validateInternalOrPrivateIndex */ true);
         });

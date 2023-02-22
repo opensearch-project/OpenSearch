@@ -33,7 +33,6 @@
 package org.opensearch.action.admin.indices.mapping.put;
 
 import com.carrotsearch.hppc.ObjectHashSet;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
@@ -47,11 +46,12 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.util.CollectionUtils;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.Index;
 import org.opensearch.index.mapper.MapperService;
 
@@ -117,14 +117,9 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             }
         }
         source = in.readString();
-        if (in.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            in.readBoolean(); // updateAllTypes
-        }
         concreteIndex = in.readOptionalWriteable(Index::new);
         origin = in.readOptionalString();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            writeIndexOnly = in.readBoolean();
-        }
+        writeIndexOnly = in.readBoolean();
     }
 
     public PutMappingRequest() {}
@@ -321,10 +316,10 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
     /**
      * The mapping source definition.
      */
-    public PutMappingRequest source(BytesReference mappingSource, XContentType xContentType) {
-        Objects.requireNonNull(xContentType);
+    public PutMappingRequest source(BytesReference mappingSource, MediaType mediaType) {
+        Objects.requireNonNull(mediaType);
         try {
-            this.source = XContentHelper.convertToJson(mappingSource, false, false, xContentType);
+            this.source = XContentHelper.convertToJson(mappingSource, false, false, mediaType);
             return this;
         } catch (IOException e) {
             throw new UncheckedIOException("failed to convert source to json", e);
@@ -349,14 +344,9 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
             out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
         }
         out.writeString(source);
-        if (out.getVersion().before(LegacyESVersion.V_7_0_0)) {
-            out.writeBoolean(true); // updateAllTypes
-        }
         out.writeOptionalWriteable(concreteIndex);
         out.writeOptionalString(origin);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            out.writeBoolean(writeIndexOnly);
-        }
+        out.writeBoolean(writeIndexOnly);
     }
 
     @Override

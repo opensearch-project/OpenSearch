@@ -43,6 +43,7 @@ import org.opensearch.gateway.PrimaryShardAllocator;
 import org.opensearch.gateway.ReplicaShardAllocator;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards.NodeGatewayStartedShards;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata;
 
 import java.util.Collections;
@@ -71,6 +72,7 @@ public class TestGatewayAllocator extends GatewayAllocator {
 
     Map<String /* node id */, Map<ShardId, ShardRouting>> knownAllocations = new HashMap<>();
     DiscoveryNodes currentNodes = DiscoveryNodes.EMPTY_NODES;
+    Map<String, ReplicationCheckpoint> shardIdNodeToReplicationCheckPointMap = new HashMap<>();
 
     PrimaryShardAllocator primaryShardAllocator = new PrimaryShardAllocator() {
         @Override
@@ -90,7 +92,8 @@ public class TestGatewayAllocator extends GatewayAllocator {
                         routing -> new NodeGatewayStartedShards(
                             currentNodes.get(routing.currentNodeId()),
                             routing.allocationId().getId(),
-                            routing.primary()
+                            routing.primary(),
+                            getReplicationCheckpoint(shardId, routing.currentNodeId())
                         )
                     )
                 );
@@ -98,6 +101,10 @@ public class TestGatewayAllocator extends GatewayAllocator {
             return new AsyncShardFetch.FetchResult<>(shardId, foundShards, ignoreNodes);
         }
     };
+
+    private ReplicationCheckpoint getReplicationCheckpoint(ShardId shardId, String nodeName) {
+        return shardIdNodeToReplicationCheckPointMap.getOrDefault(getReplicationCheckPointKey(shardId, nodeName), null);
+    }
 
     ReplicaShardAllocator replicaShardAllocator = new ReplicaShardAllocator() {
         @Override
@@ -155,5 +162,13 @@ public class TestGatewayAllocator extends GatewayAllocator {
      */
     public void addKnownAllocation(ShardRouting shard) {
         knownAllocations.computeIfAbsent(shard.currentNodeId(), id -> new HashMap<>()).put(shard.shardId(), shard);
+    }
+
+    public String getReplicationCheckPointKey(ShardId shardId, String nodeName) {
+        return shardId.toString() + "_" + nodeName;
+    }
+
+    public void addReplicationCheckpoint(ShardId shardId, String nodeName, ReplicationCheckpoint replicationCheckpoint) {
+        shardIdNodeToReplicationCheckPointMap.putIfAbsent(getReplicationCheckPointKey(shardId, nodeName), replicationCheckpoint);
     }
 }

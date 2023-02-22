@@ -224,7 +224,7 @@ public class PersistentTasksExecutorIT extends OpenSearchIntegTestCase {
     public void testPersistentActionWithNonClusterStateCondition() throws Exception {
         PersistentTasksClusterService persistentTasksClusterService = internalCluster().getInstance(
             PersistentTasksClusterService.class,
-            internalCluster().getMasterName()
+            internalCluster().getClusterManagerName()
         );
         // Speed up rechecks to a rate that is quicker than what settings would allow
         persistentTasksClusterService.setRecheckInterval(TimeValue.timeValueMillis(1));
@@ -384,7 +384,7 @@ public class PersistentTasksExecutorIT extends OpenSearchIntegTestCase {
     public void testUnassignRunningPersistentTask() throws Exception {
         PersistentTasksClusterService persistentTasksClusterService = internalCluster().getInstance(
             PersistentTasksClusterService.class,
-            internalCluster().getMasterName()
+            internalCluster().getClusterManagerName()
         );
         // Speed up rechecks to a rate that is quicker than what settings would allow
         persistentTasksClusterService.setRecheckInterval(TimeValue.timeValueMillis(1));

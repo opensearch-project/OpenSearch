@@ -37,6 +37,7 @@ import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.master.AcknowledgedRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeValue;
 
 /**
  * Transport request builder for resizing an index
@@ -93,6 +94,14 @@ public class ResizeRequestBuilder extends AcknowledgedRequestBuilder<ResizeReque
 
     public ResizeRequestBuilder setResizeType(ResizeType type) {
         this.request.setResizeType(type);
+        return this;
+    }
+
+    /**
+     * Sets the maximum size of a primary shard in the new shrunken index.
+     */
+    public ResizeRequestBuilder setMaxShardSize(ByteSizeValue maxShardSize) {
+        this.request.setMaxShardSize(maxShardSize);
         return this;
     }
 }

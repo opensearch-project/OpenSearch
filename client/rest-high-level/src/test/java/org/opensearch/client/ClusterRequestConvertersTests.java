@@ -32,8 +32,6 @@
 
 package org.opensearch.client;
 
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpPut;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
@@ -44,6 +42,8 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Priority;
 import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.test.OpenSearchTestCase;
+import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.classic.methods.HttpPut;
 import org.hamcrest.CoreMatchers;
 import org.junit.Assert;
 

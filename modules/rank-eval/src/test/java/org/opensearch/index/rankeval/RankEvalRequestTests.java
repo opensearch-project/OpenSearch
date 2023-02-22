@@ -37,7 +37,7 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.Writeable.Reader;
 import org.opensearch.common.util.ArrayUtils;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 import org.junit.AfterClass;
 
@@ -47,21 +47,21 @@ import java.util.List;
 
 public class RankEvalRequestTests extends AbstractWireSerializingTestCase<RankEvalRequest> {
 
-    private static RankEvalPlugin rankEvalPlugin = new RankEvalPlugin();
+    private static RankEvalModulePlugin rankEvalModulePlugin = new RankEvalModulePlugin();
 
     @AfterClass
     public static void releasePluginResources() throws IOException {
-        rankEvalPlugin.close();
+        rankEvalModulePlugin.close();
     }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(rankEvalPlugin.getNamedXContent());
+        return new NamedXContentRegistry(rankEvalModulePlugin.getNamedXContent());
     }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(rankEvalPlugin.getNamedWriteables());
+        return new NamedWriteableRegistry(rankEvalModulePlugin.getNamedWriteables());
     }
 
     @Override

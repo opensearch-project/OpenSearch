@@ -37,6 +37,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenStream;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.settings.Settings;
@@ -80,9 +81,12 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
                 collator = new RuleBasedCollator(rules);
             } catch (Exception e) {
                 if (failureToResolve != null) {
-                    throw new IllegalArgumentException("Failed to resolve collation rules location", failureToResolve);
+                    LogManager.getLogger(IcuCollationTokenFilterFactory.class)
+                        .error("Failed to resolve collation rules location", failureToResolve);
+                    throw new IllegalArgumentException("Failed to resolve collation rules location");
                 } else {
-                    throw new IllegalArgumentException("Failed to parse collation rules", e);
+                    LogManager.getLogger(IcuCollationTokenFilterFactory.class).error("Failed to parse collation rules", e);
+                    throw new IllegalArgumentException("Failed to parse collation rules");
                 }
             }
         } else {

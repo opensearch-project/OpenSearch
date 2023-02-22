@@ -46,7 +46,6 @@ import org.junit.rules.ExpectedException;
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.Arrays;
-import java.util.Locale;
 
 public class StemmerOverrideTokenFilterFactoryTests extends OpenSearchTokenStreamTestCase {
     @Rule
@@ -59,7 +58,7 @@ public class StemmerOverrideTokenFilterFactoryTests extends OpenSearchTokenStrea
                 .putList("index.analysis.filter.my_stemmer_override.rules", rules)
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
 
         return analysis.tokenFilter.get("my_stemmer_override");
@@ -76,11 +75,8 @@ public class StemmerOverrideTokenFilterFactoryTests extends OpenSearchTokenStrea
             "=>a",     // no keys
             "a,=>b"    // empty key
         )) {
-            expectThrows(
-                RuntimeException.class,
-                String.format(Locale.ROOT, "Should fail for invalid rule: '%s'", rule),
-                () -> create(rule)
-            );
+            RuntimeException ex = expectThrows(RuntimeException.class, () -> create(rule));
+            assertEquals("Line [1]: Invalid keyword override rule: " + rule, ex.getMessage());
         }
     }
 
@@ -89,5 +85,10 @@ public class StemmerOverrideTokenFilterFactoryTests extends OpenSearchTokenStrea
         Tokenizer tokenizer = new WhitespaceTokenizer();
         tokenizer.setReader(new StringReader("a b c"));
         assertTokenStreamContents(tokenFilterFactory.create(tokenizer), new String[] { "1", "2", "2" });
+    }
+
+    public void testRulePartError() {
+        RuntimeException ex = expectThrows(RuntimeException.class, () -> create("a => 1", "b,c => 2", "# This is a comment", "=>a=>b"));
+        assertEquals("Line [4]: Invalid keyword override rule: =>a=>b", ex.getMessage());
     }
 }

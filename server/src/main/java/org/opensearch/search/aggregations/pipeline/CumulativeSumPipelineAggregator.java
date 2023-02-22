@@ -32,8 +32,6 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -43,7 +41,6 @@ import org.opensearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.opensearch.search.aggregations.bucket.histogram.HistogramFactory;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -63,24 +60,6 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
     CumulativeSumPipelineAggregator(String name, String[] bucketsPaths, DocValueFormat formatter, Map<String, Object> metadata) {
         super(name, bucketsPaths, metadata);
         this.formatter = formatter;
-    }
-
-    /**
-     * Read from a stream.
-     */
-    public CumulativeSumPipelineAggregator(StreamInput in) throws IOException {
-        super(in);
-        formatter = in.readNamedWriteable(DocValueFormat.class);
-    }
-
-    @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(formatter);
-    }
-
-    @Override
-    public String getWriteableName() {
-        return CumulativeSumPipelineAggregationBuilder.NAME;
     }
 
     @Override

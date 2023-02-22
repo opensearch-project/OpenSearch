@@ -42,8 +42,8 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.discovery.DiscoveryStats;
@@ -91,10 +91,10 @@ public class ZenDiscoveryIT extends OpenSearchIntegTestCase {
         RecoveryResponse r = client().admin().indices().prepareRecoveries("test").get();
         int numRecoveriesBeforeNewClusterManager = r.shardRecoveryStates().get("test").size();
 
-        final String oldClusterManager = internalCluster().getMasterName();
-        internalCluster().stopCurrentMasterNode();
+        final String oldClusterManager = internalCluster().getClusterManagerName();
+        internalCluster().stopCurrentClusterManagerNode();
         assertBusy(() -> {
-            String current = internalCluster().getMasterName();
+            String current = internalCluster().getClusterManagerName();
             assertThat(current, notNullValue());
             assertThat(current, not(equalTo(oldClusterManager)));
         });
@@ -170,7 +170,9 @@ public class ZenDiscoveryIT extends OpenSearchIntegTestCase {
         ensureGreen(); // ensures that all events are processed (in particular state recovery fully completed)
         assertBusy(
             () -> assertThat(
-                internalCluster().clusterService(internalCluster().getMasterName()).getMasterService().numberOfPendingTasks(),
+                internalCluster().clusterService(internalCluster().getClusterManagerName())
+                    .getClusterManagerService()
+                    .numberOfPendingTasks(),
                 equalTo(0)
             )
         ); // see https://github.com/elastic/elasticsearch/issues/24388

@@ -74,6 +74,9 @@ public class NRTReplicationReaderManager extends OpenSearchReaderManager {
      * @throws IOException - When Refresh fails with an IOException.
      */
     public synchronized void updateSegments(SegmentInfos infos) throws IOException {
+        // roll over the currentInfo's generation, this ensures the on-disk gen
+        // is always increased.
+        infos.updateGeneration(currentInfos);
         currentInfos = infos;
         maybeRefresh();
     }

@@ -32,9 +32,7 @@
 
 package org.opensearch.indices;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
-import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -246,13 +244,8 @@ public class IndicesLifecycleListenerIT extends OpenSearchIntegTestCase {
         assertThat(stateChangeListenerNode1.afterCloseSettings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1), equalTo(6));
         assertThat(stateChangeListenerNode1.afterCloseSettings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1), equalTo(1));
 
-        if (Version.CURRENT.onOrAfter(LegacyESVersion.V_7_2_0)) {
-            assertShardStatesMatch(stateChangeListenerNode1, 6, CLOSED, CREATED, RECOVERING, POST_RECOVERY, STARTED);
-            assertShardStatesMatch(stateChangeListenerNode2, 6, CLOSED, CREATED, RECOVERING, POST_RECOVERY, STARTED);
-        } else {
-            assertShardStatesMatch(stateChangeListenerNode1, 6, CLOSED);
-            assertShardStatesMatch(stateChangeListenerNode2, 6, CLOSED);
-        }
+        assertShardStatesMatch(stateChangeListenerNode1, 6, CLOSED, CREATED, RECOVERING, POST_RECOVERY, STARTED);
+        assertShardStatesMatch(stateChangeListenerNode2, 6, CLOSED, CREATED, RECOVERING, POST_RECOVERY, STARTED);
     }
 
     private static void assertShardStatesMatch(

@@ -35,8 +35,9 @@ import org.opensearch.common.Explicit;
 import org.opensearch.common.Strings;
 import org.opensearch.common.collect.List;
 import org.opensearch.common.geo.builders.ShapeBuilder;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.TestGeoShapeFieldMapperPlugin;
 import org.junit.Before;
@@ -55,7 +56,7 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
 
     @Override
     protected Set<String> unsupportedProperties() {
-        return org.opensearch.common.collect.Set.of("analyzer", "similarity", "doc_values", "store");
+        return org.opensearch.common.collect.Set.of("analyzer", "similarity", "store");
     }
 
     @Override
@@ -117,7 +118,7 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
         GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
         assertThat(geoShapeFieldMapper.fieldType().orientation(), equalTo(GeoShapeFieldMapper.Defaults.ORIENTATION.value()));
-        assertThat(geoShapeFieldMapper.fieldType().hasDocValues(), equalTo(false));
+        assertThat(geoShapeFieldMapper.fieldType().hasDocValues(), equalTo(true));
     }
 
     /**
@@ -228,6 +229,7 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
         DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         assertThat(
             Strings.toString(
+                XContentType.JSON,
                 mapper.mappers().getMapper("field"),
                 new ToXContent.MapParams(Collections.singletonMap("include_defaults", "true"))
             ),
@@ -246,7 +248,7 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
             b.endArray();
         }));
         assertThat(document.docs(), hasSize(1));
-        assertThat(document.docs().get(0).getFields("field").length, equalTo(2));
+        assertThat(document.docs().get(0).getFields("field").length, equalTo(4));
     }
 
     @Override

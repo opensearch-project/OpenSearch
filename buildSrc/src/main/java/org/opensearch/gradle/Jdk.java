@@ -37,6 +37,7 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.TaskDependency;
+import org.gradle.internal.os.OperatingSystem;
 
 import java.io.File;
 import java.util.Arrays;
@@ -48,7 +49,9 @@ import java.util.regex.Pattern;
 
 public class Jdk implements Buildable, Iterable<File> {
 
-    private static final List<String> ALLOWED_ARCHITECTURES = Collections.unmodifiableList(Arrays.asList("aarch64", "x64"));
+    private static final List<String> ALLOWED_ARCHITECTURES = Collections.unmodifiableList(
+        Arrays.asList("aarch64", "x64", "s390x", "ppc64le")
+    );
     private static final List<String> ALLOWED_VENDORS = Collections.unmodifiableList(Arrays.asList("adoptium", "adoptopenjdk", "openjdk"));
     private static final List<String> ALLOWED_PLATFORMS = Collections.unmodifiableList(
         Arrays.asList("darwin", "freebsd", "linux", "mac", "windows")
@@ -128,7 +131,7 @@ public class Jdk implements Buildable, Iterable<File> {
                 "unknown architecture [" + jdkArchitecture + "] for jdk [" + name + "], must be one of " + ALLOWED_ARCHITECTURES
             );
         }
-        this.architecture.set(architecture);
+        this.architecture.set(jdkArchitecture);
     }
 
     public String getBaseVersion() {
@@ -169,7 +172,7 @@ public class Jdk implements Buildable, Iterable<File> {
         return new Object() {
             @Override
             public String toString() {
-                return getHomeRoot() + "/bin/java";
+                return OperatingSystem.current().getExecutableName(getHomeRoot() + "/bin/java");
             }
         };
     }

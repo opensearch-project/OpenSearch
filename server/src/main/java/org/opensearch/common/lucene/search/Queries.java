@@ -87,10 +87,6 @@ public class Queries {
         return Queries.newMatchNoDocsQuery("failed [" + field + "] query, caused by " + message);
     }
 
-    public static Query newNestedFilter() {
-        return not(newNonNestedFilter());
-    }
-
     /**
      * Creates a new non-nested docs query
      */

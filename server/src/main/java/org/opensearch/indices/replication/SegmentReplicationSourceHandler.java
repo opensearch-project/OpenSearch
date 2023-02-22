@@ -22,11 +22,11 @@ import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.StoreFileMetadata;
-import org.opensearch.indices.RunUnderPrimaryPermit;
 import org.opensearch.indices.recovery.DelayRecoveryException;
 import org.opensearch.indices.recovery.FileChunkWriter;
 import org.opensearch.indices.recovery.MultiChunkTransfer;
 import org.opensearch.indices.replication.common.CopyState;
+import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transports;
 
@@ -54,6 +54,10 @@ class SegmentReplicationSourceHandler {
     private final List<Closeable> resources = new CopyOnWriteArrayList<>();
     private final Logger logger;
     private final AtomicBoolean isReplicating = new AtomicBoolean();
+    private final DiscoveryNode targetNode;
+    private final String allocationId;
+
+    private final FileChunkWriter writer;
 
     /**
      * Constructor.
@@ -70,9 +74,11 @@ class SegmentReplicationSourceHandler {
         FileChunkWriter writer,
         ThreadPool threadPool,
         CopyState copyState,
+        String allocationId,
         int fileChunkSizeInBytes,
         int maxConcurrentFileChunks
     ) {
+        this.targetNode = targetNode;
         this.shard = copyState.getShard();
         this.logger = Loggers.getLogger(
             SegmentReplicationSourceHandler.class,
@@ -89,7 +95,9 @@ class SegmentReplicationSourceHandler {
             fileChunkSizeInBytes,
             maxConcurrentFileChunks
         );
+        this.allocationId = allocationId;
         this.copyState = copyState;
+        this.writer = writer;
     }
 
     /**
@@ -99,35 +107,42 @@ class SegmentReplicationSourceHandler {
      * @param listener {@link ActionListener} that completes with the list of files sent.
      */
     public synchronized void sendFiles(GetSegmentFilesRequest request, ActionListener<GetSegmentFilesResponse> listener) {
+        final ReplicationTimer timer = new ReplicationTimer();
         if (isReplicating.compareAndSet(false, true) == false) {
             throw new OpenSearchException("Replication to {} is already running.", shard.shardId());
         }
         future.addListener(listener, OpenSearchExecutors.newDirectExecutorService());
         final Closeable releaseResources = () -> IOUtils.close(resources);
         try {
-
+            timer.start();
+            cancellableThreads.setOnCancel((reason, beforeCancelEx) -> {
+                final RuntimeException e = new CancellableThreads.ExecutionCancelledException(
+                    "replication was canceled reason [" + reason + "]"
+                );
+                if (beforeCancelEx != null) {
+                    e.addSuppressed(beforeCancelEx);
+                }
+                IOUtils.closeWhileHandlingException(releaseResources, () -> future.onFailure(e));
+                throw e;
+            });
             final Consumer<Exception> onFailure = e -> {
                 assert Transports.assertNotTransportThread(SegmentReplicationSourceHandler.this + "[onFailure]");
                 IOUtils.closeWhileHandlingException(releaseResources, () -> future.onFailure(e));
+                timer.stop();
+                logger.trace(
+                    "[replication id {}] Source node failed to send files to target node [{}], timing: {}",
+                    request.getReplicationId(),
+                    request.getTargetNode().getId(),
+                    timer.time()
+                );
             };
 
-            RunUnderPrimaryPermit.run(() -> {
-                final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
-                ShardRouting targetShardRouting = routingTable.getByAllocationId(request.getTargetAllocationId());
-                if (targetShardRouting == null) {
-                    logger.debug(
-                        "delaying replication of {} as it is not listed as assigned to target node {}",
-                        shard.shardId(),
-                        request.getTargetNode()
-                    );
-                    throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
-                }
-            },
-                shard.shardId() + " validating recovery target [" + request.getTargetAllocationId() + "] registered ",
-                shard,
-                cancellableThreads,
-                logger
-            );
+            final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
+            ShardRouting targetShardRouting = routingTable.getByAllocationId(request.getTargetAllocationId());
+            if (targetShardRouting == null) {
+                logger.debug("delaying replication of {} as it is not listed as assigned to target node {}", shard.shardId(), targetNode);
+                throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
+            }
 
             final StepListener<Void> sendFileStep = new StepListener<>();
             Set<String> storeFiles = new HashSet<>(Arrays.asList(shard.store().directory().listAll()));
@@ -139,6 +154,7 @@ class SegmentReplicationSourceHandler {
             final MultiChunkTransfer<StoreFileMetadata, SegmentFileTransferHandler.FileChunk> transfer = segmentFileTransferHandler
                 .createTransfer(shard.store(), storeFileMetadata, () -> 0, sendFileStep);
             resources.add(transfer);
+            cancellableThreads.checkForCancel();
             transfer.start();
 
             sendFileStep.whenComplete(r -> {
@@ -146,6 +162,13 @@ class SegmentReplicationSourceHandler {
                     future.onResponse(new GetSegmentFilesResponse(List.of(storeFileMetadata)));
                 } finally {
                     IOUtils.close(resources);
+                    timer.stop();
+                    logger.trace(
+                        "[replication id {}] Source node completed sending files to target node [{}], timing: {}",
+                        request.getReplicationId(),
+                        request.getTargetNode().getId(),
+                        timer.time()
+                    );
                 }
             }, onFailure);
         } catch (Exception e) {
@@ -154,9 +177,10 @@ class SegmentReplicationSourceHandler {
     }
 
     /**
-     * Cancels the recovery and interrupts all eligible threads.
+     * Cancels the replication and interrupts all eligible threads.
      */
     public void cancel(String reason) {
+        writer.cancel();
         cancellableThreads.cancel(reason);
     }
 
@@ -166,5 +190,13 @@ class SegmentReplicationSourceHandler {
 
     public boolean isReplicating() {
         return isReplicating.get();
+    }
+
+    public DiscoveryNode getTargetNode() {
+        return targetNode;
+    }
+
+    public String getAllocationId() {
+        return allocationId;
     }
 }

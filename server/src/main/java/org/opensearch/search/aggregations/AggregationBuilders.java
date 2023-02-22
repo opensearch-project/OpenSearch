@@ -43,10 +43,6 @@ import org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder
 import org.opensearch.search.aggregations.bucket.filter.Filters;
 import org.opensearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
-import org.opensearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
-import org.opensearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
-import org.opensearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
-import org.opensearch.search.aggregations.bucket.geogrid.InternalGeoTileGrid;
 import org.opensearch.search.aggregations.bucket.global.Global;
 import org.opensearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -78,8 +74,6 @@ import org.opensearch.search.aggregations.metrics.Cardinality;
 import org.opensearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.ExtendedStats;
 import org.opensearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
-import org.opensearch.search.aggregations.metrics.GeoBounds;
-import org.opensearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.GeoCentroid;
 import org.opensearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.Max;
@@ -264,20 +258,6 @@ public class AggregationBuilders {
     }
 
     /**
-     * Create a new {@link InternalGeoHashGrid} aggregation with the given name.
-     */
-    public static GeoHashGridAggregationBuilder geohashGrid(String name) {
-        return new GeoHashGridAggregationBuilder(name);
-    }
-
-    /**
-     * Create a new {@link InternalGeoTileGrid} aggregation with the given name.
-     */
-    public static GeoTileGridAggregationBuilder geotileGrid(String name) {
-        return new GeoTileGridAggregationBuilder(name);
-    }
-
-    /**
      * Create a new {@link SignificantTerms} aggregation with the given name.
      */
     public static SignificantTermsAggregationBuilder significantTerms(String name) {
@@ -362,13 +342,6 @@ public class AggregationBuilders {
      */
     public static TopHitsAggregationBuilder topHits(String name) {
         return new TopHitsAggregationBuilder(name);
-    }
-
-    /**
-     * Create a new {@link GeoBounds} aggregation with the given name.
-     */
-    public static GeoBoundsAggregationBuilder geoBounds(String name) {
-        return new GeoBoundsAggregationBuilder(name);
     }
 
     /**

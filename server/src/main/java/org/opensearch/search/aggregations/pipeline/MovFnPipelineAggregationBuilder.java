@@ -32,15 +32,14 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.opensearch.LegacyESVersion;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.script.Script;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
@@ -50,7 +49,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
 import static org.opensearch.search.aggregations.pipeline.PipelineAggregator.Parser.BUCKETS_PATH;
 import static org.opensearch.search.aggregations.pipeline.PipelineAggregator.Parser.FORMAT;
 import static org.opensearch.search.aggregations.pipeline.PipelineAggregator.Parser.GAP_POLICY;
@@ -114,11 +113,7 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
         format = in.readOptionalString();
         gapPolicy = GapPolicy.readFrom(in);
         window = in.readInt();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_4_0)) {
-            shift = in.readInt();
-        } else {
-            shift = 0;
-        }
+        shift = in.readInt();
     }
 
     @Override
@@ -128,9 +123,7 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
         out.writeOptionalString(format);
         gapPolicy.writeTo(out);
         out.writeInt(window);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_4_0)) {
-            out.writeInt(shift);
-        }
+        out.writeInt(shift);
     }
 
     /**

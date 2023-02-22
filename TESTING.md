@@ -383,6 +383,10 @@ Use -Dtest.class and -Dtests.method to run a specific bwcTest test. For example 
      -Dtests.class=org.opensearch.upgrades.RecoveryIT \
      -Dtests.method=testHistoryUUIDIsGenerated
 
+Use `-PcustomDistributionDownloadType=bundle` to run the bwcTest against the test cluster with latest CI distribution bundle set up for the specified version; this property is default to min and exclusive choices between `bundle` and `min`:
+
+    ./gradlew bwcTest -PcustomDistributionDownloadType=bundle
+
 When running `./gradlew check`, minimal bwc checks are also run against compatible versions that are not yet released.
 
 ## BWC Testing against a specific remote/branch
@@ -395,7 +399,7 @@ The branch needs to be available on the remote that the BWC makes of the reposit
 
 Example:
 
-Say you need to make a change to `master` and have a BWC layer in `5.x`. You will need to: . Create a branch called `index_req_change` off your remote `${remote}`. This will contain your change. . Create a branch called `index_req_bwc_5.x` off `5.x`. This will contain your bwc layer. . Push both branches to your remote repository. . Run the tests with `./gradlew check -Dbwc.remote=${remote} -Dbwc.refspec.5.x=index_req_bwc_5.x`.
+Say you need to make a change to `main` and have a BWC layer in `5.x`. You will need to: . Create a branch called `index_req_change` off your remote `${remote}`. This will contain your change. . Create a branch called `index_req_bwc_5.x` off `5.x`. This will contain your bwc layer. . Push both branches to your remote repository. . Run the tests with `./gradlew check -Dbwc.remote=${remote} -Dbwc.refspec.5.x=index_req_bwc_5.x`.
 
 ### Skip fetching latest
 

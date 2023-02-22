@@ -260,6 +260,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private void searchLeaf(LeafReaderContext ctx, Weight weight, Collector collector) throws IOException {
         cancellable.checkCancelled();
         weight = wrapWeight(weight);
+        // See please https://github.com/apache/lucene/pull/964
+        collector.setWeight(weight);
         final LeafCollector leafCollector;
         try {
             leafCollector = collector.getLeafCollector(ctx);

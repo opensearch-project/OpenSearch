@@ -2,6 +2,8 @@ name: Link Checker
 on:
   schedule:
     - cron:  '0 0 * * *'
+permissions:
+  contents: read # to fetch code (actions/checkout)
 jobs:
   linkchecker:
     if: github.repository == 'opensearch-project/OpenSearch'

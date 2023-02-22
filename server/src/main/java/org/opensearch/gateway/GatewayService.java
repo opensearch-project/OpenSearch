@@ -188,7 +188,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
 
     @Override
     protected void doStart() {
-        if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
+        if (DiscoveryNode.isClusterManagerNode(clusterService.getSettings())) {
             // use post applied so that the state will be visible to the background recovery thread we spawn in performStateRecovery
             clusterService.addListener(this);
         }
@@ -210,7 +210,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
 
         final ClusterState state = event.state();
 
-        if (state.nodes().isLocalNodeElectedMaster() == false) {
+        if (state.nodes().isLocalNodeElectedClusterManager() == false) {
             // not our job to recover
             return;
         }
@@ -220,12 +220,12 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         }
 
         final DiscoveryNodes nodes = state.nodes();
-        if (state.nodes().getMasterNodeId() == null) {
+        if (state.nodes().getClusterManagerNodeId() == null) {
             logger.debug("not recovering from gateway, no cluster-manager elected yet");
-        } else if (recoverAfterNodes != -1 && (nodes.getMasterAndDataNodes().size()) < recoverAfterNodes) {
+        } else if (recoverAfterNodes != -1 && (nodes.getClusterManagerAndDataNodes().size()) < recoverAfterNodes) {
             logger.debug(
                 "not recovering from gateway, nodes_size (data+master) [{}] < recover_after_nodes [{}]",
-                nodes.getMasterAndDataNodes().size(),
+                nodes.getClusterManagerAndDataNodes().size(),
                 recoverAfterNodes
             );
         } else if (recoverAfterDataNodes != -1 && nodes.getDataNodes().size() < recoverAfterDataNodes) {
@@ -234,10 +234,10 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                 nodes.getDataNodes().size(),
                 recoverAfterDataNodes
             );
-        } else if (recoverAfterClusterManagerNodes != -1 && nodes.getMasterNodes().size() < recoverAfterClusterManagerNodes) {
+        } else if (recoverAfterClusterManagerNodes != -1 && nodes.getClusterManagerNodes().size() < recoverAfterClusterManagerNodes) {
             logger.debug(
                 "not recovering from gateway, nodes_size (master) [{}] < recover_after_master_nodes [{}]",
-                nodes.getMasterNodes().size(),
+                nodes.getClusterManagerNodes().size(),
                 recoverAfterClusterManagerNodes
             );
         } else {
@@ -251,19 +251,24 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                 // one of the expected is set, see if all of them meet the need, and ignore the timeout in this case
                 enforceRecoverAfterTime = false;
                 reason = "";
-                if (expectedNodes != -1 && (nodes.getMasterAndDataNodes().size() < expectedNodes)) { // does not meet the expected...
+                if (expectedNodes != -1 && (nodes.getClusterManagerAndDataNodes().size() < expectedNodes)) { // does not meet the
+                                                                                                             // expected...
                     enforceRecoverAfterTime = true;
-                    reason = "expecting [" + expectedNodes + "] nodes, but only have [" + nodes.getMasterAndDataNodes().size() + "]";
+                    reason = "expecting ["
+                        + expectedNodes
+                        + "] nodes, but only have ["
+                        + nodes.getClusterManagerAndDataNodes().size()
+                        + "]";
                 } else if (expectedDataNodes != -1 && (nodes.getDataNodes().size() < expectedDataNodes)) { // does not meet the expected...
                     enforceRecoverAfterTime = true;
                     reason = "expecting [" + expectedDataNodes + "] data nodes, but only have [" + nodes.getDataNodes().size() + "]";
-                } else if (expectedClusterManagerNodes != -1 && (nodes.getMasterNodes().size() < expectedClusterManagerNodes)) {
+                } else if (expectedClusterManagerNodes != -1 && (nodes.getClusterManagerNodes().size() < expectedClusterManagerNodes)) {
                     // does not meet the expected...
                     enforceRecoverAfterTime = true;
                     reason = "expecting ["
                         + expectedClusterManagerNodes
                         + "] cluster-manager nodes, but only have ["
-                        + nodes.getMasterNodes().size()
+                        + nodes.getClusterManagerNodes().size()
                         + "]";
                 }
             }
@@ -341,7 +346,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         }
 
         @Override
-        public void onNoLongerMaster(String source) {
+        public void onNoLongerClusterManager(String source) {
             logger.debug("stepped down as cluster-manager before recovering state [{}]", source);
             resetRecoveredFlags();
         }

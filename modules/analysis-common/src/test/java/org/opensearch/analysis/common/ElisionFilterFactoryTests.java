@@ -49,7 +49,7 @@ public class ElisionFilterFactoryTests extends OpenSearchTokenStreamTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin())
+            () -> AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisModulePlugin())
         );
 
         assertEquals("elision filter requires [articles] or [articles_path] setting", e.getMessage());

@@ -56,7 +56,6 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-
             .build();
         IndexMetadata metadata = IndexMetadata.builder("test")
             .putMapping("{ \"properties\": { \"foo\":  { \"type\": \"text\"}}}")

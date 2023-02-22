@@ -32,14 +32,10 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.opensearch.LegacyESVersion;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -68,32 +64,6 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
         super(name, bucketsPaths, gapPolicy, formatter, metadata);
         this.percents = percents;
         this.keyed = keyed;
-    }
-
-    /**
-     * Read from a stream.
-     */
-    public PercentilesBucketPipelineAggregator(StreamInput in) throws IOException {
-        super(in);
-        percents = in.readDoubleArray();
-
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            keyed = in.readBoolean();
-        }
-    }
-
-    @Override
-    public void innerWriteTo(StreamOutput out) throws IOException {
-        out.writeDoubleArray(percents);
-
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            out.writeBoolean(keyed);
-        }
-    }
-
-    @Override
-    public String getWriteableName() {
-        return PercentilesBucketPipelineAggregationBuilder.NAME;
     }
 
     @Override

@@ -105,8 +105,20 @@ public class ReaderContext implements Releasable {
         indexShard.getSearchOperationListener().validateReaderContext(this, request);
     }
 
-    private long nowInMillis() {
+    protected AbstractRefCounted getRefCounted() {
+        return refCounted;
+    }
+
+    protected void updateLastAccessTime() {
+        this.lastAccessTime.updateAndGet(curr -> Math.max(curr, nowInMillis()));
+    }
+
+    protected long nowInMillis() {
         return indexShard.getThreadPool().relativeTimeInMillis();
+    }
+
+    public long getKeepAlive() {
+        return keepAlive.get();
     }
 
     @Override
@@ -140,7 +152,10 @@ public class ReaderContext implements Releasable {
         return searcherSupplier.acquireSearcher(source);
     }
 
-    private void tryUpdateKeepAlive(long keepAlive) {
+    /**
+     * Update keep alive if it is greater than current keep alive
+     */
+    public void tryUpdateKeepAlive(long keepAlive) {
         this.keepAlive.updateAndGet(curr -> Math.max(curr, keepAlive));
     }
 

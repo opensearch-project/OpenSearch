@@ -32,14 +32,13 @@
 
 package org.opensearch.search.aggregations.bucket.histogram;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -186,9 +185,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         dateHistogramInterval = new DateIntervalWrapper(in);
         offset = in.readLong();
         extendedBounds = in.readOptionalWriteable(LongBounds::new);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            hardBounds = in.readOptionalWriteable(LongBounds::new);
-        }
+        hardBounds = in.readOptionalWriteable(LongBounds::new);
     }
 
     @Override
@@ -204,9 +201,7 @@ public class DateHistogramAggregationBuilder extends ValuesSourceAggregationBuil
         dateHistogramInterval.writeTo(out);
         out.writeLong(offset);
         out.writeOptionalWriteable(extendedBounds);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            out.writeOptionalWriteable(hardBounds);
-        }
+        out.writeOptionalWriteable(hardBounds);
     }
 
     /** Get the current interval in milliseconds that is set on this builder. */

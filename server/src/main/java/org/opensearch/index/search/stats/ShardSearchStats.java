@@ -187,6 +187,18 @@ public final class ShardSearchStats implements SearchOperationListener {
         totalStats.scrollMetric.inc(TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - readerContext.getStartTimeInNano()));
     }
 
+    @Override
+    public void onNewPitContext(ReaderContext readerContext) {
+        totalStats.pitCurrent.inc();
+    }
+
+    @Override
+    public void onFreePitContext(ReaderContext readerContext) {
+        totalStats.pitCurrent.dec();
+        assert totalStats.pitCurrent.count() >= 0;
+        totalStats.pitMetric.inc(TimeUnit.NANOSECONDS.toMicros(System.nanoTime() - readerContext.getStartTimeInNano()));
+    }
+
     /**
      * Holder of statistics values
      *
@@ -203,10 +215,12 @@ public final class ShardSearchStats implements SearchOperationListener {
          * for one-thousand times as long (i.e., scrolls that execute for almost twelve days on average).
          */
         final MeanMetric scrollMetric = new MeanMetric();
+        final MeanMetric pitMetric = new MeanMetric();
         final MeanMetric suggestMetric = new MeanMetric();
         final CounterMetric queryCurrent = new CounterMetric();
         final CounterMetric fetchCurrent = new CounterMetric();
         final CounterMetric scrollCurrent = new CounterMetric();
+        final CounterMetric pitCurrent = new CounterMetric();
         final CounterMetric suggestCurrent = new CounterMetric();
 
         SearchStats.Stats stats() {
@@ -220,6 +234,9 @@ public final class ShardSearchStats implements SearchOperationListener {
                 scrollMetric.count(),
                 TimeUnit.MICROSECONDS.toMillis(scrollMetric.sum()),
                 scrollCurrent.count(),
+                pitMetric.count(),
+                TimeUnit.MICROSECONDS.toMillis(pitMetric.sum()),
+                pitCurrent.count(),
                 suggestMetric.count(),
                 TimeUnit.NANOSECONDS.toMillis(suggestMetric.sum()),
                 suggestCurrent.count()

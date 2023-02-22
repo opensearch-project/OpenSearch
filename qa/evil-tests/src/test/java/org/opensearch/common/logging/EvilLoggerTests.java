@@ -41,7 +41,6 @@ import org.apache.logging.log4j.core.appender.ConsoleAppender;
 import org.apache.logging.log4j.core.appender.CountingNoOpAppender;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.Constants;
 import org.opensearch.cli.UserException;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.common.Randomness;
@@ -62,7 +61,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
 import java.util.regex.Matcher;
@@ -71,7 +69,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.opensearch.common.logging.DeprecationLogger.DEPRECATION;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.lessThan;
@@ -283,29 +280,6 @@ public class EvilLoggerTests extends OpenSearchTestCase {
 
         assertThat(System.getProperty("opensearch.logs.cluster_name"), equalTo(ClusterName.CLUSTER_NAME_SETTING.get(settings).value()));
         assertThat(System.getProperty("opensearch.logs.node_name"), equalTo(Node.NODE_NAME_SETTING.get(settings)));
-    }
-
-    public void testNoNodeNameInPatternWarning() throws IOException, UserException {
-        String nodeName = randomAlphaOfLength(16);
-        LogConfigurator.setNodeName(nodeName);
-        setupLogging("no_node_name");
-        final String path =
-            System.getProperty("opensearch.logs.base_path") +
-                System.getProperty("file.separator") +
-                System.getProperty("opensearch.logs.cluster_name") + ".log";
-        final List<String> events = Files.readAllLines(PathUtils.get(path));
-        assertThat(events.size(), equalTo(2));
-        final String location = "org.opensearch.common.logging.LogConfigurator";
-        // the first message is a warning for unsupported configuration files
-        assertLogLine(events.get(0), Level.WARN, location, "\\[" + nodeName + "\\] Some logging configurations have "
-                + "%marker but don't have %node_name. We will automatically add %node_name to the pattern to ease the "
-                + "migration for users who customize log4j2.properties but will stop this behavior in 7.0. You should "
-                + "manually replace `%node_name` with `\\[%node_name\\]%marker ` in these locations:");
-        if (Constants.WINDOWS) {
-            assertThat(events.get(1), endsWith("no_node_name\\log4j2.properties"));
-        } else {
-            assertThat(events.get(1), endsWith("no_node_name/log4j2.properties"));
-        }
     }
 
     private void setupLogging(final String config) throws IOException, UserException {

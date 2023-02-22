@@ -34,7 +34,7 @@ package org.opensearch.index.query.functionscore;
 
 import org.apache.lucene.search.Explanation;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.lucene.search.function.Functions;

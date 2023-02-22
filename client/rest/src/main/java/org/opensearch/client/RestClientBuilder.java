@@ -32,36 +32,48 @@
 
 package org.opensearch.client;
 
-import org.apache.http.Header;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
-import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
-import org.apache.http.nio.conn.SchemeIOSessionStrategy;
+import org.apache.hc.core5.function.Factory;
+import org.apache.hc.core5.http.Header;
+import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
+import org.apache.hc.core5.reactor.ssl.TlsDetails;
+import org.apache.hc.core5.util.Timeout;
+import org.apache.hc.client5.http.async.HttpAsyncClient;
+import org.apache.hc.client5.http.auth.CredentialsProvider;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
+import org.apache.hc.client5.http.ssl.ClientTlsStrategyBuilder;
+import org.apache.hc.client5.http.impl.DefaultAuthenticationStrategy;
+import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
+import org.apache.hc.client5.http.impl.async.HttpAsyncClientBuilder;
 
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLEngine;
+
 import java.security.AccessController;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Helps creating a new {@link RestClient}. Allows to set the most common http client configuration options when internally
- * creating the underlying {@link org.apache.http.nio.client.HttpAsyncClient}. Also allows to provide an externally created
- * {@link org.apache.http.nio.client.HttpAsyncClient} in case additional customization is needed.
+ * creating the underlying {@link HttpAsyncClient}. Also allows to provide an externally created
+ * {@link HttpAsyncClient} in case additional customization is needed.
  */
 public final class RestClientBuilder {
     /**
-     * The default connection timout in milliseconds.
+     * The default connection timeout in milliseconds.
      */
     public static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = 1000;
 
     /**
-     * The default socket timeout in milliseconds.
+     * The default response timeout in milliseconds.
      */
-    public static final int DEFAULT_SOCKET_TIMEOUT_MILLIS = 30000;
+    public static final int DEFAULT_RESPONSE_TIMEOUT_MILLIS = 30000;
 
     /**
      * The default maximum of connections per route.
@@ -84,6 +96,7 @@ public final class RestClientBuilder {
     private NodeSelector nodeSelector = NodeSelector.ANY;
     private boolean strictDeprecationMode = false;
     private boolean compressionEnabled = false;
+    private Optional<Boolean> chunkedEnabled;
 
     /**
      * Creates a new builder instance and sets the hosts that the client will send requests to.
@@ -100,6 +113,7 @@ public final class RestClientBuilder {
             }
         }
         this.nodes = nodes;
+        this.chunkedEnabled = Optional.empty();
     }
 
     /**
@@ -239,6 +253,16 @@ public final class RestClientBuilder {
     }
 
     /**
+     * Whether the REST client should use Transfer-Encoding: chunked for requests or not"
+     *
+     * @param chunkedEnabled force enable/disable chunked transfer-encoding.
+     */
+    public RestClientBuilder setChunkedEnabled(boolean chunkedEnabled) {
+        this.chunkedEnabled = Optional.of(chunkedEnabled);
+        return this;
+    }
+
+    /**
      * Creates a new {@link RestClient} based on the provided configuration.
      */
     public RestClient build() {
@@ -248,16 +272,34 @@ public final class RestClientBuilder {
         CloseableHttpAsyncClient httpClient = AccessController.doPrivileged(
             (PrivilegedAction<CloseableHttpAsyncClient>) this::createHttpClient
         );
-        RestClient restClient = new RestClient(
-            httpClient,
-            defaultHeaders,
-            nodes,
-            pathPrefix,
-            failureListener,
-            nodeSelector,
-            strictDeprecationMode,
-            compressionEnabled
-        );
+
+        RestClient restClient = null;
+
+        if (chunkedEnabled.isPresent()) {
+            restClient = new RestClient(
+                httpClient,
+                defaultHeaders,
+                nodes,
+                pathPrefix,
+                failureListener,
+                nodeSelector,
+                strictDeprecationMode,
+                compressionEnabled,
+                chunkedEnabled.get()
+            );
+        } else {
+            restClient = new RestClient(
+                httpClient,
+                defaultHeaders,
+                nodes,
+                pathPrefix,
+                failureListener,
+                nodeSelector,
+                strictDeprecationMode,
+                compressionEnabled
+            );
+        }
+
         httpClient.start();
         return restClient;
     }
@@ -265,20 +307,35 @@ public final class RestClientBuilder {
     private CloseableHttpAsyncClient createHttpClient() {
         // default timeouts are all infinite
         RequestConfig.Builder requestConfigBuilder = RequestConfig.custom()
-            .setConnectTimeout(DEFAULT_CONNECT_TIMEOUT_MILLIS)
-            .setSocketTimeout(DEFAULT_SOCKET_TIMEOUT_MILLIS);
+            .setConnectTimeout(Timeout.ofMilliseconds(DEFAULT_CONNECT_TIMEOUT_MILLIS))
+            .setResponseTimeout(Timeout.ofMilliseconds(DEFAULT_RESPONSE_TIMEOUT_MILLIS));
         if (requestConfigCallback != null) {
             requestConfigBuilder = requestConfigCallback.customizeRequestConfig(requestConfigBuilder);
         }
 
         try {
-            HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create()
-                .setDefaultRequestConfig(requestConfigBuilder.build())
-                // default settings for connection pooling may be too constraining
+            final TlsStrategy tlsStrategy = ClientTlsStrategyBuilder.create()
+                .setSslContext(SSLContext.getDefault())
+                // See https://issues.apache.org/jira/browse/HTTPCLIENT-2219
+                .setTlsDetailsFactory(new Factory<SSLEngine, TlsDetails>() {
+                    @Override
+                    public TlsDetails create(final SSLEngine sslEngine) {
+                        return new TlsDetails(sslEngine.getSession(), sslEngine.getApplicationProtocol());
+                    }
+                })
+                .build();
+
+            final PoolingAsyncClientConnectionManager connectionManager = PoolingAsyncClientConnectionManagerBuilder.create()
                 .setMaxConnPerRoute(DEFAULT_MAX_CONN_PER_ROUTE)
                 .setMaxConnTotal(DEFAULT_MAX_CONN_TOTAL)
-                .setSSLContext(SSLContext.getDefault())
-                .setTargetAuthenticationStrategy(new PersistentCredentialsAuthenticationStrategy());
+                .setTlsStrategy(tlsStrategy)
+                .build();
+
+            HttpAsyncClientBuilder httpClientBuilder = HttpAsyncClientBuilder.create()
+                .setDefaultRequestConfig(requestConfigBuilder.build())
+                .setConnectionManager(connectionManager)
+                .setTargetAuthenticationStrategy(DefaultAuthenticationStrategy.INSTANCE)
+                .disableAutomaticRetries();
             if (httpClientConfigCallback != null) {
                 httpClientBuilder = httpClientConfigCallback.customizeHttpClient(httpClientBuilder);
             }
@@ -313,9 +370,9 @@ public final class RestClientBuilder {
     public interface HttpClientConfigCallback {
         /**
          * Allows to customize the {@link CloseableHttpAsyncClient} being created and used by the {@link RestClient}.
-         * Commonly used to customize the default {@link org.apache.http.client.CredentialsProvider} for authentication
-         * or the {@link SchemeIOSessionStrategy} for communication through ssl without losing any other useful default
-         * value that the {@link RestClientBuilder} internally sets, like connection pooling.
+         * Commonly used to customize the default {@link CredentialsProvider} for authentication for communication
+         * through TLS/SSL without losing any other useful default value that the {@link RestClientBuilder} internally
+         * sets, like connection pooling.
          *
          * @param httpClientBuilder the {@link HttpClientBuilder} for customizing the client instance.
          */

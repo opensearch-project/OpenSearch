@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 # This wrapper script allows SystemD to feed a file containing a passphrase into
 # the main OpenSearch startup script

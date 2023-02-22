@@ -31,8 +31,8 @@
 
 package org.opensearch.index.query;
 
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.common.SetOnce;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

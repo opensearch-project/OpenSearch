@@ -54,7 +54,7 @@ import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.component.Lifecycle;
 import org.opensearch.common.component.LifecycleListener;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
@@ -244,11 +244,6 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         @Override
         public void getRepositoryData(ActionListener<RepositoryData> listener) {
             listener.onResponse(null);
-        }
-
-        @Override
-        public void initializeSnapshot(SnapshotId snapshotId, List<IndexId> indices, Metadata metadata) {
-
         }
 
         @Override

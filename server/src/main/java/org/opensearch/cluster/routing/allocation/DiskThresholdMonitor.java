@@ -37,7 +37,6 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.client.Client;
@@ -46,6 +45,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.DiskUsage;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
@@ -54,7 +54,6 @@ import org.opensearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.opensearch.common.Priority;
 import org.opensearch.common.Strings;
 import org.opensearch.common.collect.ImmutableOpenMap;
-import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
@@ -80,7 +79,6 @@ import java.util.stream.StreamSupport;
 public class DiskThresholdMonitor {
 
     private static final Logger logger = LogManager.getLogger(DiskThresholdMonitor.class);
-
     private final DiskThresholdSettings diskThresholdSettings;
     private final Client client;
     private final Supplier<ClusterState> clusterStateSupplier;
@@ -88,7 +86,6 @@ public class DiskThresholdMonitor {
     private final RerouteService rerouteService;
     private final AtomicLong lastRunTimeMillis = new AtomicLong(Long.MIN_VALUE);
     private final AtomicBoolean checkInProgress = new AtomicBoolean();
-    private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
     /**
      * The IDs of the nodes that were over the low threshold in the last check (and maybe over another threshold too). Tracked so that we
@@ -121,14 +118,6 @@ public class DiskThresholdMonitor {
         this.rerouteService = rerouteService;
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         this.client = client;
-        if (diskThresholdSettings.isAutoReleaseIndexEnabled() == false) {
-            deprecationLogger.deprecate(
-                DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY.replace(".", "_"),
-                "[{}] will be removed in version {}",
-                DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY,
-                LegacyESVersion.V_7_4_0.major + 1
-            );
-        }
     }
 
     private void checkFinished() {
@@ -297,7 +286,7 @@ public class DiskThresholdMonitor {
                 }
         }
 
-        final ActionListener<Void> listener = new GroupedActionListener<>(ActionListener.wrap(this::checkFinished), 3);
+        final ActionListener<Void> listener = new GroupedActionListener<>(ActionListener.wrap(this::checkFinished), 4);
 
         if (reroute) {
             logger.debug("rerouting shards: [{}]", explanation);
@@ -371,23 +360,7 @@ public class DiskThresholdMonitor {
             .collect(Collectors.toSet());
 
         if (indicesToAutoRelease.isEmpty() == false) {
-            if (diskThresholdSettings.isAutoReleaseIndexEnabled()) {
-                logger.info("releasing read-only-allow-delete block on indices: [{}]", indicesToAutoRelease);
-                updateIndicesReadOnly(indicesToAutoRelease, listener, false);
-            } else {
-                deprecationLogger.deprecate(
-                    DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY.replace(".", "_"),
-                    "[{}] will be removed in version {}",
-                    DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY,
-                    LegacyESVersion.V_7_4_0.major + 1
-                );
-                logger.debug(
-                    "[{}] disabled, not releasing read-only-allow-delete block on indices: [{}]",
-                    DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY,
-                    indicesToAutoRelease
-                );
-                listener.onResponse(null);
-            }
+            updateIndicesReadOnly(indicesToAutoRelease, listener, false);
         } else {
             logger.trace("no auto-release required");
             listener.onResponse(null);
@@ -400,6 +373,17 @@ public class DiskThresholdMonitor {
         } else {
             listener.onResponse(null);
         }
+
+        // If all the nodes are breaching high disk watermark, we apply index create block to avoid red clusters.
+        if ((state.getBlocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id()) == false)
+            && nodesOverHighThreshold.size() == nodes.size()) {
+            setIndexCreateBlock(listener, true);
+        } else if (state.getBlocks().hasGlobalBlockWithId(Metadata.CLUSTER_CREATE_INDEX_BLOCK.id())
+            && diskThresholdSettings.isCreateIndexBlockAutoReleaseEnabled()) {
+                setIndexCreateBlock(listener, false);
+            } else {
+                listener.onResponse(null);
+            }
     }
 
     // exposed for tests to override
@@ -421,11 +405,9 @@ public class DiskThresholdMonitor {
     ) {
         for (RoutingNode routingNode : routingNodes) {
             if (usages.containsKey(routingNode.nodeId()) == false) {
-                if (routingNode != null) {
-                    for (ShardRouting routing : routingNode) {
-                        String indexName = routing.index().getName();
-                        indicesToMarkIneligibleForAutoRelease.add(indexName);
-                    }
+                for (ShardRouting routing : routingNode) {
+                    String indexName = routing.index().getName();
+                    indicesToMarkIneligibleForAutoRelease.add(indexName);
                 }
             }
         }
@@ -433,6 +415,27 @@ public class DiskThresholdMonitor {
 
     private void setLastRunTimeMillis() {
         lastRunTimeMillis.getAndUpdate(l -> Math.max(l, currentTimeMillisSupplier.getAsLong()));
+    }
+
+    protected void setIndexCreateBlock(final ActionListener<Void> listener, boolean indexCreateBlock) {
+        final ActionListener<Void> wrappedListener = ActionListener.wrap(r -> {
+            setLastRunTimeMillis();
+            listener.onResponse(r);
+        }, e -> {
+            logger.debug("setting index create block failed", e);
+            setLastRunTimeMillis();
+            listener.onFailure(e);
+        });
+
+        final Settings indexCreateBlockSetting = indexCreateBlock
+            ? Settings.builder().put(Metadata.SETTING_CREATE_INDEX_BLOCK_SETTING.getKey(), Boolean.TRUE.toString()).build()
+            : Settings.builder().putNull(Metadata.SETTING_CREATE_INDEX_BLOCK_SETTING.getKey()).build();
+
+        client.admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(indexCreateBlockSetting)
+            .execute(ActionListener.map(wrappedListener, r -> null));
     }
 
     protected void updateIndicesReadOnly(Set<String> indicesToUpdate, ActionListener<Void> listener, boolean readOnly) {

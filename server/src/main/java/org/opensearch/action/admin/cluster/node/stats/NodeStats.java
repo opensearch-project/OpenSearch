@@ -32,16 +32,17 @@
 
 package org.opensearch.action.admin.cluster.node.stats;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.routing.WeightedRoutingStats;
+import org.opensearch.cluster.service.ClusterManagerThrottlingStats;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.discovery.DiscoveryStats;
 import org.opensearch.http.HttpStats;
 import org.opensearch.index.stats.IndexingPressureStats;
@@ -56,6 +57,7 @@ import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.node.AdaptiveSelectionStats;
 import org.opensearch.script.ScriptCacheStats;
 import org.opensearch.script.ScriptStats;
+import org.opensearch.search.backpressure.stats.SearchBackpressureStats;
 import org.opensearch.threadpool.ThreadPoolStats;
 import org.opensearch.transport.TransportStats;
 
@@ -119,6 +121,15 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private ShardIndexingPressureStats shardIndexingPressureStats;
 
+    @Nullable
+    private SearchBackpressureStats searchBackpressureStats;
+
+    @Nullable
+    private ClusterManagerThrottlingStats clusterManagerThrottlingStats;
+
+    @Nullable
+    private WeightedRoutingStats weightedRoutingStats;
+
     public NodeStats(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
@@ -138,24 +149,28 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         ingestStats = in.readOptionalWriteable(IngestStats::new);
         adaptiveSelectionStats = in.readOptionalWriteable(AdaptiveSelectionStats::new);
         scriptCacheStats = null;
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_8_0)) {
-            if (in.getVersion().before(LegacyESVersion.V_7_9_0)) {
-                scriptCacheStats = in.readOptionalWriteable(ScriptCacheStats::new);
-            } else if (scriptStats != null) {
-                scriptCacheStats = scriptStats.toScriptCacheStats();
-            }
+        if (scriptStats != null) {
+            scriptCacheStats = scriptStats.toScriptCacheStats();
         }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            indexingPressureStats = in.readOptionalWriteable(IndexingPressureStats::new);
+        indexingPressureStats = in.readOptionalWriteable(IndexingPressureStats::new);
+        shardIndexingPressureStats = in.readOptionalWriteable(ShardIndexingPressureStats::new);
+
+        if (in.getVersion().onOrAfter(Version.V_2_4_0)) {
+            searchBackpressureStats = in.readOptionalWriteable(SearchBackpressureStats::new);
         } else {
-            indexingPressureStats = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
-            shardIndexingPressureStats = in.readOptionalWriteable(ShardIndexingPressureStats::new);
-        } else {
-            shardIndexingPressureStats = null;
+            searchBackpressureStats = null;
         }
 
+        if (in.getVersion().onOrAfter(Version.V_2_6_0)) {
+            clusterManagerThrottlingStats = in.readOptionalWriteable(ClusterManagerThrottlingStats::new);
+        } else {
+            clusterManagerThrottlingStats = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_2_6_0)) {
+            weightedRoutingStats = in.readOptionalWriteable(WeightedRoutingStats::new);
+        } else {
+            weightedRoutingStats = null;
+        }
     }
 
     public NodeStats(
@@ -176,7 +191,10 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable AdaptiveSelectionStats adaptiveSelectionStats,
         @Nullable ScriptCacheStats scriptCacheStats,
         @Nullable IndexingPressureStats indexingPressureStats,
-        @Nullable ShardIndexingPressureStats shardIndexingPressureStats
+        @Nullable ShardIndexingPressureStats shardIndexingPressureStats,
+        @Nullable SearchBackpressureStats searchBackpressureStats,
+        @Nullable ClusterManagerThrottlingStats clusterManagerThrottlingStats,
+        @Nullable WeightedRoutingStats weightedRoutingStats
     ) {
         super(node);
         this.timestamp = timestamp;
@@ -196,6 +214,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.scriptCacheStats = scriptCacheStats;
         this.indexingPressureStats = indexingPressureStats;
         this.shardIndexingPressureStats = shardIndexingPressureStats;
+        this.searchBackpressureStats = searchBackpressureStats;
+        this.clusterManagerThrottlingStats = clusterManagerThrottlingStats;
+        this.weightedRoutingStats = weightedRoutingStats;
     }
 
     public long getTimestamp() {
@@ -305,6 +326,20 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return shardIndexingPressureStats;
     }
 
+    @Nullable
+    public SearchBackpressureStats getSearchBackpressureStats() {
+        return searchBackpressureStats;
+    }
+
+    @Nullable
+    public ClusterManagerThrottlingStats getClusterManagerThrottlingStats() {
+        return clusterManagerThrottlingStats;
+    }
+
+    public WeightedRoutingStats getWeightedRoutingStats() {
+        return weightedRoutingStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -327,14 +362,17 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         out.writeOptionalWriteable(discoveryStats);
         out.writeOptionalWriteable(ingestStats);
         out.writeOptionalWriteable(adaptiveSelectionStats);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_8_0) && out.getVersion().before(LegacyESVersion.V_7_9_0)) {
-            out.writeOptionalWriteable(scriptCacheStats);
+        out.writeOptionalWriteable(indexingPressureStats);
+        out.writeOptionalWriteable(shardIndexingPressureStats);
+
+        if (out.getVersion().onOrAfter(Version.V_2_4_0)) {
+            out.writeOptionalWriteable(searchBackpressureStats);
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            out.writeOptionalWriteable(indexingPressureStats);
+        if (out.getVersion().onOrAfter(Version.V_2_6_0)) {
+            out.writeOptionalWriteable(clusterManagerThrottlingStats);
         }
-        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-            out.writeOptionalWriteable(shardIndexingPressureStats);
+        if (out.getVersion().onOrAfter(Version.V_2_6_0)) {
+            out.writeOptionalWriteable(weightedRoutingStats);
         }
     }
 
@@ -408,6 +446,16 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (getShardIndexingPressureStats() != null) {
             getShardIndexingPressureStats().toXContent(builder, params);
         }
+        if (getSearchBackpressureStats() != null) {
+            getSearchBackpressureStats().toXContent(builder, params);
+        }
+        if (getClusterManagerThrottlingStats() != null) {
+            getClusterManagerThrottlingStats().toXContent(builder, params);
+        }
+        if (getWeightedRoutingStats() != null) {
+            getWeightedRoutingStats().toXContent(builder, params);
+        }
+
         return builder;
     }
 }

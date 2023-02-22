@@ -39,7 +39,7 @@ import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.IndexAnalyzers;
@@ -62,7 +62,7 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<Plugin> getPlugins() {
-        return Collections.singletonList(new MapperExtrasPlugin());
+        return Collections.singletonList(new MapperExtrasModulePlugin());
     }
 
     @Override

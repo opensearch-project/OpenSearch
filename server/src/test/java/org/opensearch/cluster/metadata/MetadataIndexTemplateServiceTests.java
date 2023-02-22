@@ -38,23 +38,25 @@ import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService.PutRequest;
+import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.env.Environment;
 import org.opensearch.index.Index;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.IndexTemplateMissingException;
-import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.InvalidIndexTemplateException;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
@@ -85,7 +87,10 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.opensearch.common.settings.Settings.builder;
+import static org.opensearch.env.Environment.PATH_HOME_SETTING;
 import static org.opensearch.index.mapper.DataStreamFieldMapper.Defaults.TIMESTAMP_FIELD;
 import static org.opensearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 
@@ -411,7 +416,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
         );
         ComponentTemplate componentTemplate4 = new ComponentTemplate(template, 1L, new HashMap<>());
         expectThrows(
-            IllegalArgumentException.class,
+            SettingsException.class,
             () -> metadataIndexTemplateService.addComponentTemplate(throwState, true, "foo2", componentTemplate4)
         );
     }
@@ -2084,22 +2089,33 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
     }
 
     private static List<Throwable> putTemplate(NamedXContentRegistry xContentRegistry, PutRequest request) {
+        ClusterService clusterService = mock(ClusterService.class);
+        Settings settings = Settings.builder().put(PATH_HOME_SETTING.getKey(), "dummy").build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        Metadata metadata = Metadata.builder().build();
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .build();
+        when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.getSettings()).thenReturn(settings);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
             Settings.EMPTY,
+            clusterService,
             null,
             null,
             null,
-            null,
-            createTestShardLimitService(randomIntBetween(1, 1000)),
+            createTestShardLimitService(randomIntBetween(1, 1000), false),
             new Environment(builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             null,
             xContentRegistry,
             new SystemIndices(Collections.emptyMap()),
-            true
+            true,
+            new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
         );
         MetadataIndexTemplateService service = new MetadataIndexTemplateService(
-            null,
+            clusterService,
             createIndexService,
             new AliasValidator(),
             null,
@@ -2144,30 +2160,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
     }
 
     private MetadataIndexTemplateService getMetadataIndexTemplateService() {
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
-        MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(
-            Settings.EMPTY,
-            clusterService,
-            indicesService,
-            null,
-            null,
-            createTestShardLimitService(randomIntBetween(1, 1000)),
-            new Environment(builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build(), null),
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            null,
-            xContentRegistry(),
-            new SystemIndices(Collections.emptyMap()),
-            true
-        );
-        return new MetadataIndexTemplateService(
-            clusterService,
-            createIndexService,
-            new AliasValidator(),
-            indicesService,
-            new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
-            xContentRegistry()
-        );
+        return getInstanceFromNode(MetadataIndexTemplateService.class);
     }
 
     @SuppressWarnings("unchecked")

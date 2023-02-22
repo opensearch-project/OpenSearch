@@ -36,15 +36,15 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.opensearch.common.CheckedFunction;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.lucene.search.function.ScoreFunction;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.ContextParser;
-import org.opensearch.common.xcontent.XContent;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ContextParser;
+import org.opensearch.core.xcontent.XContent;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryParser;
 import org.opensearch.index.query.functionscore.ScoreFunctionBuilder;
@@ -55,6 +55,9 @@ import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.PipelineAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.composite.CompositeAggregation;
+import org.opensearch.search.aggregations.bucket.composite.CompositeAggregationParsingFunction;
+import org.opensearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.opensearch.search.aggregations.bucket.terms.SignificantTerms;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.opensearch.search.aggregations.pipeline.MovAvgModel;
@@ -169,6 +172,15 @@ public interface SearchPlugin {
      * @return A list of the new registrar functions
      */
     default List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
+        return emptyList();
+    }
+
+    /**
+     * Allows plugins to register new Aggregation in the {@link CompositeAggregation}.
+     *
+     * @return A {@link List} of {@link CompositeAggregationSpec}
+     */
+    default List<CompositeAggregationSpec> getCompositeAggregations() {
         return emptyList();
     }
 
@@ -533,25 +545,89 @@ public interface SearchPlugin {
     }
 
     /**
+     * Specification for including an aggregation as a part of Composite Aggregation.
+     */
+    class CompositeAggregationSpec {
+        private final Consumer<ValuesSourceRegistry.Builder> aggregatorRegistrar;
+        private final Class<?> valueSourceBuilderClass;
+        @Deprecated
+        /** This is added for backward compatibility, you don't need to set it, as we use aggregationType instead of
+         * byte code
+         */
+        private Byte byteCode;
+        private final CompositeAggregationParsingFunction parsingFunction;
+        private final String aggregationType;
+        private final Writeable.Reader<? extends CompositeValuesSourceBuilder<?>> reader;
+
+        /**
+         * Specification for registering an aggregation in Composite Aggregation
+         *
+         * @param aggregatorRegistrar function to register the
+         * {@link org.opensearch.search.aggregations.support.ValuesSource} to aggregator mappings for Composite
+         *                            aggregation
+         * @param valueSourceBuilderClass ValueSourceBuilder class name which is building the aggregation
+         * @param byteCode byte code which is used in serialisation and de-serialisation to indentify which
+         *                 aggregation builder to use
+         * @param reader Typically, a reference to a constructor that takes a {@link StreamInput}, which is
+         *               registered with the aggregation
+         * @param parsingFunction a reference function which will be used to parse the Aggregation input.
+         * @param aggregationType a {@link String} defined in the AggregationBuilder as type.
+         */
+        public CompositeAggregationSpec(
+            final Consumer<ValuesSourceRegistry.Builder> aggregatorRegistrar,
+            final Class<? extends CompositeValuesSourceBuilder<?>> valueSourceBuilderClass,
+            final Byte byteCode,
+            final Writeable.Reader<? extends CompositeValuesSourceBuilder<?>> reader,
+            final CompositeAggregationParsingFunction parsingFunction,
+            final String aggregationType
+        ) {
+            this.aggregatorRegistrar = aggregatorRegistrar;
+            this.valueSourceBuilderClass = valueSourceBuilderClass;
+            this.byteCode = byteCode;
+            this.parsingFunction = parsingFunction;
+            this.aggregationType = aggregationType;
+            this.reader = reader;
+        }
+
+        public Consumer<ValuesSourceRegistry.Builder> getAggregatorRegistrar() {
+            return aggregatorRegistrar;
+        }
+
+        public Class<?> getValueSourceBuilderClass() {
+            return valueSourceBuilderClass;
+        }
+
+        public Byte getByteCode() {
+            return byteCode;
+        }
+
+        public CompositeAggregationParsingFunction getParsingFunction() {
+            return parsingFunction;
+        }
+
+        public String getAggregationType() {
+            return aggregationType;
+        }
+
+        public Writeable.Reader<? extends CompositeValuesSourceBuilder<?>> getReader() {
+            return reader;
+        }
+    }
+
+    /**
      * Specification for a {@link PipelineAggregator}.
      */
     class PipelineAggregationSpec extends SearchExtensionSpec<
         PipelineAggregationBuilder,
         ContextParser<String, ? extends PipelineAggregationBuilder>> {
         private final Map<String, Writeable.Reader<? extends InternalAggregation>> resultReaders = new TreeMap<>();
-        /**
-         * Read the aggregator from a stream.
-         * @deprecated Pipelines implemented after 7.8.0 do not need to be sent across the wire
-         */
-        @Deprecated
-        private final Writeable.Reader<? extends PipelineAggregator> aggregatorReader;
 
         /**
          * Specification of a {@link PipelineAggregator}.
          *
          * @param name holds the names by which this aggregation might be parsed. The {@link ParseField#getPreferredName()} is special as it
          *        is the name by under which the readers are registered. So it is the name that the {@link PipelineAggregationBuilder} and
-         *        {@link PipelineAggregator} should return from {@link NamedWriteable#getWriteableName()}. It is an error if
+         *        {@link PipelineAggregator} should return from {@link NamedWriteable#getWriteableName()}.  It is an error if
          *        {@link ParseField#getPreferredName()} conflicts with another registered name, including names from other plugins.
          * @param builderReader the reader registered for this aggregation's builder. Typically, a reference to a constructor that takes a
          *        {@link StreamInput}
@@ -563,7 +639,6 @@ public interface SearchPlugin {
             ContextParser<String, ? extends PipelineAggregationBuilder> parser
         ) {
             super(name, builderReader, parser);
-            this.aggregatorReader = null;
         }
 
         /**
@@ -576,6 +651,7 @@ public interface SearchPlugin {
          * @param builderReader the reader registered for this aggregation's builder. Typically, a reference to a constructor that takes a
          *        {@link StreamInput}
          * @param parser reads the aggregation builder from XContent
+
          */
         public PipelineAggregationSpec(
             String name,
@@ -583,7 +659,6 @@ public interface SearchPlugin {
             ContextParser<String, ? extends PipelineAggregationBuilder> parser
         ) {
             super(name, builderReader, parser);
-            this.aggregatorReader = null;
         }
 
         /**
@@ -595,20 +670,16 @@ public interface SearchPlugin {
          *        {@link ParseField#getPreferredName()} conflicts with another registered name, including names from other plugins.
          * @param builderReader the reader registered for this aggregation's builder. Typically, a reference to a constructor that takes a
          *        {@link StreamInput}
-         * @param aggregatorReader reads the {@link PipelineAggregator} from a stream
          * @param parser reads the aggregation builder from XContent
-         * @deprecated Use {@link PipelineAggregationSpec#PipelineAggregationSpec(ParseField, Writeable.Reader, ContextParser)} for
-         *             pipelines implemented after 7.8.0
+         * @deprecated prefer the ctor that takes a {@link ContextParser}
          */
         @Deprecated
         public PipelineAggregationSpec(
             ParseField name,
             Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
-            Writeable.Reader<? extends PipelineAggregator> aggregatorReader,
-            ContextParser<String, ? extends PipelineAggregationBuilder> parser
+            PipelineAggregator.Parser parser
         ) {
-            super(name, builderReader, parser);
-            this.aggregatorReader = aggregatorReader;
+            super(name, builderReader, (p, n) -> parser.parse(n, p));
         }
 
         /**
@@ -620,67 +691,15 @@ public interface SearchPlugin {
          *        names from other plugins.
          * @param builderReader the reader registered for this aggregation's builder. Typically, a reference to a constructor that takes a
          *        {@link StreamInput}
-         * @param aggregatorReader reads the {@link PipelineAggregator} from a stream
-         * @param parser reads the aggregation builder from XContent
-         * @deprecated Use {@link PipelineAggregationSpec#PipelineAggregationSpec(String, Writeable.Reader, ContextParser)} for pipelines
-         *             implemented after 7.8.0
-         */
-        @Deprecated
-        public PipelineAggregationSpec(
-            String name,
-            Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
-            Writeable.Reader<? extends PipelineAggregator> aggregatorReader,
-            ContextParser<String, ? extends PipelineAggregationBuilder> parser
-        ) {
-            super(name, builderReader, parser);
-            this.aggregatorReader = aggregatorReader;
-        }
-
-        /**
-         * Specification of a {@link PipelineAggregator}.
-         *
-         * @param name holds the names by which this aggregation might be parsed. The {@link ParseField#getPreferredName()} is special as it
-         *        is the name by under which the readers are registered. So it is the name that the {@link PipelineAggregationBuilder} and
-         *        {@link PipelineAggregator} should return from {@link NamedWriteable#getWriteableName()}.  It is an error if
-         *        {@link ParseField#getPreferredName()} conflicts with another registered name, including names from other plugins.
-         * @param builderReader the reader registered for this aggregation's builder. Typically, a reference to a constructor that takes a
-         *        {@link StreamInput}
-         * @param aggregatorReader reads the {@link PipelineAggregator} from a stream
-         * @param parser reads the aggregation builder from XContent
-         * @deprecated prefer the ctor that takes a {@link ContextParser}
-         */
-        @Deprecated
-        public PipelineAggregationSpec(
-            ParseField name,
-            Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
-            Writeable.Reader<? extends PipelineAggregator> aggregatorReader,
-            PipelineAggregator.Parser parser
-        ) {
-            super(name, builderReader, (p, n) -> parser.parse(n, p));
-            this.aggregatorReader = aggregatorReader;
-        }
-
-        /**
-         * Specification of a {@link PipelineAggregator}.
-         *
-         * @param name name by which this aggregation might be parsed or deserialized. Make sure it is the name that the
-         *        {@link PipelineAggregationBuilder} and {@link PipelineAggregator} should return from
-         *        {@link NamedWriteable#getWriteableName()}.  It is an error if this name conflicts with another registered name, including
-         *        names from other plugins.
-         * @param builderReader the reader registered for this aggregation's builder. Typically, a reference to a constructor that takes a
-         *        {@link StreamInput}
-         * @param aggregatorReader reads the {@link PipelineAggregator} from a stream
          * @deprecated prefer the ctor that takes a {@link ContextParser}
          */
         @Deprecated
         public PipelineAggregationSpec(
             String name,
             Writeable.Reader<? extends PipelineAggregationBuilder> builderReader,
-            Writeable.Reader<? extends PipelineAggregator> aggregatorReader,
             PipelineAggregator.Parser parser
         ) {
             super(name, builderReader, (p, n) -> parser.parse(n, p));
-            this.aggregatorReader = aggregatorReader;
         }
 
         /**
@@ -697,15 +716,6 @@ public interface SearchPlugin {
         public PipelineAggregationSpec addResultReader(String writeableName, Writeable.Reader<? extends InternalAggregation> resultReader) {
             resultReaders.put(writeableName, resultReader);
             return this;
-        }
-
-        /**
-         * Read the aggregator from a stream.
-         * @deprecated Pipelines implemented after 7.8.0 do not need to be sent across the wire
-         */
-        @Deprecated
-        public Writeable.Reader<? extends PipelineAggregator> getAggregatorReader() {
-            return aggregatorReader;
         }
 
         /**

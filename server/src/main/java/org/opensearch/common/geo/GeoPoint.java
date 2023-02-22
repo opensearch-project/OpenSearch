@@ -40,8 +40,8 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.geo.GeoUtils.EffectivePoint;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.Point;
 import org.opensearch.geometry.Rectangle;
@@ -119,7 +119,11 @@ public class GeoPoint implements ToXContentFragment {
     public GeoPoint resetFromCoordinates(String value, final boolean ignoreZValue) {
         String[] vals = value.split(",");
         if (vals.length > 3) {
-            throw new OpenSearchParseException("failed to parse [{}], expected 2 or 3 coordinates " + "but found: [{}]", vals.length);
+            throw new OpenSearchParseException(
+                "failed to parse [{}], expected 2 or 3 coordinates " + "but found: [{}]",
+                value,
+                vals.length
+            );
         }
         final double lat;
         final double lon;

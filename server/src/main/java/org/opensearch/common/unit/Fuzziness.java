@@ -32,13 +32,13 @@
 package org.opensearch.common.unit;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -137,6 +137,16 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
             return parseCustomAuto(string);
         }
         return new Fuzziness(string);
+    }
+
+    /***
+     * Creates a {@link Fuzziness} instance from lowDistance and highDistance.
+     * where the edit distance is 0 for strings shorter than lowDistance,
+     * 1 for strings where its length between lowDistance and highDistance (inclusive),
+     * and 2 for strings longer than highDistance.
+     */
+    public static Fuzziness customAuto(int lowDistance, int highDistance) {
+        return new Fuzziness("AUTO", lowDistance, highDistance);
     }
 
     private static Fuzziness parseCustomAuto(final String string) {

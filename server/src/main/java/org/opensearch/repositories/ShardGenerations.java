@@ -33,7 +33,6 @@
 package org.opensearch.repositories;
 
 import org.opensearch.common.Nullable;
-import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -44,7 +43,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -72,24 +70,6 @@ public final class ShardGenerations {
 
     private ShardGenerations(Map<IndexId, List<String>> shardGenerations) {
         this.shardGenerations = shardGenerations;
-    }
-
-    private static final Pattern IS_NUMBER = Pattern.compile("^\\d+$");
-
-    /**
-     * Filters out unreliable numeric shard generations read from {@link RepositoryData} or {@link IndexShardSnapshotStatus}, returning
-     * {@code null} in their place.
-     * @see <a href="https://github.com/elastic/elasticsearch/issues/57798">Issue #57988</a>
-     *
-     * @param shardGeneration shard generation to fix
-     * @return given shard generation or {@code null} if it was filtered out or {@code null} was passed
-     */
-    @Nullable
-    public static String fixShardGeneration(@Nullable String shardGeneration) {
-        if (shardGeneration == null) {
-            return null;
-        }
-        return IS_NUMBER.matcher(shardGeneration).matches() ? null : shardGeneration;
     }
 
     /**
@@ -145,8 +125,7 @@ public final class ShardGenerations {
      * <ul>
      *     <li>{@link #DELETED_SHARD_GEN} a deleted shard that isn't referenced by any snapshot in the repository any longer</li>
      *     <li>{@link #NEW_SHARD_GEN} a new shard that we know doesn't hold any valid data yet in the repository</li>
-     *     <li>{@code null} unknown state. The shard either does not exist at all or it was created by a node older than
-     *     {@link org.opensearch.snapshots.SnapshotsService#SHARD_GEN_IN_REPO_DATA_VERSION}. If a caller expects a shard to exist in the
+     *     <li>{@code null} unknown state. The shard does not exist at all. If a caller expects a shard to exist in the
      *     repository but sees a {@code null} return, it should try to recover the generation by falling back to listing the contents
      *     of the respective shard directory.</li>
      * </ul>

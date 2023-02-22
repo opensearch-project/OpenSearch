@@ -35,8 +35,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.SetOnce;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterName;
@@ -58,10 +56,11 @@ import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterApplier;
 import org.opensearch.cluster.service.ClusterApplier.ClusterApplyListener;
-import org.opensearch.cluster.service.MasterService;
+import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.Strings;
 import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
@@ -74,6 +73,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.ListenableFuture;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.discovery.DiscoveryModule;
@@ -105,7 +105,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ID;
+import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID;
+import static org.opensearch.cluster.decommission.DecommissionHelper.nodeCommissioned;
 import static org.opensearch.gateway.ClusterStateUpdaters.hideStateIfNotRecovered;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
@@ -139,14 +140,15 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     private final Settings settings;
     private final boolean singleNodeDiscovery;
+    private volatile boolean localNodeCommissioned;
     private final ElectionStrategy electionStrategy;
     private final TransportService transportService;
-    private final MasterService clusterManagerService;
+    private final ClusterManagerService clusterManagerService;
     private final AllocationService allocationService;
     private final JoinHelper joinHelper;
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
     private final Supplier<CoordinationState.PersistedState> persistedStateSupplier;
-    private final NoMasterBlockService noClusterManagerBlockService;
+    private final NoClusterManagerBlockService noClusterManagerBlockService;
     final Object mutex = new Object(); // package-private to allow tests to call methods that assert that the mutex is held
     private final SetOnce<CoordinationState> coordinationState = new SetOnce<>(); // initialized on start-up (see doStart)
     private volatile ClusterState applierState; // the state that should be exposed to the cluster state applier
@@ -191,7 +193,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         TransportService transportService,
         NamedWriteableRegistry namedWriteableRegistry,
         AllocationService allocationService,
-        MasterService clusterManagerService,
+        ClusterManagerService clusterManagerService,
         Supplier<CoordinationState.PersistedState> persistedStateSupplier,
         SeedHostsProvider seedHostsProvider,
         ClusterApplier clusterApplier,
@@ -219,10 +221,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             this::joinLeaderInTerm,
             this.onJoinValidators,
             rerouteService,
-            nodeHealthService
+            nodeHealthService,
+            this::onNodeCommissionStatusChange
         );
         this.persistedStateSupplier = persistedStateSupplier;
-        this.noClusterManagerBlockService = new NoMasterBlockService(settings, clusterSettings);
+        this.noClusterManagerBlockService = new NoClusterManagerBlockService(settings, clusterSettings);
         this.lastKnownLeader = Optional.empty();
         this.lastJoin = Optional.empty();
         this.joinAccumulator = new InitialJoinAccumulator();
@@ -282,6 +285,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             joinHelper::logLastFailedJoinAttempt
         );
         this.nodeHealthService = nodeHealthService;
+        this.localNodeCommissioned = true;
     }
 
     private ClusterFormationState getClusterFormationState() {
@@ -386,7 +390,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             + getLocalNode();
 
         synchronized (mutex) {
-            final DiscoveryNode sourceNode = publishRequest.getAcceptedState().nodes().getMasterNode();
+            final DiscoveryNode sourceNode = publishRequest.getAcceptedState().nodes().getClusterManagerNode();
             logger.trace("handlePublishRequest: handling [{}] from [{}]", publishRequest, sourceNode);
 
             if (sourceNode.equals(getLocalNode()) && mode != Mode.LEADER) {
@@ -515,10 +519,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     private void abdicateTo(DiscoveryNode newClusterManager) {
         assert Thread.holdsLock(mutex);
         assert mode == Mode.LEADER : "expected to be leader on abdication but was " + mode;
-        assert newClusterManager.isMasterNode() : "should only abdicate to cluster-manager-eligible node but was " + newClusterManager;
+        assert newClusterManager.isClusterManagerNode() : "should only abdicate to cluster-manager-eligible node but was "
+            + newClusterManager;
         final StartJoinRequest startJoinRequest = new StartJoinRequest(newClusterManager, Math.max(getCurrentTerm(), maxTermSeen) + 1);
         logger.info("abdicating to {} with term {}", newClusterManager, startJoinRequest.getTerm());
-        getLastAcceptedState().nodes().mastersFirstStream().forEach(node -> {
+        getLastAcceptedState().nodes().clusterManagersFirstStream().forEach(node -> {
             if (isZen1Node(node) == false) {
                 joinHelper.sendStartJoinRequest(startJoinRequest, node);
             }
@@ -568,7 +573,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     private void handleJoinRequest(JoinRequest joinRequest, JoinHelper.JoinCallback joinCallback) {
         assert Thread.holdsLock(mutex) == false;
-        assert getLocalNode().isMasterNode() : getLocalNode() + " received a join but is not cluster-manager-eligible";
+        assert getLocalNode().isClusterManagerNode() : getLocalNode() + " received a join but is not cluster-manager-eligible";
         logger.trace("handleJoinRequest: as {}, handling {}", mode, joinRequest);
 
         if (singleNodeDiscovery && joinRequest.getSourceNode().equals(getLocalNode()) == false) {
@@ -587,7 +592,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         transportService.connectToNode(joinRequest.getSourceNode(), ActionListener.wrap(ignore -> {
             final ClusterState stateForJoinValidation = getStateForClusterManagerService();
 
-            if (stateForJoinValidation.nodes().isLocalNodeElectedMaster()) {
+            if (stateForJoinValidation.nodes().isLocalNodeElectedClusterManager()) {
                 onJoinValidators.forEach(a -> a.accept(joinRequest.getSourceNode(), stateForJoinValidation));
                 if (stateForJoinValidation.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
                     // we do this in a couple of places including the cluster update thread. This one here is really just best effort
@@ -596,6 +601,9 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                         joinRequest.getSourceNode().getVersion(),
                         stateForJoinValidation.getNodes().getMinNodeVersion()
                     );
+                    // we are checking source node commission status here to reject any join request coming from a decommissioned node
+                    // even before executing the join task to fail fast
+                    JoinTaskExecutor.ensureNodeCommissioned(joinRequest.getSourceNode(), stateForJoinValidation.metadata());
                 }
                 sendValidateJoinRequest(stateForJoinValidation, joinRequest, joinCallback);
             } else {
@@ -676,7 +684,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 cleanClusterManagerService();
             }
 
-            if (applierState.nodes().getMasterNodeId() != null) {
+            if (applierState.nodes().getClusterManagerNodeId() != null) {
                 applierState = clusterStateWithNoClusterManagerBlock(applierState);
                 clusterApplier.onNewClusterState("becoming candidate: " + method, () -> applierState, (source, e) -> {});
             }
@@ -688,7 +696,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     void becomeLeader(String method) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         assert mode == Mode.CANDIDATE : "expected candidate but was " + mode;
-        assert getLocalNode().isMasterNode() : getLocalNode() + " became a leader but is not cluster-manager-eligible";
+        assert getLocalNode().isClusterManagerNode() : getLocalNode() + " became a leader but is not cluster-manager-eligible";
 
         logger.debug(
             "{}: coordinator becoming LEADER in term {} (was {}, lastKnownLeader was [{}])",
@@ -714,7 +722,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     void becomeFollower(String method, DiscoveryNode leaderNode) {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
-        assert leaderNode.isMasterNode() : leaderNode + " became a leader but is not cluster-manager-eligible";
+        assert leaderNode.isClusterManagerNode() : leaderNode + " became a leader but is not cluster-manager-eligible";
         assert mode != Mode.LEADER : "do not switch to follower from leader (should be candidate first)";
 
         if (mode == Mode.FOLLOWER && Optional.of(leaderNode).equals(lastKnownLeader)) {
@@ -765,7 +773,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
             @Override
             public ClusterTasksResult<LocalClusterUpdateTask> execute(ClusterState currentState) {
-                if (currentState.nodes().isLocalNodeElectedMaster() == false) {
+                if (currentState.nodes().isLocalNodeElectedClusterManager() == false) {
                     allocationService.cleanCaches();
                 }
                 return unchanged();
@@ -838,7 +846,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 .blocks(
                     ClusterBlocks.builder()
                         .addGlobalBlock(STATE_NOT_RECOVERED_BLOCK)
-                        .addGlobalBlock(noClusterManagerBlockService.getNoMasterBlock())
+                        .addGlobalBlock(noClusterManagerBlockService.getNoClusterManagerBlock())
                 )
                 .nodes(DiscoveryNodes.builder().add(getLocalNode()).localNodeId(getLocalNode().getId()))
                 .build();
@@ -884,7 +892,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             assert peerFinder.getCurrentTerm() == getCurrentTerm();
             assert followersChecker.getFastResponseState().term == getCurrentTerm() : followersChecker.getFastResponseState();
             assert followersChecker.getFastResponseState().mode == getMode() : followersChecker.getFastResponseState();
-            assert (applierState.nodes().getMasterNodeId() == null) == applierState.blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID);
+            assert (applierState.nodes().getClusterManagerNodeId() == null) == applierState.blocks()
+                .hasGlobalBlockWithId(NO_CLUSTER_MANAGER_BLOCK_ID);
             assert preVoteCollector.getPreVoteResponse().equals(getPreVoteResponse()) : preVoteCollector + " vs " + getPreVoteResponse();
 
             assert lagDetector.getTrackedNodes().contains(getLocalNode()) == false : lagDetector.getTrackedNodes();
@@ -901,17 +910,17 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert peerFinderLeader.equals(lastKnownLeader) : peerFinderLeader;
                 assert electionScheduler == null : electionScheduler;
                 assert prevotingRound == null : prevotingRound;
-                assert becomingClusterManager || getStateForClusterManagerService().nodes().getMasterNodeId() != null
+                assert becomingClusterManager || getStateForClusterManagerService().nodes().getClusterManagerNodeId() != null
                     : getStateForClusterManagerService();
                 assert leaderChecker.leader() == null : leaderChecker.leader();
-                assert getLocalNode().equals(applierState.nodes().getMasterNode())
-                    || (applierState.nodes().getMasterNodeId() == null && applierState.term() < getCurrentTerm());
+                assert getLocalNode().equals(applierState.nodes().getClusterManagerNode())
+                    || (applierState.nodes().getClusterManagerNodeId() == null && applierState.term() < getCurrentTerm());
                 assert preVoteCollector.getLeader() == getLocalNode() : preVoteCollector;
                 assert clusterFormationFailureHelper.isRunning() == false;
 
                 final boolean activePublication = currentPublication.map(CoordinatorPublication::isActiveForCurrentLeader).orElse(false);
                 if (becomingClusterManager && activePublication == false) {
-                    // cluster state update task to become cluster-manager is submitted to MasterService,
+                    // cluster state update task to become cluster-manager is submitted to ClusterManagerService,
                     // but publication has not started yet
                     assert followersChecker.getKnownFollowers().isEmpty() : followersChecker.getKnownFollowers();
                 } else {
@@ -946,12 +955,12 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert peerFinderLeader.equals(lastKnownLeader) : peerFinderLeader;
                 assert electionScheduler == null : electionScheduler;
                 assert prevotingRound == null : prevotingRound;
-                assert getStateForClusterManagerService().nodes().getMasterNodeId() == null : getStateForClusterManagerService();
+                assert getStateForClusterManagerService().nodes().getClusterManagerNodeId() == null : getStateForClusterManagerService();
                 assert leaderChecker.currentNodeIsClusterManager() == false;
                 assert lastKnownLeader.equals(Optional.of(leaderChecker.leader()));
                 assert followersChecker.getKnownFollowers().isEmpty();
-                assert lastKnownLeader.get().equals(applierState.nodes().getMasterNode())
-                    || (applierState.nodes().getMasterNodeId() == null
+                assert lastKnownLeader.get().equals(applierState.nodes().getClusterManagerNode())
+                    || (applierState.nodes().getClusterManagerNodeId() == null
                         && (applierState.term() < getCurrentTerm() || applierState.version() < getLastAcceptedState().version()));
                 assert currentPublication.map(Publication::isCommitted).orElse(true);
                 assert preVoteCollector.getLeader().equals(lastKnownLeader.get()) : preVoteCollector;
@@ -961,11 +970,11 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 assert joinAccumulator instanceof JoinHelper.CandidateJoinAccumulator;
                 assert peerFinderLeader.isPresent() == false : peerFinderLeader;
                 assert prevotingRound == null || electionScheduler != null;
-                assert getStateForClusterManagerService().nodes().getMasterNodeId() == null : getStateForClusterManagerService();
+                assert getStateForClusterManagerService().nodes().getClusterManagerNodeId() == null : getStateForClusterManagerService();
                 assert leaderChecker.currentNodeIsClusterManager() == false;
                 assert leaderChecker.leader() == null : leaderChecker.leader();
                 assert followersChecker.getKnownFollowers().isEmpty();
-                assert applierState.nodes().getMasterNodeId() == null;
+                assert applierState.nodes().getClusterManagerNodeId() == null;
                 assert currentPublication.map(Publication::isCommitted).orElse(true);
                 assert preVoteCollector.getLeader() == null : preVoteCollector;
                 assert clusterFormationFailureHelper.isRunning();
@@ -993,7 +1002,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 return false;
             }
 
-            if (getLocalNode().isMasterNode() == false) {
+            if (getLocalNode().isClusterManagerNode() == false) {
                 logger.debug("skip setting initial configuration as local node is not a cluster-manager-eligible node");
                 throw new CoordinationStateRejectedException(
                     "this node is not cluster-manager-eligible, but cluster bootstrapping can only happen on a cluster-manager-eligible node"
@@ -1060,14 +1069,14 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         // the logging much harder to follow.
         final Stream<String> clusterManagerIneligibleNodeIdsInVotingConfig = StreamSupport.stream(clusterState.nodes().spliterator(), false)
             .filter(
-                n -> n.isMasterNode() == false
+                n -> n.isClusterManagerNode() == false
                     && (clusterState.getLastAcceptedConfiguration().getNodeIds().contains(n.getId())
                         || clusterState.getLastCommittedConfiguration().getNodeIds().contains(n.getId()))
             )
             .map(DiscoveryNode::getId);
 
         final Set<DiscoveryNode> liveNodes = StreamSupport.stream(clusterState.nodes().spliterator(), false)
-            .filter(DiscoveryNode::isMasterNode)
+            .filter(DiscoveryNode::isClusterManagerNode)
             .filter(coordinationState.get()::containsJoinVoteFor)
             .filter(discoveryNode -> isZen1Node(discoveryNode) == false)
             .collect(Collectors.toSet());
@@ -1108,7 +1117,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
             .map(VotingConfigExclusion::getNodeId)
             .collect(Collectors.toSet());
         for (DiscoveryNode node : clusterState.getNodes()) {
-            if (node.isMasterNode() && (nodeIdsWithAbsentName.contains(node.getId()) || nodeNamesWithAbsentId.contains(node.getName()))) {
+            if (node.isClusterManagerNode()
+                && (nodeIdsWithAbsentName.contains(node.getId()) || nodeNamesWithAbsentId.contains(node.getName()))) {
                 return false;
             }
         }
@@ -1146,7 +1156,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
 
     // exposed for tests
     boolean missingJoinVoteFrom(DiscoveryNode node) {
-        return node.isMasterNode() && coordinationState.get().containsJoinVoteFor(node) == false;
+        return node.isClusterManagerNode() && coordinationState.get().containsJoinVoteFor(node) == false;
     }
 
     private void handleJoin(Join join) {
@@ -1216,15 +1226,15 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     private ClusterState clusterStateWithNoClusterManagerBlock(ClusterState clusterState) {
-        if (clusterState.nodes().getMasterNodeId() != null) {
+        if (clusterState.nodes().getClusterManagerNodeId() != null) {
             // remove block if it already exists before adding new one
-            assert clusterState.blocks().hasGlobalBlockWithId(NO_MASTER_BLOCK_ID) == false
+            assert clusterState.blocks().hasGlobalBlockWithId(NO_CLUSTER_MANAGER_BLOCK_ID) == false
                 : "NO_MASTER_BLOCK should only be added by Coordinator";
             final ClusterBlocks clusterBlocks = ClusterBlocks.builder()
                 .blocks(clusterState.blocks())
-                .addGlobalBlock(noClusterManagerBlockService.getNoMasterBlock())
+                .addGlobalBlock(noClusterManagerBlockService.getNoClusterManagerBlock())
                 .build();
-            final DiscoveryNodes discoveryNodes = new DiscoveryNodes.Builder(clusterState.nodes()).masterNodeId(null).build();
+            final DiscoveryNodes discoveryNodes = new DiscoveryNodes.Builder(clusterState.nodes()).clusterManagerNodeId(null).build();
             return ClusterState.builder(clusterState).blocks(clusterBlocks).nodes(discoveryNodes).build();
         } else {
             return clusterState;
@@ -1309,16 +1319,22 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     // deserialized from the resulting JSON
     private boolean assertPreviousStateConsistency(ClusterChangedEvent event) {
         assert event.previousState() == coordinationState.get().getLastAcceptedState()
-            || XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(event.previousState()), false)
+            || XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(XContentType.JSON, event.previousState()), false)
                 .equals(
                     XContentHelper.convertToMap(
                         JsonXContent.jsonXContent,
-                        Strings.toString(clusterStateWithNoClusterManagerBlock(coordinationState.get().getLastAcceptedState())),
+                        Strings.toString(
+                            XContentType.JSON,
+                            clusterStateWithNoClusterManagerBlock(coordinationState.get().getLastAcceptedState())
+                        ),
                         false
                     )
-                ) : Strings.toString(event.previousState())
+                ) : Strings.toString(XContentType.JSON, event.previousState())
                     + " vs "
-                    + Strings.toString(clusterStateWithNoClusterManagerBlock(coordinationState.get().getLastAcceptedState()));
+                    + Strings.toString(
+                        XContentType.JSON,
+                        clusterStateWithNoClusterManagerBlock(coordinationState.get().getLastAcceptedState())
+                    );
         return true;
     }
 
@@ -1422,10 +1438,20 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         }
     }
 
+    // package-visible for testing
+    synchronized void onNodeCommissionStatusChange(boolean localNodeCommissioned) {
+        this.localNodeCommissioned = localNodeCommissioned;
+        peerFinder.onNodeCommissionStatusChange(localNodeCommissioned);
+    }
+
+    public boolean localNodeCommissioned() {
+        return localNodeCommissioned;
+    }
+
     private void startElectionScheduler() {
         assert electionScheduler == null : electionScheduler;
 
-        if (getLocalNode().isMasterNode() == false) {
+        if (getLocalNode().isClusterManagerNode() == false) {
             return;
         }
 
@@ -1445,6 +1471,14 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                         final StatusInfo statusInfo = nodeHealthService.getHealth();
                         if (statusInfo.getStatus() == UNHEALTHY) {
                             logger.debug("skip prevoting as local node is unhealthy: [{}]", statusInfo.getInfo());
+                            return;
+                        }
+
+                        // if either the localNodeCommissioned flag or the last accepted state thinks it should skip pre voting, we will
+                        // acknowledge it
+                        if (nodeCommissioned(lastAcceptedState.nodes().getLocalNode(), lastAcceptedState.metadata()) == false
+                            || localNodeCommissioned == false) {
+                            logger.debug("skip prevoting as local node is decommissioned");
                             return;
                         }
 
@@ -1640,7 +1674,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                                         final ClusterState state = getLastAcceptedState(); // committed state
                                         if (localNodeMayWinElection(state) == false) {
                                             final List<DiscoveryNode> clusterManagerCandidates = completedNodes().stream()
-                                                .filter(DiscoveryNode::isMasterNode)
+                                                .filter(DiscoveryNode::isClusterManagerNode)
                                                 .filter(node -> nodeMayWinElection(state, node))
                                                 .filter(node -> {
                                                     // check if cluster_manager candidate would be able to get an election quorum if we were
@@ -1769,13 +1803,7 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     }
 
     // TODO: only here temporarily for BWC development, remove once complete
-    public static Settings.Builder addZen1Attribute(boolean isZen1Node, Settings.Builder builder) {
-        return builder.put("node.attr.zen1", isZen1Node);
-    }
-
-    // TODO: only here temporarily for BWC development, remove once complete
     public static boolean isZen1Node(DiscoveryNode discoveryNode) {
-        return discoveryNode.getVersion().before(LegacyESVersion.V_7_0_0)
-            || (Booleans.isTrue(discoveryNode.getAttributes().getOrDefault("zen1", "false")));
+        return Booleans.isTrue(discoveryNode.getAttributes().getOrDefault("zen1", "false"));
     }
 }

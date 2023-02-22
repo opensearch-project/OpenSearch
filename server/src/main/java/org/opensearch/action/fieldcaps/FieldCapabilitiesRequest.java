@@ -32,7 +32,6 @@
 
 package org.opensearch.action.fieldcaps;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
@@ -41,8 +40,8 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryBuilder;
 
 import java.io.IOException;
@@ -72,13 +71,9 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         mergeResults = in.readBoolean();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-            includeUnmapped = in.readBoolean();
-        } else {
-            includeUnmapped = false;
-        }
-        indexFilter = in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0) ? in.readOptionalNamedWriteable(QueryBuilder.class) : null;
-        nowInMillis = in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0) ? in.readOptionalLong() : null;
+        includeUnmapped = in.readBoolean();
+        indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        nowInMillis = in.readOptionalLong();
     }
 
     public FieldCapabilitiesRequest() {}
@@ -109,13 +104,9 @@ public final class FieldCapabilitiesRequest extends ActionRequest implements Ind
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         out.writeBoolean(mergeResults);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-            out.writeBoolean(includeUnmapped);
-        }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            out.writeOptionalNamedWriteable(indexFilter);
-            out.writeOptionalLong(nowInMillis);
-        }
+        out.writeBoolean(includeUnmapped);
+        out.writeOptionalNamedWriteable(indexFilter);
+        out.writeOptionalLong(nowInMillis);
     }
 
     @Override

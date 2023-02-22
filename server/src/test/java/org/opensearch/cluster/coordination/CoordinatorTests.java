@@ -52,7 +52,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.Settings.Builder;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.gateway.GatewayService;
 import org.opensearch.monitor.StatusInfo;
@@ -82,15 +82,16 @@ import static org.opensearch.cluster.coordination.FollowersChecker.FOLLOWER_CHEC
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
 import static org.opensearch.cluster.coordination.LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING;
-import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_ALL;
-import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_METADATA_WRITES;
-import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING;
-import static org.opensearch.cluster.coordination.NoMasterBlockService.NO_MASTER_BLOCK_WRITES;
+import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ALL;
+import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_METADATA_WRITES;
+import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING;
+import static org.opensearch.cluster.coordination.NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_WRITES;
 import static org.opensearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION;
+import static org.opensearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_DURING_DECOMMISSION_SETTING;
 import static org.opensearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 import static org.opensearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.opensearch.monitor.StatusInfo.Status.UNHEALTHY;
-import static org.opensearch.test.NodeRoles.nonMasterNode;
+import static org.opensearch.test.NodeRoles.nonClusterManagerNode;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -170,7 +171,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.stabilise();
 
             final ClusterNode leader = cluster.getAnyLeader();
-            assertTrue(leader.getLocalNode().isMasterNode());
+            assertTrue(leader.getLocalNode().isClusterManagerNode());
         }
     }
 
@@ -1122,19 +1123,19 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     public void testAppliesNoClusterManagerBlockWritesByDefault() {
-        testAppliesNoClusterManagerBlock(null, NO_MASTER_BLOCK_WRITES);
+        testAppliesNoClusterManagerBlock(null, NO_CLUSTER_MANAGER_BLOCK_WRITES);
     }
 
     public void testAppliesNoClusterManagerBlockWritesIfConfigured() {
-        testAppliesNoClusterManagerBlock("write", NO_MASTER_BLOCK_WRITES);
+        testAppliesNoClusterManagerBlock("write", NO_CLUSTER_MANAGER_BLOCK_WRITES);
     }
 
     public void testAppliesNoClusterManagerBlockAllIfConfigured() {
-        testAppliesNoClusterManagerBlock("all", NO_MASTER_BLOCK_ALL);
+        testAppliesNoClusterManagerBlock("all", NO_CLUSTER_MANAGER_BLOCK_ALL);
     }
 
     public void testAppliesNoClusterManagerBlockMetadataWritesIfConfigured() {
-        testAppliesNoClusterManagerBlock("metadata_write", NO_MASTER_BLOCK_METADATA_WRITES);
+        testAppliesNoClusterManagerBlock("metadata_write", NO_CLUSTER_MANAGER_BLOCK_METADATA_WRITES);
     }
 
     private void testAppliesNoClusterManagerBlock(String noClusterManagerBlockSetting, ClusterBlock expectedBlock) {
@@ -1702,7 +1703,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             chosenNode.close();
             cluster.clusterNodes.replaceAll(
-                cn -> cn == chosenNode ? cn.restartedNode(Function.identity(), Function.identity(), nonMasterNode()) : cn
+                cn -> cn == chosenNode ? cn.restartedNode(Function.identity(), Function.identity(), nonClusterManagerNode()) : cn
             );
             cluster.stabilise();
 
@@ -1729,7 +1730,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final ClusterNode leader = cluster.getAnyLeader();
             final long expectedTerm = leader.coordinator.getCurrentTerm();
 
-            if (cluster.clusterNodes.stream().filter(n -> n.getLocalNode().isMasterNode()).count() == 2) {
+            if (cluster.clusterNodes.stream().filter(n -> n.getLocalNode().isClusterManagerNode()).count() == 2) {
                 // in the 2-node case, auto-shrinking the voting configuration is required to reduce the voting configuration down to just
                 // the leader, otherwise restarting the other cluster-manager-eligible node triggers an election
                 leader.submitSetAutoShrinkVotingConfiguration(true);
@@ -1777,6 +1778,48 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             ClusterState newState2 = buildNewClusterStateWithVotingConfigExclusion(currentState, newVotingConfigExclusion2);
 
             assertFalse(Coordinator.validVotingConfigExclusionState(newState2));
+        }
+    }
+
+    public void testLocalNodeAlwaysCommissionedWithoutDecommissionedException() {
+        try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
+            cluster.runRandomly();
+            cluster.stabilise();
+            for (ClusterNode node : cluster.clusterNodes) {
+                assertTrue(node.coordinator.localNodeCommissioned());
+            }
+        }
+    }
+
+    public void testClusterStabilisesForPreviouslyDecommissionedNode() {
+        try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
+            cluster.runRandomly();
+            cluster.stabilise();
+            for (ClusterNode node : cluster.clusterNodes) {
+                assertTrue(node.coordinator.localNodeCommissioned());
+            }
+            final ClusterNode leader = cluster.getAnyLeader();
+
+            ClusterNode decommissionedNode = cluster.new ClusterNode(
+                nextNodeIndex.getAndIncrement(), true, leader.nodeSettings, () -> new StatusInfo(HEALTHY, "healthy-info")
+            );
+            decommissionedNode.coordinator.onNodeCommissionStatusChange(false);
+            cluster.clusterNodes.add(decommissionedNode);
+
+            assertFalse(decommissionedNode.coordinator.localNodeCommissioned());
+
+            cluster.stabilise(
+                // Interval is updated to decommissioned find peer interval
+                defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_DURING_DECOMMISSION_SETTING)
+                    // One message delay to send a join
+                    + DEFAULT_DELAY_VARIABILITY
+                    // Commit a new cluster state with the new node(s). Might be split into multiple commits, and each might need a
+                    // followup reconfiguration
+                    + 3 * 2 * DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+            );
+
+            // once cluster stabilises the node joins and would be commissioned
+            assertTrue(decommissionedNode.coordinator.localNodeCommissioned());
         }
     }
 

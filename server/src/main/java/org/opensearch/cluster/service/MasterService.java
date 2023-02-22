@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Assertions;
+import org.opensearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.AckedClusterStateTaskListener;
 import org.opensearch.cluster.ClusterChangedEvent;
@@ -87,7 +88,9 @@ import static org.opensearch.common.util.concurrent.OpenSearchExecutors.daemonTh
  * Main Master Node Service
  *
  * @opensearch.internal
+ * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link ClusterManagerService}.
  */
+@Deprecated
 public class MasterService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(MasterService.class);
 
@@ -107,6 +110,10 @@ public class MasterService extends AbstractLifecycleComponent {
         Setting.Property.NodeScope
     );
 
+    static final String CLUSTER_MANAGER_UPDATE_THREAD_NAME = "clusterManagerService#updateTask";
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #CLUSTER_MANAGER_UPDATE_THREAD_NAME} */
+    @Deprecated
     static final String MASTER_UPDATE_THREAD_NAME = "masterService#updateTask";
 
     ClusterStatePublisher clusterStatePublisher;
@@ -121,6 +128,8 @@ public class MasterService extends AbstractLifecycleComponent {
 
     private volatile PrioritizedOpenSearchThreadPoolExecutor threadPoolExecutor;
     private volatile Batcher taskBatcher;
+    protected final ClusterManagerTaskThrottler clusterManagerTaskThrottler;
+    private final ClusterManagerThrottlingStats throttlingStats;
 
     public MasterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
         this.nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
@@ -131,6 +140,13 @@ public class MasterService extends AbstractLifecycleComponent {
             this::setSlowTaskLoggingThreshold
         );
 
+        this.throttlingStats = new ClusterManagerThrottlingStats();
+        this.clusterManagerTaskThrottler = new ClusterManagerTaskThrottler(
+            settings,
+            clusterSettings,
+            this::getMinNodeVersion,
+            throttlingStats
+        );
         this.threadPool = threadPool;
     }
 
@@ -151,13 +167,13 @@ public class MasterService extends AbstractLifecycleComponent {
         Objects.requireNonNull(clusterStatePublisher, "please set a cluster state publisher before starting");
         Objects.requireNonNull(clusterStateSupplier, "please set a cluster state supplier before starting");
         threadPoolExecutor = createThreadPoolExecutor();
-        taskBatcher = new Batcher(logger, threadPoolExecutor);
+        taskBatcher = new Batcher(logger, threadPoolExecutor, clusterManagerTaskThrottler);
     }
 
     protected PrioritizedOpenSearchThreadPoolExecutor createThreadPoolExecutor() {
         return OpenSearchExecutors.newSinglePrioritizing(
-            nodeName + "/" + MASTER_UPDATE_THREAD_NAME,
-            daemonThreadFactory(nodeName, MASTER_UPDATE_THREAD_NAME),
+            nodeName + "/" + CLUSTER_MANAGER_UPDATE_THREAD_NAME,
+            daemonThreadFactory(nodeName, CLUSTER_MANAGER_UPDATE_THREAD_NAME),
             threadPool.getThreadContext(),
             threadPool.scheduler()
         );
@@ -166,8 +182,8 @@ public class MasterService extends AbstractLifecycleComponent {
     @SuppressWarnings("unchecked")
     class Batcher extends TaskBatcher {
 
-        Batcher(Logger logger, PrioritizedOpenSearchThreadPoolExecutor threadExecutor) {
-            super(logger, threadExecutor);
+        Batcher(Logger logger, PrioritizedOpenSearchThreadPoolExecutor threadExecutor, TaskBatcherListener taskBatcherListener) {
+            super(logger, threadExecutor, taskBatcherListener);
         }
 
         @Override
@@ -228,22 +244,35 @@ public class MasterService extends AbstractLifecycleComponent {
         return clusterStateSupplier.get();
     }
 
-    private static boolean isMasterUpdateThread() {
-        return Thread.currentThread().getName().contains(MASTER_UPDATE_THREAD_NAME);
+    private static boolean isClusterManagerUpdateThread() {
+        return Thread.currentThread().getName().contains(CLUSTER_MANAGER_UPDATE_THREAD_NAME)
+            || Thread.currentThread().getName().contains(MASTER_UPDATE_THREAD_NAME);
     }
 
-    public static boolean assertMasterUpdateThread() {
-        assert isMasterUpdateThread() : "not called from the cluster-manager service thread";
+    public static boolean assertClusterManagerUpdateThread() {
+        assert isClusterManagerUpdateThread() : "not called from the cluster-manager service thread";
         return true;
     }
 
-    public static boolean assertNotMasterUpdateThread(String reason) {
-        assert isMasterUpdateThread() == false : "Expected current thread ["
+    public static boolean assertNotClusterManagerUpdateThread(String reason) {
+        assert isClusterManagerUpdateThread() == false : "Expected current thread ["
             + Thread.currentThread()
-            + "] to not be the cluster-maanger service thread. Reason: ["
+            + "] to not be the cluster-manager service thread. Reason: ["
             + reason
             + "]";
         return true;
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #assertClusterManagerUpdateThread()} */
+    @Deprecated
+    public static boolean assertMasterUpdateThread() {
+        return assertClusterManagerUpdateThread();
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #assertNotClusterManagerUpdateThread(String)} */
+    @Deprecated
+    public static boolean assertNotMasterUpdateThread(String reason) {
+        return assertNotClusterManagerUpdateThread(reason);
     }
 
     private void runTasks(TaskInputs taskInputs) {
@@ -256,7 +285,7 @@ public class MasterService extends AbstractLifecycleComponent {
         logger.debug("executing cluster state update for [{}]", summary);
         final ClusterState previousClusterState = state();
 
-        if (!previousClusterState.nodes().isLocalNodeElectedMaster() && taskInputs.runOnlyWhenClusterManager()) {
+        if (!previousClusterState.nodes().isLocalNodeElectedClusterManager() && taskInputs.runOnlyWhenClusterManager()) {
             logger.debug("failing [{}]: local node is no longer cluster-manager", summary);
             taskInputs.onNoLongerClusterManager();
             return;
@@ -314,7 +343,7 @@ public class MasterService extends AbstractLifecycleComponent {
         final PlainActionFuture<Void> fut = new PlainActionFuture<Void>() {
             @Override
             protected boolean blockingAllowed() {
-                return isMasterUpdateThread() || super.blockingAllowed();
+                return isClusterManagerUpdateThread() || super.blockingAllowed();
             }
         };
         clusterStatePublisher.publish(clusterChangedEvent, fut, taskOutputs.createAckListener(threadPool, clusterChangedEvent.state()));
@@ -571,6 +600,27 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     /**
+     * Returns the number of throttled pending tasks.
+     */
+    public long numberOfThrottledPendingTasks() {
+        return throttlingStats.getTotalThrottledTaskCount();
+    }
+
+    /**
+     * Returns the stats of throttled pending tasks.
+     */
+    public ClusterManagerThrottlingStats getThrottlingStats() {
+        return throttlingStats;
+    }
+
+    /**
+     * Returns the min version of nodes in cluster
+     */
+    public Version getMinNodeVersion() {
+        return state().getNodes().getMinNodeVersion();
+    }
+
+    /**
      * Returns the number of currently pending tasks.
      */
     public int numberOfPendingTasks() {
@@ -616,9 +666,9 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         @Override
-        public void onNoLongerMaster(String source) {
+        public void onNoLongerClusterManager(String source) {
             try (ThreadContext.StoredContext ignore = context.get()) {
-                listener.onNoLongerMaster(source);
+                listener.onNoLongerClusterManager(source);
             } catch (Exception e) {
                 logger.error(
                     () -> new ParameterizedMessage(
@@ -745,7 +795,7 @@ public class MasterService extends AbstractLifecycleComponent {
             this.ackedTaskListener = ackedTaskListener;
             this.clusterStateVersion = clusterStateVersion;
             this.threadPool = threadPool;
-            this.clusterManagerNode = nodes.getMasterNode();
+            this.clusterManagerNode = nodes.getClusterManagerNode();
             int countDown = 0;
             for (DiscoveryNode node : nodes) {
                 // we always wait for at least the cluster-manager node
@@ -823,9 +873,9 @@ public class MasterService extends AbstractLifecycleComponent {
             List<Object> inputs = taskInputs.updateTasks.stream().map(tUpdateTask -> tUpdateTask.task).collect(Collectors.toList());
             clusterTasksResult = taskInputs.executor.execute(previousClusterState, inputs);
             if (previousClusterState != clusterTasksResult.resultingState
-                && previousClusterState.nodes().isLocalNodeElectedMaster()
-                && (clusterTasksResult.resultingState.nodes().isLocalNodeElectedMaster() == false)) {
-                throw new AssertionError("update task submitted to MasterService cannot remove master");
+                && previousClusterState.nodes().isLocalNodeElectedClusterManager()
+                && (clusterTasksResult.resultingState.nodes().isLocalNodeElectedClusterManager() == false)) {
+                throw new AssertionError("update task submitted to ClusterManagerService cannot remove cluster-manager");
             }
         } catch (Exception e) {
             logger.trace(
@@ -888,12 +938,23 @@ public class MasterService extends AbstractLifecycleComponent {
         }
 
         boolean runOnlyWhenClusterManager() {
-            return executor.runOnlyOnMaster();
+            return executor.runOnlyOnClusterManager();
         }
 
         void onNoLongerClusterManager() {
-            updateTasks.forEach(task -> task.listener.onNoLongerMaster(task.source()));
+            updateTasks.forEach(task -> task.listener.onNoLongerClusterManager(task.source()));
         }
+    }
+
+    /**
+     * Functionality for register task key to cluster manager node.
+     *
+     * @param taskKey - task key of task
+     * @param throttlingEnabled - throttling is enabled for task or not i.e does data node perform retries on it or not
+     * @return throttling task key which needs to be passed while submitting task to cluster manager
+     */
+    public ClusterManagerTaskThrottler.ThrottlingKey registerClusterManagerTask(String taskKey, boolean throttlingEnabled) {
+        return clusterManagerTaskThrottler.registerClusterManagerTask(taskKey, throttlingEnabled);
     }
 
     /**

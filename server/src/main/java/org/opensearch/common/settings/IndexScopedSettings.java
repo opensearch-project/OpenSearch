@@ -61,6 +61,7 @@ import org.opensearch.indices.IndicesRequestCache;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -149,6 +150,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_CHECK_ON_STARTUP,
                 IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD,
                 IndexSettings.MAX_SLICES_PER_SCROLL,
+                IndexSettings.MAX_SLICES_PER_PIT,
                 IndexSettings.MAX_REGEX_LENGTH_SETTING,
                 ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING,
                 IndexSettings.INDEX_GC_DELETES_SETTING,
@@ -179,6 +181,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 BitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
                 IndexModule.INDEX_STORE_TYPE_SETTING,
                 IndexModule.INDEX_STORE_PRE_LOAD_SETTING,
+                IndexModule.INDEX_STORE_HYBRID_MMAP_EXTENSIONS,
                 IndexModule.INDEX_RECOVERY_TYPE_SETTING,
                 IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING,
                 FsDirectoryFactory.INDEX_LOCK_FACTOR_SETTING,
@@ -192,6 +195,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING,
                 IndexSettings.INDEX_MERGE_ON_FLUSH_ENABLED,
                 IndexSettings.INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME,
+                IndexSettings.INDEX_MERGE_ON_FLUSH_POLICY,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
@@ -215,11 +219,24 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
      * is ready for production release, the feature flag can be removed, and the
      * setting should be moved to {@link #BUILT_IN_INDEX_SETTINGS}.
      */
-    public static final Map<String, Setting> FEATURE_FLAGGED_INDEX_SETTINGS = Map.of(
+    public static final Map<String, List<Setting>> FEATURE_FLAGGED_INDEX_SETTINGS = Map.of(
         FeatureFlags.REPLICATION_TYPE,
-        IndexMetadata.INDEX_REPLICATION_TYPE_SETTING,
+        List.of(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING),
         FeatureFlags.REMOTE_STORE,
-        IndexMetadata.INDEX_REMOTE_STORE_SETTING
+        List.of(
+            IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING,
+            IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING,
+            IndexMetadata.INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING,
+            IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
+            IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING
+        ),
+        FeatureFlags.SEARCHABLE_SNAPSHOT,
+        List.of(
+            IndexSettings.SEARCHABLE_SNAPSHOT_REPOSITORY,
+            IndexSettings.SEARCHABLE_SNAPSHOT_INDEX_ID,
+            IndexSettings.SEARCHABLE_SNAPSHOT_ID_NAME,
+            IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID
+        )
     );
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);

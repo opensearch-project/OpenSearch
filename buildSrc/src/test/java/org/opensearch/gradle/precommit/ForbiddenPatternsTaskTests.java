@@ -104,10 +104,6 @@ public class ForbiddenPatternsTaskTests extends GradleUnitTestCase {
         return project.getTasks().create("forbiddenPatterns", ForbiddenPatternsTask.class);
     }
 
-    private ForbiddenPatternsTask createTask(Project project, String taskName) {
-        return project.getTasks().create(taskName, ForbiddenPatternsTask.class);
-    }
-
     private void writeSourceFile(Project project, String name, String... lines) throws IOException {
         File file = new File(project.getProjectDir(), name);
         file.getParentFile().mkdirs();

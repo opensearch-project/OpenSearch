@@ -34,6 +34,7 @@ package org.opensearch.indices.settings;
 
 import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -64,8 +65,8 @@ public class InternalSettingsIT extends OpenSearchIntegTestCase {
         final GetSettingsResponse response = client().admin().indices().prepareGetSettings("test").get();
         assertThat(response.getSetting("test", "index.internal"), equalTo("internal"));
         // we can not update the setting via the update settings API
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        final SettingsException e = expectThrows(
+            SettingsException.class,
             () -> client().admin()
                 .indices()
                 .prepareUpdateSettings("test")

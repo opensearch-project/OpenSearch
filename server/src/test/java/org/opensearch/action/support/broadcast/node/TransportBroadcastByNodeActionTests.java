@@ -284,7 +284,7 @@ public class TransportBroadcastByNodeActionTests extends OpenSearchTestCase {
             }
         }
         discoBuilder.localNodeId(newNode(0).getId());
-        discoBuilder.masterNodeId(newNode(numberOfNodes - 1).getId());
+        discoBuilder.clusterManagerNodeId(newNode(numberOfNodes - 1).getId());
         ClusterState.Builder stateBuilder = ClusterState.builder(new ClusterName(TEST_CLUSTER));
         stateBuilder.nodes(discoBuilder);
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder(index)
@@ -374,7 +374,7 @@ public class TransportBroadcastByNodeActionTests extends OpenSearchTestCase {
         Request request = new Request(new String[] { TEST_INDEX });
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
-        DiscoveryNode clusterManagerNode = clusterService.state().nodes().getMasterNode();
+        DiscoveryNode clusterManagerNode = clusterService.state().nodes().getClusterManagerNode();
         DiscoveryNodes.Builder builder = DiscoveryNodes.builder(clusterService.state().getNodes());
         builder.remove(clusterManagerNode.getId());
 
@@ -460,10 +460,10 @@ public class TransportBroadcastByNodeActionTests extends OpenSearchTestCase {
         final boolean simulateFailedClusterManagerNode = rarely();
         DiscoveryNode failedClusterManagerNode = null;
         if (simulateFailedClusterManagerNode) {
-            failedClusterManagerNode = clusterService.state().nodes().getMasterNode();
+            failedClusterManagerNode = clusterService.state().nodes().getClusterManagerNode();
             DiscoveryNodes.Builder builder = DiscoveryNodes.builder(clusterService.state().getNodes());
             builder.remove(failedClusterManagerNode.getId());
-            builder.masterNodeId(null);
+            builder.clusterManagerNodeId(null);
 
             setState(clusterService, ClusterState.builder(clusterService.state()).nodes(builder));
         }

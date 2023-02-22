@@ -34,7 +34,6 @@ package org.opensearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
@@ -43,8 +42,10 @@ import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.action.support.TransportActions;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.routing.FailAwareWeightedRouting;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
@@ -302,7 +303,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                          * It is possible to run into connection exceptions here because we are getting the connection early and might
                          * run into nodes that are not connected. In this case, on shard failure will move us to the next shard copy.
                          */
-                        fork(() -> onShardFailure(shardIndex, shard, shardIt, e));
+                        fork(() -> {
+                            // It only happens when onPhaseDone() is called and executePhaseOnShard() fails hard with an exception.
+                            // In this case calling onShardFailure() would overflow the operations counter, so the best we could do
+                            // here is to fail the phase and move on to the next one.
+                            if (totalOps.get() == expectedTotalOps) {
+                                onPhaseFailure(this, "The phase has failed", e);
+                            } else {
+                                onShardFailure(shardIndex, shard, shardIt, e);
+                            }
+                        });
                     } finally {
                         executeNext(pendingExecutions, thread);
                     }
@@ -440,7 +450,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         // we always add the shard failure for a specific shard instance
         // we do make sure to clean it on a successful response from a shard
         onShardFailure(shardIndex, shard, e);
-        final SearchShardTarget nextShard = shardIt.nextOrNull();
+        SearchShardTarget nextShard = FailAwareWeightedRouting.getInstance().findNext(shardIt, clusterState, e);
+
         final boolean lastShard = nextShard == null;
         logger.debug(
             () -> new ParameterizedMessage(

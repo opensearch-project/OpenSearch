@@ -216,10 +216,7 @@ public class DiffableTests extends OpenSearchTestCase {
         protected final Set<Integer> keysToRemove = new HashSet<>(randomSubsetOf(randomInt(keys.size()), keys.toArray(new Integer[0])));
         protected final Set<Integer> keysThatAreNotRemoved = Sets.difference(keys, keysToRemove);
         protected final Set<Integer> keysToOverride = new HashSet<>(
-            randomSubsetOf(
-                randomInt(keysThatAreNotRemoved.size()),
-                keysThatAreNotRemoved.toArray(new Integer[keysThatAreNotRemoved.size()])
-            )
+            randomSubsetOf(randomInt(keysThatAreNotRemoved.size()), keysThatAreNotRemoved.toArray(new Integer[0]))
         );
         // make sure keysToAdd does not contain elements in keys
         protected final Set<Integer> keysToAdd = Sets.difference(randomPositiveIntSet(), keys);

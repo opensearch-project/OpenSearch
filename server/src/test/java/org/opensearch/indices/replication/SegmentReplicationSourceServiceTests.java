@@ -33,7 +33,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
 
@@ -120,9 +121,7 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
             public void onResponse(CheckpointInfoResponse response) {
                 assertEquals(testCheckpoint, response.getCheckpoint());
                 assertNotNull(response.getInfosBytes());
-                // CopyStateTests sets up one pending delete file and one committed segments file
-                assertEquals(1, response.getPendingDeleteFiles().size());
-                assertEquals(1, response.getSnapshot().size());
+                assertEquals(1, response.getMetadataMap().size());
             }
 
             @Override

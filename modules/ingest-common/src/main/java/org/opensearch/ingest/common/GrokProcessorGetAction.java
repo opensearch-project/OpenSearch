@@ -31,7 +31,6 @@
 
 package org.opensearch.ingest.common;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
@@ -43,8 +42,8 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.grok.Grok;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -79,7 +78,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
 
         Request(StreamInput in) throws IOException {
             super(in);
-            this.sorted = in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0) ? in.readBoolean() : false;
+            this.sorted = in.readBoolean();
         }
 
         @Override
@@ -90,9 +89,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-                out.writeBoolean(sorted);
-            }
+            out.writeBoolean(sorted);
         }
 
         public boolean sorted() {

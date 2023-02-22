@@ -41,7 +41,7 @@ import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.action.support.broadcast.BroadcastShardOperationFailedException;
 import org.opensearch.client.transport.NoNodeAvailableException;
 import org.opensearch.cluster.block.ClusterBlockException;
-import org.opensearch.cluster.coordination.NoMasterBlockService;
+import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
@@ -49,14 +49,14 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentLocation;
-import org.opensearch.common.xcontent.XContentParseException;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentLocation;
+import org.opensearch.core.xcontent.XContentParseException;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;
@@ -449,8 +449,8 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
 
         { // test equivalence
             OpenSearchException ex = new RemoteTransportException("foobar", new FileNotFoundException("foo not found"));
-            String toXContentString = Strings.toString(ex);
-            String throwableString = Strings.toString((builder, params) -> {
+            String toXContentString = Strings.toString(XContentType.JSON, ex);
+            String throwableString = Strings.toString(XContentType.JSON, (builder, params) -> {
                 OpenSearchException.generateThrowableXContent(builder, params, ex);
                 return builder;
             });
@@ -478,7 +478,10 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
             "foo",
             new OpenSearchException(
                 "bar",
-                new OpenSearchException("baz", new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES)))
+                new OpenSearchException(
+                    "baz",
+                    new ClusterBlockException(singleton(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_WRITES))
+                )
             )
         );
         e.addHeader("foo_0", "0");
@@ -739,7 +742,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         BytesReference throwableBytes = toShuffledXContent((builder, params) -> {
             OpenSearchException.generateThrowableXContent(builder, params, throwable);
             return builder;
-        }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
+        }, xContent.mediaType(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         OpenSearchException parsedException;
         try (XContentParser parser = createParser(xContent, throwableBytes)) {
@@ -771,7 +774,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
             // Prints a null failure using generateFailureXContent()
             OpenSearchException.generateFailureXContent(builder, params, null, randomBoolean());
             return builder;
-        }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
+        }, xContent.mediaType(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         OpenSearchException parsedFailure;
         try (XContentParser parser = createParser(xContent, failureBytes)) {
@@ -795,7 +798,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         BytesReference failureBytes = toShuffledXContent((builder, params) -> {
             OpenSearchException.generateFailureXContent(builder, params, failure, false);
             return builder;
-        }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
+        }, xContent.mediaType(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         try (XContentParser parser = createParser(xContent, failureBytes)) {
             failureBytes = BytesReference.bytes(shuffleXContent(parser, randomBoolean()));
@@ -811,12 +814,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         }
         assertNotNull(parsedFailure);
 
-        String reason;
-        if (failure instanceof OpenSearchException) {
-            reason = failure.getClass().getSimpleName() + "[" + failure.getMessage() + "]";
-        } else {
-            reason = "No OpenSearchException found";
-        }
+        String reason = ExceptionsHelper.summaryMessage(failure);
         assertEquals(OpenSearchException.buildMessage("exception", reason, null), parsedFailure.getMessage());
         assertEquals(0, parsedFailure.getHeaders().size());
         assertEquals(0, parsedFailure.getMetadata().size());
@@ -954,7 +952,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         BytesReference failureBytes = toShuffledXContent((builder, params) -> {
             OpenSearchException.generateFailureXContent(builder, params, finalFailure, true);
             return builder;
-        }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
+        }, xContent.mediaType(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         try (XContentParser parser = createParser(xContent, failureBytes)) {
             failureBytes = BytesReference.bytes(shuffleXContent(parser, randomBoolean()));
@@ -1032,7 +1030,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         int type = randomIntBetween(0, 5);
         switch (type) {
             case 0:
-                actual = new ClusterBlockException(singleton(NoMasterBlockService.NO_MASTER_BLOCK_WRITES));
+                actual = new ClusterBlockException(singleton(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_WRITES));
                 expected = new OpenSearchException(
                     "OpenSearch exception [type=cluster_block_exception, "
                         + "reason=blocked by: [SERVICE_UNAVAILABLE/2/no cluster-manager];]"

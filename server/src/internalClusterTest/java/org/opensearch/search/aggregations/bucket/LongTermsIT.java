@@ -176,7 +176,7 @@ public class LongTermsIT extends AbstractTermsTestCase {
 
         getMultiSortDocs(builders);
 
-        indexRandom(true, builders.toArray(new IndexRequestBuilder[builders.size()]));
+        indexRandom(true, builders.toArray(new IndexRequestBuilder[0]));
         ensureSearchable();
     }
 

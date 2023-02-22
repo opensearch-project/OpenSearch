@@ -59,7 +59,7 @@ public class StoredExpressionIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(ExpressionPlugin.class);
+        return Collections.singleton(ExpressionModulePlugin.class);
     }
 
     public void testAllOpsDisabledIndexedScripts() throws IOException {

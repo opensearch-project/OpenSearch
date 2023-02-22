@@ -311,7 +311,7 @@ public class ClusterStateObserver {
         private final long version;
 
         StoredState(ClusterState clusterState) {
-            this.clusterManagerNodeId = clusterState.nodes().getMasterNodeId();
+            this.clusterManagerNodeId = clusterState.nodes().getClusterManagerNodeId();
             this.version = clusterState.version();
         }
 
@@ -320,7 +320,7 @@ public class ClusterStateObserver {
          * */
         public boolean isOlderOrDifferentClusterManager(ClusterState clusterState) {
             return version < clusterState.version()
-                || Objects.equals(clusterManagerNodeId, clusterState.nodes().getMasterNodeId()) == false;
+                || Objects.equals(clusterManagerNodeId, clusterState.nodes().getClusterManagerNodeId()) == false;
         }
     }
 

@@ -68,7 +68,7 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexService;
@@ -95,7 +95,7 @@ import org.opensearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.opensearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.opensearch.index.query.functionscore.ScriptScoreFunctionBuilder;
 import org.opensearch.indices.TermsLookup;
-import org.opensearch.join.ParentJoinPlugin;
+import org.opensearch.join.ParentJoinModulePlugin;
 import org.opensearch.join.query.HasChildQueryBuilder;
 import org.opensearch.join.query.HasParentQueryBuilder;
 import org.opensearch.plugins.Plugin;
@@ -145,7 +145,12 @@ public class PercolatorFieldMapperTests extends OpenSearchSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class, PercolatorPlugin.class, FoolMeScriptPlugin.class, ParentJoinPlugin.class);
+        return pluginList(
+            InternalSettingsPlugin.class,
+            PercolatorModulePlugin.class,
+            FoolMeScriptPlugin.class,
+            ParentJoinModulePlugin.class
+        );
     }
 
     @Override

@@ -53,8 +53,8 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
@@ -473,7 +473,7 @@ public class SimpleClusterStateIT extends OpenSearchIntegTestCase {
                     return;
                 }
 
-                if (state.nodes().isLocalNodeElectedMaster()) {
+                if (state.nodes().isLocalNodeElectedClusterManager()) {
                     if (state.custom("test") == null) {
                         if (installed.compareAndSet(false, true)) {
                             clusterService.submitStateUpdateTask("install-metadata-custom", new ClusterStateUpdateTask(Priority.URGENT) {

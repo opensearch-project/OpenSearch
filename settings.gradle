@@ -10,7 +10,7 @@
  */
 
 plugins {
-  id "com.gradle.enterprise" version "3.10.2"
+  id "com.gradle.enterprise" version "3.11.1"
 }
 
 buildCache {
@@ -47,17 +47,25 @@ List projects = [
   'distribution:archives:freebsd-tar',
   'distribution:archives:no-jdk-freebsd-tar',
   'distribution:archives:linux-arm64-tar',
+  'distribution:archives:no-jdk-linux-arm64-tar',
+  'distribution:archives:linux-s390x-tar',
+  'distribution:archives:linux-ppc64le-tar',
+  'distribution:archives:no-jdk-linux-ppc64le-tar',
   'distribution:archives:linux-tar',
   'distribution:archives:no-jdk-linux-tar',
   'distribution:docker',
   'distribution:docker:docker-arm64-build-context',
   'distribution:docker:docker-arm64-export',
+  'distribution:docker:docker-s390x-export',
+  'distribution:docker:docker-ppc64le-export',
   'distribution:docker:docker-build-context',
   'distribution:docker:docker-export',
   'distribution:packages:arm64-deb',
+  'distribution:packages:no-jdk-arm64-deb',
   'distribution:packages:deb',
   'distribution:packages:no-jdk-deb',
   'distribution:packages:arm64-rpm',
+  'distribution:packages:no-jdk-arm64-rpm',
   'distribution:packages:rpm',
   'distribution:packages:no-jdk-rpm',
   'distribution:bwc:bugfix',

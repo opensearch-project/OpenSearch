@@ -157,7 +157,7 @@ public class MissingValuesTests extends OpenSearchTestCase {
             }
 
             @Override
-            public long docValueCount() {
+            public int docValueCount() {
                 return ords[doc].length;
             }
         };
@@ -263,7 +263,7 @@ public class MissingValuesTests extends OpenSearchTestCase {
             }
 
             @Override
-            public long docValueCount() {
+            public int docValueCount() {
                 throw new UnsupportedOperationException();
             }
 

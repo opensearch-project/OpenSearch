@@ -63,10 +63,15 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
+    public static final List<IndexModule.Type> FILE_SYSTEM_BASED_STORE_TYPES = Arrays.stream(IndexModule.Type.values())
+        .filter(t -> (t == IndexModule.Type.REMOTE_SNAPSHOT) == false)
+        .collect(Collectors.toUnmodifiableList());
 
     public static final Setting<Double> RANDOM_IO_EXCEPTION_RATE_ON_OPEN_SETTING = Setting.doubleSetting(
         "index.store.mock.random.io_exception_rate_on_open",
@@ -168,7 +173,7 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
                     .put(indexSettings.getIndexMetadata().getSettings())
                     .put(
                         IndexModule.INDEX_STORE_TYPE_SETTING.getKey(),
-                        RandomPicks.randomFrom(random, IndexModule.Type.values()).getSettingsKey()
+                        RandomPicks.randomFrom(random, FILE_SYSTEM_BASED_STORE_TYPES).getSettingsKey()
                     )
             )
             .build();

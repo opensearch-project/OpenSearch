@@ -32,7 +32,7 @@
 
 package org.opensearch.client;
 
-import org.apache.http.HttpEntity;
+import org.apache.hc.core5.http.HttpEntity;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.ActionListener;
@@ -59,6 +59,11 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.ClearScrollRequest;
 import org.opensearch.action.search.ClearScrollResponse;
+import org.opensearch.action.search.CreatePitRequest;
+import org.opensearch.action.search.CreatePitResponse;
+import org.opensearch.action.search.DeletePitRequest;
+import org.opensearch.action.search.DeletePitResponse;
+import org.opensearch.action.search.GetAllPitNodesResponse;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.MultiSearchResponse;
 import org.opensearch.action.search.SearchRequest;
@@ -80,11 +85,11 @@ import org.opensearch.client.core.TermVectorsResponse;
 import org.opensearch.client.tasks.TaskSubmissionResponse;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.CheckedFunction;
-import org.opensearch.common.ParseField;
-import org.opensearch.common.xcontent.ContextParser;
-import org.opensearch.common.xcontent.DeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ContextParser;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.rankeval.RankEvalRequest;
 import org.opensearch.index.rankeval.RankEvalResponse;
@@ -108,10 +113,6 @@ import org.opensearch.search.aggregations.bucket.filter.FilterAggregationBuilder
 import org.opensearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.filter.ParsedFilter;
 import org.opensearch.search.aggregations.bucket.filter.ParsedFilters;
-import org.opensearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
-import org.opensearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
-import org.opensearch.search.aggregations.bucket.geogrid.ParsedGeoHashGrid;
-import org.opensearch.search.aggregations.bucket.geogrid.ParsedGeoTileGrid;
 import org.opensearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.global.ParsedGlobal;
 import org.opensearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
@@ -157,7 +158,6 @@ import org.opensearch.search.aggregations.bucket.terms.StringTerms;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
-import org.opensearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.InternalHDRPercentileRanks;
 import org.opensearch.search.aggregations.metrics.InternalHDRPercentiles;
@@ -169,7 +169,6 @@ import org.opensearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.ParsedAvg;
 import org.opensearch.search.aggregations.metrics.ParsedCardinality;
 import org.opensearch.search.aggregations.metrics.ParsedExtendedStats;
-import org.opensearch.search.aggregations.metrics.ParsedGeoBounds;
 import org.opensearch.search.aggregations.metrics.ParsedGeoCentroid;
 import org.opensearch.search.aggregations.metrics.ParsedHDRPercentileRanks;
 import org.opensearch.search.aggregations.metrics.ParsedHDRPercentiles;
@@ -1257,6 +1256,154 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
+     * Create PIT context using create PIT API
+     *
+     * @param createPitRequest the request
+     * @param options          the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     */
+    public final CreatePitResponse createPit(CreatePitRequest createPitRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(
+            createPitRequest,
+            RequestConverters::createPit,
+            options,
+            CreatePitResponse::fromXContent,
+            emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously Create PIT context using create PIT API
+     *
+     * @param createPitRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return the response
+     */
+    public final Cancellable createPitAsync(
+        CreatePitRequest createPitRequest,
+        RequestOptions options,
+        ActionListener<CreatePitResponse> listener
+    ) {
+        return performRequestAsyncAndParseEntity(
+            createPitRequest,
+            RequestConverters::createPit,
+            options,
+            CreatePitResponse::fromXContent,
+            listener,
+            emptySet()
+        );
+    }
+
+    /**
+     * Delete point in time searches using delete PIT API
+     *
+     * @param deletePitRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     */
+    public final DeletePitResponse deletePit(DeletePitRequest deletePitRequest, RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(
+            deletePitRequest,
+            RequestConverters::deletePit,
+            options,
+            DeletePitResponse::fromXContent,
+            emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously Delete point in time searches using delete PIT API
+     *
+     * @param deletePitRequest the request
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return the response
+     */
+    public final Cancellable deletePitAsync(
+        DeletePitRequest deletePitRequest,
+        RequestOptions options,
+        ActionListener<DeletePitResponse> listener
+    ) {
+        return performRequestAsyncAndParseEntity(
+            deletePitRequest,
+            RequestConverters::deletePit,
+            options,
+            DeletePitResponse::fromXContent,
+            listener,
+            emptySet()
+        );
+    }
+
+    /**
+     * Delete all point in time searches using delete all PITs API
+     *
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     */
+    public final DeletePitResponse deleteAllPits(RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(
+            new MainRequest(),
+            (request) -> RequestConverters.deleteAllPits(),
+            options,
+            DeletePitResponse::fromXContent,
+            emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously Delete all point in time searches using delete all PITs API
+     *
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return the response
+     */
+    public final Cancellable deleteAllPitsAsync(RequestOptions options, ActionListener<DeletePitResponse> listener) {
+        return performRequestAsyncAndParseEntity(
+            new MainRequest(),
+            (request) -> RequestConverters.deleteAllPits(),
+            options,
+            DeletePitResponse::fromXContent,
+            listener,
+            emptySet()
+        );
+    }
+
+    /**
+     * Get all point in time searches using list all PITs API
+     *
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     */
+    public final GetAllPitNodesResponse getAllPits(RequestOptions options) throws IOException {
+        return performRequestAndParseEntity(
+            new MainRequest(),
+            (request) -> RequestConverters.getAllPits(),
+            options,
+            GetAllPitNodesResponse::fromXContent,
+            emptySet()
+        );
+    }
+
+    /**
+     * Asynchronously get all point in time searches using list all PITs API
+     *
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     * @return the response
+     */
+    public final Cancellable getAllPitsAsync(RequestOptions options, ActionListener<GetAllPitNodesResponse> listener) {
+        return performRequestAsyncAndParseEntity(
+            new MainRequest(),
+            (request) -> RequestConverters.getAllPits(),
+            options,
+            GetAllPitNodesResponse::fromXContent,
+            listener,
+            emptySet()
+        );
+    }
+
+    /**
      * Clears one or more scroll ids using the Clear Scroll API.
      *
      * @param clearScrollRequest the request
@@ -2073,9 +2220,9 @@ public class RestHighLevelClient implements Closeable {
         if (entity.getContentType() == null) {
             throw new IllegalStateException("OpenSearch didn't return the [Content-Type] header, unable to parse response body");
         }
-        XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
+        XContentType xContentType = XContentType.fromMediaType(entity.getContentType());
         if (xContentType == null) {
-            throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType().getValue());
+            throw new IllegalStateException("Unsupported Content-Type: " + entity.getContentType());
         }
         try (XContentParser parser = xContentType.xContent().createParser(registry, DEPRECATION_HANDLER, entity.getContent())) {
             return entityParser.apply(parser);
@@ -2116,7 +2263,6 @@ public class RestHighLevelClient implements Closeable {
         map.put(StatsBucketPipelineAggregationBuilder.NAME, (p, c) -> ParsedStatsBucket.fromXContent(p, (String) c));
         map.put(ExtendedStatsAggregationBuilder.NAME, (p, c) -> ParsedExtendedStats.fromXContent(p, (String) c));
         map.put(ExtendedStatsBucketPipelineAggregationBuilder.NAME, (p, c) -> ParsedExtendedStatsBucket.fromXContent(p, (String) c));
-        map.put(GeoBoundsAggregationBuilder.NAME, (p, c) -> ParsedGeoBounds.fromXContent(p, (String) c));
         map.put(GeoCentroidAggregationBuilder.NAME, (p, c) -> ParsedGeoCentroid.fromXContent(p, (String) c));
         map.put(HistogramAggregationBuilder.NAME, (p, c) -> ParsedHistogram.fromXContent(p, (String) c));
         map.put(DateHistogramAggregationBuilder.NAME, (p, c) -> ParsedDateHistogram.fromXContent(p, (String) c));
@@ -2133,8 +2279,6 @@ public class RestHighLevelClient implements Closeable {
         map.put(GlobalAggregationBuilder.NAME, (p, c) -> ParsedGlobal.fromXContent(p, (String) c));
         map.put(FilterAggregationBuilder.NAME, (p, c) -> ParsedFilter.fromXContent(p, (String) c));
         map.put(InternalSampler.PARSER_NAME, (p, c) -> ParsedSampler.fromXContent(p, (String) c));
-        map.put(GeoHashGridAggregationBuilder.NAME, (p, c) -> ParsedGeoHashGrid.fromXContent(p, (String) c));
-        map.put(GeoTileGridAggregationBuilder.NAME, (p, c) -> ParsedGeoTileGrid.fromXContent(p, (String) c));
         map.put(RangeAggregationBuilder.NAME, (p, c) -> ParsedRange.fromXContent(p, (String) c));
         map.put(DateRangeAggregationBuilder.NAME, (p, c) -> ParsedDateRange.fromXContent(p, (String) c));
         map.put(GeoDistanceAggregationBuilder.NAME, (p, c) -> ParsedGeoDistance.fromXContent(p, (String) c));

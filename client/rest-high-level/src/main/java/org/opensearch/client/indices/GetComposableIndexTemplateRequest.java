@@ -44,7 +44,7 @@ public class GetComposableIndexTemplateRequest implements Validatable {
 
     private final String name;
 
-    private TimeValue clusterManagerNodeTimeout = TimedRequest.DEFAULT_MASTER_NODE_TIMEOUT;
+    private TimeValue clusterManagerNodeTimeout = TimedRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
     private boolean local = false;
 
     /**
@@ -67,17 +67,41 @@ public class GetComposableIndexTemplateRequest implements Validatable {
     /**
      * @return the timeout for waiting for the cluster-manager node to respond
      */
-    public TimeValue getMasterNodeTimeout() {
+    public TimeValue getClusterManagerNodeTimeout() {
         return clusterManagerNodeTimeout;
     }
 
-    public void setMasterNodeTimeout(@Nullable TimeValue clusterManagerNodeTimeout) {
+    /**
+     * @return the timeout for waiting for the cluster-manager node to respond
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #getMasterNodeTimeout()}
+     */
+    @Deprecated
+    public TimeValue getMasterNodeTimeout() {
+        return getClusterManagerNodeTimeout();
+    }
+
+    public void setClusterManagerNodeTimeout(@Nullable TimeValue clusterManagerNodeTimeout) {
         this.clusterManagerNodeTimeout = clusterManagerNodeTimeout;
     }
 
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #setClusterManagerNodeTimeout(TimeValue)} */
+    @Deprecated
+    public void setMasterNodeTimeout(@Nullable TimeValue clusterManagerNodeTimeout) {
+        setClusterManagerNodeTimeout(clusterManagerNodeTimeout);
+    }
+
+    public void setClusterManagerNodeTimeout(String clusterManagerNodeTimeout) {
+        final TimeValue timeValue = TimeValue.parseTimeValue(
+            clusterManagerNodeTimeout,
+            getClass().getSimpleName() + ".clusterManagerNodeTimeout"
+        );
+        setClusterManagerNodeTimeout(timeValue);
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #setClusterManagerNodeTimeout(String)} */
+    @Deprecated
     public void setMasterNodeTimeout(String clusterManagerNodeTimeout) {
-        final TimeValue timeValue = TimeValue.parseTimeValue(clusterManagerNodeTimeout, getClass().getSimpleName() + ".masterNodeTimeout");
-        setMasterNodeTimeout(timeValue);
+        setClusterManagerNodeTimeout(clusterManagerNodeTimeout);
     }
 
     /**

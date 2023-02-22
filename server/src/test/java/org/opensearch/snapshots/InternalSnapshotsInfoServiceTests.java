@@ -495,7 +495,7 @@ public class InternalSnapshotsInfoServiceTests extends OpenSearchTestCase {
         assertThat(currentState.nodes().get(node.getId()), nullValue());
 
         return ClusterState.builder(currentState)
-            .nodes(DiscoveryNodes.builder(currentState.nodes()).add(node).masterNodeId(node.getId()))
+            .nodes(DiscoveryNodes.builder(currentState.nodes()).add(node).clusterManagerNodeId(node.getId()))
             .build();
     }
 

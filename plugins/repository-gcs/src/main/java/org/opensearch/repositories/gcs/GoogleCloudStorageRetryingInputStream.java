@@ -42,7 +42,6 @@ import com.google.cloud.storage.spi.v1.HttpStorageRpc;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.SpecialPermission;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.core.internal.io.IOUtils;
@@ -61,7 +60,7 @@ import java.util.stream.Stream;
 /**
  * Wrapper around reads from GCS that will retry blob downloads that fail part-way through, resuming from where the failure occurred.
  * This should be handled by the SDK but it isn't today. This should be revisited in the future (e.g. before removing
- * the {@link LegacyESVersion#V_7_0_0} version constant) and removed if the SDK handles retries itself in the future.
+ * the {@code LegacyESVersion#V_7_0_0} version constant) and removed if the SDK handles retries itself in the future.
  */
 class GoogleCloudStorageRetryingInputStream extends InputStream {
 

@@ -49,6 +49,11 @@ import java.util.Map;
 /** An extension of painless which adds an allowlist. */
 public class ExampleAllowlistExtension implements PainlessExtension {
 
+    /**
+     * Instantiate this class.
+     */
+    public ExampleAllowlistExtension() {}
+
     @Override
     public Map<ScriptContext<?>, List<Allowlist>> getContextAllowlists() {
         Map<String, AllowlistAnnotationParser> parsers = new HashMap<>(AllowlistAnnotationParser.BASE_ANNOTATION_PARSERS);

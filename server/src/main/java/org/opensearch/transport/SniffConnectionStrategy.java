@@ -33,7 +33,6 @@
 package org.opensearch.transport;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
@@ -44,6 +43,7 @@ import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.Booleans;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.StreamInput;
@@ -53,7 +53,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -141,7 +141,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
     static final int CHANNELS_PER_CONNECTION = 6;
 
     private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
-        && (node.isMasterNode() == false || node.isDataNode() || node.isIngestNode());
+        && (node.isClusterManagerNode() == false || node.isDataNode() || node.isIngestNode());
 
     private final List<String> configuredSeedNodes;
     private final List<Supplier<DiscoveryNode>> seedNodes;

@@ -35,11 +35,11 @@ package org.opensearch.search.sort;
 import org.opensearch.common.Strings;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.search.SearchModule;
 import org.opensearch.test.OpenSearchTestCase;
@@ -202,7 +202,7 @@ public class SortBuilderTests extends OpenSearchTestCase {
                 assertEquals(iterator.next(), parsedBuilder);
             }
             if (expectedWarningHeaders.size() > 0) {
-                assertWarnings(expectedWarningHeaders.toArray(new String[expectedWarningHeaders.size()]));
+                assertWarnings(expectedWarningHeaders.toArray(new String[0]));
                 assertedWarnings.addAll(expectedWarningHeaders);
             }
         }

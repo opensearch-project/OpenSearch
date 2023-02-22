@@ -36,14 +36,14 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
 import org.opensearch.common.Explicit;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.geo.GeoJsonGeometryFormat;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.xcontent.support.MapXContentParser;
+import org.opensearch.core.xcontent.MapXContentParser;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryShardException;
@@ -260,10 +260,15 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
             return builder;
         }
 
+        /**
+         * Parse the node with the field name as name; using various parse methods for different attributes.
+         */
         @Override
         public T parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            Map<String, Object> params = new HashMap<>();
-            return parse(name, node, params, parserContext);
+            final T builder = parse(name, node, new HashMap<>(), parserContext);
+            // parse the common attributes(like doc_values, boosts etc.) and set them in the builder.
+            TypeParsers.parseField(builder, name, node, parserContext);
+            return builder;
         }
     }
 

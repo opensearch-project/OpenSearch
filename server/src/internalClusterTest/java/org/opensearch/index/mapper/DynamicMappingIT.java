@@ -148,7 +148,7 @@ public class DynamicMappingIT extends OpenSearchIntegTestCase {
         final CountDownLatch clusterManagerBlockedLatch = new CountDownLatch(1);
         final CountDownLatch indexingCompletedLatch = new CountDownLatch(1);
 
-        internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName())
+        internalCluster().getInstance(ClusterService.class, internalCluster().getClusterManagerName())
             .submitStateUpdateTask("block-state-updates", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {

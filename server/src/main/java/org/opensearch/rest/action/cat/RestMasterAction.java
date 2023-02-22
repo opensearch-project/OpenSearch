@@ -32,101 +32,13 @@
 
 package org.opensearch.rest.action.cat;
 
-import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
-import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
-import org.opensearch.client.node.NodeClient;
-import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.common.Table;
-import org.opensearch.common.logging.DeprecationLogger;
-import org.opensearch.rest.RestRequest;
-import org.opensearch.rest.RestResponse;
-import org.opensearch.rest.action.RestResponseListener;
-
-import java.util.List;
-
-import static java.util.Collections.singletonList;
-import static org.opensearch.rest.RestRequest.Method.GET;
-
 /**
  * _cat API action to list cluster_manager information
  *
  * @opensearch.api
+ * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link RestClusterManagerAction}
  */
-public class RestMasterAction extends AbstractCatAction {
+@Deprecated
+public class RestMasterAction extends RestClusterManagerAction {
 
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestMasterAction.class);
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // The deprecated path will be removed in a future major version.
-        return singletonList(new ReplacedRoute(GET, "/_cat/cluster_manager", "/_cat/master"));
-    }
-
-    @Override
-    public String getName() {
-        return "cat_cluster_manager_action";
-    }
-
-    @Override
-    protected void documentation(StringBuilder sb) {
-        sb.append("/_cat/cluster_manager\n");
-    }
-
-    @Override
-    public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
-        clusterStateRequest.clear().nodes(true);
-        clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.clusterManagerNodeTimeout(
-            request.paramAsTime("cluster_manager_timeout", clusterStateRequest.clusterManagerNodeTimeout())
-        );
-        parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request, deprecationLogger, getName());
-
-        return channel -> client.admin().cluster().state(clusterStateRequest, new RestResponseListener<ClusterStateResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(final ClusterStateResponse clusterStateResponse) throws Exception {
-                return RestTable.buildResponse(buildTable(request, clusterStateResponse), channel);
-            }
-        });
-    }
-
-    @Override
-    public boolean canTripCircuitBreaker() {
-        return false;
-    }
-
-    @Override
-    protected Table getTableWithHeader(final RestRequest request) {
-        Table table = new Table();
-        table.startHeaders()
-            .addCell("id", "desc:node id")
-            .addCell("host", "alias:h;desc:host name")
-            .addCell("ip", "desc:ip address ")
-            .addCell("node", "alias:n;desc:node name")
-            .endHeaders();
-        return table;
-    }
-
-    private Table buildTable(RestRequest request, ClusterStateResponse state) {
-        Table table = getTableWithHeader(request);
-        DiscoveryNodes nodes = state.getState().nodes();
-
-        table.startRow();
-        DiscoveryNode clusterManager = nodes.get(nodes.getMasterNodeId());
-        if (clusterManager == null) {
-            table.addCell("-");
-            table.addCell("-");
-            table.addCell("-");
-            table.addCell("-");
-        } else {
-            table.addCell(clusterManager.getId());
-            table.addCell(clusterManager.getHostName());
-            table.addCell(clusterManager.getHostAddress());
-            table.addCell(clusterManager.getName());
-        }
-        table.endRow();
-
-        return table;
-    }
 }

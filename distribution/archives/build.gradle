@@ -137,6 +137,13 @@ distribution_archives {
     }
   }
 
+  noJdkLinuxArm64Tar {
+    archiveClassifier = 'no-jdk-linux-arm64'
+    content {
+      archiveFiles(modulesFiles('linux-arm64'), 'tar', 'linux', 'arm64', false)
+    }
+  }
+
   linuxTar {
     archiveClassifier = 'linux-x64'
     content {
@@ -148,6 +155,30 @@ distribution_archives {
     archiveClassifier = 'no-jdk-linux-x64'
     content {
       archiveFiles(modulesFiles('linux-x64'), 'tar', 'linux', 'x64', false)
+    }
+  }
+
+  // Should really be `no-jdk-linux-s390x` as it ships without a JDK, however it seems that the build can't handle
+  // the absence of the `linux-s390x` target.
+  linuxS390xTar {
+    archiveClassifier = 'linux-s390x'
+    content {
+      archiveFiles(modulesFiles('linux-s390x'), 'tar', 'linux', 's390x', false)
+    }
+  }
+
+  
+  linuxPpc64leTar {
+    archiveClassifier = 'linux-ppc64le'
+    content {
+      archiveFiles(modulesFiles('linux-ppc64le'), 'tar', 'linux', 'ppc64le', true)
+    }
+  }
+
+ noJdkLinuxPpc64leTar {
+    archiveClassifier = 'no-jdk-linux-ppc64le'
+    content {
+      archiveFiles(modulesFiles('linux-ppc64le'), 'tar', 'linux', 'ppc64le', false)
     }
   }
 

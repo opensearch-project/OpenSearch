@@ -195,14 +195,16 @@ public final class NoOpEngine extends ReadOnlyEngine {
                             final TranslogDeletionPolicy translogDeletionPolicy = new DefaultTranslogDeletionPolicy(-1, -1, 0);
                             translogDeletionPolicy.setLocalCheckpointOfSafeCommit(localCheckpoint);
                             try (
-                                Translog translog = new Translog(
-                                    translogConfig,
-                                    translogUuid,
-                                    translogDeletionPolicy,
-                                    engineConfig.getGlobalCheckpointSupplier(),
-                                    engineConfig.getPrimaryTermSupplier(),
-                                    seqNo -> {}
-                                )
+                                Translog translog = engineConfig.getTranslogFactory()
+                                    .newTranslog(
+                                        translogConfig,
+                                        translogUuid,
+                                        translogDeletionPolicy,
+                                        engineConfig.getGlobalCheckpointSupplier(),
+                                        engineConfig.getPrimaryTermSupplier(),
+                                        seqNo -> {},
+                                        engineConfig.getPrimaryModeSupplier()
+                                    )
                             ) {
                                 translog.trimUnreferencedReaders();
                                 // refresh the translog stats
@@ -225,6 +227,9 @@ public final class NoOpEngine extends ReadOnlyEngine {
                         store.decRef();
                     }
                 }
+
+                @Override
+                public void setMinSeqNoToKeep(long seqNo) {}
             };
         } catch (IOException ex) {
             throw new RuntimeException(ex);

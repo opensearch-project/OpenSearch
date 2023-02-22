@@ -37,13 +37,13 @@ import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.coordination.NoMasterBlockService;
+import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.disruption.BlockMasterServiceOnMaster;
+import org.opensearch.test.disruption.BlockClusterManagerServiceOnClusterManager;
 import org.opensearch.test.disruption.IntermittentLongGCDisruption;
 import org.opensearch.test.disruption.NetworkDisruption;
 import org.opensearch.test.disruption.NetworkDisruption.TwoPartitions;
@@ -71,7 +71,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
     public void testClusterManagerNodeGCs() throws Exception {
         List<String> nodes = startCluster(3);
 
-        String oldClusterManagerNode = internalCluster().getMasterName();
+        String oldClusterManagerNode = internalCluster().getClusterManagerName();
         // a very long GC, but it's OK as we remove the disruption when it has had an effect
         SingleNodeDisruption clusterManagerNodeDisruption = new IntermittentLongGCDisruption(
             random(),
@@ -105,7 +105,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
         ensureStableCluster(3, waitTime, false, oldNonClusterManagerNodes.get(0));
 
         // make sure all nodes agree on cluster-manager
-        String newClusterManager = internalCluster().getMasterName();
+        String newClusterManager = internalCluster().getClusterManagerName();
         assertThat(newClusterManager, not(equalTo(oldClusterManagerNode)));
         assertClusterManager(newClusterManager, nodes);
     }
@@ -126,7 +126,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
         );
 
         ensureGreen();
-        String isolatedNode = internalCluster().getMasterName();
+        String isolatedNode = internalCluster().getClusterManagerName();
         TwoPartitions partitions = isolateNode(isolatedNode);
         NetworkDisruption networkDisruption = addRandomDisruptionType(partitions);
         networkDisruption.startDisrupting();
@@ -171,7 +171,11 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
                 try {
                     assertEquals("unequal versions", state.version(), nodeState.version());
                     assertEquals("unequal node count", state.nodes().getSize(), nodeState.nodes().getSize());
-                    assertEquals("different cluster-managers ", state.nodes().getMasterNodeId(), nodeState.nodes().getMasterNodeId());
+                    assertEquals(
+                        "different cluster-managers ",
+                        state.nodes().getClusterManagerNodeId(),
+                        nodeState.nodes().getClusterManagerNodeId()
+                    );
                     assertEquals("different meta data version", state.metadata().version(), nodeState.metadata().version());
                     assertEquals("different routing", state.routingTable().toString(), nodeState.routingTable().toString());
                 } catch (AssertionError t) {
@@ -198,7 +202,10 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
      * Verify that the proper block is applied when nodes lose their cluster-manager
      */
     public void testVerifyApiBlocksDuringPartition() throws Exception {
-        internalCluster().startNodes(3, Settings.builder().putNull(NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey()).build());
+        internalCluster().startNodes(
+            3,
+            Settings.builder().putNull(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey()).build()
+        );
 
         // Makes sure that the get request can be executed on each node locally:
         assertAcked(
@@ -227,7 +234,11 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected cluster-manager
         logger.info("waiting for isolated node [{}] to have no cluster-manager", isolatedNode);
-        assertNoClusterManager(isolatedNode, NoMasterBlockService.NO_MASTER_BLOCK_METADATA_WRITES, TimeValue.timeValueSeconds(30));
+        assertNoClusterManager(
+            isolatedNode,
+            NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_METADATA_WRITES,
+            TimeValue.timeValueSeconds(30)
+        );
 
         logger.info("wait until elected cluster-manager has been removed and a new 2 node cluster was from (via [{}])", isolatedNode);
         ensureStableCluster(2, nonIsolatedNode);
@@ -235,7 +246,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
         for (String node : partitions.getMajoritySide()) {
             ClusterState nodeState = getNodeClusterState(node);
             boolean success = true;
-            if (nodeState.nodes().getMasterNode() == null) {
+            if (nodeState.nodes().getClusterManagerNode() == null) {
                 success = false;
             }
             if (!nodeState.blocks().global().isEmpty()) {
@@ -258,13 +269,13 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
 
         logger.info(
             "Verify no cluster-manager block with {} set to {}",
-            NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(),
+            NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(),
             "all"
         );
         client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(NoMasterBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "all"))
+            .setTransientSettings(Settings.builder().put(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_SETTING.getKey(), "all"))
             .get();
 
         networkDisruption.startDisrupting();
@@ -273,7 +284,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
         // continuously ping until network failures have been resolved. However
         // It may a take a bit before the node detects it has been cut off from the elected cluster-manager
         logger.info("waiting for isolated node [{}] to have no cluster-manager", isolatedNode);
-        assertNoClusterManager(isolatedNode, NoMasterBlockService.NO_MASTER_BLOCK_ALL, TimeValue.timeValueSeconds(30));
+        assertNoClusterManager(isolatedNode, NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ALL, TimeValue.timeValueSeconds(30));
 
         // make sure we have stable cluster & cross partition recoveries are canceled by the removal of the missing node
         // the unresponsive partition causes recoveries to only time out after 15m (default) and these will cause
@@ -289,7 +300,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
             Settings.builder()
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 1)
-                .put("index.routing.allocation.exclude._name", internalCluster().getMasterName())
+                .put("index.routing.allocation.exclude._name", internalCluster().getClusterManagerName())
                 .build()
         );
 
@@ -305,7 +316,7 @@ public class ClusterManagerDisruptionIT extends AbstractDisruptionTestCase {
                 .setTransientSettings(Settings.builder().put("indices.mapping.dynamic_timeout", "1ms"))
         );
 
-        ServiceDisruptionScheme disruption = new BlockMasterServiceOnMaster(random());
+        ServiceDisruptionScheme disruption = new BlockClusterManagerServiceOnClusterManager(random());
         setDisruptionScheme(disruption);
 
         disruption.startDisrupting();

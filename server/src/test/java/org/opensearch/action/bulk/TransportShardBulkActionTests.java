@@ -43,18 +43,32 @@ import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
+import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActionTestUtils;
+import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
+import org.opensearch.action.support.replication.ReplicationMode;
+import org.opensearch.action.support.replication.ReplicationTask;
+import org.opensearch.action.support.replication.TransportReplicationAction.ReplicaResponse;
 import org.opensearch.action.support.replication.TransportWriteAction.WritePrimaryResult;
 import org.opensearch.action.update.UpdateHelper;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.client.Requests;
+import org.opensearch.cluster.action.index.MappingUpdatedAction;
+import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.AllocationId;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.index.Index;
+import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.VersionConflictEngineException;
@@ -62,14 +76,22 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.Mapping;
 import org.opensearch.index.mapper.MetadataFieldMapper;
 import org.opensearch.index.mapper.RootObjectMapper;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.SystemIndices;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
+import org.opensearch.transport.TestTransportChannel;
+import org.opensearch.transport.TransportChannel;
+import org.opensearch.transport.TransportResponse;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -85,6 +107,7 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyBoolean;
 import static org.mockito.Mockito.anyLong;
@@ -1028,6 +1051,161 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         } finally {
             rejectingThreadPool.shutdownNow();
         }
+    }
+
+    public void testHandlePrimaryTermValidationRequestWithDifferentAllocationId() {
+
+        final String aId = "test-allocation-id";
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        final ReplicationTask task = createReplicationTask();
+        PlainActionFuture<TransportResponse> listener = new PlainActionFuture<>();
+        TransportShardBulkAction action = new TransportShardBulkAction(
+            Settings.EMPTY,
+            mock(TransportService.class),
+            mockClusterService(),
+            mockIndicesService(aId, 1L),
+            threadPool,
+            mock(ShardStateAction.class),
+            mock(MappingUpdatedAction.class),
+            mock(UpdateHelper.class),
+            mock(ActionFilters.class),
+            mock(IndexingPressureService.class),
+            mock(SystemIndices.class)
+        );
+        action.handlePrimaryTermValidationRequest(
+            new TransportShardBulkAction.PrimaryTermValidationRequest(aId + "-1", 1, shardId),
+            createTransportChannel(listener),
+            task
+        );
+        assertThrows(ShardNotFoundException.class, listener::actionGet);
+        assertNotNull(task.getPhase());
+        assertEquals("failed", task.getPhase());
+    }
+
+    public void testHandlePrimaryTermValidationRequestWithOlderPrimaryTerm() {
+
+        final String aId = "test-allocation-id";
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        final ReplicationTask task = createReplicationTask();
+        PlainActionFuture<TransportResponse> listener = new PlainActionFuture<>();
+        TransportShardBulkAction action = new TransportShardBulkAction(
+            Settings.EMPTY,
+            mock(TransportService.class),
+            mockClusterService(),
+            mockIndicesService(aId, 2L),
+            threadPool,
+            mock(ShardStateAction.class),
+            mock(MappingUpdatedAction.class),
+            mock(UpdateHelper.class),
+            mock(ActionFilters.class),
+            mock(IndexingPressureService.class),
+            mock(SystemIndices.class)
+        );
+        action.handlePrimaryTermValidationRequest(
+            new TransportShardBulkAction.PrimaryTermValidationRequest(aId, 1, shardId),
+            createTransportChannel(listener),
+            task
+        );
+        assertThrows(IllegalStateException.class, listener::actionGet);
+        assertNotNull(task.getPhase());
+        assertEquals("failed", task.getPhase());
+    }
+
+    public void testHandlePrimaryTermValidationRequestSuccess() {
+
+        final String aId = "test-allocation-id";
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        final ReplicationTask task = createReplicationTask();
+        PlainActionFuture<TransportResponse> listener = new PlainActionFuture<>();
+        TransportShardBulkAction action = new TransportShardBulkAction(
+            Settings.EMPTY,
+            mock(TransportService.class),
+            mockClusterService(),
+            mockIndicesService(aId, 1L),
+            threadPool,
+            mock(ShardStateAction.class),
+            mock(MappingUpdatedAction.class),
+            mock(UpdateHelper.class),
+            mock(ActionFilters.class),
+            mock(IndexingPressureService.class),
+            mock(SystemIndices.class)
+        );
+        action.handlePrimaryTermValidationRequest(
+            new TransportShardBulkAction.PrimaryTermValidationRequest(aId, 1, shardId),
+            createTransportChannel(listener),
+            task
+        );
+        assertTrue(listener.actionGet() instanceof ReplicaResponse);
+        assertEquals(SequenceNumbers.NO_OPS_PERFORMED, ((ReplicaResponse) listener.actionGet()).localCheckpoint());
+        assertEquals(SequenceNumbers.NO_OPS_PERFORMED, ((ReplicaResponse) listener.actionGet()).globalCheckpoint());
+        assertNotNull(task.getPhase());
+        assertEquals("finished", task.getPhase());
+    }
+
+    public void testGetReplicationModeWithRemoteTranslog() {
+        TransportShardBulkAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
+        assertEquals(ReplicationMode.PRIMARY_TERM_VALIDATION, action.getReplicationMode(indexShard));
+    }
+
+    public void testGetReplicationModeWithLocalTranslog() {
+        TransportShardBulkAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
+        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    private TransportShardBulkAction createAction() {
+        return new TransportShardBulkAction(
+            Settings.EMPTY,
+            mock(TransportService.class),
+            mockClusterService(),
+            mock(IndicesService.class),
+            threadPool,
+            mock(ShardStateAction.class),
+            mock(MappingUpdatedAction.class),
+            mock(UpdateHelper.class),
+            mock(ActionFilters.class),
+            mock(IndexingPressureService.class),
+            mock(SystemIndices.class)
+        );
+    }
+
+    private ClusterService mockClusterService() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        return clusterService;
+    }
+
+    private IndicesService mockIndicesService(String aId, long primaryTerm) {
+        // Mock few of the required classes
+        IndicesService indicesService = mock(IndicesService.class);
+        IndexService indexService = mock(IndexService.class);
+        IndexShard indexShard = mock(IndexShard.class);
+        when(indicesService.indexServiceSafe(any(Index.class))).thenReturn(indexService);
+        when(indexService.getShard(anyInt())).thenReturn(indexShard);
+        when(indexShard.getOperationPrimaryTerm()).thenReturn(primaryTerm);
+
+        // Mock routing entry, allocation id
+        AllocationId allocationId = mock(AllocationId.class);
+        ShardRouting shardRouting = mock(ShardRouting.class);
+        when(indexShard.routingEntry()).thenReturn(shardRouting);
+        when(shardRouting.allocationId()).thenReturn(allocationId);
+        when(allocationId.getId()).thenReturn(aId);
+        return indicesService;
+    }
+
+    private ReplicationTask createReplicationTask() {
+        return new ReplicationTask(0, null, null, null, null, null);
+    }
+
+    /**
+     * Transport channel that is needed for replica operation testing.
+     */
+    private TransportChannel createTransportChannel(final PlainActionFuture<TransportResponse> listener) {
+        return new TestTransportChannel(listener);
     }
 
     private void randomlySetIgnoredPrimaryResponse(BulkItemRequest primaryRequest) {

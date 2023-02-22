@@ -28,6 +28,9 @@
  * under the License.
  */
 
+import java.nio.charset.StandardCharsets;
+import java.io.ByteArrayOutputStream;
+
 import com.avast.gradle.dockercompose.tasks.ComposePull
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin
 import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
@@ -37,19 +40,22 @@ import org.opensearch.gradle.Version
 import org.opensearch.gradle.VersionProperties
 import org.opensearch.gradle.info.BuildParams
 import org.opensearch.gradle.plugin.PluginBuildPlugin
+import org.opensearch.gradle.tar.SymbolicLinkPreservingTar
 import org.gradle.plugins.ide.eclipse.model.AccessRule
 import org.gradle.plugins.ide.eclipse.model.EclipseJdt
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
-import org.gradle.util.DistributionLocator
-import org.gradle.util.GradleVersion
+import org.gradle.api.Project;
+import org.gradle.api.internal.tasks.testing.junit.JUnitTestFramework
+import org.gradle.process.ExecResult;
+
 import static org.opensearch.gradle.util.GradleUtils.maybeConfigure
 
 plugins {
   id 'lifecycle-base'
   id 'opensearch.docker-support'
   id 'opensearch.global-build-info'
-  id "com.diffplug.spotless" version "6.7.0" apply false
-  id "org.gradle.test-retry" version "1.4.0" apply false
+  id "com.diffplug.spotless" version "6.15.0" apply false
+  id "org.gradle.test-retry" version "1.5.1" apply false
   id "test-report-aggregation"
   id 'jacoco-report-aggregation'
 }
@@ -70,6 +76,19 @@ allprojects {
   group = 'org.opensearch'
   version = VersionProperties.getOpenSearch()
   description = "OpenSearch subproject ${project.path}"
+
+  afterEvaluate {
+    project.tasks.withType(Test) { task ->
+      // This is so hacky: now, by default, test tasks uses JUnit framework and always includes 'junit'
+      // JARs from the Gradle distribution (no ways to override this behavior). It causes JAR hell on test 
+      // classpath, example of the report:
+      //
+      //  jar1: /home/ubuntu/.gradle/caches/modules-2/files-2.1/junit/junit/4.13.2/8ac9e16d933b6fb43bc7f576336b8f4d7eb5ba12/junit-4.13.2.jar
+      //  jar2: /home/ubuntu/.gradle/wrapper/dists/gradle-8.0-rc-1-all/2p8rgxxewg8l61n1p3vrzr9s8/gradle-8.0-rc-1/lib/junit-4.13.2.jar
+      // 
+      task.getTestFrameworkProperty().convention(getProviderFactory().provider(() -> new JUnitTestFramework(task, task.getFilter(), false)));
+    }
+  }
 }
 
 configure(allprojects - project(':distribution:archives:integ-test-zip')) {
@@ -149,6 +168,30 @@ Map<String, String> buildMetadataMap = buildMetadataValue.tokenize(';').collectE
   def (String key, String value) = it.split('=')
   return [key, value]
 }
+
+    /**
+     * Using 'git' command line (if available), tries to fetch the commit date of the current revision
+     * @return commit date of the current revision or 0 if it is not available
+     */
+long gitRevisionDate = {
+  // Try to get last commit date as Unix timestamp
+  try (ByteArrayOutputStream stdout = new ByteArrayOutputStream()) {
+     ExecResult result = project.exec(spec -> {
+        spec.setIgnoreExitValue(true);
+        spec.setStandardOutput(stdout);
+        spec.commandLine("git", "log", "-1", "--format=%ct");
+     });
+
+    if (result.getExitValue() == 0) {
+      return Long.parseLong(stdout.toString(StandardCharsets.UTF_8).replaceAll("\\s", "")) * 1000; /* seconds to millis */
+    }
+  } catch (IOException | GradleException | NumberFormatException ex) {
+    /* fall back to default Unix epoch timestamp */
+  }
+
+  return 0;
+}()
+
 
 // injecting groovy property variables into all projects
 allprojects {
@@ -233,6 +276,12 @@ tasks.register("branchConsistency") {
 allprojects {
   // configure compiler options
   tasks.withType(JavaCompile).configureEach { JavaCompile compile ->
+    options.fork = true
+
+    configure(options.forkOptions) {
+      memoryMaximumSize = project.property('options.forkOptions.memoryMaximumSize')
+    }
+
     // See please https://bugs.openjdk.java.net/browse/JDK-8209058
     if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_11) {
       compile.options.compilerArgs << '-Werror'
@@ -278,15 +327,24 @@ allprojects {
     // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
     javadoc.options.encoding = 'UTF8'
     javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
+    boolean failOnJavadocWarning = project.ext.has('failOnJavadocWarning') ? project.ext.get('failOnJavadocWarning') : true
+    if (failOnJavadocWarning) {
+      javadoc.options.addStringOption('Xwerror', '-quiet')
+    }
     javadoc.options.tags = ["opensearch.internal", "opensearch.api", "opensearch.experimental"]
+    javadoc.options.addStringOption("-release", targetCompatibility.majorVersion)
   }
 
   // support for reproducible builds
-  tasks.withType(AbstractArchiveTask).configureEach {
+  tasks.withType(AbstractArchiveTask).configureEach { task ->
     // ignore file timestamps
     // be consistent in archive file order
-    preserveFileTimestamps = false
-    reproducibleFileOrder = true
+    task.preserveFileTimestamps = false
+    task.reproducibleFileOrder = true
+    if (task instanceof SymbolicLinkPreservingTar) {
+      // Replace file timestamps with latest Git revision date (if available)
+      task.lastModifiedTimestamp = gitRevisionDate
+    }
   }
 
   project.afterEvaluate {
@@ -324,7 +382,8 @@ allprojects {
           project.javadoc.dependsOn "${upstreamProject.path}:javadoc"
           String externalLinkName = upstreamProject.archivesBaseName
           String artifactPath = dep.group.replaceAll('\\.', '/') + '/' + externalLinkName.replaceAll('\\.', '/') + '/' + dep.version
-          project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${upstreamProject.buildDir}/docs/javadoc/"
+          String projectRelativePath = project.relativePath(upstreamProject.buildDir)
+          project.javadoc.options.linksOffline artifactsHost + "/javadoc/" + artifactPath, "${projectRelativePath}/docs/javadoc/"
         }
       }
       boolean hasShadow = project.plugins.hasPlugin(ShadowPlugin)
@@ -353,6 +412,10 @@ allprojects {
 // the dependency is added.
 gradle.projectsEvaluated {
   allprojects {
+    project.tasks.withType(JavaForkOptions) {
+      maxHeapSize project.property('options.forkOptions.memoryMaximumSize')
+    }
+
     if (project.path == ':test:framework') {
       // :test:framework:test cannot run before and after :server:test
       return
@@ -404,9 +467,11 @@ subprojects {
   apply plugin: "org.gradle.test-retry"
   tasks.withType(Test).configureEach {
     retry {
+      if (BuildParams.isCi()) {
+        maxRetries = 3
+        maxFailures = 10
+      }
       failOnPassedAfterRetry = false
-      maxRetries = 3
-      maxFailures = 10
     }
   }
 }
@@ -480,16 +545,12 @@ allprojects {
 wrapper {
   distributionType = 'ALL'
   doLast {
-    final DistributionLocator locator = new DistributionLocator()
-    final GradleVersion version = GradleVersion.version(wrapper.gradleVersion)
-    final URI distributionUri = locator.getDistributionFor(version, wrapper.distributionType.name().toLowerCase(Locale.ENGLISH))
-    final URI sha256Uri = new URI(distributionUri.toString() + ".sha256")
-    final String sha256Sum = new String(sha256Uri.toURL().bytes)
-    wrapper.getPropertiesFile() << "distributionSha256Sum=${sha256Sum}\n"
+    def sha256Sum = new String(new URL(getDistributionUrl() + ".sha256").bytes)
+    propertiesFile << "distributionSha256Sum=${sha256Sum}\n"
     println "Added checksum to wrapper properties"
     // Update build-tools to reflect the Gradle upgrade
     // TODO: we can remove this once we have tests to make sure older versions work.
-    project(':build-tools').file('src/main/resources/minimumGradleVersion').text = gradleVersion
+    project(':build-tools').file('src/main/resources/minimumGradleVersion').text = gradleVersion + "\n"
     println "Updated minimum Gradle Version"
   }
 }
@@ -578,6 +639,11 @@ reporting {
       testType = TestSuiteType.UNIT_TEST
     }
   }
+}
+
+// Enable XML test reports for Jenkins integration
+tasks.withType(TestTaskReports).configureEach {
+  junitXml.enabled = true
 }
 
 tasks.named(JavaBasePlugin.CHECK_TASK_NAME) {

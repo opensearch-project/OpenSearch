@@ -365,6 +365,11 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         }
     }
 
+    public void testDefaultFuzziness() {
+        MultiMatchQueryBuilder multiMatchQueryBuilder = new MultiMatchQueryBuilder("text", TEXT_FIELD_NAME).fuzziness(null);
+        assertNull(multiMatchQueryBuilder.fuzziness());
+    }
+
     public void testQueryParameterArrayException() {
         String json = "{\n"
             + "  \"multi_match\" : {\n"

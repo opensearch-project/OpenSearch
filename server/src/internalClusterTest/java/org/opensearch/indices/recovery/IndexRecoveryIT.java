@@ -34,7 +34,6 @@ package org.opensearch.indices.recovery;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -72,6 +71,7 @@ import org.opensearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAll
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.Strings;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.breaker.CircuitBreakingException;
@@ -775,7 +775,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         logger.info("--> request recoveries");
         RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
 
-        Repository repository = internalCluster().getMasterNodeInstance(RepositoriesService.class).repository(REPO_NAME);
+        Repository repository = internalCluster().getClusterManagerNodeInstance(RepositoriesService.class).repository(REPO_NAME);
         final RepositoryData repositoryData = PlainActionFuture.get(repository::getRepositoryData);
         for (Map.Entry<String, List<RecoveryState>> indexRecoveryStates : response.shardRecoveryStates().entrySet()) {
 
@@ -1511,7 +1511,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             );
             phase1ReadyBlocked.await();
             internalCluster().restartNode(
-                clusterService().state().nodes().getMasterNode().getName(),
+                clusterService().state().nodes().getClusterManagerNode().getName(),
                 new InternalTestCluster.RestartCallback()
             );
             internalCluster().ensureAtLeastNumDataNodes(3);
@@ -1589,7 +1589,10 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
                         .getShard(0)
                         .getRetentionLeases();
                     throw new AssertionError(
-                        "expect an operation-based recovery:" + "retention leases" + Strings.toString(retentionLeases) + "]"
+                        "expect an operation-based recovery:"
+                            + "retention leases"
+                            + Strings.toString(XContentType.JSON, retentionLeases)
+                            + "]"
                     );
                 }
                 connection.sendRequest(requestId, action, request, options);

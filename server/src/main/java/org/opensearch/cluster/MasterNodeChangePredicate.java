@@ -32,40 +32,22 @@
 
 package org.opensearch.cluster;
 
-import org.opensearch.cluster.node.DiscoveryNode;
-
 import java.util.function.Predicate;
 
 /**
  * Utility class to build a predicate that accepts cluster state changes
  *
  * @opensearch.internal
+ * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link ClusterManagerNodeChangePredicate}
  */
+@Deprecated
 public final class MasterNodeChangePredicate {
 
     private MasterNodeChangePredicate() {
 
     }
 
-    /**
-     * builds a predicate that will accept a cluster state only if it was generated after the current has
-     * (re-)joined the master
-     */
     public static Predicate<ClusterState> build(ClusterState currentState) {
-        final long currentVersion = currentState.version();
-        final DiscoveryNode clusterManagerNode = currentState.nodes().getMasterNode();
-        final String currentMasterId = clusterManagerNode == null ? null : clusterManagerNode.getEphemeralId();
-        return newState -> {
-            final DiscoveryNode newClusterManager = newState.nodes().getMasterNode();
-            final boolean accept;
-            if (newClusterManager == null) {
-                accept = false;
-            } else if (newClusterManager.getEphemeralId().equals(currentMasterId) == false) {
-                accept = true;
-            } else {
-                accept = newState.version() > currentVersion;
-            }
-            return accept;
-        };
+        return ClusterManagerNodeChangePredicate.build(currentState);
     }
 }

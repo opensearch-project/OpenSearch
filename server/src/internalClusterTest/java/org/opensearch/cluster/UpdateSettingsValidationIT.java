@@ -39,14 +39,14 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
+import static org.opensearch.test.NodeRoles.nonClusterManagerNode;
 import static org.opensearch.test.NodeRoles.nonDataNode;
-import static org.opensearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class UpdateSettingsValidationIT extends OpenSearchIntegTestCase {
     public void testUpdateSettingsValidation() throws Exception {
-        internalCluster().startNodes(nonDataNode(), nonMasterNode(), nonMasterNode());
+        internalCluster().startNodes(nonDataNode(), nonClusterManagerNode(), nonClusterManagerNode());
 
         createIndex("test");
         NumShards test = getNumShards("test");

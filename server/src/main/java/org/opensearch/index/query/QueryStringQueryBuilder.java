@@ -36,7 +36,7 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.automaton.Operations;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -44,8 +44,8 @@ import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.query.support.QueryParsers;
 import org.opensearch.index.search.QueryParserHelper;
@@ -79,6 +79,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     public static final int DEFAULT_FUZZY_PREFIX_LENGTH = FuzzyQuery.defaultPrefixLength;
     public static final int DEFAULT_FUZZY_MAX_EXPANSIONS = FuzzyQuery.defaultMaxExpansions;
     public static final int DEFAULT_PHRASE_SLOP = 0;
+    /** Default maximum edit distance. Defaults to AUTO. */
     public static final Fuzziness DEFAULT_FUZZINESS = Fuzziness.AUTO;
     public static final Operator DEFAULT_OPERATOR = Operator.OR;
     public static final MultiMatchQueryBuilder.Type DEFAULT_TYPE = MultiMatchQueryBuilder.Type.BEST_FIELDS;
@@ -416,7 +417,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
      * Set the edit distance for fuzzy queries. Default is "AUTO".
      */
     public QueryStringQueryBuilder fuzziness(Fuzziness fuzziness) {
-        this.fuzziness = fuzziness == null ? DEFAULT_FUZZINESS : fuzziness;
+        this.fuzziness = fuzziness;
         return this;
     }
 

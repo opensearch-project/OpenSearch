@@ -32,14 +32,6 @@
 
 package org.opensearch.client;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.client.methods.HttpDelete;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpHead;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
-import org.apache.http.nio.entity.NByteArrayEntity;
-import org.apache.http.util.EntityUtils;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
@@ -53,6 +45,8 @@ import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.search.ClearScrollRequest;
+import org.opensearch.action.search.CreatePitRequest;
+import org.opensearch.action.search.DeletePitRequest;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchScrollRequest;
@@ -79,10 +73,10 @@ import org.opensearch.common.io.Streams;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.VersionType;
@@ -118,6 +112,14 @@ import org.opensearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.RandomObjects;
+import org.apache.hc.client5.http.classic.methods.HttpDelete;
+import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.classic.methods.HttpHead;
+import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.classic.methods.HttpPut;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -131,6 +133,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -730,8 +733,8 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         assertEquals(method, request.getMethod());
 
         HttpEntity entity = request.getEntity();
-        assertTrue(entity instanceof NByteArrayEntity);
-        assertEquals(indexRequest.getContentType().mediaTypeWithoutParameters(), entity.getContentType().getValue());
+        assertTrue(entity instanceof ByteArrayEntity);
+        assertEquals(indexRequest.getContentType().mediaTypeWithoutParameters(), entity.getContentType());
         try (XContentParser parser = createParser(xContentType.xContent(), entity.getContent())) {
             assertEquals(nbFields, parser.map().size());
         }
@@ -802,11 +805,11 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
 
         HttpEntity entity = request.getEntity();
-        assertTrue(entity instanceof NByteArrayEntity);
+        assertTrue(entity instanceof ByteArrayEntity);
 
         UpdateRequest parsedUpdateRequest = new UpdateRequest();
 
-        XContentType entityContentType = XContentType.fromMediaType(entity.getContentType().getValue());
+        XContentType entityContentType = XContentType.fromMediaType(entity.getContentType());
         try (XContentParser parser = createParser(entityContentType.xContent(), entity.getContent())) {
             parsedUpdateRequest.fromXContent(parser);
         }
@@ -923,7 +926,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         assertEquals("/_bulk", request.getEndpoint());
         assertEquals(expectedParams, request.getParameters());
         assertEquals(HttpPost.METHOD_NAME, request.getMethod());
-        assertEquals(xContentType.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
+        assertEquals(xContentType.mediaTypeWithoutParameters(), request.getEntity().getContentType());
         byte[] content = new byte[(int) request.getEntity().getContentLength()];
         try (InputStream inputStream = request.getEntity().getContent()) {
             Streams.readFully(inputStream, content);
@@ -976,7 +979,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
             bulkRequest.add(new DeleteRequest("index", "2"));
 
             Request request = RequestConverters.bulk(bulkRequest);
-            assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
+            assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), request.getEntity().getContentType());
         }
         {
             XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
@@ -986,7 +989,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
             bulkRequest.add(new DeleteRequest("index", "2"));
 
             Request request = RequestConverters.bulk(bulkRequest);
-            assertEquals(xContentType.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
+            assertEquals(xContentType.mediaTypeWithoutParameters(), request.getEntity().getContentType());
         }
         {
             XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
@@ -998,7 +1001,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
             }
 
             Request request = RequestConverters.bulk(new BulkRequest().add(updateRequest));
-            assertEquals(xContentType.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
+            assertEquals(xContentType.mediaTypeWithoutParameters(), request.getEntity().getContentType());
         }
         {
             BulkRequest bulkRequest = new BulkRequest();
@@ -1286,7 +1289,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         assertEquals("/_search/scroll", request.getEndpoint());
         assertEquals(0, request.getParameters().size());
         assertToXContentBody(searchScrollRequest, request.getEntity());
-        assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
+        assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType());
     }
 
     public void testClearScroll() throws IOException {
@@ -1300,7 +1303,48 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         assertEquals("/_search/scroll", request.getEndpoint());
         assertEquals(0, request.getParameters().size());
         assertToXContentBody(clearScrollRequest, request.getEntity());
-        assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType().getValue());
+        assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType());
+    }
+
+    public void testCreatePit() throws IOException {
+        String[] indices = randomIndicesNames(0, 5);
+        Map<String, String> expectedParams = new HashMap<>();
+        expectedParams.put("keep_alive", "1d");
+        expectedParams.put("allow_partial_pit_creation", "true");
+        CreatePitRequest createPitRequest = new CreatePitRequest(new TimeValue(1, TimeUnit.DAYS), true, indices);
+        setRandomIndicesOptions(createPitRequest::indicesOptions, createPitRequest::indicesOptions, expectedParams);
+        Request request = RequestConverters.createPit(createPitRequest);
+        StringJoiner endpoint = new StringJoiner("/", "/", "");
+        String index = String.join(",", indices);
+        if (Strings.hasLength(index)) {
+            endpoint.add(index);
+        }
+        endpoint.add("_search/point_in_time");
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals(endpoint.toString(), request.getEndpoint());
+        assertEquals(expectedParams, request.getParameters());
+        assertToXContentBody(createPitRequest, request.getEntity());
+        assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType());
+    }
+
+    public void testDeletePit() throws IOException {
+        List<String> pitIdsList = new ArrayList<>();
+        pitIdsList.add("pitId1");
+        pitIdsList.add("pitId2");
+        DeletePitRequest deletePitRequest = new DeletePitRequest(pitIdsList);
+        Request request = RequestConverters.deletePit(deletePitRequest);
+        String endpoint = "/_search/point_in_time";
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals(endpoint, request.getEndpoint());
+        assertToXContentBody(deletePitRequest, request.getEntity());
+        assertEquals(REQUEST_BODY_CONTENT_TYPE.mediaTypeWithoutParameters(), request.getEntity().getContentType());
+    }
+
+    public void testDeleteAllPits() {
+        Request request = RequestConverters.deleteAllPits();
+        String endpoint = "/_search/point_in_time/_all";
+        assertEquals(HttpDelete.METHOD_NAME, request.getMethod());
+        assertEquals(endpoint, request.getEndpoint());
     }
 
     public void testSearchTemplate() throws Exception {
@@ -1412,7 +1456,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
 
         HttpEntity actualEntity = multiRequest.getEntity();
         byte[] expectedBytes = MultiSearchTemplateRequest.writeMultiLineFormat(multiSearchTemplateRequest, XContentType.JSON.xContent());
-        assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), actualEntity.getContentType().getValue());
+        assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), actualEntity.getContentType());
         assertEquals(new BytesArray(expectedBytes), new BytesArray(EntityUtils.toByteArray(actualEntity)));
     }
 
@@ -1719,7 +1763,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
 
     static void assertToXContentBody(ToXContent expectedBody, HttpEntity actualEntity) throws IOException {
         BytesReference expectedBytes = XContentHelper.toXContent(expectedBody, REQUEST_BODY_CONTENT_TYPE, false);
-        assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), actualEntity.getContentType().getValue());
+        assertEquals(XContentType.JSON.mediaTypeWithoutParameters(), actualEntity.getContentType());
         assertEquals(expectedBytes, new BytesArray(EntityUtils.toByteArray(actualEntity)));
     }
 
@@ -2111,7 +2155,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
 
     static void setRandomClusterManagerTimeout(TimedRequest request, Map<String, String> expectedParams) {
         setRandomClusterManagerTimeout(
-            s -> request.setMasterTimeout(TimeValue.parseTimeValue(s, request.getClass().getName() + ".masterNodeTimeout")),
+            s -> request.setClusterManagerTimeout(TimeValue.parseTimeValue(s, request.getClass().getName() + ".clusterManagerNodeTimeout")),
             expectedParams
         );
     }
@@ -2128,7 +2172,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
 
     static void setRandomClusterManagerTimeout(Consumer<TimeValue> setter, TimeValue defaultTimeout, Map<String, String> expectedParams) {
         if (randomBoolean()) {
-            TimeValue clusterManagerTimeout = TimeValue.parseTimeValue(randomTimeValue(), "random_master_timeout");
+            TimeValue clusterManagerTimeout = TimeValue.parseTimeValue(randomTimeValue(), "random_cluster_manager_timeout");
             setter.accept(clusterManagerTimeout);
             expectedParams.put("cluster_manager_timeout", clusterManagerTimeout.getStringRep());
         } else {

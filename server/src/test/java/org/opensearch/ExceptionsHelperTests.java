@@ -113,6 +113,12 @@ public class ExceptionsHelperTests extends OpenSearchTestCase {
         assertThat(ExceptionsHelper.status(new OpenSearchRejectedExecutionException("rejected")), equalTo(RestStatus.TOO_MANY_REQUESTS));
     }
 
+    public void testSummaryMessage() {
+        assertThat(ExceptionsHelper.summaryMessage(new IllegalArgumentException("illegal")), equalTo("Invalid argument"));
+        assertThat(ExceptionsHelper.summaryMessage(new JsonParseException(null, "illegal")), equalTo("Failed to parse JSON"));
+        assertThat(ExceptionsHelper.summaryMessage(new OpenSearchRejectedExecutionException("rejected")), equalTo("Too many requests"));
+    }
+
     public void testGroupBy() {
         ShardOperationFailedException[] failures = new ShardOperationFailedException[] {
             createShardFailureParsingException("error", "node0", "index", 0, null),

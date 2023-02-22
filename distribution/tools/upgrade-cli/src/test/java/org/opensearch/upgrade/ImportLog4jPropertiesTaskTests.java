@@ -67,7 +67,7 @@ public class ImportLog4jPropertiesTaskTests extends OpenSearchTestCase {
         Properties properties = new Properties();
         properties.load(Files.newInputStream(taskInput.getOpenSearchConfig().resolve(ImportLog4jPropertiesTask.LOG4J_PROPERTIES)));
         assertThat(properties, is(notNullValue()));
-        assertThat(properties.entrySet(), hasSize(137));
+        assertThat(properties.entrySet(), hasSize(165));
         assertThat(properties.get("appender.rolling.layout.type"), equalTo("OpenSearchJsonLayout"));
         assertThat(
             properties.get("appender.deprecation_rolling.fileName"),

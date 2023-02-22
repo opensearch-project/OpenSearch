@@ -31,7 +31,7 @@ apply plugin: 'opensearch.java-rest-test'
 
 opensearchplugin {
   description 'Plugin exposing APIs for OpenSearch Dashboards system indices'
-  classname 'org.opensearch.dashboards.OpenSearchDashboardsPlugin'
+  classname 'org.opensearch.dashboards.OpenSearchDashboardsModulePlugin'
 }
 
 dependencies {

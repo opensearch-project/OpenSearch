@@ -65,7 +65,9 @@ public class RepositoriesServiceIT extends OpenSearchIntegTestCase {
         final String repositoryName = "test-repo";
 
         final Client client = client();
-        final RepositoriesService repositoriesService = cluster.getDataOrMasterNodeInstances(RepositoriesService.class).iterator().next();
+        final RepositoriesService repositoriesService = cluster.getDataOrClusterManagerNodeInstances(RepositoriesService.class)
+            .iterator()
+            .next();
 
         final Settings.Builder repoSettings = Settings.builder().put("location", randomRepoPath());
 

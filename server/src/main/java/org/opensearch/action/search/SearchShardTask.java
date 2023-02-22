@@ -32,12 +32,15 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.common.MemoizedSupplier;
 import org.opensearch.search.fetch.ShardFetchSearchRequest;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.tasks.CancellableTask;
+import org.opensearch.tasks.SearchBackpressureTask;
 import org.opensearch.tasks.TaskId;
 
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Task storing information about a currently running search shard request.
@@ -45,10 +48,34 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public class SearchShardTask extends CancellableTask {
+public class SearchShardTask extends CancellableTask implements SearchBackpressureTask {
+    // generating metadata in a lazy way since source can be quite big
+    private final MemoizedSupplier<String> metadataSupplier;
 
     public SearchShardTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
+        this(id, type, action, description, parentTaskId, headers, () -> "");
+    }
+
+    public SearchShardTask(
+        long id,
+        String type,
+        String action,
+        String description,
+        TaskId parentTaskId,
+        Map<String, String> headers,
+        Supplier<String> metadataSupplier
+    ) {
         super(id, type, action, description, parentTaskId, headers);
+        this.metadataSupplier = new MemoizedSupplier<>(metadataSupplier);
+    }
+
+    public String getTaskMetadata() {
+        return metadataSupplier.get();
+    }
+
+    @Override
+    public boolean supportsResourceTracking() {
+        return true;
     }
 
     @Override

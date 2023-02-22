@@ -34,7 +34,6 @@ package org.opensearch.snapshots;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
@@ -141,13 +140,15 @@ import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.opensearch.cluster.service.ClusterApplierService;
+import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.cluster.service.FakeThreadPoolMasterService;
-import org.opensearch.cluster.service.MasterService;
+import org.opensearch.cluster.service.FakeThreadPoolClusterManagerService;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.ClusterSettings;
@@ -155,11 +156,12 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.TestEnvironment;
@@ -171,7 +173,7 @@ import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
-import org.opensearch.index.store.RemoteDirectoryFactory;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.ShardLimitValidator;
@@ -183,10 +185,14 @@ import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.PeerRecoverySourceService;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
+import org.opensearch.indices.replication.SegmentReplicationSourceService;
+import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.ResponseCollectorService;
+import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -200,6 +206,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.snapshots.mockstore.MockEventuallyConsistentRepository;
+import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.disruption.DisruptableMockTransport;
 import org.opensearch.threadpool.ThreadPool;
@@ -1342,13 +1349,13 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
             testClusterNodes.nodes.values()
                 .stream()
                 .map(n -> n.node)
-                .filter(DiscoveryNode::isMasterNode)
+                .filter(DiscoveryNode::isClusterManagerNode)
                 .map(DiscoveryNode::getId)
                 .collect(Collectors.toSet())
         );
         testClusterNodes.nodes.values()
             .stream()
-            .filter(n -> n.node.isMasterNode())
+            .filter(n -> n.node.isClusterManagerNode())
             .forEach(testClusterNode -> testClusterNode.coordinator.setInitialConfiguration(votingConfiguration));
         // Connect all nodes to each other
         testClusterNodes.nodes.values()
@@ -1377,7 +1384,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 .map(node -> node.clusterService.state())
                 .collect(Collectors.toList());
             final Set<String> clusterManagerNodeIds = clusterStates.stream()
-                .map(clusterState -> clusterState.nodes().getMasterNodeId())
+                .map(clusterState -> clusterState.nodes().getClusterManagerNodeId())
                 .collect(Collectors.toSet());
             final Set<Long> terms = clusterStates.stream().map(ClusterState::term).collect(Collectors.toSet());
             final List<Long> versions = clusterStates.stream().map(ClusterState::version).distinct().collect(Collectors.toList());
@@ -1537,7 +1544,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
             // Select from sorted list of data-nodes here to not have deterministic behaviour
             final List<TestClusterNode> clusterManagerNodes = testClusterNodes.nodes.values()
                 .stream()
-                .filter(n -> n.node.isMasterNode())
+                .filter(n -> n.node.isClusterManagerNode())
                 .filter(n -> disconnectedNodes.contains(n.node.getName()) == false)
                 .sorted(Comparator.comparing(n -> n.node.getName()))
                 .collect(Collectors.toList());
@@ -1608,9 +1615,9 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
          * @return Cluster Manager Node
          */
         public TestClusterNode currentClusterManager(ClusterState state) {
-            TestClusterNode clusterManager = nodes.get(state.nodes().getMasterNode().getName());
+            TestClusterNode clusterManager = nodes.get(state.nodes().getClusterManagerNode().getName());
             assertNotNull(clusterManager);
-            assertTrue(clusterManager.node.isMasterNode());
+            assertTrue(clusterManager.node.isClusterManagerNode());
             return clusterManager;
         }
 
@@ -1643,7 +1650,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
 
             private final DiscoveryNode node;
 
-            private final MasterService clusterManagerService;
+            private final ClusterManagerService clusterManagerService;
 
             private final AllocationService allocationService;
 
@@ -1663,7 +1670,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 this.node = node;
                 final Environment environment = createEnvironment(node.getName());
                 threadPool = deterministicTaskQueue.getThreadPool(runnable -> CoordinatorTests.onNodeLog(node, runnable));
-                clusterManagerService = new FakeThreadPoolMasterService(
+                clusterManagerService = new FakeThreadPoolClusterManagerService(
                     node.getName(),
                     "test",
                     threadPool,
@@ -1751,6 +1758,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 final IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(
                     new ThreadContext(Settings.EMPTY)
                 );
+                transportService.getTaskManager()
+                    .setTaskResourceTrackingService(new TaskResourceTrackingService(settings, clusterSettings, threadPool));
                 repositoriesService = new RepositoriesService(
                     settings,
                     clusterService,
@@ -1788,40 +1797,82 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 );
                 final BigArrays bigArrays = new BigArrays(new PageCacheRecycler(settings), null, "test");
                 final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
-                indicesService = new IndicesService(
-                    settings,
-                    mock(PluginsService.class),
-                    nodeEnv,
-                    namedXContentRegistry,
-                    new AnalysisRegistry(
-                        environment,
+                final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
+                repositoriesServiceReference.set(repositoriesService);
+                if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
+                    indicesService = new IndicesService(
+                        settings,
+                        mock(PluginsService.class),
+                        mock(ExtensionsManager.class),
+                        nodeEnv,
+                        namedXContentRegistry,
+                        new AnalysisRegistry(
+                            environment,
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap()
+                        ),
+                        indexNameExpressionResolver,
+                        mapperRegistry,
+                        namedWriteableRegistry,
+                        threadPool,
+                        indexScopedSettings,
+                        new NoneCircuitBreakerService(),
+                        bigArrays,
+                        scriptService,
+                        clusterService,
+                        client,
+                        new MetaStateService(nodeEnv, namedXContentRegistry),
+                        Collections.emptyList(),
                         emptyMap(),
+                        null,
                         emptyMap(),
+                        new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService),
+                        repositoriesServiceReference::get
+                    );
+                } else {
+                    indicesService = new IndicesService(
+                        settings,
+                        mock(PluginsService.class),
+                        nodeEnv,
+                        namedXContentRegistry,
+                        new AnalysisRegistry(
+                            environment,
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap(),
+                            emptyMap()
+                        ),
+                        indexNameExpressionResolver,
+                        mapperRegistry,
+                        namedWriteableRegistry,
+                        threadPool,
+                        indexScopedSettings,
+                        new NoneCircuitBreakerService(),
+                        bigArrays,
+                        scriptService,
+                        clusterService,
+                        client,
+                        new MetaStateService(nodeEnv, namedXContentRegistry),
+                        Collections.emptyList(),
                         emptyMap(),
+                        null,
                         emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap(),
-                        emptyMap()
-                    ),
-                    indexNameExpressionResolver,
-                    mapperRegistry,
-                    namedWriteableRegistry,
-                    threadPool,
-                    indexScopedSettings,
-                    new NoneCircuitBreakerService(),
-                    bigArrays,
-                    scriptService,
-                    clusterService,
-                    client,
-                    new MetaStateService(nodeEnv, namedXContentRegistry),
-                    Collections.emptyList(),
-                    emptyMap(),
-                    null,
-                    emptyMap(),
-                    new RemoteDirectoryFactory(() -> repositoriesService)
-                );
+                        new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService),
+                        repositoriesServiceReference::get
+                    );
+                }
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
                 snapshotShardsService = new SnapshotShardsService(
                     settings,
@@ -1845,6 +1896,14 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     clusterService,
                     threadPool,
                     new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService),
+                    new SegmentReplicationTargetService(
+                        threadPool,
+                        recoverySettings,
+                        transportService,
+                        new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService),
+                        indicesService
+                    ),
+                    SegmentReplicationSourceService.NO_OP,
                     shardStateAction,
                     new NodeMappingRefreshAction(transportService, metadataMappingService),
                     repositoriesService,
@@ -1892,7 +1951,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     threadPool,
                     namedXContentRegistry,
                     systemIndices,
-                    false
+                    false,
+                    new AwarenessReplicaBalance(Settings.EMPTY, clusterService.getClusterSettings())
                 );
                 actions.put(
                     CreateIndexAction.INSTANCE,
@@ -2209,7 +2269,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     () -> persistedState,
                     hostsResolver -> nodes.values()
                         .stream()
-                        .filter(n -> n.node.isMasterNode())
+                        .filter(n -> n.node.isClusterManagerNode())
                         .map(n -> n.node.getAddress())
                         .collect(Collectors.toList()),
                     clusterService.getClusterApplierService(),

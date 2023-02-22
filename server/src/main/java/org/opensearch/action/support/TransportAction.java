@@ -40,6 +40,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancelledException;
 import org.opensearch.tasks.TaskId;
@@ -93,31 +94,39 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
          */
         final Releasable unregisterChildNode = registerChildNode(request.getParentTask());
         final Task task;
+
         try {
             task = taskManager.register("transport", actionName, request);
         } catch (TaskCancelledException e) {
             unregisterChildNode.close();
             throw e;
         }
-        execute(task, request, new ActionListener<Response>() {
-            @Override
-            public void onResponse(Response response) {
-                try {
-                    Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
-                } finally {
-                    listener.onResponse(response);
-                }
-            }
 
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
-                } finally {
-                    listener.onFailure(e);
+        ThreadContext.StoredContext storedContext = taskManager.taskExecutionStarted(task);
+        try {
+            execute(task, request, new ActionListener<Response>() {
+                @Override
+                public void onResponse(Response response) {
+                    try {
+                        Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
+                    } finally {
+                        listener.onResponse(response);
+                    }
                 }
-            }
-        });
+
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
+                    } finally {
+                        listener.onFailure(e);
+                    }
+                }
+            });
+        } finally {
+            storedContext.close();
+        }
+
         return task;
     }
 
@@ -134,25 +143,30 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
             unregisterChildNode.close();
             throw e;
         }
-        execute(task, request, new ActionListener<Response>() {
-            @Override
-            public void onResponse(Response response) {
-                try {
-                    Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
-                } finally {
-                    listener.onResponse(task, response);
+        ThreadContext.StoredContext storedContext = taskManager.taskExecutionStarted(task);
+        try {
+            execute(task, request, new ActionListener<Response>() {
+                @Override
+                public void onResponse(Response response) {
+                    try {
+                        Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
+                    } finally {
+                        listener.onResponse(task, response);
+                    }
                 }
-            }
 
-            @Override
-            public void onFailure(Exception e) {
-                try {
-                    Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
-                } finally {
-                    listener.onFailure(task, e);
+                @Override
+                public void onFailure(Exception e) {
+                    try {
+                        Releasables.close(unregisterChildNode, () -> taskManager.unregister(task));
+                    } finally {
+                        listener.onFailure(task, e);
+                    }
                 }
-            }
-        });
+            });
+        } finally {
+            storedContext.close();
+        }
         return task;
     }
 

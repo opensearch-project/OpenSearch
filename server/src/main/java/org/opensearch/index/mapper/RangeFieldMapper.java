@@ -40,7 +40,6 @@ import org.opensearch.Version;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.geo.ShapeRelation;
-import org.opensearch.common.joda.Joda;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.settings.Setting;
@@ -48,7 +47,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.util.LocaleUtils;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.BinaryIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
@@ -197,12 +196,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
 
                 // The builder context may not have index created version, falling back to indexCreatedVersion
                 // property of this mapper builder.
-                DateFormatter dateTimeFormatter;
-                if (Joda.isJodaPattern(context.indexCreatedVersionOrDefault(indexCreatedVersion), format.getValue())) {
-                    dateTimeFormatter = Joda.forPattern(format.getValue()).withLocale(locale.getValue());
-                } else {
-                    dateTimeFormatter = DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
-                }
+                DateFormatter dateTimeFormatter = DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
                 return new RangeFieldType(
                     buildFullName(context),
                     index.getValue(),

@@ -32,9 +32,9 @@
 
 package org.opensearch.search;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.nio.entity.NStringEntity;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
@@ -63,7 +63,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.internal.InternalSearchResponse;
@@ -343,7 +343,7 @@ public class CrossClusterSearchUnavailableClusterIT extends OpenSearchRestTestCa
             builder.endObject();
             requestBody = Strings.toString(builder);
         }
-        return new NStringEntity(requestBody, ContentType.APPLICATION_JSON);
+        return new StringEntity(requestBody, ContentType.APPLICATION_JSON);
     }
 
     private static class HighLevelClient extends RestHighLevelClient {

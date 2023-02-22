@@ -274,9 +274,9 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
                 InternalTestCluster internalTestCluster = internalCluster();
                 InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster.getInstance(
                     ClusterInfoService.class,
-                    internalTestCluster.getMasterName()
+                    internalTestCluster.getClusterManagerName()
                 );
-                ThreadPool threadPool = internalTestCluster.getInstance(ThreadPool.class, internalTestCluster.getMasterName());
+                ThreadPool threadPool = internalTestCluster.getInstance(ThreadPool.class, internalTestCluster.getClusterManagerName());
                 // Refresh the cluster info after a random delay to check the disk threshold and release the block on the index
                 threadPool.schedule(infoService::refresh, TimeValue.timeValueMillis(randomIntBetween(1, 100)), ThreadPool.Names.MANAGEMENT);
                 // The delete by query request will be executed successfully because the block will be released
@@ -362,7 +362,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         int slices = randomSlices(1, 10);
         int expectedSlices = expectedSliceStatuses(slices, docs.keySet());
 
-        String[] sourceIndexNames = docs.keySet().toArray(new String[docs.size()]);
+        String[] sourceIndexNames = docs.keySet().toArray(new String[0]);
 
         assertThat(
             deleteByQuery().source(sourceIndexNames).filter(QueryBuilders.matchAllQuery()).refresh(true).setSlices(slices).get(),

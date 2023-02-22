@@ -36,7 +36,7 @@ import org.opensearch.common.geo.GeoDistance;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.parsers.ShapeParser;
 import org.opensearch.common.unit.DistanceUnit;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.geometry.Line;
 import org.opensearch.geometry.MultiLine;
 import org.hamcrest.Matcher;
@@ -99,7 +99,7 @@ public class OpenSearchGeoAssertions {
     }
 
     private static Coordinate[] fixedOrderedRing(List<Coordinate> coordinates, boolean direction) {
-        return fixedOrderedRing(coordinates.toArray(new Coordinate[coordinates.size()]), direction);
+        return fixedOrderedRing(coordinates.toArray(new Coordinate[0]), direction);
     }
 
     private static Coordinate[] fixedOrderedRing(Coordinate[] points, boolean direction) {

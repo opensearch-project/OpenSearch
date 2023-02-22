@@ -32,8 +32,8 @@
 
 package org.opensearch.upgrades;
 
-import org.apache.http.util.EntityUtils;
-import org.opensearch.LegacyESVersion;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.common.Strings;
@@ -43,9 +43,10 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.ConstantScoreQueryBuilder;
 import org.opensearch.index.query.DisMaxQueryBuilder;
@@ -157,7 +158,7 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
     }
 
     public void testQueryBuilderBWC() throws Exception {
-        final String type = getOldClusterVersion().before(LegacyESVersion.V_7_0_0) ? "doc" : "_doc";
+        final String type = MapperService.SINGLE_MAPPING_NAME;
         String index = "queries";
         if (isRunningAgainstOldCluster()) {
             XContentBuilder mappingsAndSettings = jsonBuilder();
@@ -234,7 +235,7 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    private static Map<String, Object> toMap(Response response) throws IOException {
+    private static Map<String, Object> toMap(Response response) throws IOException, ParseException {
         return toMap(EntityUtils.toString(response.getEntity()));
     }
 

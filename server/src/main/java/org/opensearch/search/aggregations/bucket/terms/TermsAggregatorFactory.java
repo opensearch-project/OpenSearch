@@ -33,7 +33,7 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.search.IndexSearcher;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.AggregationExecutionException;

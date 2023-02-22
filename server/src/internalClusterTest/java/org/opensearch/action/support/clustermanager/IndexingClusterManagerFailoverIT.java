@@ -67,7 +67,7 @@ public class IndexingClusterManagerFailoverIT extends OpenSearchIntegTestCase {
 
         internalCluster().setBootstrapClusterManagerNodeIndex(2);
 
-        internalCluster().startMasterOnlyNodes(3, Settings.EMPTY);
+        internalCluster().startClusterManagerOnlyNodes(3, Settings.EMPTY);
 
         String dataNode = internalCluster().startDataOnlyNode(Settings.EMPTY);
 

@@ -150,7 +150,7 @@ public class ReopenWhileClosingIT extends OpenSearchIntegTestCase {
     private Releasable interceptVerifyShardBeforeCloseActions(final String indexPattern, final Runnable onIntercept) {
         final MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(
             TransportService.class,
-            internalCluster().getMasterName()
+            internalCluster().getClusterManagerName()
         );
 
         final CountDownLatch release = new CountDownLatch(1);

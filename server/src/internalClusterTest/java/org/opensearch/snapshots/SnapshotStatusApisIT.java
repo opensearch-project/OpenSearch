@@ -238,7 +238,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         final String snapshotOne = "snap-1";
         // restarting a data node below so using a cluster-manager client here
-        final ActionFuture<CreateSnapshotResponse> responseSnapshotOne = internalCluster().masterClient()
+        final ActionFuture<CreateSnapshotResponse> responseSnapshotOne = internalCluster().clusterManagerClient()
             .admin()
             .cluster()
             .prepareCreateSnapshot(repoName, snapshotOne)

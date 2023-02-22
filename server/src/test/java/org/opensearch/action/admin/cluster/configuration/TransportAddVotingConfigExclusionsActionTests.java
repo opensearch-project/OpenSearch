@@ -31,7 +31,6 @@
 
 package org.opensearch.action.admin.cluster.configuration;
 
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.Version;
 import org.opensearch.action.support.ActionFilters;
@@ -49,6 +48,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes.Builder;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.ClusterSettings;
@@ -175,7 +175,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
                     .add(otherNode2)
                     .add(otherDataNode)
                     .localNodeId(localNode.getId())
-                    .masterNodeId(localNode.getId())
+                    .clusterManagerNodeId(localNode.getId())
             )
                 .metadata(
                     Metadata.builder()
@@ -692,7 +692,7 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
 
         @Override
         public void onNewClusterState(ClusterState state) {
-            clusterService.getMasterService().submitStateUpdateTask("reconfiguration", new ClusterStateUpdateTask() {
+            clusterService.getClusterManagerService().submitStateUpdateTask("reconfiguration", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     assertThat(currentState, sameInstance(state));

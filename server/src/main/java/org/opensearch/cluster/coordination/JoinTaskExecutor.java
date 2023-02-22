@@ -32,13 +32,13 @@
 package org.opensearch.cluster.coordination;
 
 import org.apache.logging.log4j.Logger;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
-import org.opensearch.cluster.NotMasterException;
+import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.decommission.NodeDecommissionedException;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -48,7 +48,6 @@ import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.persistent.PersistentTasksCustomMetadata;
-import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -60,6 +59,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
+import static org.opensearch.cluster.decommission.DecommissionHelper.nodeCommissioned;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 
 /**
@@ -73,7 +73,6 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
     private final Logger logger;
     private final RerouteService rerouteService;
-    private final TransportService transportService;
 
     /**
      * Task for the join task executor.
@@ -103,8 +102,14 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             return node != null ? node + " " + reason : reason;
         }
 
-        public boolean isBecomeMasterTask() {
+        public boolean isBecomeClusterManagerTask() {
             return reason.equals(BECOME_MASTER_TASK_REASON) || reason.equals(BECOME_CLUSTER_MANAGER_TASK_REASON);
+        }
+
+        /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #isBecomeClusterManagerTask()} */
+        @Deprecated
+        public boolean isBecomeMasterTask() {
+            return isBecomeClusterManagerTask();
         }
 
         public boolean isFinishElectionTask() {
@@ -120,17 +125,10 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         private static final String FINISH_ELECTION_TASK_REASON = "_FINISH_ELECTION_";
     }
 
-    public JoinTaskExecutor(
-        Settings settings,
-        AllocationService allocationService,
-        Logger logger,
-        RerouteService rerouteService,
-        TransportService transportService
-    ) {
+    public JoinTaskExecutor(Settings settings, AllocationService allocationService, Logger logger, RerouteService rerouteService) {
         this.allocationService = allocationService;
         this.logger = logger;
         this.rerouteService = rerouteService;
-        this.transportService = transportService;
     }
 
     @Override
@@ -143,7 +141,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
         if (joiningNodes.size() == 1 && joiningNodes.get(0).isFinishElectionTask()) {
             return results.successes(joiningNodes).build(currentState);
-        } else if (currentNodes.getMasterNode() == null && joiningNodes.stream().anyMatch(Task::isBecomeMasterTask)) {
+        } else if (currentNodes.getClusterManagerNode() == null && joiningNodes.stream().anyMatch(Task::isBecomeClusterManagerTask)) {
             assert joiningNodes.stream().anyMatch(Task::isFinishElectionTask) : "becoming a cluster-manager but election is not finished "
                 + joiningNodes;
             // use these joins to try and become the cluster-manager.
@@ -151,19 +149,19 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
             // during the cluster state publishing guarantees that we have enough
             newState = becomeClusterManagerAndTrimConflictingNodes(currentState, joiningNodes);
             nodesChanged = true;
-        } else if (currentNodes.isLocalNodeElectedMaster() == false) {
+        } else if (currentNodes.isLocalNodeElectedClusterManager() == false) {
             logger.trace(
                 "processing node joins, but we are not the cluster-manager. current cluster-manager: {}",
-                currentNodes.getMasterNode()
+                currentNodes.getClusterManagerNode()
             );
-            throw new NotMasterException("Node [" + currentNodes.getLocalNode() + "] not cluster-manager for join request");
+            throw new NotClusterManagerException("Node [" + currentNodes.getLocalNode() + "] not cluster-manager for join request");
         } else {
             newState = ClusterState.builder(currentState);
         }
 
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(newState.nodes());
 
-        assert nodesBuilder.isLocalNodeElectedMaster();
+        assert nodesBuilder.isLocalNodeElectedClusterManager();
 
         Version minClusterNodeVersion = newState.nodes().getMinNodeVersion();
         Version maxClusterNodeVersion = newState.nodes().getMaxNodeVersion();
@@ -172,9 +170,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         // processing any joins
         Map<String, String> joiniedNodeNameIds = new HashMap<>();
         for (final Task joinTask : joiningNodes) {
-            if (joinTask.isBecomeMasterTask() || joinTask.isFinishElectionTask()) {
+            if (joinTask.isBecomeClusterManagerTask() || joinTask.isFinishElectionTask()) {
                 // noop
-            } else if (currentNodes.nodeExistsWithSameRoles(joinTask.node()) && !currentNodes.nodeExistsWithBWCVersion(joinTask.node())) {
+            } else if (currentNodes.nodeExistsWithSameRoles(joinTask.node())) {
                 logger.debug("received a join request for an existing node [{}]", joinTask.node());
             } else {
                 final DiscoveryNode node = joinTask.node();
@@ -186,14 +184,17 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
                     // we do this validation quite late to prevent race conditions between nodes joining and importing dangling indices
                     // we have to reject nodes that don't support all indices we have in this cluster
                     ensureIndexCompatibility(node.getVersion(), currentState.getMetadata());
+                    // we have added the same check in handleJoinRequest method and adding it here as this method
+                    // would guarantee that a decommissioned node would never be able to join the cluster and ensures correctness
+                    ensureNodeCommissioned(node, currentState.metadata());
                     nodesBuilder.add(node);
                     nodesChanged = true;
                     minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
                     maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
-                    if (node.isMasterNode()) {
+                    if (node.isClusterManagerNode()) {
                         joiniedNodeNameIds.put(node.getName(), node.getId());
                     }
-                } catch (IllegalArgumentException | IllegalStateException e) {
+                } catch (IllegalArgumentException | IllegalStateException | NodeDecommissionedException e) {
                     results.failure(joinTask, e);
                     continue;
                 }
@@ -245,15 +246,13 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
     }
 
     protected ClusterState.Builder becomeClusterManagerAndTrimConflictingNodes(ClusterState currentState, List<Task> joiningNodes) {
-        assert currentState.nodes().getMasterNodeId() == null : currentState;
+        assert currentState.nodes().getClusterManagerNodeId() == null : currentState;
         DiscoveryNodes currentNodes = currentState.nodes();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(currentNodes);
-        nodesBuilder.masterNodeId(currentState.nodes().getLocalNodeId());
+        nodesBuilder.clusterManagerNodeId(currentState.nodes().getLocalNodeId());
 
         for (final Task joinTask : joiningNodes) {
-            if (joinTask.isBecomeMasterTask()) {
-                refreshDiscoveryNodeVersionAfterUpgrade(currentNodes, nodesBuilder);
-            } else if (joinTask.isFinishElectionTask()) {
+            if (joinTask.isBecomeClusterManagerTask() || joinTask.isFinishElectionTask()) {
                 // no-op
             } else {
                 final DiscoveryNode joiningNode = joinTask.node();
@@ -278,7 +277,11 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         // or removed by us above
         ClusterState tmpState = ClusterState.builder(currentState)
             .nodes(nodesBuilder)
-            .blocks(ClusterBlocks.builder().blocks(currentState.blocks()).removeGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_ID))
+            .blocks(
+                ClusterBlocks.builder()
+                    .blocks(currentState.blocks())
+                    .removeGlobalBlock(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ID)
+            )
             .build();
         logger.trace("becomeClusterManagerAndTrimConflictingNodes: {}", tmpState.nodes());
         allocationService.cleanCaches();
@@ -286,68 +289,15 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         return ClusterState.builder(allocationService.disassociateDeadNodes(tmpState, false, "removed dead nodes on election"));
     }
 
-    private void refreshDiscoveryNodeVersionAfterUpgrade(DiscoveryNodes currentNodes, DiscoveryNodes.Builder nodesBuilder) {
-        // During the upgrade from Elasticsearch, OpenSearch node send their version as 7.10.2 to Elasticsearch master
-        // in order to successfully join the cluster. But as soon as OpenSearch node becomes the master, cluster state
-        // should show the OpenSearch nodes version as 1.x. As the cluster state was carry forwarded from ES master,
-        // version in DiscoveryNode is stale 7.10.2. As soon as OpenSearch node becomes master, it can refresh the
-        // DiscoveryNodes version and publish the updated state while finishing the election. This helps in atomically
-        // updating the version of those node which have connection with the new master.
-        // Note: This should get deprecated with BWC mode logic
-        if (null == transportService) {
-            // this logic is only applicable when OpenSearch node is cluster-manager and is noop for zen discovery node
-            return;
-        }
-        if (currentNodes.getMinNodeVersion().before(Version.V_1_0_0)) {
-            Map<String, Version> channelVersions = transportService.getChannelVersion(currentNodes);
-            for (DiscoveryNode node : currentNodes) {
-                if (channelVersions.containsKey(node.getId())) {
-                    if (channelVersions.get(node.getId()) != node.getVersion()) {
-                        DiscoveryNode tmpNode = nodesBuilder.get(node.getId());
-                        nodesBuilder.remove(node.getId());
-                        nodesBuilder.add(
-                            new DiscoveryNode(
-                                tmpNode.getName(),
-                                tmpNode.getId(),
-                                tmpNode.getEphemeralId(),
-                                tmpNode.getHostName(),
-                                tmpNode.getHostAddress(),
-                                tmpNode.getAddress(),
-                                tmpNode.getAttributes(),
-                                tmpNode.getRoles(),
-                                channelVersions.get(tmpNode.getId())
-                            )
-                        );
-                        logger.info(
-                            "Refreshed the DiscoveryNode version for node {}:{} from {} to {}",
-                            node.getId(),
-                            node.getAddress(),
-                            node.getVersion(),
-                            channelVersions.get(tmpNode.getId())
-                        );
-                    }
-                } else {
-                    // in case existing OpenSearch node is present in the cluster and but there is no connection to that node yet,
-                    // either that node will send new JoinRequest to the cluster-manager/master with version >=1.0, then no issue or
-                    // there is an edge case if doesn't send JoinRequest and connection is established,
-                    // then it can continue to report version as 7.10.2 instead of actual OpenSearch version. So,
-                    // removing the node from cluster state to prevent stale version reporting and let it reconnect.
-                    if (node.getVersion().equals(LegacyESVersion.V_7_10_2)) {
-                        nodesBuilder.remove(node.getId());
-                    }
-                }
-            }
-        }
-    }
-
     @Override
-    public boolean runOnlyOnMaster() {
+    public boolean runOnlyOnClusterManager() {
         // we validate that we are allowed to change the cluster state during cluster state processing
         return false;
     }
 
     /**
      * a task indicates that the current node should become master
+     *
      * @deprecated As of 2.0, because supporting inclusive language, replaced by {@link #newBecomeClusterManagerTask()}
      */
     @Deprecated
@@ -364,7 +314,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
 
     /**
      * a task that is used to signal the election is stopped and we should process pending joins.
-     * it may be used in combination with {@link JoinTaskExecutor#newBecomeMasterTask()}
+     * it may be used in combination with {@link JoinTaskExecutor#newBecomeClusterManagerTask()}
      */
     public static Task newFinishElectionTask() {
         return new Task(null, Task.FINISH_ELECTION_TASK_REASON);
@@ -374,8 +324,9 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
      * Ensures that all indices are compatible with the given node version. This will ensure that all indices in the given metadata
      * will not be created with a newer version of opensearch as well as that all indices are newer or equal to the minimum index
      * compatibility version.
-     * @see Version#minimumIndexCompatibilityVersion()
+     *
      * @throws IllegalStateException if any index is incompatible with the given version
+     * @see Version#minimumIndexCompatibilityVersion()
      */
     public static void ensureIndexCompatibility(final Version nodeVersion, Metadata metadata) {
         Version supportedIndexVersion = nodeVersion.minimumIndexCompatibilityVersion();
@@ -405,14 +356,18 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         }
     }
 
-    /** ensures that the joining node has a version that's compatible with all current nodes*/
+    /**
+     * ensures that the joining node has a version that's compatible with all current nodes
+     */
     public static void ensureNodesCompatibility(final Version joiningNodeVersion, DiscoveryNodes currentNodes) {
         final Version minNodeVersion = currentNodes.getMinNodeVersion();
         final Version maxNodeVersion = currentNodes.getMaxNodeVersion();
         ensureNodesCompatibility(joiningNodeVersion, minNodeVersion, maxNodeVersion);
     }
 
-    /** ensures that the joining node has a version that's compatible with a given version range */
+    /**
+     * ensures that the joining node has a version that's compatible with a given version range
+     */
     public static void ensureNodesCompatibility(Version joiningNodeVersion, Version minClusterNodeVersion, Version maxClusterNodeVersion) {
         assert minClusterNodeVersion.onOrBefore(maxClusterNodeVersion) : minClusterNodeVersion + " > " + maxClusterNodeVersion;
         if (joiningNodeVersion.isCompatible(maxClusterNodeVersion) == false) {
@@ -456,6 +411,17 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         }
     }
 
+    public static void ensureNodeCommissioned(DiscoveryNode node, Metadata metadata) {
+        if (nodeCommissioned(node, metadata) == false) {
+            throw new NodeDecommissionedException(
+                "node [{}] has decommissioned attribute [{}] with current status of decommissioning [{}]",
+                node.toString(),
+                metadata.decommissionAttributeMetadata().decommissionAttribute().toString(),
+                metadata.decommissionAttributeMetadata().status().status()
+            );
+        }
+    }
+
     public static Collection<BiConsumer<DiscoveryNode, ClusterState>> addBuiltInJoinValidators(
         Collection<BiConsumer<DiscoveryNode, ClusterState>> onJoinValidators
     ) {
@@ -463,6 +429,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTaskExecut
         validators.add((node, state) -> {
             ensureNodesCompatibility(node.getVersion(), state.getNodes());
             ensureIndexCompatibility(node.getVersion(), state.getMetadata());
+            ensureNodeCommissioned(node, state.getMetadata());
         });
         validators.addAll(onJoinValidators);
         return Collections.unmodifiableCollection(validators);

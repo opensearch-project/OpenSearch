@@ -10,6 +10,8 @@ package org.opensearch.cluster.routing.allocation;
 
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.opensearch.cluster.routing.allocation.allocator.LocalShardsBalancer;
+import org.opensearch.cluster.routing.allocation.allocator.ShardsBalancer;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 
@@ -45,7 +47,7 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
      * for IndexShardPerNode constraint satisfied and breached.
      */
     public void testIndexShardsPerNodeConstraint() {
-        BalancedShardsAllocator.Balancer balancer = mock(BalancedShardsAllocator.Balancer.class);
+        ShardsBalancer balancer = mock(LocalShardsBalancer.class);
         BalancedShardsAllocator.ModelNode node = mock(BalancedShardsAllocator.ModelNode.class);
         AllocationConstraints constraints = new AllocationConstraints();
 

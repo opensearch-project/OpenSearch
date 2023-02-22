@@ -40,35 +40,67 @@ package org.opensearch.example.painlessallowlist;
  */
 public class ExampleAllowlistedClass {
 
+    /**
+     * An example constant.
+     */
     public static final int CONSTANT = 42;
 
+    /**
+     * An example public member.
+     */
     public int publicMember;
 
     private int privateMember;
 
+    /**
+     * Construct this example class with the given public and private members.
+     *
+     * @param publicMember The value for the public member.
+     * @param privateMember The value for the private member.
+     */
     public ExampleAllowlistedClass(int publicMember, int privateMember) {
         this.publicMember = publicMember;
         this.privateMember = privateMember;
     }
 
+    /**
+     * Get the value of the private member.
+     *
+     * @return the value of the private member.
+     */
     public int getPrivateMemberAccessor() {
         return this.privateMember;
     }
 
+    /**
+     * Set the value of the private member.
+     *
+     * @param privateMember the value to set.
+     */
     public void setPrivateMemberAccessor(int privateMember) {
         this.privateMember = privateMember;
     }
 
+    /**
+     * An example static method. You may be shocked, but it does nothing.
+     */
     public static void staticMethod() {
         // electricity
     }
 
-    // example augmentation method
+    /**
+     * An example static augmentation method that takes the object to operate on as the first argument to a static method.
+     *
+     * @param x The String to be operated on.
+     * @return an integer parsed from the input.
+     */
     public static int toInt(String x) {
         return Integer.parseInt(x);
     }
 
-    // example method to attach annotations in allowlist
+    /**
+     * An example method to attach annotations in allowlist.
+     */
     public void annotate() {
         // some logic here
     }

@@ -84,9 +84,9 @@ public class SearchSlowLogTests extends OpenSearchSingleNodeTestCase {
 
     @AfterClass
     public static void cleanup() {
-        appender.stop();
         Loggers.removeAppender(queryLog, appender);
         Loggers.removeAppender(fetchLog, appender);
+        appender.stop();
     }
 
     @Override

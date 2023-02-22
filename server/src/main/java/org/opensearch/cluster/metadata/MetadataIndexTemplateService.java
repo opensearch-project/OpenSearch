@@ -45,6 +45,8 @@ import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
@@ -60,8 +62,8 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.Index;
@@ -109,6 +111,12 @@ public class MetadataIndexTemplateService {
     private final MetadataCreateIndexService metadataCreateIndexService;
     private final IndexScopedSettings indexScopedSettings;
     private final NamedXContentRegistry xContentRegistry;
+    private final ClusterManagerTaskThrottler.ThrottlingKey createIndexTemplateTaskKey;
+    private final ClusterManagerTaskThrottler.ThrottlingKey createIndexTemplateV2TaskKey;
+    private final ClusterManagerTaskThrottler.ThrottlingKey removeIndexTemplateTaskKey;
+    private final ClusterManagerTaskThrottler.ThrottlingKey removeIndexTemplateV2TaskKey;
+    private final ClusterManagerTaskThrottler.ThrottlingKey createComponentTemplateTaskKey;
+    private final ClusterManagerTaskThrottler.ThrottlingKey removeComponentTemplateTaskKey;
 
     @Inject
     public MetadataIndexTemplateService(
@@ -125,6 +133,20 @@ public class MetadataIndexTemplateService {
         this.metadataCreateIndexService = metadataCreateIndexService;
         this.indexScopedSettings = indexScopedSettings;
         this.xContentRegistry = xContentRegistry;
+
+        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        createIndexTemplateTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_INDEX_TEMPLATE_KEY, true);
+        createIndexTemplateV2TaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_INDEX_TEMPLATE_V2_KEY, true);
+        removeIndexTemplateTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.REMOVE_INDEX_TEMPLATE_KEY, true);
+        removeIndexTemplateV2TaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.REMOVE_INDEX_TEMPLATE_V2_KEY, true);
+        createComponentTemplateTaskKey = clusterService.registerClusterManagerTask(
+            ClusterManagerTaskKeys.CREATE_COMPONENT_TEMPLATE_KEY,
+            true
+        );
+        removeComponentTemplateTaskKey = clusterService.registerClusterManagerTask(
+            ClusterManagerTaskKeys.REMOVE_COMPONENT_TEMPLATE_KEY,
+            true
+        );
     }
 
     public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
@@ -132,12 +154,17 @@ public class MetadataIndexTemplateService {
 
             @Override
             public TimeValue timeout() {
-                return request.masterTimeout;
+                return request.clusterManagerTimeout;
             }
 
             @Override
             public void onFailure(String source, Exception e) {
                 listener.onFailure(e);
+            }
+
+            @Override
+            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                return removeIndexTemplateTaskKey;
             }
 
             @Override
@@ -196,6 +223,11 @@ public class MetadataIndexTemplateService {
                 @Override
                 public void onFailure(String source, Exception e) {
                     listener.onFailure(e);
+                }
+
+                @Override
+                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                    return createComponentTemplateTaskKey;
                 }
 
                 @Override
@@ -359,6 +391,11 @@ public class MetadataIndexTemplateService {
             }
 
             @Override
+            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                return removeComponentTemplateTaskKey;
+            }
+
+            @Override
             public ClusterState execute(ClusterState currentState) {
                 Set<String> templateNames = new HashSet<>();
                 for (String templateName : currentState.metadata().componentTemplates().keySet()) {
@@ -445,6 +482,11 @@ public class MetadataIndexTemplateService {
                 @Override
                 public void onFailure(String source, Exception e) {
                     listener.onFailure(e);
+                }
+
+                @Override
+                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                    return createIndexTemplateV2TaskKey;
                 }
 
                 @Override
@@ -765,6 +807,11 @@ public class MetadataIndexTemplateService {
             }
 
             @Override
+            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                return removeIndexTemplateV2TaskKey;
+            }
+
+            @Override
             public ClusterState execute(ClusterState currentState) {
                 return innerRemoveIndexTemplateV2(currentState, name);
             }
@@ -860,12 +907,17 @@ public class MetadataIndexTemplateService {
 
                 @Override
                 public TimeValue timeout() {
-                    return request.masterTimeout;
+                    return request.clusterManagerTimeout;
                 }
 
                 @Override
                 public void onFailure(String source, Exception e) {
                     listener.onFailure(e);
+                }
+
+                @Override
+                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                    return createIndexTemplateTaskKey;
                 }
 
                 @Override
@@ -1471,7 +1523,11 @@ public class MetadataIndexTemplateService {
                     validationErrors.add(t.getMessage());
                 }
             }
-            List<String> indexSettingsValidation = metadataCreateIndexService.getIndexSettingsValidationErrors(settings, true);
+            List<String> indexSettingsValidation = metadataCreateIndexService.getIndexSettingsValidationErrors(
+                settings,
+                true,
+                Optional.empty()
+            );
             validationErrors.addAll(indexSettingsValidation);
         }
 
@@ -1526,6 +1582,10 @@ public class MetadataIndexTemplateService {
         String mappings = null;
         List<Alias> aliases = new ArrayList<>();
 
+        TimeValue clusterManagerTimeout = ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
+
+        /** @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #clusterManagerTimeout} */
+        @Deprecated
         TimeValue masterTimeout = ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
 
         public PutRequest(String cause, String name) {
@@ -1563,9 +1623,15 @@ public class MetadataIndexTemplateService {
             return this;
         }
 
-        public PutRequest masterTimeout(TimeValue masterTimeout) {
-            this.masterTimeout = masterTimeout;
+        public PutRequest clusterManagerTimeout(TimeValue clusterManagerTimeout) {
+            this.clusterManagerTimeout = clusterManagerTimeout;
             return this;
+        }
+
+        /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerTimeout(TimeValue)} */
+        @Deprecated
+        public PutRequest masterTimeout(TimeValue masterTimeout) {
+            return clusterManagerTimeout(masterTimeout);
         }
 
         public PutRequest version(Integer version) {
@@ -1598,15 +1664,25 @@ public class MetadataIndexTemplateService {
      */
     public static class RemoveRequest {
         final String name;
+        TimeValue clusterManagerTimeout = ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
+
+        /** @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #clusterManagerTimeout} */
+        @Deprecated
         TimeValue masterTimeout = ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
 
         public RemoveRequest(String name) {
             this.name = name;
         }
 
-        public RemoveRequest masterTimeout(TimeValue masterTimeout) {
-            this.masterTimeout = masterTimeout;
+        public RemoveRequest clusterManagerTimeout(TimeValue clusterManagerTimeout) {
+            this.clusterManagerTimeout = clusterManagerTimeout;
             return this;
+        }
+
+        /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerTimeout} */
+        @Deprecated
+        public RemoveRequest masterTimeout(TimeValue masterTimeout) {
+            return clusterManagerTimeout(masterTimeout);
         }
     }
 

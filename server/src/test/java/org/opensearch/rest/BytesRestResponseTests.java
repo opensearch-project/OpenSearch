@@ -43,8 +43,8 @@ import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.SearchShardTarget;
@@ -117,7 +117,7 @@ public class BytesRestResponseTests extends OpenSearchTestCase {
         assertThat(text, not(containsString("UnknownException[an error occurred reading data]")));
         assertThat(text, not(containsString("FileNotFoundException[/foo/bar]")));
         assertThat(text, not(containsString("error_trace")));
-        assertThat(text, containsString("\"error\":\"No OpenSearchException found\""));
+        assertThat(text, containsString("\"error\":\"Internal failure\""));
     }
 
     public void testErrorTrace() throws Exception {

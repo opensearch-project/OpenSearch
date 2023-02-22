@@ -55,7 +55,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.InputStreamStreamInput;
 import org.opensearch.common.io.stream.OutputStreamStreamOutput;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.shard.ShardId;
@@ -286,7 +286,7 @@ public class TermVectorsUnitTests extends OpenSearchTestCase {
             // write using older version which contains types
             ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
             OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
-            out.setVersion(LegacyESVersion.V_7_2_0);
+            out.setVersion(LegacyESVersion.fromId(7000099));
             request.writeTo(out);
 
             // First check the type on the stream was written as "_doc" by manually parsing the stream until the type
@@ -302,7 +302,7 @@ public class TermVectorsUnitTests extends OpenSearchTestCase {
             // now read the stream as normal to check it is parsed correct if received from an older node
             opensearchInBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
             opensearchBuffer = new InputStreamStreamInput(opensearchInBuffer);
-            opensearchBuffer.setVersion(LegacyESVersion.V_7_2_0);
+            opensearchBuffer.setVersion(LegacyESVersion.fromId(7000099));
             TermVectorsRequest req2 = new TermVectorsRequest(opensearchBuffer);
 
             assertThat(request.offsets(), equalTo(req2.offsets()));

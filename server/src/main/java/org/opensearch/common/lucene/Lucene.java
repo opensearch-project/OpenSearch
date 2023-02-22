@@ -32,20 +32,14 @@
 
 package org.opensearch.common.lucene;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FilterCodecReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
@@ -55,21 +49,13 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafMetaData;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.index.StoredFieldVisitor;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.VectorValues;
+import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
@@ -97,7 +83,6 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
@@ -125,7 +110,7 @@ import java.util.Map;
  * @opensearch.internal
  */
 public class Lucene {
-    public static final String LATEST_CODEC = "Lucene92";
+    public static final String LATEST_CODEC = "Lucene95";
 
     public static final String SOFT_DELETES_FIELD = "__soft_deletes";
 
@@ -143,23 +128,30 @@ public class Lucene {
 
     private Lucene() {}
 
-    public static Version parseVersion(@Nullable String version, Version defaultVersion, Logger logger) {
-        if (version == null) {
-            return defaultVersion;
-        }
-        try {
-            return Version.parse(version);
-        } catch (ParseException e) {
-            logger.warn(() -> new ParameterizedMessage("no version match {}, default to {}", version, defaultVersion), e);
-            return defaultVersion;
-        }
-    }
-
     /**
      * Reads the segments infos, failing if it fails to load
      */
     public static SegmentInfos readSegmentInfos(Directory directory) throws IOException {
         return SegmentInfos.readLatestCommit(directory);
+    }
+
+    /**
+     * A variant of {@link #readSegmentInfos(Directory)} that supports reading indices written by
+     * older major versions of Lucene. The underlying implementation is a workaround since the
+     * "expert" readLatestCommit API is currently package-private in Lucene. First, all commits in
+     * the given {@link Directory} are listed - this result includes older Lucene commits. Then,
+     * the latest index commit is opened via {@link DirectoryReader} by including a minimum supported
+     * Lucene major version based on the minimum compatibility of the given {@link org.opensearch.Version}.
+     */
+    public static SegmentInfos readSegmentInfosExtendedCompatibility(Directory directory, org.opensearch.Version minimumVersion)
+        throws IOException {
+        // This list is sorted from oldest to latest
+        List<IndexCommit> indexCommits = DirectoryReader.listCommits(directory);
+        IndexCommit latestCommit = indexCommits.get(indexCommits.size() - 1);
+        final int minSupportedLuceneMajor = minimumVersion.minimumIndexCompatibilityVersion().luceneVersion.major;
+        try (StandardDirectoryReader reader = (StandardDirectoryReader) DirectoryReader.open(latestCommit, minSupportedLuceneMajor, null)) {
+            return reader.getSegmentInfos();
+        }
     }
 
     /**
@@ -322,10 +314,7 @@ public class Lucene {
 
     public static TotalHits readTotalHits(StreamInput in) throws IOException {
         long totalHits = in.readVLong();
-        TotalHits.Relation totalHitsRelation = TotalHits.Relation.EQUAL_TO;
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            totalHitsRelation = in.readEnum(TotalHits.Relation.class);
-        }
+        TotalHits.Relation totalHitsRelation = in.readEnum(TotalHits.Relation.class);
         return new TotalHits(totalHits, totalHitsRelation);
     }
 
@@ -444,11 +433,7 @@ public class Lucene {
 
     public static void writeTotalHits(StreamOutput out, TotalHits totalHits) throws IOException {
         out.writeVLong(totalHits.value);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            out.writeEnum(totalHits.relation);
-        } else if (totalHits.value > 0 && totalHits.relation != TotalHits.Relation.EQUAL_TO) {
-            throw new IllegalArgumentException("Cannot serialize approximate total hit counts to nodes that are on a version < 7.0.0");
-        }
+        out.writeEnum(totalHits.relation);
     }
 
     public static void writeTopDocs(StreamOutput out, TopDocsAndMaxScore topDocs) throws IOException {
@@ -648,20 +633,16 @@ public class Lucene {
     }
 
     private static Number readExplanationValue(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            final int numberType = in.readByte();
-            switch (numberType) {
-                case 0:
-                    return in.readFloat();
-                case 1:
-                    return in.readDouble();
-                case 2:
-                    return in.readZLong();
-                default:
-                    throw new IOException("Unexpected number type: " + numberType);
-            }
-        } else {
-            return in.readFloat();
+        final int numberType = in.readByte();
+        switch (numberType) {
+            case 0:
+                return in.readFloat();
+            case 1:
+                return in.readDouble();
+            case 2:
+                return in.readZLong();
+            default:
+                throw new IOException("Unexpected number type: " + numberType);
         }
     }
 
@@ -680,19 +661,15 @@ public class Lucene {
     }
 
     private static void writeExplanationValue(StreamOutput out, Number value) throws IOException {
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            if (value instanceof Float) {
-                out.writeByte((byte) 0);
-                out.writeFloat(value.floatValue());
-            } else if (value instanceof Double) {
-                out.writeByte((byte) 1);
-                out.writeDouble(value.doubleValue());
-            } else {
-                out.writeByte((byte) 2);
-                out.writeZLong(value.longValue());
-            }
-        } else {
+        if (value instanceof Float) {
+            out.writeByte((byte) 0);
             out.writeFloat(value.floatValue());
+        } else if (value instanceof Double) {
+            out.writeByte((byte) 1);
+            out.writeDouble(value.doubleValue());
+        } else {
+            out.writeByte((byte) 2);
+            out.writeZLong(value.longValue());
         }
     }
 
@@ -711,34 +688,6 @@ public class Lucene {
 
     public static boolean indexExists(final Directory directory) throws IOException {
         return DirectoryReader.indexExists(directory);
-    }
-
-    /**
-     * Wait for an index to exist for up to {@code timeLimitMillis}. Returns
-     * true if the index eventually exists, false if not.
-     *
-     * Will retry the directory every second for at least {@code timeLimitMillis}
-     */
-    public static boolean waitForIndex(final Directory directory, final long timeLimitMillis) throws IOException {
-        final long DELAY = 1000;
-        long waited = 0;
-        try {
-            while (true) {
-                if (waited >= timeLimitMillis) {
-                    break;
-                }
-                if (indexExists(directory)) {
-                    return true;
-                }
-                Thread.sleep(DELAY);
-                waited += DELAY;
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return false;
-        }
-        // one more try after all retries
-        return indexExists(directory);
     }
 
     /**
@@ -1040,92 +989,4 @@ public class Lucene {
         return new NumericDocValuesField(SOFT_DELETES_FIELD, 1);
     }
 
-    /**
-     * Returns an empty leaf reader with the given max docs. The reader will be fully deleted.
-     */
-    public static LeafReader emptyReader(final int maxDoc) {
-        return new LeafReader() {
-            final Bits liveDocs = new Bits.MatchNoBits(maxDoc);
-
-            public Terms terms(String field) {
-                return null;
-            }
-
-            public NumericDocValues getNumericDocValues(String field) {
-                return null;
-            }
-
-            public BinaryDocValues getBinaryDocValues(String field) {
-                return null;
-            }
-
-            public SortedDocValues getSortedDocValues(String field) {
-                return null;
-            }
-
-            public SortedNumericDocValues getSortedNumericDocValues(String field) {
-                return null;
-            }
-
-            public SortedSetDocValues getSortedSetDocValues(String field) {
-                return null;
-            }
-
-            public NumericDocValues getNormValues(String field) {
-                return null;
-            }
-
-            public FieldInfos getFieldInfos() {
-                return new FieldInfos(new FieldInfo[0]);
-            }
-
-            public Bits getLiveDocs() {
-                return this.liveDocs;
-            }
-
-            public PointValues getPointValues(String fieldName) {
-                return null;
-            }
-
-            public void checkIntegrity() {}
-
-            public Fields getTermVectors(int docID) {
-                return null;
-            }
-
-            public int numDocs() {
-                return 0;
-            }
-
-            public int maxDoc() {
-                return maxDoc;
-            }
-
-            public void document(int docID, StoredFieldVisitor visitor) {}
-
-            protected void doClose() {}
-
-            public LeafMetaData getMetaData() {
-                return new LeafMetaData(Version.LATEST.major, Version.LATEST, null);
-            }
-
-            public CacheHelper getCoreCacheHelper() {
-                return null;
-            }
-
-            public CacheHelper getReaderCacheHelper() {
-                return null;
-            }
-
-            @Override
-            public VectorValues getVectorValues(String field) throws IOException {
-                return null;
-            }
-
-            @Override
-            public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
-                return null;
-            }
-        };
-    }
 }

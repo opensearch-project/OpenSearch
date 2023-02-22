@@ -39,12 +39,10 @@ import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.similarities.BooleanSimilarity;
-import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -76,25 +74,12 @@ public final class SimilarityService extends AbstractIndexComponent {
     static {
         Map<String, Function<Version, Supplier<Similarity>>> defaults = new HashMap<>();
         defaults.put(CLASSIC_SIMILARITY, version -> {
-            if (version.onOrAfter(LegacyESVersion.V_7_0_0)) {
-                return () -> {
-                    throw new IllegalArgumentException(
-                        "The [classic] similarity may not be used anymore. Please use the [BM25] "
-                            + "similarity or build a custom [scripted] similarity instead."
-                    );
-                };
-            } else {
-                final ClassicSimilarity similarity = SimilarityProviders.createClassicSimilarity(Settings.EMPTY, version);
-                return () -> {
-                    deprecationLogger.deprecate(
-                        "classic_similarity",
-                        "The [classic] similarity is now deprecated in favour of BM25, which is generally "
-                            + "accepted as a better alternative. Use the [BM25] similarity or build a custom [scripted] similarity "
-                            + "instead."
-                    );
-                    return similarity;
-                };
-            }
+            return () -> {
+                throw new IllegalArgumentException(
+                    "The [classic] similarity may not be used anymore. Please use the [BM25] "
+                        + "similarity or build a custom [scripted] similarity instead."
+                );
+            };
         });
         defaults.put("BM25", version -> {
             final LegacyBM25Similarity similarity = SimilarityProviders.createBM25Similarity(Settings.EMPTY, version);
@@ -107,20 +92,10 @@ public final class SimilarityService extends AbstractIndexComponent {
 
         Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> builtIn = new HashMap<>();
         builtIn.put(CLASSIC_SIMILARITY, (settings, version, script) -> {
-            if (version.onOrAfter(LegacyESVersion.V_7_0_0)) {
-                throw new IllegalArgumentException(
-                    "The [classic] similarity may not be used anymore. Please use the [BM25] "
-                        + "similarity or build a custom [scripted] similarity instead."
-                );
-            } else {
-                deprecationLogger.deprecate(
-                    "classic_similarity",
-                    "The [classic] similarity is now deprecated in favour of BM25, which is generally "
-                        + "accepted as a better alternative. Use the [BM25] similarity or build a custom [scripted] similarity "
-                        + "instead."
-                );
-                return SimilarityProviders.createClassicSimilarity(settings, version);
-            }
+            throw new IllegalArgumentException(
+                "The [classic] similarity may not be used anymore. Please use the [BM25] "
+                    + "similarity or build a custom [scripted] similarity instead."
+            );
         });
         builtIn.put("BM25", (settings, version, scriptService) -> SimilarityProviders.createBM25Similarity(settings, version));
         builtIn.put("boolean", (settings, version, scriptService) -> SimilarityProviders.createBooleanSimilarity(settings, version));
@@ -258,10 +233,7 @@ public final class SimilarityService extends AbstractIndexComponent {
         for (int freq = 1; freq <= 10; ++freq) {
             float score = scorer.score(freq, norm);
             if (score < 0) {
-                fail(
-                    indexCreatedVersion,
-                    "Similarities should not return negative scores:\n" + scorer.explain(Explanation.match(freq, "term freq"), norm)
-                );
+                fail("Similarities should not return negative scores:\n" + scorer.explain(Explanation.match(freq, "term freq"), norm));
                 break;
             }
         }
@@ -288,7 +260,6 @@ public final class SimilarityService extends AbstractIndexComponent {
             float score = scorer.score(freq, norm);
             if (score < previousScore) {
                 fail(
-                    indexCreatedVersion,
                     "Similarity scores should not decrease when term frequency increases:\n"
                         + scorer.explain(Explanation.match(freq - 1, "term freq"), norm)
                         + "\n"
@@ -327,7 +298,6 @@ public final class SimilarityService extends AbstractIndexComponent {
             float score = scorer.score(1, norm);
             if (score > previousScore) {
                 fail(
-                    indexCreatedVersion,
                     "Similarity scores should not increase when norm increases:\n"
                         + scorer.explain(Explanation.match(1, "term freq"), norm - 1)
                         + "\n"
@@ -340,12 +310,8 @@ public final class SimilarityService extends AbstractIndexComponent {
         }
     }
 
-    private static void fail(Version indexCreatedVersion, String message) {
-        if (indexCreatedVersion.onOrAfter(LegacyESVersion.V_7_0_0)) {
-            throw new IllegalArgumentException(message);
-        } else {
-            deprecationLogger.deprecate("similarity_failure", message);
-        }
+    private static void fail(String message) {
+        throw new IllegalArgumentException(message);
     }
 
 }

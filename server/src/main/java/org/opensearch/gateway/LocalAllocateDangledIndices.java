@@ -53,7 +53,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.discovery.MasterNotDiscoveredException;
+import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
@@ -108,15 +108,12 @@ public class LocalAllocateDangledIndices {
 
     public void allocateDangled(Collection<IndexMetadata> indices, ActionListener<AllocateDangledResponse> listener) {
         ClusterState clusterState = clusterService.state();
-        DiscoveryNode clusterManagerNode = clusterState.nodes().getMasterNode();
+        DiscoveryNode clusterManagerNode = clusterState.nodes().getClusterManagerNode();
         if (clusterManagerNode == null) {
-            listener.onFailure(new MasterNotDiscoveredException("no cluster-manager to send allocate dangled request"));
+            listener.onFailure(new ClusterManagerNotDiscoveredException("no cluster-manager to send allocate dangled request"));
             return;
         }
-        AllocateDangledRequest request = new AllocateDangledRequest(
-            clusterService.localNode(),
-            indices.toArray(new IndexMetadata[indices.size()])
-        );
+        AllocateDangledRequest request = new AllocateDangledRequest(clusterService.localNode(), indices.toArray(new IndexMetadata[0]));
         transportService.sendRequest(
             clusterManagerNode,
             ACTION_NAME,
@@ -165,7 +162,7 @@ public class LocalAllocateDangledIndices {
                                 indexMetadata.getIndex(),
                                 request.fromNode,
                                 indexMetadata.getCreationVersion(),
-                                currentState.getNodes().getMasterNode().getVersion()
+                                currentState.getNodes().getClusterManagerNode().getVersion()
                             );
                             continue;
                         }

@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.node;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.StreamInput;
@@ -41,15 +40,14 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.Node;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -74,7 +72,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     public static boolean nodeRequiresLocalStorage(Settings settings) {
         boolean localStorageEnable = Node.NODE_LOCAL_STORAGE_SETTING.get(settings);
-        if (localStorageEnable == false && (isDataNode(settings) || isMasterNode(settings))) {
+        if (localStorageEnable == false && (isDataNode(settings) || isClusterManagerNode(settings))) {
             // TODO: make this a proper setting validation logic, requiring multi-settings validation
             throw new IllegalArgumentException("storage can not be disabled for cluster-manager and data nodes");
         }
@@ -96,8 +94,14 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         }
     }
 
-    public static boolean isMasterNode(Settings settings) {
+    public static boolean isClusterManagerNode(Settings settings) {
         return hasRole(settings, DiscoveryNodeRole.MASTER_ROLE) || hasRole(settings, DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
+    }
+
+    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #isClusterManagerNode(Settings)} */
+    @Deprecated
+    public static boolean isMasterNode(Settings settings) {
+        return isClusterManagerNode(settings);
     }
 
     /**
@@ -317,50 +321,25 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         }
         int rolesSize = in.readVInt();
         final Set<DiscoveryNodeRole> roles = new HashSet<>(rolesSize);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
-            for (int i = 0; i < rolesSize; i++) {
-                final String roleName = in.readString();
-                final String roleNameAbbreviation = in.readString();
-                final boolean canContainData;
-                if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-                    canContainData = in.readBoolean();
+        for (int i = 0; i < rolesSize; i++) {
+            final String roleName = in.readString();
+            final String roleNameAbbreviation = in.readString();
+            final boolean canContainData = in.readBoolean();
+            final DiscoveryNodeRole role = roleMap.get(roleName);
+            if (role == null) {
+                if (in.getVersion().onOrAfter(Version.V_2_1_0)) {
+                    roles.add(new DiscoveryNodeRole.DynamicRole(roleName, roleNameAbbreviation, canContainData));
                 } else {
-                    canContainData = roleName.equals(DiscoveryNodeRole.DATA_ROLE.roleName());
+                    roles.add(new DiscoveryNodeRole.UnknownRole(roleName, roleNameAbbreviation, canContainData));
                 }
-                final DiscoveryNodeRole role = roleMap.get(roleName);
-                if (role == null) {
-                    if (in.getVersion().onOrAfter(Version.V_2_1_0)) {
-                        roles.add(new DiscoveryNodeRole.DynamicRole(roleName, roleNameAbbreviation, canContainData));
-                    } else {
-                        roles.add(new DiscoveryNodeRole.UnknownRole(roleName, roleNameAbbreviation, canContainData));
-                    }
-                } else {
-                    assert roleName.equals(role.roleName()) : "role name [" + roleName + "] does not match role [" + role.roleName() + "]";
-                    assert roleNameAbbreviation.equals(role.roleNameAbbreviation()) : "role name abbreviation ["
-                        + roleName
-                        + "] does not match role ["
-                        + role.roleNameAbbreviation()
-                        + "]";
-                    roles.add(role);
-                }
-            }
-        } else {
-            // an old node will only send us legacy roles since pluggable roles is a new concept
-            for (int i = 0; i < rolesSize; i++) {
-                final LegacyRole legacyRole = in.readEnum(LegacyRole.class);
-                switch (legacyRole) {
-                    case MASTER:
-                        roles.add(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
-                        break;
-                    case DATA:
-                        roles.add(DiscoveryNodeRole.DATA_ROLE);
-                        break;
-                    case INGEST:
-                        roles.add(DiscoveryNodeRole.INGEST_ROLE);
-                        break;
-                    default:
-                        throw new AssertionError(legacyRole.roleName());
-                }
+            } else {
+                assert roleName.equals(role.roleName()) : "role name [" + roleName + "] does not match role [" + role.roleName() + "]";
+                assert roleNameAbbreviation.equals(role.roleNameAbbreviation()) : "role name abbreviation ["
+                    + roleName
+                    + "] does not match role ["
+                    + role.roleNameAbbreviation()
+                    + "]";
+                roles.add(role);
             }
         }
         this.roles = Collections.unmodifiableSortedSet(new TreeSet<>(roles));
@@ -380,37 +359,14 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             out.writeString(entry.getKey());
             out.writeString(entry.getValue());
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_3_0)) {
-            out.writeVInt(roles.size());
-            for (final DiscoveryNodeRole role : roles) {
-                final DiscoveryNodeRole compatibleRole = role.getCompatibilityRole(out.getVersion());
-                out.writeString(compatibleRole.roleName());
-                out.writeString(compatibleRole.roleNameAbbreviation());
-                if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-                    out.writeBoolean(compatibleRole.canContainData());
-                }
-            }
-        } else {
-            // an old node will only understand legacy roles since pluggable roles is a new concept
-            final List<DiscoveryNodeRole> rolesToWrite = roles.stream()
-                .filter(DiscoveryNodeRole.LEGACY_ROLES::contains)
-                .collect(Collectors.toList());
-            out.writeVInt(rolesToWrite.size());
-            for (final DiscoveryNodeRole role : rolesToWrite) {
-                if (role.isClusterManager()) {
-                    out.writeEnum(LegacyRole.MASTER);
-                } else if (role.equals(DiscoveryNodeRole.DATA_ROLE)) {
-                    out.writeEnum(LegacyRole.DATA);
-                } else if (role.equals(DiscoveryNodeRole.INGEST_ROLE)) {
-                    out.writeEnum(LegacyRole.INGEST);
-                }
-            }
+        out.writeVInt(roles.size());
+        for (final DiscoveryNodeRole role : roles) {
+            final DiscoveryNodeRole compatibleRole = role.getCompatibilityRole(out.getVersion());
+            out.writeString(compatibleRole.roleName());
+            out.writeString(compatibleRole.roleNameAbbreviation());
+            out.writeBoolean(compatibleRole.canContainData());
         }
-        if (out.getVersion().before(Version.V_1_0_0) && version.onOrAfter(Version.V_1_0_0)) {
-            Version.writeVersion(LegacyESVersion.V_7_10_2, out);
-        } else {
-            Version.writeVersion(version, out);
-        }
+        Version.writeVersion(version, out);
     }
 
     /**
@@ -462,8 +418,18 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     /**
      * Can this node become cluster-manager or not.
      */
-    public boolean isMasterNode() {
+    public boolean isClusterManagerNode() {
         return roles.contains(DiscoveryNodeRole.MASTER_ROLE) || roles.contains(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE);
+    }
+
+    /**
+     * Can this node become cluster-manager or not.
+     *
+     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #isClusterManagerNode()}
+     */
+    @Deprecated
+    public boolean isMasterNode() {
+        return isClusterManagerNode();
     }
 
     /**
@@ -480,6 +446,15 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      */
     public boolean isRemoteClusterClient() {
         return roles.contains(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
+    }
+
+    /**
+     * Returns whether the node is dedicated to provide search capability.
+     *
+     * @return true if the node contains search role, false otherwise
+     */
+    public boolean isSearchNode() {
+        return roles.contains(DiscoveryNodeRole.SEARCH_ROLE);
     }
 
     /**
@@ -600,36 +575,22 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             + "], roles by name abbreviation ["
             + roleNameAbbreviationToPossibleRoles
             + "]";
-        // TODO: Remove the Map 'roleNameToPossibleRolesWithMaster' and let 'roleMap = roleNameToPossibleRoles', after removing MASTER_ROLE.
-        // It's used to allow CLUSTER_MANAGER_ROLE that introduced in 2.0, having the same abbreviation name with MASTER_ROLE.
-        final Map<String, DiscoveryNodeRole> roleNameToPossibleRolesWithMaster = new HashMap<>(roleNameToPossibleRoles);
-        roleNameToPossibleRolesWithMaster.put(DiscoveryNodeRole.MASTER_ROLE.roleName(), DiscoveryNodeRole.MASTER_ROLE);
-        roleMap = Collections.unmodifiableMap(roleNameToPossibleRolesWithMaster);
+        roleMap = roleNameToPossibleRoles;
+    }
+
+    /**
+     * Load the deprecated {@link DiscoveryNodeRole#MASTER_ROLE}.
+     * Master role is not added into BUILT_IN_ROLES, because {@link #setAdditionalRoles(Set)} check role name abbreviation duplication,
+     * and CLUSTER_MANAGER_ROLE has the same abbreviation name with MASTER_ROLE.
+     */
+    public static void setDeprecatedMasterRole() {
+        final Map<String, DiscoveryNodeRole> modifiableRoleMap = new HashMap<>(roleMap);
+        modifiableRoleMap.put(DiscoveryNodeRole.MASTER_ROLE.roleName(), DiscoveryNodeRole.MASTER_ROLE);
+        roleMap = Collections.unmodifiableMap(modifiableRoleMap);
     }
 
     public static Set<String> getPossibleRoleNames() {
         return roleMap.keySet();
-    }
-
-    /**
-     * Enum that holds all the possible roles that a node can fulfill in a cluster.
-     * Each role has its name and a corresponding abbreviation used by cat apis.
-     */
-    private enum LegacyRole {
-        MASTER("master"),
-        DATA("data"),
-        INGEST("ingest");
-
-        private final String roleName;
-
-        LegacyRole(final String roleName) {
-            this.roleName = roleName;
-        }
-
-        public String roleName() {
-            return roleName;
-        }
-
     }
 
 }

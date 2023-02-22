@@ -212,8 +212,9 @@ final class Compiler {
         }
 
         additionalClasses.put(factoryClass.getName(), factoryClass);
-        for (int i = 0; i < factoryMethod.getParameterTypes().length; ++i) {
-            Class<?> parameterClazz = factoryMethod.getParameterTypes()[i];
+        final Class<?>[] parameterTypes = factoryMethod.getParameterTypes();
+        for (int i = 0; i < parameterTypes.length; ++i) {
+            Class<?> parameterClazz = parameterTypes[i];
             additionalClasses.put(parameterClazz.getName(), parameterClazz);
         }
     }

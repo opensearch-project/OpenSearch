@@ -37,8 +37,8 @@ import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.broadcast.BroadcastResponse;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
@@ -150,7 +150,7 @@ public abstract class AbstractBroadcastResponseTestCase<T extends BroadcastRespo
 
     public void testToXContent() {
         T response = createTestInstance(10, 10, 0, null);
-        String output = Strings.toString(response);
+        String output = Strings.toString(XContentType.JSON, response);
         assertEquals("{\"_shards\":{\"total\":10,\"successful\":10,\"failed\":0}}", output);
     }
 }

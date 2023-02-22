@@ -71,10 +71,10 @@ public class TaskBatcherTests extends TaskExecutorTests {
         taskBatcher = new TestTaskBatcher(logger, threadExecutor);
     }
 
-    class TestTaskBatcher extends TaskBatcher {
+    static class TestTaskBatcher extends TaskBatcher {
 
         TestTaskBatcher(Logger logger, PrioritizedOpenSearchThreadPoolExecutor threadExecutor) {
-            super(logger, threadExecutor);
+            super(logger, threadExecutor, getMockListener());
         }
 
         @Override
@@ -342,6 +342,30 @@ public class TaskBatcherTests extends TaskExecutorTests {
             assertThat(latch.getCount(), equalTo(2L));
         }
         latch.await();
+    }
+
+    protected static TaskBatcherListener getMockListener() {
+        return new TaskBatcherListener() {
+            @Override
+            public void onBeginSubmit(List<? extends TaskBatcher.BatchedTask> tasks) {
+                // No Op
+            }
+
+            @Override
+            public void onSubmitFailure(List<? extends TaskBatcher.BatchedTask> tasks) {
+                // No Op
+            }
+
+            @Override
+            public void onBeginProcessing(List<? extends TaskBatcher.BatchedTask> tasks) {
+                // No Op
+            }
+
+            @Override
+            public void onTimeout(List<? extends TaskBatcher.BatchedTask> tasks) {
+                // No Op
+            }
+        };
     }
 
     private static class SimpleTask {

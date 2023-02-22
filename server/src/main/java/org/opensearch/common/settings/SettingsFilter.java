@@ -34,7 +34,7 @@ package org.opensearch.common.settings;
 
 import org.opensearch.common.Strings;
 import org.opensearch.common.regex.Regex;
-import org.opensearch.common.xcontent.ToXContent.Params;
+import org.opensearch.core.xcontent.ToXContent.Params;
 import org.opensearch.rest.RestRequest;
 
 import java.util.ArrayList;
@@ -117,7 +117,7 @@ public final class SettingsFilter {
             }
         }
         if (!simpleMatchPatternList.isEmpty()) {
-            String[] simpleMatchPatterns = simpleMatchPatternList.toArray(new String[simpleMatchPatternList.size()]);
+            String[] simpleMatchPatterns = simpleMatchPatternList.toArray(new String[0]);
             builder.keys().removeIf(key -> Regex.simpleMatch(simpleMatchPatterns, key));
         }
         return builder.build();

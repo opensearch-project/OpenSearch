@@ -61,7 +61,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
-import static org.opensearch.test.NodeRoles.masterNode;
+import static org.opensearch.test.NodeRoles.clusterManagerNode;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.hasItem;
 
@@ -130,12 +130,12 @@ public class GatewayServiceTests extends OpenSearchTestCase {
         ClusterStateUpdateTask clusterStateUpdateTask = service.new RecoverStateUpdateTask();
         String nodeId = randomAlphaOfLength(10);
         DiscoveryNode clusterManagerNode = DiscoveryNode.createLocal(
-            settings(Version.CURRENT).put(masterNode()).build(),
+            settings(Version.CURRENT).put(clusterManagerNode()).build(),
             new TransportAddress(TransportAddress.META_ADDRESS, 9300),
             nodeId
         );
         ClusterState stateWithBlock = ClusterState.builder(ClusterName.DEFAULT)
-            .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(clusterManagerNode).build())
+            .nodes(DiscoveryNodes.builder().localNodeId(nodeId).clusterManagerNodeId(nodeId).add(clusterManagerNode).build())
             .blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK).build())
             .build();
 

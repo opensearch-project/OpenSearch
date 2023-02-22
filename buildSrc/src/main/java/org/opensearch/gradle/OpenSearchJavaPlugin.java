@@ -256,10 +256,10 @@ public class OpenSearchJavaPlugin implements Plugin<Project> {
             );
         });
 
-        project.getPluginManager().apply("nebula.info-broker");
-        project.getPluginManager().apply("nebula.info-basic");
-        project.getPluginManager().apply("nebula.info-java");
-        project.getPluginManager().apply("nebula.info-jar");
+        project.getPluginManager().apply("com.netflix.nebula.info-broker");
+        project.getPluginManager().apply("com.netflix.nebula.info-basic");
+        project.getPluginManager().apply("com.netflix.nebula.info-java");
+        project.getPluginManager().apply("com.netflix.nebula.info-jar");
     }
 
     private static void configureJavadoc(Project project) {

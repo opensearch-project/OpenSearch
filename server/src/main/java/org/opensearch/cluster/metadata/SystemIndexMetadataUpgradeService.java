@@ -70,8 +70,8 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.localNodeMaster() != clusterManager) {
-            this.clusterManager = event.localNodeMaster();
+        if (event.localNodeClusterManager() != clusterManager) {
+            this.clusterManager = event.localNodeClusterManager();
         }
 
         if (clusterManager && updateTaskPending == false) {

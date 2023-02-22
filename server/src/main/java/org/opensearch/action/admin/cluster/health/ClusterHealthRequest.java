@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.cluster.health;
 
-import org.opensearch.LegacyESVersion;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.ActiveShardCount;
@@ -48,6 +48,8 @@ import java.io.IOException;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
+import static org.opensearch.action.ValidateActions.addValidationError;
+
 /**
  * Transport request for requesting cluster health
  *
@@ -56,6 +58,7 @@ import java.util.concurrent.TimeUnit;
 public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterHealthRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;
+    private String awarenessAttribute;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandHidden();
     private TimeValue timeout = new TimeValue(30, TimeUnit.SECONDS);
     private ClusterHealthStatus waitForStatus;
@@ -64,6 +67,7 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
     private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
     private String waitForNodes = "";
     private Priority waitForEvents = null;
+    private boolean ensureNodeWeighedIn = false;
     /**
      * Only used by the high-level REST Client. Controls the details level of the health information returned.
      * The default value is 'cluster'.
@@ -90,10 +94,13 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
             waitForEvents = Priority.readFrom(in);
         }
         waitForNoInitializingShards = in.readBoolean();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-            indicesOptions = IndicesOptions.readIndicesOptions(in);
-        } else {
-            indicesOptions = IndicesOptions.lenientExpandOpen();
+        indicesOptions = IndicesOptions.readIndicesOptions(in);
+        if (in.getVersion().onOrAfter(Version.V_2_5_0)) {
+            awarenessAttribute = in.readOptionalString();
+            level = in.readEnum(Level.class);
+        }
+        if (in.getVersion().onOrAfter(Version.V_2_6_0)) {
+            ensureNodeWeighedIn = in.readBoolean();
         }
     }
 
@@ -122,8 +129,13 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
             Priority.writeTo(waitForEvents, out);
         }
         out.writeBoolean(waitForNoInitializingShards);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_2_0)) {
-            indicesOptions.writeIndicesOptions(out);
+        indicesOptions.writeIndicesOptions(out);
+        if (out.getVersion().onOrAfter(Version.V_2_5_0)) {
+            out.writeOptionalString(awarenessAttribute);
+            out.writeEnum(level);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_6_0)) {
+            out.writeBoolean(ensureNodeWeighedIn);
         }
     }
 
@@ -276,6 +288,22 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
         this.level = Objects.requireNonNull(level, "level must not be null");
     }
 
+    public void setLevel(String level) {
+        switch (level) {
+            case "indices":
+                level(ClusterHealthRequest.Level.INDICES);
+                break;
+            case "shards":
+                level(ClusterHealthRequest.Level.SHARDS);
+                break;
+            case "awareness_attributes":
+                level(ClusterHealthRequest.Level.AWARENESS_ATTRIBUTES);
+                break;
+            default:
+                level(ClusterHealthRequest.Level.CLUSTER);
+        }
+    }
+
     /**
      * Get the level of detail for the health information to be returned.
      * Only used by the high-level REST Client.
@@ -284,8 +312,39 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
         return level;
     }
 
+    public ClusterHealthRequest setAwarenessAttribute(String awarenessAttribute) {
+        this.awarenessAttribute = awarenessAttribute;
+        return this;
+    }
+
+    public String getAwarenessAttribute() {
+        return awarenessAttribute;
+    }
+
+    public final ClusterHealthRequest ensureNodeWeighedIn(boolean ensureNodeWeighedIn) {
+        this.ensureNodeWeighedIn = ensureNodeWeighedIn;
+        return this;
+    }
+
+    /**
+     * For a given local request, checks if the local node is commissioned or not (default: false).
+     * @return <code>true</code> if local information is to be returned only when local node is also commissioned
+     * <code>false</code> to not check local node if commissioned or not for a local request
+     */
+    public final boolean ensureNodeWeighedIn() {
+        return ensureNodeWeighedIn;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
+        if (level.equals(Level.AWARENESS_ATTRIBUTES) && indices.length > 0) {
+            return addValidationError("awareness_attribute is not a supported parameter with index health", null);
+        } else if (!level.equals(Level.AWARENESS_ATTRIBUTES) && awarenessAttribute != null) {
+            return addValidationError("level=awareness_attributes is required with awareness_attribute parameter", null);
+        }
+        if (ensureNodeWeighedIn && local == false) {
+            return addValidationError("not a local request to ensure local node commissioned or weighed in", null);
+        }
         return null;
     }
 
@@ -297,6 +356,7 @@ public class ClusterHealthRequest extends ClusterManagerNodeReadRequest<ClusterH
     public enum Level {
         CLUSTER,
         INDICES,
-        SHARDS
+        SHARDS,
+        AWARENESS_ATTRIBUTES
     }
 }

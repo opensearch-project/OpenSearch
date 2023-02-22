@@ -32,12 +32,12 @@ apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
   description 'Lucene expressions integration for OpenSearch'
-  classname 'org.opensearch.script.expression.ExpressionPlugin'
+  classname 'org.opensearch.script.expression.ExpressionModulePlugin'
 }
 
 dependencies {
   api "org.apache.lucene:lucene-expressions:${versions.lucene}"
-  api 'org.antlr:antlr4-runtime:4.9.3'
+  api "org.antlr:antlr4-runtime:${versions.antlr4}"
   api "org.ow2.asm:asm:${versions.asm}"
   api "org.ow2.asm:asm-commons:${versions.asm}"
   api "org.ow2.asm:asm-tree:${versions.asm}"

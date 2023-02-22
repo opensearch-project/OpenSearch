@@ -100,13 +100,13 @@ public class TransportPendingClusterTasksAction extends TransportClusterManagerN
     }
 
     @Override
-    protected void masterOperation(
+    protected void clusterManagerOperation(
         PendingClusterTasksRequest request,
         ClusterState state,
         ActionListener<PendingClusterTasksResponse> listener
     ) {
         logger.trace("fetching pending tasks from cluster service");
-        final List<PendingClusterTask> pendingTasks = clusterService.getMasterService().pendingTasks();
+        final List<PendingClusterTask> pendingTasks = clusterService.getClusterManagerService().pendingTasks();
         logger.trace("done fetching pending tasks from cluster service");
         listener.onResponse(new PendingClusterTasksResponse(pendingTasks));
     }

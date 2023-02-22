@@ -35,13 +35,13 @@ import org.apache.lucene.document.FieldType;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.CheckedBiFunction;
 import org.opensearch.common.Explicit;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeometryFormat;
 import org.opensearch.common.geo.GeometryParser;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.geometry.Point;
 
@@ -57,7 +57,7 @@ import java.util.function.Supplier;
 import static org.opensearch.index.mapper.TypeParsers.parseField;
 
 /**
- * Base class for for spatial fields that only support indexing points
+ * Base class for spatial fields that only support indexing points
  *
  * @opensearch.internal
  */

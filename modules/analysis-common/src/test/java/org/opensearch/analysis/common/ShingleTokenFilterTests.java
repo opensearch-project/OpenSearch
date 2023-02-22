@@ -52,7 +52,7 @@ public class ShingleTokenFilterTests extends OpenSearchTokenStreamTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .put("index.analysis.filter.my_ascii_folding.type", "asciifolding")
                 .build(),
-            new CommonAnalysisPlugin()
+            new CommonAnalysisModulePlugin()
         );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("shingle");
         Tokenizer tokenizer = new WhitespaceTokenizer();

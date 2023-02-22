@@ -1028,7 +1028,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     @Override
     public void close() throws IOException {
-        IOUtils.rm(pathsToDeleteOnShutdown.toArray(new Path[pathsToDeleteOnShutdown.size()]));
+        IOUtils.rm(pathsToDeleteOnShutdown.toArray(new Path[0]));
     }
 
 }

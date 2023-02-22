@@ -71,7 +71,7 @@ public abstract class CancellableTask extends Task {
     /**
      * This method is called by the task manager when this task is cancelled.
      */
-    final void cancel(String reason) {
+    public void cancel(String reason) {
         assert reason != null;
         if (cancelled.compareAndSet(false, true)) {
             this.reason = reason;

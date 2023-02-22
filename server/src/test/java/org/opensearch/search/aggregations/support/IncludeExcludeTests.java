@@ -36,11 +36,11 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongBitSet;
-import org.opensearch.common.ParseField;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.fielddata.AbstractSortedSetDocValues;
 import org.opensearch.search.DocValueFormat;
@@ -99,7 +99,7 @@ public class IncludeExcludeTests extends OpenSearchTestCase {
             }
 
             @Override
-            public long docValueCount() {
+            public int docValueCount() {
                 return 1;
             }
         };

@@ -39,7 +39,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
@@ -70,7 +70,7 @@ public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {
     }
 
     public void testFilteredRepoMetadataIsUsed() {
-        final String clusterManagerName = internalCluster().getMasterName();
+        final String clusterManagerName = internalCluster().getClusterManagerName();
         final String repoName = "test-repo";
         assertAcked(
             client().admin()

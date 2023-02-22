@@ -63,7 +63,7 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(IngestCommonPlugin.class, CustomScriptPlugin.class);
+        return Arrays.asList(IngestCommonModulePlugin.class, CustomScriptPlugin.class);
     }
 
     @Override
@@ -166,7 +166,7 @@ public class IngestRestartIT extends OpenSearchIntegTestCase {
         checkPipelineExists.accept(pipelineIdWithScript);
         checkPipelineExists.accept(pipelineIdWithoutScript);
 
-        internalCluster().restartNode(internalCluster().getMasterName(), new InternalTestCluster.RestartCallback() {
+        internalCluster().restartNode(internalCluster().getClusterManagerName(), new InternalTestCluster.RestartCallback() {
 
             @Override
             public Settings onNodeStopped(String nodeName) {

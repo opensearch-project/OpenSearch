@@ -107,7 +107,7 @@ public abstract class ClusterStateUpdateTask
      * For local requests, use {@link LocalClusterUpdateTask} instead.
      */
     @Override
-    public final boolean runOnlyOnMaster() {
+    public final boolean runOnlyOnClusterManager() {
         return true;
     }
 }

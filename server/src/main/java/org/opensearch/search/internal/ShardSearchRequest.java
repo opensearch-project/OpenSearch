@@ -32,7 +32,6 @@
 
 package org.opensearch.search.internal;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.OriginalIndices;
@@ -51,6 +50,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.index.Index;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.MatchNoneQueryBuilder;
@@ -71,6 +71,7 @@ import org.opensearch.tasks.TaskId;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
@@ -85,6 +86,8 @@ import static org.opensearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISA
  * @opensearch.internal
  */
 public class ShardSearchRequest extends TransportRequest implements IndicesRequest {
+    public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
+
     private final String clusterAlias;
     private final ShardId shardId;
     private final int numberOfShards;
@@ -254,27 +257,13 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             outboundNetworkTime = in.readVLong();
         }
         clusterAlias = in.readOptionalString();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            allowPartialSearchResults = in.readBoolean();
-        } else {
-            allowPartialSearchResults = false;
-        }
+        allowPartialSearchResults = in.readBoolean();
         indexRoutings = in.readStringArray();
         preference = in.readOptionalString();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            canReturnNullResponseIfMatchNoDocs = in.readBoolean();
-            bottomSortValues = in.readOptionalWriteable(SearchSortValuesAndFormats::new);
-        } else {
-            canReturnNullResponseIfMatchNoDocs = false;
-            bottomSortValues = null;
-        }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            this.readerId = in.readOptionalWriteable(ShardSearchContextId::new);
-            this.keepAlive = in.readOptionalTimeValue();
-        } else {
-            this.readerId = null;
-            this.keepAlive = null;
-        }
+        canReturnNullResponseIfMatchNoDocs = in.readBoolean();
+        bottomSortValues = in.readOptionalWriteable(SearchSortValuesAndFormats::new);
+        readerId = in.readOptionalWriteable(ShardSearchContextId::new);
+        keepAlive = in.readOptionalTimeValue();
         originalIndices = OriginalIndices.readOriginalIndices(in);
         assert keepAlive == null || readerId != null : "readerId: " + readerId + " keepAlive: " + keepAlive;
     }
@@ -332,18 +321,16 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeVLong(outboundNetworkTime);
         }
         out.writeOptionalString(clusterAlias);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_0_0)) {
-            out.writeBoolean(allowPartialSearchResults);
-        }
+        out.writeBoolean(allowPartialSearchResults);
         if (asKey == false) {
             out.writeStringArray(indexRoutings);
             out.writeOptionalString(preference);
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0) && asKey == false) {
+        if (asKey == false) {
             out.writeBoolean(canReturnNullResponseIfMatchNoDocs);
             out.writeOptionalWriteable(bottomSortValues);
         }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0) && asKey == false) {
+        if (asKey == false) {
             out.writeOptionalWriteable(readerId);
             out.writeOptionalTimeValue(keepAlive);
         }
@@ -501,13 +488,23 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-        return new SearchShardTask(id, type, action, getDescription(), parentTaskId, headers);
+        return new SearchShardTask(id, type, action, getDescription(), parentTaskId, headers, this::getMetadataSupplier);
     }
 
     @Override
     public String getDescription() {
         // Shard id is enough here, the request itself can be found by looking at the parent task description
         return "shardId[" + shardId() + "]";
+    }
+
+    public String getMetadataSupplier() {
+        StringBuilder sb = new StringBuilder();
+        if (source != null) {
+            sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
+        } else {
+            sb.append("source[]");
+        }
+        return sb.toString();
     }
 
     public Rewriteable<Rewriteable> getRewriteable() {

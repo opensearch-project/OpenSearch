@@ -36,17 +36,17 @@ import org.opensearch.Version;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.CheckedRunnable;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.query.MatchAllQueryBuilder;
@@ -301,7 +301,7 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
                 + "\"type\":\"illegal_state_exception\",\"reason\":\"baaaaaazzzz\"},\"status\":500"
                 + "}"
                 + "]}",
-            Strings.toString(response)
+            Strings.toString(XContentType.JSON, response)
         );
     }
 
@@ -418,15 +418,10 @@ public class MultiSearchRequestTests extends OpenSearchTestCase {
         Version version = VersionUtils.randomVersion(random());
         MultiSearchRequest originalRequest = RestMultiSearchAction.parseRequest(restRequest, null, true);
         MultiSearchRequest deserializedRequest = copyWriteable(originalRequest, writableRegistry(), MultiSearchRequest::new, version);
-
-        if (version.before(Version.V_1_1_0)) {
-            assertNull(deserializedRequest.requests().get(0).getCancelAfterTimeInterval());
-        } else {
-            assertEquals(
-                originalRequest.requests().get(0).getCancelAfterTimeInterval(),
-                deserializedRequest.requests().get(0).getCancelAfterTimeInterval()
-            );
-        }
+        assertEquals(
+            originalRequest.requests().get(0).getCancelAfterTimeInterval(),
+            deserializedRequest.requests().get(0).getCancelAfterTimeInterval()
+        );
     }
 
     public void testWritingExpandWildcards() throws IOException {

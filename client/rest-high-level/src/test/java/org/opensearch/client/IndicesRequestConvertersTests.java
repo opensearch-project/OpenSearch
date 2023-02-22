@@ -32,11 +32,11 @@
 
 package org.opensearch.client;
 
-import org.apache.http.client.methods.HttpDelete;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.client.methods.HttpHead;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.methods.HttpPut;
+import org.apache.hc.client5.http.classic.methods.HttpDelete;
+import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.classic.methods.HttpHead;
+import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.classic.methods.HttpPut;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.indices.alias.Alias;
@@ -79,6 +79,7 @@ import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
+import org.opensearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -701,6 +702,8 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
         RequestConvertersTests.setRandomWaitForActiveShards(resizeRequest::setWaitForActiveShards, expectedParams);
         if (resizeType == ResizeType.SPLIT) {
             resizeRequest.setSettings(Settings.builder().put("index.number_of_shards", 2).build());
+        } else if (resizeType == ResizeType.SHRINK) {
+            resizeRequest.setMaxShardSize(new ByteSizeValue(randomIntBetween(1, 1000)));
         }
 
         Request request = function.apply(resizeRequest);
@@ -917,7 +920,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
         List<String> names = OpenSearchTestCase.randomSubsetOf(1, encodes.keySet());
         GetIndexTemplatesRequest getTemplatesRequest = new GetIndexTemplatesRequest(names);
         Map<String, String> expectedParams = new HashMap<>();
-        RequestConvertersTests.setRandomClusterManagerTimeout(getTemplatesRequest::setMasterNodeTimeout, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(getTemplatesRequest::setClusterManagerNodeTimeout, expectedParams);
         RequestConvertersTests.setRandomLocal(getTemplatesRequest::setLocal, expectedParams);
 
         Request request = IndicesRequestConverters.getTemplates(getTemplatesRequest);
@@ -946,7 +949,7 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
         );
         final Map<String, String> expectedParams = new HashMap<>();
         final IndexTemplatesExistRequest indexTemplatesExistRequest = new IndexTemplatesExistRequest(names);
-        RequestConvertersTests.setRandomClusterManagerTimeout(indexTemplatesExistRequest::setMasterNodeTimeout, expectedParams);
+        RequestConvertersTests.setRandomClusterManagerTimeout(indexTemplatesExistRequest::setClusterManagerNodeTimeout, expectedParams);
         RequestConvertersTests.setRandomLocal(indexTemplatesExistRequest::setLocal, expectedParams);
         assertThat(indexTemplatesExistRequest.names(), equalTo(names));
 

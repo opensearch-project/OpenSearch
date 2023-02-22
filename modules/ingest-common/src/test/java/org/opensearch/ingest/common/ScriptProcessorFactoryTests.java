@@ -34,7 +34,7 @@ package org.opensearch.ingest.common;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentParseException;
+import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.script.IngestScript;
 import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.Script;

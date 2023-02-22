@@ -32,8 +32,8 @@
 
 package org.opensearch.test.rest.yaml;
 
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpHost;
+import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.HttpHost;
 import org.opensearch.Version;
 import org.opensearch.client.NodeSelector;
 import org.opensearch.client.Request;

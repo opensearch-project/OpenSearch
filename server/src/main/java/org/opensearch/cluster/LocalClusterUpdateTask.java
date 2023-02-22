@@ -91,7 +91,7 @@ public abstract class LocalClusterUpdateTask
     }
 
     @Override
-    public final boolean runOnlyOnMaster() {
+    public final boolean runOnlyOnClusterManager() {
         return false;
     }
 }

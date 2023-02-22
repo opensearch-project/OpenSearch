@@ -46,6 +46,9 @@ import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.ValidationException;
@@ -88,6 +91,9 @@ public class MetadataUpdateSettingsService {
     private final IndicesService indicesService;
     private final ShardLimitValidator shardLimitValidator;
     private final ThreadPool threadPool;
+    private final ClusterManagerTaskThrottler.ThrottlingKey updateSettingsTaskKey;
+
+    private AwarenessReplicaBalance awarenessReplicaBalance;
 
     @Inject
     public MetadataUpdateSettingsService(
@@ -96,7 +102,8 @@ public class MetadataUpdateSettingsService {
         IndexScopedSettings indexScopedSettings,
         IndicesService indicesService,
         ShardLimitValidator shardLimitValidator,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        AwarenessReplicaBalance awarenessReplicaBalance
     ) {
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -104,6 +111,10 @@ public class MetadataUpdateSettingsService {
         this.indexScopedSettings = indexScopedSettings;
         this.indicesService = indicesService;
         this.shardLimitValidator = shardLimitValidator;
+        this.awarenessReplicaBalance = awarenessReplicaBalance;
+
+        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        updateSettingsTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.UPDATE_SETTINGS_KEY, true);
     }
 
     public void updateSettings(
@@ -158,6 +169,11 @@ public class MetadataUpdateSettingsService {
                 }
 
                 @Override
+                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                    return updateSettingsTaskKey;
+                }
+
+                @Override
                 public ClusterState execute(ClusterState currentState) {
 
                     RoutingTable.Builder routingTableBuilder = RoutingTable.builder(currentState.routingTable());
@@ -193,6 +209,22 @@ public class MetadataUpdateSettingsService {
                     if (IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(openSettings)) {
                         final int updatedNumberOfReplicas = IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(openSettings);
                         if (preserveExisting == false) {
+                            for (Index index : request.indices()) {
+                                if (index.getName().charAt(0) != '.') {
+                                    // No replica count validation for system indices
+                                    Optional<String> error = awarenessReplicaBalance.validate(
+                                        updatedNumberOfReplicas,
+                                        AutoExpandReplicas.SETTING.get(openSettings)
+                                    );
+
+                                    if (error.isPresent()) {
+                                        ValidationException ex = new ValidationException();
+                                        ex.addValidationError(error.get());
+                                        throw ex;
+                                    }
+                                }
+                            }
+
                             // Verify that this won't take us over the cluster shard limit.
                             int totalNewShards = Arrays.stream(request.indices())
                                 .mapToInt(i -> getTotalNewShards(i, currentState, updatedNumberOfReplicas))

@@ -257,15 +257,20 @@ public final class MockTransportService extends TransportService {
         BoundTransportAddress boundTransportAddress = transportService.boundAddress();
         transportAddresses.addAll(Arrays.asList(boundTransportAddress.boundAddresses()));
         transportAddresses.add(boundTransportAddress.publishAddress());
-        return transportAddresses.toArray(new TransportAddress[transportAddresses.size()]);
+        return transportAddresses.toArray(new TransportAddress[0]);
     }
 
     @Override
-    protected TaskManager createTaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
+    protected TaskManager createTaskManager(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        Set<String> taskHeaders
+    ) {
         if (MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.get(settings)) {
             return new MockTaskManager(settings, threadPool, taskHeaders);
         } else {
-            return super.createTaskManager(settings, threadPool, taskHeaders);
+            return super.createTaskManager(settings, clusterSettings, threadPool, taskHeaders);
         }
     }
 
@@ -530,7 +535,6 @@ public final class MockTransportService extends TransportService {
 
     /**
      * Adds a new handling behavior that is used when the defined request is received.
-     *
      */
     public <R extends TransportRequest> void addRequestHandlingBehavior(
         String actionName,

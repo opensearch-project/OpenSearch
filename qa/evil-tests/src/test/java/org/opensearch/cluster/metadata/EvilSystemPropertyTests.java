@@ -31,8 +31,10 @@
 
 package org.opensearch.cluster.metadata;
 
+import org.hamcrest.Matchers;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.DEFAULT_NUMBER_OF_SHARDS;

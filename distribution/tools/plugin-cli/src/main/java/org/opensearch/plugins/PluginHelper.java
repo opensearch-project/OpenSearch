@@ -19,6 +19,8 @@ import java.util.stream.Collectors;
  */
 public class PluginHelper {
 
+    private PluginHelper() {}
+
     /**
      * Verify if a plugin exists with any folder name.
      * @param pluginPath   the path for the plugins directory.

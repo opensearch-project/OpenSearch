@@ -32,12 +32,14 @@
 package org.opensearch.gradle.testclusters;
 
 import groovy.lang.Closure;
+
 import org.opensearch.gradle.FileSystemOperationsAware;
 import org.opensearch.gradle.test.Fixture;
 import org.opensearch.gradle.util.GradleUtils;
 import org.gradle.api.Task;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.internal.BuildServiceRegistryInternal;
+import org.gradle.api.services.internal.BuildServiceProvider;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
@@ -46,6 +48,8 @@ import org.gradle.api.tasks.testing.Test;
 import org.gradle.internal.resources.ResourceLock;
 import org.gradle.internal.resources.SharedResource;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -120,14 +124,65 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
             serviceRegistry,
             TestClustersPlugin.THROTTLE_SERVICE_NAME
         );
-        SharedResource resource = serviceRegistry.forService(throttleProvider);
+        final SharedResource resource = getSharedResource(serviceRegistry, throttleProvider);
 
         int nodeCount = clusters.stream().mapToInt(cluster -> cluster.getNodes().size()).sum();
         if (nodeCount > 0) {
-            locks.add(resource.getResourceLock(Math.min(nodeCount, resource.getMaxUsages())));
+            locks.add(getResourceLock(resource, Math.min(nodeCount, resource.getMaxUsages())));
         }
 
         return Collections.unmodifiableList(locks);
+    }
+
+    private SharedResource getSharedResource(
+        BuildServiceRegistryInternal serviceRegistry,
+        Provider<TestClustersThrottle> throttleProvider
+    ) {
+        try {
+            try {
+                // The forService(Provider) is used by Gradle pre-8.0
+                return (SharedResource) MethodHandles.publicLookup()
+                    .findVirtual(
+                        BuildServiceRegistryInternal.class,
+                        "forService",
+                        MethodType.methodType(SharedResource.class, Provider.class)
+                    )
+                    .bindTo(serviceRegistry)
+                    .invokeExact(throttleProvider);
+            } catch (NoSuchMethodException | IllegalAccessException ex) {
+                // The forService(BuildServiceProvider) is used by Gradle post-8.0
+                return (SharedResource) MethodHandles.publicLookup()
+                    .findVirtual(
+                        BuildServiceRegistryInternal.class,
+                        "forService",
+                        MethodType.methodType(SharedResource.class, BuildServiceProvider.class)
+                    )
+                    .bindTo(serviceRegistry)
+                    .invokeExact((BuildServiceProvider<TestClustersThrottle, ?>) throttleProvider);
+            }
+        } catch (Throwable ex) {
+            throw new IllegalStateException("Unable to find suitable BuildServiceRegistryInternal::forService", ex);
+        }
+    }
+
+    private ResourceLock getResourceLock(SharedResource resource, int nUsages) {
+        try {
+            try {
+                // The getResourceLock(int) is used by Gradle pre-7.5
+                return (ResourceLock) MethodHandles.publicLookup()
+                    .findVirtual(SharedResource.class, "getResourceLock", MethodType.methodType(ResourceLock.class, int.class))
+                    .bindTo(resource)
+                    .invokeExact(nUsages);
+            } catch (NoSuchMethodException | IllegalAccessException ex) {
+                // The getResourceLock() is used by Gradle post-7.4
+                return (ResourceLock) MethodHandles.publicLookup()
+                    .findVirtual(SharedResource.class, "getResourceLock", MethodType.methodType(ResourceLock.class))
+                    .bindTo(resource)
+                    .invokeExact();
+            }
+        } catch (Throwable ex) {
+            throw new IllegalStateException("Unable to find suitable ResourceLock::getResourceLock", ex);
+        }
     }
 
     @Override

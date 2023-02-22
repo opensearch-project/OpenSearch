@@ -45,6 +45,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.RemoteSegmentFileChunkWriter;
+import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.transport.EmptyTransportResponseHandler;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponse;
@@ -184,6 +185,24 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         final Writeable.Reader<RecoveryTranslogOperationsResponse> reader = RecoveryTranslogOperationsResponse::new;
         final ActionListener<RecoveryTranslogOperationsResponse> responseListener = ActionListener.map(listener, r -> r.localCheckpoint);
         retryableTransportClient.executeRetryableAction(action, request, translogOpsRequestOptions, responseListener, reader);
+    }
+
+    /**
+     * Used with Segment replication only
+     *
+     * This function is used to force a sync target primary node with source (old primary). This is to avoid segment files
+     * conflict with replicas when target is promoted as primary.
+     */
+    @Override
+    public void forceSegmentFileSync() {
+        final long requestSeqNo = requestSeqNoGenerator.getAndIncrement();
+        transportService.submitRequest(
+            targetNode,
+            SegmentReplicationTargetService.Actions.FORCE_SYNC,
+            new ForceSyncRequest(requestSeqNo, recoveryId, shardId),
+            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build(),
+            EmptyTransportResponseHandler.INSTANCE_SAME
+        ).txGet();
     }
 
     @Override

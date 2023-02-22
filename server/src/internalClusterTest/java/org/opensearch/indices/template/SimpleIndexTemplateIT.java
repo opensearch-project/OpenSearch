@@ -32,32 +32,33 @@
 
 package org.opensearch.indices.template;
 
+import org.junit.After;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
-
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.InvalidAliasNameException;
+import org.opensearch.indices.InvalidIndexTemplateException;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.InternalSettingsPlugin;
-
-import org.junit.After;
+import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -68,11 +69,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
-import static org.opensearch.index.query.QueryBuilders.termQuery;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertRequestBuilderThrows;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -83,6 +79,11 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.opensearch.index.query.QueryBuilders.termQuery;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertRequestBuilderThrows;
 
 public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
 
@@ -494,8 +495,8 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
         GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
         assertThat(response.getIndexTemplates(), empty());
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        SettingsException e = expectThrows(
+            SettingsException.class,
             () -> client().admin()
                 .indices()
                 .preparePutTemplate("template_1")
@@ -1029,4 +1030,52 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings("test_good").get();
         assertEquals("6", getSettingsResponse.getIndexToSettings().get("test_good").get("index.routing_partition_size"));
     }
+
+    public void testAwarenessReplicaBalance() throws IOException {
+        manageReplicaSettingForDefaultReplica(true);
+        int updated = 0;
+        try {
+            client().admin()
+                .indices()
+                .preparePutTemplate("template_1")
+                .setPatterns(Arrays.asList("a*", "b*"))
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2))
+                .get();
+            updated++;
+
+            client().admin()
+                .indices()
+                .preparePutTemplate("template_1")
+                .setPatterns(Arrays.asList("a*", "b*"))
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4))
+                .get();
+            updated++;
+
+            client().admin()
+                .indices()
+                .preparePutTemplate("template_1")
+                .setPatterns(Arrays.asList("a*", "b*"))
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-2"))
+                .get();
+            updated++;
+
+            client().admin()
+                .indices()
+                .preparePutTemplate("template_1")
+                .setPatterns(Arrays.asList("a*", "b*"))
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0))
+                .get();
+
+            fail("should have thrown an exception about the replica  count");
+        } catch (InvalidIndexTemplateException e) {
+            assertEquals(
+                "index_template [template_1] invalid, cause [Validation Failed: 1: expected total copies needs to be a multiple of total awareness attributes [3];]",
+                e.getMessage()
+            );
+            assertEquals(3, updated);
+        } finally {
+            manageReplicaSettingForDefaultReplica(false);
+        }
+    }
+
 }

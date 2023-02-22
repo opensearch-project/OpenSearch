@@ -39,7 +39,6 @@ import org.opensearch.search.aggregations.bucket.histogram.Histogram;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import org.opensearch.search.aggregations.metrics.Cardinality;
-import org.opensearch.search.aggregations.metrics.GeoBounds;
 import org.opensearch.search.aggregations.metrics.GeoCentroid;
 import org.opensearch.search.aggregations.metrics.Percentiles;
 import org.opensearch.search.aggregations.metrics.Stats;
@@ -47,7 +46,6 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import static org.opensearch.search.aggregations.AggregationBuilders.cardinality;
 import static org.opensearch.search.aggregations.AggregationBuilders.dateHistogram;
-import static org.opensearch.search.aggregations.AggregationBuilders.geoBounds;
 import static org.opensearch.search.aggregations.AggregationBuilders.geoCentroid;
 import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.percentiles;
@@ -211,28 +209,6 @@ public class MissingValueIT extends OpenSearchIntegTestCase {
         Stats stats = response.getAggregations().get("stats");
         assertEquals(2, stats.getCount());
         assertEquals(4, stats.getAvg(), 0);
-    }
-
-    public void testUnmappedGeoBounds() {
-        SearchResponse response = client().prepareSearch("idx")
-            .addAggregation(geoBounds("bounds").field("non_existing_field").missing("2,1"))
-            .get();
-        assertSearchResponse(response);
-        GeoBounds bounds = response.getAggregations().get("bounds");
-        assertThat(bounds.bottomRight().lat(), closeTo(2.0, 1E-5));
-        assertThat(bounds.bottomRight().lon(), closeTo(1.0, 1E-5));
-        assertThat(bounds.topLeft().lat(), closeTo(2.0, 1E-5));
-        assertThat(bounds.topLeft().lon(), closeTo(1.0, 1E-5));
-    }
-
-    public void testGeoBounds() {
-        SearchResponse response = client().prepareSearch("idx").addAggregation(geoBounds("bounds").field("location").missing("2,1")).get();
-        assertSearchResponse(response);
-        GeoBounds bounds = response.getAggregations().get("bounds");
-        assertThat(bounds.bottomRight().lat(), closeTo(1.0, 1E-5));
-        assertThat(bounds.bottomRight().lon(), closeTo(2.0, 1E-5));
-        assertThat(bounds.topLeft().lat(), closeTo(2.0, 1E-5));
-        assertThat(bounds.topLeft().lon(), closeTo(1.0, 1E-5));
     }
 
     public void testGeoCentroid() {

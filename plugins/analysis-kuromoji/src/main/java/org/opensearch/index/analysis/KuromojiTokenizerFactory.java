@@ -32,6 +32,8 @@
 
 package org.opensearch.index.analysis;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ja.JapaneseTokenizer;
 import org.apache.lucene.analysis.ja.JapaneseTokenizer.Mode;
@@ -50,6 +52,7 @@ import java.util.Set;
 
 public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
 
+    private static final Logger LOGGER = LogManager.getLogger(KuromojiTokenizerFactory.class);
     private static final String USER_DICT_PATH_OPTION = "user_dictionary";
     private static final String USER_DICT_RULES_OPTION = "user_dictionary_rules";
     private static final String NBEST_COST = "nbest_cost";
@@ -74,6 +77,17 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
         discardCompoundToken = settings.getAsBoolean(DISCARD_COMPOUND_TOKEN, false);
     }
 
+    private static String parse(String rule, Set<String> dup) {
+        String[] values = CSVUtil.parse(rule);
+        if (values.length == 0) {
+            throw new IllegalArgumentException("Malformed csv in user dictionary.");
+        }
+        if (dup.add(values[0]) == false) {
+            throw new IllegalArgumentException("Found duplicate term [" + values[0] + "] in user dictionary.");
+        }
+        return rule;
+    }
+
     public static UserDictionary getUserDictionary(Environment env, Settings settings) {
         if (settings.get(USER_DICT_PATH_OPTION) != null && settings.get(USER_DICT_RULES_OPTION) != null) {
             throw new IllegalArgumentException(
@@ -81,31 +95,26 @@ public class KuromojiTokenizerFactory extends AbstractTokenizerFactory {
             );
         }
         try {
-            List<String> ruleList = Analysis.getWordList(env, settings, USER_DICT_PATH_OPTION, USER_DICT_RULES_OPTION, false);
+            Set<String> dup = new HashSet<>();
+            List<String> ruleList = Analysis.parseWordList(
+                env,
+                settings,
+                USER_DICT_PATH_OPTION,
+                USER_DICT_RULES_OPTION,
+                s -> parse(s, dup)
+            );
             if (ruleList == null || ruleList.isEmpty()) {
                 return null;
             }
-            Set<String> dup = new HashSet<>();
-            int lineNum = 0;
-            for (String line : ruleList) {
-                // ignore comments
-                if (line.startsWith("#") == false) {
-                    String[] values = CSVUtil.parse(line);
-                    if (dup.add(values[0]) == false) {
-                        throw new IllegalArgumentException(
-                            "Found duplicate term [" + values[0] + "] in user dictionary " + "at line [" + lineNum + "]"
-                        );
-                    }
-                }
-                ++lineNum;
-            }
+
             StringBuilder sb = new StringBuilder();
             for (String line : ruleList) {
                 sb.append(line).append(System.lineSeparator());
             }
             return UserDictionary.open(new StringReader(sb.toString()));
         } catch (IOException e) {
-            throw new OpenSearchException("failed to load kuromoji user dictionary", e);
+            LOGGER.error("Failed to load kuromoji user dictionary", e);
+            throw new OpenSearchException("Failed to load kuromoji user dictionary");
         }
     }
 

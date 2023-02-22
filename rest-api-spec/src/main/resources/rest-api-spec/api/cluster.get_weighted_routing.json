@@ -1,0 +1,25 @@
+{
+  "cluster.get_weighted_routing": {
+    "documentation": {
+      "url": "https://opensearch.org/docs/latest/opensearch/rest-api/weighted-routing/get",
+      "description": "Fetches weighted shard routing weights"
+    },
+    "stability": "stable",
+    "url": {
+      "paths": [
+        {
+          "path": "/_cluster/routing/awareness/{attribute}/weights",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "attribute": {
+              "type": "string",
+              "description": "Awareness attribute name"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -50,6 +50,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportService;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -104,7 +105,7 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
             String nodeId = randomFrom(nodeIds);
             nodeSelectors.add(nodeId);
         }
-        String[] finalNodesIds = nodeSelectors.toArray(new String[nodeSelectors.size()]);
+        String[] finalNodesIds = nodeSelectors.toArray(new String[0]);
         TestNodesRequest request = new TestNodesRequest(finalNodesIds);
         action.new AsyncAction(null, request, new PlainActionFuture<>()).start();
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();
@@ -226,7 +227,7 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
             discoveryNodes.add(node);
         }
         discoBuilder.localNodeId(randomFrom(discoveryNodes).getId());
-        discoBuilder.masterNodeId(randomFrom(discoveryNodes).getId());
+        discoBuilder.clusterManagerNodeId(randomFrom(discoveryNodes).getId());
         ClusterState.Builder stateBuilder = ClusterState.builder(clusterService.getClusterName());
         stateBuilder.nodes(discoBuilder);
         ClusterState clusterState = stateBuilder.build();
@@ -378,7 +379,7 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
         }
     }
 
-    private static class TestNodeRequest extends BaseNodeRequest {
+    private static class TestNodeRequest extends TransportRequest {
         TestNodeRequest() {}
 
         TestNodeRequest(StreamInput in) throws IOException {

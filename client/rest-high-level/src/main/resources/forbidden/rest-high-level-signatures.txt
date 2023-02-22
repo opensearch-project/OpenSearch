@@ -15,10 +15,9 @@
 # language governing permissions and limitations under the License.
 
 @defaultMessage Use Request#createContentType(XContentType) to be sure to pass the right MIME type
-org.apache.http.entity.ContentType#create(java.lang.String)
-org.apache.http.entity.ContentType#create(java.lang.String,java.lang.String)
-org.apache.http.entity.ContentType#create(java.lang.String,java.nio.charset.Charset)
-org.apache.http.entity.ContentType#create(java.lang.String,org.apache.http.NameValuePair[])
+org.apache.hc.core5.http.ContentType#create(java.lang.String)
+org.apache.hc.core5.http.ContentType#create(java.lang.String,java.lang.String)
+org.apache.hc.core5.http.ContentType#create(java.lang.String,java.nio.charset.Charset)
 
 @defaultMessage ES's logging infrastructure uses log4j2 which we don't want to force on high level rest client users
 org.opensearch.common.logging.DeprecationLogger
@@ -30,7 +29,3 @@ org.opensearch.common.logging.PrefixLogger
 
 @defaultMessage We can't rely on log4j2 being on the classpath so don't log deprecations!
 org.opensearch.common.xcontent.LoggingDeprecationHandler
-
-@defaultMessage Use Nonblocking org.apache.http.nio.entity.NByteArrayEntity
-org.apache.http.entity.ByteArrayEntity
-org.apache.http.entity.StringEntity

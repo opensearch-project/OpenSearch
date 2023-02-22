@@ -28,4 +28,6 @@ public interface FileChunkWriter {
         int totalTranslogOps,
         ActionListener<Void> listener
     );
+
+    default void cancel() {}
 }

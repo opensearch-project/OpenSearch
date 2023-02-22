@@ -39,6 +39,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.replication.common.ReplicationCollection;
+import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.indices.recovery.RecoveryState;
@@ -59,7 +60,7 @@ public class ReplicationCollectionTests extends OpenSearchIndexLevelReplicationT
         }
 
         @Override
-        public void onFailure(ReplicationState state, OpenSearchException e, boolean sendShardFailure) {
+        public void onFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
 
         }
     };
@@ -93,7 +94,7 @@ public class ReplicationCollectionTests extends OpenSearchIndexLevelReplicationT
                 }
 
                 @Override
-                public void onFailure(ReplicationState state, OpenSearchException e, boolean sendShardFailure) {
+                public void onFailure(ReplicationState state, ReplicationFailedException e, boolean sendShardFailure) {
                     failed.set(true);
                     latch.countDown();
                 }
@@ -105,7 +106,25 @@ public class ReplicationCollectionTests extends OpenSearchIndexLevelReplicationT
                 collection.cancel(recoveryId, "meh");
             }
         }
+    }
 
+    public void testMultiReplicationsForSingleShard() throws Exception {
+        try (ReplicationGroup shards = createGroup(0)) {
+            final ReplicationCollection<RecoveryTarget> collection = new ReplicationCollection<>(logger, threadPool);
+            final IndexShard shard1 = shards.addReplica();
+            final IndexShard shard2 = shards.addReplica();
+            final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shard1);
+            final long recoveryId2 = startRecovery(collection, shards.getPrimaryNode(), shard2);
+            try {
+                collection.getOngoingReplicationTarget(shard1.shardId());
+            } catch (AssertionError e) {
+                assertEquals(e.getMessage(), "More than one on-going replication targets");
+            } finally {
+                collection.cancel(recoveryId, "meh");
+                collection.cancel(recoveryId2, "meh");
+            }
+            closeShards(shard1, shard2);
+        }
     }
 
     public void testRecoveryCancellation() throws Exception {

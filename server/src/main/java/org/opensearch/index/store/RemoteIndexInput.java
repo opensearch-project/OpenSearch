@@ -27,27 +27,37 @@ public class RemoteIndexInput extends IndexInput {
 
     private final InputStream inputStream;
     private final long size;
+    private long filePointer;
 
     public RemoteIndexInput(String name, InputStream inputStream, long size) {
         super(name);
         this.inputStream = inputStream;
         this.size = size;
+        this.filePointer = 0;
     }
 
     @Override
     public byte readByte() throws IOException {
         byte[] buffer = new byte[1];
-        inputStream.read(buffer);
+        int numberOfBytesRead = inputStream.read(buffer);
+        if (numberOfBytesRead != -1) {
+            filePointer += numberOfBytesRead;
+        }
         return buffer[0];
     }
 
     @Override
     public void readBytes(byte[] b, int offset, int len) throws IOException {
         int bytesRead = inputStream.read(b, offset, len);
-        while (bytesRead > 0 && bytesRead < len) {
-            len -= bytesRead;
-            offset += bytesRead;
-            bytesRead = inputStream.read(b, offset, len);
+        if (bytesRead == len) {
+            filePointer += bytesRead;
+        } else {
+            while (bytesRead > 0 && bytesRead < len) {
+                filePointer += bytesRead;
+                len -= bytesRead;
+                offset += bytesRead;
+                bytesRead = inputStream.read(b, offset, len);
+            }
         }
     }
 
@@ -61,11 +71,6 @@ public class RemoteIndexInput extends IndexInput {
         return size;
     }
 
-    @Override
-    public void seek(long pos) throws IOException {
-        inputStream.skip(pos);
-    }
-
     /**
      * Guaranteed to throw an exception and leave the RemoteIndexInput unmodified.
      * This method is not implemented as it is not used for the file transfer to/from the remote store.
@@ -73,8 +78,16 @@ public class RemoteIndexInput extends IndexInput {
      * @throws UnsupportedOperationException always
      */
     @Override
-    public long getFilePointer() {
+    public void seek(long pos) throws IOException {
         throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Returns the current position in this file in terms of number of bytes read so far.
+     */
+    @Override
+    public long getFilePointer() {
+        return filePointer;
     }
 
     /**

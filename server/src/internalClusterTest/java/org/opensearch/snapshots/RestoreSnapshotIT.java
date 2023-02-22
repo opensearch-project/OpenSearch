@@ -36,6 +36,7 @@ import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
 import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.client.Client;
@@ -59,6 +60,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTING;
@@ -70,14 +79,6 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertIndexTemplateExists;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertIndexTemplateMissing;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertRequestBuilderThrows;
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
@@ -973,4 +974,86 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
         assertThat(restoreError.getMessage(), containsString("cannot disable setting [index.soft_deletes.enabled] on restore"));
     }
+
+    public void testRestoreBalancedReplica() {
+        try {
+            createRepository("test-repo", "fs");
+            DeleteIndexTemplateRequestBuilder deleteTemplate = client().admin().indices().prepareDeleteTemplate("random_index_template");
+            assertAcked(deleteTemplate.execute().actionGet());
+
+            createIndex("test-index", Settings.builder().put("index.number_of_replicas", 0).build());
+            createIndex(".system-index", Settings.builder().put("index.number_of_replicas", 0).build());
+            ensureGreen();
+            clusterAdmin().prepareCreateSnapshot("test-repo", "snapshot-0")
+                .setIndices("test-index", ".system-index")
+                .setWaitForCompletion(true)
+                .get();
+            manageReplicaSettingForDefaultReplica(true);
+
+            final IllegalArgumentException restoreError = expectThrows(
+                IllegalArgumentException.class,
+                () -> clusterAdmin().prepareRestoreSnapshot("test-repo", "snapshot-0")
+                    .setRenamePattern("test-index")
+                    .setRenameReplacement("new-index")
+                    .setIndices("test-index")
+                    .get()
+            );
+            assertThat(
+                restoreError.getMessage(),
+                containsString("expected total copies needs to be a multiple of total awareness attributes [3]")
+            );
+
+            final IllegalArgumentException restoreError2 = expectThrows(
+                IllegalArgumentException.class,
+                () -> clusterAdmin().prepareRestoreSnapshot("test-repo", "snapshot-0")
+                    .setRenamePattern("test-index")
+                    .setRenameReplacement("new-index-2")
+                    .setIndexSettings(
+                        Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1").build()
+                    )
+                    .setIndices("test-index")
+                    .get()
+            );
+            assertThat(
+                restoreError2.getMessage(),
+                containsString("expected max cap on auto expand to be a multiple of total awareness attributes [3]")
+            );
+
+            RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "snapshot-0")
+                .setRenamePattern(".system-index")
+                .setRenameReplacement(".system-index-restore-1")
+                .setWaitForCompletion(true)
+                .setIndices(".system-index")
+                .execute()
+                .actionGet();
+
+            assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+
+            restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "snapshot-0")
+                .setRenamePattern("test-index")
+                .setRenameReplacement("new-index")
+                .setIndexSettings(Settings.builder().put("index.number_of_replicas", 2).build())
+                .setWaitForCompletion(true)
+                .setIndices("test-index")
+                .execute()
+                .actionGet();
+
+            restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot("test-repo", "snapshot-0")
+                .setRenamePattern("test-index")
+                .setRenameReplacement("new-index-3")
+                .setIndexSettings(
+                    Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 0).put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-2").build()
+                )
+                .setWaitForCompletion(true)
+                .setIndices("test-index")
+                .execute()
+                .actionGet();
+
+            assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+        } finally {
+            manageReplicaSettingForDefaultReplica(false);
+            randomIndexTemplate();
+        }
+    }
+
 }

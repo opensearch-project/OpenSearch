@@ -70,7 +70,7 @@ public class Gateway {
     }
 
     public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
-        final String[] nodesIds = clusterService.state().nodes().getMasterNodes().keys().toArray(String.class);
+        final String[] nodesIds = clusterService.state().nodes().getClusterManagerNodes().keys().toArray(String.class);
         logger.trace("performing state recovery from {}", Arrays.toString(nodesIds));
         final TransportNodesListGatewayMetaState.NodesGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds, null).actionGet();
 

@@ -41,11 +41,10 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.PackedQuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.common.Explicit;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.geo.GeoUtils;
 import org.opensearch.common.geo.GeometryParser;
 import org.opensearch.common.geo.ShapeRelation;
@@ -58,8 +57,8 @@ import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.geometry.Geometry;
 import org.opensearch.index.query.LegacyGeoShapeQueryProcessor;
@@ -577,11 +576,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         } else if (includeDefaults && fieldType().treeLevels() == 0) { // defaults only make sense if tree levels are not specified
             builder.field(DeprecatedParameters.Names.PRECISION.getPreferredName(), DistanceUnit.METERS.toString(50));
         }
-
-        if (indexCreatedVersion.onOrAfter(LegacyESVersion.V_7_0_0)) {
-            builder.field(DeprecatedParameters.Names.STRATEGY.getPreferredName(), fieldType().strategy().getStrategyName());
-        }
-
+        builder.field(DeprecatedParameters.Names.STRATEGY.getPreferredName(), fieldType().strategy().getStrategyName());
         if (includeDefaults || fieldType().distanceErrorPct() != fieldType().defaultDistanceErrorPct) {
             builder.field(DeprecatedParameters.Names.DISTANCE_ERROR_PCT.getPreferredName(), fieldType().distanceErrorPct());
         }
