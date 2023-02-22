@@ -8,16 +8,18 @@
 
 package org.opensearch.identity.authz;
 
+import java.util.Arrays;
+
 /**
  * This class is used to create Permission instances. The factory can create both standard Permissions which have specific
  * formatting requirements and legacy permissions which are not checked for validity on creation.
  */
 public class PermissionFactory {
 
-    private final static String[] INVALID_CHARACTERS = new String[] { ":", "" }; // This is a placeholder for what may want to be banned
+    private final static String[] INVALID_CHARACTERS = new String[] { ":", " " }; // This is a placeholder for what may want to be banned
 
     // A placeholder for the different resources which a permission may grant a permission based on
-    private static enum QUALIFIED_PERMISSION_TYPES {
+    static enum QUALIFIED_PERMISSION_TYPES {
         CLUSTER("cluster", false),
         INDICES("indices", true),
         PLUGIN("plugin", true),
@@ -53,9 +55,9 @@ public class PermissionFactory {
      * This function creates a standard permission instance. It includes checking that the permission that is being created
      * is properly formatted.
      */
-    public Permission createPermission(String permissionString) {
+    public static OpenSearchPermission createPermission(String permissionString) {
 
-        Permission newPermission = new Permission(permissionString);
+        OpenSearchPermission newPermission = new OpenSearchPermission(permissionString);
         permissionIsValidFormat(newPermission);
         return newPermission;
     }
@@ -63,23 +65,28 @@ public class PermissionFactory {
     /**
      * This function creates a permission without checking that the permission string is valid.
      */
-    public Permission createLegacyPermission(String permissionString) {
-        return new Permission(permissionString);
+    public static OpenSearchPermission createLegacyPermission(String permissionString) {
+        return new OpenSearchPermission(permissionString);
     }
 
     /**
      * Check that the permission does not contain any invalid characters
      */
-    public void checkForInvalidCharacters(Permission permission) {
+    public static void checkForInvalidCharacters(OpenSearchPermission permission) {
         for (String invalidCharacter : INVALID_CHARACTERS) {
             if (permission.getPermissionType().contains(invalidCharacter) || permission.getAction().contains(invalidCharacter)) {
                 throw new InvalidPermissionException(
                     "The provided permission string for '"
                         + permission.getPermissionString()
                         + "' is not valid. The permission type and action may not include "
-                        + "the character "
-                        + INVALID_CHARACTERS.toString()
-                        + " or be empty."
+                        + "the characters "
+                        + Arrays.toString(INVALID_CHARACTERS)
+                        + " or be empty. "
+                        + invalidCharacter
+                        + " was present. For permission type: "
+                        + permission.getPermissionType()
+                        + " and permission action: "
+                        + permission.getAction()
                 );
             }
         }
@@ -88,7 +95,7 @@ public class PermissionFactory {
     /**
      * Make sure the permission type is one of the qualified permission types
      */
-    public void checkForValidPermissionType(Permission permission) {
+    public static void checkForValidPermissionType(OpenSearchPermission permission) {
         if (QUALIFIED_PERMISSION_TYPES.matchingType(permission.getPermissionType()) == null) {
             throw new InvalidPermissionException(
                 "The permission type for '"
@@ -102,7 +109,7 @@ public class PermissionFactory {
     /**
      * Make sure a resource pattern is present for permission types that require one
      */
-    public void checkIfResourcePatternIsRequiredAndPresent(Permission permission) {
+    public static void checkIfResourcePatternIsRequiredAndPresent(OpenSearchPermission permission) {
         QUALIFIED_PERMISSION_TYPES permissionType = QUALIFIED_PERMISSION_TYPES.matchingType(permission.getPermissionType());
         if (permissionType.patternRequired && permission.getResource().isEmpty()) {
             throw new InvalidPermissionException(
@@ -120,7 +127,7 @@ public class PermissionFactory {
      * Assumes that the permission is formatted as permission.action
      */
 
-    public void permissionIsValidFormat(Permission permission) {
+    public static void permissionIsValidFormat(OpenSearchPermission permission) {
 
         // Make sure no invalid characters are present O(3n)
         checkForInvalidCharacters(permission);

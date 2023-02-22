@@ -9,6 +9,7 @@
 package org.opensearch.identity.utils;
 
 public enum ErrorType {
+
     BODY_NOT_PARSEABLE("Failed to parse body for user request: "),
     IDENTITY_NOT_INITIALIZED("Identity index not initialized"),
     HASH_OR_PASSWORD_MISSING("Please specify either 'hash' or 'password' when creating a new internal user."),

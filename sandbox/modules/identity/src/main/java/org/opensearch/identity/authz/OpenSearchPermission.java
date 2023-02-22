@@ -15,22 +15,68 @@ import org.opensearch.common.Glob;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 public class OpenSearchPermission implements Permission {
 
-    private String actionName;
+    private List<String> resourcePatterns;
+    private final String PERMISSION_DELIMITER = "\\.";
 
-    private List<String> indexPatterns;
+    public final String RESOURCE_DELIMITER = ",";
+
+    private String permissionString;
+    private String[] permissionSegments;
+
+    private String action;
+    private String permissionType;
 
     public OpenSearchPermission(String permission) {
-        Objects.requireNonNull(permission);
-        String[] permissionParts = permission.split("\\|");
-        // turns an action like indices:data/read/search into indices:data:read:search to leverage shiro's WildcardPermission
-        this.actionName = permissionParts[0].replace("/", ":");
-        if (permissionParts.length > 1) {
-            this.indexPatterns = Arrays.stream(permissionParts[1].split(",")).map(String::trim).collect(Collectors.toList());
+
+        this.permissionString = permission;
+        try {
+            this.permissionSegments = permissionString.split(PERMISSION_DELIMITER);
+            this.permissionType = permissionSegments[0];
+            this.action = permissionSegments[1];
+        } catch (IndexOutOfBoundsException ex) {
+            throw new PermissionFactory.InvalidPermissionException(
+                "All permissions must contain a permission type and action delimited by a " + PERMISSION_DELIMITER + "."
+            );
         }
+        // Handle two legacy index permissions that are really cluster permissions
+        if (this.action.startsWith("admin/template/") || this.action.startsWith("admin/index_template/")) {
+            this.resourcePatterns = Arrays.asList("*");
+        }
+        if (this.permissionSegments.length == 3) {
+            String resourceString = permissionSegments[2];
+            this.resourcePatterns = Arrays.asList(resourceString.split(RESOURCE_DELIMITER));
+
+        }
+    }
+
+    public String getPermissionType() {
+        return this.permissionType;
+    }
+
+    public String getAction() {
+        return this.action;
+    }
+
+    public List<String> getResource() {
+        return this.resourcePatterns;
+    }
+
+    public String getPermissionString() {
+        return this.permissionString;
+    }
+
+    /**
+     * Compare the current permission's permission type to another permission's permission type
+     */
+    public boolean permissionTypesMatch(OpenSearchPermission permission) {
+
+        if (this.permissionType.equalsIgnoreCase(permission.permissionType)) {
+            return true;
+        }
+        return false;
     }
 
     @Override
@@ -40,25 +86,35 @@ public class OpenSearchPermission implements Permission {
         }
         OpenSearchPermission requestedPermission = (OpenSearchPermission) p;
 
-        WildcardPermission wp = new WildcardPermission(this.actionName);
-        WildcardPermission wp2 = new WildcardPermission(requestedPermission.actionName);
-        if (!wp.implies(wp2)) {
-            return false;
-        }
-        if (this.indexPatterns == null || this.indexPatterns.isEmpty()) {
-            // TODO Find a better way to do this, this means only the permission does not require a resource
-            // and is permitted by name alone
-            return true;
-        }
-        if (requestedPermission.indexPatterns == null || requestedPermission.indexPatterns.isEmpty()) {
+        // Check if permission types match
+        if (!permissionTypesMatch(requestedPermission)) {
             return false;
         }
 
-        // Uncomment the following lines if index name -> concrete index resolution is required
+        // Check if permission actions match
+        WildcardPermission wp = new WildcardPermission(this.action);
+        WildcardPermission wp2 = new WildcardPermission(requestedPermission.action);
+        if (!wp.implies(wp2)) {
+            return false;
+        }
+
+        // Check if resource pattern is empty and resolve
+        if (this.resourcePatterns == null || this.resourcePatterns.isEmpty()) {
+
+            // If the matching permission type requires a resource pattern
+            if (PermissionFactory.QUALIFIED_PERMISSION_TYPES.matchingType(this.permissionType).isResourcePatternRequired()) {
+
+                return false;
+            } else {
+                return true;
+            }
+        }
+
         // IndexNameExpressionResolver iner = IndexNameExpressionResolverHolder.getInstance();
         // ClusterState cs = IdentityPlugin.GuiceHolder.getClusterService().state();
-        // Set<String> concretePermissionIndexNames = iner.resolveExpressions(cs, this.indexPatterns.toArray(new String[0]));
-        // Set<String> concreteRequestedIndexNames = iner.resolveExpressions(cs, requestedPermission.indexPatterns.toArray(new String[0]));
+        // Set<String> concretePermissionIndexNames = iner.resolveExpressions(cs, this.resourcePatterns.toArray(new String[0]));
+        // Set<String> concreteRequestedIndexNames = iner.resolveExpressions(cs, requestedPermission.resourcePatterns.toArray(new
+        // String[0]));
 
         // TODO Switch this comments to tests to better document and assert different scenarios
         // Example
@@ -68,9 +124,22 @@ public class OpenSearchPermission implements Permission {
         // For all requested index patterns (ip):
         // ip must match at least one pattern that the user has been granted access to
 
-        boolean allRequestedPatternsMatchGranted = requestedPermission.indexPatterns.stream()
-            .allMatch(requstedIp -> this.indexPatterns.stream().anyMatch(ip -> Glob.globMatch(ip, requstedIp)));
+        boolean allRequestedPatternsMatchGranted = requestedPermission.resourcePatterns.stream()
+            .allMatch(requstedIp -> this.resourcePatterns.stream().anyMatch(ip -> Glob.globMatch(ip, requstedIp)));
 
         return allRequestedPatternsMatchGranted;
+    }
+
+    @Override
+    public boolean equals(final Object obj) {
+        if (this == obj) return true;
+        if (obj == null || this.getClass() != obj.getClass()) return false;
+        final OpenSearchPermission that = (OpenSearchPermission) obj;
+        return Objects.equals(this.getPermissionString(), that.getPermissionString());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(this.getPermissionString());
     }
 }

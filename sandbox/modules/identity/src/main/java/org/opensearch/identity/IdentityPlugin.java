@@ -39,6 +39,9 @@ import org.opensearch.identity.authz.IndexNameExpressionResolverHolder;
 import org.opensearch.identity.configuration.ClusterInfoHolder;
 import org.opensearch.identity.configuration.ConfigurationRepository;
 import org.opensearch.identity.configuration.DynamicConfigFactory;
+import org.opensearch.identity.rest.permission.put.PutPermissionAction;
+import org.opensearch.identity.rest.permission.put.RestPutPermissionAction;
+import org.opensearch.identity.rest.permission.put.TransportPutPermissionAction;
 import org.opensearch.identity.jwt.IdentityJwtVerifier;
 import org.opensearch.identity.rest.configuration.IdentityConfigUpdateAction;
 import org.opensearch.identity.rest.configuration.TransportIdentityConfigUpdateAction;
@@ -70,12 +73,12 @@ import org.opensearch.watcher.ResourceWatcherService;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
+import java.util.Collections;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
@@ -133,11 +136,12 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         if (!enabled) {
             return Collections.emptyList();
         }
-        final List<RestHandler> handlers = new ArrayList<>(4);
+        final List<RestHandler> handlers = new ArrayList<>(5);
         handlers.add(new RestPutUserAction());
         handlers.add(new RestGetUserAction());
         handlers.add(new RestMultiGetUserAction());
         handlers.add(new RestDeleteUserAction());
+        handlers.add(new RestPutPermissionAction());
         // TODO: Add handlers for future actions
         return handlers;
     }
@@ -156,7 +160,8 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
             new ActionHandler<>(PutUserAction.INSTANCE, TransportPutUserAction.class),
             new ActionHandler<>(GetUserAction.INSTANCE, TransportGetUserAction.class),
             new ActionHandler<>(MultiGetUserAction.INSTANCE, TransportMultiGetUserAction.class),
-            new ActionHandler<>(DeleteUserAction.INSTANCE, TransportDeleteUserAction.class)
+            new ActionHandler<>(DeleteUserAction.INSTANCE, TransportDeleteUserAction.class),
+            new ActionHandler<>(PutPermissionAction.INSTANCE, TransportPutPermissionAction.class)
         );
     }
 
