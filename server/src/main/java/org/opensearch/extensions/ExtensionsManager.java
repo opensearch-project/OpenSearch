@@ -10,6 +10,7 @@ package org.opensearch.extensions;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.ConnectException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Files;
@@ -60,6 +61,7 @@ import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.rest.RestController;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
@@ -405,6 +407,8 @@ public class ExtensionsManager {
             } else {
                 throw new RuntimeException(e.getCause());
             }
+        } catch (ConnectTransportException ex) {
+            logger.info("No response from extension to request.");
         }
     }
 
