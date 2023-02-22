@@ -15,7 +15,6 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.Table;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentOpenSearchExtension;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.replication.SegmentReplicationState;
@@ -92,10 +91,6 @@ public class RestCatSegmentReplicationActionTests extends OpenSearchTestCase {
         final List<String> expectedHeaders = Arrays.asList(
             "index",
             "shardId",
-            "start_time",
-            "start_time_millis",
-            "stop_time",
-            "stop_time_millis",
             "time",
             "stage",
             "source_description",
@@ -118,10 +113,6 @@ public class RestCatSegmentReplicationActionTests extends OpenSearchTestCase {
             final List<Object> expectedValues = Arrays.asList(
                 "index",
                 i,
-                XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().startTime()),
-                state.getTimer().startTime(),
-                XContentOpenSearchExtension.DEFAULT_DATE_PRINTER.print(state.getTimer().stopTime()),
-                state.getTimer().stopTime(),
                 new TimeValue(state.getTimer().time()),
                 state.getStage().name().toLowerCase(Locale.ROOT),
                 state.getSourceDescription(),
