@@ -40,7 +40,6 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.SegmentsStats;
@@ -147,7 +146,7 @@ public class IndicesStatsTests extends OpenSearchSingleNodeTestCase {
             }
             if (end - System.nanoTime() < 0) {
                 logger.info("timed out");
-                fail("didn't get a refresh listener in time: " + Strings.toString(XContentType.JSON, common));
+                fail("didn't get a refresh listener in time: " + Strings.toString(common));
             }
         }
 

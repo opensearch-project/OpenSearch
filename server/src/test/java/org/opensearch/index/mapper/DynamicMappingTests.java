@@ -36,7 +36,6 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -184,7 +183,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertEquals(
             "{\"_doc\":{\"properties\":{\"foo\":{\"type\":\"text\",\"fields\":"
                 + "{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}}",
-            Strings.toString(XContentType.JSON, doc.dynamicMappingsUpdate())
+            Strings.toString(doc.dynamicMappingsUpdate())
         );
     }
 
@@ -200,9 +199,9 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         }));
         assertNotNull(doc.dynamicMappingsUpdate());
 
-        assertThat(Strings.toString(XContentType.JSON, doc.dynamicMappingsUpdate()), containsString("{\"bar\":"));
+        assertThat(Strings.toString(doc.dynamicMappingsUpdate()), containsString("{\"bar\":"));
         // field is NOT in the update
-        assertThat(Strings.toString(XContentType.JSON, doc.dynamicMappingsUpdate()), not(containsString("{\"field\":")));
+        assertThat(Strings.toString(doc.dynamicMappingsUpdate()), not(containsString("{\"field\":")));
     }
 
     public void testIntroduceTwoFields() throws Exception {
@@ -214,8 +213,8 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         }));
 
         assertNotNull(doc.dynamicMappingsUpdate());
-        assertThat(Strings.toString(XContentType.JSON, doc.dynamicMappingsUpdate()), containsString("\"foo\":{"));
-        assertThat(Strings.toString(XContentType.JSON, doc.dynamicMappingsUpdate()), containsString("\"bar\":{"));
+        assertThat(Strings.toString(doc.dynamicMappingsUpdate()), containsString("\"foo\":{"));
+        assertThat(Strings.toString(doc.dynamicMappingsUpdate()), containsString("\"bar\":{"));
     }
 
     public void testObject() throws Exception {
@@ -230,7 +229,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
 
         assertNotNull(doc.dynamicMappingsUpdate());
         assertThat(
-            Strings.toString(XContentType.JSON, doc.dynamicMappingsUpdate()),
+            Strings.toString(doc.dynamicMappingsUpdate()),
             containsString("{\"foo\":{\"properties\":{\"bar\":{\"properties\":{\"baz\":{\"type\":\"text\"")
         );
     }
@@ -241,7 +240,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.startArray("foo").value("bar").value("baz").endArray()));
 
         assertNotNull(doc.dynamicMappingsUpdate());
-        assertThat(Strings.toString(XContentType.JSON, doc.dynamicMappingsUpdate()), containsString("{\"foo\":{\"type\":\"text\""));
+        assertThat(Strings.toString(doc.dynamicMappingsUpdate()), containsString("{\"foo\":{\"type\":\"text\""));
     }
 
     public void testInnerDynamicMapping() throws Exception {
@@ -257,7 +256,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
 
         assertNotNull(doc.dynamicMappingsUpdate());
         assertThat(
-            Strings.toString(XContentType.JSON, doc.dynamicMappingsUpdate()),
+            Strings.toString(doc.dynamicMappingsUpdate()),
             containsString("{\"field\":{\"properties\":{\"bar\":{\"properties\":{\"baz\":{\"type\":\"text\"")
         );
     }
@@ -277,7 +276,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertEquals(
             "{\"_doc\":{\"properties\":{\"foo\":{\"properties\":{\"bar\":{\"type\":\"text\",\"fields\":{"
                 + "\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}},\"baz\":{\"type\":\"long\"}}}}}}",
-            Strings.toString(XContentType.JSON, doc.dynamicMappingsUpdate())
+            Strings.toString(doc.dynamicMappingsUpdate())
         );
     }
 

@@ -42,7 +42,6 @@ import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
@@ -128,6 +127,6 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return Strings.toString(this);
     }
 }

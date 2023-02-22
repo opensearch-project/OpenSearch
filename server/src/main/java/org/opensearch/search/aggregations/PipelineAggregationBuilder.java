@@ -36,7 +36,6 @@ import org.opensearch.action.ValidateActions;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.Rewriteable;
 import org.opensearch.search.aggregations.AggregatorFactories.Builder;
@@ -288,7 +287,7 @@ public abstract class PipelineAggregationBuilder
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this, true, true);
+        return Strings.toString(this, true, true);
     }
 
     /**

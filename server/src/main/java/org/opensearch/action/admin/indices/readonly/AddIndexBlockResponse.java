@@ -42,7 +42,6 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.Index;
 
 import java.io.IOException;
@@ -93,7 +92,7 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return Strings.toString(this);
     }
 
     /**
@@ -192,7 +191,7 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
 
         @Override
         public String toString() {
-            return Strings.toString(XContentType.JSON, this);
+            return Strings.toString(this);
         }
     }
 
@@ -252,7 +251,7 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
 
         @Override
         public String toString() {
-            return Strings.toString(XContentType.JSON, this);
+            return Strings.toString(this);
         }
 
         /**
@@ -298,7 +297,7 @@ public class AddIndexBlockResponse extends ShardsAcknowledgedResponse {
 
             @Override
             public String toString() {
-                return Strings.toString(XContentType.JSON, this);
+                return Strings.toString(this);
             }
 
             static Failure readFailure(final StreamInput in) throws IOException {

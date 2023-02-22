@@ -41,7 +41,6 @@ import org.opensearch.common.xcontent.StatusToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParser.Token;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.ingest.PipelineConfiguration;
 import org.opensearch.rest.RestStatus;
 
@@ -167,7 +166,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return Strings.toString(this);
     }
 
     @Override

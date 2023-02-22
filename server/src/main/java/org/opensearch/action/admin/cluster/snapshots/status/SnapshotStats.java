@@ -43,7 +43,6 @@ import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParserUtils;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -357,7 +356,7 @@ public class SnapshotStats implements Writeable, ToXContentObject {
             time = endTime - startTime;
         }
         assert time >= 0 : "Update with ["
-            + Strings.toString(XContentType.JSON, stats)
+            + Strings.toString(stats)
             + "]["
             + updateTimestamps
             + "] resulted in negative total time ["

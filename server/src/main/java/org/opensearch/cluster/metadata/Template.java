@@ -176,7 +176,7 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return Strings.toString(this);
     }
 
     @Override

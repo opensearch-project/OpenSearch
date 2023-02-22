@@ -42,7 +42,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.IndexAnalyzers;
@@ -266,7 +265,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         assertTrue(mapper.fixed);
         assertEquals("default", mapper.variable);
 
-        assertEquals("{\"field\":" + mapping + "}", Strings.toString(XContentType.JSON, mapper));
+        assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));
         assertEquals(
             "{\"field\":{\"type\":\"test_mapper\",\"fixed\":true,"
                 + "\"fixed2\":false,\"variable\":\"default\",\"index\":true,"
@@ -280,7 +279,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
     public void testMerging() {
         String mapping = "{\"type\":\"test_mapper\",\"fixed\":false,\"required\":\"value\"}";
         TestMapper mapper = fromMapping(mapping);
-        assertEquals("{\"field\":" + mapping + "}", Strings.toString(XContentType.JSON, mapper));
+        assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));
 
         TestMapper badMerge = fromMapping("{\"type\":\"test_mapper\",\"fixed\":true,\"fixed2\":true,\"required\":\"value\"}");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> mapper.merge(badMerge));
@@ -289,16 +288,16 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             + "\tCannot update parameter [fixed2] from [false] to [true]";
         assertEquals(expectedError, e.getMessage());
 
-        assertEquals("{\"field\":" + mapping + "}", Strings.toString(XContentType.JSON, mapper));   // original mapping is unaffected
+        assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));   // original mapping is unaffected
 
         // TODO: should we have to include 'fixed' here? Or should updates take as 'defaults' the existing values?
         TestMapper goodMerge = fromMapping("{\"type\":\"test_mapper\",\"fixed\":false,\"variable\":\"updated\",\"required\":\"value\"}");
         TestMapper merged = (TestMapper) mapper.merge(goodMerge);
 
-        assertEquals("{\"field\":" + mapping + "}", Strings.toString(XContentType.JSON, mapper));   // original mapping is unaffected
+        assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));   // original mapping is unaffected
         assertEquals(
             "{\"field\":{\"type\":\"test_mapper\",\"fixed\":false,\"variable\":\"updated\",\"required\":\"value\"}}",
-            Strings.toString(XContentType.JSON, merged)
+            Strings.toString(merged)
         );
     }
 
@@ -307,7 +306,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         String mapping = "{\"type\":\"test_mapper\",\"variable\":\"foo\",\"required\":\"value\","
             + "\"fields\":{\"sub\":{\"type\":\"keyword\"}}}";
         TestMapper mapper = fromMapping(mapping);
-        assertEquals("{\"field\":" + mapping + "}", Strings.toString(XContentType.JSON, mapper));
+        assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));
 
         String addSubField = "{\"type\":\"test_mapper\",\"variable\":\"foo\",\"required\":\"value\""
             + ",\"fields\":{\"sub2\":{\"type\":\"keyword\"}}}";
@@ -316,7 +315,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         assertEquals(
             "{\"field\":{\"type\":\"test_mapper\",\"variable\":\"foo\",\"required\":\"value\","
                 + "\"fields\":{\"sub\":{\"type\":\"keyword\"},\"sub2\":{\"type\":\"keyword\"}}}}",
-            Strings.toString(XContentType.JSON, merged)
+            Strings.toString(merged)
         );
 
         String badSubField = "{\"type\":\"test_mapper\",\"variable\":\"foo\",\"required\":\"value\","
@@ -330,7 +329,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
     public void testCopyTo() {
         String mapping = "{\"type\":\"test_mapper\",\"variable\":\"foo\",\"required\":\"value\",\"copy_to\":[\"other\"]}";
         TestMapper mapper = fromMapping(mapping);
-        assertEquals("{\"field\":" + mapping + "}", Strings.toString(XContentType.JSON, mapper));
+        assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));
 
         // On update, copy_to is completely replaced
 
@@ -340,15 +339,12 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         TestMapper merged = (TestMapper) mapper.merge(toMerge);
         assertEquals(
             "{\"field\":{\"type\":\"test_mapper\",\"variable\":\"updated\",\"required\":\"value\"," + "\"copy_to\":[\"foo\",\"bar\"]}}",
-            Strings.toString(XContentType.JSON, merged)
+            Strings.toString(merged)
         );
 
         TestMapper removeCopyTo = fromMapping("{\"type\":\"test_mapper\",\"variable\":\"updated\",\"required\":\"value\"}");
         TestMapper noCopyTo = (TestMapper) merged.merge(removeCopyTo);
-        assertEquals(
-            "{\"field\":{\"type\":\"test_mapper\",\"variable\":\"updated\",\"required\":\"value\"}}",
-            Strings.toString(XContentType.JSON, noCopyTo)
-        );
+        assertEquals("{\"field\":{\"type\":\"test_mapper\",\"variable\":\"updated\",\"required\":\"value\"}}", Strings.toString(noCopyTo));
     }
 
     public void testNullables() {
@@ -358,7 +354,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
 
         String fine = "{\"type\":\"test_mapper\",\"variable\":null,\"required\":\"value\"}";
         TestMapper mapper = fromMapping(fine);
-        assertEquals("{\"field\":" + fine + "}", Strings.toString(XContentType.JSON, mapper));
+        assertEquals("{\"field\":" + fine + "}", Strings.toString(mapper));
     }
 
     public void testObjectSerialization() throws IOException {
@@ -373,10 +369,10 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             + "\"is_interim\":{\"type\":\"boolean\"}}}}}}";
 
         MapperService mapperService = createMapperService("_doc", mapping);
-        assertEquals(mapping, Strings.toString(XContentType.JSON, mapperService.documentMapper()));
+        assertEquals(mapping, Strings.toString(mapperService.documentMapper()));
 
         mapperService.merge("_doc", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
-        assertEquals(mapping, Strings.toString(XContentType.JSON, mapperService.documentMapper()));
+        assertEquals(mapping, Strings.toString(mapperService.documentMapper()));
     }
 
     // test custom serializer
@@ -384,7 +380,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         String mapping = "{\"type\":\"test_mapper\",\"wrapper\":\"wrapped value\",\"required\":\"value\"}";
         TestMapper mapper = fromMapping(mapping);
         assertEquals("wrapped value", mapper.wrapper.name);
-        assertEquals("{\"field\":" + mapping + "}", Strings.toString(XContentType.JSON, mapper));
+        assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));
 
         String conflict = "{\"type\":\"test_mapper\",\"wrapper\":\"new value\",\"required\":\"value\"}";
         TestMapper toMerge = fromMapping(conflict);
@@ -401,7 +397,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         String mapping = "{\"type\":\"test_mapper\",\"int_value\":10,\"required\":\"value\"}";
         TestMapper mapper = fromMapping(mapping);
         assertEquals(10, mapper.intValue);
-        assertEquals("{\"field\":" + mapping + "}", Strings.toString(XContentType.JSON, mapper));
+        assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -416,23 +412,20 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         TestMapper mapper = fromMapping(mapping);
         assertTrue(mapper.fixed2);
         assertWarnings("Parameter [fixed2_old] on mapper [field] is deprecated, use [fixed2]");
-        assertEquals(
-            "{\"field\":{\"type\":\"test_mapper\",\"fixed2\":true,\"required\":\"value\"}}",
-            Strings.toString(XContentType.JSON, mapper)
-        );
+        assertEquals("{\"field\":{\"type\":\"test_mapper\",\"fixed2\":true,\"required\":\"value\"}}", Strings.toString(mapper));
     }
 
     public void testAnalyzers() {
         String mapping = "{\"type\":\"test_mapper\",\"analyzer\":\"_standard\",\"required\":\"value\"}";
         TestMapper mapper = fromMapping(mapping);
         assertEquals(mapper.analyzer, Lucene.STANDARD_ANALYZER);
-        assertEquals("{\"field\":" + mapping + "}", Strings.toString(XContentType.JSON, mapper));
+        assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));
 
         String withDef = "{\"type\":\"test_mapper\",\"analyzer\":\"default\",\"required\":\"value\"}";
         mapper = fromMapping(withDef);
         assertEquals(mapper.analyzer.name(), "default");
         assertThat(mapper.analyzer.analyzer(), instanceOf(StandardAnalyzer.class));
-        assertEquals("{\"field\":" + withDef + "}", Strings.toString(XContentType.JSON, mapper));
+        assertEquals("{\"field\":" + withDef + "}", Strings.toString(mapper));
 
         String badAnalyzer = "{\"type\":\"test_mapper\",\"analyzer\":\"wibble\",\"required\":\"value\"}";
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> fromMapping(badAnalyzer));
@@ -453,10 +446,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         TestMapper mapper = fromMapping(mapping, LegacyESVersion.V_7_8_0);
         assertWarnings("Parameter [store] has no effect on type [test_mapper] and will be removed in future");
         assertFalse(mapper.index);
-        assertEquals(
-            "{\"field\":{\"type\":\"test_mapper\",\"index\":false,\"required\":\"value\"}}",
-            Strings.toString(XContentType.JSON, mapper)
-        );
+        assertEquals("{\"field\":{\"type\":\"test_mapper\",\"index\":false,\"required\":\"value\"}}", Strings.toString(mapper));
     }
 
     public void testLinkedAnalyzers() throws IOException {
@@ -464,20 +454,20 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         TestMapper mapper = fromMapping(mapping);
         assertEquals("_standard", mapper.analyzer.name());
         assertEquals("_standard", mapper.searchAnalyzer.name());
-        assertEquals("{\"field\":" + mapping + "}", Strings.toString(XContentType.JSON, mapper));
+        assertEquals("{\"field\":" + mapping + "}", Strings.toString(mapper));
 
         String mappingWithSA = "{\"type\":\"test_mapper\",\"search_analyzer\":\"_standard\",\"required\":\"value\"}";
         mapper = fromMapping(mappingWithSA);
         assertEquals("_keyword", mapper.analyzer.name());
         assertEquals("_standard", mapper.searchAnalyzer.name());
-        assertEquals("{\"field\":" + mappingWithSA + "}", Strings.toString(XContentType.JSON, mapper));
+        assertEquals("{\"field\":" + mappingWithSA + "}", Strings.toString(mapper));
 
         String mappingWithBoth = "{\"type\":\"test_mapper\",\"analyzer\":\"default\","
             + "\"search_analyzer\":\"_standard\",\"required\":\"value\"}";
         mapper = fromMapping(mappingWithBoth);
         assertEquals("default", mapper.analyzer.name());
         assertEquals("_standard", mapper.searchAnalyzer.name());
-        assertEquals("{\"field\":" + mappingWithBoth + "}", Strings.toString(XContentType.JSON, mapper));
+        assertEquals("{\"field\":" + mappingWithBoth + "}", Strings.toString(mapper));
 
         // we've configured things so that search_analyzer is only output when different from
         // analyzer, no matter what the value of `include_defaults` is
@@ -486,10 +476,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         mapper = fromMapping(mappingWithSame);
         assertEquals("default", mapper.analyzer.name());
         assertEquals("default", mapper.searchAnalyzer.name());
-        assertEquals(
-            "{\"field\":{\"type\":\"test_mapper\",\"analyzer\":\"default\",\"required\":\"value\"}}",
-            Strings.toString(XContentType.JSON, mapper)
-        );
+        assertEquals("{\"field\":{\"type\":\"test_mapper\",\"analyzer\":\"default\",\"required\":\"value\"}}", Strings.toString(mapper));
 
         assertEquals(
             "{\"field\":{\"type\":\"test_mapper\",\"fixed\":true,"

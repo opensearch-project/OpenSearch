@@ -74,7 +74,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.ListenableFuture;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.discovery.DiscoveryModule;
@@ -1320,22 +1319,16 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
     // deserialized from the resulting JSON
     private boolean assertPreviousStateConsistency(ClusterChangedEvent event) {
         assert event.previousState() == coordinationState.get().getLastAcceptedState()
-            || XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(XContentType.JSON, event.previousState()), false)
+            || XContentHelper.convertToMap(JsonXContent.jsonXContent, Strings.toString(event.previousState()), false)
                 .equals(
                     XContentHelper.convertToMap(
                         JsonXContent.jsonXContent,
-                        Strings.toString(
-                            XContentType.JSON,
-                            clusterStateWithNoClusterManagerBlock(coordinationState.get().getLastAcceptedState())
-                        ),
+                        Strings.toString(clusterStateWithNoClusterManagerBlock(coordinationState.get().getLastAcceptedState())),
                         false
                     )
-                ) : Strings.toString(XContentType.JSON, event.previousState())
+                ) : Strings.toString(event.previousState())
                     + " vs "
-                    + Strings.toString(
-                        XContentType.JSON,
-                        clusterStateWithNoClusterManagerBlock(coordinationState.get().getLastAcceptedState())
-                    );
+                    + Strings.toString(clusterStateWithNoClusterManagerBlock(coordinationState.get().getLastAcceptedState()));
         return true;
     }
 

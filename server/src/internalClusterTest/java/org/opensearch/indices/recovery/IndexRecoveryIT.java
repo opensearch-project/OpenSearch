@@ -1589,10 +1589,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
                         .getShard(0)
                         .getRetentionLeases();
                     throw new AssertionError(
-                        "expect an operation-based recovery:"
-                            + "retention leases"
-                            + Strings.toString(XContentType.JSON, retentionLeases)
-                            + "]"
+                        "expect an operation-based recovery:" + "retention leases" + Strings.toString(retentionLeases) + "]"
                     );
                 }
                 connection.sendRequest(requestId, action, request, options);

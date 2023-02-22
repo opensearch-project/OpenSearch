@@ -52,7 +52,6 @@ import org.opensearch.common.xcontent.StatusToXContentObject;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
@@ -375,7 +374,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
 
         @Override
         public String toString() {
-            return Strings.toString(XContentType.JSON, this);
+            return Strings.toString(this);
         }
     }
 
