@@ -27,7 +27,6 @@ public class ResetPasswordRequest extends ActionRequest implements ToXContentObj
     private String username;
     private String oldPassword;
     private String newPassword;
-    private String newPasswordValidation;
 
     public ResetPasswordRequest(StreamInput in) throws IOException {
         super(in);
