@@ -1,0 +1,77 @@
+---
+"Clone index with wait_for_completion":
+  # clone index with wait_for_completion parameter, when the parameter is set to false, the API
+  # will return a task immediately and the clone operation will run in background.
+
+  - skip:
+      version: " - 2.9.99"
+      reason: "only available in 3.0+"
+      features: allowed_warnings
+
+  - do:
+      nodes.info:
+        node_id: data:true
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      indices.create:
+        index: source
+        wait_for_active_shards: 1
+        body:
+          settings:
+            # ensure everything is allocated on the same data node
+            index.routing.allocation.include._id: $node_id
+            index.number_of_shards: 1
+            index.number_of_replicas: 0
+  - do:
+      index:
+        index: source
+        id:    "1"
+        body:  { "foo": "hello world" }
+
+  - do:
+      get:
+        index: source
+        id:    "1"
+
+  - match: { _index:   source }
+  - match: { _id:      "1"     }
+  - match: { _source:  { foo: "hello world" } }
+
+  # make it read-only
+  - do:
+      indices.put_settings:
+        index: source
+        body:
+          index.blocks.write: true
+          index.number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+        index: source
+
+  # clone with wait_for_completion
+  - do:
+      allowed_warnings:
+        - "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead."
+      indices.clone:
+        index: "source"
+        target: "new_cloned_index"
+        wait_for_active_shards: 1
+        master_timeout: 10s
+        wait_for_completion: false
+        body:
+          settings:
+            index.number_of_shards: 1
+            "index.number_of_replicas": 0
+
+  - match: { task: /^.+$/ }
+  - set: { task: taskId }
+
+  - do:
+      tasks.get:
+        task_id: $taskId
+  - match: { task.action: "indices:admin/resize" }
+  - match: { task.description: "clone from [source] to [new_cloned_index]" }

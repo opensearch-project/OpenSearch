@@ -1,0 +1,36 @@
+---
+"Open index with wait_for_completion":
+  # open index with wait_for_completion parameter, when the parameter is set to false, the API
+  # will return a task immediately and the open operation will run in background.
+
+  - skip:
+      version: " - 2.9.99"
+      reason: "only available in 3.0+"
+      features: allowed_warnings
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_replicas: 0
+            number_of_shards: 1
+
+  - do:
+      indices.close:
+        index: test_index
+  - is_true: acknowledged
+
+  - do:
+      indices.open:
+        index: test_index
+        wait_for_active_shards: all
+        wait_for_completion: false
+  - match: { task: /^.+$/ }
+  - set: { task: taskId }
+
+  - do:
+      tasks.get:
+        task_id: $taskId
+  - match: { task.action: "indices:admin/open" }
+  - match: { task.description: "open indices [test_index]" }
