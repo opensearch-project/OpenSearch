@@ -166,10 +166,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
             new ActionHandler<>(MultiGetUserAction.INSTANCE, TransportMultiGetUserAction.class),
             new ActionHandler<>(DeleteUserAction.INSTANCE, TransportDeleteUserAction.class),
             new ActionHandler<>(PutPermissionAction.INSTANCE, TransportPutPermissionAction.class),
-            new ActionHandler<>(DeleteUserAction.INSTANCE, TransportDeleteUserAction.class),
-            new ActionHandler<>(ResetPasswordAction.INSTANCE, TransportResetPasswordAction.class),
-            new ActionHandler<>(IdentityConfigUpdateAction.INSTANCE, TransportIdentityConfigUpdateAction.class)
-
+            new ActionHandler<>(ResetPasswordAction.INSTANCE, TransportResetPasswordAction.class)
         );
     }
 

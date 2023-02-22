@@ -11,10 +11,7 @@ package org.opensearch.identity.remotecluster;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
-import org.opensearch.identity.IdentityConfigConstants;
-import org.opensearch.identity.rest.IdentityRestConstants;
 import org.opensearch.identity.utils.ErrorType;
-import org.opensearch.test.rest.OpenSearchRestTestCase;
 
 import java.util.List;
 import java.util.Map;
@@ -112,7 +109,7 @@ public class UserIT extends IdentityRestTestCase {
         String createMessage = username + " created successfully.";
         Request userCreationRequest = new Request("PUT", ENDPOINT + "/users/" + username);
         userCreationRequest.setJsonEntity(userCreationContent);
-        userCreationRequest.setOptions(systemIndexWarning());
+        userCreationRequest.setOptions(options());
         Response userCreationResponse = client().performRequest(userCreationRequest);
         assertEquals(userCreationResponse.getStatusLine().getStatusCode(), 200);
         Map<String, Object> userCreated = entityAsMap(userCreationResponse);
@@ -123,7 +120,7 @@ public class UserIT extends IdentityRestTestCase {
 
         Request request = new Request("POST", ENDPOINT + "/users/" + username + "/resetpassword");
         request.setJsonEntity(requestContent);
-        request.setOptions(systemIndexWarning());
+        request.setOptions(options());
         Response response = client().performRequest(request);
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
@@ -134,7 +131,7 @@ public class UserIT extends IdentityRestTestCase {
 
         Request request = new Request("POST", ENDPOINT + "/users/" + username + "/resetpassword");
         request.setJsonEntity(requestContent);
-        request.setOptions(systemIndexWarning());
+        request.setOptions(options());
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         Map<String, Object> exception = entityAsMap(e.getResponse());
         assertEquals(400, exception.get("status"));
@@ -151,7 +148,7 @@ public class UserIT extends IdentityRestTestCase {
         String createMessage = username + " created successfully.";
         Request userCreationRequest = new Request("PUT", ENDPOINT + "/users/" + username);
         userCreationRequest.setJsonEntity(userCreationContent);
-        userCreationRequest.setOptions(systemIndexWarning());
+        userCreationRequest.setOptions(options());
         Response userCreationResponse = client().performRequest(userCreationRequest);
         assertEquals(userCreationResponse.getStatusLine().getStatusCode(), 200);
         Map<String, Object> userCreated = entityAsMap(userCreationResponse);
@@ -163,7 +160,7 @@ public class UserIT extends IdentityRestTestCase {
         // Old password mismatching
         Request requestOldPasswordMismatching = new Request("POST", ENDPOINT + "/users/" + username + "/resetpassword");
         requestOldPasswordMismatching.setJsonEntity(oldPasswordsDontMatch);
-        requestOldPasswordMismatching.setOptions(systemIndexWarning());
+        requestOldPasswordMismatching.setOptions(options());
         ResponseException eOldPasswordMismatching = expectThrows(
             ResponseException.class,
             () -> client().performRequest(requestOldPasswordMismatching)
@@ -178,7 +175,7 @@ public class UserIT extends IdentityRestTestCase {
         // New password matching old password
         Request requestNewPasswordMatchingOldPassword = new Request("POST", ENDPOINT + "/users/" + username + "/resetpassword");
         requestNewPasswordMatchingOldPassword.setJsonEntity(newPasswordsMatchOldPassword);
-        requestNewPasswordMatchingOldPassword.setOptions(systemIndexWarning());
+        requestNewPasswordMatchingOldPassword.setOptions(options());
         ResponseException eNewPasswordMatchingOldPassword = expectThrows(
             ResponseException.class,
             () -> client().performRequest(requestNewPasswordMatchingOldPassword)

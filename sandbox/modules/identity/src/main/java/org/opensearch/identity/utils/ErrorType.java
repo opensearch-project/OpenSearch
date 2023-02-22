@@ -19,6 +19,7 @@ public enum ErrorType {
     OLDPASSWORD_MISMATCHING("Old passwords do not match."),
     USER_NOT_EXISTING("Failed to reset password, because target user does not exist."),
     NEWPASSWORD_MATCHING_OLDPASSWORD("New password is same as the current password, please create another new password.");
+
     private String message;
 
     private ErrorType(String message) {
