@@ -633,7 +633,7 @@ public final class SearchPhaseController {
      * field mapping type, accordingly it will decide to widen the sort fields.
      * @param topFieldDocs
      * @param sortFieldindex
-     * @return
+     * @return boolean
      */
     private static boolean isSortWideningRequired(TopFieldDocs[] topFieldDocs, int sortFieldindex) {
         for (int i = 0; i < topFieldDocs.length - 1; i++) {

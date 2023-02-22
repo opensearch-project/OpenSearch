@@ -67,7 +67,7 @@ public class SortedWiderNumericSortField extends SortedNumericSortField {
      * @param numHits number of top hits the queue will store
      * @param enableSkipping true if the comparator can skip documents via {@link
      *     LeafFieldComparator#competitiveIterator()}
-     * @return
+     * @return NumericComparator
      */
     @Override
     public FieldComparator<?> getComparator(int numHits, boolean enableSkipping) {
