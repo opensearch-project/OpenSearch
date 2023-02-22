@@ -50,7 +50,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Refactor] core.common to new opensearch-common library ([#5976](https://github.com/opensearch-project/OpenSearch/pull/5976))
 - Update API spec for cluster health API ([#6399](https://github.com/opensearch-project/OpenSearch/pull/6399))
 - Remove deprecated org.gradle.util.DistributionLocator usage ([#6212](https://github.com/opensearch-project/OpenSearch/pull/6212))
-- Require MediaType in Strings.toString API ([#6009](https://github.com/opensearch-project/OpenSearch/pull/6009))
 
 ### Deprecated
 

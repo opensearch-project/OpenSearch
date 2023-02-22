@@ -42,7 +42,6 @@ import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
@@ -218,6 +217,6 @@ public class SuggestBuilder implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this, true, true);
+        return Strings.toString(this, true, true);
     }
 }

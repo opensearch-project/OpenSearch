@@ -48,7 +48,6 @@ import org.opensearch.common.xcontent.SuggestingErrorOnUnknown;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentLocation;
 import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -395,6 +394,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     @Override
     public final String toString() {
-        return Strings.toString(XContentType.JSON, this, true, true);
+        return Strings.toString(this, true, true);
     }
 }

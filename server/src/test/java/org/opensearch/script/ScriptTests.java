@@ -166,11 +166,7 @@ public class ScriptTests extends OpenSearchTestCase {
             options.put("option" + i, Integer.toString(i));
         }
         Script script = new Script(ScriptType.INLINE, Script.DEFAULT_SCRIPT_LANG, "doc['field']", options, params);
-        Map<String, Object> scriptObject = XContentHelper.convertToMap(
-            XContentType.JSON.xContent(),
-            Strings.toString(XContentType.JSON, script),
-            false
-        );
+        Map<String, Object> scriptObject = XContentHelper.convertToMap(XContentType.JSON.xContent(), Strings.toString(script), false);
         Script parsedScript = Script.parse(scriptObject);
         assertEquals(script, parsedScript);
     }

@@ -44,7 +44,6 @@ import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParserUtils;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -106,7 +105,7 @@ public class RankEvalResponse extends ActionResponse implements ToXContentObject
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return Strings.toString(this);
     }
 
     @Override

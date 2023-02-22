@@ -19,7 +19,6 @@ import org.opensearch.client.Response;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -204,7 +203,7 @@ public class MappingTypeRemovalIT extends AbstractRollingTestCase {
 
     private void createIndexWithDocMappings(String index, Settings settings, String mapping) throws IOException {
         Request createIndexWithMappingsRequest = new Request(HttpPut.METHOD_NAME, "/" + index);
-        String entity = "{\"settings\": " + Strings.toString(XContentType.JSON, settings);
+        String entity = "{\"settings\": " + Strings.toString(settings);
         if (mapping != null) {
             entity += ",\"mappings\" : {" + mapping + "}";
         }

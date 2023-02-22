@@ -44,7 +44,6 @@ import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.xcontent.NamedObjectNotFoundException;
 import org.opensearch.common.xcontent.ToXContentObject;
 import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.index.query.QueryBuilder;
@@ -286,6 +285,6 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this, true, true);
+        return Strings.toString(this, true, true);
     }
 }

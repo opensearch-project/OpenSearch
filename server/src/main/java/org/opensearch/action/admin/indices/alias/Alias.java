@@ -312,7 +312,7 @@ public class Alias implements Writeable, ToXContentFragment {
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return Strings.toString(this);
     }
 
     @Override

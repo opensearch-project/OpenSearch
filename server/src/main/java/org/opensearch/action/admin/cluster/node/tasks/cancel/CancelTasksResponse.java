@@ -40,7 +40,6 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.xcontent.ConstructingObjectParser;
 import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.tasks.TaskInfo;
 
 import java.io.IOException;
@@ -81,6 +80,6 @@ public class CancelTasksResponse extends ListTasksResponse {
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this, true, true);
+        return Strings.toString(this, true, true);
     }
 }

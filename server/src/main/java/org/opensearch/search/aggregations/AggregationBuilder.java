@@ -36,7 +36,6 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.xcontent.ToXContentFragment;
 import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.Rewriteable;
@@ -193,6 +192,6 @@ public abstract class AggregationBuilder
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return Strings.toString(this);
     }
 }

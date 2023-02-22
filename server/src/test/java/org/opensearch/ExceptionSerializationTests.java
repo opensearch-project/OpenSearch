@@ -77,7 +77,6 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.CancellableThreadsTests;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentLocation;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.discovery.MasterNotDiscoveredException;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.index.Index;
@@ -536,15 +535,9 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
 
     public void testNotSerializableExceptionWrapper() throws IOException {
         NotSerializableExceptionWrapper ex = serialize(new NotSerializableExceptionWrapper(new NullPointerException()));
-        assertEquals(
-            "{\"type\":\"null_pointer_exception\",\"reason\":\"null_pointer_exception: null\"}",
-            Strings.toString(XContentType.JSON, ex)
-        );
+        assertEquals("{\"type\":\"null_pointer_exception\",\"reason\":\"null_pointer_exception: null\"}", Strings.toString(ex));
         ex = serialize(new NotSerializableExceptionWrapper(new IllegalArgumentException("nono!")));
-        assertEquals(
-            "{\"type\":\"illegal_argument_exception\",\"reason\":\"illegal_argument_exception: nono!\"}",
-            Strings.toString(XContentType.JSON, ex)
-        );
+        assertEquals("{\"type\":\"illegal_argument_exception\",\"reason\":\"illegal_argument_exception: nono!\"}", Strings.toString(ex));
 
         class UnknownException extends Exception {
             UnknownException(final String message) {
