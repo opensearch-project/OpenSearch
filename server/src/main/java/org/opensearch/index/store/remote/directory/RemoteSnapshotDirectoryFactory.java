@@ -89,11 +89,7 @@ public final class RemoteSnapshotDirectoryFactory implements IndexStorePlugin.Di
         return threadPool.executor(ThreadPool.Names.SNAPSHOT).submit(() -> {
             final BlobContainer blobContainer = blobStoreRepository.blobStore().blobContainer(blobPath);
             final BlobStoreIndexShardSnapshot snapshot = blobStoreRepository.loadShardSnapshot(blobContainer, snapshotId);
-            TransferManager transferManager = new TransferManager(
-                blobContainer,
-                threadPool.executor(ThreadPool.Names.SEARCH),
-                remoteStoreFileCache
-            );
+            TransferManager transferManager = new TransferManager(blobContainer, remoteStoreFileCache);
             return new RemoteSnapshotDirectory(snapshot, localStoreDir, transferManager);
         });
     }
