@@ -38,6 +38,7 @@ import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.List;
 
@@ -57,21 +58,13 @@ public class InitializeExtensionResponse extends TransportResponse {
 
     public InitializeExtensionResponse(StreamInput in) throws IOException {
         name = in.readString();
-        int size = in.readVInt();
-        this.implementatedInterfaces = new ArrayList<String>(size);
-        for (int i = 0; i < size; i++) {
-            String extensionInterfaceType = in.readString();
-            this.implementatedInterfaces.add(extensionInterfaceType);
-        }
+        this.implementatedInterfaces = new ArrayList<String>(Arrays.asList(in.readStringArray()));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeVInt(implementatedInterfaces.size());
-        for (String interfaceVal : implementatedInterfaces) {
-            out.writeString(interfaceVal);
-        }
+        out.writeStringArray(implementatedInterfaces.toArray(new String[0]));
     }
 
     /**
