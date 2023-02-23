@@ -780,8 +780,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     @Override
     protected void dispatchedShardOperationOnReplica(BulkShardRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
         ActionListener.completeWith(listener, () -> {
-            final Translog.Location location = performOnReplica(request, replica);
-            return new WriteReplicaResult<>(request, location, null, replica, logger);
+            final Tuple<Translog.Location, Long> tuple = performOnReplica(request, replica);
+            return new WriteReplicaResult<>(request, tuple, replica, logger);
         });
     }
 
@@ -790,8 +790,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return request.ramBytesUsed();
     }
 
-    public static Translog.Location performOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
+    public static Tuple<Translog.Location, Long> performOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
         Translog.Location location = null;
+        long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
         for (int i = 0; i < request.items().length; i++) {
             final BulkItemRequest item = request.items()[i];
             final BulkItemResponse response = item.getPrimaryResponse();
@@ -822,8 +823,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             }
             assert operationResult != null : "operation result must never be null when primary response has no failure";
             location = syncOperationResultOrThrow(operationResult, location);
+            maxSeqNo = response.getResponse().getSeqNo();
         }
-        return location;
+        return new Tuple<Translog.Location, Long>(location, maxSeqNo);
     }
 
     private static Engine.Result performOpOnReplica(

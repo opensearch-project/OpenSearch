@@ -46,12 +46,14 @@ import org.opensearch.cluster.metadata.IndexAbstraction;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.MapperParsingException;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.PrimaryShardClosedException;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
@@ -333,6 +335,7 @@ public abstract class TransportWriteAction<
         private final ReplicaRequest request;
         private final IndexShard replica;
         private final Logger logger;
+        private long maxSeqNo;
 
         public WriteReplicaResult(
             ReplicaRequest request,
@@ -343,9 +346,15 @@ public abstract class TransportWriteAction<
         ) {
             super(operationFailure);
             this.location = location;
+            this.maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
             this.request = request;
             this.replica = replica;
             this.logger = logger;
+        }
+
+        public WriteReplicaResult(ReplicaRequest request, Tuple<Location, Long> tuple, IndexShard replica, Logger logger) {
+            this(request, tuple.v1(), null, replica, logger);
+            this.maxSeqNo = tuple.v2();
         }
 
         @Override
@@ -353,7 +362,7 @@ public abstract class TransportWriteAction<
             if (finalFailure != null) {
                 listener.onFailure(finalFailure);
             } else {
-                new AsyncAfterWriteAction(replica, request, location, new RespondingWriteResult() {
+                new AsyncAfterWriteAction(replica, request, location, maxSeqNo, new RespondingWriteResult() {
                     @Override
                     public void onSuccess(boolean forcedRefresh) {
                         listener.onResponse(null);
@@ -414,6 +423,8 @@ public abstract class TransportWriteAction<
         private final WriteRequest<?> request;
         private final Logger logger;
 
+        private long maxSeqNo;
+
         AsyncAfterWriteAction(
             final IndexShard indexShard,
             final WriteRequest<?> request,
@@ -450,6 +461,18 @@ public abstract class TransportWriteAction<
             assert pendingOps.get() >= 0 && pendingOps.get() <= 3 : "pendingOpts was: " + pendingOps.get();
         }
 
+        AsyncAfterWriteAction(
+            final IndexShard indexShard,
+            final WriteRequest<?> request,
+            @Nullable final Translog.Location location,
+            final long maxSeqNo,
+            final RespondingWriteResult respond,
+            final Logger logger
+        ) {
+            this(indexShard, request, location, respond, logger);
+            this.maxSeqNo = maxSeqNo;
+        }
+
         /** calls the response listener if all pending operations have returned otherwise it just decrements the pending opts counter.*/
         private void maybeFinish() {
             final int numPending = pendingOps.decrementAndGet();
@@ -473,14 +496,25 @@ public abstract class TransportWriteAction<
             // decrement pending by one, if there is nothing else to do we just respond with success
             maybeFinish();
             if (waitUntilRefresh) {
-                assert pendingOps.get() > 0;
-                indexShard.addRefreshListener(location, forcedRefresh -> {
-                    if (forcedRefresh) {
-                        logger.warn("block until refresh ran out of slots and forced a refresh: [{}]", request);
-                    }
-                    refreshed.set(forcedRefresh);
-                    maybeFinish();
-                });
+                if (indexShard.indexSettings().isSegRepEnabled() == true) {
+                    assert pendingOps.get() > 0;
+                    indexShard.addRefreshListener(maxSeqNo, forcedRefresh -> {
+                        if (forcedRefresh) {
+                            logger.warn("block until refresh ran out of slots and forced a refresh: [{}]", request);
+                        }
+                        refreshed.set(forcedRefresh);
+                        maybeFinish();
+                    });
+                } else {
+                    assert pendingOps.get() > 0;
+                    indexShard.addRefreshListener(location, forcedRefresh -> {
+                        if (forcedRefresh) {
+                            logger.warn("block until refresh ran out of slots and forced a refresh: [{}]", request);
+                        }
+                        refreshed.set(forcedRefresh);
+                        maybeFinish();
+                    });
+                }
             }
             if (sync) {
                 assert pendingOps.get() > 0;

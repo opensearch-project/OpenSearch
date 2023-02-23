@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
@@ -306,7 +307,35 @@ public class NRTReplicationEngine extends Engine {
     }
 
     @Override
-    public void refresh(String source) throws EngineException {}
+    public void refresh(String source) throws EngineException {
+        try {
+            // refresh does not need to hold readLock as ReferenceManager can handle correctly if the engine is closed in mid-way.
+            if (store.tryIncRef()) {
+                // increment the ref just to ensure nobody closes the store during a refresh
+                try {
+                    // even though we maintain 2 managers we really do the heavy-lifting only once.
+                    // the second refresh will only do the extra work we have to do for warming caches etc.
+                    ReferenceManager<OpenSearchDirectoryReader> referenceManager = getReferenceManager(SearcherScope.EXTERNAL);
+                    // it is intentional that we never refresh both internal / external together
+                    referenceManager.maybeRefresh();
+
+                } finally {
+                    store.decRef();
+                }
+            } else {
+                return;
+            }
+        } catch (AlreadyClosedException e) {
+            throw e;
+        } catch (Exception e) {
+            try {
+                failEngine("refresh failed source[" + source + "]", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw new RefreshFailedEngineException(shardId, e);
+        }
+    }
 
     @Override
     public boolean maybeRefresh(String source) throws EngineException {

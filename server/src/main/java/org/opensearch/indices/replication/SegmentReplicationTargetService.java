@@ -244,6 +244,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                                 runnable.run();
                             }
                         }
+                        replicaShard.refresh("replication complete refresh");
                     }
 
                     @Override

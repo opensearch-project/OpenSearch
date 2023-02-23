@@ -39,6 +39,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.metrics.MeanMetric;
 import org.opensearch.common.util.concurrent.RunOnce;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.Translog;
 
 import java.io.Closeable;
@@ -66,6 +67,8 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     private final ThreadContext threadContext;
     private final MeanMetric refreshMetric;
 
+    private IndexShard indexShard;
+
     /**
      * Time in nanosecond when beforeRefresh() is called. Used for calculating refresh metrics.
      */
@@ -90,10 +93,14 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      * We never set this to non-null while closed it {@code true}.
      */
     private volatile List<Tuple<Translog.Location, Consumer<Boolean>>> refreshListeners = null;
+
+    private volatile List<Tuple<Long, Consumer<Boolean>>> refreshListeners2 = null;
     /**
      * The translog location that was last made visible by a refresh.
      */
     private volatile Translog.Location lastRefreshedLocation;
+
+    private volatile long lastMaxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
 
     public RefreshListeners(
         final IntSupplier getMaxRefreshListeners,
@@ -132,6 +139,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
             }
         }
         assert refreshListeners == null;
+        assert refreshListeners2 == null;
         return () -> runOnce.run();
     }
 
@@ -182,16 +190,59 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         return true;
     }
 
+    public boolean addOrNotify(long maxSeqNo, Consumer<Boolean> listener, IndexShard shard) {
+        indexShard = shard;
+        requireNonNull(listener, "listener cannot be null");
+        // requireNonNull(location, "location cannot be null");
+
+        if (lastMaxSeqNo != SequenceNumbers.NO_OPS_PERFORMED && lastMaxSeqNo >= maxSeqNo) {
+            // Location already visible, just call the listener
+            listener.accept(false);
+            return true;
+        }
+        synchronized (this) {
+            if (closed) {
+                throw new IllegalStateException("can't wait for refresh on a closed index");
+            }
+            List<Tuple<Long, Consumer<Boolean>>> listeners = refreshListeners2;
+            final int maxRefreshes = getMaxRefreshListeners.getAsInt();
+            if (refreshForcers == 0 && maxRefreshes > 0 && (listeners == null || listeners.size() < maxRefreshes)) {
+                ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true);
+                Consumer<Boolean> contextPreservingListener = forced -> {
+                    try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                        storedContext.restore();
+                        listener.accept(forced);
+                    }
+                };
+                if (listeners == null) {
+                    listeners = new ArrayList<>();
+                }
+                // We have a free slot so register the listener
+                listeners.add(new Tuple<>(maxSeqNo, contextPreservingListener));
+                refreshListeners2 = listeners;
+                return false;
+            }
+        }
+        // No free slot so force a refresh and call the listener in this thread
+        forceRefresh.run();
+        listener.accept(true);
+        return true;
+    }
+
     @Override
     public void close() throws IOException {
         List<Tuple<Translog.Location, Consumer<Boolean>>> oldListeners;
+        List<Tuple<Long, Consumer<Boolean>>> oldListeners2;
         synchronized (this) {
             oldListeners = refreshListeners;
+            oldListeners2 = refreshListeners2;
             refreshListeners = null;
             closed = true;
         }
         // Fire any listeners we might have had
         fireListeners(oldListeners);
+        fireListeners2(oldListeners2);
+
     }
 
     /**
@@ -199,7 +250,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      */
     public boolean refreshNeeded() {
         // A null list doesn't need a refresh. If we're closed we don't need a refresh either.
-        return refreshListeners != null && false == closed;
+        return refreshListeners != null && refreshListeners2 != null && false == closed;
     }
 
     /**
@@ -208,7 +259,11 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     public int pendingCount() {
         // No need to synchronize here because we're doing a single volatile read
         List<Tuple<Translog.Location, Consumer<Boolean>>> listeners = refreshListeners;
+        List<Tuple<Long, Consumer<Boolean>>> listeners2 = refreshListeners2;
         // A null list means we haven't accumulated any listeners. Otherwise we need the size.
+        if (listeners2 == null && listeners == null) {
+            return 0;
+        }
         return listeners == null ? 0 : listeners.size();
     }
 
@@ -256,51 +311,101 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         /* Grab the current refresh listeners and replace them with null while synchronized. Any listeners that come in after this won't be
          * in the list we iterate over and very likely won't be candidates for refresh anyway because we've already moved the
          * lastRefreshedLocation. */
-        List<Tuple<Translog.Location, Consumer<Boolean>>> candidates;
-        synchronized (this) {
-            candidates = refreshListeners;
-            // No listeners to check so just bail early
-            if (candidates == null) {
-                return;
-            }
-            refreshListeners = null;
-        }
-        // Iterate the list of listeners, copying the listeners to fire to one list and those to preserve to another list.
-        List<Tuple<Translog.Location, Consumer<Boolean>>> listenersToFire = null;
-        List<Tuple<Translog.Location, Consumer<Boolean>>> preservedListeners = null;
-        for (Tuple<Translog.Location, Consumer<Boolean>> tuple : candidates) {
-            Translog.Location location = tuple.v1();
-            if (location.compareTo(currentRefreshLocation) <= 0) {
-                if (listenersToFire == null) {
-                    listenersToFire = new ArrayList<>();
-                }
-                listenersToFire.add(tuple);
-            } else {
-                if (preservedListeners == null) {
-                    preservedListeners = new ArrayList<>();
-                }
-                preservedListeners.add(tuple);
-            }
-        }
-        /* Now deal with the listeners that it isn't time yet to fire. We need to do this under lock so we don't miss a concurrent close or
-         * newly registered listener. If we're not closed we just add the listeners to the list of listeners we check next time. If we are
-         * closed we fire the listeners even though it isn't time for them. */
-        if (preservedListeners != null) {
+        if (indexShard != null && indexShard.indexSettings.isSegRepEnabled()) {
+            List<Tuple<Long, Consumer<Boolean>>> candidates;
             synchronized (this) {
-                if (refreshListeners == null) {
-                    if (closed) {
-                        listenersToFire.addAll(preservedListeners);
-                    } else {
-                        refreshListeners = preservedListeners;
+                candidates = refreshListeners2;
+                // No listeners to check so just bail early
+                if (candidates == null) {
+                    return;
+                }
+                refreshListeners2 = null;
+            }
+            // Iterate the list of listeners, copying the listeners to fire to one list and those to preserve to another list.
+            List<Tuple<Long, Consumer<Boolean>>> listenersToFire = null;
+            List<Tuple<Long, Consumer<Boolean>>> preservedListeners = null;
+
+            for (Tuple<Long, Consumer<Boolean>> tuple : candidates) {
+                Long seqNo = tuple.v1();
+                if (seqNo <= indexShard.getLatestReplicationCheckpoint().getSeqNo()) {
+                    if (listenersToFire == null) {
+                        listenersToFire = new ArrayList<>();
                     }
+                    listenersToFire.add(tuple);
                 } else {
-                    assert closed == false : "Can't be closed and have non-null refreshListeners";
-                    refreshListeners.addAll(preservedListeners);
+                    if (preservedListeners == null) {
+                        preservedListeners = new ArrayList<>();
+                    }
+                    preservedListeners.add(tuple);
                 }
             }
+            /* Now deal with the listeners that it isn't time yet to fire. We need to do this under lock so we don't miss a concurrent close or
+             * newly registered listener. If we're not closed we just add the listeners to the list of listeners we check next time. If we are
+             * closed we fire the listeners even though it isn't time for them. */
+            if (preservedListeners != null) {
+                synchronized (this) {
+                    if (refreshListeners2 == null) {
+                        if (closed) {
+                            listenersToFire.addAll(preservedListeners);
+                        } else {
+                            refreshListeners2 = preservedListeners;
+                        }
+                    } else {
+                        assert closed == false : "Can't be closed and have non-null refreshListeners";
+                        refreshListeners2.addAll(preservedListeners);
+                    }
+                }
+            }
+            // Lastly, fire the listeners that are ready
+            fireListeners2(listenersToFire);
+        } else {
+            List<Tuple<Translog.Location, Consumer<Boolean>>> candidates;
+            synchronized (this) {
+                candidates = refreshListeners;
+                // No listeners to check so just bail early
+                if (candidates == null) {
+                    return;
+                }
+                refreshListeners = null;
+            }
+            // Iterate the list of listeners, copying the listeners to fire to one list and those to preserve to another list.
+            List<Tuple<Translog.Location, Consumer<Boolean>>> listenersToFire = null;
+            List<Tuple<Translog.Location, Consumer<Boolean>>> preservedListeners = null;
+
+            for (Tuple<Translog.Location, Consumer<Boolean>> tuple : candidates) {
+                Translog.Location location = tuple.v1();
+                if (location.compareTo(currentRefreshLocation) <= 0) {
+                    if (listenersToFire == null) {
+                        listenersToFire = new ArrayList<>();
+                    }
+                    listenersToFire.add(tuple);
+                } else {
+                    if (preservedListeners == null) {
+                        preservedListeners = new ArrayList<>();
+                    }
+                    preservedListeners.add(tuple);
+                }
+            }
+            /* Now deal with the listeners that it isn't time yet to fire. We need to do this under lock so we don't miss a concurrent close or
+             * newly registered listener. If we're not closed we just add the listeners to the list of listeners we check next time. If we are
+             * closed we fire the listeners even though it isn't time for them. */
+            if (preservedListeners != null) {
+                synchronized (this) {
+                    if (refreshListeners == null) {
+                        if (closed) {
+                            listenersToFire.addAll(preservedListeners);
+                        } else {
+                            refreshListeners = preservedListeners;
+                        }
+                    } else {
+                        assert closed == false : "Can't be closed and have non-null refreshListeners";
+                        refreshListeners.addAll(preservedListeners);
+                    }
+                }
+            }
+            // Lastly, fire the listeners that are ready
+            fireListeners(listenersToFire);
         }
-        // Lastly, fire the listeners that are ready
-        fireListeners(listenersToFire);
     }
 
     /**
@@ -309,6 +414,18 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     private void fireListeners(final List<Tuple<Translog.Location, Consumer<Boolean>>> listenersToFire) {
         if (listenersToFire != null) {
             for (final Tuple<Translog.Location, Consumer<Boolean>> listener : listenersToFire) {
+                try {
+                    listener.v2().accept(false);
+                } catch (final Exception e) {
+                    logger.warn("error firing refresh listener", e);
+                }
+            }
+        }
+    }
+
+    private void fireListeners2(final List<Tuple<Long, Consumer<Boolean>>> listenersToFire) {
+        if (listenersToFire != null) {
+            for (final Tuple<Long, Consumer<Boolean>> listener : listenersToFire) {
                 try {
                     listener.v2().accept(false);
                 } catch (final Exception e) {

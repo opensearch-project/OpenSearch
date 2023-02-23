@@ -9,6 +9,8 @@
 package org.opensearch.indices.replication;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.client.Requests;
@@ -20,15 +22,18 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.rest.RestStatus;
 import org.opensearch.test.BackgroundIndexer;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Arrays.asList;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
@@ -514,5 +519,47 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             waitForSearchableDocs(initialDocCount + 1, dataNodes);
             verifyStoreContent();
         }
+    }
+
+    public void testWaitUntil() throws Exception {
+        final String primaryNode = internalCluster().startNode(featureFlagSettings());
+        prepareCreate(
+            INDEX_NAME,
+            Settings.builder()
+                .put("index.number_of_shards", 1)
+                .put("index.number_of_replicas", 1)
+                // we want to control refreshes
+                .put("index.refresh_interval", "40ms")
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+        ).get();
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        final String replicaNode = internalCluster().startNode(featureFlagSettings());
+        ensureGreen(INDEX_NAME);
+        final int initialDocCount = scaledRandomIntBetween(4000, 5000);
+        final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
+        IndexShard primaryShard = getIndexShard(primaryNode, INDEX_NAME);
+        IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
+
+        for (int i = 0; i < initialDocCount; i++) {
+            pendingIndexResponses.add(
+                client().prepareIndex(INDEX_NAME)
+                    .setId(Integer.toString(i))
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
+                    .setSource("field", "value" + i)
+                    .execute()
+            );
+        }
+        assertBusy(
+            () -> {
+                assertTrue(pendingIndexResponses.stream().allMatch(response -> response.actionGet().status().equals(RestStatus.CREATED)));
+            },
+            1,
+            TimeUnit.MINUTES
+        );
+
+        assertEquals(primaryShard.getLatestReplicationCheckpoint().getSeqNo(), replicaShard.getLatestReplicationCheckpoint().getSeqNo());
+
+        assertHitCount(client(primaryNode).prepareSearch(INDEX_NAME).setPreference("_only_local").setSize(0).get(), initialDocCount);
+        assertHitCount(client(replicaNode).prepareSearch(INDEX_NAME).setPreference("_only_local").setSize(0).get(), initialDocCount);
     }
 }

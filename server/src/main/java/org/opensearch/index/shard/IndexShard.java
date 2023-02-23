@@ -4175,6 +4175,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    public void addRefreshListener(long maxSeqNo, Consumer<Boolean> listener) {
+        final boolean readAllowed;
+        if (isReadAllowed()) {
+            readAllowed = true;
+        } else {
+            // check again under postRecoveryMutex. this is important to create a happens before relationship
+            // between the switch to POST_RECOVERY + associated refresh. Otherwise we may respond
+            // to a listener before a refresh actually happened that contained that operation.
+            synchronized (postRecoveryMutex) {
+                readAllowed = isReadAllowed();
+            }
+        }
+        if (readAllowed) {
+            refreshListeners.addOrNotify(maxSeqNo, listener, this);
+        } else {
+            // we're not yet ready fo ready for reads, just ignore refresh cycles
+            listener.accept(false);
+        }
+    }
+
     /**
      * Metrics updater for a refresh
      *
