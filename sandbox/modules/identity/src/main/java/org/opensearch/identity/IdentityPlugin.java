@@ -150,6 +150,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         handlers.add(new RestPutPermissionAction());
         handlers.add(new RestGetPermissionAction());
         handlers.add(new RestDeletePermissionAction());
+
         // TODO: Add handlers for future actions
         return handlers;
     }
@@ -169,9 +170,11 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
             new ActionHandler<>(GetUserAction.INSTANCE, TransportGetUserAction.class),
             new ActionHandler<>(MultiGetUserAction.INSTANCE, TransportMultiGetUserAction.class),
             new ActionHandler<>(DeleteUserAction.INSTANCE, TransportDeleteUserAction.class),
+
             new ActionHandler<>(PutPermissionAction.INSTANCE, TransportPutPermissionAction.class),
             new ActionHandler<>(GetPermissionAction.INSTANCE, TransportGetPermissionAction.class),
             new ActionHandler<>(DeletePermissionAction.INSTANCE, TransportDeletePermissionAction.class)
+
         );
     }
 

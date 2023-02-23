@@ -48,7 +48,6 @@ public class RestPermissionsIT extends OpenSearchRestTestCase {
     protected void ensureIdentityIndexExists() throws IOException {
         // this will fail if default index name is changed in remote cluster
         String identityIndex = IdentityConfigConstants.IDENTITY_DEFAULT_CONFIG_INDEX;
-
         Request request = new Request("GET", "/" + identityIndex);
         Response response = adminClient().performRequest(request);
         assertEquals(response.getStatusLine().getStatusCode(), 200);
@@ -84,7 +83,6 @@ public class RestPermissionsIT extends OpenSearchRestTestCase {
             .collect(Collectors.toSet());
 
         // Check for the added permission in permission storage
-
         assertTrue(permissionsInStorage.contains("cluster.admin/read"));
 
         putRequest = new Request("PUT", endpoint + "/" + username);

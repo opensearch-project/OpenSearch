@@ -23,6 +23,7 @@ public class RoutesHelper {
      * @return new list of API routes prefixed with _identity/api...
      */
     public static List<RestHandler.Route> addRoutesPrefix(List<RestHandler.Route> routes) {
+
         return addRoutesPrefix(routes, IdentityRestConstants.IDENTITY_REST_API_REQUEST_PREFIX);
     }
 
