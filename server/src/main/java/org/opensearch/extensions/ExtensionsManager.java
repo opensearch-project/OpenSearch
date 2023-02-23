@@ -398,6 +398,8 @@ public class ExtensionsManager {
         } catch (CompletionException | ConnectTransportException e) {
             if (e.getCause() instanceof TimeoutException || e instanceof ConnectTransportException) {
                 logger.info("No response from extension to request.");
+            } else {
+                logger.error(e.toString());
             }
         }
     }
