@@ -10,6 +10,7 @@ package org.opensearch.identity.rest.user;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.bouncycastle.crypto.generators.OpenBSDBCrypt;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.ActionListener;
@@ -38,6 +39,9 @@ import org.opensearch.identity.rest.user.get.single.GetUserResponse;
 import org.opensearch.identity.rest.user.get.single.GetUserResponseInfo;
 import org.opensearch.identity.rest.user.put.PutUserResponse;
 import org.opensearch.identity.rest.user.put.PutUserResponseInfo;
+import org.opensearch.identity.rest.user.resetpassword.ResetPasswordRequest;
+import org.opensearch.identity.rest.user.resetpassword.ResetPasswordResponse;
+import org.opensearch.identity.rest.user.resetpassword.ResetPasswordResponseInfo;
 import org.opensearch.identity.utils.ErrorType;
 import org.opensearch.identity.utils.Hasher;
 import org.opensearch.index.IndexNotFoundException;
@@ -337,6 +341,69 @@ public class UserService {
         }
     }
 
+    public void resetPassword(ResetPasswordRequest request, ActionListener<ResetPasswordResponse> listener) {
+        if (!ensureIndexExists()) {
+            listener.onFailure(new IndexNotFoundException(ErrorType.IDENTITY_NOT_INITIALIZED.getMessage()));
+            return;
+        }
+
+        String username = request.getUsername();
+        String oldPassword = request.getOldPassword();
+        String newPassword = request.getNewPassword();
+
+        // load current user store in memory
+        final SecurityDynamicConfiguration<?> internalUsersConfiguration = load(getConfigName());
+
+        // check if user existed
+        final boolean userExisted = internalUsersConfiguration.exists(username);
+
+        // hash is mandatory for new users
+        if (!userExisted) {
+            listener.onFailure(new IllegalArgumentException(ErrorType.USER_NOT_EXISTING.getMessage()));
+            return;
+        }
+
+        User userToBeUpdated = (User) internalUsersConfiguration.getCEntry(username);
+
+        // If current password and provided password doesn't match, throw an exception.
+        final String currentHash = userToBeUpdated.getHash();
+        final boolean oldPasswordMatched = OpenBSDBCrypt.checkPassword(currentHash, oldPassword.toCharArray());
+        if (!oldPasswordMatched) {
+            listener.onFailure(new IllegalArgumentException(ErrorType.OLDPASSWORD_MISMATCHING.getMessage()));
+            return;
+        }
+
+        // Verify the new password is not matching the old password
+        if (newPassword.equals(oldPassword)) {
+            listener.onFailure(new IllegalArgumentException(ErrorType.NEWPASSWORD_MATCHING_OLDPASSWORD.getMessage()));
+            return;
+        }
+
+        // Updating the password
+        userToBeUpdated.setHash(Hasher.hash(newPassword.toCharArray()));
+
+        // TODO: check if this is absolutely required
+        internalUsersConfiguration.remove(username);
+
+        // Create or update the user
+        internalUsersConfiguration.putCObject(username, userToBeUpdated);
+
+        // Listener for responding once index update completes
+        final ActionListener<IndexResponse> indexActionListener = new OnSucessActionListener<>() {
+            @Override
+            public void onResponse(IndexResponse indexResponse) {
+                String message = username + " user's password updated successfully.";
+                ResetPasswordResponseInfo responseInfo = new ResetPasswordResponseInfo(true, username, message);
+                ResetPasswordResponse response = new ResetPasswordResponse(responseInfo);
+
+                listener.onResponse(response);
+            }
+        };
+
+        // save the changes to identity index, propagate change to other nodes and reload in-memory configuration
+        saveAndUpdateConfiguration(this.nodeClient, CType.INTERNALUSERS, internalUsersConfiguration, indexActionListener);
+    }
+
     abstract class OnSucessActionListener<Response> implements ActionListener<Response> {
 
         public OnSucessActionListener() {
@@ -347,6 +414,5 @@ public class UserService {
         public final void onFailure(Exception e) {
             // TODO throw it somewhere??
         }
-
     }
 }

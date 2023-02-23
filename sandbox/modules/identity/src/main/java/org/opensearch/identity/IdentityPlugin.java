@@ -57,6 +57,9 @@ import org.opensearch.identity.rest.user.get.single.TransportGetUserAction;
 import org.opensearch.identity.rest.user.put.PutUserAction;
 import org.opensearch.identity.rest.user.put.RestPutUserAction;
 import org.opensearch.identity.rest.user.put.TransportPutUserAction;
+import org.opensearch.identity.rest.user.resetpassword.ResetPasswordAction;
+import org.opensearch.identity.rest.user.resetpassword.RestResetPasswordAction;
+import org.opensearch.identity.rest.user.resetpassword.TransportResetPasswordAction;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ClusterPlugin;
@@ -142,6 +145,7 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
         handlers.add(new RestMultiGetUserAction());
         handlers.add(new RestDeleteUserAction());
         handlers.add(new RestPutPermissionAction());
+        handlers.add(new RestResetPasswordAction());
         // TODO: Add handlers for future actions
         return handlers;
     }
@@ -161,7 +165,8 @@ public final class IdentityPlugin extends Plugin implements ActionPlugin, Networ
             new ActionHandler<>(GetUserAction.INSTANCE, TransportGetUserAction.class),
             new ActionHandler<>(MultiGetUserAction.INSTANCE, TransportMultiGetUserAction.class),
             new ActionHandler<>(DeleteUserAction.INSTANCE, TransportDeleteUserAction.class),
-            new ActionHandler<>(PutPermissionAction.INSTANCE, TransportPutPermissionAction.class)
+            new ActionHandler<>(PutPermissionAction.INSTANCE, TransportPutPermissionAction.class),
+            new ActionHandler<>(ResetPasswordAction.INSTANCE, TransportResetPasswordAction.class)
         );
     }
 

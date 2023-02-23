@@ -10,6 +10,8 @@ package org.opensearch.identity.remotecluster;
 
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
+import org.opensearch.client.ResponseException;
+import org.opensearch.identity.utils.ErrorType;
 
 import java.util.List;
 import java.util.Map;
@@ -98,4 +100,91 @@ public class UserIT extends IdentityRestTestCase {
 
     }
 
+    public void testResetPassword() throws Exception {
+        String username = "test-user-00";
+        String userCreationContent = "{ \"password\" : \"test\"" + " }\n";
+
+        String requestContent = "{ \"oldpassword\" : \"test\"," + " \"newpassword\": \"testnewpassword\"" + " }\n";
+
+        String createMessage = username + " created successfully.";
+        Request userCreationRequest = new Request("PUT", ENDPOINT + "/users/" + username);
+        userCreationRequest.setJsonEntity(userCreationContent);
+        userCreationRequest.setOptions(options());
+        Response userCreationResponse = client().performRequest(userCreationRequest);
+        assertEquals(userCreationResponse.getStatusLine().getStatusCode(), 200);
+        Map<String, Object> userCreated = entityAsMap(userCreationResponse);
+        assertEquals(userCreated.size(), 3);
+        assertEquals(userCreated.get("successful"), true);
+        assertEquals(userCreated.get("username"), username);
+        assertEquals(userCreated.get("message"), createMessage);
+
+        Request request = new Request("POST", ENDPOINT + "/users/" + username + "/resetpassword");
+        request.setJsonEntity(requestContent);
+        request.setOptions(options());
+        Response response = client().performRequest(request);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+    }
+
+    public void testResetPasswordWithNotExistedUser() throws Exception {
+        String username = "test-user-not-existed";
+        String requestContent = "{ \"oldpassword\" : \"test\"," + " \"newpassword\": \"testnewpassword\"" + " }\n";
+
+        Request request = new Request("POST", ENDPOINT + "/users/" + username + "/resetpassword");
+        request.setJsonEntity(requestContent);
+        request.setOptions(options());
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
+        Map<String, Object> exception = entityAsMap(e.getResponse());
+        assertEquals(400, exception.get("status"));
+        assertEquals(ErrorType.USER_NOT_EXISTING.getMessage(), ((Map<String, Object>) exception.get("error")).get("reason"));
+    }
+
+    public void testResetPasswordWithBadRequests() throws Exception {
+        String username = "test-user-01";
+        String userCreationContent = "{ \"password\" : \"test\"" + " }\n";
+
+        String newPasswordsMatchOldPassword = "{ \"oldpassword\" : \"test\"," + " \"newpassword\": \"test\"" + " }\n";
+        String oldPasswordsDontMatch = "{ \"oldpassword\" : \"wrongoldpassword\"," + " \"newpassword\": \"testnewpassword\"" + " }\n";
+
+        String createMessage = username + " created successfully.";
+        Request userCreationRequest = new Request("PUT", ENDPOINT + "/users/" + username);
+        userCreationRequest.setJsonEntity(userCreationContent);
+        userCreationRequest.setOptions(options());
+        Response userCreationResponse = client().performRequest(userCreationRequest);
+        assertEquals(userCreationResponse.getStatusLine().getStatusCode(), 200);
+        Map<String, Object> userCreated = entityAsMap(userCreationResponse);
+        assertEquals(userCreated.size(), 3);
+        assertEquals(userCreated.get("successful"), true);
+        assertEquals(userCreated.get("username"), username);
+        assertEquals(userCreated.get("message"), createMessage);
+
+        // Old password mismatching
+        Request requestOldPasswordMismatching = new Request("POST", ENDPOINT + "/users/" + username + "/resetpassword");
+        requestOldPasswordMismatching.setJsonEntity(oldPasswordsDontMatch);
+        requestOldPasswordMismatching.setOptions(options());
+        ResponseException eOldPasswordMismatching = expectThrows(
+            ResponseException.class,
+            () -> client().performRequest(requestOldPasswordMismatching)
+        );
+        Map<String, Object> exceptionOldPasswordMismatching = entityAsMap(eOldPasswordMismatching.getResponse());
+        assertEquals(400, exceptionOldPasswordMismatching.get("status"));
+        assertEquals(
+            ErrorType.OLDPASSWORD_MISMATCHING.getMessage(),
+            ((Map<String, Object>) exceptionOldPasswordMismatching.get("error")).get("reason")
+        );
+
+        // New password matching old password
+        Request requestNewPasswordMatchingOldPassword = new Request("POST", ENDPOINT + "/users/" + username + "/resetpassword");
+        requestNewPasswordMatchingOldPassword.setJsonEntity(newPasswordsMatchOldPassword);
+        requestNewPasswordMatchingOldPassword.setOptions(options());
+        ResponseException eNewPasswordMatchingOldPassword = expectThrows(
+            ResponseException.class,
+            () -> client().performRequest(requestNewPasswordMatchingOldPassword)
+        );
+        Map<String, Object> exceptionNewPasswordMatchingOldPassword = entityAsMap(eNewPasswordMatchingOldPassword.getResponse());
+        assertEquals(400, exceptionNewPasswordMatchingOldPassword.get("status"));
+        assertEquals(
+            ErrorType.NEWPASSWORD_MATCHING_OLDPASSWORD.getMessage(),
+            ((Map<String, Object>) exceptionNewPasswordMatchingOldPassword.get("error")).get("reason")
+        );
+    }
 }
