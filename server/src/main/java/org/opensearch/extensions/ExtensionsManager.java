@@ -399,7 +399,13 @@ public class ExtensionsManager {
             if (e.getCause() instanceof TimeoutException || e instanceof ConnectTransportException) {
                 logger.info("No response from extension to request.");
             } else {
-                logger.error(e.toString());
+                if (e.getCause() instanceof RuntimeException) {
+                    throw (RuntimeException) e.getCause();
+                } else if (e.getCause() instanceof Error) {
+                    throw (Error) e.getCause();
+                } else {
+                    throw new RuntimeException(e.getCause());
+                }
             }
         }
     }
