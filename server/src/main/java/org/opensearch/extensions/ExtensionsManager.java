@@ -395,19 +395,10 @@ public class ExtensionsManager {
                 initializeExtensionResponseHandler
             );
             inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
-        } catch (CompletionException e) {
-            if (e.getCause() instanceof TimeoutException) {
+        } catch (CompletionException | ConnectTransportException e) {
+            if (e.getCause() instanceof TimeoutException || e instanceof ConnectTransportException) {
                 logger.info("No response from extension to request.");
             }
-            if (e.getCause() instanceof RuntimeException) {
-                throw (RuntimeException) e.getCause();
-            } else if (e.getCause() instanceof Error) {
-                throw (Error) e.getCause();
-            } else {
-                throw new RuntimeException(e.getCause());
-            }
-        } catch (ConnectTransportException ex) {
-            logger.info("No response from extension to request.");
         }
     }
 
