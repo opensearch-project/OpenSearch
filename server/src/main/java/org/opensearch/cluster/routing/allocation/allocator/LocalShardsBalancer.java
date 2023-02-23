@@ -85,9 +85,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
         this.routingNodes = allocation.routingNodes();
         this.metadata = allocation.metadata();
         avgShardsPerNode = ((float) metadata.getTotalNumberOfShards()) / routingNodes.size();
-        avgPrimaryShardsPerNode = (float) (StreamSupport.stream(metadata.spliterator(), false)
-            .mapToInt(IndexMetadata::getNumberOfShards)
-            .sum()) / routingNodes.size();
         nodes = Collections.unmodifiableMap(buildModelFromAssigned());
         sorter = newNodeSorter();
         inEligibleTargetNode = new HashSet<>();
@@ -107,11 +104,6 @@ public class LocalShardsBalancer extends ShardsBalancer {
     @Override
     public float avgShardsPerNode(String index) {
         return ((float) metadata.index(index).getTotalNumberOfShards()) / nodes.size();
-    }
-
-    @Override
-    public float avgPrimaryShardsPerNode() {
-        return avgPrimaryShardsPerNode;
     }
 
     @Override
@@ -987,15 +979,13 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private boolean tryRelocateShard(BalancedShardsAllocator.ModelNode minNode, BalancedShardsAllocator.ModelNode maxNode, String idx) {
         final BalancedShardsAllocator.ModelIndex index = maxNode.getIndex(idx);
         if (index != null) {
+            logger.trace("Try relocating shard of [{}] from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
             Stream<ShardRouting> routingStream = StreamSupport.stream(index.spliterator(), false)
                 .filter(ShardRouting::started) // cannot rebalance unassigned, initializing or relocating shards anyway
                 .filter(maxNode::containsShard) // check shards which are present on heaviest node
                 .sorted(BY_DESCENDING_SHARD_ID); // check in descending order of shard id so that the decision is deterministic
 
-            logger.trace("Try relocating shard of [{}] from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
-            /**
-             * If primary balance is preferred then prioritize moving primaries first
-             */
+            // If primary balance is preferred then prioritize moving primaries first
             if (preferPrimaryBalance == true) {
                 routingStream = routingStream.sorted(PRIMARY_FIRST);
             }
@@ -1008,26 +998,13 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 }
                 final Decision allocationDecision = deciders.canAllocate(shard, minNode.getRoutingNode(), allocation);
                 if (allocationDecision.type() == Decision.Type.NO) {
-                    // Try swapping the shards
-                    if (preferPrimaryBalance == true && shard.primary()) {
-                        for (Iterator<ShardRouting> it = minNode.getIndex(shard.getIndexName()).iterator(); it.hasNext(); ) {
-                            ShardRouting routing = it.next();
-                            if (routing.primary() == false && routing.shardId().equals(shard.shardId())) {
-                                logger.info("--> Found a suitable replica for match");
-                                maxNode.removeShard(shard);
-                                maxNode.addShard(routing);
-                                minNode.removeShard(routing);
-                                minNode.addShard(shard);
-                                routingNodes.swapPrimaryWithReplica(logger, shard, routing, allocation.changes());
-                                return true;
-                            }
-                        }
-                    }
                     continue;
                 }
                 // Skip moving the primary relocation when target has less primaries and is skewed due to
                 // high replica assignment.
-                if (preferPrimaryBalance == true && shard.primary() && maxNode.numPrimaryShards() - minNode.numPrimaryShards() < 2) {
+                if (preferPrimaryBalance == true
+                    && shard.primary()
+                    && maxNode.numPrimaryShards(shard.getIndexName()) - minNode.numPrimaryShards(shard.getIndexName()) < 2) {
                     continue;
                 }
 
@@ -1037,7 +1014,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
 
                 if (decision.type() == Decision.Type.YES) {
                     /* only allocate on the cluster if we are not throttled */
-                    logger.info("Relocate [{}] from [{}] to [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
+                    logger.debug("Relocate [{}] from [{}] to [{}]", shard, maxNode.getNodeId(), minNode.getNodeId());
                     minNode.addShard(routingNodes.relocateShard(shard, minNode.getNodeId(), shardSize, allocation.changes()).v1());
                     return true;
                 } else {

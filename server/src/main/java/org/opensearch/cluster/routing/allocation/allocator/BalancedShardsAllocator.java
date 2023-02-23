@@ -114,7 +114,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.NodeScope
     );
 
-
     /**
      * Prefer per index primary shard balance by using {@link RebalanceConstraints#isPrimaryShardsPerIndexPerNodeBreached()}
      * constraint which is used during unassigned shard allocation {@link LocalShardsBalancer#allocateUnassigned()} and
@@ -151,7 +150,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     private void setMovePrimaryFirst(boolean movePrimaryFirst) {
         this.movePrimaryFirst = movePrimaryFirst;
     }
-
 
     private void setWeightFunction(float indexBalance, float shardBalanceFactor) {
         weightFunction = new WeightFunction(indexBalance, shardBalanceFactor);
@@ -305,7 +303,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         private final float theta0;
         private final float theta1;
         private AllocationConstraints constraints;
-        public RebalanceConstraints rebalanceConstraints;
+        private RebalanceConstraints rebalanceConstraints;
 
         WeightFunction(float indexBalance, float shardBalance) {
             float sum = indexBalance + shardBalance;
@@ -380,10 +378,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         public int numShards(String idx) {
             ModelIndex index = indices.get(idx);
             return index == null ? 0 : index.numShards();
-        }
-
-        public int numPrimaryShards() {
-            return primaryNumShards;
         }
 
         public int numPrimaryShards(String idx) {
@@ -467,10 +461,15 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     static final class ModelIndex implements Iterable<ShardRouting> {
         private final String id;
         private final Set<ShardRouting> shards = new HashSet<>(4); // expect few shards of same index to be allocated on same node
+        private final Set<ShardRouting> primaryShards = new HashSet<>();
         private int highestPrimary = -1;
 
         ModelIndex(String id) {
             this.id = id;
+        }
+
+        public int numPrimaryShards() {
+            return primaryShards.size();
         }
 
         public int highestPrimary() {
@@ -502,12 +501,20 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         public void removeShard(ShardRouting shard) {
             highestPrimary = -1;
             assert shards.contains(shard) : "Shard not allocated on current node: " + shard;
+            if (shard.primary()) {
+                assert primaryShards.contains(shard) : "Primary shard not allocated on current node: " + shard;
+                primaryShards.remove(shard);
+            }
             shards.remove(shard);
         }
 
         public void addShard(ShardRouting shard) {
             highestPrimary = -1;
-            assert !shards.contains(shard) : "Shard already allocated on current node: " + shard;
+            assert shards.contains(shard) == false : "Shard already allocated on current node: " + shard;
+            if (shard.primary()) {
+                assert primaryShards.contains(shard) == false : "Primary shard already allocated on current node: " + shard;
+                primaryShards.add(shard);
+            }
             shards.add(shard);
         }
 

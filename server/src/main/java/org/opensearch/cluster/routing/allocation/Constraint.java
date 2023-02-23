@@ -26,7 +26,7 @@ public class Constraint implements Predicate<Constraint.ConstraintParams> {
 
     private long weight;
 
-    boolean enable;
+    private boolean enable;
     private Predicate<ConstraintParams> predicate;
 
     public Constraint(String name, Predicate<ConstraintParams> constraintPredicate, long weight) {
