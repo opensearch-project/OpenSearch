@@ -427,6 +427,8 @@ final class DocumentParser {
     ) throws IOException {
         assert token == XContentParser.Token.FIELD_NAME || token == XContentParser.Token.END_OBJECT;
         String[] paths = null;
+        context.incrementFieldCurrentDepth();
+        context.checkFieldDepthLimit();
         while (token != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -454,6 +456,7 @@ final class DocumentParser {
             }
             token = parser.nextToken();
         }
+        context.decrementFieldCurrentDepth();
     }
 
     private static void nested(ParseContext context, ObjectMapper.Nested nested) {
