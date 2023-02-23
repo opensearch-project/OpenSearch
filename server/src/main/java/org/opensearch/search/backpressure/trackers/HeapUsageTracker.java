@@ -107,7 +107,7 @@ public class HeapUsageTracker extends TaskResourceUsageTracker {
      */
     public static boolean isHeapUsageDominatedBySearch(List<CancellableTask> cancellableTasks, double heapPercentThreshold) {
         long usage = cancellableTasks.stream().mapToLong(task -> task.getTotalResourceStats().getMemoryInBytes()).sum();
-        long threshold = (long) heapPercentThreshold * HEAP_SIZE_BYTES;
+        long threshold = (long) (heapPercentThreshold * HEAP_SIZE_BYTES);
         if (isHeapTrackingSupported() && usage < threshold) {
             logger.debug("heap usage not dominated by search requests [{}/{}]", usage, threshold);
             return false;
