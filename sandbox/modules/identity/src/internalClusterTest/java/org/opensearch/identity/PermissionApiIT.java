@@ -73,7 +73,7 @@ public class PermissionApiIT extends HttpSmokeTestCaseWithIdentity {
 
         // Check for the added permission in permission storage
         assertTrue(permissionsInStorage.contains("cluster.admin/read"));
-        
+
         putRequest = new Request("PUT", endpoint + "/" + username);
         putRequest.setJsonEntity("{ \"permission\" : \":1:2:3\"}\n"); // Invalid permission
         putRequest.setOptions(authHeaderOptions);
