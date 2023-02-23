@@ -612,7 +612,6 @@ public final class SearchPhaseController {
      * Earlier widening of type was taken care in IndexNumericFieldData, but since we now want to
      * support sort optimization, we removed type widening there and taking care here during merging.
      * More details here https://github.com/opensearch-project/OpenSearch/issues/6326
-     * @param sort
      */
     private static void applySortFieldWidening(Sort sort, TopFieldDocs[] topFieldDocs) {
         for (int i = 0; i < sort.getSort().length; i++) {
@@ -631,9 +630,6 @@ public final class SearchPhaseController {
     /**
      * It will compare respective SortField between shards to see if any shard results have different
      * field mapping type, accordingly it will decide to widen the sort fields.
-     * @param topFieldDocs
-     * @param sortFieldindex
-     * @return boolean
      */
     private static boolean isSortWideningRequired(TopFieldDocs[] topFieldDocs, int sortFieldindex) {
         for (int i = 0; i < topFieldDocs.length - 1; i++) {
