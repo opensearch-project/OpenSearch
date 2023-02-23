@@ -397,7 +397,7 @@ public class ExtensionsManager {
             inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
         } catch (CompletionException | ConnectTransportException e) {
             if (e.getCause() instanceof TimeoutException || e instanceof ConnectTransportException) {
-                logger.info("No response from extension to request.");
+                logger.info("No response from extension to request.", e);
             } else if (e.getCause() instanceof RuntimeException) {
                 throw (RuntimeException) e.getCause();
             } else if (e.getCause() instanceof Error) {
