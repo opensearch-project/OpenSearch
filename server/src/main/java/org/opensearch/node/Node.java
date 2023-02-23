@@ -634,6 +634,7 @@ public class Node implements Closeable {
                 threadPool,
                 remoteStoreFileCache
             );
+
             final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories = new HashMap<>();
             pluginsService.filterPlugins(IndexStorePlugin.class)
                 .stream()
@@ -699,7 +700,8 @@ public class Node implements Closeable {
                     searchModule.getValuesSourceRegistry(),
                     recoveryStateFactories,
                     remoteDirectoryFactory,
-                    repositoriesServiceReference::get
+                    repositoriesServiceReference::get,
+                    remoteStoreFileCache
                 );
             } else {
                 indicesService = new IndicesService(
@@ -724,7 +726,8 @@ public class Node implements Closeable {
                     searchModule.getValuesSourceRegistry(),
                     recoveryStateFactories,
                     remoteDirectoryFactory,
-                    repositoriesServiceReference::get
+                    repositoriesServiceReference::get,
+                    remoteStoreFileCache
                 );
             }
 

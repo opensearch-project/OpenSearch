@@ -1834,7 +1834,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         null,
                         emptyMap(),
                         new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService),
-                        repositoriesServiceReference::get
+                        repositoriesServiceReference::get,
+                        null
                     );
                 } else {
                     indicesService = new IndicesService(
@@ -1870,7 +1871,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         null,
                         emptyMap(),
                         new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService),
-                        repositoriesServiceReference::get
+                        repositoriesServiceReference::get,
+                        null
                     );
                 }
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);

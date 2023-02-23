@@ -179,7 +179,8 @@ public class NodeService implements Closeable {
         boolean shardIndexingPressure,
         boolean searchBackpressure,
         boolean clusterManagerThrottling,
-        boolean weightedRoutingStats
+        boolean weightedRoutingStats,
+        boolean fileCacheStats
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
@@ -204,7 +205,8 @@ public class NodeService implements Closeable {
             shardIndexingPressure ? this.indexingPressureService.shardStats(indices) : null,
             searchBackpressure ? this.searchBackpressureService.nodeStats() : null,
             clusterManagerThrottling ? this.clusterService.getClusterManagerService().getThrottlingStats() : null,
-            weightedRoutingStats ? WeightedRoutingStats.getInstance() : null
+            weightedRoutingStats ? WeightedRoutingStats.getInstance() : null,
+            fileCacheStats ? indicesService.getFileCacheStats() : null
         );
     }
 
