@@ -793,7 +793,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         );
         final List<BootstrapCheck> checks = Collections.singletonList(new BootstrapChecks.MultipleDataPathCheck());
         final NodeValidationException e = expectThrows(NodeValidationException.class, () -> BootstrapChecks.check(context, true, checks));
-        assertThat(e.getMessage(), containsString("Having multiple data paths in the search node is not allowed"));
+        assertThat(e.getMessage(), containsString("Multiple data paths are not allowed for search nodes"));
     }
 
     public void testMultipleDataPathsForDataNodeCheck() throws NodeValidationException {

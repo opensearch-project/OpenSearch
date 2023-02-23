@@ -765,7 +765,7 @@ final class BootstrapChecks {
         public BootstrapCheckResult check(BootstrapContext context) {
             if (NodeRoleSettings.NODE_ROLES_SETTING.get(context.settings()).contains(DiscoveryNodeRole.SEARCH_ROLE)
                 && Environment.PATH_DATA_SETTING.get(context.settings()).size() > 1) {
-                return BootstrapCheckResult.failure("Having multiple data paths in the search node is not allowed");
+                return BootstrapCheckResult.failure("Multiple data paths are not allowed for search nodes");
             }
             return BootstrapCheckResult.success();
         }
