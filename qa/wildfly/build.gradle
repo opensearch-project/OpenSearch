@@ -45,8 +45,8 @@ dependencies {
   providedCompile('com.fasterxml.jackson.jakarta.rs:jackson-jakarta-rs-json-provider:2.14.2') {
     exclude module: 'jakarta.activation'
   }
-  providedCompile 'org.jboss.resteasy:resteasy-core:6.2.2.Final'
-  api('org.jboss.resteasy:resteasy-jackson2-provider:6.2.2.Final') {
+  providedCompile "org.jboss.resteasy:resteasy-core:${versions.resteasy}"
+  api("org.jboss.resteasy:resteasy-jackson2-provider:${versions.resteasy}") {
     exclude module: 'jackson-annotations'
     exclude module: 'jackson-core'
     exclude module: 'jackson-databind'
