@@ -759,7 +759,7 @@ final class BootstrapChecks {
     /**
      * Bootstrap check that if a search node contains multiple data paths
      */
-    static class MultipleDataPathCheck implements BootstrapCheck {
+     static class MultipleDataPathCheck implements BootstrapCheck {
 
         @Override
         public BootstrapCheckResult check(BootstrapContext context) {
