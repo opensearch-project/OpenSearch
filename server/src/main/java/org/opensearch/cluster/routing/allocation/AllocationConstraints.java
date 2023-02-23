@@ -24,7 +24,7 @@ import static org.opensearch.cluster.routing.allocation.RebalanceConstraints.isP
  */
 public class AllocationConstraints {
 
-    public final static long INDEX_SHARD_PER_NODE_BREACH_WEIGHT = 1000000L;
+    public final static long INDEX_SHARD_PER_NODE_BREACH_WEIGHT = 100000L;
 
     /**
      *

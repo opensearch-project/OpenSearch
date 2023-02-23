@@ -25,7 +25,7 @@ import static org.opensearch.cluster.routing.allocation.allocator.BalancedShards
  */
 public class RebalanceConstraints {
     public final static String PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_ID = PREFER_PRIMARY_SHARD_BALANCE.getKey();
-    public final static long PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_WEIGHT = 10000L;
+    public final static long PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_WEIGHT = 100000L;
     private Map<String, Constraint> constraintSet;
 
     public RebalanceConstraints() {
