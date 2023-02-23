@@ -334,14 +334,18 @@ public class SettingTests extends OpenSearchTestCase {
         // Test that the pattern is correctly initialized
         assertNotNull(expectedPattern);
         assertNotNull(regexValidator.getPattern());
-        assertEquals(expectedPattern.toString(), regexValidator.getPattern().toString());
+        assertEquals(expectedPattern.pattern(), regexValidator.getPattern());
+        assertThrows(IllegalArgumentException.class, () -> regexValidator.validate("123"));
+        assertDoesNotThrow(() -> regexValidator.validate("abc"));
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             regexValidator.writeTo(out);
             out.flush();
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 regexValidator = new RegexValidator(in);
-                assertEquals(expectedPattern.toString(), regexValidator.getPattern().toString());
+                assertEquals(expectedPattern.pattern(), regexValidator.getPattern());
+                assertThrows(IllegalArgumentException.class, () -> regexValidator.validate("123"));
+                assertDoesNotThrow(() -> regexValidator.validate("abc"));
             }
         }
     }
