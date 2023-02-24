@@ -20,9 +20,12 @@ import java.util.List;
 public class InitializeExtensionResponseTest extends OpenSearchTestCase {
     public void testRegisterCustomSettingsRequest() throws Exception {
         String expectedName = "testsample-sdk";
-        List<String> expectedImplimentedInterfaces = new ArrayList<>(Arrays.asList("Action","Search"));
+        List<String> expectedImplimentedInterfaces = new ArrayList<>(Arrays.asList("Action", "Search"));
 
-        InitializeExtensionResponse initializeExtensionResponse = new InitializeExtensionResponse(expectedName, expectedImplimentedInterfaces);
+        InitializeExtensionResponse initializeExtensionResponse = new InitializeExtensionResponse(
+            expectedName,
+            expectedImplimentedInterfaces
+        );
 
         assertEquals(expectedName, initializeExtensionResponse.getName());
         List<String> implementedInterfaces = initializeExtensionResponse.getImplementedInterfaces();
