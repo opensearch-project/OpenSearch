@@ -21,12 +21,17 @@ import org.opensearch.identity.authz.PermissionFactory;
 import org.opensearch.identity.authz.PermissionStorage;
 import org.opensearch.identity.rest.permission.put.PutPermissionResponse;
 import org.opensearch.identity.rest.permission.put.PutPermissionResponseInfo;
+import org.opensearch.identity.rest.permission.get.GetPermissionResponse;
+import org.opensearch.identity.rest.permission.get.GetPermissionResponseInfo;
+import org.opensearch.identity.rest.permission.delete.DeletePermissionResponse;
+import org.opensearch.identity.rest.permission.delete.DeletePermissionResponseInfo;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.transport.TransportService;
 import org.opensearch.identity.utils.ErrorType;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Service class for Permission related functions
@@ -87,5 +92,37 @@ public class PermissionService {
             // TODO throw it somewhere??
         }
 
+    }
+
+    public void getPermission(String username, ActionListener<GetPermissionResponse> listener) {
+        if (!ensureIndexExists()) {
+            listener.onFailure(new IndexNotFoundException(ErrorType.IDENTITY_NOT_INITIALIZED.getMessage()));
+            return;
+        }
+
+        List<OpenSearchPermission> existingPermissions = PermissionStorage.get(username);
+        GetPermissionResponseInfo responseInfo = new GetPermissionResponseInfo(
+            true,
+            username,
+            existingPermissions.stream().map(OpenSearchPermission::getPermissionString).collect(Collectors.toList())
+        );
+        GetPermissionResponse response = new GetPermissionResponse(responseInfo);
+        listener.onResponse(response);
+    }
+
+    public void deletePermission(String principal, String permissionString, ActionListener<DeletePermissionResponse> listener) {
+
+        if (!ensureIndexExists()) {
+            listener.onFailure(new IndexNotFoundException(ErrorType.IDENTITY_NOT_INITIALIZED.getMessage()));
+            return;
+        }
+
+        OpenSearchPermission newPermission = PermissionFactory.createPermission(permissionString);
+        List<OpenSearchPermission> permissionList = Arrays.asList(newPermission);
+
+        PermissionStorage.delete(principal, permissionList);
+        DeletePermissionResponseInfo responseInfo = new DeletePermissionResponseInfo(true, principal, permissionString);
+        DeletePermissionResponse response = new DeletePermissionResponse(responseInfo);
+        listener.onResponse(response);
     }
 }

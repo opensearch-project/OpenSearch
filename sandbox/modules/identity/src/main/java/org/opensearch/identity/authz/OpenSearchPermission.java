@@ -16,6 +16,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+@SuppressWarnings("overrides")
 public class OpenSearchPermission implements Permission {
 
     private List<String> resourcePatterns;

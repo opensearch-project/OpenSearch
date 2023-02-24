@@ -100,6 +100,7 @@ public class UserIT extends IdentityRestTestCase {
 
     }
 
+    @SuppressWarnings("unchecked")
     public void testResetPassword() throws Exception {
         String username = "test-user-00";
         String userCreationContent = "{ \"password\" : \"test\"" + " }\n";
@@ -125,6 +126,7 @@ public class UserIT extends IdentityRestTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
+    @SuppressWarnings("unchecked")
     public void testResetPasswordWithNotExistedUser() throws Exception {
         String username = "test-user-not-existed";
         String requestContent = "{ \"oldpassword\" : \"test\"," + " \"newpassword\": \"testnewpassword\"" + " }\n";
@@ -138,6 +140,7 @@ public class UserIT extends IdentityRestTestCase {
         assertEquals(ErrorType.USER_NOT_EXISTING.getMessage(), ((Map<String, Object>) exception.get("error")).get("reason"));
     }
 
+    @SuppressWarnings("unchecked")
     public void testResetPasswordWithBadRequests() throws Exception {
         String username = "test-user-01";
         String userCreationContent = "{ \"password\" : \"test\"" + " }\n";

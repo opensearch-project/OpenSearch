@@ -5,6 +5,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 3.0]
 ### Added
+# CHANGELOG
+All notable changes to this project are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). See the [CONTRIBUTING guide](./CONTRIBUTING.md#Changelog) for instructions on how to add changelog entries.
+
+## [Unreleased 3.0]
+### Added
 - [Identity] Document identity roadmap and feature branch processes ([#4583](https://github.com/opensearch-project/OpenSearch/pull/4583))
 - [Identity] Add stubs for AccessTokenManager  ([#4612](https://github.com/opensearch-project/OpenSearch/pull/4612))
 - [Identity] Permissions check API ([#4516](https://github.com/opensearch-project/OpenSearch/pull/4516))
@@ -27,5 +34,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - [Identity] Grant Permission REST API ([#6117](https://github.com/opensearch-project/OpenSearch/pull/6154))
 - [Identity] REST API for user GET and DELETE ([#6189](https://github.com/opensearch-project/OpenSearch/pull/6189))
 - [Identity] Extensions security setup and token creation ([#6204](https://github.com/opensearch-project/OpenSearch/pull/6204))
+- [Identity] Check and Delete Permission REST API ([#6220](https://github.com/opensearch-project/OpenSearch/pull/6220))
 - [Identity] REST API for user GET and DELETE ([#6189](https://github.com/opensearch-project/OpenSearch/pull/6189))
 - [Identity] REST API for Reset password ([#5990](https://github.com/opensearch-project/OpenSearch/pull/6309))

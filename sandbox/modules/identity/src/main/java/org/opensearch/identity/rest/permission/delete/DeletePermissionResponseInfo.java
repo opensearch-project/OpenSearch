@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.rest.permission.put;
+package org.opensearch.identity.rest.permission.delete;
 
 import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
@@ -22,23 +22,23 @@ import java.io.IOException;
 import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * Response info corresponds to a single response for a permission put action
+ * Response info corresponds to a single response for a permission delete action
  */
-public class PutPermissionResponseInfo extends TransportResponse implements Writeable, ToXContent {
+public class DeletePermissionResponseInfo extends TransportResponse implements Writeable, ToXContent {
     private final boolean successful;
     private final String username;
-    private final String permission;
+    private final String permissionString;
 
     /**
-     * Construct an instance of a put permission response info (these are aggregated into a response for bulk requests)
+     * Construct an instance of a delete permission response info (these are aggregated into a response for bulk requests)
      * @param successful whether the request was successful
      * @param username the username of the principal being granted the permission
-     * @param permission the permission to be granted
+     * @param permissionString the permission string to be granted
      */
-    public PutPermissionResponseInfo(boolean successful, String username, String permission) {
+    public DeletePermissionResponseInfo(boolean successful, String username, String permissionString) {
         this.successful = successful;
         this.username = username;
-        this.permission = permission;
+        this.permissionString = permissionString;
     }
 
     /**
@@ -46,10 +46,10 @@ public class PutPermissionResponseInfo extends TransportResponse implements Writ
      * @param in an input stream for dealing with input from another node
      * @throws IOException Throw on failure
      */
-    public PutPermissionResponseInfo(StreamInput in) throws IOException {
+    public DeletePermissionResponseInfo(StreamInput in) throws IOException {
         this.successful = in.readBoolean();
         this.username = in.readString();
-        this.permission = in.readString();
+        this.permissionString = in.readString();
 
     }
 
@@ -61,8 +61,8 @@ public class PutPermissionResponseInfo extends TransportResponse implements Writ
         return this.username;
     }
 
-    public String getpermission() {
-        return permission;
+    public String getPermissionString() {
+        return permissionString;
     }
 
     /**
@@ -74,27 +74,27 @@ public class PutPermissionResponseInfo extends TransportResponse implements Writ
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(this.successful);
         out.writeString(this.username);
-        out.writeString(this.permission);
+        out.writeString(this.permissionString);
     }
 
     /**
      * Create a new PARSER that writes the different output fields
      */
-    static final ConstructingObjectParser<PutPermissionResponseInfo, Void> PARSER = new ConstructingObjectParser<>(
-        "put_permission_response_info",
+    static final ConstructingObjectParser<DeletePermissionResponseInfo, Void> PARSER = new ConstructingObjectParser<>(
+        "delete_permission_response_info",
         true,
-        args -> new PutPermissionResponseInfo((boolean) args[0], (String) args[1], (String) args[2])
+        args -> new DeletePermissionResponseInfo((boolean) args[0], (String) args[1], (String) args[2])
     );
 
     static {
         PARSER.declareBoolean(constructorArg(), new ParseField("successful"));
         PARSER.declareString(constructorArg(), new ParseField("username"));
-        PARSER.declareString(constructorArg(), new ParseField("permission"));
+        PARSER.declareString(constructorArg(), new ParseField("permissionString"));
     }
 
     private static final ParseField SUCCESSFUL = new ParseField("successful");
     private static final ParseField USERNAME = new ParseField("username");
-    private static final ParseField PERMISSION = new ParseField("permissionAdded");
+    private static final ParseField PERMISSION_STRING = new ParseField("permissionDeleted");
 
     /**
      * Write the response info to Xcontent (JSON formatted data) that you will see as the response message to the request
@@ -108,7 +108,7 @@ public class PutPermissionResponseInfo extends TransportResponse implements Writ
         builder.startObject();
         builder.field(SUCCESSFUL.getPreferredName(), this.successful);
         builder.field(USERNAME.getPreferredName(), this.username);
-        builder.field(PERMISSION.getPreferredName(), this.permission);
+        builder.field(PERMISSION_STRING.getPreferredName(), this.permissionString);
         builder.endObject();
         return builder;
     }
