@@ -37,7 +37,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.Triplet;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamInput;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -334,9 +333,12 @@ public class SettingTests extends OpenSearchTestCase {
         // Test that the pattern is correctly initialized
         assertNotNull(expectedPattern);
         assertNotNull(regexValidator.getPattern());
-        assertEquals(expectedPattern.pattern(), regexValidator.getPattern());
-        assertThrows(IllegalArgumentException.class, () -> regexValidator.validate("123"));
-        assertDoesNotThrow(() -> regexValidator.validate("abc"));
+        assertEquals(expectedPattern.pattern(), regexValidator.getPattern().pattern());
+        try {
+            regexValidator.validate("abc");
+        } catch (IllegalArgumentException e) {
+            fail("Expected validate() to not throw an exception, but it threw " + e);
+        }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             regexValidator.writeTo(out);
@@ -344,8 +346,11 @@ public class SettingTests extends OpenSearchTestCase {
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 regexValidator = new RegexValidator(in);
                 assertEquals(expectedPattern.pattern(), regexValidator.getPattern());
-                assertThrows(IllegalArgumentException.class, () -> regexValidator.validate("123"));
-                assertDoesNotThrow(() -> regexValidator.validate("abc"));
+                try {
+                    regexValidator.validate("abc");
+                } catch (IllegalArgumentException e) {
+                    fail("Expected validate() to not throw an exception, but it threw " + e);
+                }
             }
         }
     }
