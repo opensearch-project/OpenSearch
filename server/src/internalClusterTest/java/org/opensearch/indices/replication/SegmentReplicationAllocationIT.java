@@ -60,11 +60,12 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
     }
 
     /**
-     * This test verifies primary shard allocation is balanced when there are no balancing operations. This test in
-     * general passes without primary shard balance as well due to nature of allocation algorithm which assigns all
-     * primary shards first followed by replica copies.
+     * This test verifies the happy path where primary shard allocation is balanced when multiple indices are created.
+     *
+     * This test in general passes without primary shard balance as well due to nature of allocation algorithm which
+     * assigns all primary shards first followed by replica copies.
      */
-    public void testShardAllocation() throws Exception {
+    public void testBalancedPrimaryAllocation() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         final int maxReplicaCount = 2;
         final int maxShardCount = 5;
@@ -94,43 +95,11 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
         verifyPerIndexPrimaryBalance();
     }
 
-    public void testShardAllocationWithAutoExpandReplicas() throws Exception {
-        internalCluster().startClusterManagerOnlyNode();
-        final int maxShardCount = 5;
-        final int nodeCount = randomIntBetween(1, 10);
-
-        final List<String> nodeNames = new ArrayList<>();
-        logger.info("--> Creating {} nodes", nodeCount);
-        for (int i = 0; i < nodeCount; i++) {
-            nodeNames.add(internalCluster().startNode());
-        }
-        enablePreferPrimaryBalance();
-        ShardAllocations shardAllocations = new ShardAllocations();
-        ClusterState state;
-        int shardCount = randomIntBetween(1, maxShardCount);
-        Settings.Builder builder = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount)
-            .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
-            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
-        prepareCreate("test0", builder).get();
-        logger.info("--> Creating index {} with shard count {}", "test0", shardCount);
-        assertBusy(() -> ensureGreen(), 60, TimeUnit.SECONDS);
-        state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        shardAllocations.printShardDistribution(state);
-
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeNames.get(0)));
-        // give replica a chance to promote as primary before terminating node containing the replica
-        assertBusy(() -> ensureGreen(), 60, TimeUnit.SECONDS);
-        state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        shardAllocations.printShardDistribution(state);
-        verifyPerIndexPrimaryBalance();
-    }
-
     /**
-     * This test verifies primary shard allocation is balanced when using large number of shard count. This test
-     * exercise the rebalancing logic and ensures that primaries are relocated first between unbalanced nodes to avoid
-     * primary skewness
+     * This test verifies balanced primary shard allocation for a single index with large shard count in event of node
+     * going down and a new node joining the cluster. The results in shard distribution skewness and re-balancing logic
+     * ensures the primary shard distribution is balanced.
+     *
      */
     public void testSingleIndexShardAllocation() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
@@ -169,8 +138,8 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
     }
 
     /**
-     * This test verifies shard allocation with changes to cluster config i.e. node add, removal keeps the primary shard
-     * allocation balanced.
+     * Similar to testSingleIndexShardAllocation test but creates multiple indices, multiple node adding in and getting
+     * removed. The test asserts post each such event that primary shard distribution is balanced across single index.
      */
     public void testAllocationWithDisruption() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
@@ -226,20 +195,44 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
         verifyPerIndexPrimaryBalance();
     }
 
-    public void testReplicaSwap() {
+    public void testShardAllocationWithAutoExpandReplicas() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
+        final int maxShardCount = 5;
+        final int nodeCount = randomIntBetween(1, 10);
+
+        final List<String> nodeNames = new ArrayList<>();
+        logger.info("--> Creating {} nodes", nodeCount);
+        for (int i = 0; i < nodeCount; i++) {
+            nodeNames.add(internalCluster().startNode());
+        }
         enablePreferPrimaryBalance();
-        String primary = internalCluster().startDataOnlyNode();
-        createIndex("test", 2, 1, true);
-        String replica = internalCluster().startDataOnlyNode();
-        ensureGreen("test");
         ShardAllocations shardAllocations = new ShardAllocations();
         ClusterState state;
+        int shardCount = randomIntBetween(1, maxShardCount);
+        Settings.Builder builder = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount)
+            .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
+            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
+        prepareCreate("test0", builder).get();
+        logger.info("--> Creating index {} with shard count {}", "test0", shardCount);
+        assertBusy(() -> ensureGreen(), 60, TimeUnit.SECONDS);
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
         shardAllocations.printShardDistribution(state);
+
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeNames.get(0)));
+        // give replica a chance to promote as primary before terminating node containing the replica
+        assertBusy(() -> ensureGreen(), 60, TimeUnit.SECONDS);
+        state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        shardAllocations.printShardDistribution(state);
+        verifyPerIndexPrimaryBalance();
     }
 
-    public void verifyPerIndexPrimaryBalance() throws Exception {
+    /**
+     * Utility method which ensures cluster has balanced primary shard distribution across a single index.
+     * @throws Exception
+     */
+    private void verifyPerIndexPrimaryBalance() throws Exception {
         assertBusy(() -> {
             final ClusterState currentState = client().admin().cluster().prepareState().execute().actionGet().getState();
             RoutingNodes nodes = currentState.getRoutingNodes();

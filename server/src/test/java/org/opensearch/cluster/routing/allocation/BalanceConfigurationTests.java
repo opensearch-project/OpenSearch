@@ -367,7 +367,8 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
     }
 
     /**
-     * This test mimics a cluster state which can not be rebalanced due to {@link org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider}
+     * This test mimics a cluster state which can not be rebalanced due to
+     * {@link org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider}
      * allocation decider which prevents shard relocation, leaving cluster unbalanced on primaries.
      *
      * There are two nodes (N1, N2) where all primaries land on N1 while replicas on N2.

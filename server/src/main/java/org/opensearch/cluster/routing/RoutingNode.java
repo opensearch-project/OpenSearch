@@ -330,7 +330,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
     }
 
     /**
-     * Determine the shards of an index with a specific state
+     * Returns primary shards of an index with a specific state
      * @param index id of the index
      * @param states set of states which should be listed
      * @return a list of shards
