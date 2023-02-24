@@ -107,7 +107,7 @@ public class TransferManager {
             OutputStream fileOutputStream = Files.newOutputStream(blobFetchRequest.getFilePath());
             OutputStream localFileOutputStream = new BufferedOutputStream(fileOutputStream);
         ) {
-            localFileOutputStream.write(snapshotFileInputStream.readAllBytes());
+            snapshotFileInputStream.transferTo(localFileOutputStream);
         }
         return blobFetchRequest.getDirectory().openInput(blobFetchRequest.getFileName(), IOContext.READ);
     }
