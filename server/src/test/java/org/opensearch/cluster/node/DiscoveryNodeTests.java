@@ -51,12 +51,14 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.opensearch.test.NodeRoles.nonRemoteClusterClientNode;
-import static org.opensearch.test.NodeRoles.remoteClusterClientNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
+import static org.opensearch.test.NodeRoles.nonRemoteClusterClientNode;
+import static org.opensearch.test.NodeRoles.remoteClusterClientNode;
+import static org.opensearch.test.NodeRoles.searchNode;
+import static org.opensearch.test.NodeRoles.nonSearchNode;
 
 public class DiscoveryNodeTests extends OpenSearchTestCase {
 
@@ -176,6 +178,14 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
         runTestDiscoveryNodeIsRemoteClusterClient(nonRemoteClusterClientNode(), false);
     }
 
+    public void testDiscoveryNodeIsSearchSet() {
+        runTestDiscoveryNodeIsSearch(searchNode(), true);
+    }
+
+    public void testDiscoveryNodeIsSearchUnset() {
+        runTestDiscoveryNodeIsSearch(nonSearchNode(), false);
+    }
+
     // Added in 2.0 temporarily, validate the MASTER_ROLE is in the list of known roles.
     // MASTER_ROLE was removed from BUILT_IN_ROLES and is imported by setDeprecatedMasterRole(),
     // as a workaround for making the new CLUSTER_MANAGER_ROLE has got the same abbreviation 'm'.
@@ -192,6 +202,16 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
             assertThat(node.getRoles(), hasItem(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
         } else {
             assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)));
+        }
+    }
+
+    private void runTestDiscoveryNodeIsSearch(final Settings settings, final boolean expected) {
+        final DiscoveryNode node = DiscoveryNode.createLocal(settings, new TransportAddress(TransportAddress.META_ADDRESS, 9200), "node");
+        assertThat(node.isSearchNode(), equalTo(expected));
+        if (expected) {
+            assertThat(node.getRoles(), hasItem(DiscoveryNodeRole.SEARCH_ROLE));
+        } else {
+            assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.SEARCH_ROLE)));
         }
     }
 

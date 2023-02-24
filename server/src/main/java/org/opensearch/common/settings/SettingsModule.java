@@ -91,9 +91,15 @@ public class SettingsModule implements Module {
             registerSetting(setting);
         }
 
+        for (Map.Entry<String, List<Setting>> featureFlaggedSetting : ClusterSettings.FEATURE_FLAGGED_CLUSTER_SETTINGS.entrySet()) {
+            if (FeatureFlags.isEnabled(featureFlaggedSetting.getKey())) {
+                featureFlaggedSetting.getValue().forEach(this::registerSetting);
+            }
+        }
+
         for (Map.Entry<String, List<Setting>> featureFlaggedSetting : IndexScopedSettings.FEATURE_FLAGGED_INDEX_SETTINGS.entrySet()) {
             if (FeatureFlags.isEnabled(featureFlaggedSetting.getKey())) {
-                featureFlaggedSetting.getValue().forEach(feature -> registerSetting(feature));
+                featureFlaggedSetting.getValue().forEach(this::registerSetting);
             }
         }
 

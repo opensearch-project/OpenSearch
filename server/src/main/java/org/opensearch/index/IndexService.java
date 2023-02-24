@@ -458,53 +458,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         try {
             lock = nodeEnv.shardLock(shardId, "starting shard", TimeUnit.SECONDS.toMillis(5));
             eventListener.beforeIndexShardCreated(shardId, indexSettings);
-            ShardPath path;
-            try {
-                path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings.customDataPath());
-            } catch (IllegalStateException ex) {
-                logger.warn("{} failed to load shard path, trying to remove leftover", shardId);
-                try {
-                    ShardPath.deleteLeftoverShardDirectory(logger, nodeEnv, lock, this.indexSettings);
-                    path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings.customDataPath());
-                } catch (Exception inner) {
-                    ex.addSuppressed(inner);
-                    throw ex;
-                }
-            }
-
-            if (path == null) {
-                // TODO: we should, instead, hold a "bytes reserved" of how large we anticipate this shard will be, e.g. for a shard
-                // that's being relocated/replicated we know how large it will become once it's done copying:
-                // Count up how many shards are currently on each data path:
-                Map<Path, Integer> dataPathToShardCount = new HashMap<>();
-                for (IndexShard shard : this) {
-                    Path dataPath = shard.shardPath().getRootStatePath();
-                    Integer curCount = dataPathToShardCount.get(dataPath);
-                    if (curCount == null) {
-                        curCount = 0;
-                    }
-                    dataPathToShardCount.put(dataPath, curCount + 1);
-                }
-                path = ShardPath.selectNewPathForShard(
-                    nodeEnv,
-                    shardId,
-                    this.indexSettings,
-                    routing.getExpectedShardSize() == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
-                        ? getAvgShardSizeInBytes()
-                        : routing.getExpectedShardSize(),
-                    dataPathToShardCount
-                );
-                logger.debug("{} creating using a new path [{}]", shardId, path);
-            } else {
-                logger.debug("{} creating using an existing path [{}]", shardId, path);
-            }
-
-            if (shards.containsKey(shardId.id())) {
-                throw new IllegalStateException(shardId + " already exists");
-            }
-
+            ShardPath path = getShardPath(routing, shardId, lock);
             logger.debug("creating shard_id {}", shardId);
-            // if we are on a shared FS we only own the shard (ie. we can safely delete it) if we are the primary.
+            // if we are on a shared FS we only own the shard (i.e. we can safely delete it) if we are the primary.
             final Engine.Warmer engineWarmer = (reader) -> {
                 IndexShard shard = getShardOrNull(shardId.getId());
                 if (shard != null) {
@@ -571,6 +527,63 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 closeShard("initialization failed", shardId, indexShard, store, eventListener);
             }
         }
+    }
+
+    /*
+      Fetches the shard path based on the index type -
+      For a remote snapshot index, the cache path is used to initialize the shards.
+      For a local index, a local shard path is loaded or a new path is calculated.
+     */
+    private ShardPath getShardPath(ShardRouting routing, ShardId shardId, ShardLock lock) throws IOException {
+        ShardPath path;
+        if (this.indexSettings.isRemoteSnapshot()) {
+            path = ShardPath.loadFileCachePath(nodeEnv, shardId);
+        } else {
+            try {
+                path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings.customDataPath());
+            } catch (IllegalStateException ex) {
+                logger.warn("{} failed to load shard path, trying to remove leftover", shardId);
+                try {
+                    ShardPath.deleteLeftoverShardDirectory(logger, nodeEnv, lock, this.indexSettings);
+                    path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings.customDataPath());
+                } catch (Exception inner) {
+                    ex.addSuppressed(inner);
+                    throw ex;
+                }
+            }
+
+            if (path == null) {
+                // TODO: we should, instead, hold a "bytes reserved" of how large we anticipate this shard will be, e.g. for a shard
+                // that's being relocated/replicated we know how large it will become once it's done copying:
+                // Count up how many shards are currently on each data path:
+                Map<Path, Integer> dataPathToShardCount = new HashMap<>();
+                for (IndexShard shard : this) {
+                    Path dataPath = shard.shardPath().getRootStatePath();
+                    Integer curCount = dataPathToShardCount.get(dataPath);
+                    if (curCount == null) {
+                        curCount = 0;
+                    }
+                    dataPathToShardCount.put(dataPath, curCount + 1);
+                }
+                path = ShardPath.selectNewPathForShard(
+                    nodeEnv,
+                    shardId,
+                    this.indexSettings,
+                    routing.getExpectedShardSize() == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
+                        ? getAvgShardSizeInBytes()
+                        : routing.getExpectedShardSize(),
+                    dataPathToShardCount
+                );
+                logger.debug("{} creating using a new path [{}]", shardId, path);
+            } else {
+                logger.debug("{} creating using an existing path [{}]", shardId, path);
+            }
+        }
+
+        if (shards.containsKey(shardId.id())) {
+            throw new IllegalStateException(shardId + " already exists");
+        }
+        return path;
     }
 
     @Override
