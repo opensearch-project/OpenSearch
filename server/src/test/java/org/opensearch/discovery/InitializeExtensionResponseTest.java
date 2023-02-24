@@ -18,7 +18,7 @@ import java.util.Arrays;
 import java.util.List;
 
 public class InitializeExtensionResponseTest extends OpenSearchTestCase {
-    public void testRegisterCustomSettingsRequest() throws Exception {
+    public void testInitialzeExtensionResponse() throws Exception {
         String expectedName = "testsample-sdk";
         List<String> expectedImplimentedInterfaces = new ArrayList<>(Arrays.asList("Action", "Search"));
 
