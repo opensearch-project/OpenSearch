@@ -28,7 +28,6 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.concurrent.CompletableFuture;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
@@ -100,7 +99,8 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
     }
 
     // create OnDemandBlockSnapshotIndexInput for each block size
-    private OnDemandBlockSnapshotIndexInput createOnDemandBlockSnapshotIndexInput(int blockSizeShift) {
+    private OnDemandBlockSnapshotIndexInput createOnDemandBlockSnapshotIndexInput(int blockSizeShift) throws IOException,
+        InterruptedException {
 
         // file info should be initialized per test method since file size need to be calculated
         fileInfo = new BlobStoreIndexShardSnapshot.FileInfo(
@@ -113,10 +113,8 @@ public class OnDemandBlockSnapshotIndexInputTests extends OpenSearchTestCase {
 
         doAnswer(invocation -> {
             BlobFetchRequest blobFetchRequest = invocation.getArgument(0);
-            return CompletableFuture.completedFuture(
-                blobFetchRequest.getDirectory().openInput(blobFetchRequest.getFileName(), IOContext.READ)
-            );
-        }).when(transferManager).asyncFetchBlob(any());
+            return blobFetchRequest.getDirectory().openInput(blobFetchRequest.getFileName(), IOContext.READ);
+        }).when(transferManager).fetchBlob(any());
 
         FSDirectory directory = null;
         try {
