@@ -50,7 +50,7 @@ public class IdentityRestTestCase extends OpenSearchRestTestCase {
      * This warning is expected to be thrown as we are accessing identity index directly
      * @return the warning message to be expected
      */
-    public RequestOptions options() {
+    public static RequestOptions options() {
 
         RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
         options.addHeader("Authorization", "Basic YWRtaW46YWRtaW4="); // admin:admin;

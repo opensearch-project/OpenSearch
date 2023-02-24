@@ -64,6 +64,7 @@ public class RestPermissionsIT extends OpenSearchRestTestCase {
         // _identity/api/permissions/test
         Request putRequest = new Request("PUT", endpoint + "/" + username);
         putRequest.setJsonEntity("{ \"permission\" : \"cluster.admin/read\"}\n");
+        putRequest.setOptions(IdentityRestTestCase.options());
         Response putResponse = client().performRequest(putRequest);
         assertThat(putResponse.getStatusLine().getStatusCode(), is(200));
         assertTrue(new String(putResponse.getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8).contains("true"));
@@ -87,6 +88,7 @@ public class RestPermissionsIT extends OpenSearchRestTestCase {
 
         putRequest = new Request("PUT", endpoint + "/" + username);
         putRequest.setJsonEntity("{ \"permission\" : \":1:2:3\"}\n"); // Invalid permission
+        putRequest.setOptions(IdentityRestTestCase.options());
         try {
             putResponse = client().performRequest(putRequest);
         } catch (ResponseException ex) {

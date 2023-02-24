@@ -72,7 +72,9 @@ public class SecurityRestFilter {
                     if (authTokenHeader == null) {
                         Subject currentSubject = Identity.getAuthManager().getSubject();
                         // TODO replace with Principal Identifier Token if destination is extension
-                        jwtClaims.put("sub", currentSubject.getPrincipal().getName());
+                        if (currentSubject != null) {
+                            jwtClaims.put("sub", currentSubject.getPrincipal().getName());
+                        }
                         jwtClaims.put("iat", Instant.now().toString());
                     }
 

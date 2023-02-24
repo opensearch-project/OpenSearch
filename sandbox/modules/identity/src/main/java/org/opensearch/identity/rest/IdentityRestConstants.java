@@ -27,4 +27,5 @@ public class IdentityRestConstants {
     public static final String PERMISSION_SUBPATH = "/permissions";
     public static final String IDENTITY_API_PERMISSION_PREFIX = IDENTITY_REST_API_REQUEST_PREFIX + PERMISSION_SUBPATH;
     public static final String PERMISSION_ACTION_PREFIX = "permission_action";
+    public static final String IDENTITY_RESET_USER_PASSWORD_ACTION = "reset_password" + IDENTITY_USER_ACTION_SUFFIX;
 }
