@@ -9,9 +9,9 @@
 package org.opensearch.index.store.remote.utils;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -38,7 +38,6 @@ import static org.mockito.Mockito.mock;
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public class TransferManagerTests extends OpenSearchTestCase {
     private final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(1024 * 1024, 8);
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private MMapDirectory directory;
     private BlobContainer blobContainer;
     private TransferManager transferManager;
@@ -49,14 +48,12 @@ public class TransferManagerTests extends OpenSearchTestCase {
         directory = new MMapDirectory(createTempDir(), SimpleFSLockFactory.INSTANCE);
         blobContainer = mock(BlobContainer.class);
         doAnswer(i -> new ByteArrayInputStream(new byte[] { 0, 1, 2, 3, 4, 5, 6, 7 })).when(blobContainer).readBlob("blob", 0, 8);
-        transferManager = new TransferManager(blobContainer, executor, fileCache);
+        transferManager = new TransferManager(blobContainer, fileCache);
     }
 
     @After
     public void tearDown() throws Exception {
         super.tearDown();
-        executor.shutdown();
-        assertTrue(executor.awaitTermination(1, TimeUnit.SECONDS));
     }
 
     public void testSingleAccess() throws Exception {
@@ -93,9 +90,9 @@ public class TransferManagerTests extends OpenSearchTestCase {
         }
     }
 
-    private IndexInput fetchBlob() throws ExecutionException, InterruptedException {
-        return transferManager.asyncFetchBlob(
+    private IndexInput fetchBlob() throws InterruptedException, IOException {
+        return transferManager.fetchBlob(
             BlobFetchRequest.builder().blobName("blob").position(0).fileName("file").directory(directory).length(8).build()
-        ).get();
+        );
     }
 }
