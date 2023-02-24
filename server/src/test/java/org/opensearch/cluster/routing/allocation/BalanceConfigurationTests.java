@@ -48,12 +48,14 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
+import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.opensearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
@@ -142,11 +144,11 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         );
     }
 
-    private Settings getSettingsBuilderForPrimaryBalance() {
+    private Settings.Builder getSettingsBuilderForPrimaryBalance() {
         return getSettingsBuilderForPrimaryBalance(true);
     }
 
-    private Settings getSettingsBuilderForPrimaryBalance(boolean preferPrimaryBalance) {
+    private Settings.Builder getSettingsBuilderForPrimaryBalance(boolean preferPrimaryBalance) {
         final float indexBalance = 0.55f;
         final float shardBalance = 0.45f;
         final float balanceThreshold = 1.0f;
@@ -160,7 +162,7 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         settings.put(BalancedShardsAllocator.PREFER_PRIMARY_SHARD_BALANCE.getKey(), preferPrimaryBalance);
         settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), shardBalance);
         settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), balanceThreshold);
-        return settings.build();
+        return settings;
     }
 
     private IndexMetadata getIndexMetadata(String indexName, int shardCount, int replicaCount) {
@@ -179,7 +181,7 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
      * This test verifies that with only primary shard balance, the primary shard distribution per index is balanced.
      */
     public void testPrimaryBalance() {
-        AllocationService strategy = createAllocationService(getSettingsBuilderForPrimaryBalance(), new TestGatewayAllocator());
+        AllocationService strategy = createAllocationService(getSettingsBuilderForPrimaryBalance().build(), new TestGatewayAllocator());
 
         ClusterState clusterState = initCluster(strategy);
         verifyPerIndexPrimaryBalance(clusterState);
@@ -203,7 +205,10 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         final int numberOfRuns = 5;
         int balanceFailed = 0;
 
-        AllocationService strategy = createAllocationService(getSettingsBuilderForPrimaryBalance(false), new TestGatewayAllocator());
+        AllocationService strategy = createAllocationService(
+            getSettingsBuilderForPrimaryBalance(false).build(),
+            new TestGatewayAllocator()
+        );
         for (int i = 0; i < numberOfRuns; i++) {
             ClusterState clusterState = initCluster(strategy, true, numberOfIndices, numberOfNodes, numberOfShards, numberOfReplicas);
             clusterState = removeOneNode(clusterState, strategy);
@@ -229,7 +234,7 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         final int numberOfRuns = 5;
         int balanceFailed = 0;
 
-        AllocationService strategy = createAllocationService(getSettingsBuilderForPrimaryBalance(), new TestGatewayAllocator());
+        AllocationService strategy = createAllocationService(getSettingsBuilderForPrimaryBalance().build(), new TestGatewayAllocator());
         for (int i = 0; i < numberOfRuns; i++) {
             ClusterState clusterState = initCluster(strategy, true, numberOfIndices, numberOfNodes, numberOfShards, numberOfReplicas);
             clusterState = removeOneNode(clusterState, strategy);
@@ -245,9 +250,127 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
     }
 
     /**
-     * This test creates a cluster state where rebalancing is not possible due to {@link org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider}
-     * allocation deciders and is use case which is not solved. Here, all shards belong to single index
+     * This test verifies the allocation logic when nodes breach multiple constraints and ensure node breaching min
+     * constraints chosen for allocation.
      *
+     * This test creates a cluster state where one node breaches 2 constraints while one breaches only one. In order to
+     * have nodes breach constraint, test excludes certain nodes (node2, node3) from allocation so that other two nodes
+     * (node0, node1) have all shards assignments and breach constraints. Test asserts that the new primary shard
+     * assignment lands on the node breaching one constraint(node1), while replica land on the other (node0). Final shard
+     * allocation state.
+     *
+     routing_nodes:
+     -----node_id[node2][V]
+     -----node_id[node3][V]
+     -----node_id[node0][V]
+     --------[test][1], node[node0], [P], s[STARTED], a[id=7B4dVsrjSoC6imBHO60mrQ]
+     --------[test][0], node[node0], [P], s[STARTED], a[id=0HySaPcyRhiKrH6QLA3evw]
+     --------[test][2], node[node0], [R], s[STARTED], a[id=pB3iuLKZSC--2yNS0trbgA]
+     -----node_id[node1][V]
+     --------[test][2], node[node1], [P], s[STARTED], a[id=QWN_T6xpQiWGSD8GJnX-bQ]
+     --------[test][1], node[node1], [R], s[STARTED], a[id=ChWdQiOdSdKrTPxwceIu1w]
+     --------[test][0], node[node1], [R], s[STARTED], a[id=5Adc5JteQ8-lY2xfsHUg-Q]
+     *
+     */
+    public void testPrimaryBalanceWithContrainstBreaching() {
+        // Mark node2, node 3 excluded (FilterAllocationDecider) so that all allocations land on node 0, node 1
+        Settings.Builder settingsBuilder = getSettingsBuilderForPrimaryBalance();
+        settingsBuilder.put("cluster.routing.allocation.exclude._id", "node2,node3");
+
+        AllocationService strategy = createAllocationService(settingsBuilder.build(), new TestGatewayAllocator());
+        DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
+        List<String> nodesList = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            final DiscoveryNode node = newNode("node" + i);
+            discoBuilder = discoBuilder.add(node);
+            nodesList.add(node.getId());
+        }
+        discoBuilder.localNodeId(newNode("node_0").getId());
+        discoBuilder.clusterManagerNodeId(newNode("node_0").getId());
+
+        Metadata.Builder metadata = Metadata.builder();
+        metadata.persistentSettings(settingsBuilder.build());
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        // build index metadata
+        IndexMetadata indexMetadata = getIndexMetadata("test", 3, 1);
+        // Build index routing table
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex());
+        ShardId shardId_0 = new ShardId(indexMetadata.getIndex(), 0);
+        ShardId shardId_1 = new ShardId(indexMetadata.getIndex(), 1);
+        ShardId shardId_2 = new ShardId(indexMetadata.getIndex(), 2);
+        UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
+        IndexShardRoutingTable.Builder indexShardRoutingBuilder_0 = new IndexShardRoutingTable.Builder(shardId_0);
+        IndexShardRoutingTable.Builder indexShardRoutingBuilder_1 = new IndexShardRoutingTable.Builder(shardId_1);
+        IndexShardRoutingTable.Builder indexShardRoutingBuilder_2 = new IndexShardRoutingTable.Builder(shardId_2);
+        indexShardRoutingBuilder_0.addShard(TestShardRouting.newShardRouting(shardId_0, nodesList.get(0), true, ShardRoutingState.STARTED));
+        indexShardRoutingBuilder_1.addShard(TestShardRouting.newShardRouting(shardId_1, nodesList.get(0), true, ShardRoutingState.STARTED));
+        indexShardRoutingBuilder_0.addShard(
+            TestShardRouting.newShardRouting(shardId_0, nodesList.get(1), false, ShardRoutingState.STARTED)
+        );
+        indexShardRoutingBuilder_1.addShard(
+            TestShardRouting.newShardRouting(shardId_1, nodesList.get(1), false, ShardRoutingState.STARTED)
+        );
+        indexShardRoutingBuilder_2.addShard(
+            TestShardRouting.newShardRouting(
+                shardId_2,
+                null,
+                null,
+                true,
+                UNASSIGNED,
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                unassignedInfo
+            )
+        );
+        indexShardRoutingBuilder_2.addShard(
+            TestShardRouting.newShardRouting(
+                shardId_2,
+                null,
+                null,
+                false,
+                UNASSIGNED,
+                RecoverySource.PeerRecoverySource.INSTANCE,
+                unassignedInfo
+            )
+        );
+
+        IndexShardRoutingTable indexShardRoutingTable_0 = indexShardRoutingBuilder_0.build();
+        IndexShardRoutingTable indexShardRoutingTable_1 = indexShardRoutingBuilder_1.build();
+
+        indexRoutingTable.addIndexShard(indexShardRoutingBuilder_0.build());
+        indexRoutingTable.addIndexShard(indexShardRoutingBuilder_1.build());
+        indexRoutingTable.addIndexShard(indexShardRoutingBuilder_2.build());
+        routingTable.add(indexRoutingTable);
+
+        IndexMetadata.Builder indexMetaDataBuilder = IndexMetadata.builder(indexMetadata);
+        indexMetaDataBuilder.putInSyncAllocationIds(0, indexShardRoutingTable_0.getAllAllocationIds());
+        indexMetaDataBuilder.putInSyncAllocationIds(1, indexShardRoutingTable_1.getAllAllocationIds());
+        metadata.put(indexMetaDataBuilder.build(), false);
+
+        ClusterState.Builder stateBuilder = ClusterState.builder(new ClusterName("test"));
+        stateBuilder.nodes(discoBuilder);
+        stateBuilder.metadata(metadata.generateClusterUuidIfNeeded().build());
+        stateBuilder.routingTable(routingTable.build());
+        ClusterState clusterState = stateBuilder.build();
+        clusterState = strategy.reroute(clusterState, "reroute");
+        clusterState = applyAllocationUntilNoChange(clusterState, strategy);
+
+        logger.info(ShardAllocations.printShardDistribution(clusterState));
+        ShardRouting primaryShard = clusterState.routingTable().shardRoutingTable(shardId_2).primaryShard();
+        List<ShardRouting> replicaShards = clusterState.routingTable().shardRoutingTable(shardId_2).replicaShards();
+
+        assertTrue(primaryShard.started());
+        assertEquals("node1", primaryShard.currentNodeId());
+
+        assertEquals(1, replicaShards.size());
+        assertTrue(replicaShards.get(0).started());
+        assertEquals("node0", replicaShards.get(0).currentNodeId());
+    }
+
+    /**
+     * This test mimics a cluster state which can not be rebalanced due to {@link org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider}
+     * allocation decider which prevents shard relocation, leaving cluster unbalanced on primaries.
+     *
+     * There are two nodes (N1, N2) where all primaries land on N1 while replicas on N2.
      * N1        N2
      * ------  --------
      * P1        R1
@@ -261,7 +384,7 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
      * --------[test][0], node[node_1], [R], s[STARTED], a[id=8IpwEMQ2QEuj5rQOxBagSA]
      */
     public void testPrimaryBalance_NotSolved_1() {
-        AllocationService strategy = createAllocationService(getSettingsBuilderForPrimaryBalance(), new TestGatewayAllocator());
+        AllocationService strategy = createAllocationService(getSettingsBuilderForPrimaryBalance().build(), new TestGatewayAllocator());
 
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         Set<String> nodes = new HashSet<>();
@@ -313,9 +436,10 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
     }
 
     /**
-     * This test creates a cluster state where rebalancing is not possible due to existing limitation of rebalancing
-     * logic which balances single index at a time. And is another use case which is not solved. Here, P1, P2 belongs
-     * to different index.
+     * This test mimics cluster state where re-balancing is not possible due to existing limitation of re-balancing
+     * logic which applies at index level i.e. balance shards single index across all nodes.
+     *
+     * Please note, P1, P2 belongs to different index
      *
      * N1        N2
      * ------  --------
@@ -331,7 +455,7 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
      *
      */
     public void testPrimaryBalance_NotSolved_2() {
-        AllocationService strategy = createAllocationService(getSettingsBuilderForPrimaryBalance(), new TestGatewayAllocator());
+        AllocationService strategy = createAllocationService(getSettingsBuilderForPrimaryBalance().build(), new TestGatewayAllocator());
 
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
         Set<String> nodes = new HashSet<>();
@@ -487,15 +611,7 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
             .routingTable(initialRoutingTable)
             .build();
         clusterState = strategy.reroute(clusterState, "reroute");
-
-        logger.info("restart all the primary shards, replicas will start initializing");
-        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
-
-        logger.info("start the replica shards");
-        clusterState = startInitializingShardsAndReroute(strategy, clusterState);
-
-        logger.info("complete rebalancing");
-        return applyStartedShardsUntilNoChange(clusterState, strategy);
+        return applyAllocationUntilNoChange(clusterState, strategy);
     }
 
     private ClusterState addNode(ClusterState clusterState, AllocationService strategy) {
@@ -516,7 +632,7 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         nodes.remove("node0");
         clusterState = ClusterState.builder(clusterState).nodes(nodes.build()).build();
         clusterState = strategy.disassociateDeadNodes(clusterState, randomBoolean(), "removed nodes");
-        return performAllocationActions(clusterState, strategy);
+        return applyAllocationUntilNoChange(clusterState, strategy);
     }
 
     private ClusterState removeNodes(ClusterState clusterState, AllocationService strategy) {
@@ -534,10 +650,10 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         if (removed) {
             clusterState = strategy.disassociateDeadNodes(clusterState, randomBoolean(), "removed nodes");
         }
-        return performAllocationActions(clusterState, strategy);
+        return applyAllocationUntilNoChange(clusterState, strategy);
     }
 
-    private ClusterState performAllocationActions(ClusterState clusterState, AllocationService strategy) {
+    private ClusterState applyAllocationUntilNoChange(ClusterState clusterState, AllocationService strategy) {
         logger.info("start all the primary shards, replicas will start initializing");
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
 
