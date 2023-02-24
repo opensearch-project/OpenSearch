@@ -410,7 +410,7 @@ public final class NodeEnvironment implements Closeable {
      * If the user doesn't configure the cache size, it fails if the node is a data + search node.
      * Else it configures the size to 80% of available capacity for a dedicated search node, if not explicitly defined.
      */
-    private void initializeFileCache(Settings settings) {
+    private void initializeFileCache(Settings settings) throws IOException {
         if (DiscoveryNode.isSearchNode(settings)) {
             long capacity = NODE_SEARCH_CACHE_SIZE_SETTING.get(settings).getBytes();
             FsInfo.Path info = ExceptionsHelper.catchAsRuntimeException(() -> FsProbe.getFSInfo(this.fileCacheNodePath));
@@ -435,6 +435,8 @@ public final class NodeEnvironment implements Closeable {
             capacity = Math.min(capacity, availableCapacity);
             fileCacheNodePath.fileCacheReservedSize = new ByteSizeValue(capacity, ByteSizeUnit.BYTES);
             this.fileCache = FileCacheFactory.createConcurrentLRUFileCache(capacity);
+            List<Path> fileCacheDataPaths = collectFileCacheDataPath(this.fileCacheNodePath);
+            this.fileCache.restoreFromDirectory(fileCacheDataPaths);
         }
     }
 
