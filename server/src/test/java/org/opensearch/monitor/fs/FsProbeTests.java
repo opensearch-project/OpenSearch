@@ -34,6 +34,7 @@ package org.opensearch.monitor.fs;
 
 import org.apache.lucene.util.Constants;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.NodeEnvironment.NodePath;
 import org.opensearch.test.OpenSearchTestCase;
@@ -64,7 +65,7 @@ public class FsProbeTests extends OpenSearchTestCase {
     public void testFsInfo() throws IOException {
 
         try (NodeEnvironment env = newNodeEnvironment()) {
-            FsProbe probe = new FsProbe(env);
+            FsProbe probe = new FsProbe(env, null);
 
             FsInfo stats = probe.stats(null);
             assertNotNull(stats);
@@ -103,6 +104,39 @@ public class FsProbeTests extends OpenSearchTestCase {
                 assertThat(path.total, greaterThan(0L));
                 assertThat(path.free, greaterThan(0L));
                 assertThat(path.available, greaterThan(0L));
+                assertTrue(path.fileCacheReserved == 0);
+                assertTrue(path.fileCacheUtilized == 0);
+            }
+        }
+    }
+
+    public void testFsCacheInfo() throws IOException {
+        Settings settings = Settings.builder().put("node.roles", "search").build();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            FsProbe probe = new FsProbe(env, settings);
+            FsInfo stats = probe.stats(null);
+            assertNotNull(stats);
+            assertTrue(stats.getTimestamp() > 0L);
+            FsInfo.Path total = stats.getTotal();
+            assertNotNull(total);
+            assertTrue(total.total > 0L);
+            assertTrue(total.free > 0L);
+            assertTrue(total.available > 0L);
+            assertTrue(total.fileCacheReserved > 0L);
+            assertTrue((total.free - total.available) >= total.fileCacheReserved);
+
+            for (FsInfo.Path path : stats) {
+                assertNotNull(path);
+                assertFalse(path.getPath().isEmpty());
+                assertFalse(path.getMount().isEmpty());
+                assertFalse(path.getType().isEmpty());
+                assertTrue(path.total > 0L);
+                assertTrue(path.free > 0L);
+                assertTrue(path.available > 0L);
+
+                if (path.fileCacheReserved > -1L) {
+                    assertTrue(path.free - path.available >= path.fileCacheReserved);
+                }
             }
         }
     }
@@ -173,7 +207,7 @@ public class FsProbeTests extends OpenSearchTestCase {
             )
         );
 
-        final FsProbe probe = new FsProbe(null) {
+        final FsProbe probe = new FsProbe(null, null) {
             @Override
             List<String> readProcDiskStats() throws IOException {
                 return diskStats.get();

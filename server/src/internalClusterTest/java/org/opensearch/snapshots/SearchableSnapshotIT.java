@@ -7,6 +7,8 @@ package org.opensearch.snapshots;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.hamcrest.MatcherAssert;
+import org.opensearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
@@ -29,6 +31,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
+import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.repositories.fs.FsRepository;
 
@@ -412,5 +415,54 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
                 MatcherAssert.assertThat("Expect file not to exist: " + file, Files.exists(file), is(false));
             }
         }
+    }
+
+    public void testFileCacheStats() throws Exception {
+        final String snapshotName = "test-snap";
+        final String repoName = "test-repo";
+        final String indexName1 = "test-idx-1";
+        final Client client = client();
+        final int numNodes = 2;
+
+        internalCluster().ensureAtLeastNumDataNodes(numNodes);
+        createIndexWithDocsAndEnsureGreen(1, 100, indexName1);
+
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName, repoName, indexName1);
+        deleteIndicesAndEnsureGreen(client, indexName1);
+        assertAllNodesFileCacheEmpty();
+
+        internalCluster().ensureAtLeastNumSearchNodes(numNodes);
+        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
+        assertNodesFileCacheNonEmpty(numNodes);
+    }
+
+    private void assertAllNodesFileCacheEmpty() {
+        NodesStatsResponse response = client().admin().cluster().nodesStats(new NodesStatsRequest().all()).actionGet();
+        for (NodeStats stats : response.getNodes()) {
+            FileCacheStats fcstats = stats.getFileCacheStats();
+            assertNull(fcstats);
+        }
+    }
+
+    private void assertNodesFileCacheNonEmpty(int numNodes) {
+        NodesStatsResponse response = client().admin().cluster().nodesStats(new NodesStatsRequest().all()).actionGet();
+        int nonEmptyFileCacheNodes = 0;
+        for (NodeStats stats : response.getNodes()) {
+            FileCacheStats fcStats = stats.getFileCacheStats();
+            if (stats.getNode().isSearchNode()) {
+                if (!isFileCacheEmpty(fcStats)) {
+                    nonEmptyFileCacheNodes++;
+                }
+            } else {
+                assertNull(fcStats);
+            }
+
+        }
+        assertEquals(numNodes, nonEmptyFileCacheNodes);
+    }
+
+    private boolean isFileCacheEmpty(FileCacheStats stats) {
+        return stats.getUsed().getBytes() == 0L && stats.getActive().getBytes() == 0L;
     }
 }
