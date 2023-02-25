@@ -37,7 +37,6 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.List;
@@ -49,22 +48,22 @@ import java.util.List;
  */
 public class InitializeExtensionResponse extends TransportResponse {
     private String name;
-    private List<String> implementatedInterfaces;
+    private List<String> implementedInterfaces;
 
-    public InitializeExtensionResponse(String name, List<String> implementatedInterfaces) {
+    public InitializeExtensionResponse(String name, List<String> implementedInterfaces) {
         this.name = name;
-        this.implementatedInterfaces = implementatedInterfaces;
+        this.implementedInterfaces = implementedInterfaces;
     }
 
     public InitializeExtensionResponse(StreamInput in) throws IOException {
         name = in.readString();
-        this.implementatedInterfaces = new ArrayList<String>(Arrays.asList(in.readStringArray()));
+        this.implementedInterfaces = Arrays.asList(in.readStringArray());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
-        out.writeStringArray(implementatedInterfaces.toArray(new String[0]));
+        out.writeStringArray(implementedInterfaces.toArray(new String[0]));
     }
 
     /**
@@ -80,12 +79,12 @@ public class InitializeExtensionResponse extends TransportResponse {
      */
 
     public List<String> getImplementedInterfaces() {
-        return implementatedInterfaces;
+        return implementedInterfaces;
     }
 
     @Override
     public String toString() {
-        return "PluginResponse{" + "name" + name + "implementedInterfaces" + implementatedInterfaces + "}";
+        return "PluginResponse{" + "name = " + name + " , " + "implementedInterfaces = " + implementedInterfaces + "}";
     }
 
     @Override
@@ -93,11 +92,11 @@ public class InitializeExtensionResponse extends TransportResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         InitializeExtensionResponse that = (InitializeExtensionResponse) o;
-        return Objects.equals(name, that.name) && Objects.equals(implementatedInterfaces, that.implementatedInterfaces);
+        return Objects.equals(name, that.name) && Objects.equals(implementedInterfaces, that.implementedInterfaces);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, implementatedInterfaces);
+        return Objects.hash(name, implementedInterfaces);
     }
 }

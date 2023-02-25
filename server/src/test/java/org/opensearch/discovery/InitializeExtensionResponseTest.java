@@ -20,18 +20,18 @@ import java.util.List;
 public class InitializeExtensionResponseTest extends OpenSearchTestCase {
     public void testInitialzeExtensionResponse() throws Exception {
         String expectedName = "testsample-sdk";
-        List<String> expectedImplimentedInterfaces = new ArrayList<>(Arrays.asList("Action", "Search"));
+        List<String> expectedImplementedInterfaces = new ArrayList<>(Arrays.asList("Action", "Search"));
 
         InitializeExtensionResponse initializeExtensionResponse = new InitializeExtensionResponse(
             expectedName,
-            expectedImplimentedInterfaces
+            expectedImplementedInterfaces
         );
 
         assertEquals(expectedName, initializeExtensionResponse.getName());
         List<String> implementedInterfaces = initializeExtensionResponse.getImplementedInterfaces();
-        assertEquals(expectedImplimentedInterfaces.size(), implementedInterfaces.size());
-        assertTrue(implementedInterfaces.containsAll(expectedImplimentedInterfaces));
-        assertTrue(expectedImplimentedInterfaces.containsAll(implementedInterfaces));
+        assertEquals(expectedImplementedInterfaces.size(), implementedInterfaces.size());
+        assertTrue(implementedInterfaces.containsAll(expectedImplementedInterfaces));
+        assertTrue(expectedImplementedInterfaces.containsAll(implementedInterfaces));
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             initializeExtensionResponse.writeTo(out);
@@ -41,9 +41,9 @@ public class InitializeExtensionResponseTest extends OpenSearchTestCase {
 
                 assertEquals(expectedName, initializeExtensionResponse.getName());
                 implementedInterfaces = initializeExtensionResponse.getImplementedInterfaces();
-                assertEquals(expectedImplimentedInterfaces.size(), implementedInterfaces.size());
-                assertTrue(implementedInterfaces.containsAll(expectedImplimentedInterfaces));
-                assertTrue(expectedImplimentedInterfaces.containsAll(implementedInterfaces));
+                assertEquals(expectedImplementedInterfaces.size(), implementedInterfaces.size());
+                assertTrue(implementedInterfaces.containsAll(expectedImplementedInterfaces));
+                assertTrue(expectedImplementedInterfaces.containsAll(implementedInterfaces));
             }
         }
     }
