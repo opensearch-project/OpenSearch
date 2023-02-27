@@ -60,6 +60,7 @@ import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.rest.RestController;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
@@ -394,11 +395,10 @@ public class ExtensionsManager {
                 initializeExtensionResponseHandler
             );
             inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
-        } catch (CompletionException e) {
-            if (e.getCause() instanceof TimeoutException) {
-                logger.info("No response from extension to request.");
-            }
-            if (e.getCause() instanceof RuntimeException) {
+        } catch (CompletionException | ConnectTransportException e) {
+            if (e.getCause() instanceof TimeoutException || e instanceof ConnectTransportException) {
+                logger.info("No response from extension to request.", e);
+            } else if (e.getCause() instanceof RuntimeException) {
                 throw (RuntimeException) e.getCause();
             } else if (e.getCause() instanceof Error) {
                 throw (Error) e.getCause();
