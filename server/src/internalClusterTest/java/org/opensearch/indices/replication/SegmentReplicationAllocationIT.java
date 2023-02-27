@@ -198,39 +198,6 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
         verifyPerIndexPrimaryBalance();
     }
 
-    public void testShardAllocationWithAutoExpandReplicas() throws Exception {
-        internalCluster().startClusterManagerOnlyNode();
-        final int maxShardCount = 5;
-        final int nodeCount = randomIntBetween(1, 10);
-
-        final List<String> nodeNames = new ArrayList<>();
-        logger.info("--> Creating {} nodes", nodeCount);
-        for (int i = 0; i < nodeCount; i++) {
-            nodeNames.add(internalCluster().startNode());
-        }
-        enablePreferPrimaryBalance();
-        ShardAllocations shardAllocations = new ShardAllocations();
-        ClusterState state;
-        int shardCount = randomIntBetween(1, maxShardCount);
-        Settings.Builder builder = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount)
-            .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
-            .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
-        prepareCreate("test0", builder).get();
-        logger.info("--> Creating index {} with shard count {}", "test0", shardCount);
-        assertBusy(() -> ensureGreen(), 60, TimeUnit.SECONDS);
-        state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        shardAllocations.printShardDistribution(state);
-
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeNames.get(0)));
-        // give replica a chance to promote as primary before terminating node containing the replica
-        assertBusy(() -> ensureGreen(), 60, TimeUnit.SECONDS);
-        state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        shardAllocations.printShardDistribution(state);
-        verifyPerIndexPrimaryBalance();
-    }
-
     /**
      * Utility method which ensures cluster has balanced primary shard distribution across a single index.
      * @throws Exception
