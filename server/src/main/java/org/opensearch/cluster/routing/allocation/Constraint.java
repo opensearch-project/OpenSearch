@@ -22,16 +22,16 @@ import java.util.function.Predicate;
  * @opensearch.internal
  */
 public class Constraint implements Predicate<Constraint.ConstraintParams> {
-    private String name;
 
-    private long weight;
+    public final static long CONSTRAINT_WEIGHT = 1000000L;
+
+    private String name;
 
     private boolean enable;
     private Predicate<ConstraintParams> predicate;
 
-    public Constraint(String name, Predicate<ConstraintParams> constraintPredicate, long weight) {
+    public Constraint(String name, Predicate<ConstraintParams> constraintPredicate) {
         this.name = name;
-        this.weight = weight;
         this.predicate = constraintPredicate;
         this.enable = false;
     }
@@ -43,10 +43,6 @@ public class Constraint implements Predicate<Constraint.ConstraintParams> {
 
     public String getName() {
         return name;
-    }
-
-    public long getWeight() {
-        return weight;
     }
 
     public void setEnable(boolean enable) {
@@ -99,11 +95,11 @@ public class Constraint implements Predicate<Constraint.ConstraintParams> {
          * constraints.
          * </p>
          */
-        public long weight(Map<String, Constraint> constraintSet) {
+        public long weight(Map<String, Constraint> constraints) {
             long totalConstraintWeight = 0;
-            for (Constraint constraint : constraintSet.values()) {
+            for (Constraint constraint : constraints.values()) {
                 if (constraint.test(this)) {
-                    totalConstraintWeight += constraint.getWeight();
+                    totalConstraintWeight += CONSTRAINT_WEIGHT;
                 }
             }
             return totalConstraintWeight;

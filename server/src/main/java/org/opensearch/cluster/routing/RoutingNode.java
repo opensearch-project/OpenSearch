@@ -330,48 +330,6 @@ public class RoutingNode implements Iterable<ShardRouting> {
     }
 
     /**
-     * Returns primary shards of an index with a specific state
-     * @param index id of the index
-     * @param states set of states which should be listed
-     * @return a list of shards
-     */
-    public List<ShardRouting> primaryShardsWithState(String index, ShardRoutingState... states) {
-        List<ShardRouting> shards = new ArrayList<>();
-
-        if (states.length == 1) {
-            if (states[0] == ShardRoutingState.INITIALIZING) {
-                for (ShardRouting shardEntry : initializingShards) {
-                    if (shardEntry.primary() == false || shardEntry.getIndexName().equals(index) == false) {
-                        continue;
-                    }
-                    shards.add(shardEntry);
-                }
-                return shards;
-            } else if (states[0] == ShardRoutingState.RELOCATING) {
-                for (ShardRouting shardEntry : relocatingShards) {
-                    if (shardEntry.primary() == false || shardEntry.getIndexName().equals(index) == false) {
-                        continue;
-                    }
-                    shards.add(shardEntry);
-                }
-                return shards;
-            }
-        }
-
-        for (ShardRouting shardEntry : this) {
-            if (!shardEntry.getIndexName().equals(index) || shardEntry.primary() == false) {
-                continue;
-            }
-            for (ShardRoutingState state : states) {
-                if (shardEntry.state() == state) {
-                    shards.add(shardEntry);
-                }
-            }
-        }
-        return shards;
-    }
-
-    /**
      * Determine the shards of an index with a specific state
      * @param index id of the index
      * @param states set of states which should be listed

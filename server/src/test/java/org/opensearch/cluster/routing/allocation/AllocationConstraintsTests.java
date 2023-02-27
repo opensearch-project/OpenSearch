@@ -19,9 +19,8 @@ import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.opensearch.cluster.routing.allocation.AllocationConstraints.INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID;
-import static org.opensearch.cluster.routing.allocation.AllocationConstraints.INDEX_SHARD_PER_NODE_BREACH_WEIGHT;
+import static org.opensearch.cluster.routing.allocation.Constraint.CONSTRAINT_WEIGHT;
 import static org.opensearch.cluster.routing.allocation.RebalanceConstraints.PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_ID;
-import static org.opensearch.cluster.routing.allocation.RebalanceConstraints.PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_WEIGHT;
 
 public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
 
@@ -37,7 +36,7 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
         settings.put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), indexBalanceFactor);
         settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), shardBalance);
         settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), threshold);
-        settings.put(BalancedShardsAllocator.PREFER_PRIMARY_SHARD_BALANCE.getKey(), true);
+        settings.put(BalancedShardsAllocator.PREFER_PER_INDEX_PRIMARY_SHARD_BALANCE.getKey(), true);
 
         service.applySettings(settings.build());
 
@@ -46,7 +45,7 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
         assertEquals(threshold, allocator.getThreshold(), 0.01);
         assertEquals(true, allocator.getPreferPrimaryBalance());
 
-        settings.put(BalancedShardsAllocator.PREFER_PRIMARY_SHARD_BALANCE.getKey(), false);
+        settings.put(BalancedShardsAllocator.PREFER_PER_INDEX_PRIMARY_SHARD_BALANCE.getKey(), false);
         service.applySettings(settings.build());
         assertEquals(false, allocator.getPreferPrimaryBalance());
     }
@@ -68,7 +67,7 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
         when(node.numShards(anyString())).thenReturn(shardCount);
         when(node.getNodeId()).thenReturn("test-node");
 
-        long expectedWeight = (shardCount >= avgShardsPerNode) ? INDEX_SHARD_PER_NODE_BREACH_WEIGHT : 0;
+        long expectedWeight = (shardCount >= avgShardsPerNode) ? CONSTRAINT_WEIGHT : 0;
         assertEquals(expectedWeight, constraints.weight(balancer, node, "index"));
 
     }
@@ -94,7 +93,7 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
 
         primaryShardCount = 3;
         when(node.numPrimaryShards(anyString())).thenReturn(primaryShardCount);
-        assertEquals(PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_WEIGHT, constraints.weight(balancer, node, "index"));
+        assertEquals(CONSTRAINT_WEIGHT, constraints.weight(balancer, node, "index"));
 
         constraints.updateAllocationConstraint(PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_ID, false);
         assertEquals(0, constraints.weight(balancer, node, "index"));
@@ -122,8 +121,8 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
         when(node.numShards(anyString())).thenReturn(shardCount);
         when(node.getNodeId()).thenReturn("test-node");
 
-        long expectedWeight = (shardCount >= avgShardsPerNode) ? INDEX_SHARD_PER_NODE_BREACH_WEIGHT : 0;
-        expectedWeight += primaryShardCount > avgPrimaryShardsPerNode ? PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_WEIGHT : 0;
+        long expectedWeight = (shardCount >= avgShardsPerNode) ? CONSTRAINT_WEIGHT : 0;
+        expectedWeight += primaryShardCount > avgPrimaryShardsPerNode ? CONSTRAINT_WEIGHT : 0;
         assertEquals(expectedWeight, constraints.weight(balancer, node, "index"));
     }
 

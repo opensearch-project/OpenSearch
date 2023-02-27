@@ -13,7 +13,6 @@ import java.util.Map;
 import java.util.function.Predicate;
 
 import static org.opensearch.cluster.routing.allocation.RebalanceConstraints.PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_ID;
-import static org.opensearch.cluster.routing.allocation.RebalanceConstraints.PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_WEIGHT;
 import static org.opensearch.cluster.routing.allocation.RebalanceConstraints.isPrimaryShardsPerIndexPerNodeBreached;
 
 /**
@@ -24,39 +23,33 @@ import static org.opensearch.cluster.routing.allocation.RebalanceConstraints.isP
  */
 public class AllocationConstraints {
 
-    public final static long INDEX_SHARD_PER_NODE_BREACH_WEIGHT = 100000L;
-
     /**
      *
      * This constraint is only applied for unassigned shards to avoid overloading a newly added node.
      * Weight calculation in other scenarios like shard movement and re-balancing remain unaffected by this constraint.
      */
     public final static String INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID = "index.shard.breach.constraint";
-    private Map<String, Constraint> constraintSet;
+    private Map<String, Constraint> constraints;
+
+    public AllocationConstraints() {
+        this.constraints = new HashMap<>();
+        this.constraints.putIfAbsent(
+            INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID,
+            new Constraint(INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID, isIndexShardsPerNodeBreached())
+        );
+        this.constraints.putIfAbsent(
+            PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_ID,
+            new Constraint(PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_ID, isPrimaryShardsPerIndexPerNodeBreached())
+        );
+    }
 
     public void updateAllocationConstraint(String constraint, boolean enable) {
-        this.constraintSet.get(constraint).setEnable(enable);
+        this.constraints.get(constraint).setEnable(enable);
     }
 
     public long weight(ShardsBalancer balancer, BalancedShardsAllocator.ModelNode node, String index) {
         Constraint.ConstraintParams params = new Constraint.ConstraintParams(balancer, node, index);
-        return params.weight(constraintSet);
-    }
-
-    public AllocationConstraints() {
-        this.constraintSet = new HashMap<>();
-        this.constraintSet.putIfAbsent(
-            INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID,
-            new Constraint(INDEX_SHARD_PER_NODE_BREACH_CONSTRAINT_ID, isIndexShardsPerNodeBreached(), INDEX_SHARD_PER_NODE_BREACH_WEIGHT)
-        );
-        this.constraintSet.putIfAbsent(
-            PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_ID,
-            new Constraint(
-                PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_ID,
-                isPrimaryShardsPerIndexPerNodeBreached(),
-                PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_WEIGHT
-            )
-        );
+        return params.weight(constraints);
     }
 
     /**

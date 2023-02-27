@@ -120,7 +120,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
      * shard re-balance/relocation to a different node{@link LocalShardsBalancer#balance()} .
      */
 
-    public static final Setting<Boolean> PREFER_PRIMARY_SHARD_BALANCE = Setting.boolSetting(
+    public static final Setting<Boolean> PREFER_PER_INDEX_PRIMARY_SHARD_BALANCE = Setting.boolSetting(
         "cluster.routing.allocation.balance.prefer_primary",
         false,
         Property.Dynamic,
@@ -141,8 +141,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     public BalancedShardsAllocator(Settings settings, ClusterSettings clusterSettings) {
         setWeightFunction(INDEX_BALANCE_FACTOR_SETTING.get(settings), SHARD_BALANCE_FACTOR_SETTING.get(settings));
         setThreshold(THRESHOLD_SETTING.get(settings));
-        setPreferPrimaryShardBalance(PREFER_PRIMARY_SHARD_BALANCE.get(settings));
-        clusterSettings.addSettingsUpdateConsumer(PREFER_PRIMARY_SHARD_BALANCE, this::setPreferPrimaryShardBalance);
+        setPreferPrimaryShardBalance(PREFER_PER_INDEX_PRIMARY_SHARD_BALANCE.get(settings));
+        clusterSettings.addSettingsUpdateConsumer(PREFER_PER_INDEX_PRIMARY_SHARD_BALANCE, this::setPreferPrimaryShardBalance);
         clusterSettings.addSettingsUpdateConsumer(SHARD_MOVE_PRIMARY_FIRST_SETTING, this::setMovePrimaryFirst);
         clusterSettings.addSettingsUpdateConsumer(INDEX_BALANCE_FACTOR_SETTING, SHARD_BALANCE_FACTOR_SETTING, this::setWeightFunction);
         clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTING, this::setThreshold);
@@ -158,8 +158,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     private void setPreferPrimaryShardBalance(boolean preferPrimaryShardBalance) {
         this.preferPrimaryShardBalance = preferPrimaryShardBalance;
-        this.weightFunction.updateAllocationConstraint(PREFER_PRIMARY_SHARD_BALANCE.getKey(), preferPrimaryShardBalance);
-        this.weightFunction.updateRebalanceConstraint(PREFER_PRIMARY_SHARD_BALANCE.getKey(), preferPrimaryShardBalance);
+        this.weightFunction.updateAllocationConstraint(PREFER_PER_INDEX_PRIMARY_SHARD_BALANCE.getKey(), preferPrimaryShardBalance);
+        this.weightFunction.updateRebalanceConstraint(PREFER_PER_INDEX_PRIMARY_SHARD_BALANCE.getKey(), preferPrimaryShardBalance);
     }
 
     private void setThreshold(float threshold) {

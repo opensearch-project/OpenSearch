@@ -1000,8 +1000,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 if (allocationDecision.type() == Decision.Type.NO) {
                     continue;
                 }
-                // Skip moving the primary relocation when target has less primaries and is skewed due to
-                // high replica assignment.
+                // This is a safety net which prevents un-necessary primary shard relocations from maxNode to minNode when
+                // doing such relocation wouldn't help in primary balance.
                 if (preferPrimaryBalance == true
                     && shard.primary()
                     && maxNode.numPrimaryShards(shard.getIndexName()) - minNode.numPrimaryShards(shard.getIndexName()) < 2) {

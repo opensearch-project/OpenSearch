@@ -159,7 +159,7 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
             ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()
         );
         settings.put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), indexBalance);
-        settings.put(BalancedShardsAllocator.PREFER_PRIMARY_SHARD_BALANCE.getKey(), preferPrimaryBalance);
+        settings.put(BalancedShardsAllocator.PREFER_PER_INDEX_PRIMARY_SHARD_BALANCE.getKey(), preferPrimaryBalance);
         settings.put(BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING.getKey(), shardBalance);
         settings.put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), balanceThreshold);
         return settings;
@@ -194,7 +194,7 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
     }
 
     /**
-     * This test verifies primary shard balance is not attained without PREFER_PRIMARY_SHARD_BALANCE setting.
+     * This test verifies primary shard balance is not attained without PREFER_PER_INDEX_PRIMARY_SHARD_BALANCE setting.
      */
     public void testPrimaryBalanceWithoutPreferPrimaryBalanceSetting() {
         final int numberOfNodes = 5;
@@ -224,7 +224,7 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
     }
 
     /**
-     * This test verifies primary shard balance is attained with PREFER_PRIMARY_SHARD_BALANCE setting.
+     * This test verifies primary shard balance is attained with PREFER_PER_INDEX_PRIMARY_SHARD_BALANCE setting.
      */
     public void testPrimaryBalanceWithPreferPrimaryBalanceSetting() {
         final int numberOfNodes = 5;
@@ -513,7 +513,12 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
             final int avgPrimaryShardsPerNode = (int) Math.ceil(totalPrimaryShards * 1f / currentState.getRoutingNodes().size());
 
             for (RoutingNode node : nodes) {
-                assertTrue(node.primaryShardsWithState(index.key, STARTED).size() <= avgPrimaryShardsPerNode);
+                final int primaryCount = node.shardsWithState(index.key, STARTED)
+                    .stream()
+                    .filter(ShardRouting::primary)
+                    .collect(Collectors.toList())
+                    .size();
+                assertTrue(primaryCount <= avgPrimaryShardsPerNode);
             }
         }
     }

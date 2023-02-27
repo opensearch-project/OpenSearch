@@ -30,6 +30,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -55,7 +56,9 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
             client().admin()
                 .cluster()
                 .prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().put(BalancedShardsAllocator.PREFER_PRIMARY_SHARD_BALANCE.getKey(), "true"))
+                .setPersistentSettings(
+                    Settings.builder().put(BalancedShardsAllocator.PREFER_PER_INDEX_PRIMARY_SHARD_BALANCE.getKey(), "true")
+                )
         );
     }
 
@@ -240,7 +243,12 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
                 final int totalPrimaryShards = index.value.primaryShardsActive();
                 final int avgPrimaryShardsPerNode = (int) Math.ceil(totalPrimaryShards * 1f / currentState.getRoutingNodes().size());
                 for (RoutingNode node : nodes) {
-                    assertTrue(node.primaryShardsWithState(index.key, STARTED).size() <= avgPrimaryShardsPerNode);
+                    final int primaryCount = node.shardsWithState(index.key, STARTED)
+                        .stream()
+                        .filter(ShardRouting::primary)
+                        .collect(Collectors.toList())
+                        .size();
+                    assertTrue(primaryCount <= avgPrimaryShardsPerNode);
                 }
             }
         }, 60, TimeUnit.SECONDS);

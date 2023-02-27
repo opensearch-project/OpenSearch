@@ -15,7 +15,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
-import static org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.PREFER_PRIMARY_SHARD_BALANCE;
+import static org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.PREFER_PER_INDEX_PRIMARY_SHARD_BALANCE;
 
 /**
  * Constraints applied during rebalancing round; specify conditions which, if breached, reduce the
@@ -24,29 +24,24 @@ import static org.opensearch.cluster.routing.allocation.allocator.BalancedShards
  * @opensearch.internal
  */
 public class RebalanceConstraints {
-    public final static String PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_ID = PREFER_PRIMARY_SHARD_BALANCE.getKey();
-    public final static long PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_WEIGHT = 100000L;
-    private Map<String, Constraint> constraintSet;
+    public final static String PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_ID = PREFER_PER_INDEX_PRIMARY_SHARD_BALANCE.getKey();
+    private Map<String, Constraint> constraints;
 
     public RebalanceConstraints() {
-        this.constraintSet = new HashMap<>();
-        this.constraintSet.putIfAbsent(
+        this.constraints = new HashMap<>();
+        this.constraints.putIfAbsent(
             PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_ID,
-            new Constraint(
-                PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_ID,
-                isPrimaryShardsPerIndexPerNodeBreached(),
-                PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_WEIGHT
-            )
+            new Constraint(PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_ID, isPrimaryShardsPerIndexPerNodeBreached())
         );
     }
 
     public void updateRebalanceConstraint(String constraint, boolean enable) {
-        this.constraintSet.get(constraint).setEnable(enable);
+        this.constraints.get(constraint).setEnable(enable);
     }
 
     public long weight(ShardsBalancer balancer, BalancedShardsAllocator.ModelNode node, String index) {
         Constraint.ConstraintParams params = new Constraint.ConstraintParams(balancer, node, index);
-        return params.weight(constraintSet);
+        return params.weight(constraints);
     }
 
     /**
