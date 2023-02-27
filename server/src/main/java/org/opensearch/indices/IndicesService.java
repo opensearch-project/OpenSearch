@@ -134,6 +134,7 @@ import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.IndexingStats;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.TranslogFactory;
@@ -755,8 +756,10 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
             }
         };
+        final FileCacheCleaner fileCacheCleaner = new FileCacheCleaner(nodeEnv);
         finalListeners.add(onStoreClose);
         finalListeners.add(oldShardsStats);
+        finalListeners.add(fileCacheCleaner);
         final IndexService indexService = createIndexService(
             CREATE_INDEX,
             indexMetadata,
