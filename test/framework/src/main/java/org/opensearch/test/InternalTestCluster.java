@@ -218,6 +218,8 @@ public final class InternalTestCluster extends TestCluster {
         nodeAndClient.node.settings()
     );
 
+    private static final ByteSizeValue DEFAULT_SEARCH_CACHE_SIZE = new ByteSizeValue(100, ByteSizeUnit.MB);
+
     public static final int DEFAULT_LOW_NUM_CLUSTER_MANAGER_NODES = 1;
     public static final int DEFAULT_HIGH_NUM_CLUSTER_MANAGER_NODES = 3;
 
@@ -684,11 +686,7 @@ public final class InternalTestCluster extends TestCluster {
         int size = numSearchNodes();
         if (size < n) {
             logger.info("increasing cluster size from {} to {}", size, n);
-            if (numSharedDedicatedClusterManagerNodes > 0) {
-                startSearchOnlyNodes(n - size);
-            } else {
-                startNodes(n - size, Settings.builder().put(onlyRole(Settings.EMPTY, DiscoveryNodeRole.SEARCH_ROLE)).build());
-            }
+            startNodes(n - size, Settings.builder().put(onlyRole(Settings.EMPTY, DiscoveryNodeRole.SEARCH_ROLE)).build());
             validateClusterFormed();
         }
     }
@@ -702,14 +700,12 @@ public final class InternalTestCluster extends TestCluster {
         int size = numSearchAndDataNodes();
         if (size < n) {
             logger.info("increasing cluster size from {} to {}", size, n);
-            if (numSharedDedicatedClusterManagerNodes > 0) {
-                startDataAndSearchNodes(n - size);
-            } else {
-                Set<DiscoveryNodeRole> searchAndDataRoles = new HashSet<>();
-                searchAndDataRoles.add(DiscoveryNodeRole.DATA_ROLE);
-                searchAndDataRoles.add(DiscoveryNodeRole.SEARCH_ROLE);
-                startNodes(n - size, Settings.builder().put(onlyRoles(Settings.EMPTY, searchAndDataRoles)).build());
-            }
+            Set<DiscoveryNodeRole> searchAndDataRoles = Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.SEARCH_ROLE);
+            Settings settings = Settings.builder()
+                .put(Settings.EMPTY)
+                .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), DEFAULT_SEARCH_CACHE_SIZE)
+                .build();
+            startNodes(n - size, Settings.builder().put(onlyRoles(settings, searchAndDataRoles)).build());
             validateClusterFormed();
         }
     }

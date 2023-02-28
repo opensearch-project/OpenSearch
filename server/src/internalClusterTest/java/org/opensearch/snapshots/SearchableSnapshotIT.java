@@ -424,7 +424,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         final Client client = client();
         final int numNodes = 2;
 
-        internalCluster().ensureAtLeastNumSearchNodes(numNodes);
+        internalCluster().ensureAtLeastNumDataNodes(numNodes);
         createIndexWithDocsAndEnsureGreen(1, 100, indexName1);
 
         createRepositoryWithSettings(null, repoName);
@@ -432,6 +432,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         deleteIndicesAndEnsureGreen(client, indexName1);
         assertAllNodesFileCacheEmpty();
 
+        internalCluster().ensureAtLeastNumSearchNodes(numNodes);
         restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
         assertNodesFileCacheNonEmpty(numNodes);
     }
@@ -440,8 +441,9 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         NodesStatsResponse response = client().admin().cluster().nodesStats(new NodesStatsRequest().all()).actionGet();
         for (NodeStats stats : response.getNodes()) {
             FileCacheStats fcstats = stats.getFileCacheStats();
-            assertNotNull(fcstats);
-            assertTrue(isFileCacheEmpty(fcstats));
+            if (fcstats != null) {
+                assertTrue(isFileCacheEmpty(fcstats));
+            }
         }
     }
 
@@ -449,16 +451,42 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         NodesStatsResponse response = client().admin().cluster().nodesStats(new NodesStatsRequest().all()).actionGet();
         int nonEmptyFileCacheNodes = 0;
         for (NodeStats stats : response.getNodes()) {
-            FileCacheStats fcstats = stats.getFileCacheStats();
-            assertNotNull(fcstats);
-            if (!isFileCacheEmpty(fcstats)) {
-                nonEmptyFileCacheNodes++;
+            FileCacheStats fcStats = stats.getFileCacheStats();
+            if (stats.getNode().isSearchNode()) {
+                if (!isFileCacheEmpty(fcStats)) {
+                    nonEmptyFileCacheNodes++;
+                }
+            } else {
+                assertNull(fcStats);
             }
+
         }
         assertEquals(numNodes, nonEmptyFileCacheNodes);
     }
 
     private boolean isFileCacheEmpty(FileCacheStats stats) {
         return stats.getUsed().getBytes() == 0L && stats.getActive().getBytes() == 0L;
+    }
+
+    public void testPruneFileCacheOnIndexDeletion() throws Exception {
+        final String snapshotName = "test-snap";
+        final String repoName = "test-repo";
+        final String indexName1 = "test-idx-1";
+        final String restoredIndexName1 = indexName1 + "-copy";
+        final Client client = client();
+        final int numNodes = 2;
+
+        internalCluster().ensureAtLeastNumSearchNodes(numNodes);
+        createIndexWithDocsAndEnsureGreen(1, 100, indexName1);
+
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName, repoName, indexName1);
+        deleteIndicesAndEnsureGreen(client, indexName1);
+
+        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
+        assertNodesFileCacheNonEmpty(numNodes);
+
+        deleteIndicesAndEnsureGreen(client, restoredIndexName1);
+        assertAllNodesFileCacheEmpty();
     }
 }
