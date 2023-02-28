@@ -334,6 +334,11 @@ public class SettingTests extends OpenSearchTestCase {
         assertNotNull(expectedPattern);
         assertNotNull(regexValidator.getPattern());
         assertEquals(expectedPattern.pattern(), regexValidator.getPattern().pattern());
+
+        // Test that validate() throws an exception for invalid input
+        final RegexValidator finalValidator = new RegexValidator(regexValidator.getPattern().pattern());
+        assertThrows(IllegalArgumentException.class, () -> finalValidator.validate("abc"));
+
         try {
             regexValidator.validate("abc");
         } catch (IllegalArgumentException e) {
@@ -346,8 +351,14 @@ public class SettingTests extends OpenSearchTestCase {
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 regexValidator = new RegexValidator(in);
                 assertEquals(expectedPattern.pattern(), regexValidator.getPattern().pattern());
+
+                // Test that validate() throws an exception for invalid input
+                final RegexValidator newFinalValidator = new RegexValidator(regexValidator.getPattern().pattern());
+                assertThrows(IllegalArgumentException.class, () -> newFinalValidator.validate("abc"));
+
+                // Test that validate() does not throw an exception for valid input
                 try {
-                    regexValidator.validate("abc");
+                    regexValidator.validate("123");
                 } catch (IllegalArgumentException e) {
                     fail("Expected validate() to not throw an exception, but it threw " + e);
                 }
