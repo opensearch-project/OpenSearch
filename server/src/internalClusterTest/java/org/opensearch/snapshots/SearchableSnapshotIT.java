@@ -537,7 +537,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
                 }
             });
         } catch (NoSuchFileException e) {
-            logger.debug("--> the root path for the restored index data doesn't exist.");
+            logger.debug("--> the path for the cache files doesn't exist");
         }
     }
 }
