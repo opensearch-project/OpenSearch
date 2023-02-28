@@ -67,7 +67,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     private final ThreadContext threadContext;
     private final MeanMetric refreshMetric;
 
-    private IndexShard indexShard;
+    private final IndexShard indexShard;
 
     /**
      * Time in nanosecond when beforeRefresh() is called. Used for calculating refresh metrics.
@@ -94,7 +94,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      */
     private volatile List<Tuple<Translog.Location, Consumer<Boolean>>> refreshListeners = null;
 
-    private volatile List<Tuple<Long, Consumer<Boolean>>> refreshListeners2 = null;
+    private volatile List<Tuple<Long, Consumer<Boolean>>> seqNoRefreshListeners = null;
     /**
      * The translog location that was last made visible by a refresh.
      */
@@ -107,13 +107,15 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         final Runnable forceRefresh,
         final Logger logger,
         final ThreadContext threadContext,
-        final MeanMetric refreshMetric
+        final MeanMetric refreshMetric,
+        final IndexShard indexShard
     ) {
         this.getMaxRefreshListeners = getMaxRefreshListeners;
         this.forceRefresh = forceRefresh;
         this.logger = logger;
         this.threadContext = threadContext;
         this.refreshMetric = refreshMetric;
+        this.indexShard = indexShard;
     }
 
     /**
@@ -139,7 +141,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
             }
         }
         assert refreshListeners == null;
-        assert refreshListeners2 == null;
+        assert seqNoRefreshListeners == null;
         return () -> runOnce.run();
     }
 
@@ -190,13 +192,19 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         return true;
     }
 
-    public boolean addOrNotify(long maxSeqNo, Consumer<Boolean> listener, IndexShard shard) {
-        indexShard = shard;
+    /**
+     * Add a listener for refreshes, calling it immediately if the max sequence number is already visible. If this runs out of listener slots then it
+     * forces a refresh and calls the listener immediately as well.
+     *
+     * @param maxSeqNo the Sequence number to listen for
+     * @param listener for the refresh. Called with true if registering the listener ran it out of slots and forced a refresh. Called with
+     *        false otherwise.
+     * @return did we call the listener (true) or register the listener to call later (false)?
+     */
+    public boolean addOrNotify(long maxSeqNo, Consumer<Boolean> listener) {
         requireNonNull(listener, "listener cannot be null");
-        // requireNonNull(location, "location cannot be null");
 
         if (lastMaxSeqNo != SequenceNumbers.NO_OPS_PERFORMED && lastMaxSeqNo >= maxSeqNo) {
-            // Location already visible, just call the listener
             listener.accept(false);
             return true;
         }
@@ -204,7 +212,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
             if (closed) {
                 throw new IllegalStateException("can't wait for refresh on a closed index");
             }
-            List<Tuple<Long, Consumer<Boolean>>> listeners = refreshListeners2;
+            List<Tuple<Long, Consumer<Boolean>>> listeners = seqNoRefreshListeners;
             final int maxRefreshes = getMaxRefreshListeners.getAsInt();
             if (refreshForcers == 0 && maxRefreshes > 0 && (listeners == null || listeners.size() < maxRefreshes)) {
                 ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true);
@@ -219,7 +227,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
                 }
                 // We have a free slot so register the listener
                 listeners.add(new Tuple<>(maxSeqNo, contextPreservingListener));
-                refreshListeners2 = listeners;
+                seqNoRefreshListeners = listeners;
                 return false;
             }
         }
@@ -232,17 +240,17 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     @Override
     public void close() throws IOException {
         List<Tuple<Translog.Location, Consumer<Boolean>>> oldListeners;
-        List<Tuple<Long, Consumer<Boolean>>> oldListeners2;
+        List<Tuple<Long, Consumer<Boolean>>> oldSeqNoListeners;
         synchronized (this) {
             oldListeners = refreshListeners;
-            oldListeners2 = refreshListeners2;
+            oldSeqNoListeners = seqNoRefreshListeners;
             refreshListeners = null;
+            seqNoRefreshListeners = null;
             closed = true;
         }
         // Fire any listeners we might have had
         fireListeners(oldListeners);
-        fireListeners2(oldListeners2);
-
+        fireSeqNoListeners(oldSeqNoListeners);
     }
 
     /**
@@ -250,7 +258,10 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      */
     public boolean refreshNeeded() {
         // A null list doesn't need a refresh. If we're closed we don't need a refresh either.
-        return refreshListeners != null && refreshListeners2 != null && false == closed;
+        if (indexShard != null && indexShard.indexSettings.isSegRepEnabled() && indexShard.routingEntry().primary() == false) {
+            return seqNoRefreshListeners != null && false == closed;
+        }
+        return refreshListeners != null && false == closed;
     }
 
     /**
@@ -259,12 +270,12 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     public int pendingCount() {
         // No need to synchronize here because we're doing a single volatile read
         List<Tuple<Translog.Location, Consumer<Boolean>>> listeners = refreshListeners;
-        List<Tuple<Long, Consumer<Boolean>>> listeners2 = refreshListeners2;
+        List<Tuple<Long, Consumer<Boolean>>> seqNoListeners = seqNoRefreshListeners;
+        int count = 0;
         // A null list means we haven't accumulated any listeners. Otherwise we need the size.
-        if (listeners2 == null && listeners == null) {
-            return 0;
-        }
-        return listeners == null ? 0 : listeners.size();
+        count += listeners == null ? 0 : listeners.size();
+        count += seqNoListeners == null ? 0 : seqNoListeners.size();
+        return count;
     }
 
     /**
@@ -311,15 +322,15 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         /* Grab the current refresh listeners and replace them with null while synchronized. Any listeners that come in after this won't be
          * in the list we iterate over and very likely won't be candidates for refresh anyway because we've already moved the
          * lastRefreshedLocation. */
-        if (indexShard != null && indexShard.indexSettings.isSegRepEnabled()) {
+        if (indexShard != null && indexShard.indexSettings.isSegRepEnabled() && indexShard.routingEntry().primary() == false) {
             List<Tuple<Long, Consumer<Boolean>>> candidates;
             synchronized (this) {
-                candidates = refreshListeners2;
+                candidates = seqNoRefreshListeners;
                 // No listeners to check so just bail early
                 if (candidates == null) {
                     return;
                 }
-                refreshListeners2 = null;
+                seqNoRefreshListeners = null;
             }
             // Iterate the list of listeners, copying the listeners to fire to one list and those to preserve to another list.
             List<Tuple<Long, Consumer<Boolean>>> listenersToFire = null;
@@ -344,20 +355,20 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
              * closed we fire the listeners even though it isn't time for them. */
             if (preservedListeners != null) {
                 synchronized (this) {
-                    if (refreshListeners2 == null) {
+                    if (seqNoRefreshListeners == null) {
                         if (closed) {
                             listenersToFire.addAll(preservedListeners);
                         } else {
-                            refreshListeners2 = preservedListeners;
+                            seqNoRefreshListeners = preservedListeners;
                         }
                     } else {
                         assert closed == false : "Can't be closed and have non-null refreshListeners";
-                        refreshListeners2.addAll(preservedListeners);
+                        seqNoRefreshListeners.addAll(preservedListeners);
                     }
                 }
             }
             // Lastly, fire the listeners that are ready
-            fireListeners2(listenersToFire);
+            fireSeqNoListeners(listenersToFire);
         } else {
             List<Tuple<Translog.Location, Consumer<Boolean>>> candidates;
             synchronized (this) {
@@ -423,7 +434,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         }
     }
 
-    private void fireListeners2(final List<Tuple<Long, Consumer<Boolean>>> listenersToFire) {
+    private void fireSeqNoListeners(final List<Tuple<Long, Consumer<Boolean>>> listenersToFire) {
         if (listenersToFire != null) {
             for (final Tuple<Long, Consumer<Boolean>> listener : listenersToFire) {
                 try {

@@ -118,7 +118,8 @@ public class RefreshListenersTests extends OpenSearchTestCase {
             () -> engine.refresh("too-many-listeners"),
             logger,
             threadPool.getThreadContext(),
-            refreshMetric
+            refreshMetric,
+            null
         );
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);

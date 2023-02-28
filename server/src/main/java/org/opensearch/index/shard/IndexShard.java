@@ -3996,7 +3996,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             () -> refresh("too_many_listeners"),
             logger,
             threadPool.getThreadContext(),
-            externalRefreshMetric
+            externalRefreshMetric,
+            this
         );
     }
 
@@ -4175,6 +4176,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    /**
+     * Add a listener for refreshes.
+     *
+     * @param maxSeqNo the max Sequence Number to listen for
+     * @param listener for the refresh. Called with true if registering the listener ran it out of slots and forced a refresh. Called with
+     *        false otherwise.
+     */
     public void addRefreshListener(long maxSeqNo, Consumer<Boolean> listener) {
         final boolean readAllowed;
         if (isReadAllowed()) {
@@ -4188,7 +4196,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         }
         if (readAllowed) {
-            refreshListeners.addOrNotify(maxSeqNo, listener, this);
+            refreshListeners.addOrNotify(maxSeqNo, listener);
         } else {
             // we're not yet ready fo ready for reads, just ignore refresh cycles
             listener.accept(false);

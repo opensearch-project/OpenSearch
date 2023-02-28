@@ -823,7 +823,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             }
             assert operationResult != null : "operation result must never be null when primary response has no failure";
             location = syncOperationResultOrThrow(operationResult, location);
-            maxSeqNo = response.getResponse().getSeqNo();
+            maxSeqNo = Math.max(response.getResponse().getSeqNo(), maxSeqNo);
         }
         return new Tuple<Translog.Location, Long>(location, maxSeqNo);
     }

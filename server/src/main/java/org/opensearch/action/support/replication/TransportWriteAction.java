@@ -309,7 +309,7 @@ public abstract class TransportWriteAction<
                  * We call this after replication because this might wait for a refresh and that can take a while.
                  * This way we wait for the refresh in parallel on the primary and on the replica.
                  */
-                new AsyncAfterWriteAction(primary, replicaRequest, location, new RespondingWriteResult() {
+                new AsyncAfterWriteAction(primary, replicaRequest, location, SequenceNumbers.NO_OPS_PERFORMED, new RespondingWriteResult() {
                     @Override
                     public void onSuccess(boolean forcedRefresh) {
                         finalResponseIfSuccessful.setForcedRefresh(forcedRefresh);
@@ -335,7 +335,7 @@ public abstract class TransportWriteAction<
         private final ReplicaRequest request;
         private final IndexShard replica;
         private final Logger logger;
-        private long maxSeqNo;
+        private long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
 
         public WriteReplicaResult(
             ReplicaRequest request,
@@ -346,7 +346,6 @@ public abstract class TransportWriteAction<
         ) {
             super(operationFailure);
             this.location = location;
-            this.maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
             this.request = request;
             this.replica = replica;
             this.logger = logger;
@@ -423,12 +422,13 @@ public abstract class TransportWriteAction<
         private final WriteRequest<?> request;
         private final Logger logger;
 
-        private long maxSeqNo;
+        private final long maxSeqNo;
 
         AsyncAfterWriteAction(
             final IndexShard indexShard,
             final WriteRequest<?> request,
             @Nullable final Translog.Location location,
+            final long maxSeqNo,
             final RespondingWriteResult respond,
             final Logger logger
         ) {
@@ -454,23 +454,12 @@ public abstract class TransportWriteAction<
             this.waitUntilRefresh = waitUntilRefresh;
             this.respond = respond;
             this.location = location;
+            this.maxSeqNo = maxSeqNo;
             if ((sync = indexShard.getTranslogDurability() == Translog.Durability.REQUEST && location != null)) {
                 pendingOps.incrementAndGet();
             }
             this.logger = logger;
             assert pendingOps.get() >= 0 && pendingOps.get() <= 3 : "pendingOpts was: " + pendingOps.get();
-        }
-
-        AsyncAfterWriteAction(
-            final IndexShard indexShard,
-            final WriteRequest<?> request,
-            @Nullable final Translog.Location location,
-            final long maxSeqNo,
-            final RespondingWriteResult respond,
-            final Logger logger
-        ) {
-            this(indexShard, request, location, respond, logger);
-            this.maxSeqNo = maxSeqNo;
         }
 
         /** calls the response listener if all pending operations have returned otherwise it just decrements the pending opts counter.*/
@@ -496,7 +485,7 @@ public abstract class TransportWriteAction<
             // decrement pending by one, if there is nothing else to do we just respond with success
             maybeFinish();
             if (waitUntilRefresh) {
-                if (indexShard.indexSettings().isSegRepEnabled() == true) {
+                if (indexShard.indexSettings().isSegRepEnabled() == true && indexShard.routingEntry().primary() == false) {
                     assert pendingOps.get() > 0;
                     indexShard.addRefreshListener(maxSeqNo, forcedRefresh -> {
                         if (forcedRefresh) {
