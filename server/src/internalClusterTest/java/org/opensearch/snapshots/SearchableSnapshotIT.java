@@ -29,6 +29,7 @@ import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.query.QueryBuilders;
@@ -518,43 +519,25 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch(restoredIndexName).setQuery(QueryBuilders.termQuery("field", "test")).get();
         assertHitCount(searchResponse, 1);
 
-        // Get the primary shards for the given index
-        final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        final Index index = state.metadata().index(restoredIndexName).getIndex();
-        final GroupShardsIterator<ShardIterator> shardIterators = state.getRoutingTable()
-            .activePrimaryShardsGrouped(new String[] { restoredIndexName }, false);
-
         // The local cache files should be closed by deleting the restored index
         deleteIndicesAndEnsureGreen(client, restoredIndexName);
 
         logger.info("--> validate all the cache files are closed");
-        // Iterate all the primary shards to get all the possible path that contains local cache file
-        for (ShardIterator shardIterator : shardIterators) {
-            final ShardRouting shardRouting = shardIterator.nextOrNull();
-            final String nodeId = shardRouting.currentNodeId();
-            final NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats(nodeId).addMetric(FS.metricName()).get();
-            for (FsInfo.Path info : nodeStats.getNodes().get(0).getFs()) {
-                // Build the expected root path for the index shard data
-                final Path shardRootPath = PathUtils.get(info.getPath())
-                    .resolve("indices")
-                    .resolve(index.getUUID())
-                    .resolve(Integer.toString(shardRouting.getId()));
-                logger.debug("--> the root path for the shard is: {}", shardRootPath);
-
-                // Find all the files in the path
-                try (Stream<Path> paths = Files.walk(shardRootPath)) {
-                    paths.filter(Files::isRegularFile).forEach(path -> {
-                        // Testing moving the file to check the file is closed or not.
-                        try {
-                            Files.move(path, path, StandardCopyOption.REPLACE_EXISTING);
-                        } catch (IOException e) {
-                            fail("No exception is expected. The file can't be moved, so it may not be closed.");
-                        }
-                    });
-                } catch (NoSuchFileException e) {
-                    logger.debug("--> the root path for the restored index data doesn't exist.");
+        // Get path of cache files
+        final NodeEnvironment nodeEnv = internalCluster().getInstance(NodeEnvironment.class);
+        Path fileCachePath = nodeEnv.fileCacheNodePath().fileCachePath;
+        // Find all the files in the path
+        try (Stream<Path> paths = Files.walk(fileCachePath)) {
+            paths.filter(Files::isRegularFile).forEach(path -> {
+                // Testing moving the file to check the file is closed or not.
+                try {
+                    Files.move(path, path, StandardCopyOption.REPLACE_EXISTING);
+                } catch (IOException e) {
+                    fail("No exception is expected. The file can't be moved, so it may not be closed.");
                 }
-            }
+            });
+        } catch (NoSuchFileException e) {
+            logger.debug("--> the root path for the restored index data doesn't exist.");
         }
     }
 }
