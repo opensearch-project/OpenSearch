@@ -70,7 +70,7 @@ public class FsService {
     );
 
     public FsService(final Settings settings, final NodeEnvironment nodeEnvironment) {
-        final FsProbe probe = new FsProbe(nodeEnvironment);
+        final FsProbe probe = new FsProbe(nodeEnvironment, settings);
         final FsInfo initialValue = stats(probe, null);
         if (ALWAYS_REFRESH_SETTING.get(settings)) {
             assert REFRESH_INTERVAL_SETTING.exists(settings) == false;

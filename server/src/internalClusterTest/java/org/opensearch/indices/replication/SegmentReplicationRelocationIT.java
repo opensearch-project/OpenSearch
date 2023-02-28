@@ -419,17 +419,6 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         assertAcked(
             client().admin().indices().prepareUpdateSettings(INDEX_NAME).setSettings(Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, 1))
         );
-
-        ClusterHealthResponse clusterHealthResponse = client().admin()
-            .cluster()
-            .prepareHealth()
-            .setWaitForEvents(Priority.LANGUID)
-            .setWaitForNodes("2")
-            .setWaitForGreenStatus()
-            .setTimeout(TimeValue.timeValueSeconds(2))
-            .execute()
-            .actionGet();
-        assertFalse(clusterHealthResponse.isTimedOut());
         ensureGreen(INDEX_NAME);
         flushAndRefresh(INDEX_NAME);
         waitForSearchableDocs(20, primary, replica);
