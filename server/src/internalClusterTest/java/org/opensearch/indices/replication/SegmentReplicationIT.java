@@ -535,7 +535,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         final String replicaNode = internalCluster().startNode(featureFlagSettings());
         ensureGreen(INDEX_NAME);
-        final int initialDocCount = scaledRandomIntBetween(4000, 5000);
+        final int initialDocCount = scaledRandomIntBetween(500, 700);
         final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
         IndexShard primaryShard = getIndexShard(primaryNode, INDEX_NAME);
         IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
