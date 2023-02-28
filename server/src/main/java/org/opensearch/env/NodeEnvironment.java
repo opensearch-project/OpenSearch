@@ -1347,6 +1347,18 @@ public final class NodeEnvironment implements Closeable {
     }
 
     /**
+     * Resolve the file cache path for remote shards.
+     *
+     * @param fileCachePath the file cache path
+     * @param shardId shard to resolve the path to
+     */
+    public Path resolveFileCacheLocation(final Path fileCachePath, final ShardId shardId) {
+        return fileCachePath.resolve(Integer.toString(nodeLockId))
+            .resolve(shardId.getIndex().getUUID())
+            .resolve(Integer.toString(shardId.id()));
+    }
+
+    /**
      * Resolve the custom path for a index's shard.
      * Uses the {@code IndexMetadata.SETTING_DATA_PATH} setting to determine
      * the root path for the index.
