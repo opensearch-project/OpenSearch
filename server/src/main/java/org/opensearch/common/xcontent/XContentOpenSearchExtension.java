@@ -37,6 +37,8 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilderExtension;
 import org.opensearch.script.JodaCompatibleZonedDateTime;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;

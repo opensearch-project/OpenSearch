@@ -2010,7 +2010,6 @@ public class InternalEngine extends Engine {
         } catch (Exception e) {
             try {
                 maybeFailEngine("force merge", e);
-                indexWriter.flush();
             } catch (Exception inner) {
                 e.addSuppressed(inner);
             }

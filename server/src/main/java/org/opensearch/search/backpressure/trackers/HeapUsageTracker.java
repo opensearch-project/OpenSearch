@@ -16,8 +16,8 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.MovingAverage;
-import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.monitor.jvm.JvmStats;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
@@ -107,7 +107,7 @@ public class HeapUsageTracker extends TaskResourceUsageTracker {
      */
     public static boolean isHeapUsageDominatedBySearch(List<CancellableTask> cancellableTasks, double heapPercentThreshold) {
         long usage = cancellableTasks.stream().mapToLong(task -> task.getTotalResourceStats().getMemoryInBytes()).sum();
-        long threshold = (long) heapPercentThreshold * HEAP_SIZE_BYTES;
+        long threshold = (long) (heapPercentThreshold * HEAP_SIZE_BYTES);
         if (isHeapTrackingSupported() && usage < threshold) {
             logger.debug("heap usage not dominated by search requests [{}/{}]", usage, threshold);
             return false;

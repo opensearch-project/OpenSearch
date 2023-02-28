@@ -33,9 +33,9 @@
 package org.opensearch.common;
 
 /**
- * Boolean class utilities
+ * Extended Boolean functionality
  *
- * @opensearch.api
+ * @opensearch.internal
  */
 public final class Booleans {
     private Booleans() {

@@ -77,6 +77,8 @@ if (!isEclipse) {
 dependencies {
   api project(':libs:opensearch-common')
 
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
@@ -92,15 +94,6 @@ tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-thirdPartyAudit.ignoreMissingClasses(
-  // from log4j
-  'org/osgi/framework/AdaptPermission',
-  'org/osgi/framework/AdminPermission',
-  'org/osgi/framework/Bundle',
-  'org/osgi/framework/BundleActivator',
-  'org/osgi/framework/BundleContext',
-  'org/osgi/framework/BundleEvent',
-  'org/osgi/framework/SynchronousBundleListener',
-  'org/osgi/framework/wiring/BundleWire',
-  'org/osgi/framework/wiring/BundleWiring'
-)
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jackson-.*/, to: 'jackson'
+}

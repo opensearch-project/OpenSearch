@@ -35,8 +35,8 @@ package org.opensearch.action.admin.indices.open;
 import org.opensearch.action.support.master.ShardsAcknowledgedResponse;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 

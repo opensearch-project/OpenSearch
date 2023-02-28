@@ -35,7 +35,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLock;
 import org.opensearch.index.IndexSettings;
@@ -128,6 +128,16 @@ public final class ShardPath {
      */
     public boolean isCustomDataPath() {
         return isCustomDataPath;
+    }
+
+    /**
+     * Returns the shard path to be stored within the cache on the search capable node.
+     */
+    public static ShardPath loadFileCachePath(NodeEnvironment env, ShardId shardId) {
+        NodeEnvironment.NodePath path = env.fileCacheNodePath();
+        final Path dataPath = env.resolveCustomLocation(path.fileCachePath.toString(), shardId);
+        final Path statePath = path.resolve(shardId);
+        return new ShardPath(true, dataPath, statePath, shardId);
     }
 
     /**

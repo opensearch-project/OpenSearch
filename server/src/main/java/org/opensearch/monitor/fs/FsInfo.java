@@ -32,14 +32,16 @@
 
 package org.opensearch.monitor.fs;
 
+import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -70,6 +72,8 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         long total = -1;
         long free = -1;
         long available = -1;
+        long fileCacheReserved = -1;
+        long fileCacheUtilized = 0;
 
         public Path() {}
 
@@ -91,6 +95,10 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             total = in.readLong();
             free = in.readLong();
             available = in.readLong();
+            if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT) && in.getVersion().onOrAfter(Version.V_3_0_0)) {
+                fileCacheReserved = in.readLong();
+                fileCacheUtilized = in.readLong();
+            }
         }
 
         @Override
@@ -101,6 +109,10 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             out.writeLong(total);
             out.writeLong(free);
             out.writeLong(available);
+            if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT) && out.getVersion().onOrAfter(Version.V_3_0_0)) {
+                out.writeLong(fileCacheReserved);
+                out.writeLong(fileCacheUtilized);
+            }
         }
 
         public String getPath() {
@@ -127,6 +139,14 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             return new ByteSizeValue(available);
         }
 
+        public ByteSizeValue getFileCacheReserved() {
+            return new ByteSizeValue(fileCacheReserved);
+        }
+
+        public ByteSizeValue getFileCacheUtilized() {
+            return new ByteSizeValue(fileCacheUtilized);
+        }
+
         private long addLong(long current, long other) {
             if (current == -1 && other == -1) {
                 return 0;
@@ -143,6 +163,8 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
         public void add(Path path) {
             total = FsProbe.adjustForHugeFilesystems(addLong(total, path.total));
             free = FsProbe.adjustForHugeFilesystems(addLong(free, path.free));
+            fileCacheReserved = FsProbe.adjustForHugeFilesystems(addLong(fileCacheReserved, path.fileCacheReserved));
+            fileCacheUtilized = FsProbe.adjustForHugeFilesystems(addLong(fileCacheUtilized, path.fileCacheUtilized));
             available = FsProbe.adjustForHugeFilesystems(addLong(available, path.available));
         }
 
@@ -156,6 +178,10 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             static final String FREE_IN_BYTES = "free_in_bytes";
             static final String AVAILABLE = "available";
             static final String AVAILABLE_IN_BYTES = "available_in_bytes";
+            static final String CACHE_RESERVED = "cache_reserved";
+            static final String CACHE_RESERVED_IN_BYTES = "cache_reserved_in_bytes";
+            static final String CACHE_UTILIZED = "cache_utilized";
+            static final String CACHE_UTILIZED_IN_BYTES = "cache_utilized_in_bytes";
         }
 
         @Override
@@ -179,6 +205,12 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             }
             if (available != -1) {
                 builder.humanReadableField(Fields.AVAILABLE_IN_BYTES, Fields.AVAILABLE, getAvailable());
+            }
+            if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT) && fileCacheReserved != -1) {
+                builder.humanReadableField(Fields.CACHE_RESERVED_IN_BYTES, Fields.CACHE_RESERVED, getFileCacheReserved());
+            }
+            if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT) && fileCacheReserved != 0) {
+                builder.humanReadableField(Fields.CACHE_UTILIZED, Fields.CACHE_UTILIZED_IN_BYTES, getFileCacheUtilized());
             }
 
             builder.endObject();

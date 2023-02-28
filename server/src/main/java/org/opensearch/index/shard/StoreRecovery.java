@@ -457,6 +457,9 @@ final class StoreRecovery {
             // Download segments from remote segment store
             indexShard.syncSegmentsFromRemoteSegmentStore(true);
 
+            if (store.directory().listAll().length == 0) {
+                store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion);
+            }
             if (repository != null) {
                 syncTranslogFilesFromRemoteTranslog(indexShard, repository);
             } else {

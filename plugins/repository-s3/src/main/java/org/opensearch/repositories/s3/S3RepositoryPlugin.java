@@ -38,7 +38,7 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.plugins.Plugin;
@@ -47,6 +47,7 @@ import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.repositories.Repository;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Arrays;
@@ -77,15 +78,17 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     }
 
     protected final S3Service service;
+    private final Path configPath;
 
-    public S3RepositoryPlugin(final Settings settings) {
-        this(settings, new S3Service());
+    public S3RepositoryPlugin(final Settings settings, final Path configPath) {
+        this(settings, configPath, new S3Service(configPath));
     }
 
-    S3RepositoryPlugin(final Settings settings, final S3Service service) {
+    S3RepositoryPlugin(final Settings settings, final Path configPath, final S3Service service) {
         this.service = Objects.requireNonNull(service, "S3 service must not be null");
+        this.configPath = configPath;
         // eagerly load client settings so that secure settings are read
-        final Map<String, S3ClientSettings> clientsSettings = S3ClientSettings.load(settings);
+        final Map<String, S3ClientSettings> clientsSettings = S3ClientSettings.load(settings, configPath);
         this.service.refreshAndClearCache(clientsSettings);
     }
 
@@ -142,7 +145,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     @Override
     public void reload(Settings settings) {
         // secure settings should be readable
-        final Map<String, S3ClientSettings> clientsSettings = S3ClientSettings.load(settings);
+        final Map<String, S3ClientSettings> clientsSettings = S3ClientSettings.load(settings, configPath);
         service.refreshAndClearCache(clientsSettings);
     }
 

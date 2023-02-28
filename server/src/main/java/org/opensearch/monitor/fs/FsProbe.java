@@ -36,9 +36,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.NodeEnvironment.NodePath;
 
@@ -62,8 +65,11 @@ public class FsProbe {
 
     private final NodeEnvironment nodeEnv;
 
-    public FsProbe(NodeEnvironment nodeEnv) {
+    private final Settings settings;
+
+    public FsProbe(NodeEnvironment nodeEnv, Settings settings) {
         this.nodeEnv = nodeEnv;
+        this.settings = settings;
     }
 
     public FsInfo stats(FsInfo previous) throws IOException {
@@ -74,13 +80,18 @@ public class FsProbe {
         FsInfo.Path[] paths = new FsInfo.Path[dataLocations.length];
         for (int i = 0; i < dataLocations.length; i++) {
             paths[i] = getFSInfo(dataLocations[i]);
+            if (settings != null && DiscoveryNode.isSearchNode(settings) && dataLocations[i].fileCacheReservedSize != ByteSizeValue.ZERO) {
+                paths[i].fileCacheReserved = adjustForHugeFilesystems(dataLocations[i].fileCacheReservedSize.getBytes());
+                paths[i].fileCacheUtilized = adjustForHugeFilesystems(nodeEnv.fileCacheStats().getUsed().getBytes());
+                paths[i].available -= (paths[i].fileCacheReserved - paths[i].fileCacheUtilized);
+            }
         }
         FsInfo.IoStats ioStats = null;
         if (Constants.LINUX) {
             Set<Tuple<Integer, Integer>> devicesNumbers = new HashSet<>();
-            for (int i = 0; i < dataLocations.length; i++) {
-                if (dataLocations[i].majorDeviceNumber != -1 && dataLocations[i].minorDeviceNumber != -1) {
-                    devicesNumbers.add(Tuple.tuple(dataLocations[i].majorDeviceNumber, dataLocations[i].minorDeviceNumber));
+            for (NodePath dataLocation : dataLocations) {
+                if (dataLocation.majorDeviceNumber != -1 && dataLocation.minorDeviceNumber != -1) {
+                    devicesNumbers.add(Tuple.tuple(dataLocation.majorDeviceNumber, dataLocation.minorDeviceNumber));
                 }
             }
             ioStats = ioStats(devicesNumbers, previous);
@@ -167,6 +178,7 @@ public class FsProbe {
         fsPath.total = adjustForHugeFilesystems(nodePath.fileStore.getTotalSpace());
         fsPath.free = adjustForHugeFilesystems(nodePath.fileStore.getUnallocatedSpace());
         fsPath.available = adjustForHugeFilesystems(nodePath.fileStore.getUsableSpace());
+        fsPath.fileCacheReserved = adjustForHugeFilesystems(nodePath.fileCacheReservedSize.getBytes());
         fsPath.type = nodePath.fileStore.type();
         fsPath.mount = nodePath.fileStore.toString();
         return fsPath;

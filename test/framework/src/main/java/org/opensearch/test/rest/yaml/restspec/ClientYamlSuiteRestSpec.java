@@ -33,8 +33,8 @@ package org.opensearch.test.rest.yaml.restspec;
 
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 
 import java.io.IOException;

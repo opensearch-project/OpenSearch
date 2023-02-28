@@ -16,7 +16,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoShapeDocValue;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.geo.GeoModulePluginIntegTestCase;
 import org.opensearch.geo.tests.common.RandomGeoGenerator;
 import org.opensearch.geo.tests.common.RandomGeoGeometryGenerator;

@@ -40,7 +40,7 @@ import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractDiffableSerializationTestCase;
 
 import java.io.IOException;
