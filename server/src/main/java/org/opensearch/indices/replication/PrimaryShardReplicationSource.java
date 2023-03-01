@@ -42,6 +42,7 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
     private final DiscoveryNode sourceNode;
     private final DiscoveryNode targetNode;
     private final String targetAllocationId;
+    private final RecoverySettings recoverySettings;
 
     public PrimaryShardReplicationSource(
         DiscoveryNode targetNode,
@@ -59,6 +60,7 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
         );
         this.sourceNode = sourceNode;
         this.targetNode = targetNode;
+        this.recoverySettings = recoverySettings;
     }
 
     @Override
@@ -83,17 +85,12 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
     ) {
         final Writeable.Reader<GetSegmentFilesResponse> reader = GetSegmentFilesResponse::new;
         final ActionListener<GetSegmentFilesResponse> responseListener = ActionListener.map(listener, r -> r);
-        // Few of the below assumptions and calculations are added for experimental release of segment replication feature in 2.3
-        // version. These will be changed in next release.
 
         // Storing the size of files to fetch in bytes.
         final long sizeOfSegmentFiles = filesToFetch.stream().mapToLong(file -> file.length()).sum();
 
-        // Maximum size of files to fetch (segment files) in bytes, that can be processed in 1 minute for a m5.xlarge machine.
-        long baseSegmentFilesSize = 100000000;
-
-        // Formula for calculating time needed to process a replication event's files to fetch process
-        final long timeToGetSegmentFiles = 1 + (sizeOfSegmentFiles / baseSegmentFilesSize);
+        // Formula to anticipate time needed on source to send files for current round of segrep
+        final long timeToGetSegmentFiles = Math.max(1, sizeOfSegmentFiles / recoverySettings.getMaxBytesProcessedPerMinute().getBytes());
         final GetSegmentFilesRequest request = new GetSegmentFilesRequest(
             replicationId,
             targetAllocationId,

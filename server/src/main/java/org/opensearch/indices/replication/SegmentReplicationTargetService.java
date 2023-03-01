@@ -288,7 +288,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
     // pkg-private for integration tests
     void startReplication(final SegmentReplicationTarget target) {
-        final long replicationId = onGoingReplications.start(target, recoverySettings.activityTimeout());
+        final long replicationId = onGoingReplications.start(target, recoverySettings.segrepActivityTimeout());
         threadPool.generic().execute(new ReplicationRunner(replicationId));
     }
 
