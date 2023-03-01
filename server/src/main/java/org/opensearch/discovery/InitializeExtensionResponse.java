@@ -84,7 +84,7 @@ public class InitializeExtensionResponse extends TransportResponse {
 
     @Override
     public String toString() {
-        return "PluginResponse{" + "name = " + name + " , " + "implementedInterfaces = " + implementedInterfaces + "}";
+        return "InitializeExtensionResponse{" + "name = " + name + " , " + "implementedInterfaces = " + implementedInterfaces + "}";
     }
 
     @Override
