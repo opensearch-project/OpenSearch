@@ -883,6 +883,15 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         return RandomizedTest.randomRealisticUnicodeOfCodepointLength(codePoints);
     }
 
+    public static String replaceUnicodeControlCharacters(String uniCodeStr, String toReplaceWith) {
+        // replace control characters (https://stackoverflow.com/questions/3438854/replace-unicode-control-characters/)
+        return uniCodeStr.replaceAll("\\p{Cc}", toReplaceWith);
+    }
+
+    public static String replaceUnicodeControlCharacters(String uniCodeStr) {
+        return replaceUnicodeControlCharacters(uniCodeStr, " ");
+    }
+
     /**
      * @param maxArraySize The maximum number of elements in the random array
      * @param stringSize The length of each String in the array
