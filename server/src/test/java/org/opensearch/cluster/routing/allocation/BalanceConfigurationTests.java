@@ -68,13 +68,9 @@ import org.opensearch.test.gateway.TestGatewayAllocator;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
-import java.util.Formatter;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
@@ -912,98 +908,5 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
                 assertThat(shardRouting.state(), Matchers.equalTo(ShardRoutingState.STARTED));
             }
         }
-    }
-}
-
-/**
- * Utility class to show shards distribution across nodes.
- */
-class ShardAllocations {
-    static ClusterState state;
-
-    public static final String separator = "===================================================";
-    public static final String ONE_LINE_RETURN = "\n";
-    public static final String TWO_LINE_RETURN = "\n\n";
-
-    /**
-     Store shard primary/replica shard count against a node for segrep indices.
-     String: NodeId
-     int[]: tuple storing primary shard count in 0th index and replica's in 1
-     */
-    static TreeMap<String, int[]> nodeToSegRepCountMap = new TreeMap<>();
-
-    /**
-     * Helper map containing NodeName to NodeId
-     */
-    static TreeMap<String, String> nameToNodeId = new TreeMap<>();
-
-    /*
-    Unassigned array containing primary at 0, replica at 1
-     */
-    static int[] unassigned = new int[2];
-
-    static int[] totalShards = new int[2];
-
-    public final static String printShardAllocationWithHeader(int[] shardCount) {
-        StringBuffer sb = new StringBuffer();
-        Formatter formatter = new Formatter(sb, Locale.getDefault());
-        formatter.format("%-20s %-20s\n", "P", shardCount[0]);
-        formatter.format("%-20s %-20s\n", "R", shardCount[1]);
-        return sb.toString();
-    }
-
-    public static void reset() {
-        nodeToSegRepCountMap.clear();
-        nameToNodeId.clear();
-        totalShards[0] = totalShards[1] = 0;
-        unassigned[0] = unassigned[1] = 0;
-    }
-
-    private static void buildMap(ClusterState inputState) {
-        reset();
-        state = inputState;
-        for (RoutingNode node : state.getRoutingNodes()) {
-            nameToNodeId.putIfAbsent(node.nodeId(), node.nodeId());
-            nodeToSegRepCountMap.putIfAbsent(node.nodeId(), new int[] { 0, 0 });
-        }
-        for (ShardRouting shardRouting : state.routingTable().allShards()) {
-            // Fetch shard to update. Initialize local array=
-            updateMap(nodeToSegRepCountMap, shardRouting);
-        }
-    }
-
-    static void updateMap(TreeMap<String, int[]> mapToUpdate, ShardRouting shardRouting) {
-        int[] shard;
-        shard = shardRouting.assignedToNode() ? mapToUpdate.get(shardRouting.currentNodeId()) : unassigned;
-        // Update shard type count
-        if (shardRouting.primary()) {
-            shard[0]++;
-            totalShards[0]++;
-        } else {
-            shard[1]++;
-            totalShards[1]++;
-        }
-        // For assigned shards, put back counter
-        if (shardRouting.assignedToNode()) mapToUpdate.put(shardRouting.currentNodeId(), shard);
-    }
-
-    public static String allocation() {
-        StringBuffer sb = new StringBuffer();
-        sb.append(TWO_LINE_RETURN + separator + ONE_LINE_RETURN);
-        Formatter formatter = new Formatter(sb, Locale.getDefault());
-        for (Map.Entry<String, String> entry : nameToNodeId.entrySet()) {
-            String nodeId = nameToNodeId.get(entry.getKey());
-            formatter.format("%-20s\n", entry.getKey().toUpperCase(Locale.getDefault()));
-            sb.append(printShardAllocationWithHeader(nodeToSegRepCountMap.get(nodeId)));
-        }
-        sb.append(ONE_LINE_RETURN);
-        formatter.format("%-20s (P)%-5s (R)%-5s\n\n", "Unassigned ", unassigned[0], unassigned[1]);
-        formatter.format("%-20s (P)%-5s (R)%-5s\n\n", "Total Shards", totalShards[0], totalShards[1]);
-        return sb.toString();
-    }
-
-    public static String printShardDistribution(ClusterState state) {
-        buildMap(state);
-        return allocation();
     }
 }

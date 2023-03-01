@@ -17,23 +17,21 @@ import org.opensearch.cluster.routing.RoutingNodes;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexModule;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
-import java.util.Formatter;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+
+import org.opensearch.cluster.OpenSearchAllocationTestCase.ShardAllocations;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
@@ -81,19 +79,16 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
             nodeNames.add(internalCluster().startNode());
         }
         enablePreferPrimaryBalance();
-        int shardCount, replicaCount, totalShardCount = 0, totalReplicaCount = 0;
-        ShardAllocations shardAllocations = new ShardAllocations();
+        int shardCount, replicaCount;
         ClusterState state;
         for (int i = 0; i < numberOfIndices; i++) {
             shardCount = randomIntBetween(1, maxShardCount);
-            totalShardCount += shardCount;
             replicaCount = randomIntBetween(0, maxReplicaCount);
-            totalReplicaCount += replicaCount;
             createIndex("test" + i, shardCount, replicaCount, i % 2 == 0);
             logger.info("--> Creating index {} with shard count {} and replica count {}", "test" + i, shardCount, replicaCount);
-            assertBusy(() -> ensureGreen(), 60, TimeUnit.SECONDS);
+            ensureGreen(TimeValue.timeValueSeconds(60));
             state = client().admin().cluster().prepareState().execute().actionGet().getState();
-            shardAllocations.printShardDistribution(state);
+            logger.info(ShardAllocations.printShardDistribution(state));
         }
         verifyPerIndexPrimaryBalance();
     }
@@ -117,26 +112,25 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
         }
         enablePreferPrimaryBalance();
 
-        ShardAllocations shardAllocations = new ShardAllocations();
         ClusterState state;
         createIndex("test", maxShardCount, maxReplicaCount, true);
-        assertBusy(() -> ensureGreen(), 60, TimeUnit.SECONDS);
+        ensureGreen(TimeValue.timeValueSeconds(60));
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        shardAllocations.printShardDistribution(state);
+        logger.info(ShardAllocations.printShardDistribution(state));
         verifyPerIndexPrimaryBalance();
 
         // Remove a node
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeNames.get(0)));
-        assertBusy(() -> ensureGreen(), 60, TimeUnit.SECONDS);
+        ensureGreen(TimeValue.timeValueSeconds(60));
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        shardAllocations.printShardDistribution(state);
+        logger.info(ShardAllocations.printShardDistribution(state));
         verifyPerIndexPrimaryBalance();
 
         // Add a new node
         internalCluster().startDataOnlyNode();
-        assertBusy(() -> ensureGreen(), 60, TimeUnit.SECONDS);
+        ensureGreen(TimeValue.timeValueSeconds(60));
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        shardAllocations.printShardDistribution(state);
+        logger.info(ShardAllocations.printShardDistribution(state));
         verifyPerIndexPrimaryBalance();
     }
 
@@ -159,7 +153,6 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
         enablePreferPrimaryBalance();
 
         int shardCount, replicaCount, totalShardCount = 0, totalReplicaCount = 0;
-        ShardAllocations shardAllocations = new ShardAllocations();
         ClusterState state;
         for (int i = 0; i < numberOfIndices; i++) {
             shardCount = randomIntBetween(1, maxShardCount);
@@ -168,33 +161,33 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
             totalReplicaCount += replicaCount;
             logger.info("--> Creating index test{} with primary {} and replica {}", i, shardCount, replicaCount);
             createIndex("test" + i, shardCount, replicaCount, i % 2 == 0);
-            assertBusy(() -> ensureGreen(), 60, TimeUnit.SECONDS);
+            ensureGreen(TimeValue.timeValueSeconds(60));
             if (logger.isTraceEnabled()) {
                 state = client().admin().cluster().prepareState().execute().actionGet().getState();
-                shardAllocations.printShardDistribution(state);
+                logger.info(ShardAllocations.printShardDistribution(state));
             }
         }
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        shardAllocations.printShardDistribution(state);
+        logger.info(ShardAllocations.printShardDistribution(state));
         verifyPerIndexPrimaryBalance();
 
         final int additionalNodeCount = randomIntBetween(1, 5);
         logger.info("--> Adding {} nodes", additionalNodeCount);
 
         internalCluster().startNodes(additionalNodeCount);
-        assertBusy(() -> ensureGreen(), 60, TimeUnit.SECONDS);
+        ensureGreen(TimeValue.timeValueSeconds(60));
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        shardAllocations.printShardDistribution(state);
+        logger.info(ShardAllocations.printShardDistribution(state));
         verifyPerIndexPrimaryBalance();
 
         logger.info("--> Stop one third nodes");
         for (int i = 0; i < nodeCount; i += 3) {
             internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeNames.get(i)));
             // give replica a chance to promote as primary before terminating node containing the replica
-            assertBusy(() -> ensureGreen(), 60, TimeUnit.SECONDS);
+            ensureGreen(TimeValue.timeValueSeconds(60));
         }
         state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        shardAllocations.printShardDistribution(state);
+        logger.info(ShardAllocations.printShardDistribution(state));
         verifyPerIndexPrimaryBalance();
     }
 
@@ -220,145 +213,4 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
             }
         }, 60, TimeUnit.SECONDS);
     }
-
-    /**
-     * This class is created for debugging purpose to show shard allocation across nodes. It keeps cluster state which
-     * is used to build the node's shard allocation
-     */
-    private class ShardAllocations {
-        ClusterState state;
-
-        public static final String separator = "===================================================";
-        public static final String ONE_LINE_RETURN = "\n";
-        public static final String TWO_LINE_RETURN = "\n\n";
-
-        /**
-         Store shard primary/replica shard count against a node for segrep indices.
-         String: NodeId
-         int[]: tuple storing primary shard count in 0th index and replica's in 1
-         */
-        TreeMap<String, int[]> nodeToSegRepCountMap = new TreeMap<>();
-        /**
-         Store shard primary/replica shard count against a node for docrep indices.
-         String: NodeId
-         int[]: tuple storing primary shard count in 0th index and replica's in 1
-         */
-        TreeMap<String, int[]> nodeToDocRepCountMap = new TreeMap<>();
-
-        /**
-         * Helper map containing NodeName to NodeId
-         */
-        TreeMap<String, String> nameToNodeId = new TreeMap<>();
-
-        Map<String, TreeMap<String, int[]>> nodeToIndexCountMap = new HashMap<>();
-
-        /*
-        Unassigned array containing primary at 0, replica at 1
-         */
-        int[] unassigned = new int[2];
-
-        int[] totalShards = new int[2];
-
-        public final String printShardAllocationWithHeader(int[] docrep, int[] segrep) {
-            StringBuffer sb = new StringBuffer();
-            Formatter formatter = new Formatter(sb, Locale.getDefault());
-            formatter.format("%-40s %-20s %-20s %-20s\n", "P", docrep[0] + segrep[0], docrep[0], segrep[0]);
-            formatter.format("%-40s %-20s %-20s %-20s\n", "R", docrep[1] + segrep[1], docrep[1], segrep[1]);
-            return sb.toString();
-        }
-
-        public void reset() {
-            nodeToSegRepCountMap.clear();
-            nodeToDocRepCountMap.clear();
-            nameToNodeId.clear();
-            nodeToIndexCountMap.clear();
-            totalShards[0] = totalShards[1] = 0;
-            unassigned[0] = unassigned[1] = 0;
-        }
-
-        public void setState(ClusterState state) {
-            this.reset();
-            this.state = state;
-            buildMap();
-        }
-
-        private void buildMap() {
-            for (RoutingNode node : state.getRoutingNodes()) {
-                nameToNodeId.putIfAbsent(node.node().getName(), node.nodeId());
-                nodeToSegRepCountMap.putIfAbsent(node.nodeId(), new int[] { 0, 0 });
-                nodeToDocRepCountMap.putIfAbsent(node.nodeId(), new int[] { 0, 0 });
-                nodeToIndexCountMap.put(node.nodeId(), new TreeMap<>());
-            }
-            for (ShardRouting shardRouting : state.routingTable().allShards()) {
-                // Fetch shard to update. Initialize local array
-                if (isIndexSegRep(shardRouting.getIndexName())) {
-                    updateMap(nodeToSegRepCountMap, shardRouting);
-                } else {
-                    updateMap(nodeToDocRepCountMap, shardRouting);
-                }
-            }
-        }
-
-        void updateMap(TreeMap<String, int[]> mapToUpdate, ShardRouting shardRouting) {
-            int[] shard;
-            shard = shardRouting.assignedToNode() ? mapToUpdate.get(shardRouting.currentNodeId()) : unassigned;
-
-            // Update shard type count
-            if (shardRouting.primary()) {
-                shard[0]++;
-                totalShards[0]++;
-            } else {
-                shard[1]++;
-                totalShards[1]++;
-            }
-            // For assigned shards, put back counter
-            if (shardRouting.assignedToNode()) {
-                mapToUpdate.put(shardRouting.currentNodeId(), shard);
-                nodeToIndexCountMap.get(shardRouting.currentNodeId()).putIfAbsent(shardRouting.getIndexName(), new int[2]);
-                int[] currentValue = nodeToIndexCountMap.get(shardRouting.currentNodeId()).get(shardRouting.getIndexName());
-                int indexToUpdate = shardRouting.primary() ? 0 : 1;
-                currentValue[indexToUpdate]++;
-            }
-        }
-
-        boolean isIndexSegRep(String indexName) {
-            return state.metadata()
-                .index(indexName)
-                .getSettings()
-                .get(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey())
-                .equals(ReplicationType.SEGMENT.toString());
-        }
-
-        @Override
-        public String toString() {
-            StringBuffer sb = new StringBuffer();
-            sb.append(TWO_LINE_RETURN + separator + ONE_LINE_RETURN);
-            Formatter formatter = new Formatter(sb, Locale.getDefault());
-            for (Map.Entry<String, String> entry : nameToNodeId.entrySet()) {
-                String nodeId = nameToNodeId.get(entry.getKey());
-                formatter.format(
-                    "%-40s %-20s %-20s %-20s\n",
-                    entry.getKey().toUpperCase(Locale.getDefault()) + "(" + nodeId + ")",
-                    "TOTAL",
-                    "DOCREP",
-                    "SEGREP"
-                );
-                sb.append(printShardAllocationWithHeader(nodeToDocRepCountMap.get(nodeId), nodeToSegRepCountMap.get(nodeId)));
-                for (Map.Entry<String, int[]> indexCountMap : nodeToIndexCountMap.get(nodeId).entrySet()) {
-                    formatter.format("[%s %s,%s], ", indexCountMap.getKey(), indexCountMap.getValue()[0], indexCountMap.getValue()[1]);
-                }
-                sb.append(ONE_LINE_RETURN);
-            }
-            sb.append(TWO_LINE_RETURN);
-            formatter.format("%-20s (P)%-5s (R)%-5s\n\n", "Unassigned ", unassigned[0], unassigned[1]);
-            formatter.format("%-20s (P)%-5s (R)%-5s\n\n", "Total Shards", totalShards[0], totalShards[1]);
-            return sb.toString();
-        }
-
-        public void printShardDistribution(ClusterState state) {
-            this.setState(state);
-            logger.info("--> Shard distribution {}", this);
-        }
-    }
-
 }
