@@ -17,7 +17,11 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexModule;
+import org.opensearch.index.SegmentReplicationPerGroupStats;
+import org.opensearch.index.SegmentReplicationPressureService;
+import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.BackgroundIndexer;
@@ -27,6 +31,7 @@ import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
@@ -513,6 +518,80 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             flushAndRefresh(INDEX_NAME);
             waitForSearchableDocs(initialDocCount + 1, dataNodes);
             verifyStoreContent();
+        }
+    }
+
+    public void testSegmentReplicationStats() throws Exception {
+        final Settings settings = Settings.builder()
+            .put(indexSettings())
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .build();
+        final String primaryNode = internalCluster().startNode();
+        createIndex(INDEX_NAME, settings);
+        final String replicaNode = internalCluster().startNode();
+        ensureGreen(INDEX_NAME);
+
+        int initialDocCount = scaledRandomIntBetween(100, 200);
+        try (
+            BackgroundIndexer indexer = new BackgroundIndexer(
+                INDEX_NAME,
+                "_doc",
+                client(),
+                -1,
+                RandomizedTest.scaledRandomIntBetween(2, 5),
+                false,
+                random()
+            )
+        ) {
+            indexer.start(initialDocCount);
+            waitForDocs(initialDocCount, indexer);
+            refresh(INDEX_NAME);
+
+            SegmentReplicationPressureService pressureService = internalCluster().getInstance(
+                SegmentReplicationPressureService.class,
+                primaryNode
+            );
+
+            final Map<ShardId, SegmentReplicationPerGroupStats> shardStats = pressureService.nodeStats().getShardStats();
+            assertEquals(1, shardStats.size());
+            final IndexShard primaryShard = getIndexShard(primaryNode, INDEX_NAME);
+            IndexShard replica = getIndexShard(replicaNode, INDEX_NAME);
+            SegmentReplicationPerGroupStats groupStats = shardStats.get(primaryShard.shardId());
+            Set<SegmentReplicationShardStats> replicaStats = groupStats.getReplicaStats();
+            assertEquals(1, replicaStats.size());
+            assertEquals(replica.routingEntry().allocationId().getId(), replicaStats.stream().findFirst().get().getAllocationId());
+
+            // assert replica node returns nothing.
+            SegmentReplicationPressureService replicaNode_service = internalCluster().getInstance(
+                SegmentReplicationPressureService.class,
+                replicaNode
+            );
+            assertTrue(replicaNode_service.nodeStats().getShardStats().isEmpty());
+
+            // drop the primary, this won't hand off SR state.
+            internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
+            ensureYellowAndNoInitializingShards(INDEX_NAME);
+            replicaNode_service = internalCluster().getInstance(SegmentReplicationPressureService.class, replicaNode);
+            replica = getIndexShard(replicaNode, INDEX_NAME);
+            assertTrue("replica should be promoted as a primary", replica.routingEntry().primary());
+            assertEquals(1, replicaNode_service.nodeStats().getShardStats().size());
+            // we don't have a replica assigned yet, so this should be 0.
+            assertEquals(0, replicaNode_service.nodeStats().getShardStats().get(primaryShard.shardId()).getReplicaStats().size());
+
+            // start another replica.
+            String replicaNode_2 = internalCluster().startNode();
+            ensureGreen(INDEX_NAME);
+            String docId = String.valueOf(initialDocCount + 1);
+            client().prepareIndex(INDEX_NAME).setId(docId).setSource("foo", "bar").get();
+            flushAndRefresh(INDEX_NAME);
+            waitForSearchableDocs(initialDocCount + 1, replicaNode_2);
+
+            replicaNode_service = internalCluster().getInstance(SegmentReplicationPressureService.class, replicaNode);
+            replica = getIndexShard(replicaNode_2, INDEX_NAME);
+            assertEquals(1, replicaNode_service.nodeStats().getShardStats().size());
+            replicaStats = replicaNode_service.nodeStats().getShardStats().get(primaryShard.shardId()).getReplicaStats();
+            assertEquals(1, replicaStats.size());
+            assertEquals(replica.routingEntry().allocationId().getId(), replicaStats.stream().findFirst().get().getAllocationId());
         }
     }
 }

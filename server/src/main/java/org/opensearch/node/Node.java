@@ -41,6 +41,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexingPressureService;
+import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
@@ -857,6 +858,9 @@ public class Node implements Closeable {
                 SearchExecutionStatsCollector.makeWrapper(responseCollectorService)
             );
             final HttpServerTransport httpServerTransport = newHttpTransport(networkModule);
+            final SegmentReplicationPressureService segmentReplicationPressureService = new SegmentReplicationPressureService(
+                indicesService
+            );
             final IndexingPressureService indexingPressureService = new IndexingPressureService(settings, clusterService);
             // Going forward, IndexingPressureService will have required constructs for exposing listeners/interfaces for plugin
             // development. Then we can deprecate Getter and Setter for IndexingPressureService in ClusterService (#478).
@@ -967,6 +971,7 @@ public class Node implements Closeable {
                 responseCollectorService,
                 searchTransportService,
                 indexingPressureService,
+                segmentReplicationPressureService,
                 searchModule.getValuesSourceRegistry().getUsageService(),
                 searchBackpressureService,
                 nodeEnvironment
@@ -1028,6 +1033,7 @@ public class Node implements Closeable {
                 b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                 b.bind(IngestService.class).toInstance(ingestService);
                 b.bind(IndexingPressureService.class).toInstance(indexingPressureService);
+                b.bind(SegmentReplicationPressureService.class).toInstance(segmentReplicationPressureService);
                 b.bind(TaskResourceTrackingService.class).toInstance(taskResourceTrackingService);
                 b.bind(SearchBackpressureService.class).toInstance(searchBackpressureService);
                 b.bind(UsageService.class).toInstance(usageService);

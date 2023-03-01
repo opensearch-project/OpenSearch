@@ -48,6 +48,7 @@ import org.opensearch.discovery.Discovery;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.IndexingPressureService;
+import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.ingest.IngestService;
@@ -83,6 +84,7 @@ public class NodeService implements Closeable {
     private final ResponseCollectorService responseCollectorService;
     private final SearchTransportService searchTransportService;
     private final IndexingPressureService indexingPressureService;
+    private final SegmentReplicationPressureService segmentReplicationPressureService;
     private final AggregationUsageService aggregationUsageService;
     private final SearchBackpressureService searchBackpressureService;
     private final ClusterService clusterService;
@@ -106,6 +108,7 @@ public class NodeService implements Closeable {
         ResponseCollectorService responseCollectorService,
         SearchTransportService searchTransportService,
         IndexingPressureService indexingPressureService,
+        SegmentReplicationPressureService segmentReplicationPressureService,
         AggregationUsageService aggregationUsageService,
         SearchBackpressureService searchBackpressureService,
         NodeEnvironment nodeEnvironment
@@ -125,6 +128,7 @@ public class NodeService implements Closeable {
         this.responseCollectorService = responseCollectorService;
         this.searchTransportService = searchTransportService;
         this.indexingPressureService = indexingPressureService;
+        this.segmentReplicationPressureService = segmentReplicationPressureService;
         this.aggregationUsageService = aggregationUsageService;
         this.searchBackpressureService = searchBackpressureService;
         this.clusterService = clusterService;
@@ -180,6 +184,7 @@ public class NodeService implements Closeable {
         boolean scriptCache,
         boolean indexingPressure,
         boolean shardIndexingPressure,
+        boolean segmentReplicationPressure,
         boolean searchBackpressure,
         boolean clusterManagerThrottling,
         boolean weightedRoutingStats,
@@ -206,6 +211,7 @@ public class NodeService implements Closeable {
             scriptCache ? scriptService.cacheStats() : null,
             indexingPressure ? this.indexingPressureService.nodeStats() : null,
             shardIndexingPressure ? this.indexingPressureService.shardStats(indices) : null,
+            segmentReplicationPressure ? this.segmentReplicationPressureService.nodeStats() : null,
             searchBackpressure ? this.searchBackpressureService.nodeStats() : null,
             clusterManagerThrottling ? this.clusterService.getClusterManagerService().getThrottlingStats() : null,
             weightedRoutingStats ? WeightedRoutingStats.getInstance() : null,

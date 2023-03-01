@@ -46,6 +46,7 @@ import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.discovery.DiscoveryStats;
 import org.opensearch.http.HttpStats;
+import org.opensearch.index.SegmentReplicationStats;
 import org.opensearch.index.stats.IndexingPressureStats;
 import org.opensearch.index.stats.ShardIndexingPressureStats;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
@@ -124,6 +125,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     private ShardIndexingPressureStats shardIndexingPressureStats;
 
     @Nullable
+    private SegmentReplicationStats segmentReplicationStats;
+
+    @Nullable
     private SearchBackpressureStats searchBackpressureStats;
 
     @Nullable
@@ -159,6 +163,12 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         indexingPressureStats = in.readOptionalWriteable(IndexingPressureStats::new);
         shardIndexingPressureStats = in.readOptionalWriteable(ShardIndexingPressureStats::new);
+
+        if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
+            segmentReplicationStats = in.readOptionalWriteable(SegmentReplicationStats::new);
+        } else {
+            segmentReplicationStats = null;
+        }
 
         if (in.getVersion().onOrAfter(Version.V_2_4_0)) {
             searchBackpressureStats = in.readOptionalWriteable(SearchBackpressureStats::new);
@@ -202,6 +212,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable ScriptCacheStats scriptCacheStats,
         @Nullable IndexingPressureStats indexingPressureStats,
         @Nullable ShardIndexingPressureStats shardIndexingPressureStats,
+        @Nullable SegmentReplicationStats segmentReplicationStats,
         @Nullable SearchBackpressureStats searchBackpressureStats,
         @Nullable ClusterManagerThrottlingStats clusterManagerThrottlingStats,
         @Nullable WeightedRoutingStats weightedRoutingStats,
@@ -225,6 +236,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.scriptCacheStats = scriptCacheStats;
         this.indexingPressureStats = indexingPressureStats;
         this.shardIndexingPressureStats = shardIndexingPressureStats;
+        this.segmentReplicationStats = segmentReplicationStats;
         this.searchBackpressureStats = searchBackpressureStats;
         this.clusterManagerThrottlingStats = clusterManagerThrottlingStats;
         this.weightedRoutingStats = weightedRoutingStats;
@@ -339,6 +351,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     }
 
     @Nullable
+    public SegmentReplicationStats getSegmentReplicationStats() {
+        return segmentReplicationStats;
+    }
+
+    @Nullable
     public SearchBackpressureStats getSearchBackpressureStats() {
         return searchBackpressureStats;
     }
@@ -380,6 +397,10 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         out.writeOptionalWriteable(adaptiveSelectionStats);
         out.writeOptionalWriteable(indexingPressureStats);
         out.writeOptionalWriteable(shardIndexingPressureStats);
+
+        if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
+            out.writeOptionalWriteable(segmentReplicationStats);
+        }
 
         if (out.getVersion().onOrAfter(Version.V_2_4_0)) {
             out.writeOptionalWriteable(searchBackpressureStats);
@@ -464,6 +485,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getShardIndexingPressureStats() != null) {
             getShardIndexingPressureStats().toXContent(builder, params);
+        }
+        if (getSegmentReplicationStats() != null) {
+            getSegmentReplicationStats().toXContent(builder, params);
         }
         if (getSearchBackpressureStats() != null) {
             getSearchBackpressureStats().toXContent(builder, params);
