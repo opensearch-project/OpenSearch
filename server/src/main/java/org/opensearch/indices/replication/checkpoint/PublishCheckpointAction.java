@@ -109,14 +109,13 @@ public class PublishCheckpointAction extends TransportReplicationAction<
     /**
      * Publish checkpoint request to shard
      */
-    final void publish(IndexShard indexShard) {
+    final void publish(IndexShard indexShard, ReplicationCheckpoint checkpoint) {
         long primaryTerm = indexShard.getPendingPrimaryTerm();
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             // we have to execute under the system context so that if security is enabled the sync is authorized
             threadContext.markAsSystemContext();
-            PublishCheckpointRequest request = new PublishCheckpointRequest(indexShard.getLatestReplicationCheckpoint());
-            final ReplicationCheckpoint checkpoint = request.getCheckpoint();
+            PublishCheckpointRequest request = new PublishCheckpointRequest(checkpoint);
 
             final List<ShardRouting> replicationTargets = indexShard.getReplicationGroup().getReplicationTargets();
             for (ShardRouting replicationTarget : replicationTargets) {

@@ -106,6 +106,7 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.cache.bitset.ShardBitsetFilterCache;
@@ -1481,19 +1482,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         // do not close the snapshot - caller will close it.
         final GatedCloseable<SegmentInfos> snapshot = getSegmentInfosSnapshot();
-        return Optional.ofNullable(snapshot.get())
-            .map(
-                segmentInfos -> new Tuple<>(
+        return Optional.ofNullable(snapshot.get()).map(segmentInfos -> {
+            try {
+                return new Tuple<>(
                     snapshot,
                     new ReplicationCheckpoint(
                         this.shardId,
                         getOperationPrimaryTerm(),
                         segmentInfos.getGeneration(),
-                        segmentInfos.getVersion()
+                        segmentInfos.getVersion(),
+                        // TODO: Update replicas to compute length from SegmentInfos. Replicas do not yet incref segments with
+                        // getSegmentInfosSnapshot, so computing length from SegmentInfos can cause issues.
+                        shardRouting.primary()
+                            ? store.getSegmentMetadataMap(segmentInfos).values().stream().mapToLong(StoreFileMetadata::length).sum()
+                            : store.stats(StoreStats.UNKNOWN_RESERVED_BYTES).getSizeInBytes()
                     )
-                )
-            )
-            .orElseGet(() -> new Tuple<>(new GatedCloseable<>(null, () -> {}), ReplicationCheckpoint.empty(shardId)));
+                );
+            } catch (IOException e) {
+                throw new OpenSearchException("Error Fetching SegmentInfos and latest checkpoint", e);
+            }
+        }).orElseGet(() -> new Tuple<>(new GatedCloseable<>(null, () -> {}), ReplicationCheckpoint.empty(shardId)));
     }
 
     /**
@@ -1733,6 +1741,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void resetToWriteableEngine() throws IOException, InterruptedException, TimeoutException {
         indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> { resetEngineToGlobalCheckpoint(); });
+    }
+
+    public void onCheckpointPublished(ReplicationCheckpoint checkpoint) {
+        replicationTracker.setLatestReplicationCheckpoint(checkpoint);
     }
 
     /**
@@ -2698,6 +2710,27 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertPrimaryMode();
         verifyNotClosed();
         replicationTracker.updateGlobalCheckpointForShard(allocationId, globalCheckpoint);
+    }
+
+    /**
+     * Update the local knowledge of the visible global checkpoint for the specified allocation ID.
+     *
+     * @param allocationId     the allocation ID to update the global checkpoint for
+     * @param visibleCheckpoint the visible checkpoint
+     */
+    public void updateVisibleCheckpointForShard(final String allocationId, final ReplicationCheckpoint visibleCheckpoint) {
+        assert assertPrimaryMode();
+        verifyNotClosed();
+        replicationTracker.updateVisibleCheckpointForShard(allocationId, visibleCheckpoint);
+    }
+
+    /**
+     * Fetch stats on segment replication.
+     * @return {@link Tuple} V1 - TimeValue in ms - mean replication lag for this primary to its entire group,
+     * V2 - Set of {@link SegmentReplicationShardStats} per shard in this primary's replication group.
+     */
+    public Set<SegmentReplicationShardStats> getReplicationStats() {
+        return replicationTracker.getSegmentReplicationStats();
     }
 
     /**
