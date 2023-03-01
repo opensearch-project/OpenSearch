@@ -67,7 +67,6 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 import org.yaml.snakeyaml.Yaml;
 import org.opensearch.env.EnvironmentSettingsResponse;
-import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 /**
  * The main class for managing Extension communication with the OpenSearch Node.
@@ -558,7 +557,7 @@ public class ExtensionsManager {
     }
 
     private ExtensionsSettings readFromExtensionsYml(Path filePath) throws IOException {
-        Yaml yaml = new Yaml(new SafeConstructor());
+        Yaml yaml = new Yaml();
         try (InputStream inputStream = Files.newInputStream(filePath)) {
             Map<String, Object> obj = yaml.load(inputStream);
             if (obj == null) {
