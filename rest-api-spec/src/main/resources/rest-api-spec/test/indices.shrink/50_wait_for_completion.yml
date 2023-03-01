@@ -54,14 +54,13 @@
 
   # shrink with wait_for_completion
   - do:
-      allowed_warnings:
-        - "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead."
       indices.shrink:
         index: "source"
         target: "new_shrunken_index"
         wait_for_active_shards: 1
-        master_timeout: 10s
+        cluster_manager_timeout: 10s
         wait_for_completion: false
+        task_execution_timeout: 30s
         body:
           settings:
             index.number_of_shards: 1
@@ -72,6 +71,18 @@
 
   - do:
       tasks.get:
+        wait_for_completion: true
         task_id: $taskId
   - match: { task.action: "indices:admin/resize" }
   - match: { task.description: "shrink from [source] to [new_shrunken_index]" }
+
+  # .tasks index is created when the shrink index operation completes, so we should delete .tasks index finally,
+  # if not, the .tasks index may introduce unexpected warnings and then cause other test cases to fail.
+  # Delete the .tasks index directly will also introduce warning, but currently we don't have such APIs which can delete one
+  # specified task or clear all completed tasks, so we have to do so. Expect we can introduce more tasks related APIs in future
+  - do:
+      allowed_warnings:
+        - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"
+      indices.delete:
+        index: .tasks
+        ignore_unavailable: true
