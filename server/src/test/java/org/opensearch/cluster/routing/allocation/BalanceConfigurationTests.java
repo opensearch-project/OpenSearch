@@ -249,11 +249,11 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
      * This test verifies the allocation logic when nodes breach multiple constraints and ensure node breaching min
      * constraints chosen for allocation.
      *
-     * This test creates a cluster state where one node breaches 2 constraints while one breaches only one. In order to
-     * have nodes breach constraint, test excludes certain nodes (node2, node3) from allocation so that other two nodes
-     * (node0, node1) have all shards assignments and breach constraints. Test asserts that the new primary shard
-     * assignment lands on the node breaching one constraint(node1), while replica land on the other (node0). Final shard
-     * allocation state.
+     * This test mimics a cluster state containing four nodes, where one node breaches two constraints while one breaches
+     * only one. In order to have nodes breach constraints, test excludes two nodes (node2, node3) from allocation so
+     * that other two nodes (node0, node1) have all shards assignments resulting in constraints breach. Test asserts that
+     * the new primary shard assignment lands on the node breaching one constraint(node1), while replica land on the other
+     * (node0). Final shard allocation state.
      *
      routing_nodes:
      -----node_id[node2][V]
@@ -434,7 +434,8 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
 
     /**
      * This test mimics cluster state where re-balancing is not possible due to existing limitation of re-balancing
-     * logic which applies at index level i.e. balance shards single index across all nodes.
+     * logic which applies at index level i.e. balance shards single index across all nodes. This will be solved when
+     * primary shard count across indices, constraint is added.
      *
      * Please note, P1, P2 belongs to different index
      *
@@ -496,7 +497,6 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         ClusterState clusterState = stateBuilder.build();
 
         clusterState = strategy.reroute(clusterState, "reroute");
-        logger.info(ShardAllocations.printShardDistribution(clusterState));
         logger.info(ShardAllocations.printShardDistribution(clusterState));
         // The cluster is balanced when considering indices individually not balanced when considering global state
         verifyPerIndexPrimaryBalance(clusterState);
