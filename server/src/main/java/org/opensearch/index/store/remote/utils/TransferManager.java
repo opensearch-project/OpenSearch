@@ -23,8 +23,6 @@ import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
 
 /**
  * This acts as entry point to fetch {@link BlobFetchRequest} and return actual {@link IndexInput}. Utilizes the BlobContainer interface to
@@ -37,12 +35,11 @@ public class TransferManager {
 
     private final BlobContainer blobContainer;
     private final ConcurrentInvocationLinearizer<Path, IndexInput> invocationLinearizer;
-
     private final FileCache fileCache;
 
-    public TransferManager(final BlobContainer blobContainer, final ExecutorService remoteStoreExecutorService, final FileCache fileCache) {
+    public TransferManager(final BlobContainer blobContainer, final FileCache fileCache) {
         this.blobContainer = blobContainer;
-        this.invocationLinearizer = new ConcurrentInvocationLinearizer<>(remoteStoreExecutorService);
+        this.invocationLinearizer = new ConcurrentInvocationLinearizer<>();
         this.fileCache = fileCache;
     }
 
@@ -51,14 +48,12 @@ public class TransferManager {
      * @param blobFetchRequest to fetch
      * @return future of IndexInput augmented with internal caching maintenance tasks
      */
-    public CompletableFuture<IndexInput> asyncFetchBlob(BlobFetchRequest blobFetchRequest) {
-        return invocationLinearizer.linearize(blobFetchRequest.getFilePath(), p -> {
-            try {
-                return fetchBlob(blobFetchRequest);
-            } catch (IOException e) {
-                throw new IllegalStateException(e);
-            }
-        }).thenApply(IndexInput::clone);
+    public IndexInput fetchBlob(BlobFetchRequest blobFetchRequest) throws InterruptedException, IOException {
+        final IndexInput indexInput = invocationLinearizer.linearize(
+            blobFetchRequest.getFilePath(),
+            p -> fetchOriginBlob(blobFetchRequest)
+        );
+        return indexInput.clone();
     }
 
     /**
@@ -67,7 +62,7 @@ public class TransferManager {
      * accessed through the ConcurrentInvocationLinearizer so read-check-write is
      * acceptable here
      */
-    private IndexInput fetchBlob(BlobFetchRequest blobFetchRequest) throws IOException {
+    private IndexInput fetchOriginBlob(BlobFetchRequest blobFetchRequest) throws IOException {
         // check if the origin is already in block cache
         IndexInput origin = fileCache.computeIfPresent(blobFetchRequest.getFilePath(), (path, cachedIndexInput) -> {
             if (cachedIndexInput.isClosed()) {
@@ -112,7 +107,7 @@ public class TransferManager {
             OutputStream fileOutputStream = Files.newOutputStream(blobFetchRequest.getFilePath());
             OutputStream localFileOutputStream = new BufferedOutputStream(fileOutputStream);
         ) {
-            localFileOutputStream.write(snapshotFileInputStream.readAllBytes());
+            snapshotFileInputStream.transferTo(localFileOutputStream);
         }
         return blobFetchRequest.getDirectory().openInput(blobFetchRequest.getFileName(), IOContext.READ);
     }

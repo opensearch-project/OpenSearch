@@ -121,6 +121,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return hasRole(settings, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
     }
 
+    public static boolean isSearchNode(Settings settings) {
+        return hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
+    }
+
     private final String nodeName;
     private final String nodeId;
     private final String ephemeralId;
