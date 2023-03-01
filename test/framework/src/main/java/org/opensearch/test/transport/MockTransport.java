@@ -195,7 +195,13 @@ public class MockTransport extends StubbableTransport {
 
     protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {}
 
-    protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node, TransportRequestOptions options) {
+    protected void onSendRequest(
+        long requestId,
+        String action,
+        TransportRequest request,
+        DiscoveryNode node,
+        TransportRequestOptions options
+    ) {
         onSendRequest(requestId, action, request, node);
     }
 

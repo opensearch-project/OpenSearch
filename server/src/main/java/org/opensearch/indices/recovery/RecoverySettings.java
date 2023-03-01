@@ -321,7 +321,6 @@ public class RecoverySettings {
         this.segrepActivityTimeout = segrepActivityTimeout;
     }
 
-
     public int getMaxConcurrentOperations() {
         return maxConcurrentOperations;
     }

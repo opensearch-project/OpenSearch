@@ -219,8 +219,15 @@ public class NodeJoinTests extends OpenSearchTestCase {
                     super.onSendRequest(requestId, action, request, destination);
                 }
             }
+
             @Override
-            protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode destination, TransportRequestOptions options) {
+            protected void onSendRequest(
+                long requestId,
+                String action,
+                TransportRequest request,
+                DiscoveryNode destination,
+                TransportRequestOptions options
+            ) {
                 onSendRequest(requestId, action, request, destination);
             }
         };

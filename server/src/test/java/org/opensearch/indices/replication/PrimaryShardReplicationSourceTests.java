@@ -138,7 +138,7 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
      * This test verifies the transport request timeout value for fetching the segment files.
      */
     public void testTransportTimeoutForGetSegmentFilesAction() {
-        long fileSize = (long)(Math.pow(10,9));
+        long fileSize = (long) (Math.pow(10, 9));
         final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(
             indexShard.shardId(),
             PRIMARY_TERM,
@@ -159,7 +159,9 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
         CapturingTransport.CapturedRequest capturedRequest = requestList[0];
         assertEquals(SegmentReplicationSourceService.Actions.GET_SEGMENT_FILES, capturedRequest.action);
         assertEquals(sourceNode, capturedRequest.node);
-        TimeValue expectedTime = TimeValue.timeValueMinutes(Math.max(1, fileSize/recoverySettings.getMaxBytesProcessedPerMinute().getBytes()));
+        TimeValue expectedTime = TimeValue.timeValueMinutes(
+            Math.max(1, fileSize / recoverySettings.getMaxBytesProcessedPerMinute().getBytes())
+        );
         assertEquals(expectedTime, capturedRequest.options.timeout());
     }
 
