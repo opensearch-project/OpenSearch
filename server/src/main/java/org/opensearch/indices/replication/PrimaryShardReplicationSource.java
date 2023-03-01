@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -85,12 +84,6 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
     ) {
         final Writeable.Reader<GetSegmentFilesResponse> reader = GetSegmentFilesResponse::new;
         final ActionListener<GetSegmentFilesResponse> responseListener = ActionListener.map(listener, r -> r);
-
-        // Storing the size of files to fetch in bytes.
-        final long sizeOfSegmentFiles = filesToFetch.stream().mapToLong(file -> file.length()).sum();
-
-        // Formula to anticipate time needed on source to send files for current round of segrep
-        final long timeToGetSegmentFiles = Math.max(1, sizeOfSegmentFiles / recoverySettings.getMaxBytesProcessedPerMinute().getBytes());
         final GetSegmentFilesRequest request = new GetSegmentFilesRequest(
             replicationId,
             targetAllocationId,
@@ -99,7 +92,7 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
             checkpoint
         );
         final TransportRequestOptions options = TransportRequestOptions.builder()
-            .withTimeout(TimeValue.timeValueMinutes(timeToGetSegmentFiles))
+            .withTimeout(recoverySettings.internalActionLongTimeout())
             .build();
         transportClient.executeRetryableAction(GET_SEGMENT_FILES, request, options, responseListener, reader);
     }

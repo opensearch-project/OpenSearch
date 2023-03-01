@@ -143,32 +143,6 @@ public class RecoverySettings {
         Property.NodeScope
     );
 
-    /**
-     * Segment Replication specific setting
-     *
-     * Timeout value to use for requests made as part of the segment replication process
-     */
-    public static final Setting<TimeValue> SEGREP_ACTIVITY_TIMEOUT_SETTING = Setting.positiveTimeSetting(
-        "segrep.replication.activity_timeout",
-        TimeValue.timeValueMinutes(30),
-        Property.Dynamic,
-        Property.NodeScope
-    );
-
-    /**
-     * Segment Replication specific setting
-     *
-     * This setting is used to evaluate the time period (in minutes) needed to fetch segment files from source node and
-     * defines the maximum size of bytes a typical machine can process per minute. Default value identified for m5.xlarge
-     * machine.
-     */
-    public static final Setting<ByteSizeValue> SEGREP_MAX_BYTES_PROCESSED_PER_MINUTE_SETTING = Setting.byteSizeSetting(
-        "segrep.replication.max_bytes_processed_per_minute",
-        new ByteSizeValue(100, ByteSizeUnit.MB),
-        Property.Dynamic,
-        Property.NodeScope
-    );
-
     // choose 512KB-16B to ensure that the resulting byte[] is not a humongous allocation in G1.
     public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512 * 1024 - 16, ByteSizeUnit.BYTES);
 
@@ -184,9 +158,6 @@ public class RecoverySettings {
     private volatile TimeValue internalActionLongTimeout;
 
     private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;
-
-    private volatile ByteSizeValue maxBytesProcessedPerMinute;
-    private volatile TimeValue segrepActivityTimeout;
 
     public RecoverySettings(Settings settings, ClusterSettings clusterSettings) {
         this.retryDelayStateSync = INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.get(settings);
@@ -207,8 +178,6 @@ public class RecoverySettings {
         } else {
             rateLimiter = new SimpleRateLimiter(maxBytesPerSec.getMbFrac());
         }
-        this.maxBytesProcessedPerMinute = SEGREP_MAX_BYTES_PROCESSED_PER_MINUTE_SETTING.get(settings);
-        this.segrepActivityTimeout = SEGREP_ACTIVITY_TIMEOUT_SETTING.get(settings);
 
         logger.debug("using max_bytes_per_sec[{}]", maxBytesPerSec);
 
@@ -223,8 +192,6 @@ public class RecoverySettings {
             this::setInternalActionLongTimeout
         );
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setActivityTimeout);
-        clusterSettings.addSettingsUpdateConsumer(SEGREP_MAX_BYTES_PROCESSED_PER_MINUTE_SETTING, this::setMaxBytesProcessedPerMinute);
-        clusterSettings.addSettingsUpdateConsumer(SEGREP_ACTIVITY_TIMEOUT_SETTING, this::setSegrepActivityTimeout);
     }
 
     public RateLimiter rateLimiter() {
@@ -245,10 +212,6 @@ public class RecoverySettings {
 
     public TimeValue internalActionTimeout() {
         return internalActionTimeout;
-    }
-
-    public TimeValue segrepActivityTimeout() {
-        return segrepActivityTimeout;
     }
 
     public TimeValue internalActionRetryTimeout() {
@@ -290,10 +253,6 @@ public class RecoverySettings {
         this.internalActionLongTimeout = internalActionLongTimeout;
     }
 
-    public ByteSizeValue getMaxBytesProcessedPerMinute() {
-        return maxBytesProcessedPerMinute;
-    }
-
     private void setMaxBytesPerSec(ByteSizeValue maxBytesPerSec) {
         this.maxBytesPerSec = maxBytesPerSec;
         if (maxBytesPerSec.getBytes() <= 0) {
@@ -311,14 +270,6 @@ public class RecoverySettings {
 
     private void setMaxConcurrentFileChunks(int maxConcurrentFileChunks) {
         this.maxConcurrentFileChunks = maxConcurrentFileChunks;
-    }
-
-    private void setMaxBytesProcessedPerMinute(ByteSizeValue maxBytesProcessedPerMinute) {
-        this.maxBytesProcessedPerMinute = maxBytesProcessedPerMinute;
-    }
-
-    private void setSegrepActivityTimeout(TimeValue segrepActivityTimeout) {
-        this.segrepActivityTimeout = segrepActivityTimeout;
     }
 
     public int getMaxConcurrentOperations() {

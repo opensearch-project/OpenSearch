@@ -16,7 +16,6 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.shard.IndexShard;
@@ -159,10 +158,7 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
         CapturingTransport.CapturedRequest capturedRequest = requestList[0];
         assertEquals(SegmentReplicationSourceService.Actions.GET_SEGMENT_FILES, capturedRequest.action);
         assertEquals(sourceNode, capturedRequest.node);
-        TimeValue expectedTime = TimeValue.timeValueMinutes(
-            Math.max(1, fileSize / recoverySettings.getMaxBytesProcessedPerMinute().getBytes())
-        );
-        assertEquals(expectedTime, capturedRequest.options.timeout());
+        assertEquals(recoverySettings.internalActionLongTimeout(), capturedRequest.options.timeout());
     }
 
     public void testGetSegmentFiles_CancelWhileRequestOpen() throws InterruptedException {
