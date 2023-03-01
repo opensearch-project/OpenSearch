@@ -135,7 +135,7 @@ public final class ShardPath {
      */
     public static ShardPath loadFileCachePath(NodeEnvironment env, ShardId shardId) {
         NodeEnvironment.NodePath path = env.fileCacheNodePath();
-        final Path dataPath = env.resolveCustomLocation(path.fileCachePath.toString(), shardId);
+        final Path dataPath = env.resolveFileCacheLocation(path.fileCachePath, shardId);
         final Path statePath = path.resolve(shardId);
         return new ShardPath(true, dataPath, statePath, shardId);
     }

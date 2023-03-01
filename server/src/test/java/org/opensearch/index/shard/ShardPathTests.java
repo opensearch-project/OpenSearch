@@ -148,7 +148,7 @@ public class ShardPathTests extends OpenSearchTestCase {
     }
 
     public void testLoadFileCachePath() throws IOException {
-        Settings searchNodeSettings = Settings.builder().put("node.roles", "search").put(PATH_SHARED_DATA_SETTING.getKey(), "").build();
+        Settings searchNodeSettings = Settings.builder().put("node.roles", "search").build();
 
         try (NodeEnvironment env = newNodeEnvironment(searchNodeSettings)) {
             ShardId shardId = new ShardId("foo", "0xDEADBEEF", 0);

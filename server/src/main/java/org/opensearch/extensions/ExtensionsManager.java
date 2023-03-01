@@ -60,13 +60,13 @@ import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.rest.RestController;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 import org.yaml.snakeyaml.Yaml;
 import org.opensearch.env.EnvironmentSettingsResponse;
-import org.yaml.snakeyaml.constructor.SafeConstructor;
 
 /**
  * The main class for managing Extension communication with the OpenSearch Node.
@@ -394,11 +394,10 @@ public class ExtensionsManager {
                 initializeExtensionResponseHandler
             );
             inProgressFuture.orTimeout(EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
-        } catch (CompletionException e) {
-            if (e.getCause() instanceof TimeoutException) {
-                logger.info("No response from extension to request.");
-            }
-            if (e.getCause() instanceof RuntimeException) {
+        } catch (CompletionException | ConnectTransportException e) {
+            if (e.getCause() instanceof TimeoutException || e instanceof ConnectTransportException) {
+                logger.info("No response from extension to request.", e);
+            } else if (e.getCause() instanceof RuntimeException) {
                 throw (RuntimeException) e.getCause();
             } else if (e.getCause() instanceof Error) {
                 throw (Error) e.getCause();
@@ -558,7 +557,7 @@ public class ExtensionsManager {
     }
 
     private ExtensionsSettings readFromExtensionsYml(Path filePath) throws IOException {
-        Yaml yaml = new Yaml(new SafeConstructor());
+        Yaml yaml = new Yaml();
         try (InputStream inputStream = Files.newInputStream(filePath)) {
             Map<String, Object> obj = yaml.load(inputStream);
             if (obj == null) {

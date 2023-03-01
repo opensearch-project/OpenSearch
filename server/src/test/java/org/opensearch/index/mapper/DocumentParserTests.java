@@ -1486,4 +1486,156 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.field("foo", "1234")));
         assertNull(doc.dynamicMappingsUpdate()); // no update since we reused the existing type
     }
+
+    public void testDocumentContainsDeepNestedFieldParsing() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("inner1");
+            {
+                b.field("inner1_field1", "inner1_value1");
+                b.startObject("inner2");
+                {
+                    b.startObject("inner3");
+                    {
+                        b.field("inner3_field1", "inner3_value1");
+                        b.field("inner3_field2", "inner3_value2");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        Mapping update = doc.dynamicMappingsUpdate();
+        assertNotNull(update); // dynamic mapping update
+
+        Mapper objMapper = update.root().getMapper("inner1");
+        Mapper inner1_field1_mapper = ((ObjectMapper) objMapper).getMapper("inner1_field1");
+        assertNotNull(inner1_field1_mapper);
+        Mapper inner2_mapper = ((ObjectMapper) objMapper).getMapper("inner2");
+        assertNotNull(inner2_mapper);
+        Mapper inner3_mapper = ((ObjectMapper) inner2_mapper).getMapper("inner3");
+        assertNotNull(inner3_mapper);
+        assertThat(doc.rootDoc().get("inner1.inner2.inner3.inner3_field1"), equalTo("inner3_value1"));
+    }
+
+    public void testDocumentContainsDeepNestedFieldParsingFail() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        long depth_limit = MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getDefault(Settings.EMPTY);
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+            for (int i = 1; i <= depth_limit; i++) {
+                b.startObject("inner" + i);
+            }
+            b.field("inner_field", "inner_value");
+            for (int i = 1; i <= depth_limit; i++) {
+                b.endObject();
+            }
+        })));
+
+        // check that parsing succeeds with valid doc
+        // after throwing exception
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("inner1");
+            {
+                b.startObject("inner2");
+                {
+                    b.startObject("inner3");
+                    {
+                        b.field("inner3_field1", "inner3_value1");
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        Mapping update = doc.dynamicMappingsUpdate();
+        assertNotNull(update); // dynamic mapping update
+        Mapper objMapper = update.root().getMapper("inner1");
+        Mapper inner2_mapper = ((ObjectMapper) objMapper).getMapper("inner2");
+        assertNotNull(inner2_mapper);
+        Mapper inner3_mapper = ((ObjectMapper) inner2_mapper).getMapper("inner3");
+        assertNotNull(inner3_mapper);
+        assertThat(doc.rootDoc().get("inner1.inner2.inner3.inner3_field1"), equalTo("inner3_value1"));
+    }
+
+    public void testDocumentContainsDeepNestedFieldParsingShouldFail() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> { b.field("type", "nested"); }));
+        long depth_limit = MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getDefault(Settings.EMPTY);
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+            b.startObject("field");
+            b.startArray("inner");
+            for (int i = 1; i <= depth_limit; i++) {
+                b.startArray();
+            }
+            b.startArray().value(0).value(0).endArray();
+            for (int i = 1; i <= depth_limit; i++) {
+                b.endArray();
+            }
+            b.endArray();
+            b.endObject();
+        })));
+        // check parsing success for nested array within allowed depth limit
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("field");
+            b.startArray("inner");
+            for (int i = 1; i < depth_limit - 1; i++) {
+                b.startArray();
+            }
+            b.startArray().value(0).value(0).endArray();
+            for (int i = 1; i < depth_limit - 1; i++) {
+                b.endArray();
+            }
+            b.endArray();
+            b.endObject();
+        }
+
+        ));
+        Mapping update = doc.dynamicMappingsUpdate();
+        assertNotNull(update); // dynamic mapping update
+
+    }
+
+    // Test nesting upto max allowed depth with combination of nesting in object and array
+    // object -> array -> object -> array ....
+    public void testDocumentDeepNestedObjectAndArrayCombination() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        long depth_limit = MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING.getDefault(Settings.EMPTY);
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> {
+            for (int i = 1; i < depth_limit; i++) {
+                b.startArray("foo" + 1);
+                b.startObject();
+            }
+            b.startArray("bar");
+            b.startArray().value(0).value(0).endArray();
+            b.endArray();
+            for (int i = 1; i < depth_limit; i++) {
+                b.endObject();
+                b.endArray();
+            }
+        })));
+
+        // check parsing success for nested array within allowed depth limit
+        ParsedDocument doc = mapper.parse(source(b -> {
+            for (int i = 1; i < depth_limit - 1; i++) {
+                b.startArray("foo" + 1);
+                b.startObject();
+            }
+            b.startArray("bar");
+            b.startArray().value(0).value(0).endArray();
+            b.endArray();
+            for (int i = 1; i < depth_limit - 1; i++) {
+                b.endObject();
+                b.endArray();
+            }
+        }
+
+        ));
+        Mapping update = doc.dynamicMappingsUpdate();
+        assertNotNull(update); // dynamic mapping update
+
+    }
+
 }
