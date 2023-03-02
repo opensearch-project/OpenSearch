@@ -336,7 +336,7 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(expectedPattern.pattern(), regexValidator.getPattern().pattern());
 
         // Test that validate() throws an exception for invalid input
-        final RegexValidator finalValidator = new RegexValidator(regexValidator.getPattern().pattern());
+        final RegexValidator finalValidator = new RegexValidator(expectedRegex);
         assertThrows(IllegalArgumentException.class, () -> finalValidator.validate("\\d+"));
 
         try {
@@ -353,7 +353,7 @@ public class SettingTests extends OpenSearchTestCase {
                 assertEquals(expectedPattern.pattern(), regexValidator.getPattern().pattern());
 
                 // Test that validate() throws an exception for invalid input
-                final RegexValidator newFinalValidator = new RegexValidator(regexValidator.getPattern().pattern());
+                final RegexValidator newFinalValidator = new RegexValidator(expectedRegex);
                 assertThrows(IllegalArgumentException.class, () -> newFinalValidator.validate("\\d+"));
 
                 // Test that validate() does not throw an exception for valid input
