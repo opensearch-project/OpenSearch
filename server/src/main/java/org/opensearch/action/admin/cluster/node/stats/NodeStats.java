@@ -163,13 +163,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         indexingPressureStats = in.readOptionalWriteable(IndexingPressureStats::new);
         shardIndexingPressureStats = in.readOptionalWriteable(ShardIndexingPressureStats::new);
-
-        if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
-            segmentReplicationStats = in.readOptionalWriteable(SegmentReplicationStats::new);
-        } else {
-            segmentReplicationStats = null;
-        }
-
         if (in.getVersion().onOrAfter(Version.V_2_4_0)) {
             searchBackpressureStats = in.readOptionalWriteable(SearchBackpressureStats::new);
         } else {
@@ -190,6 +183,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
             fileCacheStats = in.readOptionalWriteable(FileCacheStats::new);
         } else {
             fileCacheStats = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_2_7_0) && FeatureFlags.isEnabled(FeatureFlags.REPLICATION_TYPE)) {
+            segmentReplicationStats = in.readOptionalWriteable(SegmentReplicationStats::new);
+        } else {
+            segmentReplicationStats = null;
         }
     }
 
@@ -398,10 +396,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         out.writeOptionalWriteable(indexingPressureStats);
         out.writeOptionalWriteable(shardIndexingPressureStats);
 
-        if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
-            out.writeOptionalWriteable(segmentReplicationStats);
-        }
-
         if (out.getVersion().onOrAfter(Version.V_2_4_0)) {
             out.writeOptionalWriteable(searchBackpressureStats);
         }
@@ -413,6 +407,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (out.getVersion().onOrAfter(Version.V_3_0_0) && FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT)) {
             out.writeOptionalWriteable(fileCacheStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_7_0) && FeatureFlags.isEnabled(FeatureFlags.REPLICATION_TYPE)) {
+            out.writeOptionalWriteable(segmentReplicationStats);
         }
     }
 
@@ -486,9 +483,6 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (getShardIndexingPressureStats() != null) {
             getShardIndexingPressureStats().toXContent(builder, params);
         }
-        if (getSegmentReplicationStats() != null) {
-            getSegmentReplicationStats().toXContent(builder, params);
-        }
         if (getSearchBackpressureStats() != null) {
             getSearchBackpressureStats().toXContent(builder, params);
         }
@@ -501,7 +495,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (getFileCacheStats() != null && FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT)) {
             getFileCacheStats().toXContent(builder, params);
         }
-
+        if (getSegmentReplicationStats() != null && FeatureFlags.isEnabled(FeatureFlags.REPLICATION_TYPE)) {
+            getSegmentReplicationStats().toXContent(builder, params);
+        }
         return builder;
     }
 }

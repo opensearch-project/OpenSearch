@@ -1190,7 +1190,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
             });
             cps.lastCompletedReplicationLag = lastFinished.get();
         }
-        logger.info(
+        logger.trace(
             () -> new ParameterizedMessage(
                 "updated local knowledge for [{}] on the primary of the visible checkpoint from [{}] to [{}], active timers {}",
                 allocationId,
@@ -1222,7 +1222,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
                             replicationTimer.start();
                             return replicationTimer;
                         });
-                        logger.info(
+                        logger.trace(
                             () -> new ParameterizedMessage(
                                 "updated last published checkpoint to {} - timers [{}]",
                                 checkpoint,
