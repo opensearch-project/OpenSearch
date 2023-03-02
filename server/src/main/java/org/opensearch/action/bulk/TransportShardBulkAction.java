@@ -781,7 +781,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     protected void dispatchedShardOperationOnReplica(BulkShardRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
         ActionListener.completeWith(listener, () -> {
             final Tuple<Translog.Location, Long> tuple = performOnReplica(request, replica);
-            return new WriteReplicaResult<>(request, tuple, replica, logger);
+            return new WriteReplicaResult<>(request, tuple, null, replica, logger);
         });
     }
 
@@ -814,18 +814,19 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     primaryTerm,
                     response.getFailure().getMessage()
                 );
+                maxSeqNo = Math.max(response.getFailure().getSeqNo(), maxSeqNo);
             } else {
                 if (response.getResponse().getResult() == DocWriteResponse.Result.NOOP) {
                     continue; // ignore replication as it's a noop
                 }
                 assert response.getResponse().getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
                 operationResult = performOpOnReplica(response.getResponse(), item.request(), replica);
+                maxSeqNo = Math.max(response.getResponse().getSeqNo(), maxSeqNo);
             }
             assert operationResult != null : "operation result must never be null when primary response has no failure";
             location = syncOperationResultOrThrow(operationResult, location);
-            maxSeqNo = Math.max(response.getResponse().getSeqNo(), maxSeqNo);
         }
-        return new Tuple<Translog.Location, Long>(location, maxSeqNo);
+        return new Tuple<>(location, maxSeqNo);
     }
 
     private static Engine.Result performOpOnReplica(

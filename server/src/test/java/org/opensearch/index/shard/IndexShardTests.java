@@ -4179,7 +4179,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertTrue(primary.scheduledRefresh());
         Engine.IndexResult doc = indexDoc(primary, "_doc", "1", "{\"foo\" : \"bar\"}");
         CountDownLatch latch = new CountDownLatch(1);
-        primary.addRefreshListener(doc.getTranslogLocation(), r -> latch.countDown());
+        primary.addRefreshListener(new Tuple<>(doc.getTranslogLocation(), SequenceNumbers.NO_OPS_PERFORMED), r -> latch.countDown());
         assertEquals(1, latch.getCount());
         assertTrue(primary.getEngine().refreshNeeded());
         assertTrue(primary.scheduledRefresh());
@@ -4191,7 +4191,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
         doc = indexDoc(primary, "_doc", "2", "{\"foo\" : \"bar\"}");
         CountDownLatch latch1 = new CountDownLatch(1);
-        primary.addRefreshListener(doc.getTranslogLocation(), r -> latch1.countDown());
+        primary.addRefreshListener(new Tuple<>(doc.getTranslogLocation(), SequenceNumbers.NO_OPS_PERFORMED), r -> latch1.countDown());
         assertEquals(1, latch1.getCount());
         assertTrue(primary.getEngine().refreshNeeded());
         assertTrue(primary.scheduledRefresh());

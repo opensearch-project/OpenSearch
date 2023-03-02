@@ -18,6 +18,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.ClusterSettings;
@@ -26,6 +27,7 @@ import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.ShardIndexingPressureSettings;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.ReplicationGroup;
@@ -423,7 +425,7 @@ public class TransportWriteActionForIndexingPressureTests extends OpenSearchTest
 
         @Override
         protected void dispatchedShardOperationOnReplica(TestRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
-            ActionListener.completeWith(listener, () -> new WriteReplicaResult<>(request, location, null, replica, logger));
+            ActionListener.completeWith(listener, () -> new WriteReplicaResult<>(request, new Tuple<>(location, SequenceNumbers.NO_OPS_PERFORMED), null, replica, logger));
         }
 
     }

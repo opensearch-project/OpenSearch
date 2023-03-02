@@ -309,7 +309,7 @@ public abstract class TransportWriteAction<
                  * We call this after replication because this might wait for a refresh and that can take a while.
                  * This way we wait for the refresh in parallel on the primary and on the replica.
                  */
-                new AsyncAfterWriteAction(primary, replicaRequest, location, SequenceNumbers.NO_OPS_PERFORMED, new RespondingWriteResult() {
+                new AsyncAfterWriteAction(primary, replicaRequest, new Tuple<>(location, SequenceNumbers.NO_OPS_PERFORMED), new RespondingWriteResult() {
                     @Override
                     public void onSuccess(boolean forcedRefresh) {
                         finalResponseIfSuccessful.setForcedRefresh(forcedRefresh);
@@ -331,29 +331,25 @@ public abstract class TransportWriteAction<
      * @opensearch.internal
      */
     public static class WriteReplicaResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>> extends ReplicaResult {
-        public final Location location;
         private final ReplicaRequest request;
         private final IndexShard replica;
         private final Logger logger;
         private long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
 
+        private final Tuple<Translog.Location, Long> tuple;
+
         public WriteReplicaResult(
             ReplicaRequest request,
-            @Nullable Location location,
+            Tuple<Location, Long> tuple,
             @Nullable Exception operationFailure,
             IndexShard replica,
             Logger logger
         ) {
             super(operationFailure);
-            this.location = location;
+            this.tuple = tuple;
             this.request = request;
             this.replica = replica;
             this.logger = logger;
-        }
-
-        public WriteReplicaResult(ReplicaRequest request, Tuple<Location, Long> tuple, IndexShard replica, Logger logger) {
-            this(request, tuple.v1(), null, replica, logger);
-            this.maxSeqNo = tuple.v2();
         }
 
         @Override
@@ -361,7 +357,7 @@ public abstract class TransportWriteAction<
             if (finalFailure != null) {
                 listener.onFailure(finalFailure);
             } else {
-                new AsyncAfterWriteAction(replica, request, location, maxSeqNo, new RespondingWriteResult() {
+                new AsyncAfterWriteAction(replica, request, tuple, new RespondingWriteResult() {
                     @Override
                     public void onSuccess(boolean forcedRefresh) {
                         listener.onResponse(null);
@@ -411,7 +407,6 @@ public abstract class TransportWriteAction<
      * @opensearch.internal
      */
     static final class AsyncAfterWriteAction {
-        private final Location location;
         private final boolean waitUntilRefresh;
         private final boolean sync;
         private final AtomicInteger pendingOps = new AtomicInteger(1);
@@ -422,13 +417,12 @@ public abstract class TransportWriteAction<
         private final WriteRequest<?> request;
         private final Logger logger;
 
-        private final long maxSeqNo;
+        private final Tuple<Translog.Location, Long> tuple;
 
         AsyncAfterWriteAction(
             final IndexShard indexShard,
             final WriteRequest<?> request,
-            @Nullable final Translog.Location location,
-            final long maxSeqNo,
+            Tuple< Translog.Location, Long> tuple,
             final RespondingWriteResult respond,
             final Logger logger
         ) {
@@ -441,7 +435,7 @@ public abstract class TransportWriteAction<
                     refreshed.set(true);
                     break;
                 case WAIT_UNTIL:
-                    if (location != null) {
+                    if (tuple.v1() != null) {
                         waitUntilRefresh = true;
                         pendingOps.incrementAndGet();
                     }
@@ -453,9 +447,8 @@ public abstract class TransportWriteAction<
             }
             this.waitUntilRefresh = waitUntilRefresh;
             this.respond = respond;
-            this.location = location;
-            this.maxSeqNo = maxSeqNo;
-            if ((sync = indexShard.getTranslogDurability() == Translog.Durability.REQUEST && location != null)) {
+            this.tuple = tuple;
+            if ((sync = indexShard.getTranslogDurability() == Translog.Durability.REQUEST && tuple.v1() != null)) {
                 pendingOps.incrementAndGet();
             }
             this.logger = logger;
@@ -485,29 +478,18 @@ public abstract class TransportWriteAction<
             // decrement pending by one, if there is nothing else to do we just respond with success
             maybeFinish();
             if (waitUntilRefresh) {
-                if (indexShard.indexSettings().isSegRepEnabled() == true && indexShard.routingEntry().primary() == false) {
-                    assert pendingOps.get() > 0;
-                    indexShard.addRefreshListener(maxSeqNo, forcedRefresh -> {
-                        if (forcedRefresh) {
-                            logger.warn("block until refresh ran out of slots and forced a refresh: [{}]", request);
-                        }
-                        refreshed.set(forcedRefresh);
-                        maybeFinish();
-                    });
-                } else {
-                    assert pendingOps.get() > 0;
-                    indexShard.addRefreshListener(location, forcedRefresh -> {
-                        if (forcedRefresh) {
-                            logger.warn("block until refresh ran out of slots and forced a refresh: [{}]", request);
-                        }
-                        refreshed.set(forcedRefresh);
-                        maybeFinish();
-                    });
-                }
+                assert pendingOps.get() > 0;
+                indexShard.addRefreshListener(tuple, forcedRefresh -> {
+                    if (forcedRefresh) {
+                        logger.warn("block until refresh ran out of slots and forced a refresh: [{}]", request);
+                    }
+                    refreshed.set(forcedRefresh);
+                    maybeFinish();
+                });
             }
             if (sync) {
                 assert pendingOps.get() > 0;
-                indexShard.sync(location, (ex) -> {
+                indexShard.sync(tuple.v1(), (ex) -> {
                     syncFailure.set(ex);
                     maybeFinish();
                 });

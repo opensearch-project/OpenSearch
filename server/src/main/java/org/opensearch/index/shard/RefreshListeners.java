@@ -170,13 +170,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
             List<Tuple<Translog.Location, Consumer<Boolean>>> listeners = refreshListeners;
             final int maxRefreshes = getMaxRefreshListeners.getAsInt();
             if (refreshForcers == 0 && maxRefreshes > 0 && (listeners == null || listeners.size() < maxRefreshes)) {
-                ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true);
-                Consumer<Boolean> contextPreservingListener = forced -> {
-                    try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                        storedContext.restore();
-                        listener.accept(forced);
-                    }
-                };
+                Consumer<Boolean> contextPreservingListener = getContextListener(listener);
                 if (listeners == null) {
                     listeners = new ArrayList<>();
                 }
@@ -196,12 +190,12 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      * Add a listener for refreshes, calling it immediately if the max sequence number is already visible. If this runs out of listener slots then it
      * forces a refresh and calls the listener immediately as well.
      *
-     * @param maxSeqNo the Sequence number to listen for
+     * @param maxSeqNo the Sequence number to listen on segment replication enabled replica shards
      * @param listener for the refresh. Called with true if registering the listener ran it out of slots and forced a refresh. Called with
      *        false otherwise.
      * @return did we call the listener (true) or register the listener to call later (false)?
      */
-    public boolean addOrNotify(long maxSeqNo, Consumer<Boolean> listener) {
+    public boolean addOrNotifySeqNoRefresh(long maxSeqNo, Consumer<Boolean> listener) {
         requireNonNull(listener, "listener cannot be null");
 
         if (lastMaxSeqNo != SequenceNumbers.NO_OPS_PERFORMED && lastMaxSeqNo >= maxSeqNo) {
@@ -215,13 +209,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
             List<Tuple<Long, Consumer<Boolean>>> listeners = seqNoRefreshListeners;
             final int maxRefreshes = getMaxRefreshListeners.getAsInt();
             if (refreshForcers == 0 && maxRefreshes > 0 && (listeners == null || listeners.size() < maxRefreshes)) {
-                ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true);
-                Consumer<Boolean> contextPreservingListener = forced -> {
-                    try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                        storedContext.restore();
-                        listener.accept(forced);
-                    }
-                };
+                Consumer<Boolean> contextPreservingListener = getContextListener(listener);
                 if (listeners == null) {
                     listeners = new ArrayList<>();
                 }
@@ -236,6 +224,17 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         listener.accept(true);
         return true;
     }
+
+    private Consumer<Boolean> getContextListener(Consumer<Boolean> listener){
+        ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true);
+        return forced -> {
+            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                storedContext.restore();
+                listener.accept(forced);
+            }
+        };
+    }
+
 
     @Override
     public void close() throws IOException {

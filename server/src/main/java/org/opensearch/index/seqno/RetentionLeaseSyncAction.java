@@ -48,6 +48,7 @@ import org.opensearch.action.support.replication.TransportWriteAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -202,7 +203,7 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
             Objects.requireNonNull(replica);
             replica.updateRetentionLeasesOnReplica(request.getRetentionLeases());
             replica.persistRetentionLeases();
-            return new WriteReplicaResult<>(request, null, null, replica, getLogger());
+            return new WriteReplicaResult<>(request, new Tuple<>(null, SequenceNumbers.NO_OPS_PERFORMED), null, replica, getLogger());
         });
     }
 

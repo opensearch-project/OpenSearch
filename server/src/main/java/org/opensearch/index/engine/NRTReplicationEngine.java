@@ -308,26 +308,14 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public void refresh(String source) throws EngineException {
-        try {
-            // refresh does not need to hold readLock as ReferenceManager can handle correctly if the engine is closed in mid-way.
-            if (store.tryIncRef()) {
-                // increment the ref just to ensure nobody closes the store during a refresh
-                try {
-                    // even though we maintain 2 managers we really do the heavy-lifting only once.
-                    // the second refresh will only do the extra work we have to do for warming caches etc.
-                    ReferenceManager<OpenSearchDirectoryReader> referenceManager = getReferenceManager(SearcherScope.EXTERNAL);
-                    // it is intentional that we never refresh both internal / external together
-                    referenceManager.maybeRefresh();
+        maybeRefresh(source);
+    }
 
-                } finally {
-                    store.decRef();
-                }
-            } else {
-                return;
-            }
-        } catch (AlreadyClosedException e) {
-            throw e;
-        } catch (Exception e) {
+    @Override
+    public boolean maybeRefresh(String source) throws EngineException {
+        try {
+            return readerManager.maybeRefresh();
+        } catch (IOException e) {
             try {
                 failEngine("refresh failed source[" + source + "]", e);
             } catch (Exception inner) {
@@ -336,12 +324,6 @@ public class NRTReplicationEngine extends Engine {
             throw new RefreshFailedEngineException(shardId, e);
         }
     }
-
-    @Override
-    public boolean maybeRefresh(String source) throws EngineException {
-        return false;
-    }
-
     @Override
     public void writeIndexingBuffer() throws EngineException {}
 

@@ -4140,7 +4140,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         markSearcherAccessed(); // move the shard into non-search idle
         final Translog.Location location = pendingRefreshLocation.get();
         if (location != null) {
-            addRefreshListener(location, (b) -> {
+            addRefreshListener(new Tuple<>(location, SequenceNumbers.NO_OPS_PERFORMED), (b) -> {
                 pendingRefreshLocation.compareAndSet(location, null);
                 listener.accept(true);
             });
@@ -4150,13 +4150,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Add a listener for refreshes.
+     * Add a listener for refreshes. Only on Segment replication enabled replica shards we listen for seqNo. In all other cases we listen for translog location
      *
-     * @param location the location to listen for
+     * @param tuple the translog location and max Sequence Number for
      * @param listener for the refresh. Called with true if registering the listener ran it out of slots and forced a refresh. Called with
      *        false otherwise.
      */
-    public void addRefreshListener(Translog.Location location, Consumer<Boolean> listener) {
+    public void addRefreshListener(Tuple<Translog.Location, Long> tuple, Consumer<Boolean> listener) {
         final boolean readAllowed;
         if (isReadAllowed()) {
             readAllowed = true;
@@ -4169,34 +4169,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         }
         if (readAllowed) {
-            refreshListeners.addOrNotify(location, listener);
-        } else {
-            // we're not yet ready fo ready for reads, just ignore refresh cycles
-            listener.accept(false);
-        }
-    }
-
-    /**
-     * Add a listener for refreshes.
-     *
-     * @param maxSeqNo the max Sequence Number to listen for
-     * @param listener for the refresh. Called with true if registering the listener ran it out of slots and forced a refresh. Called with
-     *        false otherwise.
-     */
-    public void addRefreshListener(long maxSeqNo, Consumer<Boolean> listener) {
-        final boolean readAllowed;
-        if (isReadAllowed()) {
-            readAllowed = true;
-        } else {
-            // check again under postRecoveryMutex. this is important to create a happens before relationship
-            // between the switch to POST_RECOVERY + associated refresh. Otherwise we may respond
-            // to a listener before a refresh actually happened that contained that operation.
-            synchronized (postRecoveryMutex) {
-                readAllowed = isReadAllowed();
+            if(shardRouting.primary() == false && indexSettings.isSegRepEnabled()){
+                refreshListeners.addOrNotifySeqNoRefresh(tuple.v2(), listener);
             }
-        }
-        if (readAllowed) {
-            refreshListeners.addOrNotify(maxSeqNo, listener);
+            else{
+                refreshListeners.addOrNotify(tuple.v1(), listener);
+            }
         } else {
             // we're not yet ready fo ready for reads, just ignore refresh cycles
             listener.accept(false);
