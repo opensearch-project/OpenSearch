@@ -4169,10 +4169,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         }
         if (readAllowed) {
-            if(shardRouting.primary() == false && indexSettings.isSegRepEnabled()){
+            if (shardRouting.primary() == false && indexSettings.isSegRepEnabled()) {
                 refreshListeners.addOrNotifySeqNoRefresh(tuple.v2(), listener);
-            }
-            else{
+            } else {
                 refreshListeners.addOrNotify(tuple.v1(), listener);
             }
         } else {

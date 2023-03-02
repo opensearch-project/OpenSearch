@@ -533,9 +533,21 @@ public class TransportWriteActionTests extends OpenSearchTestCase {
             ActionListener.completeWith(listener, () -> {
                 final WriteReplicaResult<TestRequest> replicaResult;
                 if (withDocumentFailureOnReplica) {
-                    replicaResult = new WriteReplicaResult<>(request, new Tuple<>(null, SequenceNumbers.NO_OPS_PERFORMED), new RuntimeException("simulated"), replica, logger);
+                    replicaResult = new WriteReplicaResult<>(
+                        request,
+                        new Tuple<>(null, SequenceNumbers.NO_OPS_PERFORMED),
+                        new RuntimeException("simulated"),
+                        replica,
+                        logger
+                    );
                 } else {
-                    replicaResult = new WriteReplicaResult<>(request, new Tuple<>(location, SequenceNumbers.NO_OPS_PERFORMED), null, replica, logger);
+                    replicaResult = new WriteReplicaResult<>(
+                        request,
+                        new Tuple<>(location, SequenceNumbers.NO_OPS_PERFORMED),
+                        null,
+                        replica,
+                        logger
+                    );
                 }
                 return replicaResult;
             });

@@ -225,7 +225,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         return true;
     }
 
-    private Consumer<Boolean> getContextListener(Consumer<Boolean> listener){
+    private Consumer<Boolean> getContextListener(Consumer<Boolean> listener) {
         ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true);
         return forced -> {
             try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
@@ -234,7 +234,6 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
             }
         };
     }
-
 
     @Override
     public void close() throws IOException {

@@ -309,18 +309,24 @@ public abstract class TransportWriteAction<
                  * We call this after replication because this might wait for a refresh and that can take a while.
                  * This way we wait for the refresh in parallel on the primary and on the replica.
                  */
-                new AsyncAfterWriteAction(primary, replicaRequest, new Tuple<>(location, SequenceNumbers.NO_OPS_PERFORMED), new RespondingWriteResult() {
-                    @Override
-                    public void onSuccess(boolean forcedRefresh) {
-                        finalResponseIfSuccessful.setForcedRefresh(forcedRefresh);
-                        listener.onResponse(null);
-                    }
+                new AsyncAfterWriteAction(
+                    primary,
+                    replicaRequest,
+                    new Tuple<>(location, SequenceNumbers.NO_OPS_PERFORMED),
+                    new RespondingWriteResult() {
+                        @Override
+                        public void onSuccess(boolean forcedRefresh) {
+                            finalResponseIfSuccessful.setForcedRefresh(forcedRefresh);
+                            listener.onResponse(null);
+                        }
 
-                    @Override
-                    public void onFailure(Exception ex) {
-                        listener.onFailure(ex);
-                    }
-                }, logger).run();
+                        @Override
+                        public void onFailure(Exception ex) {
+                            listener.onFailure(ex);
+                        }
+                    },
+                    logger
+                ).run();
             }
         }
     }
@@ -422,7 +428,7 @@ public abstract class TransportWriteAction<
         AsyncAfterWriteAction(
             final IndexShard indexShard,
             final WriteRequest<?> request,
-            Tuple< Translog.Location, Long> tuple,
+            Tuple<Translog.Location, Long> tuple,
             final RespondingWriteResult respond,
             final Logger logger
         ) {

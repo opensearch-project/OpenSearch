@@ -13,7 +13,6 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
-import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
@@ -324,6 +323,7 @@ public class NRTReplicationEngine extends Engine {
             throw new RefreshFailedEngineException(shardId, e);
         }
     }
+
     @Override
     public void writeIndexingBuffer() throws EngineException {}
 
