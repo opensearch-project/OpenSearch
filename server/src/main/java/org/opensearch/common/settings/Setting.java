@@ -1270,7 +1270,7 @@ public class Setting<T> implements ToXContentObject {
 
         @Override
         public void validate(String value) {
-            if (pattern.matcher(value).matches()) {
+            if (!pattern.matcher(value).matches()) {
                 throw new IllegalArgumentException(
                     "Setting must be valid [" + value + "],Custom setting matches regex [" + pattern.pattern() + "]"
                 );
