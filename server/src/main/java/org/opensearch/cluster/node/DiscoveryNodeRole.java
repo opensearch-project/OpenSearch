@@ -245,8 +245,8 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
         @Override
         public Setting<Boolean> legacySetting() {
-            // copy the setting here so we can mark it private in org.opensearch.node.Node
-            return Setting.boolSetting("node.master", true, Property.Deprecated, Property.NodeScope);
+            // 'cluster_manager' role should not configure legacy setting since deprecated 'master' role is supported till OS 2.x
+            return null;
         }
 
         @Override
