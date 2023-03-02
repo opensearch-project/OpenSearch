@@ -1800,15 +1800,15 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             .filter(id -> tracker.shardAllocationId.equals(id) == false)
             .collect(Collectors.toSet());
 
-        final ReplicationCheckpoint initialCheckpoint = new ReplicationCheckpoint(tracker.shardId(), 0L, 1, 0, 1, 0L);
-        final ReplicationCheckpoint secondCheckpoint = new ReplicationCheckpoint(tracker.shardId(), 0L, 2, 1, 2, 1L);
+        final ReplicationCheckpoint initialCheckpoint = new ReplicationCheckpoint(tracker.shardId(), 0L, 1, 0, 1, 1L);
+        final ReplicationCheckpoint secondCheckpoint = new ReplicationCheckpoint(tracker.shardId(), 0L, 2, 1, 2, 50L);
         final ReplicationCheckpoint thirdCheckpoint = new ReplicationCheckpoint(tracker.shardId(), 0L, 2, 2, 3, 100L);
 
         tracker.setLatestReplicationCheckpoint(initialCheckpoint);
         tracker.setLatestReplicationCheckpoint(secondCheckpoint);
         tracker.setLatestReplicationCheckpoint(thirdCheckpoint);
 
-        final Set<SegmentReplicationShardStats> groupStats = tracker.getSegmentReplicationStats();
+        Set<SegmentReplicationShardStats> groupStats = tracker.getSegmentReplicationStats();
         assertEquals(inSyncAllocationIds.size(), groupStats.size());
         for (SegmentReplicationShardStats shardStat : groupStats) {
             assertEquals(3, shardStat.getCheckpointsBehindCount());
@@ -1822,8 +1822,27 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             assertEquals(3, checkpointState.checkpointTimers.size());
             tracker.updateVisibleCheckpointForShard(id, initialCheckpoint);
             assertEquals(2, checkpointState.checkpointTimers.size());
+        }
+
+        groupStats = tracker.getSegmentReplicationStats();
+        assertEquals(inSyncAllocationIds.size(), groupStats.size());
+        for (SegmentReplicationShardStats shardStat : groupStats) {
+            assertEquals(2, shardStat.getCheckpointsBehindCount());
+            assertEquals(99L, shardStat.getBytesBehindCount());
+        }
+
+        for (String id : inSyncAllocationIds) {
+            final ReplicationTracker.CheckpointState checkpointState = checkpoints.get(id);
+            assertEquals(2, checkpointState.checkpointTimers.size());
             tracker.updateVisibleCheckpointForShard(id, thirdCheckpoint);
             assertEquals(0, checkpointState.checkpointTimers.size());
+        }
+
+        groupStats = tracker.getSegmentReplicationStats();
+        assertEquals(inSyncAllocationIds.size(), groupStats.size());
+        for (SegmentReplicationShardStats shardStat : groupStats) {
+            assertEquals(0, shardStat.getCheckpointsBehindCount());
+            assertEquals(0L, shardStat.getBytesBehindCount());
         }
     }
 
