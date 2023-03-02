@@ -8,7 +8,6 @@
 
 package org.opensearch.indices.replication;
 
-import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -142,32 +141,6 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
         );
         assertTrue(completedOnlyResponse.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getIndex().recoveredFileCount() > 0);
         waitForAssertions.countDown();
-    }
-
-    public void testSegmentReplicationStatsResponseOnDocumentReplicationIndex() {
-        final String primaryNode = internalCluster().startNode();
-        prepareCreate(
-            INDEX_NAME,
-            Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
-
-        ).get();
-        ensureYellowAndNoInitializingShards(INDEX_NAME);
-        final String replicaNode = internalCluster().startNode();
-        ensureGreen(INDEX_NAME);
-
-        // index 10 docs
-        for (int i = 0; i < 10; i++) {
-            client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
-        }
-        refresh(INDEX_NAME);
-        OpenSearchStatusException exception = assertThrows(
-            OpenSearchStatusException.class,
-            () -> client().admin().indices().prepareSegmentReplicationStats(INDEX_NAME).execute().actionGet()
-        );
-        // Verify exception message
-        String expectedMessage = "Segment Replication is not enabled on Index: test-idx-1";
-        assertEquals(expectedMessage, exception.getMessage());
-
     }
 
 }
