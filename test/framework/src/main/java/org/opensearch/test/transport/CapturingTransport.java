@@ -36,6 +36,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportRequest;
+import org.opensearch.transport.TransportRequestOptions;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -54,12 +55,14 @@ public class CapturingTransport extends MockTransport implements Transport {
         public final long requestId;
         public final String action;
         public final TransportRequest request;
+        public final TransportRequestOptions options;
 
-        CapturedRequest(DiscoveryNode node, long requestId, String action, TransportRequest request) {
+        CapturedRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) {
             this.node = node;
             this.requestId = requestId;
             this.action = action;
             this.request = request;
+            this.options = options;
         }
     }
 
@@ -123,6 +126,16 @@ public class CapturingTransport extends MockTransport implements Transport {
     }
 
     protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
-        capturedRequests.add(new CapturingTransport.CapturedRequest(node, requestId, action, request));
+        capturedRequests.add(new CapturingTransport.CapturedRequest(node, requestId, action, request, null));
+    }
+
+    protected void onSendRequest(
+        long requestId,
+        String action,
+        TransportRequest request,
+        DiscoveryNode node,
+        TransportRequestOptions options
+    ) {
+        capturedRequests.add(new CapturingTransport.CapturedRequest(node, requestId, action, request, options));
     }
 }

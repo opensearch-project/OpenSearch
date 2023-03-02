@@ -188,12 +188,22 @@ public class MockTransport extends StubbableTransport {
             public void sendRequest(long requestId, String action, TransportRequest request, TransportRequestOptions options)
                 throws TransportException {
                 requests.put(requestId, Tuple.tuple(node, action));
-                onSendRequest(requestId, action, request, node);
+                onSendRequest(requestId, action, request, node, options);
             }
         };
     }
 
     protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {}
+
+    protected void onSendRequest(
+        long requestId,
+        String action,
+        TransportRequest request,
+        DiscoveryNode node,
+        TransportRequestOptions options
+    ) {
+        onSendRequest(requestId, action, request, node);
+    }
 
     @Override
     public void setMessageListener(TransportMessageListener listener) {
