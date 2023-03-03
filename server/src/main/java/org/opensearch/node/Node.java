@@ -36,19 +36,16 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexingPressureService;
-import org.opensearch.index.store.remote.filecache.FileCache;
-import org.opensearch.index.store.remote.filecache.FileCacheFactory;
 import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.NoopExtensionsManager;
-import org.opensearch.monitor.fs.FsInfo;
-import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.search.backpressure.SearchBackpressureService;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.tasks.TaskResourceTrackingService;
@@ -60,7 +57,6 @@ import org.opensearch.Build;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.Version;
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
@@ -315,6 +311,12 @@ public class Node implements Closeable {
                 throw new IllegalArgumentException("indices.breaker.type must be one of [hierarchy, none] but was: " + s);
         }
     }, Setting.Property.NodeScope);
+
+    public static final Setting<ByteSizeValue> NODE_SEARCH_CACHE_SIZE_SETTING = Setting.byteSizeSetting(
+        "node.search.cache.size",
+        ByteSizeValue.ZERO,
+        Property.NodeScope
+    );
 
     private static final String CLIENT_TYPE = "node";
 
@@ -625,13 +627,13 @@ public class Node implements Closeable {
             final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders = enginePlugins.stream()
                 .map(plugin -> (Function<IndexSettings, Optional<EngineFactory>>) plugin::getEngineFactory)
                 .collect(Collectors.toList());
-            // TODO: for now this is a single cache, later, this should read node and index settings
-            final FileCache remoteStoreFileCache = createRemoteStoreFileCache();
+
             final Map<String, IndexStorePlugin.DirectoryFactory> builtInDirectoryFactories = IndexModule.createBuiltInDirectoryFactories(
                 repositoriesServiceReference::get,
                 threadPool,
-                remoteStoreFileCache
+                nodeEnvironment.fileCache()
             );
+
             final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories = new HashMap<>();
             pluginsService.filterPlugins(IndexStorePlugin.class)
                 .stream()
@@ -966,7 +968,8 @@ public class Node implements Closeable {
                 searchTransportService,
                 indexingPressureService,
                 searchModule.getValuesSourceRegistry().getUsageService(),
-                searchBackpressureService
+                searchBackpressureService,
+                nodeEnvironment
             );
 
             final SearchService searchService = newSearchService(
@@ -1125,16 +1128,6 @@ public class Node implements Closeable {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
-    }
-
-    private FileCache createRemoteStoreFileCache() {
-        // TODO: implement more custom logic to create named caches, using multiple node paths, more capacity computation options and
-        // capacity reservation logic
-        FsInfo.Path info = ExceptionsHelper.catchAsRuntimeException(() -> FsProbe.getFSInfo(nodeEnvironment.nodePaths()[0]));
-        long diskCapacity = info.getTotal().getBytes();
-        // hard coded as 50% for now
-        long capacity = (long) (diskCapacity * 0.50);
-        return FileCacheFactory.createConcurrentLRUFileCache(capacity);
     }
 
     protected TransportService newTransportService(

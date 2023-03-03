@@ -209,7 +209,8 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         SHARD_INDEXING_PRESSURE("shard_indexing_pressure"),
         SEARCH_BACKPRESSURE("search_backpressure"),
         CLUSTER_MANAGER_THROTTLING("cluster_manager_throttling"),
-        WEIGHTED_ROUTING_STATS("weighted_routing");
+        WEIGHTED_ROUTING_STATS("weighted_routing"),
+        FILE_CACHE_STATS("file_cache");
 
         private String metricName;
 

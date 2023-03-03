@@ -44,6 +44,7 @@ import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -59,6 +60,8 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
+import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -70,9 +73,15 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FsDirectoryFactory;
+import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.store.remote.filecache.FileCacheFactory;
+import org.opensearch.index.store.remote.filecache.FileCacheStats;
+import org.opensearch.index.store.remote.utils.cache.CacheUsage;
+import org.opensearch.index.store.remote.utils.cache.stats.CacheStats;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.node.Node;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -104,6 +113,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableSet;
+import static org.opensearch.node.Node.NODE_SEARCH_CACHE_SIZE_SETTING;
 
 /**
  * A component that holds all data paths for a single node.
@@ -123,14 +133,20 @@ public final class NodeEnvironment implements Closeable {
         public final Path indicesPath;
         /** Cached FileStore from path */
         public final FileStore fileStore;
-
+        public final Path fileCachePath;
+        /*
+          Cache reserved size can default to a different value depending on configuration
+        */
+        public ByteSizeValue fileCacheReservedSize;
         public final int majorDeviceNumber;
         public final int minorDeviceNumber;
 
         public NodePath(Path path) throws IOException {
             this.path = path;
             this.indicesPath = path.resolve(INDICES_FOLDER);
+            this.fileCachePath = path.resolve(CACHE_FOLDER);
             this.fileStore = Environment.getFileStore(path);
+            this.fileCacheReservedSize = ByteSizeValue.ZERO;
             if (fileStore.supportsFileAttributeView("lucene")) {
                 this.majorDeviceNumber = (int) fileStore.getAttribute("lucene:major_device_number");
                 this.minorDeviceNumber = (int) fileStore.getAttribute("lucene:minor_device_number");
@@ -180,6 +196,7 @@ public final class NodeEnvironment implements Closeable {
 
     private final Logger logger = LogManager.getLogger(NodeEnvironment.class);
     private final NodePath[] nodePaths;
+    private final NodePath fileCacheNodePath;
     private final Path sharedDataPath;
     private final Lock[] locks;
 
@@ -188,6 +205,8 @@ public final class NodeEnvironment implements Closeable {
     private final Map<ShardId, InternalShardLock> shardLocks = new HashMap<>();
 
     private final NodeMetadata nodeMetadata;
+
+    private FileCache fileCache;
 
     /**
      * Maximum number of data nodes that should run in an environment.
@@ -217,6 +236,7 @@ public final class NodeEnvironment implements Closeable {
 
     public static final String NODES_FOLDER = "nodes";
     public static final String INDICES_FOLDER = "indices";
+    public static final String CACHE_FOLDER = "cache";
     public static final String NODE_LOCK_FILENAME = "node.lock";
 
     /**
@@ -291,6 +311,7 @@ public final class NodeEnvironment implements Closeable {
     public NodeEnvironment(Settings settings, Environment environment) throws IOException {
         if (!DiscoveryNode.nodeRequiresLocalStorage(settings)) {
             nodePaths = null;
+            fileCacheNodePath = null;
             sharedDataPath = null;
             locks = null;
             nodeLockId = -1;
@@ -342,6 +363,10 @@ public final class NodeEnvironment implements Closeable {
             }
             this.locks = nodeLock.locks;
             this.nodePaths = nodeLock.nodePaths;
+            this.fileCacheNodePath = nodePaths[0];
+
+            initializeFileCache(settings);
+
             this.nodeLockId = nodeLock.nodeId;
 
             if (logger.isDebugEnabled()) {
@@ -366,12 +391,50 @@ public final class NodeEnvironment implements Closeable {
                 ensureNoShardData(nodePaths);
             }
 
+            if (DiscoveryNode.isSearchNode(settings) == false) {
+                ensureNoFileCacheData(fileCacheNodePath);
+            }
+
             this.nodeMetadata = loadNodeMetadata(settings, logger, nodePaths);
             success = true;
         } finally {
             if (success == false) {
                 close();
             }
+        }
+    }
+
+    /**
+     * Initializes the search cache with a defined capacity.
+     * The capacity of the cache is based on user configuration for {@link Node#NODE_SEARCH_CACHE_SIZE_SETTING}.
+     * If the user doesn't configure the cache size, it fails if the node is a data + search node.
+     * Else it configures the size to 80% of available capacity for a dedicated search node, if not explicitly defined.
+     */
+    private void initializeFileCache(Settings settings) {
+        if (DiscoveryNode.isSearchNode(settings)) {
+            long capacity = NODE_SEARCH_CACHE_SIZE_SETTING.get(settings).getBytes();
+            FsInfo.Path info = ExceptionsHelper.catchAsRuntimeException(() -> FsProbe.getFSInfo(this.fileCacheNodePath));
+            long availableCapacity = info.getAvailable().getBytes();
+
+            // Initialize default values for cache if NODE_SEARCH_CACHE_SIZE_SETTING is not set.
+            if (capacity == 0) {
+                // If node is not a dedicated search node without configuration, prevent cache initialization
+                if (DiscoveryNode.getRolesFromSettings(settings).stream().anyMatch(role -> !DiscoveryNodeRole.SEARCH_ROLE.equals(role))) {
+                    throw new SettingsException(
+                        "Unable to initialize the "
+                            + DiscoveryNodeRole.SEARCH_ROLE.roleName()
+                            + "-"
+                            + DiscoveryNodeRole.DATA_ROLE.roleName()
+                            + " node: Missing value for configuration "
+                            + NODE_SEARCH_CACHE_SIZE_SETTING.getKey()
+                    );
+                } else {
+                    capacity = 80 * availableCapacity / 100;
+                }
+            }
+            capacity = Math.min(capacity, availableCapacity);
+            fileCacheNodePath.fileCacheReservedSize = new ByteSizeValue(capacity, ByteSizeUnit.BYTES);
+            this.fileCache = FileCacheFactory.createConcurrentLRUFileCache(capacity);
         }
     }
 
@@ -888,6 +951,17 @@ public final class NodeEnvironment implements Closeable {
         return nodePaths;
     }
 
+    /**
+     * Returns the {@link NodePath} used for file caching.
+     */
+    public NodePath fileCacheNodePath() {
+        assertEnvIsLocked();
+        if (nodePaths == null || locks == null) {
+            throw new IllegalStateException("node is not configured to store local location");
+        }
+        return fileCacheNodePath;
+    }
+
     public int getNodeLockId() {
         assertEnvIsLocked();
         if (nodePaths == null || locks == null) {
@@ -1143,6 +1217,22 @@ public final class NodeEnvironment implements Closeable {
         }
     }
 
+    /**
+     * Throws an exception if cache exists on a non-search node.
+     */
+    private void ensureNoFileCacheData(final NodePath fileCacheNodePath) throws IOException {
+        List<Path> cacheDataPaths = collectFileCacheDataPath(fileCacheNodePath);
+        if (cacheDataPaths.isEmpty() == false) {
+            final String message = String.format(
+                Locale.ROOT,
+                "node does not have the %s role but has data within node search cache: %s. Use 'opensearch-node repurpose' tool to clean up",
+                DiscoveryNodeRole.SEARCH_ROLE.roleName(),
+                cacheDataPaths
+            );
+            throw new IllegalStateException(message);
+        }
+    }
+
     private void ensureNoIndexMetadata(final NodePath[] nodePaths) throws IOException {
         List<Path> indexMetadataPaths = collectIndexMetadataPaths(nodePaths);
         if (indexMetadataPaths.isEmpty() == false) {
@@ -1201,6 +1291,34 @@ public final class NodeEnvironment implements Closeable {
     }
 
     /**
+     * Collect the path containing cache data in the indicated cache node path.
+     * The returned paths will point to the shard data folder.
+     */
+    static List<Path> collectFileCacheDataPath(NodePath fileCacheNodePath) throws IOException {
+        List<Path> indexSubPaths = new ArrayList<>();
+        Path fileCachePath = fileCacheNodePath.fileCachePath;
+        if (Files.isDirectory(fileCachePath)) {
+            try (DirectoryStream<Path> nodeStream = Files.newDirectoryStream(fileCachePath)) {
+                for (Path nodePath : nodeStream) {
+                    if (Files.isDirectory(nodePath)) {
+                        try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(nodePath)) {
+                            for (Path indexPath : indexStream) {
+                                if (Files.isDirectory(indexPath)) {
+                                    try (Stream<Path> shardStream = Files.list(indexPath)) {
+                                        shardStream.map(Path::toAbsolutePath).forEach(indexSubPaths::add);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return indexSubPaths;
+    }
+
+    /**
      * Resolve the custom path for a index's shard.
      */
     public static Path resolveBaseCustomLocation(String customDataPath, Path sharedDataPath, int nodeLockId) {
@@ -1226,6 +1344,18 @@ public final class NodeEnvironment implements Closeable {
 
     private static Path resolveIndexCustomLocation(String customDataPath, String indexUUID, Path sharedDataPath, int nodeLockId) {
         return resolveBaseCustomLocation(customDataPath, sharedDataPath, nodeLockId).resolve(indexUUID);
+    }
+
+    /**
+     * Resolve the file cache path for remote shards.
+     *
+     * @param fileCachePath the file cache path
+     * @param shardId shard to resolve the path to
+     */
+    public Path resolveFileCacheLocation(final Path fileCachePath, final ShardId shardId) {
+        return fileCachePath.resolve(Integer.toString(nodeLockId))
+            .resolve(shardId.getIndex().getUUID())
+            .resolve(Integer.toString(shardId.id()));
     }
 
     /**
@@ -1305,5 +1435,35 @@ public final class NodeEnvironment implements Closeable {
                 throw new IOException("failed to test writes in data directory [" + path + "] write permission is required", ex);
             }
         }
+    }
+
+    /**
+     * Returns the {@link FileCache} instance for remote search node
+     */
+    public FileCache fileCache() {
+        return this.fileCache;
+    }
+
+    /**
+     * Returns the current {@link FileCacheStats} for remote search node
+     */
+    public FileCacheStats fileCacheStats() {
+        if (fileCache == null) {
+            return null;
+        }
+
+        CacheStats stats = fileCache.stats();
+        CacheUsage usage = fileCache.usage();
+        return new FileCacheStats(
+            System.currentTimeMillis(),
+            usage.activeUsage(),
+            fileCache.capacity(),
+            usage.usage(),
+            stats.evictionWeight(),
+            stats.removeWeight(),
+            stats.replaceCount(),
+            stats.hitCount(),
+            stats.missCount()
+        );
     }
 }

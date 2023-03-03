@@ -131,6 +131,16 @@ public final class ShardPath {
     }
 
     /**
+     * Returns the shard path to be stored within the cache on the search capable node.
+     */
+    public static ShardPath loadFileCachePath(NodeEnvironment env, ShardId shardId) {
+        NodeEnvironment.NodePath path = env.fileCacheNodePath();
+        final Path dataPath = env.resolveFileCacheLocation(path.fileCachePath, shardId);
+        final Path statePath = path.resolve(shardId);
+        return new ShardPath(true, dataPath, statePath, shardId);
+    }
+
+    /**
      * This method walks through the nodes shard paths to find the data and state path for the given shard. If multiple
      * directories with a valid shard state exist the one with the highest version will be used.
      * <b>Note:</b> this method resolves custom data locations for the shard if such a custom data path is provided.
