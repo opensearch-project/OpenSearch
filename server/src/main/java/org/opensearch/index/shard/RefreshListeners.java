@@ -100,7 +100,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      */
     private volatile Translog.Location lastRefreshedLocation;
 
-    private volatile long lastMaxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+    private volatile Long lastMaxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
 
     public RefreshListeners(
         final IntSupplier getMaxRefreshListeners,
@@ -122,6 +122,9 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      * Force-refreshes newly added listeners and forces a refresh if there are currently listeners registered. See {@link #refreshForcers}.
      */
     public Releasable forceRefreshes() {
+        if (indexShard.shardRouting.primary() == false && indexShard.indexSettings.isSegRepEnabled()) {
+            releaseSeqNoRefreshListeners();
+        }
         synchronized (this) {
             assert refreshForcers >= 0;
             refreshForcers += 1;
@@ -143,6 +146,18 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         assert refreshListeners == null;
         assert seqNoRefreshListeners == null;
         return () -> runOnce.run();
+    }
+
+    // Release refresh listeners on replica shard with segment replication enabled
+    private void releaseSeqNoRefreshListeners() {
+        List<Tuple<Long, Consumer<Boolean>>> oldSeqNoListeners;
+        synchronized (this) {
+            oldSeqNoListeners = seqNoRefreshListeners;
+            refreshListeners = null;
+            seqNoRefreshListeners = null;
+        }
+        // Fire any listeners we might have had
+        fireSeqNoListeners(oldSeqNoListeners);
     }
 
     /**
@@ -195,12 +210,12 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      *        false otherwise.
      * @return did we call the listener (true) or register the listener to call later (false)?
      */
-    public boolean addOrNotifySeqNoRefresh(long maxSeqNo, Consumer<Boolean> listener) {
+    public void addOrNotifySeqNoRefresh(Long maxSeqNo, Consumer<Boolean> listener) {
         requireNonNull(listener, "listener cannot be null");
 
         if (lastMaxSeqNo != SequenceNumbers.NO_OPS_PERFORMED && lastMaxSeqNo >= maxSeqNo) {
             listener.accept(false);
-            return true;
+            return;
         }
         synchronized (this) {
             if (closed) {
@@ -216,13 +231,12 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
                 // We have a free slot so register the listener
                 listeners.add(new Tuple<>(maxSeqNo, contextPreservingListener));
                 seqNoRefreshListeners = listeners;
-                return false;
+                return;
             }
         }
         // No free slot so force a refresh and call the listener in this thread
-        forceRefresh.run();
         listener.accept(true);
-        return true;
+        return;
     }
 
     private Consumer<Boolean> getContextListener(Consumer<Boolean> listener) {
@@ -336,6 +350,8 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
 
             for (Tuple<Long, Consumer<Boolean>> tuple : candidates) {
                 Long seqNo = tuple.v1();
+                // logger.info("seqNo is {} and replication checkpoint is {} ",seqNo,
+                // indexShard.getLatestReplicationCheckpoint().getSeqNo());
                 if (seqNo <= indexShard.getLatestReplicationCheckpoint().getSeqNo()) {
                     if (listenersToFire == null) {
                         listenersToFire = new ArrayList<>();

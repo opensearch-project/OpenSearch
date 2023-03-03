@@ -4140,7 +4140,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         markSearcherAccessed(); // move the shard into non-search idle
         final Translog.Location location = pendingRefreshLocation.get();
         if (location != null) {
-            addRefreshListener(new Tuple<>(location, SequenceNumbers.NO_OPS_PERFORMED), (b) -> {
+            addRefreshListener(location, null, (b) -> {
                 pendingRefreshLocation.compareAndSet(location, null);
                 listener.accept(true);
             });
@@ -4150,13 +4150,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Add a listener for refreshes. Only on Segment replication enabled replica shards we listen for seqNo. In all other cases we listen for translog location
+     * Add a listener for refreshes. Only on Segment replication enabled replica shards we listen for maxSeqNo. In all other cases we listen for translog location
      *
-     * @param tuple the translog location and max Sequence Number for
+     * @param location the translog location to listen for on a refresh
+     * @param maxSeqNo the Sequence Number to listen for on a refresh
      * @param listener for the refresh. Called with true if registering the listener ran it out of slots and forced a refresh. Called with
      *        false otherwise.
      */
-    public void addRefreshListener(Tuple<Translog.Location, Long> tuple, Consumer<Boolean> listener) {
+    public void addRefreshListener(Translog.Location location, Long maxSeqNo, Consumer<Boolean> listener) {
         final boolean readAllowed;
         if (isReadAllowed()) {
             readAllowed = true;
@@ -4170,9 +4171,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         if (readAllowed) {
             if (shardRouting.primary() == false && indexSettings.isSegRepEnabled()) {
-                refreshListeners.addOrNotifySeqNoRefresh(tuple.v2(), listener);
+                refreshListeners.addOrNotifySeqNoRefresh(maxSeqNo, listener);
             } else {
-                refreshListeners.addOrNotify(tuple.v1(), listener);
+                refreshListeners.addOrNotify(location, listener);
             }
         } else {
             // we're not yet ready fo ready for reads, just ignore refresh cycles

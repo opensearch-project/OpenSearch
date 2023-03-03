@@ -51,14 +51,12 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexingPressureService;
-import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.PrimaryShardClosedException;
 import org.opensearch.index.shard.ShardId;
@@ -163,7 +161,7 @@ public class TransportWriteActionTests extends OpenSearchTestCase {
             assertNotNull(listener.response);
             assertNull(listener.failure);
             verify(indexShard, never()).refresh(any());
-            verify(indexShard, never()).addRefreshListener(any(), any());
+            verify(indexShard, never()).addRefreshListener(any(), any(), any());
         }));
     }
 
@@ -179,7 +177,7 @@ public class TransportWriteActionTests extends OpenSearchTestCase {
         assertNotNull(listener.response);
         assertNull(listener.failure);
         verify(indexShard, never()).refresh(any());
-        verify(indexShard, never()).addRefreshListener(any(), any());
+        verify(indexShard, never()).addRefreshListener(any(), any(), any());
     }
 
     public void testPrimaryImmediateRefresh() throws Exception {
@@ -193,7 +191,7 @@ public class TransportWriteActionTests extends OpenSearchTestCase {
             assertNull(listener.failure);
             assertTrue(listener.response.forcedRefresh);
             verify(indexShard).refresh("refresh_flag_index");
-            verify(indexShard, never()).addRefreshListener(any(), any());
+            verify(indexShard, never()).addRefreshListener(any(), any(), any());
         }));
     }
 
@@ -209,7 +207,7 @@ public class TransportWriteActionTests extends OpenSearchTestCase {
         assertNotNull(listener.response);
         assertNull(listener.failure);
         verify(indexShard).refresh("refresh_flag_index");
-        verify(indexShard, never()).addRefreshListener(any(), any());
+        verify(indexShard, never()).addRefreshListener(any(), any(), any());
     }
 
     public void testPrimaryWaitForRefresh() throws Exception {
@@ -225,7 +223,7 @@ public class TransportWriteActionTests extends OpenSearchTestCase {
             @SuppressWarnings({ "unchecked", "rawtypes" })
             ArgumentCaptor<Consumer<Boolean>> refreshListener = ArgumentCaptor.forClass((Class) Consumer.class);
             verify(indexShard, never()).refresh(any());
-            verify(indexShard).addRefreshListener(any(), refreshListener.capture());
+            verify(indexShard).addRefreshListener(any(), any(), refreshListener.capture());
 
             // Now we can fire the listener manually and we'll get a response
             boolean forcedRefresh = randomBoolean();
@@ -249,7 +247,7 @@ public class TransportWriteActionTests extends OpenSearchTestCase {
         @SuppressWarnings({ "unchecked", "rawtypes" })
         ArgumentCaptor<Consumer<Boolean>> refreshListener = ArgumentCaptor.forClass((Class) Consumer.class);
         verify(indexShard, never()).refresh(any());
-        verify(indexShard).addRefreshListener(any(), refreshListener.capture());
+        verify(indexShard).addRefreshListener(any(), any(), refreshListener.capture());
 
         // Now we can fire the listener manually and we'll get a response
         boolean forcedRefresh = randomBoolean();
@@ -533,21 +531,9 @@ public class TransportWriteActionTests extends OpenSearchTestCase {
             ActionListener.completeWith(listener, () -> {
                 final WriteReplicaResult<TestRequest> replicaResult;
                 if (withDocumentFailureOnReplica) {
-                    replicaResult = new WriteReplicaResult<>(
-                        request,
-                        new Tuple<>(null, SequenceNumbers.NO_OPS_PERFORMED),
-                        new RuntimeException("simulated"),
-                        replica,
-                        logger
-                    );
+                    replicaResult = new WriteReplicaResult<>(request, null, null, new RuntimeException("simulated"), replica, logger);
                 } else {
-                    replicaResult = new WriteReplicaResult<>(
-                        request,
-                        new Tuple<>(location, SequenceNumbers.NO_OPS_PERFORMED),
-                        null,
-                        replica,
-                        logger
-                    );
+                    replicaResult = new WriteReplicaResult<>(request, location, null, null, replica, logger);
                 }
                 return replicaResult;
             });

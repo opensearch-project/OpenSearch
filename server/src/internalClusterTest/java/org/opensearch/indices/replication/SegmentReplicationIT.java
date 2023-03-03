@@ -522,18 +522,10 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testWaitUntilRefresh() throws Exception {
-        final String primaryNode = internalCluster().startNode(featureFlagSettings());
-        prepareCreate(
-            INDEX_NAME,
-            Settings.builder()
-                .put("index.number_of_shards", 1)
-                .put("index.number_of_replicas", 1)
-                // we want to control refreshes
-                .put("index.refresh_interval", "40ms")
-                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-        ).get();
+        final String primaryNode = internalCluster().startNode();
+        createIndex(INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);
-        final String replicaNode = internalCluster().startNode(featureFlagSettings());
+        final String replicaNode = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
         final int initialDocCount = scaledRandomIntBetween(600, 700);
         final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
@@ -561,5 +553,33 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
         assertHitCount(client(primaryNode).prepareSearch(INDEX_NAME).setPreference("_only_local").setSize(0).get(), initialDocCount);
         assertHitCount(client(replicaNode).prepareSearch(INDEX_NAME).setPreference("_only_local").setSize(0).get(), initialDocCount);
+    }
+
+    public void testWaitUntilWhenReplicaPromoted() throws Exception {
+        final String primaryNode = internalCluster().startNode(featureFlagSettings());
+        prepareCreate(
+            INDEX_NAME,
+            Settings.builder()
+                // we want to control refreshes
+                .put("index.refresh_interval", -1)
+        ).get();
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        final String replicaNode = internalCluster().startNode(featureFlagSettings());
+        ensureGreen(INDEX_NAME);
+        final int initialDocCount = 500;
+        final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
+        IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
+        for (int i = 0; i < initialDocCount; i++) {
+            pendingIndexResponses.add(
+                client().prepareIndex(INDEX_NAME)
+                    .setId(Integer.toString(i))
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
+                    .setSource("field", "value" + i)
+                    .execute()
+            );
+        }
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
+        assertBusy(() -> { assertTrue(replicaShard.routingEntry().primary()); }, 30, TimeUnit.SECONDS);
+
     }
 }

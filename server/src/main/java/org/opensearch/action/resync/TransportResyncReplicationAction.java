@@ -42,7 +42,6 @@ import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
@@ -170,7 +169,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
     ) {
         ActionListener.completeWith(listener, () -> {
             Translog.Location location = performOnReplica(request, replica);
-            return new WriteReplicaResult<>(request, new Tuple<>(location, SequenceNumbers.NO_OPS_PERFORMED), null, replica, logger);
+            return new WriteReplicaResult<>(request, location, null, null, replica, logger);
         });
     }
 
