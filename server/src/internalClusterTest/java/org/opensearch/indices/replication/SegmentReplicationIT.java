@@ -579,7 +579,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             ensureGreen(INDEX_NAME);
             String docId = String.valueOf(initialDocCount + 1);
             client().prepareIndex(INDEX_NAME).setId(docId).setSource("foo", "bar").get();
-            flushAndRefresh(INDEX_NAME);
+            refresh(INDEX_NAME);
             waitForSearchableDocs(initialDocCount + 1, replicaNode_2);
 
             replicaNode_service = internalCluster().getInstance(SegmentReplicationPressureService.class, replicaNode);
@@ -588,6 +588,23 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             replicaStats = replicaNode_service.nodeStats().getShardStats().get(primaryShard.shardId()).getReplicaStats();
             assertEquals(1, replicaStats.size());
             assertEquals(replica.routingEntry().currentNodeId(), replicaStats.stream().findFirst().get().getNodeId());
+
+            // test a checkpoint without any new segments
+            flush(INDEX_NAME);
+            assertBusy(() -> {
+                final SegmentReplicationPressureService service = internalCluster().getInstance(
+                    SegmentReplicationPressureService.class,
+                    replicaNode
+                );
+                assertEquals(1, service.nodeStats().getShardStats().size());
+                final Set<SegmentReplicationShardStats> shardStatsSet = service.nodeStats()
+                    .getShardStats()
+                    .get(primaryShard.shardId())
+                    .getReplicaStats();
+                assertEquals(1, shardStatsSet.size());
+                final SegmentReplicationShardStats stats = shardStatsSet.stream().findFirst().get();
+                assertEquals(0, stats.getCheckpointsBehindCount());
+            });
         }
     }
 }
