@@ -12,13 +12,16 @@ import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchTask;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.search.backpressure.settings.SearchTaskSettings;
+import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.Mockito.spy;
@@ -139,5 +142,18 @@ public class HeapUsageTrackerTests extends OpenSearchTestCase {
         task = createMockTaskWithResourceStats(SearchShardTask.class, 1, randomLongBetween(99, (long) allowedHeapUsage - 1));
         reason = tracker.checkAndMaybeGetCancellationReason(task);
         assertFalse(reason.isPresent());
+    }
+
+    public void testIsHeapUsageDominatedBySearch() {
+        assumeTrue("Skip the test if the hardware doesn't support heap usage tracking", HeapUsageTracker.isHeapTrackingSupported());
+
+        // task with 1 byte of heap usage so that it does not breach the threshold
+        CancellableTask task = createMockTaskWithResourceStats(SearchShardTask.class, 1, 1);
+        assertFalse(HeapUsageTracker.isHeapUsageDominatedBySearch(List.of(task), 0.5));
+
+        long totalHeap = JvmStats.jvmStats().getMem().getHeapMax().getBytes();
+        // task with heap usage of [totalHeap - 1] so that it breaches the threshold
+        task = createMockTaskWithResourceStats(SearchShardTask.class, 1, totalHeap - 1);
+        assertTrue(HeapUsageTracker.isHeapUsageDominatedBySearch(List.of(task), 0.5));
     }
 }

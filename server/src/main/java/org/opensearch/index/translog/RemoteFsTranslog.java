@@ -31,6 +31,7 @@ import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Semaphore;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
@@ -58,6 +59,11 @@ public class RemoteFsTranslog extends Translog {
 
     // clean up translog folder uploaded by previous primaries once
     private final SetOnce<Boolean> olderPrimaryCleaned = new SetOnce<>();
+
+    private static final int REMOTE_DELETION_PERMITS = 2;
+
+    // Semaphore used to allow only single remote generation to happen at a time
+    private final Semaphore remoteGenerationDeletionPermits = new Semaphore(REMOTE_DELETION_PERMITS);
 
     public RemoteFsTranslog(
         TranslogConfig config,
@@ -341,6 +347,13 @@ public class RemoteFsTranslog extends Translog {
         // clean up local translog files and updates readers
         super.trimUnreferencedReaders();
 
+        // Since remote generation deletion is async, this ensures that only one generation deletion happens at a time.
+        // Remote generations involves 2 async operations - 1) Delete translog generation files 2) Delete metadata files
+        // We try to acquire 2 permits and if we can not, we return from here itself.
+        if (remoteGenerationDeletionPermits.tryAcquire(REMOTE_DELETION_PERMITS) == false) {
+            return;
+        }
+
         // cleans up remote translog files not referenced in latest uploaded metadata.
         // This enables us to restore translog from the metadata in case of failover or relocation.
         Set<Long> generationsToDelete = new HashSet<>();
@@ -353,6 +366,8 @@ public class RemoteFsTranslog extends Translog {
         if (generationsToDelete.isEmpty() == false) {
             deleteRemoteGeneration(generationsToDelete);
             deleteStaleRemotePrimaryTermsAndMetadataFiles();
+        } else {
+            remoteGenerationDeletionPermits.release(REMOTE_DELETION_PERMITS);
         }
     }
 
@@ -361,7 +376,11 @@ public class RemoteFsTranslog extends Translog {
      * @param generations generations to be deleted.
      */
     private void deleteRemoteGeneration(Set<Long> generations) {
-        translogTransferManager.deleteGenerationAsync(primaryTermSupplier.getAsLong(), generations);
+        translogTransferManager.deleteGenerationAsync(
+            primaryTermSupplier.getAsLong(),
+            generations,
+            remoteGenerationDeletionPermits::release
+        );
     }
 
     /**

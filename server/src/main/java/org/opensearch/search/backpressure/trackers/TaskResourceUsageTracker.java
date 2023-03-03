@@ -9,7 +9,7 @@
 package org.opensearch.search.backpressure.trackers;
 
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.tasks.Task;
 

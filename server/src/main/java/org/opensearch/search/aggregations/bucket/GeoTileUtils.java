@@ -37,8 +37,8 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoShapeDocValue;
 import org.opensearch.common.util.OpenSearchSloppyMath;
-import org.opensearch.common.xcontent.ObjectParser.ValueType;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser.ValueType;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.geometry.Rectangle;
 

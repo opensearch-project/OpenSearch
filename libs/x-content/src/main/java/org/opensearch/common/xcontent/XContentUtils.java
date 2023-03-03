@@ -32,6 +32,8 @@
 
 package org.opensearch.common.xcontent;
 
+import org.opensearch.core.xcontent.XContentParser;
+
 import java.io.IOException;
 
 public final class XContentUtils {

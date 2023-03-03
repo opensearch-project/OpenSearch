@@ -8,7 +8,6 @@
 
 package org.opensearch.action.admin.indices.replication;
 
-import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
@@ -27,7 +26,6 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
-import org.opensearch.rest.RestStatus;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -52,7 +50,6 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
 
     private final SegmentReplicationTargetService targetService;
     private final IndicesService indicesService;
-    private String singleIndexWithSegmentReplicationDisabled = null;
 
     @Inject
     public TransportSegmentReplicationStatsAction(
@@ -91,12 +88,6 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
         List<DefaultShardOperationFailedException> shardFailures,
         ClusterState clusterState
     ) {
-        // throw exception if API call is made on single index with segment replication disabled.
-        if (singleIndexWithSegmentReplicationDisabled != null) {
-            String index = singleIndexWithSegmentReplicationDisabled;
-            singleIndexWithSegmentReplicationDisabled = null;
-            throw new OpenSearchStatusException("Segment Replication is not enabled on Index: " + index, RestStatus.BAD_REQUEST);
-        }
         String[] shards = request.shards();
         Set<String> set = new HashSet<>();
         if (shards.length > 0) {
@@ -135,12 +126,7 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
         IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
         ShardId shardId = shardRouting.shardId();
 
-        // check if API call is made on single index with segment replication disabled.
-        if (request.indices().length == 1 && indexShard.indexSettings().isSegRepEnabled() == false) {
-            singleIndexWithSegmentReplicationDisabled = shardRouting.getIndexName();
-            return null;
-        }
-        if (indexShard.indexSettings().isSegRepEnabled() == false) {
+        if (indexShard.indexSettings().isSegRepEnabled() == false || shardRouting.primary()) {
             return null;
         }
 

@@ -33,7 +33,7 @@
 package org.opensearch.rest;
 
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.common.xcontent.XContent;
+import org.opensearch.core.xcontent.XContent;
 import org.opensearch.rest.RestRequest.Method;
 
 import java.util.Collections;

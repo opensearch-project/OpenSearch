@@ -47,10 +47,11 @@ import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.shard.IndexShardRecoveringException;
 import org.opensearch.index.shard.ShardId;
@@ -81,20 +82,23 @@ public final class RandomObjects {
 
     /**
      * Returns a tuple containing random stored field values and their corresponding expected values once printed out
-     * via {@link org.opensearch.common.xcontent.ToXContent#toXContent(XContentBuilder, ToXContent.Params)} and parsed back via
-     * {@link org.opensearch.common.xcontent.XContentParser#objectText()}.
+     * via {@link ToXContent#toXContent(XContentBuilder, ToXContent.Params)} and parsed back via
+     * {@link XContentParser#objectText()}.
      * Generates values based on what can get printed out. Stored fields values are retrieved from lucene and converted via
      * {@link org.opensearch.index.mapper.MappedFieldType#valueForDisplay(Object)} to either strings, numbers or booleans.
      *
      * @param random Random generator
-     * @param xContentType the content type, used to determine what the expected values are for float numbers.
+     * @param mediaType the content type, used to determine what the expected values are for float numbers.
      */
-    public static Tuple<List<Object>, List<Object>> randomStoredFieldValues(Random random, XContentType xContentType) {
+    public static Tuple<List<Object>, List<Object>> randomStoredFieldValues(Random random, MediaType mediaType) {
+        if (mediaType instanceof XContentType == false) {
+            throw new IllegalArgumentException("Unable to parse media type [" + mediaType.getClass().getName() + "]");
+        }
         int numValues = randomIntBetween(random, 1, 5);
         List<Object> originalValues = randomStoredFieldValues(random, numValues);
         List<Object> expectedParsedValues = new ArrayList<>(numValues);
         for (Object originalValue : originalValues) {
-            expectedParsedValues.add(getExpectedParsedValue(xContentType, originalValue));
+            expectedParsedValues.add(getExpectedParsedValue(XContentType.fromMediaType(mediaType), originalValue));
         }
         return Tuple.tuple(originalValues, expectedParsedValues);
     }
@@ -145,8 +149,8 @@ public final class RandomObjects {
 
     /**
      * Converts the provided field value to its corresponding expected value once printed out
-     * via {@link org.opensearch.common.xcontent.ToXContent#toXContent(XContentBuilder, ToXContent.Params)} and parsed back via
-     * {@link org.opensearch.common.xcontent.XContentParser#objectText()}.
+     * via {@link ToXContent#toXContent(XContentBuilder, ToXContent.Params)} and parsed back via
+     * {@link XContentParser#objectText()}.
      * Generates values based on what can get printed out. Stored fields values are retrieved from lucene and converted via
      * {@link org.opensearch.index.mapper.MappedFieldType#valueForDisplay(Object)} to either strings, numbers or booleans.
      */

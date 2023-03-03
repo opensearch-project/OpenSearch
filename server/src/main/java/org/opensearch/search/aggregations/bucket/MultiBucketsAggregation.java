@@ -32,7 +32,7 @@
 
 package org.opensearch.search.aggregations.bucket;
 
-import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.Aggregations;
 import org.opensearch.search.aggregations.HasAggregations;

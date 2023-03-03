@@ -9,7 +9,7 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.cluster.routing.WeightedRouting;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;

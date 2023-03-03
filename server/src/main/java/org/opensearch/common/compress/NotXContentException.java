@@ -32,7 +32,7 @@
 
 package org.opensearch.common.compress;
 
-import org.opensearch.common.xcontent.XContent;
+import org.opensearch.core.xcontent.XContent;
 
 /**
  * Exception indicating that we were expecting some {@link XContent} but could

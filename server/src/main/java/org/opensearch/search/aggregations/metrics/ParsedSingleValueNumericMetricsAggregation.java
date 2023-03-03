@@ -31,8 +31,8 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.ObjectParser.ValueType;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.ObjectParser.ValueType;
 import org.opensearch.search.aggregations.ParsedAggregation;
 
 /**

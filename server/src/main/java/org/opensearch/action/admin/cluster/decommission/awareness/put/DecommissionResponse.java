@@ -11,7 +11,7 @@ package org.opensearch.action.admin.cluster.decommission.awareness.put;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.ToXContentObject;
 
 import java.io.IOException;
 
