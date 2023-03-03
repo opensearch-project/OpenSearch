@@ -144,13 +144,7 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
             .directory(directory)
             .fileName(blockFileName)
             .build();
-        try {
-            return transferManager.fetchBlob(blobFetchRequest);
-        } catch (InterruptedException e) {
-            logger.error("Interrupted while fetching [{}]", blobFetchRequest);
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException(e);
-        }
+        return transferManager.fetchBlob(blobFetchRequest);
     }
 
     @Override

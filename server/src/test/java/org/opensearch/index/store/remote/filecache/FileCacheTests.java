@@ -19,10 +19,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class FileCacheTests extends OpenSearchTestCase {
     // need concurrency level to be static to make these tests more deterministic because capacity per segment is dependent on
@@ -90,34 +87,21 @@ public class FileCacheTests extends OpenSearchTestCase {
         });
     }
 
-    public void testComputeIfPresent() {
+    public void testCompute() {
         FileCache fileCache = createFileCache(GIGA_BYTES);
         Path path = createPath("0");
         fileCache.put(path, new FakeIndexInput(8 * MEGA_BYTES));
         fileCache.incRef(path);
-        fileCache.computeIfPresent(path, (p, i) -> null);
+        fileCache.compute(path, (p, i) -> null);
         // item will be removed
         assertEquals(fileCache.size(), 0);
     }
 
-    public void testComputeIfPresentThrowException() {
+    public void testComputeThrowException() {
         assertThrows(NullPointerException.class, () -> {
             FileCache fileCache = createFileCache(GIGA_BYTES);
-            fileCache.computeIfPresent(null, null);
+            fileCache.compute(null, null);
         });
-    }
-
-    public void testPutAll() {
-        FileCache fileCache = createFileCache(GIGA_BYTES);
-        Map<Path, CachedIndexInput> blockMaps = new HashMap<>();
-        for (int i = 0; i < 4; i++) {
-            blockMaps.put(createPath(Integer.toString(i)), new FakeIndexInput(8 * MEGA_BYTES));
-        }
-        fileCache.putAll(blockMaps);
-        // verify all blocks are put into file cache
-        for (int i = 0; i < 4; i++) {
-            assertNotNull(fileCache.get(createPath(Integer.toString(i))));
-        }
     }
 
     public void testRemove() {
@@ -141,33 +125,21 @@ public class FileCacheTests extends OpenSearchTestCase {
         });
     }
 
-    public void testRemoveAll() {
-        FileCache fileCache = createFileCache(GIGA_BYTES);
-        List<Path> blockPathList = new ArrayList<>();
-        for (int i = 0; i < 4; i++) {
-            Path blockPath = createPath(Integer.toString(i));
-            fileCache.put(blockPath, new FakeIndexInput(8 * MEGA_BYTES));
-            blockPathList.add(blockPath);
-        }
-        fileCache.removeAll(blockPathList);
-        assertEquals(fileCache.size(), 0);
-    }
-
     public void testIncDecRef() {
         FileCache fileCache = createFileCache(GIGA_BYTES);
         for (int i = 0; i < 4; i++) {
             fileCache.put(createPath(Integer.toString(i)), new FakeIndexInput(8 * MEGA_BYTES));
-            fileCache.incRef(createPath(Integer.toString(i)));
         }
 
         // try to evict previous IndexInput
         for (int i = 1000; i < 3000; i++) {
-            fileCache.put(createPath(Integer.toString(i)), new FakeIndexInput(8 * MEGA_BYTES));
+            putAndDecRef(fileCache, i, 8 * MEGA_BYTES);
         }
 
         // IndexInput with refcount greater than 0 will not be evicted
         for (int i = 0; i < 4; i++) {
             assertNotNull(fileCache.get(createPath(Integer.toString(i))));
+            fileCache.decRef(createPath(Integer.toString(i)));
         }
 
         // decrease ref
@@ -177,7 +149,7 @@ public class FileCacheTests extends OpenSearchTestCase {
 
         // try to evict previous IndexInput again
         for (int i = 3000; i < 5000; i++) {
-            fileCache.put(createPath(Integer.toString(i)), new FakeIndexInput(8 * MEGA_BYTES));
+            putAndDecRef(fileCache, i, 8 * MEGA_BYTES);
         }
 
         for (int i = 0; i < 4; i++) {
@@ -218,7 +190,7 @@ public class FileCacheTests extends OpenSearchTestCase {
     public void testPrune() {
         FileCache fileCache = createFileCache(GIGA_BYTES);
         for (int i = 0; i < 4; i++) {
-            fileCache.put(createPath(Integer.toString(i)), new FakeIndexInput(8 * MEGA_BYTES));
+            putAndDecRef(fileCache, i, 8 * MEGA_BYTES);
         }
         // before prune
         assertEquals(fileCache.size(), 4);
@@ -229,11 +201,10 @@ public class FileCacheTests extends OpenSearchTestCase {
     }
 
     public void testUsage() {
-        // edge case, all Indexinput will be evicted as soon as they are put into file cache
         FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(16 * MEGA_BYTES, 1);
-        fileCache.put(createPath("0"), new FakeIndexInput(16 * MEGA_BYTES));
+        putAndDecRef(fileCache, 0, 16 * MEGA_BYTES);
 
-        CacheUsage expectedCacheUsage = new CacheUsage(0, 0);
+        CacheUsage expectedCacheUsage = new CacheUsage(16 * MEGA_BYTES, 0);
         CacheUsage realCacheUsage = fileCache.usage();
         assertEquals(expectedCacheUsage.activeUsage(), realCacheUsage.activeUsage());
         assertEquals(expectedCacheUsage.usage(), realCacheUsage.usage());
@@ -255,7 +226,7 @@ public class FileCacheTests extends OpenSearchTestCase {
 
         // do some eviction here
         for (int i = 0; i < 2000; i++) {
-            fileCache.put(createPath(Integer.toString(i)), new FakeIndexInput(8 * MEGA_BYTES));
+            putAndDecRef(fileCache, i, 8 * MEGA_BYTES);
         }
         assertTrue(fileCache.stats().evictionCount() > 0);
         assertTrue(fileCache.stats().evictionWeight() > 0);
@@ -266,13 +237,18 @@ public class FileCacheTests extends OpenSearchTestCase {
         String nodeId = "0";
         String indexName = "test-index";
         String shardId = "0";
-        NodeEnvironment.NodePath fileCacheNodePath = new NodeEnvironment.NodePath(path);
         createFile(nodeId, indexName, shardId, "test.0");
         FileCache fileCache = createFileCache(GIGA_BYTES);
         assertEquals(0, fileCache.usage().usage());
         Path fileCachePath = path.resolve(NodeEnvironment.CACHE_FOLDER).resolve(nodeId).resolve(indexName).resolve(shardId);
         fileCache.restoreFromDirectory(List.of(fileCachePath));
         assertTrue(fileCache.usage().usage() > 0);
+    }
+
+    private void putAndDecRef(FileCache cache, int path, long indexInputSize) {
+        final Path key = createPath(Integer.toString(path));
+        cache.put(key, new FakeIndexInput(indexInputSize));
+        cache.decRef(key);
     }
 
     final class FakeIndexInput extends CachedIndexInput {

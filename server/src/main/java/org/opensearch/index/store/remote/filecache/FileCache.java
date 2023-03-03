@@ -18,7 +18,6 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Map;
 import java.util.function.BiFunction;
 
 import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory.LOCAL_STORE_LOCATION;
@@ -52,21 +51,17 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
         return theCache.capacity();
     }
 
+    @Override
     public CachedIndexInput put(Path filePath, CachedIndexInput indexInput) {
         return theCache.put(filePath, indexInput);
     }
 
     @Override
-    public void putAll(Map<? extends Path, ? extends CachedIndexInput> m) {
-        theCache.putAll(m);
-    }
-
-    @Override
-    public CachedIndexInput computeIfPresent(
+    public CachedIndexInput compute(
         Path key,
         BiFunction<? super Path, ? super CachedIndexInput, ? extends CachedIndexInput> remappingFunction
     ) {
-        return theCache.computeIfPresent(key, remappingFunction);
+        return theCache.compute(key, remappingFunction);
     }
 
     /**
@@ -89,11 +84,6 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
      */
     public void remove(final Path filePath) {
         theCache.remove(filePath);
-    }
-
-    @Override
-    public void removeAll(Iterable<? extends Path> keys) {
-        theCache.removeAll(keys);
     }
 
     @Override
