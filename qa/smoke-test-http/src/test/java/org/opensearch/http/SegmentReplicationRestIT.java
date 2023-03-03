@@ -63,7 +63,7 @@ public class SegmentReplicationRestIT extends HttpSmokeTestCase {
                 assertHitCount(client(node.getName()).prepareSearch("test_index").setSize(0).setPreference("_only_local").get(), 1);
             }
         });
-        Request statsRequest = new Request("GET", "/_nodes/stats/segment_replication_stats?pretty");
+        Request statsRequest = new Request("GET", "/_nodes/stats/segment_replication?pretty");
         final Response response = getRestClient().performRequest(statsRequest);
         logger.info("Node stats response\n{}", EntityUtils.toString(response.getEntity()));
         Map<String, Object> statsMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, response.getEntity().getContent(),
