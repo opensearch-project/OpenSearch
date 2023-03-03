@@ -522,12 +522,8 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testSegmentReplicationStats() throws Exception {
-        final Settings settings = Settings.builder()
-            .put(indexSettings())
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .build();
         final String primaryNode = internalCluster().startNode();
-        createIndex(INDEX_NAME, settings);
+        createIndex(INDEX_NAME);
         final String replicaNode = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
 

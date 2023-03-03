@@ -25,10 +25,6 @@ import java.util.Map;
  * @opensearch.internal
  */
 public class SegmentReplicationStats implements Writeable, ToXContentFragment {
-    @Override
-    public String toString() {
-        return "SegmentReplicationStats{" + "shardStats=" + shardStats + '}';
-    }
 
     private final Map<ShardId, SegmentReplicationPerGroupStats> shardStats;
 
@@ -68,5 +64,10 @@ public class SegmentReplicationStats implements Writeable, ToXContentFragment {
             entry.getKey().writeTo(out);
             entry.getValue().writeTo(out);
         }
+    }
+
+    @Override
+    public String toString() {
+        return "SegmentReplicationStats{" + "shardStats=" + shardStats + '}';
     }
 }

@@ -63,7 +63,7 @@ public class SegmentReplicationRestIT extends HttpSmokeTestCase {
                 assertHitCount(client(node.getName()).prepareSearch("test_index").setSize(0).setPreference("_only_local").get(), 1);
             }
         });
-        Request statsRequest = new Request("GET", "/_nodes/stats/segment_replication?pretty");
+        Request statsRequest = new Request("GET", "/_nodes/stats/segment_replication_stats?pretty");
         final Response response = getRestClient().performRequest(statsRequest);
         logger.info("Node stats response\n{}", EntityUtils.toString(response.getEntity()));
         Map<String, Object> statsMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, response.getEntity().getContent(),
@@ -88,8 +88,8 @@ public class SegmentReplicationRestIT extends HttpSmokeTestCase {
         XContentTestUtils.JsonMapView replica = new XContentTestUtils.JsonMapView((Map<String, Object>) shard1_replicas.get(0));
         Integer checkpoints_behind = replica.get("checkpoints_behind");
         assertEquals(0, checkpoints_behind.intValue());
-        assertNotNull(replica.get("current_replication_lag"));
-        assertNotNull(replica.get("last_completed_replication_lag"));
+        assertNotNull(replica.get("current_replication_time"));
+        assertNotNull(replica.get("last_completed_replication_time"));
         assertNotNull(replica.get("bytes_behind"));
     }
 }

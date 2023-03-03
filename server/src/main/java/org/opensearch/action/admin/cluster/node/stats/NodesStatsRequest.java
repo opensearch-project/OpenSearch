@@ -207,7 +207,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         SCRIPT_CACHE("script_cache"),
         INDEXING_PRESSURE("indexing_pressure"),
         SHARD_INDEXING_PRESSURE("shard_indexing_pressure"),
-        SEGMENT_REPLICATION("segment_replication"),
+        SEGMENT_REPLICATION("segment_replication_stats"),
         SEARCH_BACKPRESSURE("search_backpressure"),
         CLUSTER_MANAGER_THROTTLING("cluster_manager_throttling"),
         WEIGHTED_ROUTING_STATS("weighted_routing"),

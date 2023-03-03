@@ -27,29 +27,29 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
     private final String allocationId;
     private final long checkpointsBehindCount;
     private final long bytesBehindCount;
-    private final long currentReplicationLag;
-    private final long lastCompletedLag;
+    private final long currentReplicationTimeMillis;
+    private final long lastCompletedReplicationTimeMillis;
 
     public SegmentReplicationShardStats(
         String allocationId,
         long checkpointsBehindCount,
         long bytesBehindCount,
-        long currentReplicationLag,
-        long lastCompletedLag
+        long currentReplicationTimeMillis,
+        long lastCompletedReplicationTime
     ) {
         this.allocationId = allocationId;
         this.checkpointsBehindCount = checkpointsBehindCount;
         this.bytesBehindCount = bytesBehindCount;
-        this.currentReplicationLag = currentReplicationLag;
-        this.lastCompletedLag = lastCompletedLag;
+        this.currentReplicationTimeMillis = currentReplicationTimeMillis;
+        this.lastCompletedReplicationTimeMillis = lastCompletedReplicationTime;
     }
 
     public SegmentReplicationShardStats(StreamInput in) throws IOException {
         this.allocationId = in.readString();
         this.checkpointsBehindCount = in.readVLong();
         this.bytesBehindCount = in.readVLong();
-        this.currentReplicationLag = in.readVLong();
-        this.lastCompletedLag = in.readVLong();
+        this.currentReplicationTimeMillis = in.readVLong();
+        this.lastCompletedReplicationTimeMillis = in.readVLong();
     }
 
     public String getAllocationId() {
@@ -69,8 +69,8 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
         builder.startObject(allocationId);
         builder.field("checkpoints_behind", checkpointsBehindCount);
         builder.field("bytes_behind", new ByteSizeValue(bytesBehindCount).toString());
-        builder.field("current_replication_lag", new TimeValue(currentReplicationLag));
-        builder.field("last_completed_replication_lag", new TimeValue(lastCompletedLag));
+        builder.field("current_replication_time", new TimeValue(currentReplicationTimeMillis));
+        builder.field("last_completed_replication_time", new TimeValue(lastCompletedReplicationTimeMillis));
         builder.endObject();
         return builder;
     }
@@ -80,7 +80,24 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
         out.writeString(allocationId);
         out.writeVLong(checkpointsBehindCount);
         out.writeVLong(bytesBehindCount);
-        out.writeVLong(currentReplicationLag);
-        out.writeVLong(lastCompletedLag);
+        out.writeVLong(currentReplicationTimeMillis);
+        out.writeVLong(lastCompletedReplicationTimeMillis);
+    }
+
+    @Override
+    public String toString() {
+        return "SegmentReplicationShardStats{"
+            + "allocationId='"
+            + allocationId
+            + '\''
+            + ", checkpointsBehindCount="
+            + checkpointsBehindCount
+            + ", bytesBehindCount="
+            + bytesBehindCount
+            + ", currentReplicationLag="
+            + currentReplicationTimeMillis
+            + ", lastCompletedLag="
+            + lastCompletedReplicationTimeMillis
+            + '}';
     }
 }
