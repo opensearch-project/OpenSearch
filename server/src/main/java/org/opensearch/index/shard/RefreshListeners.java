@@ -48,6 +48,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static java.util.Objects.requireNonNull;
@@ -67,7 +68,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     private final ThreadContext threadContext;
     private final MeanMetric refreshMetric;
 
-    private final IndexShard indexShard;
+    private final LongSupplier getProcessedCheckpoint;
 
     /**
      * Time in nanosecond when beforeRefresh() is called. Used for calculating refresh metrics.
@@ -108,21 +109,21 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         final Logger logger,
         final ThreadContext threadContext,
         final MeanMetric refreshMetric,
-        final IndexShard indexShard
+        final LongSupplier getProcessedLocalCheckpoint
     ) {
         this.getMaxRefreshListeners = getMaxRefreshListeners;
         this.forceRefresh = forceRefresh;
         this.logger = logger;
         this.threadContext = threadContext;
         this.refreshMetric = refreshMetric;
-        this.indexShard = indexShard;
+        this.getProcessedCheckpoint = getProcessedLocalCheckpoint;
     }
 
     /**
      * Force-refreshes newly added listeners and forces a refresh if there are currently listeners registered. See {@link #refreshForcers}.
      */
     public Releasable forceRefreshes() {
-        if (indexShard.shardRouting.primary() == false && indexShard.indexSettings.isSegRepEnabled()) {
+        if (seqNoRefreshListeners != null) {
             releaseSeqNoRefreshListeners();
         }
         synchronized (this) {
@@ -208,9 +209,8 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      * @param maxSeqNo the Sequence number to listen on segment replication enabled replica shards
      * @param listener for the refresh. Called with true if registering the listener ran it out of slots and forced a refresh. Called with
      *        false otherwise.
-     * @return did we call the listener (true) or register the listener to call later (false)?
      */
-    public void addOrNotifySeqNoRefresh(Long maxSeqNo, Consumer<Boolean> listener) {
+    public void addOrNotify(Long maxSeqNo, Consumer<Boolean> listener) {
         requireNonNull(listener, "listener cannot be null");
 
         if (lastMaxSeqNo != SequenceNumbers.NO_OPS_PERFORMED && lastMaxSeqNo >= maxSeqNo) {
@@ -222,21 +222,13 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
                 throw new IllegalStateException("can't wait for refresh on a closed index");
             }
             List<Tuple<Long, Consumer<Boolean>>> listeners = seqNoRefreshListeners;
-            final int maxRefreshes = getMaxRefreshListeners.getAsInt();
-            if (refreshForcers == 0 && maxRefreshes > 0 && (listeners == null || listeners.size() < maxRefreshes)) {
-                Consumer<Boolean> contextPreservingListener = getContextListener(listener);
-                if (listeners == null) {
-                    listeners = new ArrayList<>();
-                }
-                // We have a free slot so register the listener
-                listeners.add(new Tuple<>(maxSeqNo, contextPreservingListener));
-                seqNoRefreshListeners = listeners;
-                return;
+            Consumer<Boolean> contextPreservingListener = getContextListener(listener);
+            if (listeners == null) {
+                listeners = new ArrayList<>();
             }
+            listeners.add(new Tuple<>(maxSeqNo, contextPreservingListener));
+            seqNoRefreshListeners = listeners;
         }
-        // No free slot so force a refresh and call the listener in this thread
-        listener.accept(true);
-        return;
     }
 
     private Consumer<Boolean> getContextListener(Consumer<Boolean> listener) {
@@ -270,8 +262,8 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      */
     public boolean refreshNeeded() {
         // A null list doesn't need a refresh. If we're closed we don't need a refresh either.
-        if (indexShard != null && indexShard.indexSettings.isSegRepEnabled() && indexShard.routingEntry().primary() == false) {
-            return seqNoRefreshListeners != null && false == closed;
+        if (seqNoRefreshListeners != null) {
+            return false == closed;
         }
         return refreshListeners != null && false == closed;
     }
@@ -334,7 +326,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         /* Grab the current refresh listeners and replace them with null while synchronized. Any listeners that come in after this won't be
          * in the list we iterate over and very likely won't be candidates for refresh anyway because we've already moved the
          * lastRefreshedLocation. */
-        if (indexShard != null && indexShard.indexSettings.isSegRepEnabled() && indexShard.routingEntry().primary() == false) {
+        if (seqNoRefreshListeners != null) {
             List<Tuple<Long, Consumer<Boolean>>> candidates;
             synchronized (this) {
                 candidates = seqNoRefreshListeners;
@@ -350,9 +342,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
 
             for (Tuple<Long, Consumer<Boolean>> tuple : candidates) {
                 Long seqNo = tuple.v1();
-                // logger.info("seqNo is {} and replication checkpoint is {} ",seqNo,
-                // indexShard.getLatestReplicationCheckpoint().getSeqNo());
-                if (seqNo <= indexShard.getLatestReplicationCheckpoint().getSeqNo()) {
+                if (seqNo <= getProcessedCheckpoint.getAsLong()) {
                     if (listenersToFire == null) {
                         listenersToFire = new ArrayList<>();
                     }

@@ -556,7 +556,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     }
 
     public void testWaitUntilWhenReplicaPromoted() throws Exception {
-        final String primaryNode = internalCluster().startNode(featureFlagSettings());
+        final String primaryNode = internalCluster().startNode();
         prepareCreate(
             INDEX_NAME,
             Settings.builder()
@@ -564,11 +564,10 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
                 .put("index.refresh_interval", -1)
         ).get();
         ensureYellowAndNoInitializingShards(INDEX_NAME);
-        final String replicaNode = internalCluster().startNode(featureFlagSettings());
+        final String replicaNode = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
-        final int initialDocCount = 500;
+        final int initialDocCount = 700;
         final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
-        IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
         for (int i = 0; i < initialDocCount; i++) {
             pendingIndexResponses.add(
                 client().prepareIndex(INDEX_NAME)
@@ -579,7 +578,31 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             );
         }
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
-        assertBusy(() -> { assertTrue(replicaShard.routingEntry().primary()); }, 30, TimeUnit.SECONDS);
+        final ShardRouting replicaShardRouting = getShardRoutingForNodeName(replicaNode);
+        assertNotNull(replicaShardRouting);
+        assertBusy(() -> {
+            assertTrue(replicaShardRouting + " should be promoted as a primary", replicaShardRouting.primary());
+            client().admin().indices().prepareRefresh().execute().actionGet();
+            assertTrue(pendingIndexResponses.stream().allMatch(ActionFuture::isDone));
+        }, 1, TimeUnit.MINUTES);
+        int successfulDocCount = 0;
+        for (ActionFuture<IndexResponse> response : pendingIndexResponses) {
+            try {
+                IndexResponse indexResponse = response.actionGet();
+                successfulDocCount++;
+            } catch (Exception e) {
+                logger.trace("Failed to index Doc", e);
+            }
+        }
+        assertTrue(
+            client(replicaNode).prepareSearch(INDEX_NAME)
+                .setPreference("_only_local")
+                .setSize(0)
+                .get()
+                .getHits()
+                .getTotalHits().value >= successfulDocCount
+        );
 
     }
+
 }

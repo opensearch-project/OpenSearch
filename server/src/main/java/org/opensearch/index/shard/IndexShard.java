@@ -3997,7 +3997,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger,
             threadPool.getThreadContext(),
             externalRefreshMetric,
-            this
+            this::getProcessedLocalCheckpoint
         );
     }
 
@@ -4171,7 +4171,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         if (readAllowed) {
             if (shardRouting.primary() == false && indexSettings.isSegRepEnabled()) {
-                refreshListeners.addOrNotifySeqNoRefresh(maxSeqNo, listener);
+                refreshListeners.addOrNotify(maxSeqNo, listener);
             } else {
                 refreshListeners.addOrNotify(location, listener);
             }
