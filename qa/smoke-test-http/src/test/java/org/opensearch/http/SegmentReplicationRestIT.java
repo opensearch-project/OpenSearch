@@ -83,11 +83,12 @@ public class SegmentReplicationRestIT extends HttpSmokeTestCase {
         XContentTestUtils.JsonMapView shard1 = new XContentTestUtils.JsonMapView((Map<String, Object>) primary_values.get(0));
         Integer node1TotalLimitsRejections = shard1.get("rejected_requests");
         assertNotNull(node1TotalLimitsRejections);
-        List<Object> shard1_replicas = new ArrayList<>(((Map<Object, Object>) shard1.get("replicas")).values());
+        List<Object> shard1_replicas = shard1.get("replicas");
         assertEquals(1, shard1_replicas.size());
         XContentTestUtils.JsonMapView replica = new XContentTestUtils.JsonMapView((Map<String, Object>) shard1_replicas.get(0));
         Integer checkpoints_behind = replica.get("checkpoints_behind");
         assertEquals(0, checkpoints_behind.intValue());
+        assertNotNull(replica.get("node_id"));
         assertNotNull(replica.get("current_replication_time"));
         assertNotNull(replica.get("last_completed_replication_time"));
         assertNotNull(replica.get("bytes_behind"));

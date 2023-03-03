@@ -24,20 +24,20 @@ import java.io.IOException;
  * @opensearch.internal
  */
 public class SegmentReplicationShardStats implements Writeable, ToXContentFragment {
-    private final String allocationId;
+    private final String nodeId;
     private final long checkpointsBehindCount;
     private final long bytesBehindCount;
     private final long currentReplicationTimeMillis;
     private final long lastCompletedReplicationTimeMillis;
 
     public SegmentReplicationShardStats(
-        String allocationId,
+        String nodeId,
         long checkpointsBehindCount,
         long bytesBehindCount,
         long currentReplicationTimeMillis,
         long lastCompletedReplicationTime
     ) {
-        this.allocationId = allocationId;
+        this.nodeId = nodeId;
         this.checkpointsBehindCount = checkpointsBehindCount;
         this.bytesBehindCount = bytesBehindCount;
         this.currentReplicationTimeMillis = currentReplicationTimeMillis;
@@ -45,15 +45,15 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
     }
 
     public SegmentReplicationShardStats(StreamInput in) throws IOException {
-        this.allocationId = in.readString();
+        this.nodeId = in.readString();
         this.checkpointsBehindCount = in.readVLong();
         this.bytesBehindCount = in.readVLong();
         this.currentReplicationTimeMillis = in.readVLong();
         this.lastCompletedReplicationTimeMillis = in.readVLong();
     }
 
-    public String getAllocationId() {
-        return allocationId;
+    public String getNodeId() {
+        return nodeId;
     }
 
     public long getCheckpointsBehindCount() {
@@ -66,7 +66,8 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(allocationId);
+        builder.startObject();
+        builder.field("node_id", nodeId);
         builder.field("checkpoints_behind", checkpointsBehindCount);
         builder.field("bytes_behind", new ByteSizeValue(bytesBehindCount).toString());
         builder.field("current_replication_time", new TimeValue(currentReplicationTimeMillis));
@@ -77,7 +78,7 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(allocationId);
+        out.writeString(nodeId);
         out.writeVLong(checkpointsBehindCount);
         out.writeVLong(bytesBehindCount);
         out.writeVLong(currentReplicationTimeMillis);
@@ -88,7 +89,7 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
     public String toString() {
         return "SegmentReplicationShardStats{"
             + "allocationId='"
-            + allocationId
+            + nodeId
             + '\''
             + ", checkpointsBehindCount="
             + checkpointsBehindCount

@@ -71,6 +71,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -1260,7 +1261,7 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
     ) {
         final Map<ReplicationCheckpoint, ReplicationTimer> checkpointTimers = checkpointState.checkpointTimers;
         return new SegmentReplicationShardStats(
-            allocationId,
+            Optional.ofNullable(this.routingTable.getByAllocationId(allocationId)).map(ShardRouting::currentNodeId).orElse("not assigned"),
             checkpointTimers.size(),
             checkpointState.visibleReplicationCheckpoint == null
                 ? latestCheckpointLength
