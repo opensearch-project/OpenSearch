@@ -591,7 +591,7 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
 
     public void testSearchFileCacheConfiguration() throws IOException {
         Settings searchRoleSettings = addRoles(buildEnvSettings(Settings.EMPTY), Set.of(DiscoveryNodeRole.SEARCH_ROLE));
-        ByteSizeValue cacheSize = new ByteSizeValue(100, ByteSizeUnit.MB);
+        ByteSizeValue cacheSize = new ByteSizeValue(16, ByteSizeUnit.GB);
         Settings searchRoleSettingsWithConfig = Settings.builder()
             .put(searchRoleSettings)
             .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize)
