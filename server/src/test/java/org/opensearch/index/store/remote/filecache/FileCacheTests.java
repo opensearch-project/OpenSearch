@@ -213,8 +213,8 @@ public class FileCacheTests extends OpenSearchTestCase {
 
     public void testUsage() {
         // edge case, all Indexinput will be evicted as soon as they are put into file cache
-        FileCache fileCache = createFileCache(MEGA_BYTES);
-        fileCache.put(createPath("0"), new FakeIndexInput(8 * MEGA_BYTES));
+        FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(16 * MEGA_BYTES, 1);
+        fileCache.put(createPath("0"), new FakeIndexInput(16 * MEGA_BYTES));
 
         CacheUsage expectedCacheUsage = new CacheUsage(0, 0);
         CacheUsage realCacheUsage = fileCache.usage();
