@@ -55,6 +55,7 @@ public class TaskInfo {
     private boolean cancellable;
     private boolean cancelled;
     private TaskId parentTaskId;
+    private String remark;
     private final Map<String, Object> status = new HashMap<>();
     private final Map<String, String> headers = new HashMap<>();
     private final Map<String, Object> resourceStats = new HashMap<>();
@@ -135,6 +136,14 @@ public class TaskInfo {
         this.parentTaskId = new TaskId(parentTaskId);
     }
 
+    public String getRemark() {
+        return remark;
+    }
+
+    void setRemark(String remark) {
+        this.remark = remark;
+    }
+
     public Map<String, String> getHeaders() {
         return headers;
     }
@@ -170,6 +179,7 @@ public class TaskInfo {
         // already provided in constructor: triggering a no-op
         parser.declareLong(TaskInfo::noOpParse, new ParseField("id"));
         parser.declareString(TaskInfo::setType, new ParseField("type"));
+        parser.declareString(TaskInfo::setRemark, new ParseField("remark"));
         parser.declareString(TaskInfo::setAction, new ParseField("action"));
         parser.declareObject(TaskInfo::setStatus, (p, c) -> p.map(), new ParseField("status"));
         parser.declareString(TaskInfo::setDescription, new ParseField("description"));
@@ -196,6 +206,7 @@ public class TaskInfo {
             && Objects.equals(getType(), taskInfo.getType())
             && Objects.equals(getAction(), taskInfo.getAction())
             && Objects.equals(getDescription(), taskInfo.getDescription())
+            && Objects.equals(getRemark(), taskInfo.getRemark())
             && Objects.equals(getParentTaskId(), taskInfo.getParentTaskId())
             && Objects.equals(status, taskInfo.status)
             && Objects.equals(getHeaders(), taskInfo.getHeaders())
@@ -213,6 +224,7 @@ public class TaskInfo {
             getRunningTimeNanos(),
             isCancellable(),
             isCancelled(),
+            getRemark(),
             getParentTaskId(),
             status,
             getHeaders(),
@@ -231,6 +243,8 @@ public class TaskInfo {
             + ", action='"
             + action
             + '\''
+            + ", remark='"
+            + remark
             + ", description='"
             + description
             + '\''

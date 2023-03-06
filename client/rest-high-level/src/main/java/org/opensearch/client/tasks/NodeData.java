@@ -47,6 +47,7 @@ class NodeData {
     private String transportAddress;
     private String host;
     private String ip;
+    private String remark;
     private final List<String> roles = new ArrayList<>();
     private final Map<String, String> attributes = new HashMap<>();
     private final List<TaskInfo> tasks = new ArrayList<>();
@@ -82,7 +83,13 @@ class NodeData {
             this.roles.addAll(roles);
         }
     }
+    public String getRemark() {
+        return remark;
+    }
 
+    public void setRemark(String remark) {
+        this.remark = remark;
+    }
     public String getNodeId() {
         return nodeId;
     }
@@ -136,6 +143,9 @@ class NodeData {
             + ", host='"
             + host
             + '\''
+            + ", remark='"
+            + remark
+            + '\''
             + ", ip='"
             + ip
             + '\''
@@ -156,6 +166,7 @@ class NodeData {
             && Objects.equals(getTransportAddress(), nodeData.getTransportAddress())
             && Objects.equals(getHost(), nodeData.getHost())
             && Objects.equals(getIp(), nodeData.getIp())
+            && Objects.equals(getRemark(), nodeData.getRemark())
             && Objects.equals(getRoles(), nodeData.getRoles())
             && Objects.equals(getAttributes(), nodeData.getAttributes())
             && Objects.equals(getTasks(), nodeData.getTasks());
@@ -163,7 +174,7 @@ class NodeData {
 
     @Override
     public int hashCode() {
-        return Objects.hash(getNodeId(), getName(), getTransportAddress(), getHost(), getIp(), getRoles(), getAttributes(), getTasks());
+        return Objects.hash(getNodeId(), getName(),getRemark(), getTransportAddress(), getHost(), getIp(), getRoles(), getAttributes(), getTasks());
     }
 
     public static final ObjectParser.NamedObjectParser<NodeData, Void> PARSER;
@@ -173,6 +184,7 @@ class NodeData {
         parser.declareString(NodeData::setName, new ParseField("name"));
         parser.declareString(NodeData::setTransportAddress, new ParseField("transport_address"));
         parser.declareString(NodeData::setHost, new ParseField("host"));
+        parser.declareString(NodeData::setRemark, new ParseField("remark"));
         parser.declareString(NodeData::setIp, new ParseField("ip"));
         parser.declareStringArray(NodeData::setRoles, new ParseField("roles"));
         parser.declareField(NodeData::setAttributes, (p, c) -> p.mapStrings(), new ParseField("attributes"), ObjectParser.ValueType.OBJECT);
