@@ -9,20 +9,19 @@
 package org.opensearch.extensions;
 
 import org.junit.Before;
-import org.opensearch.action.admin.indices.create.AutoCreateAction.TransportAction;
-import org.opensearch.common.collect.Map;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.Set;
 
 public class RegisterTransportActionsRequestTests extends OpenSearchTestCase {
     private RegisterTransportActionsRequest originalRequest;
 
     @Before
     public void setup() {
-        this.originalRequest = new RegisterTransportActionsRequest("extension-uniqueId", Map.of("testAction", TransportAction.class));
+        this.originalRequest = new RegisterTransportActionsRequest("extension-uniqueId", Set.of("testAction"));
     }
 
     public void testRegisterTransportActionsRequest() throws IOException {
@@ -31,7 +30,6 @@ public class RegisterTransportActionsRequestTests extends OpenSearchTestCase {
         StreamInput input = output.bytes().streamInput();
         RegisterTransportActionsRequest parsedRequest = new RegisterTransportActionsRequest(input);
         assertEquals(parsedRequest.getTransportActions(), originalRequest.getTransportActions());
-        assertEquals(parsedRequest.getTransportActions().get("testAction"), originalRequest.getTransportActions().get("testAction"));
         assertEquals(parsedRequest.getTransportActions().size(), originalRequest.getTransportActions().size());
         assertEquals(parsedRequest.hashCode(), originalRequest.hashCode());
         assertTrue(originalRequest.equals(parsedRequest));

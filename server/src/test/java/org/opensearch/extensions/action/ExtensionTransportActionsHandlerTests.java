@@ -11,7 +11,6 @@ package org.opensearch.extensions.action;
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.Version;
-import org.opensearch.action.admin.indices.create.AutoCreateAction.TransportAction;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
@@ -151,10 +150,7 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
         );
 
         // Register Action
-        RegisterTransportActionsRequest registerRequest = new RegisterTransportActionsRequest(
-            "uniqueid1",
-            Set.of(action)
-        );
+        RegisterTransportActionsRequest registerRequest = new RegisterTransportActionsRequest("uniqueid1", Set.of(action));
         AcknowledgedResponse response = (AcknowledgedResponse) extensionTransportActionsHandler.handleRegisterTransportActionsRequest(
             registerRequest
         );
