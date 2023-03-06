@@ -9,6 +9,7 @@
 package org.opensearch.index.translog;
 
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.ReleasableLock;
@@ -27,13 +28,16 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
 
 /**
  * A Translog implementation which syncs local FS with a remote store
@@ -116,24 +120,17 @@ public class RemoteFsTranslog extends Translog {
     }
 
     public static void download(TranslogTransferManager translogTransferManager, Path location) throws IOException {
-
         TranslogTransferMetadata translogMetadata = translogTransferManager.readMetadata();
         if (translogMetadata != null) {
             if (Files.notExists(location)) {
                 Files.createDirectories(location);
+            } else {
+                deleteTranslogFilesNotUploaded(location, translogMetadata.getGeneration());
             }
             Map<String, String> generationToPrimaryTermMapper = translogMetadata.getGenerationToPrimaryTermMapper();
             for (long i = translogMetadata.getGeneration(); i >= translogMetadata.getMinTranslogGeneration(); i--) {
                 String generation = Long.toString(i);
-                boolean ckpExists = Files.exists(location.resolve(Translog.getCommitCheckpointFileName(i)));
-                boolean tlogExists = Files.exists(location.resolve(Translog.getFilename(i)));
-                if (ckpExists) {
-                    Files.delete(location.resolve(Translog.getCommitCheckpointFileName(i)));
-                }
-                if (tlogExists) {
-                    Files.delete(location.resolve(Translog.getFilename(i)));
-                }
-                translogTransferManager.downloadTranslog(generationToPrimaryTermMapper.get(generation), generation, location);
+                translogTransferManager.downloadTranslog(generationToPrimaryTermMapper.get(generation), generation, location, false);
             }
             if (Files.exists(location.resolve(Translog.CHECKPOINT_FILE_NAME))) {
                 Files.delete(location.resolve(Translog.CHECKPOINT_FILE_NAME));
@@ -144,6 +141,27 @@ public class RemoteFsTranslog extends Translog {
                 location.resolve(Translog.getCommitCheckpointFileName(translogMetadata.getGeneration())),
                 location.resolve(Translog.CHECKPOINT_FILE_NAME)
             );
+        }
+    }
+
+    private static void deleteTranslogFilesNotUploaded(Path location, long uploadedGeneration) throws IOException {
+        // Delete translog files with generation > translogMetadata.getGeneration()
+        List<Long> generationsNotUploaded = Arrays.stream(FileSystemUtils.files(location))
+            .map(filePath -> filePath.getFileName().toString())
+            .filter(filename -> filename.endsWith(TRANSLOG_FILE_SUFFIX))
+            .map(filename -> {
+                long generation = Long.parseLong(
+                    filename.substring(TRANSLOG_FILE_PREFIX.length(), filename.length() - TRANSLOG_FILE_SUFFIX.length())
+                );
+                return generation > uploadedGeneration ? generation : -1;
+            })
+            .filter(generation -> generation > -1)
+            .collect(Collectors.toList());
+        for (Long generation : generationsNotUploaded) {
+            Path checkpointFileName = location.resolve(Translog.getCommitCheckpointFileName(generation));
+            Path translogFileName = location.resolve(Translog.getFilename(generation));
+            Files.deleteIfExists(checkpointFileName);
+            Files.deleteIfExists(translogFileName);
         }
     }
 

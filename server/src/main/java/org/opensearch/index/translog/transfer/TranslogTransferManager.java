@@ -133,19 +133,26 @@ public class TranslogTransferManager {
         }
     }
 
-    public boolean downloadTranslog(String primaryTerm, String generation, Path location) throws IOException {
+    public boolean downloadTranslog(String primaryTerm, String generation, Path location, boolean override) throws IOException {
         logger.info(
             "Downloading translog files with: Primary Term = {}, Generation = {}, Location = {}",
             primaryTerm,
             generation,
             location
         );
-        // Download Checkpoint file from remote to local FS
         String ckpFileName = Translog.getCommitCheckpointFileName(Long.parseLong(generation));
-        downloadToFS(ckpFileName, location, primaryTerm);
-        // Download translog file from remote to local FS
         String translogFilename = Translog.getFilename(Long.parseLong(generation));
-        downloadToFS(translogFilename, location, primaryTerm);
+        if (override == false && Files.exists(location.resolve(ckpFileName)) && Files.exists(location.resolve(translogFilename))) {
+            fileTransferTracker.add(ckpFileName, true);
+            fileTransferTracker.add(translogFilename, true);
+        } else {
+            // Download Checkpoint file from remote to local FS
+            Files.deleteIfExists(location.resolve(ckpFileName));
+            downloadToFS(ckpFileName, location, primaryTerm);
+            // Download translog file from remote to local FS
+            Files.deleteIfExists(location.resolve(translogFilename));
+            downloadToFS(translogFilename, location, primaryTerm);
+        }
         return true;
     }
 

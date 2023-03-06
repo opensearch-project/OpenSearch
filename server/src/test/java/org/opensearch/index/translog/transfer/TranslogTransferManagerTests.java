@@ -43,6 +43,7 @@ import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.times;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class TranslogTransferManagerTests extends OpenSearchTestCase {
@@ -246,7 +247,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
         assertFalse(Files.exists(location.resolve("translog-23.tlog")));
         assertFalse(Files.exists(location.resolve("translog-23.ckp")));
-        translogTransferManager.downloadTranslog("12", "23", location);
+        translogTransferManager.downloadTranslog("12", "23", location, false);
         assertTrue(Files.exists(location.resolve("translog-23.tlog")));
         assertTrue(Files.exists(location.resolve("translog-23.ckp")));
     }
@@ -266,12 +267,33 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             new ByteArrayInputStream("Hello Checkpoint".getBytes(StandardCharsets.UTF_8))
         );
 
-        translogTransferManager.downloadTranslog("12", "23", location);
+        translogTransferManager.downloadTranslog("12", "23", location, true);
 
         verify(transferService).downloadBlob(any(BlobPath.class), eq("translog-23.tlog"));
         verify(transferService).downloadBlob(any(BlobPath.class), eq("translog-23.ckp"));
         assertTrue(Files.exists(location.resolve("translog-23.tlog")));
         assertTrue(Files.exists(location.resolve("translog-23.ckp")));
+    }
+
+    public void testDownloadTranslogAlreadyExistsOverrideFalse() throws IOException {
+        FileTransferTracker tracker = new FileTransferTracker(new ShardId("index", "indexUuid", 0));
+        Path location = createTempDir();
+        Files.createFile(location.resolve("translog-23.tlog"));
+        Files.createFile(location.resolve("translog-23.ckp"));
+
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(transferService, remoteBaseTransferPath, tracker);
+
+        when(transferService.downloadBlob(any(BlobPath.class), eq("translog-23.tlog"))).thenReturn(
+            new ByteArrayInputStream("Hello Translog".getBytes(StandardCharsets.UTF_8))
+        );
+        when(transferService.downloadBlob(any(BlobPath.class), eq("translog-23.ckp"))).thenReturn(
+            new ByteArrayInputStream("Hello Checkpoint".getBytes(StandardCharsets.UTF_8))
+        );
+
+        translogTransferManager.downloadTranslog("12", "23", location, false);
+
+        verify(transferService, times(0)).downloadBlob(any(BlobPath.class), eq("translog-23.tlog"));
+        verify(transferService, times(0)).downloadBlob(any(BlobPath.class), eq("translog-23.ckp"));
     }
 
     public void testDownloadTranslogWithTrackerUpdated() throws IOException {
@@ -290,7 +312,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             new ByteArrayInputStream("Hello Checkpoint".getBytes(StandardCharsets.UTF_8))
         );
 
-        translogTransferManager.downloadTranslog("12", "23", location);
+        translogTransferManager.downloadTranslog("12", "23", location, true);
 
         verify(transferService).downloadBlob(any(BlobPath.class), eq(translogFile));
         verify(transferService).downloadBlob(any(BlobPath.class), eq(checkpointFile));
