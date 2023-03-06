@@ -36,9 +36,6 @@ public class RegisterTransportActionsRequestTests extends OpenSearchTestCase {
     }
 
     public void testToString() {
-        assertEquals(
-            originalRequest.toString(),
-            "TransportActionsRequest{uniqueId=extension-uniqueId, actions={testAction=class org.opensearch.action.admin.indices.create.AutoCreateAction$TransportAction}}"
-        );
+        assertEquals(originalRequest.toString(), "TransportActionsRequest{uniqueId=extension-uniqueId, actions=[testAction]}");
     }
 }
