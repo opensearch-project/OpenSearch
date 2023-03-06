@@ -39,6 +39,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
@@ -118,7 +119,7 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
 
     public void testRegisterTransportActionsRequest() {
         String action = "test-action";
-        RegisterTransportActionsRequest request = new RegisterTransportActionsRequest("uniqueid1", Map.of(action, TransportAction.class));
+        RegisterTransportActionsRequest request = new RegisterTransportActionsRequest("uniqueid1", Set.of(action));
         AcknowledgedResponse response = (AcknowledgedResponse) extensionTransportActionsHandler.handleRegisterTransportActionsRequest(
             request
         );
@@ -152,7 +153,7 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
         // Register Action
         RegisterTransportActionsRequest registerRequest = new RegisterTransportActionsRequest(
             "uniqueid1",
-            Map.of(action, TransportAction.class)
+            Set.of(action)
         );
         AcknowledgedResponse response = (AcknowledgedResponse) extensionTransportActionsHandler.handleRegisterTransportActionsRequest(
             registerRequest
