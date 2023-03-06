@@ -9,6 +9,7 @@
 package org.opensearch.indices.replication;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.WriteRequest;
@@ -527,7 +528,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         final String replicaNode = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
-        final int initialDocCount = scaledRandomIntBetween(600, 700);
+        final int initialDocCount = scaledRandomIntBetween(6000, 7000);
         final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
         IndexShard primaryShard = getIndexShard(primaryNode, INDEX_NAME);
         IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
@@ -557,16 +558,31 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
     public void testWaitUntilWhenReplicaPromoted() throws Exception {
         final String primaryNode = internalCluster().startNode();
-        prepareCreate(
-            INDEX_NAME,
-            Settings.builder()
-                // we want to control refreshes
-                .put("index.refresh_interval", -1)
-        ).get();
+        createIndex(INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         final String replicaNode = internalCluster().startNode();
+        final CountDownLatch waitForReplication = new CountDownLatch(1);
+        // Mock transport service to add behaviour of throwing corruption exception during segment replication process.
+        MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            primaryNode
+        ));
+        mockTransportService.addSendBehavior(
+            internalCluster().getInstance(TransportService.class, replicaNode),
+            (connection, requestId, action, request, options) -> {
+                if (action.equals(SegmentReplicationTargetService.Actions.FILE_CHUNK)) {
+                    try {
+                        waitForReplication.await();
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                    throw new OpenSearchCorruptionException("expected");
+                }
+                connection.sendRequest(requestId, action, request, options);
+            }
+        );
         ensureGreen(INDEX_NAME);
-        final int initialDocCount = 700;
+        final int initialDocCount = scaledRandomIntBetween(700, 5000);
         final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
         for (int i = 0; i < initialDocCount; i++) {
             pendingIndexResponses.add(
@@ -580,6 +596,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
         final ShardRouting replicaShardRouting = getShardRoutingForNodeName(replicaNode);
         assertNotNull(replicaShardRouting);
+        waitForReplication.countDown();
         assertBusy(() -> {
             assertTrue(replicaShardRouting + " should be promoted as a primary", replicaShardRouting.primary());
             client().admin().indices().prepareRefresh().execute().actionGet();
