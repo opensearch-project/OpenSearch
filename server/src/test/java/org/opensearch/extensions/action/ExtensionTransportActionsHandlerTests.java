@@ -11,7 +11,6 @@ package org.opensearch.extensions.action;
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.Version;
-import org.opensearch.action.admin.indices.create.AutoCreateAction.TransportAction;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
@@ -39,6 +38,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyMap;
@@ -118,7 +118,7 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
 
     public void testRegisterTransportActionsRequest() {
         String action = "test-action";
-        RegisterTransportActionsRequest request = new RegisterTransportActionsRequest("uniqueid1", Map.of(action, TransportAction.class));
+        RegisterTransportActionsRequest request = new RegisterTransportActionsRequest("uniqueid1", Set.of(action));
         AcknowledgedResponse response = (AcknowledgedResponse) extensionTransportActionsHandler.handleRegisterTransportActionsRequest(
             request
         );
@@ -150,10 +150,7 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
         );
 
         // Register Action
-        RegisterTransportActionsRequest registerRequest = new RegisterTransportActionsRequest(
-            "uniqueid1",
-            Map.of(action, TransportAction.class)
-        );
+        RegisterTransportActionsRequest registerRequest = new RegisterTransportActionsRequest("uniqueid1", Set.of(action));
         AcknowledgedResponse response = (AcknowledgedResponse) extensionTransportActionsHandler.handleRegisterTransportActionsRequest(
             registerRequest
         );
