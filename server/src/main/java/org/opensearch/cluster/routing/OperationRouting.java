@@ -281,11 +281,7 @@ public class OperationRouting {
         if (preference == null || preference.isEmpty()) {
             return shardRoutings(indexShard, nodes, collectorService, nodeCounts, weightedRoutingMetadata);
         }
-        if (weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting().isSet() && isStrictWeightedShardRouting) {
-            throw new PreferenceBasedSearchNotAllowedException(
-                "Preference based routing not allowed with strict weighted shard routing setting"
-            );
-        }
+
         if (preference.charAt(0) == '_') {
             Preference preferenceType = Preference.parse(preference);
             if (preferenceType == Preference.SHARDS) {
@@ -318,6 +314,11 @@ public class OperationRouting {
                 }
             }
             preferenceType = Preference.parse(preference);
+            if (weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting().isSet() && isStrictWeightedShardRouting) {
+                throw new PreferenceBasedSearchNotAllowedException(
+                    "Preference type  based routing not allowed with strict weighted shard routing enabled"
+                );
+            }
             switch (preferenceType) {
                 case PREFER_NODES:
                     final Set<String> nodesIds = Arrays.stream(preference.substring(Preference.PREFER_NODES.type().length() + 1).split(","))
@@ -343,7 +344,14 @@ public class OperationRouting {
         // for a different element in the list by also incorporating the
         // shard ID into the hash of the user-supplied preference key.
         routingHash = 31 * routingHash + indexShard.shardId.hashCode();
-        if (ignoreAwarenessAttributes()) {
+        if (weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting().isSet() && isStrictWeightedShardRouting) {
+            return indexShard.activeInitializingShardsSimpleWeightedIt(
+                weightedRoutingMetadata.getWeightedRouting(),
+                nodes,
+                getWeightedRoutingDefaultWeight(),
+                routingHash
+            );
+        } else if (ignoreAwarenessAttributes()) {
             return indexShard.activeInitializingShardsIt(routingHash);
         } else {
             return indexShard.preferAttributesActiveInitializingShardsIt(awarenessAttributes, nodes, routingHash);
