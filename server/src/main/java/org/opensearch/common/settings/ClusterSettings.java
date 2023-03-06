@@ -35,6 +35,7 @@ import org.apache.logging.log4j.LogManager;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.action.search.CreatePitController;
 import org.opensearch.cluster.routing.allocation.decider.NodeLoadAwareAllocationDecider;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressure;
@@ -44,9 +45,7 @@ import org.opensearch.index.ShardIndexingPressureStore;
 import org.opensearch.search.backpressure.settings.NodeDuressSettings;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
-import org.opensearch.search.backpressure.trackers.CpuUsageTracker;
-import org.opensearch.search.backpressure.trackers.ElapsedTimeTracker;
-import org.opensearch.search.backpressure.trackers.HeapUsageTracker;
+import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -154,6 +153,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -232,6 +232,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING,
                 BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING,
                 BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING,
+                BalancedShardsAllocator.PREFER_PER_INDEX_PRIMARY_SHARD_BALANCE,
                 BalancedShardsAllocator.SHARD_MOVE_PRIMARY_FIRST_SETTING,
                 BalancedShardsAllocator.THRESHOLD_SETTING,
                 BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING,
@@ -261,6 +262,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 Metadata.DEFAULT_REPLICA_COUNT_SETTING,
                 Metadata.SETTING_CREATE_INDEX_BLOCK_SETTING,
                 ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE,
+                ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_CLUSTER,
                 ShardLimitValidator.SETTING_CLUSTER_IGNORE_DOT_INDEXES,
                 RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING,
                 RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING,
@@ -280,6 +282,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING,
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
+                DiskThresholdSettings.CLUSTER_CREATE_INDEX_BLOCK_AUTO_RELEASE,
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
                 DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING,
                 SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING,
@@ -598,22 +601,45 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
                 // Settings related to search backpressure
                 SearchBackpressureSettings.SETTING_MODE,
-                SearchBackpressureSettings.SETTING_CANCELLATION_RATIO,
-                SearchBackpressureSettings.SETTING_CANCELLATION_RATE,
-                SearchBackpressureSettings.SETTING_CANCELLATION_BURST,
+
                 NodeDuressSettings.SETTING_NUM_SUCCESSIVE_BREACHES,
                 NodeDuressSettings.SETTING_CPU_THRESHOLD,
                 NodeDuressSettings.SETTING_HEAP_THRESHOLD,
+                SearchTaskSettings.SETTING_CANCELLATION_RATIO,
+                SearchTaskSettings.SETTING_CANCELLATION_RATE,
+                SearchTaskSettings.SETTING_CANCELLATION_BURST,
+                SearchTaskSettings.SETTING_HEAP_PERCENT_THRESHOLD,
+                SearchTaskSettings.SETTING_HEAP_VARIANCE_THRESHOLD,
+                SearchTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE,
+                SearchTaskSettings.SETTING_CPU_TIME_MILLIS_THRESHOLD,
+                SearchTaskSettings.SETTING_ELAPSED_TIME_MILLIS_THRESHOLD,
+                SearchTaskSettings.SETTING_TOTAL_HEAP_PERCENT_THRESHOLD,
+                SearchShardTaskSettings.SETTING_CANCELLATION_RATIO,
+                SearchShardTaskSettings.SETTING_CANCELLATION_RATE,
+                SearchShardTaskSettings.SETTING_CANCELLATION_BURST,
+                SearchShardTaskSettings.SETTING_HEAP_PERCENT_THRESHOLD,
+                SearchShardTaskSettings.SETTING_HEAP_VARIANCE_THRESHOLD,
+                SearchShardTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE,
+                SearchShardTaskSettings.SETTING_CPU_TIME_MILLIS_THRESHOLD,
+                SearchShardTaskSettings.SETTING_ELAPSED_TIME_MILLIS_THRESHOLD,
                 SearchShardTaskSettings.SETTING_TOTAL_HEAP_PERCENT_THRESHOLD,
-                HeapUsageTracker.SETTING_HEAP_PERCENT_THRESHOLD,
-                HeapUsageTracker.SETTING_HEAP_VARIANCE_THRESHOLD,
-                HeapUsageTracker.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE,
-                CpuUsageTracker.SETTING_CPU_TIME_MILLIS_THRESHOLD,
-                ElapsedTimeTracker.SETTING_ELAPSED_TIME_MILLIS_THRESHOLD
+                SearchBackpressureSettings.SETTING_CANCELLATION_RATIO,  // deprecated
+                SearchBackpressureSettings.SETTING_CANCELLATION_RATE,   // deprecated
+                SearchBackpressureSettings.SETTING_CANCELLATION_BURST   // deprecated
             )
         )
     );
 
     public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
+
+    /**
+     * Map of feature flag name to feature-flagged cluster settings. Once each feature
+     * is ready for production release, the feature flag can be removed, and the
+     * setting should be moved to {@link #BUILT_IN_CLUSTER_SETTINGS}.
+     */
+    public static final Map<String, List<Setting>> FEATURE_FLAGGED_CLUSTER_SETTINGS = Map.of(
+        FeatureFlags.SEARCHABLE_SNAPSHOT,
+        List.of(Node.NODE_SEARCH_CACHE_SIZE_SETTING)
+    );
 
 }

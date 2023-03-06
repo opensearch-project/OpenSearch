@@ -112,7 +112,7 @@ public class GeoHashGridIT extends AbstractGeoBucketAggregationIntegTest {
             GeoGridAggregationBuilder builder = AggregationBuilders.geohashGrid(AGG_NAME).field(GEO_SHAPE_FIELD_NAME).precision(precision);
             // This makes sure that for only higher precision we are providing the GeoBounding Box. This also ensures
             // that we are able to test both bounded and unbounded aggregations
-            if (precision > 2) {
+            if (precision > MIN_PRECISION_WITHOUT_BB_AGGS) {
                 builder.setGeoBoundingBox(boundingBox);
             }
             final SearchResponse response = client().prepareSearch(GEO_SHAPE_INDEX_NAME).addAggregation(builder).get();
@@ -274,8 +274,9 @@ public class GeoHashGridIT extends AbstractGeoBucketAggregationIntegTest {
         assert geometry != null;
         GeoBoundsHelper.updateBoundsForGeometry(geometry, topLeft, bottomRight);
         final Set<String> geoHashes = new HashSet<>();
+        final boolean isIntersectingWithBoundingRectangle = geometryDocValue.isIntersectingRectangle(boundingRectangleForGeoShapesAgg);
         for (int precision = MAX_PRECISION_FOR_GEO_SHAPES_AGG_TESTING; precision > 0; precision--) {
-            if (precision > 2 && !geometryDocValue.isIntersectingRectangle(boundingRectangleForGeoShapesAgg)) {
+            if (precision > MIN_PRECISION_WITHOUT_BB_AGGS && isIntersectingWithBoundingRectangle == false) {
                 continue;
             }
             final GeoPoint topRight = new GeoPoint(topLeft.getLat(), bottomRight.getLon());

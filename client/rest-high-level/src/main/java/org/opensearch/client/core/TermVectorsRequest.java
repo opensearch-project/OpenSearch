@@ -35,8 +35,8 @@ package org.opensearch.client.core;
 import org.opensearch.client.Validatable;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.InputStream;

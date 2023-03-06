@@ -54,16 +54,12 @@ public class RemoteStorePeerRecoverySourceHandlerTests extends OpenSearchIndexLe
             assertEquals(1, primary.getRetentionLeases().leases().size());
             assertFalse(primary.getRetentionLeases().contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(replica1.routingEntry())));
 
-            // Step 6 - Start new replica, recovery happens, and check that new replica has docs upto last flush
+            // Step 6 - Start new replica, recovery happens, and check that new replica has all docs
             final IndexShard replica2 = shards.addReplica();
             shards.startAll();
-            assertDocCount(replica2, numDocs);
-
-            // Step 7 - Segment replication, check all shards have same number of docs
-            replicateSegments(primary, shards.getReplicas());
             shards.assertAllEqual(numDocs + moreDocs);
 
-            // Step 8 - Check retention lease does not exist for the replica shard
+            // Step 7 - Check retention lease does not exist for the replica shard
             assertEquals(1, primary.getRetentionLeases().leases().size());
             assertFalse(primary.getRetentionLeases().contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(replica2.routingEntry())));
         }

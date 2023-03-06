@@ -27,7 +27,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-import org.opensearch.gradle.info.BuildParams;
+import org.opensearch.gradle.info.BuildParams
 
 apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'

@@ -54,7 +54,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.analysis.AnalysisRegistry;
@@ -72,6 +72,7 @@ import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
+import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.breaker.CircuitBreakerService;
@@ -661,7 +662,8 @@ public final class IndexModule {
 
     public static Map<String, IndexStorePlugin.DirectoryFactory> createBuiltInDirectoryFactories(
         Supplier<RepositoriesService> repositoriesService,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        FileCache remoteStoreFileCache
     ) {
         final Map<String, IndexStorePlugin.DirectoryFactory> factories = new HashMap<>();
         for (Type type : Type.values()) {
@@ -674,7 +676,10 @@ public final class IndexModule {
                     factories.put(type.getSettingsKey(), DEFAULT_DIRECTORY_FACTORY);
                     break;
                 case REMOTE_SNAPSHOT:
-                    factories.put(type.getSettingsKey(), new RemoteSnapshotDirectoryFactory(repositoriesService, threadPool));
+                    factories.put(
+                        type.getSettingsKey(),
+                        new RemoteSnapshotDirectoryFactory(repositoriesService, threadPool, remoteStoreFileCache)
+                    );
                     break;
                 default:
                     throw new IllegalStateException("No directory factory mapping for built-in type " + type);

@@ -212,7 +212,7 @@ public class BufferedAsyncIOProcessorTests extends OpenSearchTestCase {
     public void testConsecutiveWritesAtLeastBufferIntervalAway() throws InterruptedException {
         AtomicInteger received = new AtomicInteger(0);
         AtomicInteger notified = new AtomicInteger(0);
-        long bufferIntervalMs = randomLongBetween(50, 150);
+        long bufferIntervalMs = randomLongBetween(150, 250);
         List<Long> writeInvocationTimes = new LinkedList<>();
 
         AsyncIOProcessor<Object> processor = new BufferedAsyncIOProcessor<>(
@@ -246,7 +246,11 @@ public class BufferedAsyncIOProcessorTests extends OpenSearchTestCase {
         assertEquals(runCount, notified.get());
         assertEquals(runCount, received.get());
         for (int i = 1; i < writeInvocationTimes.size(); i++) {
-            assertTrue(writeInvocationTimes.get(i) - writeInvocationTimes.get(i - 1) >= bufferIntervalMs * 1_000_000);
+            // Resolution of System.nanoTime() is only as good as System.currentTimeMillis() and many operating systems
+            // measure time in units of tens of milliseconds as per Java documentation
+            // https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/lang/System.html#currentTimeMillis()
+            // Keeping a buffer of 20 ms as we are getting time twice with each having resolution of +- 10ms.
+            assertTrue(writeInvocationTimes.get(i) >= writeInvocationTimes.get(i - 1) + (bufferIntervalMs - 20) * 1_000_000);
         }
     }
 }

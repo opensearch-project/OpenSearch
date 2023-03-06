@@ -34,15 +34,16 @@ package org.opensearch.ingest;
 
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ContextParser;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ContextParser;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 
@@ -82,9 +83,12 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
             this.id = id;
         }
 
-        void setConfig(BytesReference config, XContentType xContentType) {
+        void setConfig(BytesReference config, MediaType mediaType) {
+            if (mediaType instanceof XContentType == false) {
+                throw new IllegalArgumentException("PipelineConfiguration does not support media type [" + mediaType.getClass() + "]");
+            }
             this.config = config;
-            this.xContentType = xContentType;
+            this.xContentType = XContentType.fromMediaType(mediaType);
         }
 
         PipelineConfiguration build() {
@@ -103,6 +107,10 @@ public final class PipelineConfiguration extends AbstractDiffable<PipelineConfig
         this.id = Objects.requireNonNull(id);
         this.config = Objects.requireNonNull(config);
         this.xContentType = Objects.requireNonNull(xContentType);
+    }
+
+    public PipelineConfiguration(String id, BytesReference config, MediaType mediaType) {
+        this(id, config, XContentType.fromMediaType(mediaType));
     }
 
     public String getId() {

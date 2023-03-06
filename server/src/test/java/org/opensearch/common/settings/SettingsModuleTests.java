@@ -233,7 +233,7 @@ public class SettingsModuleTests extends ModuleTestCase {
 
     public void testOldMaxClauseCountSetting() {
         Settings settings = Settings.builder().put("index.query.bool.max_clause_count", 1024).build();
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new SettingsModule(settings));
+        SettingsException ex = expectThrows(SettingsException.class, () -> new SettingsModule(settings));
         assertEquals(
             "unknown setting [index.query.bool.max_clause_count] did you mean [indices.query.bool.max_clause_count]?",
             ex.getMessage()

@@ -32,7 +32,7 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;

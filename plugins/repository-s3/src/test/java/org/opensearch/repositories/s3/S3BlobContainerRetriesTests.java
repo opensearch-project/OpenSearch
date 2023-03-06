@@ -81,13 +81,13 @@ import static org.hamcrest.Matchers.is;
  * This class tests how a {@link S3BlobContainer} and its underlying AWS S3 client are retrying requests when reading or writing blobs.
  */
 @SuppressForbidden(reason = "use a http server")
-public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTestCase {
+public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTestCase implements ConfigPathSupport {
 
     private S3Service service;
 
     @Before
     public void setUp() throws Exception {
-        service = new S3Service();
+        service = new S3Service(configPath());
         super.setUp();
     }
 
@@ -140,7 +140,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         secureSettings.setString(S3ClientSettings.ACCESS_KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "access");
         secureSettings.setString(S3ClientSettings.SECRET_KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "secret");
         clientSettings.setSecureSettings(secureSettings);
-        service.refreshAndClearCache(S3ClientSettings.load(clientSettings.build()));
+        service.refreshAndClearCache(S3ClientSettings.load(clientSettings.build(), configPath()));
 
         final RepositoryMetadata repositoryMetadata = new RepositoryMetadata(
             "repository",

@@ -8,11 +8,17 @@
 
 package org.opensearch.index.store.remote.file;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 
+import java.io.Closeable;
 import java.io.EOFException;
 import java.io.IOException;
+import java.lang.ref.Cleaner;
+import java.util.Objects;
 
 /**
  * Class acts as a virtual file mechanism for the accessed files and only fetches the required blocks of the actual file.
@@ -22,9 +28,27 @@ import java.io.IOException;
  * This class delegate the responsibility of actually fetching the block when demanded to its subclasses using
  * {@link OnDemandBlockIndexInput#fetchBlock(int)}.
  *
+ * Like {@link IndexInput}, this class may only be used from one thread as it is not thread safe.
+ * However, a cleaning action may run from another thread triggered by the {@link Cleaner}, but
+ * this is okay because at that point the {@link OnDemandBlockIndexInput} instance is phantom
+ * reachable and therefore not able to be accessed by any other thread.
+ *
  * @opensearch.internal
  */
 abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAccessInput {
+    private static final Logger logger = LogManager.getLogger(OnDemandBlockIndexInput.class);
+
+    public static final String CLEANER_THREAD_NAME_PREFIX = "index-input-cleaner";
+
+    /**
+     * A single static Cleaner instance to ensure any unclosed clone of an
+     * IndexInput is closed. This instance creates a single daemon thread on
+     * which it performs the cleaning actions. For an already-closed IndexInput,
+     * the cleaning action is a no-op. For an open IndexInput, the close action
+     * will decrement a reference count.
+     */
+    private static final Cleaner CLEANER = Cleaner.create(OpenSearchExecutors.daemonThreadFactory(CLEANER_THREAD_NAME_PREFIX));
+
     /**
      * Start offset of the virtual file : non-zero in the slice case
      */
@@ -39,32 +63,21 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
      */
     protected final boolean isClone;
 
-    // Variables needed for block calculation and fetching logic
     /**
-     * Block size shift (default value is 13 = 8KB)
+     * Variables used for block calculation and fetching. blockSize must be a
+     * power of two, and is defined as 2^blockShiftSize. blockMask is defined
+     * as blockSize - 1 and is used to calculate the offset within a block.
      */
     protected final int blockSizeShift;
-
-    /**
-     * Fixed block size
-     */
     protected final int blockSize;
-
-    /**
-     * Block mask
-     */
     protected final int blockMask;
-
-    // Variables for actual held open block
-    /**
-     * Current block for read, it should be a cloned block always
-     */
-    protected IndexInput currentBlock;
 
     /**
      * ID of the current block
      */
-    protected int currentBlockId;
+    private int currentBlockId;
+
+    private final BlockHolder blockHolder = new BlockHolder();
 
     OnDemandBlockIndexInput(Builder builder) {
         super(builder.resourceDescription);
@@ -74,6 +87,7 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
         this.blockSizeShift = builder.blockSizeShift;
         this.blockSize = builder.blockSize;
         this.blockMask = builder.blockMask;
+        CLEANER.register(this, blockHolder);
     }
 
     /**
@@ -89,16 +103,7 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
     protected abstract IndexInput fetchBlock(int blockId) throws IOException;
 
     @Override
-    public OnDemandBlockIndexInput clone() {
-        OnDemandBlockIndexInput clone = buildSlice("clone", offset, length());
-        // Ensures that clones may be positioned at the same point as the blocked file they were cloned from
-        if (currentBlock != null) {
-            clone.currentBlock = currentBlock.clone();
-            clone.currentBlockId = currentBlockId;
-        }
-
-        return clone;
-    }
+    public abstract OnDemandBlockIndexInput clone();
 
     @Override
     public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
@@ -123,17 +128,13 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
 
     @Override
     public void close() throws IOException {
-        // current block
-        if (currentBlock != null) {
-            currentBlock.close();
-            currentBlock = null;
-            currentBlockId = 0;
-        }
+        blockHolder.close();
+        currentBlockId = 0;
     }
 
     @Override
     public long getFilePointer() {
-        if (currentBlock == null) return 0L;
+        if (blockHolder.block == null) return 0L;
         return currentBlockStart() + currentBlockPosition() - offset;
     }
 
@@ -144,20 +145,20 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
 
     @Override
     public byte readByte() throws IOException {
-        if (currentBlock == null) {
+        if (blockHolder.block == null) {
             // seek to the beginning
             seek(0);
         } else if (currentBlockPosition() >= blockSize) {
             int blockId = currentBlockId + 1;
             demandBlock(blockId);
         }
-        return currentBlock.readByte();
+        return blockHolder.block.readByte();
     }
 
     @Override
     public short readShort() throws IOException {
-        if (currentBlock != null && Short.BYTES <= (blockSize - currentBlockPosition())) {
-            return currentBlock.readShort();
+        if (blockHolder.block != null && Short.BYTES <= (blockSize - currentBlockPosition())) {
+            return blockHolder.block.readShort();
         } else {
             return super.readShort();
         }
@@ -165,8 +166,8 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
 
     @Override
     public int readInt() throws IOException {
-        if (currentBlock != null && Integer.BYTES <= (blockSize - currentBlockPosition())) {
-            return currentBlock.readInt();
+        if (blockHolder.block != null && Integer.BYTES <= (blockSize - currentBlockPosition())) {
+            return blockHolder.block.readInt();
         } else {
             return super.readInt();
         }
@@ -174,8 +175,8 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
 
     @Override
     public long readLong() throws IOException {
-        if (currentBlock != null && Long.BYTES <= (blockSize - currentBlockPosition())) {
-            return currentBlock.readLong();
+        if (blockHolder.block != null && Long.BYTES <= (blockSize - currentBlockPosition())) {
+            return blockHolder.block.readLong();
         } else {
             return super.readLong();
         }
@@ -183,8 +184,8 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
 
     @Override
     public final int readVInt() throws IOException {
-        if (currentBlock != null && 5 <= (blockSize - currentBlockPosition())) {
-            return currentBlock.readVInt();
+        if (blockHolder.block != null && 5 <= (blockSize - currentBlockPosition())) {
+            return blockHolder.block.readVInt();
         } else {
             return super.readVInt();
         }
@@ -192,8 +193,8 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
 
     @Override
     public final long readVLong() throws IOException {
-        if (currentBlock != null && 9 <= (blockSize - currentBlockPosition())) {
-            return currentBlock.readVLong();
+        if (blockHolder.block != null && 9 <= (blockSize - currentBlockPosition())) {
+            return blockHolder.block.readVLong();
         } else {
             return super.readVLong();
         }
@@ -212,14 +213,14 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
     public final byte readByte(long pos) throws IOException {
         // adjust the pos if it's sliced
         pos = pos + offset;
-        if (currentBlock != null && isInCurrentBlockRange(pos)) {
+        if (blockHolder.block != null && isInCurrentBlockRange(pos)) {
             // the block contains the byte
-            return ((RandomAccessInput) currentBlock).readByte(getBlockOffset(pos));
+            return ((RandomAccessInput) blockHolder.block).readByte(getBlockOffset(pos));
         } else {
             // the block does not have the byte, seek to the pos first
             seekInternal(pos);
             // then read the byte
-            return currentBlock.readByte();
+            return blockHolder.block.readByte();
         }
     }
 
@@ -227,9 +228,9 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
     public short readShort(long pos) throws IOException {
         // adjust the pos if it's sliced
         pos = pos + offset;
-        if (currentBlock != null && isInCurrentBlockRange(pos, Short.BYTES)) {
+        if (blockHolder.block != null && isInCurrentBlockRange(pos, Short.BYTES)) {
             // the block contains enough data to satisfy this request
-            return ((RandomAccessInput) currentBlock).readShort(getBlockOffset(pos));
+            return ((RandomAccessInput) blockHolder.block).readShort(getBlockOffset(pos));
         } else {
             // the block does not have enough data, seek to the pos first
             seekInternal(pos);
@@ -242,9 +243,9 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
     public int readInt(long pos) throws IOException {
         // adjust the pos if it's sliced
         pos = pos + offset;
-        if (currentBlock != null && isInCurrentBlockRange(pos, Integer.BYTES)) {
+        if (blockHolder.block != null && isInCurrentBlockRange(pos, Integer.BYTES)) {
             // the block contains enough data to satisfy this request
-            return ((RandomAccessInput) currentBlock).readInt(getBlockOffset(pos));
+            return ((RandomAccessInput) blockHolder.block).readInt(getBlockOffset(pos));
         } else {
             // the block does not have enough data, seek to the pos first
             seekInternal(pos);
@@ -257,9 +258,9 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
     public long readLong(long pos) throws IOException {
         // adjust the pos if it's sliced
         pos = pos + offset;
-        if (currentBlock != null && isInCurrentBlockRange(pos, Long.BYTES)) {
+        if (blockHolder.block != null && isInCurrentBlockRange(pos, Long.BYTES)) {
             // the block contains enough data to satisfy this request
-            return ((RandomAccessInput) currentBlock).readLong(getBlockOffset(pos));
+            return ((RandomAccessInput) blockHolder.block).readLong(getBlockOffset(pos));
         } else {
             // the block does not have enough data, seek to the pos first
             seekInternal(pos);
@@ -270,7 +271,7 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
 
     @Override
     public final void readBytes(byte[] b, int offset, int len) throws IOException {
-        if (currentBlock == null) {
+        if (blockHolder.block == null) {
             // lazy seek to the beginning
             seek(0);
         }
@@ -278,11 +279,11 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
         int available = blockSize - currentBlockPosition();
         if (len <= available) {
             // the block contains enough data to satisfy this request
-            currentBlock.readBytes(b, offset, len);
+            blockHolder.block.readBytes(b, offset, len);
         } else {
             // the block does not have enough data. First serve all we've got.
             if (available > 0) {
-                currentBlock.readBytes(b, offset, available);
+                blockHolder.block.readBytes(b, offset, available);
                 offset += available;
                 len -= available;
             }
@@ -293,7 +294,7 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
                 int blockId = currentBlockId + 1;
                 int toRead = Math.min(len, blockSize);
                 demandBlock(blockId);
-                currentBlock.readBytes(b, offset, toRead);
+                blockHolder.block.readBytes(b, offset, toRead);
                 offset += toRead;
                 len -= toRead;
             }
@@ -306,10 +307,10 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
      * NOTE: the pos should be an adjusted position for slices
      */
     private void seekInternal(long pos) throws IOException {
-        if (currentBlock == null || !isInCurrentBlockRange(pos)) {
+        if (blockHolder.block == null || !isInCurrentBlockRange(pos)) {
             demandBlock(getBlock(pos));
         }
-        currentBlock.seek(getBlockOffset(pos));
+        blockHolder.block.seek(getBlockOffset(pos));
     }
 
     /**
@@ -331,15 +332,20 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
     }
 
     private void demandBlock(int blockId) throws IOException {
-        if (currentBlock != null && currentBlockId == blockId) return;
+        if (blockHolder.block != null && currentBlockId == blockId) return;
 
         // close the current block before jumping to the new block
-        if (currentBlock != null) {
-            currentBlock.close();
-        }
+        blockHolder.close();
 
-        currentBlock = fetchBlock(blockId).clone();
+        blockHolder.set(fetchBlock(blockId));
         currentBlockId = blockId;
+    }
+
+    protected void cloneBlock(OnDemandBlockIndexInput other) {
+        if (other.blockHolder.block != null) {
+            this.blockHolder.set(other.blockHolder.block.clone());
+            this.currentBlockId = other.currentBlockId;
+        }
     }
 
     protected int getBlock(long pos) {
@@ -359,16 +365,17 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
     }
 
     protected int currentBlockPosition() {
-        return (int) currentBlock.getFilePointer();
+        return (int) blockHolder.block.getFilePointer();
     }
 
     public static Builder builder() {
         return new Builder();
     }
 
-    static class Builder {
-        // Block size shift (default value is 13 = 8KB)
-        public static final int DEFAULT_BLOCK_SIZE_SHIFT = 13;
+    public static class Builder {
+        // Block size shift (default value is 23 == 2^23 == 8MiB)
+        public static final int DEFAULT_BLOCK_SIZE_SHIFT = 23;
+        public static final int DEFAULT_BLOCK_SIZE = 1 << DEFAULT_BLOCK_SIZE_SHIFT;;
 
         private String resourceDescription;
         private boolean isClone;
@@ -400,12 +407,60 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
             return this;
         }
 
-        public Builder blockSizeShift(int blockSizeShift) {
+        Builder blockSizeShift(int blockSizeShift) {
             assert blockSizeShift < 31 : "blockSizeShift must be < 31";
             this.blockSizeShift = blockSizeShift;
             this.blockSize = 1 << blockSizeShift;
             this.blockMask = blockSize - 1;
             return this;
+        }
+    }
+
+    /**
+     * Simple class to hold the currently open IndexInput backing an instance
+     * of an {@link OnDemandBlockIndexInput}. Lucene may clone one of these
+     * instances, and per the contract[1], the clones will never be closed.
+     * However, closing the instances is critical for our reference counting.
+     * Therefore, we are using the {@link Cleaner} mechanism from the JDK to
+     * close these clones when they become phantom reachable. The clean action
+     * must not hold a reference to the {@link OnDemandBlockIndexInput} itself
+     * (otherwise it would never become phantom reachable!) so we need a wrapper
+     * instance to hold the current underlying IndexInput, while allowing it to
+     * be changed out with different instances as {@link OnDemandBlockIndexInput}
+     * reads through the data.
+     *
+     * This class implements {@link Runnable} so that it can be passed directly
+     * to the cleaner to run its close action.
+     *
+     * [1]: https://github.com/apache/lucene/blob/8340b01c3cc229f33584ce2178b07b8984daa6a9/lucene/core/src/java/org/apache/lucene/store/IndexInput.java#L32-L33
+     */
+    private static class BlockHolder implements Closeable, Runnable {
+        private volatile IndexInput block;
+
+        private void set(IndexInput block) {
+            if (this.block != null) {
+                throw new IllegalStateException("Previous block was not closed!");
+            }
+            this.block = Objects.requireNonNull(block);
+        }
+
+        @Override
+        public void close() throws IOException {
+            if (block != null) {
+                block.close();
+                block = null;
+            }
+        }
+
+        @Override
+        public void run() {
+            try {
+                close();
+            } catch (IOException e) {
+                // Exceptions thrown in the cleaning action are ignored,
+                // so log and swallow the exception here
+                logger.info("Exception thrown while closing block owned by phantom reachable instance", e);
+            }
         }
     }
 }

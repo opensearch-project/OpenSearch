@@ -7651,4 +7651,57 @@ public class InternalEngineTests extends EngineTestCase {
         engine.close();
     }
 
+    public void testGetMaxSeqNoFromSegmentInfosConcurrentWrites() throws IOException, BrokenBarrierException, InterruptedException {
+        IOUtils.close(store, engine);
+
+        final Settings.Builder settings = Settings.builder().put(defaultSettings.getSettings()).put("index.refresh_interval", "300s");
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
+
+        Store store = createStore();
+        InternalEngine engine = createEngine(indexSettings, store, createTempDir(), newMergePolicy());
+
+        final int numIndexingThreads = scaledRandomIntBetween(3, 8);
+        final int numDocsPerThread = randomIntBetween(500, 1000);
+        final CyclicBarrier barrier = new CyclicBarrier(numIndexingThreads + 1);
+        final List<Thread> indexingThreads = new ArrayList<>();
+        final CountDownLatch doneLatch = new CountDownLatch(numIndexingThreads);
+        // create N indexing threads to index documents simultaneously
+        for (int threadNum = 0; threadNum < numIndexingThreads; threadNum++) {
+            final int threadIdx = threadNum;
+            Thread indexingThread = new Thread(() -> {
+                try {
+                    barrier.await(); // wait for all threads to start at the same time
+                    // index random number of docs
+                    for (int i = 0; i < numDocsPerThread; i++) {
+                        final String id = "thread" + threadIdx + "#" + i;
+                        ParsedDocument doc = testParsedDocument(id, null, testDocument(), B_1, null);
+                        engine.index(indexForDoc(doc));
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                } finally {
+                    doneLatch.countDown();
+                }
+
+            });
+            indexingThreads.add(indexingThread);
+        }
+
+        // start the indexing threads
+        for (Thread thread : indexingThreads) {
+            thread.start();
+        }
+        barrier.await(); // wait for indexing threads to all be ready to start
+        assertTrue(doneLatch.await(10, TimeUnit.SECONDS));
+
+        engine.refresh("test");
+
+        try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = engine.getSegmentInfosSnapshot()) {
+            assertEquals(numIndexingThreads * numDocsPerThread - 1, engine.getMaxSeqNoFromSegmentInfos(segmentInfosGatedCloseable.get()));
+        }
+
+        store.close();
+        engine.close();
+    }
 }

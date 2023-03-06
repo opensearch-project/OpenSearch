@@ -69,7 +69,6 @@ import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
-import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -458,6 +457,9 @@ final class StoreRecovery {
             // Download segments from remote segment store
             indexShard.syncSegmentsFromRemoteSegmentStore(true);
 
+            if (store.directory().listAll().length == 0) {
+                store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion);
+            }
             if (repository != null) {
                 syncTranslogFilesFromRemoteTranslog(indexShard, repository);
             } else {
@@ -484,7 +486,7 @@ final class StoreRecovery {
         FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId);
         TranslogTransferManager translogTransferManager = RemoteFsTranslog.buildTranslogTransferManager(
             blobStoreRepository,
-            indexShard.getThreadPool().executor(ThreadPool.Names.TRANSLOG_TRANSFER),
+            indexShard.getThreadPool(),
             shardId,
             fileTransferTracker
         );

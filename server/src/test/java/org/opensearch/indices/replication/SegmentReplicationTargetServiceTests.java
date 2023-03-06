@@ -13,10 +13,10 @@ import org.mockito.Mockito;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.Store;
@@ -62,10 +62,9 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put("node.name", SegmentReplicationTargetServiceTests.class.getSimpleName())
             .build();
-        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         primaryShard = newStartedShard(true, settings);
         replicaShard = newShard(false, settings, new NRTReplicationEngineFactory());
-        recoverReplica(replicaShard, primaryShard, true);
+        recoverReplica(replicaShard, primaryShard, true, getReplicationFunc(replicaShard));
         checkpoint = new ReplicationCheckpoint(replicaShard.shardId(), 0L, 0L, 0L, 0L);
         SegmentReplicationSourceFactory replicationSourceFactory = mock(SegmentReplicationSourceFactory.class);
         replicationSource = mock(SegmentReplicationSource.class);
@@ -117,7 +116,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     public void testReplicationFails() throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         final OpenSearchException expectedError = new OpenSearchException("Fail");
-        SegmentReplicationSource source = new SegmentReplicationSource() {
+        SegmentReplicationSource source = new TestReplicationSource() {
 
             @Override
             public void getCheckpointMetadata(

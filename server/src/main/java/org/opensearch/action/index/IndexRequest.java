@@ -54,10 +54,11 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardId;
@@ -80,8 +81,8 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * {@link #source(byte[], XContentType)} to be set.
  *
  * The source (content to index) can be set in its bytes form using ({@link #source(byte[], XContentType)}),
- * its string form ({@link #source(String, XContentType)}) or using a {@link org.opensearch.common.xcontent.XContentBuilder}
- * ({@link #source(org.opensearch.common.xcontent.XContentBuilder)}).
+ * its string form ({@link #source(String, XContentType)}) or using a {@link XContentBuilder}
+ * ({@link #source(XContentBuilder)}).
  *
  * If the {@link #id(String)} is not set, it will be automatically generated.
  *
@@ -389,7 +390,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * Sets the document source to index.
      *
-     * Note, its preferable to either set it using {@link #source(org.opensearch.common.xcontent.XContentBuilder)}
+     * Note, its preferable to either set it using {@link #source(XContentBuilder)}
      * or using the {@link #source(byte[], XContentType)}.
      */
     public IndexRequest source(String source, XContentType xContentType) {
@@ -449,9 +450,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * Sets the document to index in bytes form.
      */
-    public IndexRequest source(BytesReference source, XContentType xContentType) {
+    public IndexRequest source(BytesReference source, MediaType mediaType) {
         this.source = Objects.requireNonNull(source);
-        this.contentType = Objects.requireNonNull(xContentType);
+        this.contentType = XContentType.fromMediaType(Objects.requireNonNull(mediaType));
         return this;
     }
 

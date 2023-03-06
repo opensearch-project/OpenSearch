@@ -89,6 +89,7 @@ import org.opensearch.index.engine.EngineTestCase;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceToParse;
+import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -847,7 +848,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     }
 
     protected void recoverReplica(IndexShard replica, IndexShard primary, boolean startReplica) throws IOException {
-        recoverReplica(replica, primary, startReplica, (a) -> null);
+        recoverReplica(replica, primary, startReplica, getReplicationFunc(replica));
     }
 
     /** recovers a replica from the given primary **/
@@ -875,6 +876,18 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         final boolean markAsStarted
     ) throws IOException {
         recoverReplica(replica, primary, targetSupplier, markAsRecovering, markAsStarted, (a) -> null);
+    }
+
+    public Function<List<IndexShard>, List<SegmentReplicationTarget>> getReplicationFunc(final IndexShard target) {
+        return target.indexSettings().isSegRepEnabled() ? (shardList) -> {
+            try {
+                assert shardList.size() >= 2;
+                final IndexShard primary = shardList.get(0);
+                return replicateSegments(primary, shardList.subList(1, shardList.size()));
+            } catch (IOException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        } : (a) -> null;
     }
 
     /** recovers a replica from the given primary **/
@@ -1278,7 +1291,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             sourceFactory,
             indicesService
         );
-        final SegmentReplicationSource replicationSource = new SegmentReplicationSource() {
+        final SegmentReplicationSource replicationSource = new TestReplicationSource() {
             @Override
             public void getCheckpointMetadata(
                 long replicationId,

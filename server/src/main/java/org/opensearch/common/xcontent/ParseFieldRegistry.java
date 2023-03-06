@@ -32,9 +32,11 @@
 
 package org.opensearch.common.xcontent;
 
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.XContentLocation;
 
 import java.util.HashMap;
 import java.util.Map;

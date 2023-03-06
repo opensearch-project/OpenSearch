@@ -50,6 +50,11 @@ public interface SegmentReplicationSource {
     );
 
     /**
+     * Get the source description
+     */
+    String getDescription();
+
+    /**
      * Cancel any ongoing requests, should resolve any ongoing listeners with onFailure with a {@link ExecutionCancelledException}.
      */
     default void cancel() {}

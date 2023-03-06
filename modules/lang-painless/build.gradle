@@ -71,7 +71,7 @@ test {
 }
 
 shadowJar {
-  classifier = null
+  archiveClassifier.set('')
   relocate 'org.objectweb', 'org.opensearch.repackage.org.objectweb'
   dependencies {
     include(dependency("org.ow2.asm:asm:${versions.asm}"))

@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.List;
 
 public class FileTransferTrackerTests extends OpenSearchTestCase {
 
@@ -71,6 +72,27 @@ public class FileTransferTrackerTests extends OpenSearchTestCase {
 
             fileTransferTracker.onSuccess(transferFileSnapshot);
             assertEquals(fileTransferTracker.allUploaded().size(), 2);
+        }
+    }
+
+    public void testUploaded() throws IOException {
+        fileTransferTracker = new FileTransferTracker(shardId);
+        Path testFile = createTempFile();
+        Files.write(testFile, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
+        try (
+            FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(
+                testFile,
+                randomNonNegativeLong()
+            );
+
+        ) {
+            fileTransferTracker.onSuccess(transferFileSnapshot);
+            String fileName = String.valueOf(testFile.getFileName());
+            assertTrue(fileTransferTracker.uploaded(fileName));
+            assertFalse(fileTransferTracker.uploaded("random-name"));
+
+            fileTransferTracker.delete(List.of(fileName));
+            assertFalse(fileTransferTracker.uploaded(fileName));
         }
     }
 

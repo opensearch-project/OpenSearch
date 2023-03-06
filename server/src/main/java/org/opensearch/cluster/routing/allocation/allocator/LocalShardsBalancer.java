@@ -42,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import static org.opensearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -58,6 +59,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private final RoutingAllocation allocation;
     private final RoutingNodes routingNodes;
     private final boolean movePrimaryFirst;
+
+    private final boolean preferPrimaryBalance;
     private final BalancedShardsAllocator.WeightFunction weight;
 
     private final float threshold;
@@ -71,7 +74,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
         RoutingAllocation allocation,
         boolean movePrimaryFirst,
         BalancedShardsAllocator.WeightFunction weight,
-        float threshold
+        float threshold,
+        boolean preferPrimaryBalance
     ) {
         this.logger = logger;
         this.allocation = allocation;
@@ -84,6 +88,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
         nodes = Collections.unmodifiableMap(buildModelFromAssigned());
         sorter = newNodeSorter();
         inEligibleTargetNode = new HashSet<>();
+        this.preferPrimaryBalance = preferPrimaryBalance;
     }
 
     /**
@@ -99,6 +104,11 @@ public class LocalShardsBalancer extends ShardsBalancer {
     @Override
     public float avgShardsPerNode(String index) {
         return ((float) metadata.index(index).getTotalNumberOfShards()) / nodes.size();
+    }
+
+    @Override
+    public float avgPrimaryShardsPerNode(String index) {
+        return ((float) metadata.index(index).getNumberOfShards()) / nodes.size();
     }
 
     /**
@@ -223,7 +233,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
             // this is a comparison of the number of shards on this node to the number of shards
             // that should be on each node on average (both taking the cluster as a whole into account
             // as well as shards per index)
-            final float nodeWeight = weight.weight(this, node, idxName);
+            final float nodeWeight = weight.weightWithRebalanceConstraints(this, node, idxName);
             // if the node we are examining has a worse (higher) weight than the node the shard is
             // assigned to, then there is no way moving the shard to the node with the worse weight
             // can make the balance of the cluster better, so we check for that here
@@ -959,6 +969,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
     }
 
     private static final Comparator<ShardRouting> BY_DESCENDING_SHARD_ID = Comparator.comparing(ShardRouting::shardId).reversed();
+    private static final Comparator<ShardRouting> PRIMARY_FIRST = Comparator.comparing(ShardRouting::primary).reversed();
 
     /**
      * Tries to find a relocation from the max node to the minimal node for an arbitrary shard of the given index on the
@@ -969,12 +980,16 @@ public class LocalShardsBalancer extends ShardsBalancer {
         final BalancedShardsAllocator.ModelIndex index = maxNode.getIndex(idx);
         if (index != null) {
             logger.trace("Try relocating shard of [{}] from [{}] to [{}]", idx, maxNode.getNodeId(), minNode.getNodeId());
-            final Iterable<ShardRouting> shardRoutings = StreamSupport.stream(index.spliterator(), false)
+            Stream<ShardRouting> routingStream = StreamSupport.stream(index.spliterator(), false)
                 .filter(ShardRouting::started) // cannot rebalance unassigned, initializing or relocating shards anyway
-                .filter(maxNode::containsShard)
-                .sorted(BY_DESCENDING_SHARD_ID) // check in descending order of shard id so that the decision is deterministic
-            ::iterator;
+                .filter(maxNode::containsShard) // check shards which are present on heaviest node
+                .sorted(BY_DESCENDING_SHARD_ID); // check in descending order of shard id so that the decision is deterministic
 
+            // If primary balance is preferred then prioritize moving primaries first
+            if (preferPrimaryBalance == true) {
+                routingStream = routingStream.sorted(PRIMARY_FIRST);
+            }
+            final Iterable<ShardRouting> shardRoutings = routingStream::iterator;
             final AllocationDeciders deciders = allocation.deciders();
             for (ShardRouting shard : shardRoutings) {
                 final Decision rebalanceDecision = deciders.canRebalance(shard, allocation);
@@ -985,9 +1000,15 @@ public class LocalShardsBalancer extends ShardsBalancer {
                 if (allocationDecision.type() == Decision.Type.NO) {
                     continue;
                 }
+                // This is a safety net which prevents un-necessary primary shard relocations from maxNode to minNode when
+                // doing such relocation wouldn't help in primary balance.
+                if (preferPrimaryBalance == true
+                    && shard.primary()
+                    && maxNode.numPrimaryShards(shard.getIndexName()) - minNode.numPrimaryShards(shard.getIndexName()) < 2) {
+                    continue;
+                }
 
                 final Decision decision = new Decision.Multi().add(allocationDecision).add(rebalanceDecision);
-
                 maxNode.removeShard(shard);
                 long shardSize = allocation.clusterInfo().getShardSize(shard, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
 

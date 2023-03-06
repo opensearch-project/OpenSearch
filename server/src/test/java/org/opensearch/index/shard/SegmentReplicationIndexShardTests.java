@@ -19,6 +19,7 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingHelper;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.ClusterSettings;
@@ -34,6 +35,7 @@ import org.opensearch.index.engine.NRTReplicationEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
+import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -102,6 +104,60 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         final ReplicationCheckpoint replicationCheckpoint = indexShard.getLatestReplicationCheckpoint();
         assertNotNull(replicationCheckpoint);
         closeShards(indexShard);
+    }
+
+    public void testSegmentInfosAndReplicationCheckpointTuple() throws Exception {
+        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            final IndexShard primary = shards.getPrimary();
+            final IndexShard replica = shards.getReplicas().get(0);
+
+            // assert before any indexing:
+            // replica:
+            Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> replicaTuple = replica.getLatestSegmentInfosAndCheckpoint();
+            try (final GatedCloseable<SegmentInfos> gatedCloseable = replicaTuple.v1()) {
+                assertReplicationCheckpoint(replica, gatedCloseable.get(), replicaTuple.v2());
+            }
+
+            // primary:
+            Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> primaryTuple = primary.getLatestSegmentInfosAndCheckpoint();
+            try (final GatedCloseable<SegmentInfos> gatedCloseable = primaryTuple.v1()) {
+                assertReplicationCheckpoint(primary, gatedCloseable.get(), primaryTuple.v2());
+            }
+            // We use compareTo here instead of equals because we ignore segments gen with replicas performing their own commits.
+            // However infos version we expect to be equal.
+            assertEquals(1, primary.getLatestReplicationCheckpoint().compareTo(replica.getLatestReplicationCheckpoint()));
+
+            // index and copy segments to replica.
+            int numDocs = randomIntBetween(10, 100);
+            shards.indexDocs(numDocs);
+            primary.refresh("test");
+            replicateSegments(primary, List.of(replica));
+
+            replicaTuple = replica.getLatestSegmentInfosAndCheckpoint();
+            try (final GatedCloseable<SegmentInfos> gatedCloseable = replicaTuple.v1()) {
+                assertReplicationCheckpoint(replica, gatedCloseable.get(), replicaTuple.v2());
+            }
+
+            primaryTuple = primary.getLatestSegmentInfosAndCheckpoint();
+            try (final GatedCloseable<SegmentInfos> gatedCloseable = primaryTuple.v1()) {
+                assertReplicationCheckpoint(primary, gatedCloseable.get(), primaryTuple.v2());
+            }
+
+            replicaTuple = replica.getLatestSegmentInfosAndCheckpoint();
+            try (final GatedCloseable<SegmentInfos> gatedCloseable = replicaTuple.v1()) {
+                assertReplicationCheckpoint(replica, gatedCloseable.get(), replicaTuple.v2());
+            }
+            assertEquals(1, primary.getLatestReplicationCheckpoint().compareTo(replica.getLatestReplicationCheckpoint()));
+        }
+    }
+
+    private void assertReplicationCheckpoint(IndexShard shard, SegmentInfos segmentInfos, ReplicationCheckpoint checkpoint)
+        throws IOException {
+        assertNotNull(segmentInfos);
+        assertEquals(checkpoint.getSeqNo(), shard.getEngine().getMaxSeqNoFromSegmentInfos(segmentInfos));
+        assertEquals(checkpoint.getSegmentInfosVersion(), segmentInfos.getVersion());
+        assertEquals(checkpoint.getSegmentsGen(), segmentInfos.getGeneration());
     }
 
     public void testIsSegmentReplicationAllowed_WrongEngineType() throws IOException {
@@ -518,18 +574,17 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             replicateSegments(primary, List.of(replica_1));
 
             assertEqualCommittedSegments(primary, replica_1);
-            assertLatestCommitGen(4, primary, replica_1);
-            assertLatestCommitGen(2, replica_2);
+            assertLatestCommitGen(4, primary);
+            assertLatestCommitGen(5, replica_1);
+            assertLatestCommitGen(3, replica_2);
 
             shards.promoteReplicaToPrimary(replica_2).get();
             primary.close("demoted", false);
             primary.store().close();
             IndexShard oldPrimary = shards.addReplicaWithExistingPath(primary.shardPath(), primary.routingEntry().currentNodeId());
             shards.recoverReplica(oldPrimary);
-            assertLatestCommitGen(4, oldPrimary);
-            assertEqualCommittedSegments(oldPrimary, replica_1);
-
-            assertLatestCommitGen(4, replica_2);
+            assertLatestCommitGen(5, oldPrimary);
+            assertLatestCommitGen(5, replica_2);
 
             numDocs = randomIntBetween(numDocs + 1, numDocs + 10);
             shards.indexDocs(numDocs);
@@ -716,10 +771,12 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             for (IndexShard shard : shards.getReplicas()) {
                 assertDocCounts(shard, totalDocs, numDocs);
             }
-            assertEquals(additonalDocs, nextPrimary.translogStats().estimatedNumberOfOperations());
-            assertEquals(additonalDocs, replica.translogStats().estimatedNumberOfOperations());
-            assertEquals(additonalDocs, nextPrimary.translogStats().getUncommittedOperations());
-            assertEquals(additonalDocs, replica.translogStats().getUncommittedOperations());
+            assertEquals(totalDocs, oldPrimary.translogStats().estimatedNumberOfOperations());
+            assertEquals(totalDocs, oldPrimary.translogStats().estimatedNumberOfOperations());
+            assertEquals(totalDocs, nextPrimary.translogStats().estimatedNumberOfOperations());
+            assertEquals(totalDocs, replica.translogStats().estimatedNumberOfOperations());
+            assertEquals(totalDocs, nextPrimary.translogStats().getUncommittedOperations());
+            assertEquals(totalDocs, replica.translogStats().getUncommittedOperations());
 
             // promote the replica
             shards.syncGlobalCheckpoint();
@@ -762,7 +819,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
             final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
-            SegmentReplicationSource source = new SegmentReplicationSource() {
+            SegmentReplicationSource source = new TestReplicationSource() {
                 @Override
                 public void getCheckpointMetadata(
                     long replicationId,
@@ -837,7 +894,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
             final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
-            SegmentReplicationSource source = new SegmentReplicationSource() {
+            SegmentReplicationSource source = new TestReplicationSource() {
                 @Override
                 public void getCheckpointMetadata(
                     long replicationId,
@@ -879,7 +936,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
             final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
-            SegmentReplicationSource source = new SegmentReplicationSource() {
+            SegmentReplicationSource source = new TestReplicationSource() {
                 @Override
                 public void getCheckpointMetadata(
                     long replicationId,
@@ -921,7 +978,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
             final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
             final SegmentReplicationTargetService targetService = newTargetService(sourceFactory);
-            SegmentReplicationSource source = new SegmentReplicationSource() {
+            SegmentReplicationSource source = new TestReplicationSource() {
                 @Override
                 public void getCheckpointMetadata(
                     long replicationId,

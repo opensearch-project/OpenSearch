@@ -16,7 +16,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoShapeDocValue;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.geo.GeoModulePluginIntegTestCase;
 import org.opensearch.geo.tests.common.RandomGeoGenerator;
 import org.opensearch.geo.tests.common.RandomGeoGeometryGenerator;
@@ -40,7 +40,9 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
  */
 public abstract class AbstractGeoBucketAggregationIntegTest extends GeoModulePluginIntegTestCase {
 
-    protected static final int MAX_PRECISION_FOR_GEO_SHAPES_AGG_TESTING = 4;
+    protected static final int MAX_PRECISION_FOR_GEO_SHAPES_AGG_TESTING = 2;
+
+    protected static final int MIN_PRECISION_WITHOUT_BB_AGGS = 2;
 
     protected static final int NUM_DOCS = 100;
 
@@ -94,6 +96,7 @@ public abstract class AbstractGeoBucketAggregationIntegTest extends GeoModulePlu
                     continue;
                 }
             }
+
             i++;
             final Set<String> values = generateBucketsForGeometry(geometry, geometryDocValue);
             geoshapes.add(indexGeoShape(GEO_SHAPE_INDEX_NAME, geometry));
@@ -109,7 +112,7 @@ public abstract class AbstractGeoBucketAggregationIntegTest extends GeoModulePlu
      * Returns a set of buckets for the shape at different precision level. Override this method for different bucket
      * aggregations.
      *
-     * @param geometry {@link Geometry}
+     * @param geometry         {@link Geometry}
      * @param geoShapeDocValue {@link GeoShapeDocValue}
      * @return A {@link Set} of {@link String} which represents the buckets.
      */

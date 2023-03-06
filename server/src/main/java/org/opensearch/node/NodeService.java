@@ -32,6 +32,7 @@
 
 package org.opensearch.node;
 
+import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.Build;
 import org.opensearch.Version;
@@ -44,6 +45,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.discovery.Discovery;
+import org.opensearch.env.NodeEnvironment;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.indices.IndicesService;
@@ -84,8 +86,8 @@ public class NodeService implements Closeable {
     private final AggregationUsageService aggregationUsageService;
     private final SearchBackpressureService searchBackpressureService;
     private final ClusterService clusterService;
-
     private final Discovery discovery;
+    private final NodeEnvironment nodeEnvironment;
 
     NodeService(
         Settings settings,
@@ -105,7 +107,8 @@ public class NodeService implements Closeable {
         SearchTransportService searchTransportService,
         IndexingPressureService indexingPressureService,
         AggregationUsageService aggregationUsageService,
-        SearchBackpressureService searchBackpressureService
+        SearchBackpressureService searchBackpressureService,
+        NodeEnvironment nodeEnvironment
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -125,6 +128,7 @@ public class NodeService implements Closeable {
         this.aggregationUsageService = aggregationUsageService;
         this.searchBackpressureService = searchBackpressureService;
         this.clusterService = clusterService;
+        this.nodeEnvironment = nodeEnvironment;
         clusterService.addStateApplier(ingestService);
     }
 
@@ -177,7 +181,9 @@ public class NodeService implements Closeable {
         boolean indexingPressure,
         boolean shardIndexingPressure,
         boolean searchBackpressure,
-        boolean clusterManagerThrottling
+        boolean clusterManagerThrottling,
+        boolean weightedRoutingStats,
+        boolean fileCacheStats
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
@@ -201,7 +207,9 @@ public class NodeService implements Closeable {
             indexingPressure ? this.indexingPressureService.nodeStats() : null,
             shardIndexingPressure ? this.indexingPressureService.shardStats(indices) : null,
             searchBackpressure ? this.searchBackpressureService.nodeStats() : null,
-            clusterManagerThrottling ? this.clusterService.getClusterManagerService().getThrottlingStats() : null
+            clusterManagerThrottling ? this.clusterService.getClusterManagerService().getThrottlingStats() : null,
+            weightedRoutingStats ? WeightedRoutingStats.getInstance() : null,
+            fileCacheStats ? nodeEnvironment.fileCacheStats() : null
         );
     }
 

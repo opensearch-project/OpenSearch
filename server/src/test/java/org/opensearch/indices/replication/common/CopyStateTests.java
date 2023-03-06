@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.Version;
 import org.opensearch.common.collect.Map;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
@@ -48,14 +49,7 @@ public class CopyStateTests extends IndexShardTestCase {
 
     public void testCopyStateCreation() throws IOException {
         final IndexShard mockIndexShard = createMockIndexShard();
-        ReplicationCheckpoint testCheckpoint = new ReplicationCheckpoint(
-            mockIndexShard.shardId(),
-            mockIndexShard.getOperationPrimaryTerm(),
-            0L,
-            mockIndexShard.getProcessedLocalCheckpoint(),
-            0L
-        );
-        CopyState copyState = new CopyState(testCheckpoint, mockIndexShard);
+        CopyState copyState = new CopyState(ReplicationCheckpoint.empty(mockIndexShard.shardId()), mockIndexShard);
         ReplicationCheckpoint checkpoint = copyState.getCheckpoint();
         assertEquals(TEST_SHARD_ID, checkpoint.getShardId());
         // version was never set so this should be zero
@@ -73,7 +67,18 @@ public class CopyStateTests extends IndexShardTestCase {
         when(mockShard.store()).thenReturn(mockStore);
 
         SegmentInfos testSegmentInfos = new SegmentInfos(Version.LATEST.major);
-        when(mockShard.getSegmentInfosSnapshot()).thenReturn(new GatedCloseable<>(testSegmentInfos, () -> {}));
+        ReplicationCheckpoint testCheckpoint = new ReplicationCheckpoint(
+            mockShard.shardId(),
+            mockShard.getOperationPrimaryTerm(),
+            0L,
+            mockShard.getProcessedLocalCheckpoint(),
+            0L
+        );
+        final Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> gatedCloseableReplicationCheckpointTuple = new Tuple<>(
+            new GatedCloseable<>(testSegmentInfos, () -> {}),
+            testCheckpoint
+        );
+        when(mockShard.getLatestSegmentInfosAndCheckpoint()).thenReturn(gatedCloseableReplicationCheckpointTuple);
         when(mockStore.getSegmentMetadataMap(testSegmentInfos)).thenReturn(SI_SNAPSHOT.asMap());
 
         IndexCommit mockIndexCommit = mock(IndexCommit.class);

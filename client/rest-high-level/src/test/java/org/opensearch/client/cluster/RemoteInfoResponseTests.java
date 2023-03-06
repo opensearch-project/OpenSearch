@@ -34,7 +34,7 @@ package org.opensearch.client.cluster;
 
 import org.opensearch.client.AbstractResponseTestCase;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.transport.ProxyConnectionStrategy;
 import org.opensearch.transport.RemoteConnectionInfo;

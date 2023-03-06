@@ -899,7 +899,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             final Map<String, String> userData = new HashMap<>(latestSegmentInfos.getUserData());
             userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(processedCheckpoint));
             userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
-            latestSegmentInfos.setUserData(userData, true);
+            latestSegmentInfos.setUserData(userData, false);
             latestSegmentInfos.commit(directory());
             directory.sync(latestSegmentInfos.files(true));
             directory.syncMetaData();

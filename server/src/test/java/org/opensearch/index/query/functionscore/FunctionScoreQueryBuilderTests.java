@@ -50,7 +50,7 @@ import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.common.lucene.search.function.WeightFactorFunction;
 import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.query.MatchAllQueryBuilder;

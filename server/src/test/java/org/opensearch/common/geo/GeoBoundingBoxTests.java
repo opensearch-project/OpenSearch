@@ -34,9 +34,9 @@ package org.opensearch.common.geo;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.geo.GeometryTestUtils;
 import org.opensearch.geometry.Rectangle;
 import org.opensearch.test.OpenSearchTestCase;
