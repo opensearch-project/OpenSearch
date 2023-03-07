@@ -327,14 +327,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         boolean isFailOpenEnabled
     ) {
         final int seed = shufflerForWeightedRouting.nextSeed();
-        List<ShardRouting> ordered = new ArrayList<>();
-        List<ShardRouting> orderedActiveShards = getActiveShardsByWeight(weightedRouting, nodes, defaultWeight);
-        List<ShardRouting> orderedListWithDistinctShards;
-        ordered.addAll(shufflerForWeightedRouting.shuffle(orderedActiveShards, seed));
-        if (!allInitializingShards.isEmpty()) {
-            List<ShardRouting> orderedInitializingShards = getInitializingShardsByWeight(weightedRouting, nodes, defaultWeight);
-            ordered.addAll(orderedInitializingShards);
-        }
+        List<ShardRouting> ordered = activeInitializingShardsWithWeights(weightedRouting, nodes, defaultWeight, seed);
 
         // append shards for attribute value with weight zero, so that shard search requests can be tried on
         // shard copies in case of request failure from other attribute values.
@@ -357,8 +350,40 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                 logger.debug("no shard copies found for shard id [{}] for node attribute with weight zero", shardId);
             }
         }
+        return new PlainShardIterator(shardId, ordered);
+    }
+
+    private List<ShardRouting> activeInitializingShardsWithWeights(
+        WeightedRouting weightedRouting,
+        DiscoveryNodes nodes,
+        double defaultWeight,
+        int seed
+    ) {
+        List<ShardRouting> ordered = new ArrayList<>();
+        List<ShardRouting> orderedActiveShards = getActiveShardsByWeight(weightedRouting, nodes, defaultWeight);
+        ordered.addAll(shufflerForWeightedRouting.shuffle(orderedActiveShards, seed));
+        if (!allInitializingShards.isEmpty()) {
+            List<ShardRouting> orderedInitializingShards = getInitializingShardsByWeight(weightedRouting, nodes, defaultWeight);
+            ordered.addAll(orderedInitializingShards);
+        }
+        List<ShardRouting> orderedListWithDistinctShards;
         orderedListWithDistinctShards = ordered.stream().distinct().collect(Collectors.toList());
-        return new PlainShardIterator(shardId, orderedListWithDistinctShards);
+        return orderedListWithDistinctShards;
+    }
+
+    /**
+     * Returns an iterator over active and initializing shards, shards are ordered by weighted
+     * round-robin scheduling policy. Uses the passed seed to shuffle the shards.
+     *
+     */
+    public ShardIterator activeInitializingShardsSimpleWeightedIt(
+        WeightedRouting weightedRouting,
+        DiscoveryNodes nodes,
+        double defaultWeight,
+        int seed
+    ) {
+        List<ShardRouting> ordered = activeInitializingShardsWithWeights(weightedRouting, nodes, defaultWeight, seed);
+        return new PlainShardIterator(shardId, ordered);
     }
 
     /**

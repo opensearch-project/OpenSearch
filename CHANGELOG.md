@@ -35,6 +35,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `joni` from 2.1.44 to 2.1.45
 - Bump `commons-io:commons-io` from 2.7 to 2.11.0
 - Bump `org.jruby.joni:joni` from 2.1.45 to 2.1.48
+- Bump `io.projectreactor.netty:reactor-netty` from 1.1.3 to 1.1.4
+- Bump `com.google.code.gson:gson` from 2.10 to 2.10.1
+- Bump `com.maxmind.geoip2:geoip2` from 4.0.0 to 4.0.1
 
 ### Changed
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
@@ -73,6 +76,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 - Add GeoTile and GeoHash Grid aggregations on GeoShapes. ([#5589](https://github.com/opensearch-project/OpenSearch/pull/5589))
 - Disallow multiple data paths for search nodes ([#6427](https://github.com/opensearch-project/OpenSearch/pull/6427))
+- [Segment Replication] Allocation and rebalancing based on average primary shard count per index ([#6422](https://github.com/opensearch-project/OpenSearch/pull/6422))
 
 ### Dependencies
 - Bump `org.apache.logging.log4j:log4j-core` from 2.18.0 to 2.20.0 ([#6490](https://github.com/opensearch-project/OpenSearch/pull/6490))

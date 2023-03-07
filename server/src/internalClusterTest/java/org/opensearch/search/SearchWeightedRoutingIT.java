@@ -803,9 +803,9 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Assert that preference based search is not allowed with strict weighted shard routing
+     * Assert that preference search with custom string doesn't hit a node in weighed away az
      */
-    public void testStrictWeightedRouting() {
+    public void testStrictWeightedRoutingWithCustomString() {
 
         Settings commonSettings = Settings.builder()
             .put("cluster.routing.allocation.awareness.attributes", "zone")
@@ -817,24 +817,40 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         int nodeCountPerAZ = 1;
         Map<String, List<String>> nodeMap = setupCluster(nodeCountPerAZ, commonSettings);
 
-        int numShards = 10;
-        int numReplicas = 1;
+        int numShards = 20;
+        int numReplicas = 2;
         setUpIndexing(numShards, numReplicas);
 
         logger.info("--> setting shard routing weights for weighted round robin");
         Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
         setShardRoutingWeights(weights);
-        String nodeInZoneA = nodeMap.get("a").get(0);
         String customPreference = randomAlphaOfLength(10);
 
-        assertThrows(
-            PreferenceBasedSearchNotAllowedException.class,
-            () -> internalCluster().client(nodeMap.get("b").get(0))
-                .prepareSearch()
-                .setSize(0)
-                .setPreference(randomFrom("_local", "_only_nodes:" + nodeInZoneA, "_prefer_nodes:" + nodeInZoneA, customPreference))
-                .get()
-        );
+        SearchResponse searchResponse = internalCluster().client(nodeMap.get("b").get(0))
+            .prepareSearch()
+            .setSize(20)
+            .setPreference(customPreference)
+            .get();
+        assertEquals(RestStatus.OK.getStatus(), searchResponse.status().getStatus());
+        assertNoSearchInAZ("c");
+        assertSearchInAZ("a");
+        assertSearchInAZ("b");
+
+        // disable strict weighed routing
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put("cluster.routing.weighted.strict", false))
+            .get();
+
+        // make search requests with custom string
+        searchResponse = internalCluster().client(nodeMap.get("a").get(0))
+            .prepareSearch()
+            .setSize(20)
+            .setPreference(customPreference)
+            .get();
+        // assert search on data nodes on az c (weighed away az)
+        assertSearchInAZ("c");
 
     }
 
@@ -862,13 +878,86 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
 
         String customPreference = randomAlphaOfLength(10);
         String nodeInZoneA = nodeMap.get("a").get(0);
+        String nodeInZoneB = nodeMap.get("b").get(0);
+        String nodeInZoneC = nodeMap.get("c").get(0);
+
+        Map<String, String> nodeIDMap = new HashMap<>();
+        DiscoveryNodes dataNodes = internalCluster().clusterService().state().nodes();
+        for (DiscoveryNode node : dataNodes) {
+            nodeIDMap.put(node.getName(), node.getId());
+        }
 
         SearchResponse searchResponse = internalCluster().client(nodeMap.get("b").get(0))
             .prepareSearch()
             .setSize(0)
-            .setPreference(randomFrom("_local", "_only_nodes:" + nodeInZoneA, "_prefer_nodes:" + nodeInZoneA, customPreference))
+            .setPreference("_local")
             .get();
         assertEquals(RestStatus.OK.getStatus(), searchResponse.status().getStatus());
+
+        searchResponse = internalCluster().client(nodeMap.get("b").get(0))
+            .prepareSearch()
+            .setSize(0)
+            .setPreference(
+                "_only_nodes:" + nodeIDMap.get(nodeInZoneA) + "," + nodeIDMap.get(nodeInZoneB) + "," + nodeIDMap.get(nodeInZoneC)
+            )
+            .get();
+        assertEquals(RestStatus.OK.getStatus(), searchResponse.status().getStatus());
+
+        searchResponse = internalCluster().client(nodeMap.get("b").get(0))
+            .prepareSearch()
+            .setSize(0)
+            .setPreference("_prefer_nodes:zone:a")
+            .get();
+        assertEquals(RestStatus.OK.getStatus(), searchResponse.status().getStatus());
+    }
+
+    /**
+     * Assert that preference based search with preference type is not allowed with strict weighted shard routing
+     */
+    public void testStrictWeightedRouting() {
+
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .put("cluster.routing.weighted.fail_open", true)
+            .put("cluster.routing.weighted.strict", true)
+            .build();
+
+        int nodeCountPerAZ = 1;
+        Map<String, List<String>> nodeMap = setupCluster(nodeCountPerAZ, commonSettings);
+
+        int numShards = 10;
+        int numReplicas = 1;
+        setUpIndexing(numShards, numReplicas);
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
+        setShardRoutingWeights(weights);
+        String nodeInZoneA = nodeMap.get("a").get(0);
+
+        assertThrows(
+            PreferenceBasedSearchNotAllowedException.class,
+            () -> internalCluster().client(nodeMap.get("b").get(0)).prepareSearch().setSize(0).setPreference("_local").get()
+        );
+
+        assertThrows(
+            PreferenceBasedSearchNotAllowedException.class,
+            () -> internalCluster().client(nodeMap.get("b").get(0))
+                .prepareSearch()
+                .setSize(0)
+                .setPreference("_only_nodes:" + nodeInZoneA)
+                .get()
+        );
+
+        assertThrows(
+            PreferenceBasedSearchNotAllowedException.class,
+            () -> internalCluster().client(nodeMap.get("b").get(0))
+                .prepareSearch()
+                .setSize(0)
+                .setPreference("_prefer_nodes:" + nodeInZoneA)
+                .get()
+        );
+
     }
 
     /**
