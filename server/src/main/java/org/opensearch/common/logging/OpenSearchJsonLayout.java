@@ -110,7 +110,7 @@ public class OpenSearchJsonLayout extends AbstractStringLayout {
         map.put("component", inQuotes("%c{1.}"));
         map.put("cluster.name", inQuotes("${sys:opensearch.logs.cluster_name}"));
         map.put("node.name", inQuotes("%node_name"));
-        map.put("message", inQuotes("%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}"));
+        map.put("message", inQuotes("%notEmpty{%enc{%marker}{JSON} }%enc{%.-100000m}{JSON}"));
 
         for (String key : opensearchMessageFields) {
             map.put(key, inQuotes("%OpenSearchMessageField{" + key + "}"));
