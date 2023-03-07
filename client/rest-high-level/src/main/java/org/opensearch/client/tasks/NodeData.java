@@ -176,7 +176,17 @@ class NodeData {
 
     @Override
     public int hashCode() {
-        return Objects.hash(getNodeId(), getName(), getRemark(), getTransportAddress(), getHost(), getIp(), getRoles(), getAttributes(), getTasks());
+        return Objects.hash(
+            getNodeId(),
+            getName(),
+            getRemark(),
+            getTransportAddress(),
+            getHost(),
+            getIp(),
+            getRoles(),
+            getAttributes(),
+            getTasks()
+        );
     }
 
     public static final ObjectParser.NamedObjectParser<NodeData, Void> PARSER;
