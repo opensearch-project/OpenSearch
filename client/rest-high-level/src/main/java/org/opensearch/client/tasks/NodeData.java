@@ -83,6 +83,7 @@ class NodeData {
             this.roles.addAll(roles);
         }
     }
+
     void setRemark(String remark) {
         this.remark = remark;
     }
