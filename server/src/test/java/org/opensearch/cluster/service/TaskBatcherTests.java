@@ -279,6 +279,87 @@ public class TaskBatcherTests extends TaskExecutorTests {
         }
     }
 
+    public void testNoTasksAreDroppedInParallelSubmission() throws BrokenBarrierException, InterruptedException {
+        int numberOfThreads = randomIntBetween(2, 8);
+        TaskExecutor[] executors = new TaskExecutor[numberOfThreads];
+        for (int i = 0; i < numberOfThreads; i++) {
+            executors[i] = new TaskExecutor();
+        }
+
+        int tasksSubmittedPerThread = randomIntBetween(2, 1024);
+
+        CopyOnWriteArrayList<Tuple<String, Throwable>> failures = new CopyOnWriteArrayList<>();
+        CountDownLatch updateLatch = new CountDownLatch(numberOfThreads * tasksSubmittedPerThread);
+
+        final TestListener listener = new TestListener() {
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.error(() -> new ParameterizedMessage("unexpected failure: [{}]", source), e);
+                failures.add(new Tuple<>(source, e));
+                updateLatch.countDown();
+            }
+
+            @Override
+            public void processed(String source) {
+                updateLatch.countDown();
+            }
+        };
+
+        CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
+
+        for (int i = 0; i < numberOfThreads; i++) {
+            final int index = i;
+            Thread thread = new Thread(() -> {
+                try {
+                    barrier.await();
+                    CyclicBarrier tasksBarrier = new CyclicBarrier(1 + tasksSubmittedPerThread);
+                    for (int j = 0; j < tasksSubmittedPerThread; j++) {
+                        int taskNumber = j;
+                        Thread taskThread = new Thread(() -> {
+                            try {
+                                tasksBarrier.await();
+                                submitTask(
+                                    "[" + index + "][" + taskNumber + "]",
+                                    taskNumber,
+                                    ClusterStateTaskConfig.build(randomFrom(Priority.values())),
+                                    executors[index],
+                                    listener
+                                );
+                                tasksBarrier.await();
+                            } catch (InterruptedException | BrokenBarrierException e) {
+                                throw new AssertionError(e);
+                            }
+                        });
+                        // submit tasks per batchingKey in parallel
+                        taskThread.start();
+                    }
+                    // wait for all task threads to be ready
+                    tasksBarrier.await();
+                    // wait for all task threads to finish
+                    tasksBarrier.await();
+                    barrier.await();
+                } catch (InterruptedException | BrokenBarrierException e) {
+                    throw new AssertionError(e);
+                }
+            });
+            thread.start();
+        }
+
+        // wait for all executor threads to be ready
+        barrier.await();
+        // wait for all executor threads to finish
+        barrier.await();
+
+        updateLatch.await();
+
+        assertThat(failures, empty());
+
+        for (int i = 0; i < numberOfThreads; i++) {
+            // assert that total executed tasks is same for every executor as we initiated
+            assertEquals(tasksSubmittedPerThread, executors[i].tasks.size());
+        }
+    }
+
     public void testSingleBatchSubmission() throws InterruptedException {
         Map<Integer, TestListener> tasks = new HashMap<>();
         final int numOfTasks = randomInt(10);
