@@ -8,7 +8,7 @@
 
 package org.opensearch.benchmark.index.mapper;
 
-import org.apache.hc.core5.http.HttpHost;
+import org.apache.http.HttpHost;
 import org.json.JSONObject;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
