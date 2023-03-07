@@ -201,12 +201,10 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     }
 
     /**
-     * Add a listener for refreshes, calling it immediately if the max sequence number is already visible. If this runs out of listener slots then it
-     * forces a refresh and calls the listener immediately as well.
+     * Add a listener for refreshes, calling it immediately if the max sequence number is already visible.
      *
      * @param maxSeqNo the Sequence number to listen on segment replication enabled replica shards
-     * @param listener for the refresh. Called with true if registering the listener ran it out of slots and forced a refresh. Called with
-     *        false otherwise.
+     * @param listener for the refresh.It waits until max sequence number is visible.
      */
     public void addOrNotify(Long maxSeqNo, Consumer<Boolean> listener) {
         requireNonNull(listener, "listener cannot be null");

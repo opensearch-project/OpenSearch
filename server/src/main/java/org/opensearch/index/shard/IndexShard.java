@@ -4170,7 +4170,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         }
         if (readAllowed) {
-            if (shardRouting.primary() == false && indexSettings.isSegRepEnabled()) {
+            if (indexSettings.isSegRepEnabled() && shardRouting.primary() == false) {
                 refreshListeners.addOrNotify(maxSeqNo, listener);
             } else {
                 refreshListeners.addOrNotify(location, listener);
