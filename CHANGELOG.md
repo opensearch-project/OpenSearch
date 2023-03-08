@@ -34,7 +34,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `joni` from 2.1.44 to 2.1.45
 - Bump `commons-io:commons-io` from 2.7 to 2.11.0
 - Bump `org.jruby.joni:joni` from 2.1.45 to 2.1.48
-- Bump `io.projectreactor.netty:reactor-netty` from 1.1.3 to 1.1.4
 - Bump `com.google.code.gson:gson` from 2.10 to 2.10.1
 - Bump `com.maxmind.geoip2:geoip2` from 4.0.0 to 4.0.1
 - Bump `com.networknt:json-schema-validator` from 1.0.76 to 1.0.78
@@ -84,6 +83,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.logging.log4j:log4j-core` from 2.18.0 to 2.20.0 ([#6490](https://github.com/opensearch-project/OpenSearch/pull/6490))
 - Bump `com.azure:azure-storage-common` from 12.19.3 to 12.20.0 ([#6492](https://github.com/opensearch-project/OpenSearch/pull/6492)
 - Bump `snakeyaml` from 1.33 to 2.0 ([#6511](https://github.com/opensearch-project/OpenSearch/pull/6511))
+- Bump `io.projectreactor.netty:reactor-netty` from 1.1.3 to 1.1.4
 
 ### Changed
 - Require MediaType in Strings.toString API ([#6009](https://github.com/opensearch-project/OpenSearch/pull/6009))
