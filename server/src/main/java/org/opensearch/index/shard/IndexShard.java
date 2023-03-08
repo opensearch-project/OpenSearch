@@ -1481,22 +1481,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         // do not close the snapshot - caller will close it.
         final GatedCloseable<SegmentInfos> snapshot = getSegmentInfosSnapshot();
-        return Optional.ofNullable(snapshot.get()).map(segmentInfos -> {
-            try {
-                return new Tuple<>(
-                    snapshot,
-                    new ReplicationCheckpoint(
-                        this.shardId,
-                        getOperationPrimaryTerm(),
-                        segmentInfos.getGeneration(),
-                        shardRouting.primary() ? getEngine().getMaxSeqNoFromSegmentInfos(segmentInfos) : getProcessedLocalCheckpoint(),
-                        segmentInfos.getVersion()
-                    )
-                );
-            } catch (IOException e) {
-                throw new OpenSearchException("Error Fetching SegmentInfos and latest checkpoint", e);
-            }
-        }).orElseGet(() -> new Tuple<>(new GatedCloseable<>(null, () -> {}), ReplicationCheckpoint.empty(shardId)));
+        return Optional.ofNullable(snapshot.get()).map(segmentInfos -> new Tuple<>(
+            snapshot,
+            new ReplicationCheckpoint(
+                this.shardId,
+                getOperationPrimaryTerm(),
+                segmentInfos.getGeneration(),
+                // fetch local cp from the previous commit, current local checkpoint may be ahead already.
+                Long.parseLong(segmentInfos.userData.get(MAX_SEQ_NO)),
+                segmentInfos.getVersion()
+            )
+        )).orElseGet(() -> new Tuple<>(new GatedCloseable<>(null, () -> {}), ReplicationCheckpoint.empty(shardId)));
     }
 
     /**
