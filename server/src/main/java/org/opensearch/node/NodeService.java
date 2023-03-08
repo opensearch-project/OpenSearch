@@ -56,6 +56,7 @@ import org.opensearch.plugins.PluginsService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.AggregationUsageService;
 import org.opensearch.search.backpressure.SearchBackpressureService;
+import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -85,6 +86,7 @@ public class NodeService implements Closeable {
     private final IndexingPressureService indexingPressureService;
     private final AggregationUsageService aggregationUsageService;
     private final SearchBackpressureService searchBackpressureService;
+    private final SearchPipelineService searchPipelineService;
     private final ClusterService clusterService;
     private final Discovery discovery;
     private final NodeEnvironment nodeEnvironment;
@@ -108,7 +110,8 @@ public class NodeService implements Closeable {
         IndexingPressureService indexingPressureService,
         AggregationUsageService aggregationUsageService,
         SearchBackpressureService searchBackpressureService,
-        NodeEnvironment nodeEnvironment
+        NodeEnvironment nodeEnvironment,
+        SearchPipelineService searchPipelineService
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -127,9 +130,11 @@ public class NodeService implements Closeable {
         this.indexingPressureService = indexingPressureService;
         this.aggregationUsageService = aggregationUsageService;
         this.searchBackpressureService = searchBackpressureService;
+        this.searchPipelineService = searchPipelineService;
         this.clusterService = clusterService;
         this.nodeEnvironment = nodeEnvironment;
         clusterService.addStateApplier(ingestService);
+        clusterService.addStateApplier(searchPipelineService);
     }
 
     public NodeInfo info(
@@ -143,7 +148,8 @@ public class NodeService implements Closeable {
         boolean plugin,
         boolean ingest,
         boolean aggs,
-        boolean indices
+        boolean indices,
+        boolean searchPipelines
     ) {
         return new NodeInfo(
             Version.CURRENT,
@@ -159,7 +165,8 @@ public class NodeService implements Closeable {
             plugin ? (pluginService == null ? null : pluginService.info()) : null,
             ingest ? (ingestService == null ? null : ingestService.info()) : null,
             aggs ? (aggregationUsageService == null ? null : aggregationUsageService.info()) : null,
-            indices ? indicesService.getTotalIndexingBufferBytes() : null
+            indices ? indicesService.getTotalIndexingBufferBytes() : null,
+            searchPipelines ? (searchPipelineService == null ? null : searchPipelineService.info()) : null
         );
     }
 

@@ -115,6 +115,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private TimeValue cancelAfterTimeInterval;
 
+    private String pipeline;
+
     public SearchRequest() {
         this.localClusterAlias = null;
         this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
@@ -248,6 +250,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         ccsMinimizeRoundtrips = in.readBoolean();
         cancelAfterTimeInterval = in.readOptionalTimeValue();
+        pipeline = in.readOptionalString();
     }
 
     @Override
@@ -276,6 +279,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
         out.writeOptionalTimeValue(cancelAfterTimeInterval);
+        out.writeOptionalString(pipeline);
     }
 
     @Override
@@ -654,6 +658,15 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return cancelAfterTimeInterval;
     }
 
+    public SearchRequest pipeline(String pipeline) {
+        this.pipeline = pipeline;
+        return this;
+    }
+
+    public String pipeline() {
+        return pipeline;
+    }
+
     @Override
     public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new SearchTask(id, type, action, this::buildDescription, parentTaskId, headers, cancelAfterTimeInterval);
@@ -700,7 +713,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             && Objects.equals(localClusterAlias, that.localClusterAlias)
             && absoluteStartMillis == that.absoluteStartMillis
             && ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips
-            && Objects.equals(cancelAfterTimeInterval, that.cancelAfterTimeInterval);
+            && Objects.equals(cancelAfterTimeInterval, that.cancelAfterTimeInterval)
+            && Objects.equals(pipeline, that.pipeline);
     }
 
     @Override
@@ -762,6 +776,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             + source
             + ", cancelAfterTimeInterval="
             + cancelAfterTimeInterval
+            + ", pipeline="
+            + pipeline
             + "}";
     }
 }

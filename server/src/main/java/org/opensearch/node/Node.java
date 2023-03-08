@@ -46,8 +46,10 @@ import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.NoopExtensionsManager;
+import org.opensearch.plugins.SearchPipelinesPlugin;
 import org.opensearch.search.backpressure.SearchBackpressureService;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
+import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
@@ -541,6 +543,7 @@ public class Node implements Closeable {
                 pluginsService.filterPlugins(IngestPlugin.class),
                 client
             );
+
             final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
             final UsageService usageService = new UsageService();
@@ -950,6 +953,16 @@ public class Node implements Closeable {
                 rerouteService,
                 fsHealthService
             );
+            final SearchPipelineService searchPipelineService = new SearchPipelineService(
+                clusterService,
+                threadPool,
+                this.environment,
+                scriptService,
+                analysisModule.getAnalysisRegistry(),
+                xContentRegistry,
+                pluginsService.filterPlugins(SearchPipelinesPlugin.class),
+                client
+            );
             this.nodeService = new NodeService(
                 settings,
                 threadPool,
@@ -969,7 +982,8 @@ public class Node implements Closeable {
                 indexingPressureService,
                 searchModule.getValuesSourceRegistry().getUsageService(),
                 searchBackpressureService,
-                nodeEnvironment
+                nodeEnvironment,
+                searchPipelineService
             );
 
             final SearchService searchService = newSearchService(
@@ -1027,6 +1041,7 @@ public class Node implements Closeable {
                 b.bind(ScriptService.class).toInstance(scriptService);
                 b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                 b.bind(IngestService.class).toInstance(ingestService);
+                b.bind(SearchPipelineService.class).toInstance(searchPipelineService);
                 b.bind(IndexingPressureService.class).toInstance(indexingPressureService);
                 b.bind(TaskResourceTrackingService.class).toInstance(taskResourceTrackingService);
                 b.bind(SearchBackpressureService.class).toInstance(searchBackpressureService);

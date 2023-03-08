@@ -48,6 +48,7 @@ import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.monitor.process.ProcessInfo;
 import org.opensearch.node.ReportingService;
 import org.opensearch.search.aggregations.support.AggregationInfo;
+import org.opensearch.search.pipeline.SearchPipelinesInfo;
 import org.opensearch.threadpool.ThreadPoolInfo;
 import org.opensearch.transport.TransportInfo;
 
@@ -99,6 +100,9 @@ public class NodeInfo extends BaseNodeResponse {
         addInfoIfNonNull(PluginsAndModules.class, in.readOptionalWriteable(PluginsAndModules::new));
         addInfoIfNonNull(IngestInfo.class, in.readOptionalWriteable(IngestInfo::new));
         addInfoIfNonNull(AggregationInfo.class, in.readOptionalWriteable(AggregationInfo::new));
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) { // TODO: Change if/when we backport to 2.x
+            addInfoIfNonNull(SearchPipelinesInfo.class, in.readOptionalWriteable(SearchPipelinesInfo::new));
+        }
     }
 
     public NodeInfo(
@@ -115,7 +119,8 @@ public class NodeInfo extends BaseNodeResponse {
         @Nullable PluginsAndModules plugins,
         @Nullable IngestInfo ingest,
         @Nullable AggregationInfo aggsInfo,
-        @Nullable ByteSizeValue totalIndexingBuffer
+        @Nullable ByteSizeValue totalIndexingBuffer,
+        @Nullable SearchPipelinesInfo searchPipelinesInfo
     ) {
         super(node);
         this.version = version;
@@ -130,6 +135,7 @@ public class NodeInfo extends BaseNodeResponse {
         addInfoIfNonNull(PluginsAndModules.class, plugins);
         addInfoIfNonNull(IngestInfo.class, ingest);
         addInfoIfNonNull(AggregationInfo.class, aggsInfo);
+        addInfoIfNonNull(SearchPipelinesInfo.class, searchPipelinesInfo);
         this.totalIndexingBuffer = totalIndexingBuffer;
     }
 
@@ -218,5 +224,8 @@ public class NodeInfo extends BaseNodeResponse {
         out.writeOptionalWriteable(getInfo(PluginsAndModules.class));
         out.writeOptionalWriteable(getInfo(IngestInfo.class));
         out.writeOptionalWriteable(getInfo(AggregationInfo.class));
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) { // TODO: Change if/when we backport to 2.x
+            out.writeOptionalWriteable(getInfo(SearchPipelinesInfo.class));
+        }
     }
 }

@@ -49,6 +49,7 @@ import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.os.OsInfo;
 import org.opensearch.monitor.process.ProcessInfo;
 import org.opensearch.search.aggregations.support.AggregationInfo;
+import org.opensearch.search.pipeline.SearchPipelinesInfo;
 import org.opensearch.threadpool.ThreadPoolInfo;
 import org.opensearch.transport.TransportInfo;
 
@@ -146,6 +147,9 @@ public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements To
             }
             if (nodeInfo.getInfo(AggregationInfo.class) != null) {
                 nodeInfo.getInfo(AggregationInfo.class).toXContent(builder, params);
+            }
+            if (nodeInfo.getInfo(SearchPipelinesInfo.class) != null) {
+                nodeInfo.getInfo(SearchPipelinesInfo.class).toXContent(builder, params);
             }
 
             builder.endObject();
