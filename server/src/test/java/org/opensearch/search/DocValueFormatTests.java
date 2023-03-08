@@ -241,12 +241,12 @@ public class DocValueFormatTests extends OpenSearchTestCase {
     }
 
     public void testGeoTileParse() {
-        assertEquals(DocValueFormat.GEOTILE.format(longEncode(0, 0, 0)),"0/0/0");
-        assertEquals(DocValueFormat.GEOTILE.format(longEncode(30, 70, 15)),"15/19114/7333");
-        assertEquals(DocValueFormat.GEOTILE.format(longEncode(179.999, 89.999, 29)),"29/536869420/0");
-        assertEquals(DocValueFormat.GEOTILE.format(longEncode(-179.999, -89.999, 29)),"29/1491/536870911");
-        assertEquals(DocValueFormat.GEOTILE.format(longEncode(1, 1, 2)),"2/2/1");
-        assertEquals(DocValueFormat.GEOTILE.format(longEncode(13, 95, 1)),"1/1/0");
-        assertEquals(DocValueFormat.GEOTILE.format(longEncode(13, -95, 1)),"1/1/1");
+        assertEquals(DocValueFormat.GEOTILE.format(longEncode(0, 0, 0)), "0/0/0");
+        assertEquals(DocValueFormat.GEOTILE.format(longEncode(30, 70, 15)), "15/19114/7333");
+        assertEquals(DocValueFormat.GEOTILE.format(longEncode(179.999, 89.999, 29)), "29/536869420/0");
+        assertEquals(DocValueFormat.GEOTILE.format(longEncode(-179.999, -89.999, 29)), "29/1491/536870911");
+        assertEquals(DocValueFormat.GEOTILE.format(longEncode(1, 1, 2)), "2/2/1");
+        assertEquals(DocValueFormat.GEOTILE.format(longEncode(13, 95, 1)), "1/1/0");
+        assertEquals(DocValueFormat.GEOTILE.format(longEncode(13, -95, 1)), "1/1/1");
     }
 }
