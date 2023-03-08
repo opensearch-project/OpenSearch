@@ -43,7 +43,7 @@ import org.opensearch.common.blobstore.DeleteResult;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.io.Streams;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.snapshots.SnapshotInfo;

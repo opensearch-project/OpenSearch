@@ -32,7 +32,7 @@
 
 package org.opensearch.common.xcontent.support.filtering;
 
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 
 public class YamlFilteringGeneratorTests extends AbstractXContentFilteringTestCase {

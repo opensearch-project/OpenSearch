@@ -32,8 +32,11 @@ import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableList;
@@ -122,7 +125,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             emptyList(),
             false
         );
-        final CountDownLatch inProgressLatch = new CountDownLatch(1);
+        final CompletableFuture<RestExecuteOnExtensionResponse> inProgressFuture = new CompletableFuture<>();
         final TransportResponseHandler<RestExecuteOnExtensionResponse> restExecuteOnExtensionResponseHandler = new TransportResponseHandler<
             RestExecuteOnExtensionResponse>() {
 
@@ -143,15 +146,13 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 if (response.isContentConsumed()) {
                     request.content();
                 }
+                inProgressFuture.complete(response);
             }
 
             @Override
             public void handleException(TransportException exp) {
                 logger.debug("REST request failed", exp);
-                // Status is already defaulted to 500 (INTERNAL_SERVER_ERROR)
-                byte[] responseBytes = ("Request failed: " + exp.getMessage()).getBytes(StandardCharsets.UTF_8);
-                restExecuteOnExtensionResponse.setContent(responseBytes);
-                inProgressLatch.countDown();
+                inProgressFuture.completeExceptionally(exp);
             }
 
             @Override
@@ -172,15 +173,24 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 new ExtensionRestRequest(method, path, params, contentType, content, requestIssuerIdentity),
                 restExecuteOnExtensionResponseHandler
             );
-            try {
-                inProgressLatch.await(5, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
+            inProgressFuture.orTimeout(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
+        } catch (CompletionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof TimeoutException) {
                 return channel -> channel.sendResponse(
                     new BytesRestResponse(RestStatus.REQUEST_TIMEOUT, "No response from extension to request.")
                 );
             }
-        } catch (Exception e) {
-            logger.info("Failed to send REST Actions to extension " + discoveryExtensionNode.getName(), e);
+            if (e.getCause() instanceof RuntimeException) {
+                throw (RuntimeException) e.getCause();
+            } else if (e.getCause() instanceof Error) {
+                throw (Error) e.getCause();
+            } else {
+                throw new RuntimeException(e.getCause());
+            }
+        } catch (Exception ex) {
+            logger.info("Failed to send REST Actions to extension " + discoveryExtensionNode.getName(), ex);
+            return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.INTERNAL_SERVER_ERROR, ex.getMessage()));
         }
         BytesRestResponse restResponse = new BytesRestResponse(
             restExecuteOnExtensionResponse.getStatus(),

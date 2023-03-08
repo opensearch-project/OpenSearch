@@ -42,7 +42,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;

@@ -45,7 +45,7 @@ import com.github.mustachejava.codes.IterableCode;
 import com.github.mustachejava.codes.WriteCode;
 
 import org.opensearch.common.Strings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;

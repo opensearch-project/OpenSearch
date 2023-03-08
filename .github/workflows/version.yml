@@ -59,12 +59,12 @@ jobs:
           token: ${{ steps.github_app_token.outputs.token }}
           base: ${{ env.BASE }}
           branch: 'create-pull-request/patch-${{ env.BASE }}'
-          commit-message: Incremented version to ${{ env.NEXT_VERSION }}
+          commit-message: Increment version to ${{ env.NEXT_VERSION }}
           signoff: true
           delete-branch: true
           labels: |
             autocut
-          title: '[AUTO] Incremented version to ${{ env.NEXT_VERSION }}.'
+          title: '[AUTO] Increment version to ${{ env.NEXT_VERSION }}.'
           body: |
             I've noticed that a new tag ${{ env.TAG }} was pushed, and incremented the version from ${{ env.CURRENT_VERSION }} to ${{ env.NEXT_VERSION }}.
 
@@ -86,12 +86,12 @@ jobs:
           token: ${{ steps.github_app_token.outputs.token }}
           base: ${{ env.BASE_X }}
           branch: 'create-pull-request/patch-${{ env.BASE_X }}'
-          commit-message: Added bwc version ${{ env.NEXT_VERSION }}
+          commit-message: Add bwc version ${{ env.NEXT_VERSION }}
           signoff: true
           delete-branch: true
           labels: |
             autocut
-          title: '[AUTO] [${{ env.BASE_X }}] Added bwc version ${{ env.NEXT_VERSION }}.'
+          title: '[AUTO] [${{ env.BASE_X }}] Add bwc version ${{ env.NEXT_VERSION }}.'
           body: |
             I've noticed that a new tag ${{ env.TAG }} was pushed, and added a bwc version ${{ env.NEXT_VERSION }}.
 
@@ -113,11 +113,11 @@ jobs:
           token: ${{ steps.github_app_token.outputs.token }}
           base: main
           branch: 'create-pull-request/patch-main'
-          commit-message: Added bwc version ${{ env.NEXT_VERSION }}
+          commit-message: Add bwc version ${{ env.NEXT_VERSION }}
           signoff: true
           delete-branch: true
           labels: |
             autocut
-          title: '[AUTO] [main] Added bwc version ${{ env.NEXT_VERSION }}.'
+          title: '[AUTO] [main] Add bwc version ${{ env.NEXT_VERSION }}.'
           body: |
             I've noticed that a new tag ${{ env.TAG }} was pushed, and added a bwc version ${{ env.NEXT_VERSION }}.

@@ -36,10 +36,10 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.text.Text;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.test.OpenSearchTestCase;
@@ -53,17 +53,30 @@ public class HighlightFieldTests extends OpenSearchTestCase {
 
     public static HighlightField createTestItem() {
         String name = frequently() ? randomAlphaOfLengthBetween(5, 20) : randomRealisticUnicodeOfCodepointLengthBetween(5, 20);
+        name = replaceUnicodeControlCharacters(name);
         Text[] fragments = null;
         if (frequently()) {
             int size = randomIntBetween(0, 5);
             fragments = new Text[size];
             for (int i = 0; i < size; i++) {
-                fragments[i] = new Text(
-                    frequently() ? randomAlphaOfLengthBetween(10, 30) : randomRealisticUnicodeOfCodepointLengthBetween(10, 30)
-                );
+                String fragmentText = frequently()
+                    ? randomAlphaOfLengthBetween(10, 30)
+                    : randomRealisticUnicodeOfCodepointLengthBetween(10, 30);
+                fragmentText = replaceUnicodeControlCharacters(fragmentText);
+                fragments[i] = new Text(fragmentText);
             }
         }
         return new HighlightField(name, fragments);
+    }
+
+    public void testReplaceUnicodeControlCharacters() {
+        assertEquals("æÆ ¢¡Èýñ«Ò", replaceUnicodeControlCharacters("æÆ\u0000¢¡Èýñ«Ò"));
+        assertEquals("test_string_without_control_characters", replaceUnicodeControlCharacters("test_string_without_control_characters"));
+        assertEquals("æÆ@¢¡Èýñ«Ò", replaceUnicodeControlCharacters("æÆ\u0000¢¡Èýñ«Ò", "@"));
+        assertEquals(
+            "test_string_without_control_characters",
+            replaceUnicodeControlCharacters("test_string_without_control_characters", "@")
+        );
     }
 
     public void testFromXContent() throws IOException {

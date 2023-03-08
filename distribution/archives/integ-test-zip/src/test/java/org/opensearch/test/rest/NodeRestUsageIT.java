@@ -36,6 +36,7 @@ import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.common.Strings;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.builder.SearchSourceBuilder;
 
@@ -171,8 +172,8 @@ public class NodeRestUsageIT extends OpenSearchRestTestCase {
             .aggregation(AggregationBuilders.terms("str_terms").field("str.keyword"))
             .aggregation(AggregationBuilders.terms("num_terms").field("num"))
             .aggregation(AggregationBuilders.avg("num_avg").field("num"));
-        searchRequest.setJsonEntity(Strings.toString(searchSource));
-        searchRequest.setJsonEntity(Strings.toString(searchSource));
+        searchRequest.setJsonEntity(Strings.toString(XContentType.JSON, searchSource));
+        searchRequest.setJsonEntity(Strings.toString(XContentType.JSON, searchSource));
         client().performRequest(searchRequest);
 
         searchRequest = new Request("GET", "/test/_search");
@@ -181,8 +182,8 @@ public class NodeRestUsageIT extends OpenSearchRestTestCase {
             .aggregation(AggregationBuilders.avg("num1").field("num"))
             .aggregation(AggregationBuilders.avg("num2").field("num"))
             .aggregation(AggregationBuilders.terms("foo").field("foo.keyword"));
-        String r = Strings.toString(searchSource);
-        searchRequest.setJsonEntity(Strings.toString(searchSource));
+        String r = Strings.toString(XContentType.JSON, searchSource);
+        searchRequest.setJsonEntity(Strings.toString(XContentType.JSON, searchSource));
         client().performRequest(searchRequest);
 
         Response response = client().performRequest(new Request("GET", "_nodes/usage"));

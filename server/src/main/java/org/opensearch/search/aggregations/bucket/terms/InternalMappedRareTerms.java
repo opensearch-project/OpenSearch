@@ -38,7 +38,7 @@ import org.opensearch.common.Randomness;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.util.SetBackedScalingCuckooFilter;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.BucketOrder;

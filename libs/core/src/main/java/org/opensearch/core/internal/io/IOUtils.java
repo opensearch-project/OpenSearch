@@ -52,6 +52,8 @@ import java.util.Map;
 
 /**
  * Utilities for common I/O methods. Borrowed heavily from Lucene (org.apache.lucene.util.IOUtils).
+ *
+ * @opensearch.internal
  */
 public final class IOUtils {
 

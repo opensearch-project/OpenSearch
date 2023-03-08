@@ -37,8 +37,8 @@ import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;
@@ -151,7 +151,7 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
         CloseIndexResponse closeIndexResponse = new CloseIndexResponse(true, true, Collections.singletonList(indexResult));
         assertEquals(
             "{\"acknowledged\":true,\"shards_acknowledged\":true,\"indices\":{\"test\":{\"closed\":true}}}",
-            Strings.toString(closeIndexResponse)
+            Strings.toString(XContentType.JSON, closeIndexResponse)
         );
 
         CloseIndexResponse.ShardResult[] shards = new CloseIndexResponse.ShardResult[1];
@@ -168,7 +168,7 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
                 + "\"failures\":[{\"node\":\"nodeId\",\"shard\":0,\"index\":\"test\",\"status\":\"INTERNAL_SERVER_ERROR\","
                 + "\"reason\":{\"type\":\"action_not_found_transport_exception\","
                 + "\"reason\":\"No handler for action [test]\"}}]}}}}}",
-            Strings.toString(closeIndexResponse)
+            Strings.toString(XContentType.JSON, closeIndexResponse)
         );
     }
 

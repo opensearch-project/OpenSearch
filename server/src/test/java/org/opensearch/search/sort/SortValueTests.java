@@ -35,8 +35,9 @@ package org.opensearch.search.sort;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.time.DateFormatter;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.DateFieldMapper;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.test.AbstractNamedWriteableTestCase;
@@ -119,7 +120,7 @@ public class SortValueTests extends AbstractNamedWriteableTestCase<SortValue> {
     }
 
     public String toXContent(SortValue sortValue, DocValueFormat format) {
-        return Strings.toString(new ToXContentFragment() {
+        return Strings.toString(XContentType.JSON, new ToXContentFragment() {
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.field("test");

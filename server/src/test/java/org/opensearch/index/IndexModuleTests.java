@@ -44,8 +44,6 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.SetOnce;
-import org.apache.lucene.util.SetOnce.AlreadySetException;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -55,11 +53,14 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.SetOnce;
+import org.opensearch.common.SetOnce.AlreadySetException;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
@@ -332,7 +333,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
         try {
             module.addSettingsUpdateConsumer(booleanSetting2, atomicBoolean::set);
             fail("not registered");
-        } catch (IllegalArgumentException ex) {
+        } catch (SettingsException ex) {
 
         }
 

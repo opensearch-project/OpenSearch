@@ -60,7 +60,7 @@ import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardId;
@@ -104,6 +104,7 @@ public class FsRepositoryTests extends OpenSearchTestCase {
                 .put("location", repo)
                 .put("compress", randomBoolean())
                 .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                .put(FsRepository.BASE_PATH_SETTING.getKey(), "my_base_path")
                 .build();
 
             int numDocs = indexDocs(directory);

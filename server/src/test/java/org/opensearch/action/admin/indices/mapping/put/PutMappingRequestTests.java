@@ -45,8 +45,8 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.Index;
@@ -59,7 +59,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.opensearch.common.collect.Tuple.tuple;
-import static org.opensearch.common.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.opensearch.core.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 
@@ -113,7 +113,7 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
         mapping.endObject();
         request.source(mapping);
 
-        String actualRequestBody = Strings.toString(request);
+        String actualRequestBody = Strings.toString(XContentType.JSON, request);
         String expectedRequestBody = "{\"properties\":{\"email\":{\"type\":\"text\"}}}";
         assertEquals(expectedRequestBody, actualRequestBody);
     }
@@ -121,7 +121,7 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
     public void testToXContentWithEmptySource() throws IOException {
         PutMappingRequest request = new PutMappingRequest("foo");
 
-        String actualRequestBody = Strings.toString(request);
+        String actualRequestBody = Strings.toString(XContentType.JSON, request);
         String expectedRequestBody = "{}";
         assertEquals(expectedRequestBody, actualRequestBody);
     }

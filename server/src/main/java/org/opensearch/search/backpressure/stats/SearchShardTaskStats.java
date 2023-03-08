@@ -12,8 +12,8 @@ import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.backpressure.trackers.CpuUsageTracker;
 import org.opensearch.search.backpressure.trackers.ElapsedTimeTracker;
 import org.opensearch.search.backpressure.trackers.HeapUsageTracker;
@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Stats related to cancelled search shard tasks.
+ * Stats related to cancelled SearchShardTasks.
  */
 public class SearchShardTaskStats implements ToXContentObject, Writeable {
     private final long cancellationCount;

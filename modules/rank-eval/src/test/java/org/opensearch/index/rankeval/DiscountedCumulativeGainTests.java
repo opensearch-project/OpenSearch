@@ -36,11 +36,11 @@ import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParseException;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParseException;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.shard.ShardId;
@@ -323,10 +323,13 @@ public class DiscountedCumulativeGainTests extends OpenSearchTestCase {
                     + ",\"unrated_docs\":"
                     + unratedDocs
                     + "}}",
-                Strings.toString(detail)
+                Strings.toString(XContentType.JSON, detail)
             );
         } else {
-            assertEquals("{\"dcg\":{\"dcg\":" + dcg + ",\"unrated_docs\":" + unratedDocs + "}}", Strings.toString(detail));
+            assertEquals(
+                "{\"dcg\":{\"dcg\":" + dcg + ",\"unrated_docs\":" + unratedDocs + "}}",
+                Strings.toString(XContentType.JSON, detail)
+            );
         }
     }
 

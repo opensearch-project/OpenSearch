@@ -13,6 +13,7 @@ import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.delete.ClusterDeleteWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGetWeightedRoutingResponse;
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
+import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.snapshots.mockstore.MockRepository;
@@ -545,5 +546,136 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
             () -> client().admin().cluster().prepareDeleteWeightedRouting().setVersion(7).get()
         );
         assertEquals(RestStatus.CONFLICT, deleteException.status());
+    }
+
+    public void testClusterHealthResponseWithEnsureNodeWeighedInParam() throws Exception {
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .build();
+
+        logger.info("--> starting 3 nodes on different zones");
+        int nodeCountPerAZ = 1;
+
+        logger.info("--> starting a dedicated cluster manager node");
+        String clusterManager = internalCluster().startClusterManagerOnlyNode(Settings.builder().put(commonSettings).build());
+
+        logger.info("--> starting 2 nodes on zones 'a' & 'b' & 'c'");
+        List<String> nodes_in_zone_a = internalCluster().startDataOnlyNodes(
+            nodeCountPerAZ,
+            Settings.builder().put(commonSettings).put("node.attr.zone", "a").build()
+        );
+        List<String> nodes_in_zone_b = internalCluster().startDataOnlyNodes(
+            nodeCountPerAZ,
+            Settings.builder().put(commonSettings).put("node.attr.zone", "b").build()
+        );
+        List<String> nodes_in_zone_c = internalCluster().startDataOnlyNodes(
+            nodeCountPerAZ,
+            Settings.builder().put(commonSettings).put("node.attr.zone", "c").build()
+        );
+
+        logger.info("--> waiting for nodes to form a cluster");
+        ClusterHealthResponse health = client().admin().cluster().prepareHealth().setWaitForNodes("4").execute().actionGet();
+        assertThat(health.isTimedOut(), equalTo(false));
+
+        ensureGreen();
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
+        WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
+        ClusterPutWeightedRoutingResponse response = client().admin()
+            .cluster()
+            .prepareWeightedRouting()
+            .setWeightedRouting(weightedRouting)
+            .setVersion(-1)
+            .get();
+        assertTrue(response.isAcknowledged());
+        assertNotNull(internalCluster().clusterService().state().metadata().weightedRoutingMetadata());
+
+        // Check cluster health for weighed in node, health check should return a response with 200 status code
+        ClusterHealthResponse nodeLocalHealth = client(nodes_in_zone_a.get(0)).admin()
+            .cluster()
+            .prepareHealth()
+            .setLocal(true)
+            .setEnsureNodeWeighedIn(true)
+            .get();
+        assertFalse(nodeLocalHealth.isTimedOut());
+
+        // Check cluster health for weighed away node, health check should respond with an exception
+        NodeWeighedAwayException ex = expectThrows(
+            NodeWeighedAwayException.class,
+            () -> client(nodes_in_zone_c.get(0)).admin().cluster().prepareHealth().setLocal(true).setEnsureNodeWeighedIn(true).get()
+        );
+        assertTrue(ex.getMessage().contains("local node is weighed away"));
+
+        logger.info("--> running cluster health on an index that does not exists");
+        ClusterHealthResponse healthResponse = client(nodes_in_zone_c.get(0)).admin()
+            .cluster()
+            .prepareHealth("test1")
+            .setLocal(true)
+            .setEnsureNodeWeighedIn(true)
+            .setTimeout("1s")
+            .execute()
+            .actionGet();
+        assertThat(healthResponse.isTimedOut(), equalTo(true));
+        assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.RED));
+        assertThat(healthResponse.getIndices().isEmpty(), equalTo(true));
+
+        Set<String> nodesInOneSide = Stream.of(nodes_in_zone_a.get(0), nodes_in_zone_b.get(0), nodes_in_zone_c.get(0))
+            .collect(Collectors.toCollection(HashSet::new));
+        Set<String> nodesInOtherSide = Stream.of(clusterManager).collect(Collectors.toCollection(HashSet::new));
+
+        NetworkDisruption networkDisruption = new NetworkDisruption(
+            new NetworkDisruption.TwoPartitions(nodesInOneSide, nodesInOtherSide),
+            NetworkDisruption.DISCONNECT
+        );
+        internalCluster().setDisruptionScheme(networkDisruption);
+
+        logger.info("--> network disruption is started");
+        networkDisruption.startDisrupting();
+
+        // wait for leader checker to fail
+        Thread.sleep(13000);
+
+        // Check cluster health for weighed in node when cluster manager is not discovered, health check should
+        // return a response with 200 status code
+        nodeLocalHealth = client(nodes_in_zone_a.get(0)).admin()
+            .cluster()
+            .prepareHealth()
+            .setLocal(true)
+            .setEnsureNodeWeighedIn(true)
+            .get();
+        assertFalse(nodeLocalHealth.isTimedOut());
+        assertFalse(nodeLocalHealth.hasDiscoveredClusterManager());
+
+        // Check cluster health for weighed away node when cluster manager is not discovered, health check should
+        // return a response with 200 status code with cluster manager discovered as false
+        // ensure_node_weighed_in is not executed if cluster manager is not discovered
+        nodeLocalHealth = client(nodes_in_zone_c.get(0)).admin()
+            .cluster()
+            .prepareHealth()
+            .setLocal(true)
+            .setEnsureNodeWeighedIn(true)
+            .get();
+        assertFalse(nodeLocalHealth.isTimedOut());
+        assertFalse(nodeLocalHealth.hasDiscoveredClusterManager());
+
+        networkDisruption.stopDisrupting();
+        Thread.sleep(1000);
+
+        // delete weights
+        ClusterDeleteWeightedRoutingResponse deleteResponse = client().admin().cluster().prepareDeleteWeightedRouting().setVersion(0).get();
+        assertTrue(deleteResponse.isAcknowledged());
+
+        // Check local cluster health
+        nodeLocalHealth = client(nodes_in_zone_c.get(0)).admin()
+            .cluster()
+            .prepareHealth()
+            .setLocal(true)
+            .setEnsureNodeWeighedIn(true)
+            .get();
+        assertFalse(nodeLocalHealth.isTimedOut());
+        assertTrue(nodeLocalHealth.hasDiscoveredClusterManager());
     }
 }

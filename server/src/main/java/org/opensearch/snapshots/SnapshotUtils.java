@@ -173,7 +173,7 @@ public class SnapshotUtils {
         for (ObjectCursor<IndexMetadata> cursor : metadata.values()) {
             IndexMetadata indexMetadata = cursor.value;
             String storeType = indexMetadata.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey());
-            if (IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey().equals(storeType)) {
+            if (IndexModule.Type.REMOTE_SNAPSHOT.match(storeType)) {
                 String snapshotId = indexMetadata.getSettings().get(IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID.getKey());
                 if (uuidToSnapshotId.get(snapshotId) != null) {
                     snapshotsToBeNotDeleted.add(uuidToSnapshotId.get(snapshotId).getName());

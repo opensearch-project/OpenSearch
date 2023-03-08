@@ -33,6 +33,8 @@
 package org.opensearch.geo.search.aggregations.bucket.geogrid;
 
 import org.opensearch.common.geo.GeoBoundingBox;
+import org.opensearch.geo.search.aggregations.bucket.geogrid.cells.CellIdSource;
+import org.opensearch.geo.search.aggregations.bucket.geogrid.cells.GeoShapeCellIdSource;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -139,6 +141,43 @@ class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory {
                     precision,
                     geoBoundingBox,
                     GeoTileUtils::longEncode
+                );
+                return new GeoTileGridAggregator(
+                    name,
+                    factories,
+                    cellIdSource,
+                    requiredSize,
+                    shardSize,
+                    aggregationContext,
+                    parent,
+                    cardinality,
+                    metadata
+                );
+            },
+            true
+        );
+
+        // registers Aggregation on GeoShape
+        builder.register(
+            GeoTileGridAggregationBuilder.REGISTRY_KEY,
+            CoreValuesSourceType.GEO_SHAPE,
+            (
+                name,
+                factories,
+                valuesSource,
+                precision,
+                geoBoundingBox,
+                requiredSize,
+                shardSize,
+                aggregationContext,
+                parent,
+                cardinality,
+                metadata) -> {
+                GeoShapeCellIdSource cellIdSource = new GeoShapeCellIdSource(
+                    (ValuesSource.GeoShape) valuesSource,
+                    precision,
+                    geoBoundingBox,
+                    GeoTileUtils::encodeShape
                 );
                 return new GeoTileGridAggregator(
                     name,

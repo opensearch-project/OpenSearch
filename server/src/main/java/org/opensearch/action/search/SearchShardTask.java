@@ -36,6 +36,7 @@ import org.opensearch.common.MemoizedSupplier;
 import org.opensearch.search.fetch.ShardFetchSearchRequest;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.tasks.CancellableTask;
+import org.opensearch.tasks.SearchBackpressureTask;
 import org.opensearch.tasks.TaskId;
 
 import java.util.Map;
@@ -47,7 +48,7 @@ import java.util.function.Supplier;
  *
  * @opensearch.internal
  */
-public class SearchShardTask extends CancellableTask {
+public class SearchShardTask extends CancellableTask implements SearchBackpressureTask {
     // generating metadata in a lazy way since source can be quite big
     private final MemoizedSupplier<String> metadataSupplier;
 

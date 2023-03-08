@@ -36,13 +36,14 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Strings;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.RepositoryException;
@@ -98,6 +99,9 @@ public class FsRepository extends BlobStoreRepository {
         Property.NodeScope,
         Property.Deprecated
     );
+
+    public static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path");
+
     private final Environment environment;
 
     private ByteSizeValue chunkSize;
@@ -154,7 +158,12 @@ public class FsRepository extends BlobStoreRepository {
         } else {
             this.chunkSize = REPOSITORIES_CHUNK_SIZE_SETTING.get(environment.settings());
         }
-        this.basePath = BlobPath.cleanPath();
+        final String basePath = BASE_PATH_SETTING.get(metadata.settings());
+        if (Strings.hasLength(basePath)) {
+            this.basePath = new BlobPath().add(basePath);
+        } else {
+            this.basePath = BlobPath.cleanPath();
+        }
     }
 
     private static boolean calculateCompress(RepositoryMetadata metadata, Environment environment) {

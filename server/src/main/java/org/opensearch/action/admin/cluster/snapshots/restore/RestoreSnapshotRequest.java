@@ -43,8 +43,8 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -689,6 +689,6 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 }

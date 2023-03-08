@@ -184,7 +184,11 @@ public class WeightedRoutingServiceTests extends OpenSearchTestCase {
 
     private ClusterState setDecommissionAttribute(ClusterState clusterState, DecommissionStatus status) {
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone_A");
-        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(decommissionAttribute, status);
+        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
+            decommissionAttribute,
+            status,
+            randomAlphaOfLength(10)
+        );
         Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
         metadataBuilder.decommissionAttributeMetadata(decommissionAttributeMetadata);
         clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();

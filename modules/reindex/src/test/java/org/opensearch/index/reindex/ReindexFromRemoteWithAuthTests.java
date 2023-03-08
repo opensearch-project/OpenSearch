@@ -32,7 +32,6 @@
 
 package org.opensearch.index.reindex;
 
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.OpenSearchSecurityException;
 import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.ActionListener;
@@ -46,13 +45,14 @@ import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.http.HttpInfo;

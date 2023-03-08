@@ -37,8 +37,8 @@ import org.opensearch.client.TimedRequest;
 import org.opensearch.client.Validatable;
 import org.opensearch.client.ValidationException;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.unit.ByteSizeValue;
 
 import java.io.IOException;

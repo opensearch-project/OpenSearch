@@ -19,8 +19,6 @@ import org.opensearch.action.admin.cluster.configuration.TransportClearVotingCon
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
-import org.opensearch.cluster.ClusterStateObserver;
-import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
@@ -55,7 +53,6 @@ import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.sameInstance;
 import static org.opensearch.cluster.ClusterState.builder;
 import static org.opensearch.cluster.OpenSearchAllocationTestCase.createAllocationService;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
@@ -237,7 +234,8 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         DecommissionAttributeMetadata oldMetadata = new DecommissionAttributeMetadata(
             new DecommissionAttribute("zone", "zone-1"),
-            currentStatus
+            currentStatus,
+            randomAlphaOfLength(10)
         );
         ClusterState state = clusterService.state();
         Metadata metadata = state.metadata();
@@ -263,60 +261,6 @@ public class DecommissionControllerTests extends OpenSearchTestCase {
         ClusterState newState = clusterService.getClusterApplierService().state();
         DecommissionAttributeMetadata decommissionAttributeMetadata = newState.metadata().decommissionAttributeMetadata();
         assertEquals(decommissionAttributeMetadata.status(), newStatus);
-    }
-
-    private static class AdjustConfigurationForExclusions implements ClusterStateObserver.Listener {
-
-        final CountDownLatch doneLatch;
-
-        AdjustConfigurationForExclusions(CountDownLatch latch) {
-            this.doneLatch = latch;
-        }
-
-        @Override
-        public void onNewClusterState(ClusterState state) {
-            clusterService.getClusterManagerService().submitStateUpdateTask("reconfiguration", new ClusterStateUpdateTask() {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    assertThat(currentState, sameInstance(state));
-                    final Set<String> votingNodeIds = new HashSet<>();
-                    currentState.nodes().forEach(n -> votingNodeIds.add(n.getId()));
-                    currentState.getVotingConfigExclusions().forEach(t -> votingNodeIds.remove(t.getNodeId()));
-                    final CoordinationMetadata.VotingConfiguration votingConfiguration = new CoordinationMetadata.VotingConfiguration(
-                        votingNodeIds
-                    );
-                    return builder(currentState).metadata(
-                        Metadata.builder(currentState.metadata())
-                            .coordinationMetadata(
-                                CoordinationMetadata.builder(currentState.coordinationMetadata())
-                                    .lastAcceptedConfiguration(votingConfiguration)
-                                    .lastCommittedConfiguration(votingConfiguration)
-                                    .build()
-                            )
-                    ).build();
-                }
-
-                @Override
-                public void onFailure(String source, Exception e) {
-                    throw new AssertionError("unexpected failure", e);
-                }
-
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    doneLatch.countDown();
-                }
-            });
-        }
-
-        @Override
-        public void onClusterServiceClose() {
-            throw new AssertionError("unexpected close");
-        }
-
-        @Override
-        public void onTimeout(TimeValue timeout) {
-            throw new AssertionError("unexpected timeout");
-        }
     }
 
     private ClusterState addNodes(ClusterState clusterState, String zone, String... nodeIds) {

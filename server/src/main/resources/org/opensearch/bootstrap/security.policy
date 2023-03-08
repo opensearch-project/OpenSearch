@@ -100,9 +100,6 @@ grant {
   permission jdk.net.NetworkPermission "getOption.TCP_KEEPCOUNT";
   permission jdk.net.NetworkPermission "setOption.TCP_KEEPCOUNT";
 
-  permission java.lang.RuntimePermission "accessDeclaredMembers";
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-  
   // Allow read access to all system properties
   permission java.util.PropertyPermission "*", "read";
 

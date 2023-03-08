@@ -32,7 +32,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.search.SearchService;

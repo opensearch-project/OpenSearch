@@ -38,8 +38,8 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.inject.Binder;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -91,9 +91,15 @@ public class SettingsModule implements Module {
             registerSetting(setting);
         }
 
+        for (Map.Entry<String, List<Setting>> featureFlaggedSetting : ClusterSettings.FEATURE_FLAGGED_CLUSTER_SETTINGS.entrySet()) {
+            if (FeatureFlags.isEnabled(featureFlaggedSetting.getKey())) {
+                featureFlaggedSetting.getValue().forEach(this::registerSetting);
+            }
+        }
+
         for (Map.Entry<String, List<Setting>> featureFlaggedSetting : IndexScopedSettings.FEATURE_FLAGGED_INDEX_SETTINGS.entrySet()) {
             if (FeatureFlags.isEnabled(featureFlaggedSetting.getKey())) {
-                featureFlaggedSetting.getValue().forEach(feature -> registerSetting(feature));
+                featureFlaggedSetting.getValue().forEach(this::registerSetting);
             }
         }
 

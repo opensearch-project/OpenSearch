@@ -46,7 +46,7 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.path.PathTrie;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.internal.io.Streams;
 import org.opensearch.http.HttpServerTransport;

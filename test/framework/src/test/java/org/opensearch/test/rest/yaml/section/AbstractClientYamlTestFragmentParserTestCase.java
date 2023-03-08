@@ -32,8 +32,8 @@
 
 package org.opensearch.test.rest.yaml.section;
 
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 

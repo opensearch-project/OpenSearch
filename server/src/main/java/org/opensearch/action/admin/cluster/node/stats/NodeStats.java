@@ -36,15 +36,19 @@ import org.opensearch.Version;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.routing.WeightedRoutingStats;
+import org.opensearch.cluster.service.ClusterManagerThrottlingStats;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.discovery.DiscoveryStats;
 import org.opensearch.http.HttpStats;
 import org.opensearch.index.stats.IndexingPressureStats;
 import org.opensearch.index.stats.ShardIndexingPressureStats;
+import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.indices.NodeIndicesStats;
 import org.opensearch.indices.breaker.AllCircuitBreakerStats;
 import org.opensearch.ingest.IngestStats;
@@ -122,6 +126,15 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private SearchBackpressureStats searchBackpressureStats;
 
+    @Nullable
+    private ClusterManagerThrottlingStats clusterManagerThrottlingStats;
+
+    @Nullable
+    private WeightedRoutingStats weightedRoutingStats;
+
+    @Nullable
+    private FileCacheStats fileCacheStats;
+
     public NodeStats(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
@@ -152,6 +165,22 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             searchBackpressureStats = null;
         }
+
+        if (in.getVersion().onOrAfter(Version.V_2_6_0)) {
+            clusterManagerThrottlingStats = in.readOptionalWriteable(ClusterManagerThrottlingStats::new);
+        } else {
+            clusterManagerThrottlingStats = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_2_6_0)) {
+            weightedRoutingStats = in.readOptionalWriteable(WeightedRoutingStats::new);
+        } else {
+            weightedRoutingStats = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_3_0_0) && FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT)) {
+            fileCacheStats = in.readOptionalWriteable(FileCacheStats::new);
+        } else {
+            fileCacheStats = null;
+        }
     }
 
     public NodeStats(
@@ -173,7 +202,10 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable ScriptCacheStats scriptCacheStats,
         @Nullable IndexingPressureStats indexingPressureStats,
         @Nullable ShardIndexingPressureStats shardIndexingPressureStats,
-        @Nullable SearchBackpressureStats searchBackpressureStats
+        @Nullable SearchBackpressureStats searchBackpressureStats,
+        @Nullable ClusterManagerThrottlingStats clusterManagerThrottlingStats,
+        @Nullable WeightedRoutingStats weightedRoutingStats,
+        @Nullable FileCacheStats fileCacheStats
     ) {
         super(node);
         this.timestamp = timestamp;
@@ -194,6 +226,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.indexingPressureStats = indexingPressureStats;
         this.shardIndexingPressureStats = shardIndexingPressureStats;
         this.searchBackpressureStats = searchBackpressureStats;
+        this.clusterManagerThrottlingStats = clusterManagerThrottlingStats;
+        this.weightedRoutingStats = weightedRoutingStats;
+        this.fileCacheStats = fileCacheStats;
     }
 
     public long getTimestamp() {
@@ -308,6 +343,19 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return searchBackpressureStats;
     }
 
+    @Nullable
+    public ClusterManagerThrottlingStats getClusterManagerThrottlingStats() {
+        return clusterManagerThrottlingStats;
+    }
+
+    public WeightedRoutingStats getWeightedRoutingStats() {
+        return weightedRoutingStats;
+    }
+
+    public FileCacheStats getFileCacheStats() {
+        return fileCacheStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -335,6 +383,15 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
 
         if (out.getVersion().onOrAfter(Version.V_2_4_0)) {
             out.writeOptionalWriteable(searchBackpressureStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_6_0)) {
+            out.writeOptionalWriteable(clusterManagerThrottlingStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_6_0)) {
+            out.writeOptionalWriteable(weightedRoutingStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_0_0) && FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT)) {
+            out.writeOptionalWriteable(fileCacheStats);
         }
     }
 
@@ -411,6 +468,16 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (getSearchBackpressureStats() != null) {
             getSearchBackpressureStats().toXContent(builder, params);
         }
+        if (getClusterManagerThrottlingStats() != null) {
+            getClusterManagerThrottlingStats().toXContent(builder, params);
+        }
+        if (getWeightedRoutingStats() != null) {
+            getWeightedRoutingStats().toXContent(builder, params);
+        }
+        if (getFileCacheStats() != null && FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT)) {
+            getFileCacheStats().toXContent(builder, params);
+        }
+
         return builder;
     }
 }

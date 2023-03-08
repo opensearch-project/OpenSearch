@@ -35,7 +35,7 @@ package org.opensearch.test;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.Diffable;
 import org.opensearch.common.io.stream.Writeable.Reader;
-import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContent;
 
 import java.io.IOException;
 

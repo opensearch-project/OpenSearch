@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.cluster.storedscripts;
 
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.script.Script;
 import org.opensearch.script.StoredScriptSource;

@@ -22,9 +22,11 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NoLockFactory;
+import org.opensearch.LegacyESVersion;
+import org.opensearch.Version;
+import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.opensearch.index.store.remote.file.OnDemandBlockSnapshotIndexInput;
-import org.opensearch.index.store.remote.file.OnDemandVirtualFileSnapshotIndexInput;
 import org.opensearch.index.store.remote.utils.TransferManager;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
@@ -35,6 +37,9 @@ import org.opensearch.repositories.blobstore.BlobStoreRepository;
  * @opensearch.internal
  */
 public final class RemoteSnapshotDirectory extends Directory {
+
+    public static final Version SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION = LegacyESVersion.V_6_0_0;
+
     private static final String VIRTUAL_FILE_PREFIX = BlobStoreRepository.VIRTUAL_DATA_BLOB_PREFIX;
 
     private final Map<String, BlobStoreIndexShardSnapshot.FileInfo> fileInfoMap;
@@ -67,7 +72,7 @@ public final class RemoteSnapshotDirectory extends Directory {
         final BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfoMap.get(name);
 
         if (fileInfo.name().startsWith(VIRTUAL_FILE_PREFIX)) {
-            return new OnDemandVirtualFileSnapshotIndexInput(fileInfo, localStoreDir, transferManager);
+            return new ByteArrayIndexInput(fileInfo.physicalName(), fileInfo.metadata().hash().bytes);
         }
         return new OnDemandBlockSnapshotIndexInput(fileInfo, localStoreDir, transferManager);
     }

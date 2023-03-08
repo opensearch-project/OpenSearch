@@ -80,7 +80,6 @@ import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.SetOnce;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.opensearch.OpenSearchException;
@@ -96,6 +95,7 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.Randomness;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.Strings;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.UUIDs;
@@ -7546,6 +7546,161 @@ public class InternalEngineTests extends EngineTestCase {
         long actualLocalCheckpoint = engine.getProcessedLocalCheckpoint();
         assertEquals(expectedLocalCheckpoint, actualLocalCheckpoint);
         verify(mockCheckpointTracker, atLeastOnce()).getProcessedCheckpoint();
+        store.close();
+        engine.close();
+    }
+
+    public void testGetMaxSeqNoRefreshedWithoutRefresh() throws IOException {
+        IOUtils.close(store, engine);
+
+        final Settings.Builder settings = Settings.builder().put(defaultSettings.getSettings()).put("index.refresh_interval", "300s");
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
+
+        Store store = createStore();
+        InternalEngine engine = createEngine(indexSettings, store, createTempDir(), newMergePolicy());
+
+        int numDocs = randomIntBetween(10, 100);
+        for (int i = 0; i < numDocs; i++) {
+            engine.index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
+        }
+
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            assertEquals(NO_OPS_PERFORMED, engine.getMaxSeqNoFromSearcher(searcher));
+        }
+
+        store.close();
+        engine.close();
+    }
+
+    public void testGetMaxSeqNoRefreshed() throws IOException {
+        IOUtils.close(store, engine);
+
+        final Settings.Builder settings = Settings.builder().put(defaultSettings.getSettings()).put("index.refresh_interval", "300s");
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
+
+        Store store = createStore();
+        InternalEngine engine = createEngine(indexSettings, store, createTempDir(), newMergePolicy());
+
+        int totalNumberOfDocsRefreshed = 0;
+        for (int j = 0; j < randomIntBetween(1, 10); j++) {
+            int numDocs = randomIntBetween(10, 100);
+            for (int i = totalNumberOfDocsRefreshed; i < (totalNumberOfDocsRefreshed + numDocs); i++) {
+                engine.index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
+            }
+            // this is just to make sure that refresh post flush has the same impact.
+            if (randomBoolean()) {
+                engine.refresh("test");
+            } else {
+                engine.flush();
+            }
+            totalNumberOfDocsRefreshed += numDocs;
+        }
+        // Optionally, index more docs without refreshing. These should not be part of getMaxSeqNoRefreshed
+        if (randomBoolean()) {
+            for (int i = totalNumberOfDocsRefreshed; i < (totalNumberOfDocsRefreshed + randomIntBetween(10, 100)); i++) {
+                engine.index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
+            }
+        }
+
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            assertEquals(totalNumberOfDocsRefreshed - 1, engine.getMaxSeqNoFromSearcher(searcher));
+        }
+
+        store.close();
+        engine.close();
+    }
+
+    public void testGetMaxSeqNoFromSegmentInfos() throws IOException {
+        IOUtils.close(store, engine);
+
+        final Settings.Builder settings = Settings.builder().put(defaultSettings.getSettings()).put("index.refresh_interval", "300s");
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
+
+        Store store = createStore();
+        InternalEngine engine = createEngine(indexSettings, store, createTempDir(), newMergePolicy());
+
+        int totalNumberOfDocsRefreshed = 0;
+        for (int j = 0; j < randomIntBetween(1, 10); j++) {
+            int numDocs = randomIntBetween(10, 100);
+            for (int i = totalNumberOfDocsRefreshed; i < (totalNumberOfDocsRefreshed + numDocs); i++) {
+                engine.index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
+            }
+            // this is just to make sure that refresh post flush has the same impact.
+            if (randomBoolean()) {
+                engine.refresh("test");
+            } else {
+                engine.flush();
+            }
+            totalNumberOfDocsRefreshed += numDocs;
+        }
+        // Optionally, index more docs without refreshing. These should not be part of getMaxSeqNoRefreshed
+        if (randomBoolean()) {
+            for (int i = totalNumberOfDocsRefreshed; i < (totalNumberOfDocsRefreshed + randomIntBetween(10, 100)); i++) {
+                engine.index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
+            }
+        }
+
+        try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = engine.getSegmentInfosSnapshot()) {
+            assertEquals(totalNumberOfDocsRefreshed - 1, engine.getMaxSeqNoFromSegmentInfos(segmentInfosGatedCloseable.get()));
+        }
+
+        store.close();
+        engine.close();
+    }
+
+    public void testGetMaxSeqNoFromSegmentInfosConcurrentWrites() throws IOException, BrokenBarrierException, InterruptedException {
+        IOUtils.close(store, engine);
+
+        final Settings.Builder settings = Settings.builder().put(defaultSettings.getSettings()).put("index.refresh_interval", "300s");
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
+
+        Store store = createStore();
+        InternalEngine engine = createEngine(indexSettings, store, createTempDir(), newMergePolicy());
+
+        final int numIndexingThreads = scaledRandomIntBetween(3, 8);
+        final int numDocsPerThread = randomIntBetween(500, 1000);
+        final CyclicBarrier barrier = new CyclicBarrier(numIndexingThreads + 1);
+        final List<Thread> indexingThreads = new ArrayList<>();
+        final CountDownLatch doneLatch = new CountDownLatch(numIndexingThreads);
+        // create N indexing threads to index documents simultaneously
+        for (int threadNum = 0; threadNum < numIndexingThreads; threadNum++) {
+            final int threadIdx = threadNum;
+            Thread indexingThread = new Thread(() -> {
+                try {
+                    barrier.await(); // wait for all threads to start at the same time
+                    // index random number of docs
+                    for (int i = 0; i < numDocsPerThread; i++) {
+                        final String id = "thread" + threadIdx + "#" + i;
+                        ParsedDocument doc = testParsedDocument(id, null, testDocument(), B_1, null);
+                        engine.index(indexForDoc(doc));
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                } finally {
+                    doneLatch.countDown();
+                }
+
+            });
+            indexingThreads.add(indexingThread);
+        }
+
+        // start the indexing threads
+        for (Thread thread : indexingThreads) {
+            thread.start();
+        }
+        barrier.await(); // wait for indexing threads to all be ready to start
+        assertTrue(doneLatch.await(10, TimeUnit.SECONDS));
+
+        engine.refresh("test");
+
+        try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = engine.getSegmentInfosSnapshot()) {
+            assertEquals(numIndexingThreads * numDocsPerThread - 1, engine.getMaxSeqNoFromSegmentInfos(segmentInfosGatedCloseable.get()));
+        }
+
         store.close();
         engine.close();
     }

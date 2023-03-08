@@ -72,7 +72,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.MapperService;

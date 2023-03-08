@@ -36,12 +36,15 @@ import org.opensearch.common.xcontent.cbor.CborXContent;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.smile.SmileXContent;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.MediaTypeParser;
+import org.opensearch.core.xcontent.XContent;
 
 import java.util.Locale;
 import java.util.Map;
 
 /**
- * The content type of {@link org.opensearch.common.xcontent.XContent}.
+ * The content type of {@link XContent}.
  */
 public enum XContentType implements MediaType {
 
@@ -186,14 +189,6 @@ public enum XContentType implements MediaType {
         return index;
     }
 
-    public String mediaType() {
-        return mediaTypeWithoutParameters();
-    }
-
-    public abstract XContent xContent();
-
-    public abstract String mediaTypeWithoutParameters();
-
     @Override
     public String type() {
         return "application";
@@ -202,5 +197,14 @@ public enum XContentType implements MediaType {
     @Override
     public String format() {
         return subtype();
+    }
+
+    /** Converts from a {@link MediaType} to an explicit {@link XContentType} */
+    public static XContentType fromMediaType(MediaType mediaType) {
+        if (mediaType instanceof XContentType) {
+            return (XContentType) mediaType;
+        } else {
+            return mediaType != null ? MEDIA_TYPE_PARSER.fromMediaType(mediaType.mediaTypeWithoutParameters()) : null;
+        }
     }
 }

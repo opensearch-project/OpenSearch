@@ -20,6 +20,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.StoreFileMetadata;
@@ -51,7 +52,7 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
         super.setUp();
         final Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, "SEGMENT").put(Settings.EMPTY).build();
         primary = newStartedShard(true, settings);
-        replica = newShard(primary.shardId(), false);
+        replica = newShard(false, settings, new NRTReplicationEngineFactory());
         recoverReplica(replica, primary, true);
         replicaDiscoveryNode = replica.recoveryState().getTargetNode();
     }

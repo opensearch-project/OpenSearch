@@ -9,7 +9,7 @@
 package org.opensearch.search.backpressure.trackers;
 
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.tasks.TaskCancellation;
 import org.opensearch.tasks.Task;
 
@@ -52,7 +52,7 @@ public abstract class TaskResourceUsageTracker {
     public abstract Optional<TaskCancellation.Reason> checkAndMaybeGetCancellationReason(Task task);
 
     /**
-     * Returns the tracker's state as seen in the stats API.
+     * Returns the tracker's state for tasks as seen in the stats API.
      */
     public abstract Stats stats(List<? extends Task> activeTasks);
 

@@ -162,7 +162,7 @@ public class ClusterClientIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(exception.status(), equalTo(RestStatus.BAD_REQUEST));
         assertThat(
             exception.getMessage(),
-            equalTo("OpenSearch exception [type=illegal_argument_exception, reason=transient setting [" + setting + "], not recognized]")
+            equalTo("OpenSearch exception [type=settings_exception, reason=transient setting [" + setting + "], not recognized]")
         );
     }
 

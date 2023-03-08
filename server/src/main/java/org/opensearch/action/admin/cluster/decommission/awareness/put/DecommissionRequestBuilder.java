@@ -46,4 +46,15 @@ public class DecommissionRequestBuilder extends ClusterManagerNodeOperationReque
         request.setNoDelay(noDelay);
         return this;
     }
+
+    /**
+     * Sets request id for decommission request
+     *
+     * @param requestID for decommission request
+     * @return current object
+     */
+    public DecommissionRequestBuilder requestID(String requestID) {
+        request.setRequestID(requestID);
+        return this;
+    }
 }

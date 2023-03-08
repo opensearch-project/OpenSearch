@@ -37,8 +37,8 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.RoutingTableGenerator;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;

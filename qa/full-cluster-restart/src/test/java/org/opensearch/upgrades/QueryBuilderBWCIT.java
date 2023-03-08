@@ -34,7 +34,6 @@ package org.opensearch.upgrades;
 
 import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.common.Strings;
@@ -44,7 +43,7 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.mapper.MapperService;

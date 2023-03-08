@@ -8,8 +8,8 @@
 
 package org.opensearch.search.internal;
 
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.index.IndexService;

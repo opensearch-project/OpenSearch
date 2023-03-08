@@ -41,14 +41,15 @@ import com.fasterxml.jackson.core.json.JsonWriteContext;
 import com.fasterxml.jackson.core.util.DefaultIndenter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
 import com.fasterxml.jackson.core.util.JsonGeneratorDelegate;
-import org.opensearch.common.xcontent.DeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContent;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContent;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentGenerator;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentGenerator;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.common.xcontent.support.filtering.FilterPathBasedFilter;
+import org.opensearch.core.xcontent.filtering.FilterPathBasedFilter;
 import org.opensearch.core.internal.io.Streams;
 
 import java.io.BufferedInputStream;
@@ -345,12 +346,15 @@ public class JsonXContentGenerator implements XContentGenerator {
         writeRawField(name, content, contentType);
     }
 
+    /**
+     * Writes a raw field with the value taken from the bytes in the stream
+     */
     @Override
-    public void writeRawField(String name, InputStream content, XContentType contentType) throws IOException {
-        if (mayWriteRawData(contentType) == false) {
+    public void writeRawField(String name, InputStream content, MediaType mediaType) throws IOException {
+        if (mayWriteRawData(mediaType) == false) {
             // EMPTY is safe here because we never call namedObject when writing raw data
             try (
-                XContentParser parser = XContentFactory.xContent(contentType)
+                XContentParser parser = XContentFactory.xContent(mediaType)
                     // It's okay to pass the throwing deprecation handler
                     // because we should not be writing raw fields when
                     // generating JSON
@@ -368,10 +372,13 @@ public class JsonXContentGenerator implements XContentGenerator {
         }
     }
 
+    /**
+     * Writes the raw value to the stream
+     */
     @Override
-    public void writeRawValue(InputStream stream, XContentType xContentType) throws IOException {
-        if (mayWriteRawData(xContentType) == false) {
-            copyRawValue(stream, xContentType.xContent());
+    public void writeRawValue(InputStream stream, MediaType mediaType) throws IOException {
+        if (mayWriteRawData(mediaType) == false) {
+            copyRawValue(stream, mediaType.xContent());
         } else {
             if (generator.getOutputContext().getCurrentName() != null) {
                 // If we've just started a field we'll need to add the separator
@@ -383,7 +390,24 @@ public class JsonXContentGenerator implements XContentGenerator {
         }
     }
 
+    /**
+     * possibly copy the whole structure to correctly filter
+     *
+     * @deprecated use {@link #mayWriteRawData(MediaType)} instead
+     */
+    @Deprecated
     private boolean mayWriteRawData(XContentType contentType) {
+        // When the current generator is filtered (ie filter != null)
+        // or the content is in a different format than the current generator,
+        // we need to copy the whole structure so that it will be correctly
+        // filtered or converted
+        return supportsRawWrites() && isFiltered() == false && contentType == contentType() && prettyPrint == false;
+    }
+
+    /**
+     * possibly copy the whole structure to correctly filter
+     */
+    private boolean mayWriteRawData(MediaType contentType) {
         // When the current generator is filtered (ie filter != null)
         // or the content is in a different format than the current generator,
         // we need to copy the whole structure so that it will be correctly

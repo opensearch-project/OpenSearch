@@ -86,9 +86,9 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.iterable.Iterables;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.env.NodeEnvironment;
@@ -132,6 +132,7 @@ import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.IndexingStats;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.TranslogFactory;
@@ -753,8 +754,10 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
             }
         };
+        final FileCacheCleaner fileCacheCleaner = new FileCacheCleaner(nodeEnv);
         finalListeners.add(onStoreClose);
         finalListeners.add(oldShardsStats);
+        finalListeners.add(fileCacheCleaner);
         final IndexService indexService = createIndexService(
             CREATE_INDEX,
             indexMetadata,
@@ -911,7 +914,7 @@ public class IndicesService extends AbstractLifecycleComponent
             if (idxSettings.isSegRepEnabled()) {
                 return new NRTReplicationEngineFactory();
             }
-            if (IndexModule.Type.REMOTE_SNAPSHOT.match(idxSettings)) {
+            if (idxSettings.isRemoteSnapshot()) {
                 return config -> new ReadOnlyEngine(config, new SeqNoStats(0, 0, 0), new TranslogStats(), true, Function.identity(), false);
             }
             return new InternalEngineFactory();

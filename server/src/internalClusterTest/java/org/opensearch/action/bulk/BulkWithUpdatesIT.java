@@ -741,13 +741,17 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
 
         final BulkItemResponse noopUpdate = bulkResponse.getItems()[0];
         assertThat(noopUpdate.getResponse().getResult(), equalTo(DocWriteResponse.Result.NOOP));
-        assertThat(Strings.toString(noopUpdate), noopUpdate.getResponse().getShardInfo().getSuccessful(), equalTo(2));
+        assertThat(Strings.toString(XContentType.JSON, noopUpdate), noopUpdate.getResponse().getShardInfo().getSuccessful(), equalTo(2));
 
         final BulkItemResponse notFoundUpdate = bulkResponse.getItems()[1];
         assertNotNull(notFoundUpdate.getFailure());
 
         final BulkItemResponse notFoundDelete = bulkResponse.getItems()[2];
         assertThat(notFoundDelete.getResponse().getResult(), equalTo(DocWriteResponse.Result.NOT_FOUND));
-        assertThat(Strings.toString(notFoundDelete), notFoundDelete.getResponse().getShardInfo().getSuccessful(), equalTo(2));
+        assertThat(
+            Strings.toString(XContentType.JSON, notFoundDelete),
+            notFoundDelete.getResponse().getShardInfo().getSuccessful(),
+            equalTo(2)
+        );
     }
 }

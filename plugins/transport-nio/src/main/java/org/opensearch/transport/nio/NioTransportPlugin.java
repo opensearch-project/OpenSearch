@@ -34,8 +34,8 @@ package org.opensearch.transport.nio;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.Version;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
@@ -44,7 +44,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.nio.NioHttpServerTransport;
 import org.opensearch.indices.breaker.CircuitBreakerService;

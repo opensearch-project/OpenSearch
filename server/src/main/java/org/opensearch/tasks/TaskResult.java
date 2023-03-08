@@ -34,19 +34,20 @@ package org.opensearch.tasks;
 import org.opensearch.OpenSearchException;
 import org.opensearch.client.Requests;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.InstantiatingObjectParser;
+import org.opensearch.core.xcontent.InstantiatingObjectParser;
 import org.opensearch.common.xcontent.ObjectParserHelper;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -54,8 +55,8 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Objects.requireNonNull;
-import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.opensearch.common.xcontent.XContentHelper.convertToMap;
 
 /**
@@ -207,7 +208,7 @@ public final class TaskResult implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
     // Implements equals and hashcode for testing

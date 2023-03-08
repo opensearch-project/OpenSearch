@@ -34,12 +34,11 @@ package org.opensearch.geo.search.aggregations.bucket.geogrid;
 
 import org.opensearch.common.geo.GeoBoundingBox;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;
-import org.opensearch.geo.search.aggregations.metrics.GeoGridAggregatorSupplier;
 import org.opensearch.search.aggregations.bucket.GeoTileUtils;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;

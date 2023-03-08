@@ -48,6 +48,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.MapperParsingException;
@@ -494,8 +495,8 @@ public class SimpleIndexTemplateIT extends OpenSearchIntegTestCase {
         GetIndexTemplatesResponse response = client().admin().indices().prepareGetTemplates().get();
         assertThat(response.getIndexTemplates(), empty());
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
+        SettingsException e = expectThrows(
+            SettingsException.class,
             () -> client().admin()
                 .indices()
                 .preparePutTemplate("template_1")

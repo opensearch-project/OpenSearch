@@ -21,6 +21,10 @@ public class ExtensionsSettings {
 
     private List<Extension> extensions;
 
+    public ExtensionsSettings(List<Extension> extensions) {
+        this.extensions = extensions;
+    }
+
     public ExtensionsSettings() {
         extensions = new ArrayList<Extension>();
     }
@@ -34,31 +38,41 @@ public class ExtensionsSettings {
 
         private String name;
         private String uniqueId;
-        private String hostName;
         private String hostAddress;
         private String port;
         private String version;
-        private String description;
         private String opensearchVersion;
-        private String jvmVersion;
-        private String className;
-        private String customFolderName;
-        private String hasNativeController;
+        private String minimumCompatibleVersion;
         private List<ExtensionDependency> dependencies = Collections.emptyList();
+
+        public Extension(
+            String name,
+            String uniqueId,
+            String hostAddress,
+            String port,
+            String version,
+            String opensearchVersion,
+            String minimumCompatibleVersion,
+            List<ExtensionDependency> dependencies
+        ) {
+            this.name = name;
+            this.uniqueId = uniqueId;
+            this.hostAddress = hostAddress;
+            this.port = port;
+            this.version = version;
+            this.opensearchVersion = opensearchVersion;
+            this.minimumCompatibleVersion = minimumCompatibleVersion;
+            this.dependencies = dependencies;
+        }
 
         public Extension() {
             name = "";
             uniqueId = "";
-            hostName = "";
             hostAddress = "";
             port = "";
             version = "";
-            description = "";
             opensearchVersion = "";
-            jvmVersion = "";
-            className = "";
-            customFolderName = "";
-            hasNativeController = "false";
+            minimumCompatibleVersion = "";
         }
 
         public String getName() {
@@ -75,14 +89,6 @@ public class ExtensionsSettings {
 
         public void setUniqueId(String uniqueId) {
             this.uniqueId = uniqueId;
-        }
-
-        public String getHostName() {
-            return hostName;
-        }
-
-        public void setHostName(String hostName) {
-            this.hostName = hostName;
         }
 
         public String getHostAddress() {
@@ -109,43 +115,6 @@ public class ExtensionsSettings {
             this.version = version;
         }
 
-        @Override
-        public String toString() {
-            return "Extension [className="
-                + className
-                + ", customFolderName="
-                + customFolderName
-                + ", description="
-                + description
-                + ", hasNativeController="
-                + hasNativeController
-                + ", hostAddress="
-                + hostAddress
-                + ", hostName="
-                + hostName
-                + ", jvmVersion="
-                + jvmVersion
-                + ", name="
-                + name
-                + ", opensearchVersion="
-                + opensearchVersion
-                + ", port="
-                + port
-                + ", uniqueId="
-                + uniqueId
-                + ", version="
-                + version
-                + "]";
-        }
-
-        public String getDescription() {
-            return description;
-        }
-
-        public void setDescription(String description) {
-            this.description = description;
-        }
-
         public String getOpensearchVersion() {
             return opensearchVersion;
         }
@@ -154,40 +123,35 @@ public class ExtensionsSettings {
             this.opensearchVersion = opensearchVersion;
         }
 
-        public String getJavaVersion() {
-            return jvmVersion;
-        }
-
-        public void setJavaVersion(String jvmVersion) {
-            this.jvmVersion = jvmVersion;
-        }
-
-        public String getClassName() {
-            return className;
-        }
-
-        public void setClassName(String className) {
-            this.className = className;
-        }
-
-        public String getCustomFolderName() {
-            return customFolderName;
-        }
-
-        public void setCustomFolderName(String customFolderName) {
-            this.customFolderName = customFolderName;
-        }
-
-        public String hasNativeController() {
-            return hasNativeController;
-        }
-
-        public void setHasNativeController(String hasNativeController) {
-            this.hasNativeController = hasNativeController;
-        }
-
         public List<ExtensionDependency> getDependencies() {
             return dependencies;
+        }
+
+        public String getMinimumCompatibleVersion() {
+            return minimumCompatibleVersion;
+        }
+
+        public void setMinimumCompatibleVersion(String minimumCompatibleVersion) {
+            this.minimumCompatibleVersion = minimumCompatibleVersion;
+        }
+
+        @Override
+        public String toString() {
+            return "Extension [name="
+                + name
+                + ", uniqueId="
+                + uniqueId
+                + ", hostAddress="
+                + hostAddress
+                + ", port="
+                + port
+                + ", version="
+                + version
+                + ", opensearchVersion="
+                + opensearchVersion
+                + ", minimumCompatibleVersion="
+                + minimumCompatibleVersion
+                + "]";
         }
 
     }

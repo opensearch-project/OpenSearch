@@ -32,9 +32,10 @@ public class DecommissionHelper {
 
     static ClusterState registerDecommissionAttributeInClusterState(
         ClusterState currentState,
-        DecommissionAttribute decommissionAttribute
+        DecommissionAttribute decommissionAttribute,
+        String requestID
     ) {
-        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(decommissionAttribute);
+        DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(decommissionAttribute, requestID);
         return ClusterState.builder(currentState)
             .metadata(Metadata.builder(currentState.metadata()).decommissionAttributeMetadata(decommissionAttributeMetadata))
             .build();

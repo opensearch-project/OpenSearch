@@ -61,6 +61,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -100,6 +101,7 @@ public final class EngineConfig {
     private final LongSupplier globalCheckpointSupplier;
     private final Supplier<RetentionLeases> retentionLeasesSupplier;
     private final boolean isReadOnlyReplica;
+    private final BooleanSupplier primaryModeSupplier;
 
     /**
      * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
@@ -200,6 +202,7 @@ public final class EngineConfig {
         this.primaryTermSupplier = builder.primaryTermSupplier;
         this.tombstoneDocSupplier = builder.tombstoneDocSupplier;
         this.isReadOnlyReplica = builder.isReadOnlyReplica;
+        this.primaryModeSupplier = builder.primaryModeSupplier;
         this.translogFactory = builder.translogFactory;
     }
 
@@ -406,6 +409,14 @@ public final class EngineConfig {
     }
 
     /**
+     * Returns the underlying primaryModeSupplier.
+     * @return the primary mode supplier.
+     */
+    public BooleanSupplier getPrimaryModeSupplier() {
+        return primaryModeSupplier;
+    }
+
+    /**
      * Returns the underlying translog factory
      * @return the translog factory
      */
@@ -470,6 +481,7 @@ public final class EngineConfig {
         private TombstoneDocSupplier tombstoneDocSupplier;
         private TranslogDeletionPolicyFactory translogDeletionPolicyFactory;
         private boolean isReadOnlyReplica;
+        private BooleanSupplier primaryModeSupplier;
         private TranslogFactory translogFactory = new InternalTranslogFactory();
 
         public Builder shardId(ShardId shardId) {
@@ -589,6 +601,11 @@ public final class EngineConfig {
 
         public Builder readOnlyReplica(boolean isReadOnlyReplica) {
             this.isReadOnlyReplica = isReadOnlyReplica;
+            return this;
+        }
+
+        public Builder primaryModeSupplier(BooleanSupplier primaryModeSupplier) {
+            this.primaryModeSupplier = primaryModeSupplier;
             return this;
         }
 

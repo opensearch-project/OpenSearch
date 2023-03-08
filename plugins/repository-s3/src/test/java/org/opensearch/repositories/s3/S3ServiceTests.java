@@ -38,10 +38,10 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Map;
 
-public class S3ServiceTests extends OpenSearchTestCase {
+public class S3ServiceTests extends OpenSearchTestCase implements ConfigPathSupport {
 
     public void testCachedClientsAreReleased() {
-        final S3Service s3Service = new S3Service();
+        final S3Service s3Service = new S3Service(configPath());
         final Settings settings = Settings.builder().put("endpoint", "http://first").build();
         final RepositoryMetadata metadata1 = new RepositoryMetadata("first", "s3", settings);
         final RepositoryMetadata metadata2 = new RepositoryMetadata("second", "s3", settings);
@@ -63,9 +63,10 @@ public class S3ServiceTests extends OpenSearchTestCase {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("s3.client.default.role_arn", "role");
         final Map<String, S3ClientSettings> defaults = S3ClientSettings.load(
-            Settings.builder().setSecureSettings(secureSettings).put("s3.client.default.identity_token_file", "file").build()
+            Settings.builder().setSecureSettings(secureSettings).put("s3.client.default.identity_token_file", "file").build(),
+            configPath()
         );
-        final S3Service s3Service = new S3Service();
+        final S3Service s3Service = new S3Service(configPath());
         s3Service.refreshAndClearCache(defaults);
         final Settings settings = Settings.builder().put("endpoint", "http://first").put("region", "us-east-2").build();
         final RepositoryMetadata metadata1 = new RepositoryMetadata("first", "s3", settings);

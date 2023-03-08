@@ -34,7 +34,6 @@ package org.opensearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
@@ -46,6 +45,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.routing.FailAwareWeightedRouting;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.AbstractRunnable;

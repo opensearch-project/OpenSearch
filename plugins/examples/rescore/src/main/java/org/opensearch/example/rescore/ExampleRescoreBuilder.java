@@ -38,12 +38,12 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.LeafFieldData;
 import org.opensearch.index.fielddata.LeafNumericFieldData;
@@ -60,8 +60,8 @@ import java.util.Iterator;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
-import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Example rescorer that multiplies the score of the hit by some factor and doesn't resort them.

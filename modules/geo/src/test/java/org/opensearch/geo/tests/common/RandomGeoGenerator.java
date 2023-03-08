@@ -64,7 +64,7 @@ public class RandomGeoGenerator {
     }
 
     /** Puts latitude in range of -90 to 90. */
-    private static double normalizeLatitude(double latitude) {
+    public static double normalizeLatitude(double latitude) {
         if (latitude >= -90 && latitude <= 90) {
             return latitude; // common case, and avoids slight double precision shifting
         }
@@ -73,7 +73,7 @@ public class RandomGeoGenerator {
     }
 
     /** Puts longitude in range of -180 to +180. */
-    private static double normalizeLongitude(double longitude) {
+    public static double normalizeLongitude(double longitude) {
         if (longitude >= -180 && longitude <= 180) {
             return longitude; // common case, and avoids slight double precision shifting
         }

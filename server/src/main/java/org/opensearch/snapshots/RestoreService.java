@@ -120,7 +120,9 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SH
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_UPGRADED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
 import static org.opensearch.common.util.set.Sets.newHashSet;
+import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
 import static org.opensearch.snapshots.SnapshotUtils.filterIndices;
 
 /**
@@ -431,9 +433,7 @@ public class RestoreService implements ClusterStateApplier {
                             // We have some indices to restore
                             ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shardsBuilder = ImmutableOpenMap
                                 .builder();
-                            final Version minIndexCompatibilityVersion = currentState.getNodes()
-                                .getMaxNodeVersion()
-                                .minimumIndexCompatibilityVersion();
+
                             for (Map.Entry<String, String> indexEntry : indices.entrySet()) {
                                 String renamedIndexName = indexEntry.getKey();
                                 String index = indexEntry.getValue();
@@ -445,7 +445,7 @@ public class RestoreService implements ClusterStateApplier {
                                     request.ignoreIndexSettings()
                                 );
                                 final boolean isSearchableSnapshot = FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT)
-                                    && IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey().equals(request.storageType().toString());
+                                    && IndexModule.Type.REMOTE_SNAPSHOT.match(request.storageType().toString());
                                 if (isSearchableSnapshot) {
                                     snapshotIndexMetadata = addSnapshotToIndexSettings(
                                         snapshotIndexMetadata,
@@ -460,6 +460,15 @@ public class RestoreService implements ClusterStateApplier {
                                     repositoryData.resolveIndexId(index),
                                     isSearchableSnapshot
                                 );
+                                final Version minIndexCompatibilityVersion;
+                                if (isSearchableSnapshot && isSearchableSnapshotsExtendedCompatibilityEnabled()) {
+                                    minIndexCompatibilityVersion = SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION
+                                        .minimumIndexCompatibilityVersion();
+                                } else {
+                                    minIndexCompatibilityVersion = currentState.getNodes()
+                                        .getMaxNodeVersion()
+                                        .minimumIndexCompatibilityVersion();
+                                }
                                 try {
                                     snapshotIndexMetadata = metadataIndexUpgradeService.upgradeIndexMetadata(
                                         snapshotIndexMetadata,
@@ -1237,5 +1246,10 @@ public class RestoreService implements ClusterStateApplier {
             .put(metadata.getSettings())
             .build();
         return IndexMetadata.builder(metadata).settings(newSettings).build();
+    }
+
+    private static boolean isSearchableSnapshotsExtendedCompatibilityEnabled() {
+        return org.opensearch.Version.CURRENT.after(org.opensearch.Version.V_2_4_0)
+            && FeatureFlags.isEnabled(SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY);
     }
 }

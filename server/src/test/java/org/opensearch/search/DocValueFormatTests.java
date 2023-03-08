@@ -76,6 +76,7 @@ public class DocValueFormatTests extends OpenSearchTestCase {
         DocValueFormat vf = in.readNamedWriteable(DocValueFormat.class);
         assertEquals(DocValueFormat.Decimal.class, vf.getClass());
         assertEquals("###.##", ((DocValueFormat.Decimal) vf).pattern);
+        assertEquals(decimalFormat, vf);
 
         DateFormatter formatter = DateFormatter.forPattern("epoch_second");
         DocValueFormat.DateTime dateFormat = new DocValueFormat.DateTime(formatter, ZoneOffset.ofHours(1), Resolution.MILLISECONDS);
@@ -87,6 +88,7 @@ public class DocValueFormatTests extends OpenSearchTestCase {
         assertEquals("epoch_second", ((DocValueFormat.DateTime) vf).formatter.pattern());
         assertEquals(ZoneOffset.ofHours(1), ((DocValueFormat.DateTime) vf).timeZone);
         assertEquals(Resolution.MILLISECONDS, ((DocValueFormat.DateTime) vf).resolution);
+        assertEquals(dateFormat, vf);
 
         DocValueFormat.DateTime nanosDateFormat = new DocValueFormat.DateTime(formatter, ZoneOffset.ofHours(1), Resolution.NANOSECONDS);
         out = new BytesStreamOutput();
@@ -97,6 +99,7 @@ public class DocValueFormatTests extends OpenSearchTestCase {
         assertEquals("epoch_second", ((DocValueFormat.DateTime) vf).formatter.pattern());
         assertEquals(ZoneOffset.ofHours(1), ((DocValueFormat.DateTime) vf).timeZone);
         assertEquals(Resolution.NANOSECONDS, ((DocValueFormat.DateTime) vf).resolution);
+        assertEquals(nanosDateFormat, vf);
 
         out = new BytesStreamOutput();
         out.writeNamedWriteable(DocValueFormat.GEOHASH);

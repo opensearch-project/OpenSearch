@@ -37,7 +37,7 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.plugins.Plugin;

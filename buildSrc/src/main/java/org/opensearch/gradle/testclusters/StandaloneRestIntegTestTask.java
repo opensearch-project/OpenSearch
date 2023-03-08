@@ -39,6 +39,7 @@ import org.opensearch.gradle.util.GradleUtils;
 import org.gradle.api.Task;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.internal.BuildServiceRegistryInternal;
+import org.gradle.api.services.internal.BuildServiceProvider;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
@@ -123,7 +124,7 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
             serviceRegistry,
             TestClustersPlugin.THROTTLE_SERVICE_NAME
         );
-        SharedResource resource = serviceRegistry.forService(throttleProvider);
+        final SharedResource resource = getSharedResource(serviceRegistry, throttleProvider);
 
         int nodeCount = clusters.stream().mapToInt(cluster -> cluster.getNodes().size()).sum();
         if (nodeCount > 0) {
@@ -131,6 +132,37 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
         }
 
         return Collections.unmodifiableList(locks);
+    }
+
+    private SharedResource getSharedResource(
+        BuildServiceRegistryInternal serviceRegistry,
+        Provider<TestClustersThrottle> throttleProvider
+    ) {
+        try {
+            try {
+                // The forService(Provider) is used by Gradle pre-8.0
+                return (SharedResource) MethodHandles.publicLookup()
+                    .findVirtual(
+                        BuildServiceRegistryInternal.class,
+                        "forService",
+                        MethodType.methodType(SharedResource.class, Provider.class)
+                    )
+                    .bindTo(serviceRegistry)
+                    .invokeExact(throttleProvider);
+            } catch (NoSuchMethodException | IllegalAccessException ex) {
+                // The forService(BuildServiceProvider) is used by Gradle post-8.0
+                return (SharedResource) MethodHandles.publicLookup()
+                    .findVirtual(
+                        BuildServiceRegistryInternal.class,
+                        "forService",
+                        MethodType.methodType(SharedResource.class, BuildServiceProvider.class)
+                    )
+                    .bindTo(serviceRegistry)
+                    .invokeExact((BuildServiceProvider<TestClustersThrottle, ?>) throttleProvider);
+            }
+        } catch (Throwable ex) {
+            throw new IllegalStateException("Unable to find suitable BuildServiceRegistryInternal::forService", ex);
+        }
     }
 
     private ResourceLock getResourceLock(SharedResource resource, int nUsages) {

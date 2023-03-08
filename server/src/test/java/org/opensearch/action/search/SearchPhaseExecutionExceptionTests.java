@@ -39,10 +39,10 @@ import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContent;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContent;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.index.shard.ShardId;
@@ -111,7 +111,7 @@ public class SearchPhaseExecutionExceptionTests extends OpenSearchTestCase {
                 + "  ]"
                 + "}"
         );
-        assertEquals(expectedJson, Strings.toString(exception));
+        assertEquals(expectedJson, Strings.toString(XContentType.JSON, exception));
     }
 
     public void testToAndFromXContent() throws IOException {
@@ -134,7 +134,7 @@ public class SearchPhaseExecutionExceptionTests extends OpenSearchTestCase {
         final String phase = randomFrom("query", "search", "other");
         SearchPhaseExecutionException actual = new SearchPhaseExecutionException(phase, "unexpected failures", shardSearchFailures);
 
-        BytesReference exceptionBytes = toShuffledXContent(actual, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
+        BytesReference exceptionBytes = toShuffledXContent(actual, xContent.mediaType(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         OpenSearchException parsedException;
         try (XContentParser parser = createParser(xContent, exceptionBytes)) {

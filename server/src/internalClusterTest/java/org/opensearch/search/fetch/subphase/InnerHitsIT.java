@@ -39,7 +39,7 @@ import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.InnerHitBuilder;

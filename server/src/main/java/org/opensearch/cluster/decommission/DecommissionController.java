@@ -175,7 +175,8 @@ public class DecommissionController {
                 decommissionAttributeMetadata.validateNewStatus(decommissionStatus);
                 decommissionAttributeMetadata = new DecommissionAttributeMetadata(
                     decommissionAttributeMetadata.decommissionAttribute(),
-                    decommissionStatus
+                    decommissionStatus,
+                    decommissionAttributeMetadata.requestID()
                 );
                 ClusterState newState = ClusterState.builder(currentState)
                     .metadata(Metadata.builder(currentState.metadata()).decommissionAttributeMetadata(decommissionAttributeMetadata))
