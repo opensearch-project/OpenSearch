@@ -232,12 +232,12 @@ public class DocValueFormatTests extends OpenSearchTestCase {
     }
 
     public void testLongParse(){
-        assertEquals(DocValueFormat.RAW.format(0),0L);
-        assertEquals( DocValueFormat.RAW.format(-1),-1L);
-        assertEquals( DocValueFormat.RAW.format(1),1L);
-        assertEquals(DocValueFormat.RAW.format(0d),0d);
-        assertEquals(DocValueFormat.RAW.format(9.5d),9.5d);
-        assertEquals( DocValueFormat.RAW.format(-1d),-1d);
+        assertEquals(DocValueFormat.RAW.format(0), 0L);
+        assertEquals( DocValueFormat.RAW.format(-1), -1L);
+        assertEquals( DocValueFormat.RAW.format(1), 1L);
+        assertEquals(DocValueFormat.RAW.format(0d), 0d);
+        assertEquals(DocValueFormat.RAW.format(9.5d), 9.5d);
+        assertEquals( DocValueFormat.RAW.format(-1d), -1d);
     }
 
     public void testGeoTileParse() {
