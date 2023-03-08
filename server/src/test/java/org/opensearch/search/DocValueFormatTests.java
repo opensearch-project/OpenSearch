@@ -231,13 +231,13 @@ public class DocValueFormatTests extends OpenSearchTestCase {
         assertEquals(0.8598023539251286d, parser.parseDouble("0.8598023539251286", true, null), 0.0d);
     }
 
-    public void testLongParse(){
+    public void testLongParse() {
         assertEquals(DocValueFormat.RAW.format(0), 0L);
-        assertEquals( DocValueFormat.RAW.format(-1), -1L);
-        assertEquals( DocValueFormat.RAW.format(1), 1L);
+        assertEquals(DocValueFormat.RAW.format(-1), -1L);
+        assertEquals(DocValueFormat.RAW.format(1), 1L);
         assertEquals(DocValueFormat.RAW.format(0d), 0d);
         assertEquals(DocValueFormat.RAW.format(9.5d), 9.5d);
-        assertEquals( DocValueFormat.RAW.format(-1d), -1d);
+        assertEquals(DocValueFormat.RAW.format(-1d), -1d);
     }
 
     public void testGeoTileParse() {
