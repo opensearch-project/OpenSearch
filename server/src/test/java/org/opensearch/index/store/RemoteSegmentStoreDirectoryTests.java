@@ -162,7 +162,7 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
      * Prepares metadata file bytes with header and footer
      * @param segmentFilesMap: actual metadata content
      * @return ByteArrayIndexInput: metadata file bytes with header and footer
-     * @throws IOException
+     * @throws IOException IOException
      */
     private ByteArrayIndexInput createMetadataFileBytes(Map<String, String> segmentFilesMap) throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();
