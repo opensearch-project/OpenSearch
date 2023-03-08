@@ -1260,7 +1260,9 @@ public class Setting<T> implements ToXContentObject {
             this.pattern = Pattern.compile(regex);
         }
 
-        // A regular expression containing the only valid input for this setting.
+        /**
+         * A regular expression containing the only valid input for this setting.
+         */
         public RegexValidator(StreamInput in) throws IOException {
             this.pattern = Pattern.compile(in.readString());
         }
