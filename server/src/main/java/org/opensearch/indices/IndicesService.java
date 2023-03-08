@@ -291,6 +291,8 @@ public class IndicesService extends AbstractLifecycleComponent
     private final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
 
+    private final FileCacheCleaner fileCacheCleaner;
+
     @Override
     protected void doStart() {
         // Start thread that will manage cleaning the field data cache periodically
@@ -319,7 +321,8 @@ public class IndicesService extends AbstractLifecycleComponent
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        FileCacheCleaner fileCacheCleaner
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -366,6 +369,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
         this.directoryFactories = directoryFactories;
         this.recoveryStateFactories = recoveryStateFactories;
+        this.fileCacheCleaner = fileCacheCleaner;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -434,7 +438,8 @@ public class IndicesService extends AbstractLifecycleComponent
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        FileCacheCleaner fileCacheCleaner
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -481,6 +486,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
         this.directoryFactories = directoryFactories;
         this.recoveryStateFactories = recoveryStateFactories;
+        this.fileCacheCleaner = fileCacheCleaner;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -768,7 +774,6 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
             }
         };
-        final FileCacheCleaner fileCacheCleaner = new FileCacheCleaner(nodeEnv);
         finalListeners.add(onStoreClose);
         finalListeners.add(oldShardsStats);
         finalListeners.add(fileCacheCleaner);

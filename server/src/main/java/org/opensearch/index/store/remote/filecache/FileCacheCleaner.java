@@ -39,9 +39,9 @@ public class FileCacheCleaner implements IndexEventListener {
     private final NodeEnvironment nodeEnvironment;
     private final FileCache fileCache;
 
-    public FileCacheCleaner(NodeEnvironment nodeEnvironment) {
+    public FileCacheCleaner(NodeEnvironment nodeEnvironment, FileCache fileCache) {
         this.nodeEnvironment = nodeEnvironment;
-        this.fileCache = nodeEnvironment.fileCache();
+        this.fileCache = fileCache;
     }
 
     /**
