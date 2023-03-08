@@ -337,10 +337,10 @@ public class SettingTests extends OpenSearchTestCase {
 
         // Test that validate() throws an exception for invalid input
         final RegexValidator finalValidator = new RegexValidator(expectedRegex);
-        assertThrows(IllegalArgumentException.class, () -> finalValidator.validate("\\d+"));
+        assertThrows(IllegalArgumentException.class, () -> finalValidator.validate("foo"));
 
         try {
-            regexValidator.validate("\\d+");
+            regexValidator.validate("123");
         } catch (IllegalArgumentException e) {
             fail("Expected validate() to not throw an exception, but it threw " + e);
         }
@@ -354,11 +354,11 @@ public class SettingTests extends OpenSearchTestCase {
 
                 // Test that validate() throws an exception for invalid input
                 final RegexValidator newFinalValidator = new RegexValidator(expectedRegex);
-                assertThrows(IllegalArgumentException.class, () -> newFinalValidator.validate("\\d+"));
+                assertThrows(IllegalArgumentException.class, () -> newFinalValidator.validate("foo"));
 
                 // Test that validate() does not throw an exception for valid input
                 try {
-                    regexValidator.validate("\\d+");
+                    regexValidator.validate("123");
                 } catch (IllegalArgumentException e) {
                     fail("Expected validate() to not throw an exception, but it threw " + e);
                 }

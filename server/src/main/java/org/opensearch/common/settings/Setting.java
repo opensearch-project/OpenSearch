@@ -1260,6 +1260,7 @@ public class Setting<T> implements ToXContentObject {
             this.pattern = Pattern.compile(regex);
         }
 
+        // A regular expression containing the only valid input for this setting.
         public RegexValidator(StreamInput in) throws IOException {
             this.pattern = Pattern.compile(in.readString());
         }
@@ -1271,9 +1272,7 @@ public class Setting<T> implements ToXContentObject {
         @Override
         public void validate(String value) {
             if (!pattern.matcher(value).matches()) {
-                throw new IllegalArgumentException(
-                    "Setting must be valid [" + value + "],Custom setting matches regex [" + pattern.pattern() + "]"
-                );
+                throw new IllegalArgumentException("Setting [" + value + "] does not match regex [" + pattern.pattern() + "]");
             }
         }
 
