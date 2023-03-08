@@ -239,7 +239,6 @@ public class DocValueFormatTests extends OpenSearchTestCase {
         assertEquals(DocValueFormat.RAW.format(0d),0d);
         assertEquals(DocValueFormat.RAW.format(9.5d),9.5d);
         assertEquals( DocValueFormat.RAW.format(-1d),-1d);
-
     }
 
     public void testGeoTileParse() {
