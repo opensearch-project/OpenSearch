@@ -184,15 +184,19 @@ public class SegmentReplicationTarget extends ReplicationTarget {
          * IllegalStateException to fail the shard
          */
         if (diff.different.isEmpty() == false) {
-            getFilesListener.onFailure(
-                new IllegalStateException(
-                    new ParameterizedMessage(
-                        "Shard {} has local copies of segments that differ from the primary {}",
-                        indexShard.shardId(),
-                        diff.different
-                    ).getFormattedMessage()
-                )
+            IllegalStateException illegalStateException = new IllegalStateException(
+                new ParameterizedMessage(
+                    "Shard {} has local copies of segments that differ from the primary {}",
+                    indexShard.shardId(),
+                    diff.different
+                ).getFormattedMessage()
             );
+            ReplicationFailedException rfe = new ReplicationFailedException(
+                indexShard.shardId(),
+                "replication failure due to different segment files",
+                illegalStateException
+            );
+            fail(rfe, true);
         }
 
         for (StoreFileMetadata file : diff.missing) {
