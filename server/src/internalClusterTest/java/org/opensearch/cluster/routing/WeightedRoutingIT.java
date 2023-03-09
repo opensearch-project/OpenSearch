@@ -640,21 +640,17 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
 
         // Check cluster health for weighed in node when cluster manager is not discovered, health check should
         // return a response with 503 status code
-        assertThrows(ClusterManagerNotDiscoveredException.class, () -> client(nodes_in_zone_a.get(0)).admin()
-            .cluster()
-            .prepareHealth()
-            .setLocal(true)
-            .setEnsureNodeWeighedIn(true)
-            .get());
+        assertThrows(
+            ClusterManagerNotDiscoveredException.class,
+            () -> client(nodes_in_zone_a.get(0)).admin().cluster().prepareHealth().setLocal(true).setEnsureNodeWeighedIn(true).get()
+        );
 
         // Check cluster health for weighed away node when cluster manager is not discovered, health check should
         // return a response with 503 status code
-        assertThrows(ClusterManagerNotDiscoveredException.class, () -> client(nodes_in_zone_c.get(0)).admin()
-            .cluster()
-            .prepareHealth()
-            .setLocal(true)
-            .setEnsureNodeWeighedIn(true)
-            .get());
+        assertThrows(
+            ClusterManagerNotDiscoveredException.class,
+            () -> client(nodes_in_zone_c.get(0)).admin().cluster().prepareHealth().setLocal(true).setEnsureNodeWeighedIn(true).get()
+        );
         networkDisruption.stopDisrupting();
         Thread.sleep(1000);
 

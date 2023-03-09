@@ -267,7 +267,7 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
                 return null;
             }
             ShardRouting next = FailAwareWeightedRouting.getInstance()
-                .findNext(shardsIt.get(shardIndex), clusterService.state(), failure, () -> ++shardIndex);
+                .findNext(shardsIt.get(shardIndex), clusterService.state(), failure, this::moveToNextShard);
 
             if (next != null) {
                 return next;

@@ -60,6 +60,9 @@ public class FailAwareWeightedRouting {
      * routing weight set to zero
      *
      * @param shardIt Shard Iterator containing order in which shard copies for a shard need to be requested
+     * @param clusterState The current cluster state
+     * @param exception The underlying search exception
+     * @param onShardSkipped The runnable to execute once a shard is skipped
      * @return the next shard copy
      */
     public SearchShardTarget findNext(
@@ -88,6 +91,9 @@ public class FailAwareWeightedRouting {
      * routing weight set to zero
      *
      * @param shardsIt Shard Iterator containing order in which shard copies for a shard need to be requested
+     * @param clusterState The current cluster state
+     * @param exception The underlying search exception
+     * @param onShardSkipped The runnable to execute once a shard is skipped
      * @return the next shard copy
      */
     public ShardRouting findNext(final ShardsIterator shardsIt, ClusterState clusterState, Exception exception, Runnable onShardSkipped) {
