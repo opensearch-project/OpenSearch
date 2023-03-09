@@ -319,7 +319,8 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         Settings legacyMasterSettings = Settings.builder()
             .put("node.master", true)
             .put("node.data", false)
-            .put("node.ingest", false).build();
+            .put("node.ingest", false)
+            .build();
 
         internalCluster().startNodes(legacyMasterSettings);
         waitForNodes(total);
@@ -329,15 +330,25 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
         assertCounts(clusterStatsResponse.getNodesStats().getCounts(), total, expectedCounts);
 
-        Set<String> expectedRoles = Set.of(DiscoveryNodeRole.MASTER_ROLE.roleName(), DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName());
+        Set<String> expectedRoles = Set.of(
+            DiscoveryNodeRole.MASTER_ROLE.roleName(),
+            DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName()
+        );
         assertEquals(expectedRoles, getNodeRoles(0));
     }
 
     public void testNodeRolesWithClusterManagerRole() throws ExecutionException, InterruptedException {
         int total = 1;
         Settings clusterManagerNodeRoleSettings = Settings.builder()
-            .put("node.roles", String.format(Locale.ROOT, "%s, %s",
-                DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(), DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName()))
+            .put(
+                "node.roles",
+                String.format(
+                    Locale.ROOT,
+                    "%s, %s",
+                    DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(),
+                    DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName()
+                )
+            )
             .build();
 
         internalCluster().startNodes(clusterManagerNodeRoleSettings);
@@ -348,7 +359,10 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
         assertCounts(clusterStatsResponse.getNodesStats().getCounts(), total, expectedCounts);
 
-        Set<String> expectedRoles = Set.of(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(), DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName());
+        Set<String> expectedRoles = Set.of(
+            DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(),
+            DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName()
+        );
         assertEquals(expectedRoles, getNodeRoles(0));
     }
 
@@ -357,7 +371,8 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         Settings legacySeedDataNodeSettings = Settings.builder()
             .put("node.master", true)
             .put("node.data", true)
-            .put("node.ingest", false).build();
+            .put("node.ingest", false)
+            .build();
 
         internalCluster().startNodes(legacySeedDataNodeSettings);
         waitForNodes(total);
@@ -367,17 +382,21 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
         assertCounts(clusterStatsResponse.getNodesStats().getCounts(), total, expectedRoleCounts);
 
-        Set<String> expectedRoles = Set.of(DiscoveryNodeRole.MASTER_ROLE.roleName(),
-            DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(), DiscoveryNodeRole.DATA_ROLE.roleName());
+        Set<String> expectedRoles = Set.of(
+            DiscoveryNodeRole.MASTER_ROLE.roleName(),
+            DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName(),
+            DiscoveryNodeRole.DATA_ROLE.roleName()
+        );
         assertEquals(expectedRoles, getNodeRoles(0));
     }
 
-    public void testNodeRolesWithDataNodeLegacySettings() throws  ExecutionException, InterruptedException {
+    public void testNodeRolesWithDataNodeLegacySettings() throws ExecutionException, InterruptedException {
         int total = 2;
         Settings legacyDataNodeSettings = Settings.builder()
             .put("node.master", false)
             .put("node.data", true)
-            .put("node.ingest", false).build();
+            .put("node.ingest", false)
+            .build();
 
         // can't start data-only node without assigning cluster-manager
         internalCluster().startClusterManagerOnlyNodes(1);
@@ -392,12 +411,23 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         Set<String> expectedClusterManagerOnlyRoles = Set.of(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName());
         assertEquals(expectedClusterManagerOnlyRoles, getNodeRoles(0));
 
-        Set<String> expectedDataOnlyNodeRoles = Set.of(DiscoveryNodeRole.DATA_ROLE.roleName(), DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName());
+        Set<String> expectedDataOnlyNodeRoles = Set.of(
+            DiscoveryNodeRole.DATA_ROLE.roleName(),
+            DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName()
+        );
         assertEquals(expectedDataOnlyNodeRoles, getNodeRoles(1));
 
     }
-    private Map<String, Integer> getExpectedCounts(int dataRoleCount, int masterRoleCount, int clusterManagerRoleCount, int ingestRoleCount,
-                                                   int remoteClusterClientRoleCount, int searchRoleCount, int coordinatingOnlyCount) {
+
+    private Map<String, Integer> getExpectedCounts(
+        int dataRoleCount,
+        int masterRoleCount,
+        int clusterManagerRoleCount,
+        int ingestRoleCount,
+        int remoteClusterClientRoleCount,
+        int searchRoleCount,
+        int coordinatingOnlyCount
+    ) {
         Map<String, Integer> expectedCounts = new HashMap<>();
         expectedCounts.put(DiscoveryNodeRole.DATA_ROLE.roleName(), dataRoleCount);
         expectedCounts.put(DiscoveryNodeRole.MASTER_ROLE.roleName(), masterRoleCount);
@@ -411,6 +441,12 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
 
     private Set<String> getNodeRoles(int nodeNumber) throws ExecutionException, InterruptedException {
         NodesStatsResponse nodesStatsResponse = client().admin().cluster().nodesStats(new NodesStatsRequest()).get();
-        return nodesStatsResponse.getNodes().get(nodeNumber).getNode().getRoles().stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toSet());
+        return nodesStatsResponse.getNodes()
+            .get(nodeNumber)
+            .getNode()
+            .getRoles()
+            .stream()
+            .map(DiscoveryNodeRole::roleName)
+            .collect(Collectors.toSet());
     }
 }
