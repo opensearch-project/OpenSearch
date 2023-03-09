@@ -201,34 +201,42 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     }
 
     /**
-     * Add a listener for refreshes, calling it immediately if the max sequence number is already visible.
+     * Add a listener for refreshes, calling it immediately if the max sequence number is already visible. If this runs out of listener slots then it
+     * forces a refresh and calls the listener immediately as well.
      *
      * @param maxSeqNo the Sequence number to listen on segment replication enabled replica shards
-     * @param listener for the refresh.It waits until max sequence number is visible.
+     * @param listener for the refresh.It waits until max sequence number is visible. Called with true if registering the listener ran it out of slots and forced a refresh. Called with
+     * false otherwise.
+     * @return did we call the listener (true) or register the listener to call later (false)?
      */
-    public void addOrNotify(Long maxSeqNo, Consumer<Boolean> listener) {
+    public boolean addOrNotify(Long maxSeqNo, Consumer<Boolean> listener) {
         requireNonNull(listener, "listener cannot be null");
+        requireNonNull(maxSeqNo, "location cannot be null");
 
         if (lastMaxSeqNo != SequenceNumbers.NO_OPS_PERFORMED && lastMaxSeqNo >= maxSeqNo) {
             listener.accept(false);
-            return;
+            return true;
         }
-        if (refreshForcers == 0) {
-            synchronized (this) {
-                if (closed) {
-                    throw new IllegalStateException("can't wait for refresh on a closed index");
-                }
-                List<Tuple<Long, Consumer<Boolean>>> listeners = seqNoRefreshListeners;
+        synchronized (this) {
+            if (closed) {
+                throw new IllegalStateException("can't wait for refresh on a closed index");
+            }
+            List<Tuple<Long, Consumer<Boolean>>> listeners = seqNoRefreshListeners;
+            final int maxRefreshes = getMaxRefreshListeners.getAsInt();
+            if (refreshForcers == 0 && maxRefreshes > 0 && (listeners == null || listeners.size() < maxRefreshes)) {
                 Consumer<Boolean> contextPreservingListener = getContextListener(listener);
                 if (listeners == null) {
                     listeners = new ArrayList<>();
                 }
                 listeners.add(new Tuple<>(maxSeqNo, contextPreservingListener));
                 seqNoRefreshListeners = listeners;
+                return false;
             }
-        } else {
-            listener.accept(false);
         }
+        // No free slot so force a refresh and call the listener in this thread
+        forceRefresh.run();
+        listener.accept(true);
+        return true;
     }
 
     private Consumer<Boolean> getContextListener(Consumer<Boolean> listener) {
