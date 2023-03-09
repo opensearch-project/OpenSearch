@@ -352,7 +352,6 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                 @Override
                 public void onFailure(Exception e) {
                     Throwable cause = ExceptionsHelper.unwrapCause(e);
-                    logger.warn("Replication failure", e);
                     if (cause instanceof CancellableThreads.ExecutionCancelledException) {
                         if (onGoingReplications.getTarget(replicationId) != null) {
                             IndexShard indexShard = onGoingReplications.getTarget(replicationId).indexShard();
@@ -362,6 +361,8 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                             onGoingReplications.fail(replicationId, new ReplicationFailedException(indexShard, cause), false);
                             completedReplications.put(target.shardId(), target);
                         }
+                    } else {
+                        onGoingReplications.fail(replicationId, new ReplicationFailedException("Segment Replication failed", e), true);
                     }
                 }
             });

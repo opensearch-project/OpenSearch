@@ -108,7 +108,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     @Override
     public void notifyListener(ReplicationFailedException e, boolean sendShardFailure) {
-        // Cancellations still are passed to our SegmentReplicationListner as failures, if we have failed because of cancellation
+        // Cancellations still are passed to our SegmentReplicationListener as failures, if we have failed because of cancellation
         // update the stage.
         final Throwable cancelledException = ExceptionsHelper.unwrap(e, CancellableThreads.ExecutionCancelledException.class);
         if (cancelledException != null) {
@@ -172,50 +172,56 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         finalizeListener.whenComplete(r -> listener.onResponse(null), listener::onFailure);
     }
 
-    private void getFiles(CheckpointInfoResponse checkpointInfo, StepListener<GetSegmentFilesResponse> getFilesListener)
-        throws IOException {
-        cancellableThreads.checkForCancel();
-        state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
-        final Store.RecoveryDiff diff = Store.segmentReplicationDiff(checkpointInfo.getMetadataMap(), indexShard.getSegmentMetadataMap());
-        logger.trace("Replication diff for checkpoint {} {}", checkpointInfo.getCheckpoint(), diff);
-        /*
-         * Segments are immutable. So if the replica has any segments with the same name that differ from the one in the incoming
-         * snapshot from source that means the local copy of the segment has been corrupted/changed in some way and we throw an
-         * IllegalStateException to fail the shard
-         */
-        if (diff.different.isEmpty() == false) {
-            IllegalStateException illegalStateException = new IllegalStateException(
-                new ParameterizedMessage(
-                    "Shard {} has local copies of segments that differ from the primary {}",
+    private void getFiles(CheckpointInfoResponse checkpointInfo, StepListener<GetSegmentFilesResponse> getFilesListener) {
+        ActionListener.completeWith(getFilesListener, () -> {
+            cancellableThreads.checkForCancel();
+            state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
+            final Store.RecoveryDiff diff = Store.segmentReplicationDiff(
+                checkpointInfo.getMetadataMap(),
+                indexShard.getSegmentMetadataMap()
+            );
+            logger.trace("Replication diff for checkpoint {} {}", checkpointInfo.getCheckpoint(), diff);
+            /*
+             * Segments are immutable. So if the replica has any segments with the same name that differ from the one in the incoming
+             * snapshot from source that means the local copy of the segment has been corrupted/changed in some way and we throw an
+             * IllegalStateException to fail the shard
+             */
+            if (diff.different.isEmpty() == false) {
+                IllegalStateException illegalStateException = new IllegalStateException(
+                    new ParameterizedMessage(
+                        "Shard {} has local copies of segments that differ from the primary {}",
+                        indexShard.shardId(),
+                        diff.different
+                    ).getFormattedMessage()
+                );
+                ReplicationFailedException rfe = new ReplicationFailedException(
                     indexShard.shardId(),
-                    diff.different
-                ).getFormattedMessage()
-            );
-            ReplicationFailedException rfe = new ReplicationFailedException(
-                indexShard.shardId(),
-                "replication failure due to different segment files",
-                illegalStateException
-            );
-            fail(rfe, true);
-        }
+                    "different segment files",
+                    illegalStateException
+                );
+                fail(rfe, true);
+                throw rfe;
+            }
 
-        for (StoreFileMetadata file : diff.missing) {
-            state.getIndex().addFileDetail(file.name(), file.length(), false);
-        }
-        // always send a req even if not fetching files so the primary can clear the copyState for this shard.
-        state.setStage(SegmentReplicationState.Stage.GET_FILES);
-        cancellableThreads.checkForCancel();
-        source.getSegmentFiles(getId(), checkpointInfo.getCheckpoint(), diff.missing, store, getFilesListener);
+            for (StoreFileMetadata file : diff.missing) {
+                state.getIndex().addFileDetail(file.name(), file.length(), false);
+            }
+            // always send a req even if not fetching files so the primary can clear the copyState for this shard.
+            state.setStage(SegmentReplicationState.Stage.GET_FILES);
+            cancellableThreads.checkForCancel();
+            source.getSegmentFiles(getId(), checkpointInfo.getCheckpoint(), diff.missing, store, getFilesListener);
+            return null;
+        });
     }
 
     private void finalizeReplication(CheckpointInfoResponse checkpointInfoResponse, ActionListener<Void> listener) {
         ActionListener.completeWith(listener, () -> {
             cancellableThreads.checkForCancel();
             state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);
-            multiFileWriter.renameAllTempFiles();
-            final Store store = store();
-            store.incRef();
             try {
+                multiFileWriter.renameAllTempFiles();
+                final Store store = store();
+                store.incRef();
                 // Deserialize the new SegmentInfos object sent from the primary.
                 final ReplicationCheckpoint responseCheckpoint = checkpointInfoResponse.getCheckpoint();
                 SegmentInfos infos = SegmentInfos.readCommit(

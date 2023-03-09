@@ -372,8 +372,8 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                assert (e instanceof IllegalStateException);
-                segrepTarget.fail(new ReplicationFailedException(e), false);
+                assert (e instanceof ReplicationFailedException);
+                assert (e.getMessage().contains("different segment files"));
             }
         });
     }
