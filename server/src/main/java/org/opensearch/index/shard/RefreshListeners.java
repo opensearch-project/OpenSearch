@@ -194,8 +194,8 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
                 return false;
             }
         }
-        // No free slot so force a refresh and call the listener in this thread
-        forceRefresh.run();
+        // No free slot so release existing refresh listeners and call the listener in this thread
+        releaseSeqNoRefreshListeners();
         listener.accept(true);
         return true;
     }
