@@ -1256,13 +1256,13 @@ public class Setting<T> implements ToXContentObject {
     public static class RegexValidator implements Writeable, Validator<String> {
         private Pattern pattern;
 
+        /**
+         * @param regex A regular expression containing the only valid input for this setting.
+         */
         public RegexValidator(String regex) {
             this.pattern = Pattern.compile(regex);
         }
 
-        /**
-         * A regular expression containing the only valid input for this setting.
-         */
         public RegexValidator(StreamInput in) throws IOException {
             this.pattern = Pattern.compile(in.readString());
         }
