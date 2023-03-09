@@ -432,14 +432,14 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         createIndex(INDEX_NAME);
         final String replica = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
-        final int initialDocCount = scaledRandomIntBetween(0, 200);
+        final int initialDocCount = scaledRandomIntBetween(10, 200);
         for (int i = 0; i < initialDocCount; i++) {
             client().prepareIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("foo", "bar").get();
         }
         refresh(INDEX_NAME);
         waitForSearchableDocs(initialDocCount, primary, replica);
 
-        final int deletedDocCount = randomIntBetween(0, initialDocCount / 2);
+        final int deletedDocCount = randomIntBetween(10, initialDocCount);
         for (int i = 0; i < deletedDocCount; i++) {
             client(primary).prepareDelete(INDEX_NAME, String.valueOf(i)).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
         }
@@ -476,7 +476,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         assertHitCount(client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount);
 
         int expectedMaxSeqNo = initialDocCount + deletedDocCount + additionalDocs - 1;
-        assertEquals(expectedMaxSeqNo, replicaShard.getLatestReplicationCheckpoint().getSeqNo());
+        assertEquals(expectedMaxSeqNo, replicaShard.seqNoStats().getMaxSeqNo());
 
         // index another doc.
         client().prepareIndex(INDEX_NAME).setId(String.valueOf(expectedMaxSeqNo + 1)).setSource("another", "doc").get();
