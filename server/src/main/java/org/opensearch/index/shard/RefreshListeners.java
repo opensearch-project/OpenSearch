@@ -211,7 +211,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      */
     public boolean addOrNotify(Long maxSeqNo, Consumer<Boolean> listener) {
         requireNonNull(listener, "listener cannot be null");
-        requireNonNull(maxSeqNo, "location cannot be null");
+        requireNonNull(maxSeqNo, "maxSeqNo cannot be null");
 
         if (lastMaxSeqNo != SequenceNumbers.NO_OPS_PERFORMED && lastMaxSeqNo >= maxSeqNo) {
             listener.accept(false);
