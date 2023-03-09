@@ -120,7 +120,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             // flush the primary engine - we don't need any segments, just force a new commit point.
             engine.flush(true, true);
             assertEquals(3, engine.getLatestSegmentInfos().getGeneration());
-            nrtEngine.updateSegments(engine.getLatestSegmentInfos(), engine.getProcessedLocalCheckpoint());
+            nrtEngine.updateSegments(engine.getLatestSegmentInfos());
             assertEquals(3, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
             assertEquals(3, nrtEngine.getLatestSegmentInfos().getGeneration());
         }
@@ -144,7 +144,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             // update the replica with segments_2 from the primary.
             final SegmentInfos primaryInfos = engine.getLatestSegmentInfos();
             assertEquals(2, primaryInfos.getGeneration());
-            nrtEngine.updateSegments(primaryInfos, engine.getProcessedLocalCheckpoint());
+            nrtEngine.updateSegments(primaryInfos);
             assertEquals(4, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
             assertEquals(4, nrtEngine.getLatestSegmentInfos().getGeneration());
             assertEquals(primaryInfos.getVersion(), nrtEngine.getLatestSegmentInfos().getVersion());
@@ -172,7 +172,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             // update replica with the latest primary infos, it will be the same gen, segments_2, ensure it is also committed.
             final SegmentInfos primaryInfos = engine.getLatestSegmentInfos();
             assertEquals(2, primaryInfos.getGeneration());
-            nrtEngine.updateSegments(primaryInfos, engine.getProcessedLocalCheckpoint());
+            nrtEngine.updateSegments(primaryInfos);
             final SegmentInfos lastCommittedSegmentInfos = nrtEngine.getLastCommittedSegmentInfos();
             assertEquals(primaryInfos.getVersion(), nrtEngine.getLatestSegmentInfos().getVersion());
             assertEquals(primaryInfos.getVersion(), lastCommittedSegmentInfos.getVersion());

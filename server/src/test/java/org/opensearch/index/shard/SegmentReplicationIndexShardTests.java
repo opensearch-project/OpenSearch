@@ -155,7 +155,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     private void assertReplicationCheckpoint(IndexShard shard, SegmentInfos segmentInfos, ReplicationCheckpoint checkpoint)
         throws IOException {
         assertNotNull(segmentInfos);
-        assertEquals(checkpoint.getSeqNo(), shard.getEngine().getMaxSeqNoFromSegmentInfos(segmentInfos));
         assertEquals(checkpoint.getSegmentInfosVersion(), segmentInfos.getVersion());
         assertEquals(checkpoint.getSegmentsGen(), segmentInfos.getGeneration());
     }
@@ -308,7 +307,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         assertEquals(false, primaryShard.getReplicationTracker().isPrimaryMode());
         assertEquals(true, primaryShard.routingEntry().primary());
 
-        spy.onNewCheckpoint(new ReplicationCheckpoint(primaryShard.shardId(), 0L, 0L, 0L, 0L), spyShard);
+        spy.onNewCheckpoint(new ReplicationCheckpoint(primaryShard.shardId(), 0L, 0L, 0L), spyShard);
 
         // Verify that checkpoint is not processed as shard routing is primary.
         verify(spy, times(0)).startReplication(any(), any(), any());
@@ -1024,8 +1023,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         // assigned seqNos start at 0, so assert max & local seqNos are 1 less than our persisted doc count.
         assertEquals(expectedPersistedDocCount - 1, indexShard.seqNoStats().getMaxSeqNo());
         assertEquals(expectedPersistedDocCount - 1, indexShard.seqNoStats().getLocalCheckpoint());
-        // processed cp should be 1 less than our searchable doc count.
-        assertEquals(expectedSearchableDocCount - 1, indexShard.getProcessedLocalCheckpoint());
     }
 
     private void resolveCheckpointInfoResponseListener(ActionListener<CheckpointInfoResponse> listener, IndexShard primary) {

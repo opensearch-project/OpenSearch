@@ -220,7 +220,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                     responseCheckpoint.getSegmentsGen()
                 );
                 cancellableThreads.checkForCancel();
-                indexShard.finalizeReplication(infos, responseCheckpoint.getSeqNo());
+                indexShard.finalizeReplication(infos);
                 store.cleanupAndPreserveLatestCommitPoint("finalize - clean with in memory infos", infos);
             } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
                 // this is a fatal exception at this stage.
