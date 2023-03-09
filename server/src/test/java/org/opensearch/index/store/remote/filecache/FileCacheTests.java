@@ -10,10 +10,14 @@ package org.opensearch.index.store.remote.filecache;
 
 import org.apache.lucene.store.IndexInput;
 import org.junit.Before;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
 import org.opensearch.index.store.remote.utils.cache.CacheUsage;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -35,12 +39,25 @@ public class FileCacheTests extends OpenSearchTestCase {
         path = createTempDir("FileCacheTests");
     }
 
-    private FileCache createFileCache(long capaticy) {
-        return FileCacheFactory.createConcurrentLRUFileCache(capaticy, CONCURRENCY_LEVEL);
+    private FileCache createFileCache(long capacity) {
+        return FileCacheFactory.createConcurrentLRUFileCache(capacity, CONCURRENCY_LEVEL);
     }
 
     private Path createPath(String middle) {
         return path.resolve(middle).resolve(FAKE_PATH_SUFFIX);
+    }
+
+    @SuppressForbidden(reason = "creating a test file for cache")
+    private void createFile(String nodeId, String indexName, String shardId, String fileName) throws IOException {
+        Path folderPath = path.resolve(NodeEnvironment.CACHE_FOLDER)
+            .resolve(nodeId)
+            .resolve(indexName)
+            .resolve(shardId)
+            .resolve(RemoteSnapshotDirectoryFactory.LOCAL_STORE_LOCATION);
+        Path filePath = folderPath.resolve(fileName);
+        Files.createDirectories(folderPath);
+        Files.createFile(filePath);
+        Files.write(filePath, "test-data".getBytes());
     }
 
     public void testCreateCacheWithSmallSegments() {
@@ -243,6 +260,19 @@ public class FileCacheTests extends OpenSearchTestCase {
         assertTrue(fileCache.stats().evictionCount() > 0);
         assertTrue(fileCache.stats().evictionWeight() > 0);
 
+    }
+
+    public void testCacheRestore() throws IOException {
+        String nodeId = "0";
+        String indexName = "test-index";
+        String shardId = "0";
+        NodeEnvironment.NodePath fileCacheNodePath = new NodeEnvironment.NodePath(path);
+        createFile(nodeId, indexName, shardId, "test.0");
+        FileCache fileCache = createFileCache(GIGA_BYTES);
+        assertEquals(0, fileCache.usage().usage());
+        Path fileCachePath = path.resolve(NodeEnvironment.CACHE_FOLDER).resolve(nodeId).resolve(indexName).resolve(shardId);
+        fileCache.restoreFromDirectory(List.of(fileCachePath));
+        assertTrue(fileCache.usage().usage() > 0);
     }
 
     final class FakeIndexInput extends CachedIndexInput {
