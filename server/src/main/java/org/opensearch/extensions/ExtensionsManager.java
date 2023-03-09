@@ -365,6 +365,7 @@ public class ExtensionsManager {
             public void handleResponse(InitializeExtensionResponse response) {
                 for (DiscoveryExtensionNode extension : extensionIdMap.values()) {
                     if (extension.getName().equals(response.getName())) {
+                        extension.setImplementedInterfaces(response.getImplementedInterfaces());
                         extensions.add(extension);
                         logger.info("Initialized extension: " + extension.getName());
                         break;

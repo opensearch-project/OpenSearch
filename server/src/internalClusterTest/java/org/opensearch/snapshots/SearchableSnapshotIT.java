@@ -72,6 +72,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
     protected Settings.Builder randomRepositorySettings() {
         final Settings.Builder settings = Settings.builder();
         settings.put("location", randomRepoPath()).put("compress", randomBoolean());
+        settings.put(FsRepository.BASE_PATH_SETTING.getKey(), "my_base_path");
         return settings;
     }
 
