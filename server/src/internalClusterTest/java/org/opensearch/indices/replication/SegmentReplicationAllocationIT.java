@@ -193,7 +193,7 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
 
     /**
      * Utility method which ensures cluster has balanced primary shard distribution across a single index.
-     * @throws Exception
+     * @throws Exception exception
      */
     private void verifyPerIndexPrimaryBalance() throws Exception {
         assertBusy(() -> {
