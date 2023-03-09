@@ -60,9 +60,17 @@ public class FailAwareWeightedRouting {
      * routing weight set to zero
      *
      * @param shardIt Shard Iterator containing order in which shard copies for a shard need to be requested
+     * @param clusterState The current cluster state
+     * @param exception The underlying search exception
+     * @param onShardSkipped The runnable to execute once a shard is skipped
      * @return the next shard copy
      */
-    public SearchShardTarget findNext(final SearchShardIterator shardIt, ClusterState clusterState, Exception exception) {
+    public SearchShardTarget findNext(
+        final SearchShardIterator shardIt,
+        ClusterState clusterState,
+        Exception exception,
+        Runnable onShardSkipped
+    ) {
         SearchShardTarget next = shardIt.nextOrNull();
         while (next != null && WeightedRoutingUtils.isWeighedAway(next.getNodeId(), clusterState)) {
             SearchShardTarget nextShard = next;
@@ -72,6 +80,7 @@ public class FailAwareWeightedRouting {
                 break;
             }
             next = shardIt.nextOrNull();
+            onShardSkipped.run();
         }
         return next;
     }
@@ -82,9 +91,12 @@ public class FailAwareWeightedRouting {
      * routing weight set to zero
      *
      * @param shardsIt Shard Iterator containing order in which shard copies for a shard need to be requested
+     * @param clusterState The current cluster state
+     * @param exception The underlying search exception
+     * @param onShardSkipped The runnable to execute once a shard is skipped
      * @return the next shard copy
      */
-    public ShardRouting findNext(final ShardsIterator shardsIt, ClusterState clusterState, Exception exception) {
+    public ShardRouting findNext(final ShardsIterator shardsIt, ClusterState clusterState, Exception exception, Runnable onShardSkipped) {
         ShardRouting next = shardsIt.nextOrNull();
 
         while (next != null && WeightedRoutingUtils.isWeighedAway(next.currentNodeId(), clusterState)) {
@@ -95,6 +107,7 @@ public class FailAwareWeightedRouting {
                 break;
             }
             next = shardsIt.nextOrNull();
+            onShardSkipped.run();
         }
         return next;
     }
