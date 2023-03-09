@@ -279,15 +279,19 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
         final Predicate<ClusterState> validationPredicate = newState -> validateRequest(request, newState, waitCount);
         if (validationPredicate.test(currentState)) {
             ClusterHealthResponse clusterHealthResponse = getResponse(request, currentState, waitCount, TimeoutState.OK);
-            if (request.ensureNodeWeighedIn() && clusterHealthResponse.hasDiscoveredClusterManager()) {
-                DiscoveryNode localNode = currentState.getNodes().getLocalNode();
-                // TODO: make this check more generic, check for node role instead
-                if (localNode.isDataNode()) {
-                    assert request.local() == true : "local node request false for request for local node weighed in";
-                    boolean weighedAway = WeightedRoutingUtils.isWeighedAway(localNode.getId(), currentState);
-                    if (weighedAway) {
-                        listener.onFailure(new NodeWeighedAwayException("local node is weighed away"));
-                        return;
+            if (request.ensureNodeWeighedIn()) {
+                if (clusterHealthResponse.hasDiscoveredClusterManager() == false) {
+                    listener.onFailure(new NotClusterManagerException("cluster-manager not discovered"));
+                } else {
+                    DiscoveryNode localNode = currentState.getNodes().getLocalNode();
+                    // TODO: make this check more generic, check for node role instead
+                    if (localNode.isDataNode()) {
+                        assert request.local() == true : "local node request false for request for local node weighed in";
+                        boolean weighedAway = WeightedRoutingUtils.isWeighedAway(localNode.getId(), currentState);
+                        if (weighedAway) {
+                            listener.onFailure(new NodeWeighedAwayException("local node is weighed away"));
+                            return;
+                        }
                     }
                 }
             }
