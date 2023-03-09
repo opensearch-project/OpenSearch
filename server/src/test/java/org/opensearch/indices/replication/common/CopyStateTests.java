@@ -67,13 +67,7 @@ public class CopyStateTests extends IndexShardTestCase {
         when(mockShard.store()).thenReturn(mockStore);
 
         SegmentInfos testSegmentInfos = new SegmentInfos(Version.LATEST.major);
-        ReplicationCheckpoint testCheckpoint = new ReplicationCheckpoint(
-            mockShard.shardId(),
-            mockShard.getOperationPrimaryTerm(),
-            0L,
-            mockShard.getProcessedLocalCheckpoint(),
-            0L
-        );
+        ReplicationCheckpoint testCheckpoint = new ReplicationCheckpoint(mockShard.shardId(), mockShard.getOperationPrimaryTerm(), 0L, 0L);
         final Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> gatedCloseableReplicationCheckpointTuple = new Tuple<>(
             new GatedCloseable<>(testSegmentInfos, () -> {}),
             testCheckpoint
