@@ -61,7 +61,47 @@ public class OpenSearchJsonLayoutTests extends OpenSearchTestCase {
                 "\"component\": \"%c{1.}\", " +
                 "\"cluster.name\": \"${sys:opensearch.logs.cluster_name}\", " +
                 "\"node.name\": \"%node_name\", " +
-                "\"message\": \"%notEmpty{%enc{%marker}{JSON} }%enc{%.-100000m}{JSON}\"" +
+                "\"message\": \"%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}\"" +
+                "%notEmpty{, %node_and_cluster_id }" +
+                "%exceptionAsJson }" + System.lineSeparator()));
+    }
+
+    public void testWithMaxMessageLengthLayout() {
+        OpenSearchJsonLayout server = OpenSearchJsonLayout.newBuilder()
+            .setType("server")
+            .setMaxMessageLength(42)
+            .build();
+        String conversionPattern = server.getPatternLayout().getConversionPattern();
+
+        assertThat(conversionPattern, Matchers.equalTo(
+            "{" +
+                "\"type\": \"server\", " +
+                "\"timestamp\": \"%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}\", " +
+                "\"level\": \"%p\", " +
+                "\"component\": \"%c{1.}\", " +
+                "\"cluster.name\": \"${sys:opensearch.logs.cluster_name}\", " +
+                "\"node.name\": \"%node_name\", " +
+                "\"message\": \"%notEmpty{%enc{%marker}{JSON} }%enc{%.-42m}{JSON}\"" +
+                "%notEmpty{, %node_and_cluster_id }" +
+                "%exceptionAsJson }" + System.lineSeparator()));
+    }
+
+    public void testWithUnrestrictedMaxMessageLengthLayout() {
+        OpenSearchJsonLayout server = OpenSearchJsonLayout.newBuilder()
+            .setType("server")
+            .setMaxMessageLength(0)
+            .build();
+        String conversionPattern = server.getPatternLayout().getConversionPattern();
+
+        assertThat(conversionPattern, Matchers.equalTo(
+            "{" +
+                "\"type\": \"server\", " +
+                "\"timestamp\": \"%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}\", " +
+                "\"level\": \"%p\", " +
+                "\"component\": \"%c{1.}\", " +
+                "\"cluster.name\": \"${sys:opensearch.logs.cluster_name}\", " +
+                "\"node.name\": \"%node_name\", " +
+                "\"message\": \"%notEmpty{%enc{%marker}{JSON} }%enc{%m}{JSON}\"" +
                 "%notEmpty{, %node_and_cluster_id }" +
                 "%exceptionAsJson }" + System.lineSeparator()));
     }
@@ -81,7 +121,7 @@ public class OpenSearchJsonLayoutTests extends OpenSearchTestCase {
                 "\"component\": \"%c{1.}\", " +
                 "\"cluster.name\": \"${sys:opensearch.logs.cluster_name}\", " +
                 "\"node.name\": \"%node_name\", " +
-                "\"message\": \"%notEmpty{%enc{%marker}{JSON} }%enc{%.-100000m}{JSON}\"" +
+                "\"message\": \"%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}\"" +
                 "%notEmpty{, \"x-opaque-id\": \"%OpenSearchMessageField{x-opaque-id}\"}" +
                 "%notEmpty{, \"someOtherField\": \"%OpenSearchMessageField{someOtherField}\"}" +
                 "%notEmpty{, %node_and_cluster_id }" +

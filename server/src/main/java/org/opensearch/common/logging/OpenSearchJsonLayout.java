@@ -83,6 +83,9 @@ import java.util.stream.Stream;
  * <p>
  * The value taken from %OpenSearchMessageField{message} has to be a simple escaped JSON value and is populated in subclasses of
  * <code>OpenSearchLogMessage</code>
+ * <p>
+ * The <code>message</code> field is truncated at 10000 characters by default. This limit can be controlled by setting the
+ * <code>appender.logger.layout.maxmessagelength</code> to the desired limit or to <code>0</code> to disable truncation.
  *
  * @opensearch.internal
  */
@@ -91,18 +94,26 @@ public class OpenSearchJsonLayout extends AbstractStringLayout {
 
     private final PatternLayout patternLayout;
 
-    protected OpenSearchJsonLayout(String typeName, Charset charset, String[] opensearchMessageFields) {
+    protected OpenSearchJsonLayout(String typeName, Charset charset, String[] opensearchMessageFields, int maxMessageLength) {
         super(charset);
         this.patternLayout = PatternLayout.newBuilder()
-            .withPattern(pattern(typeName, opensearchMessageFields))
+            .withPattern(pattern(typeName, opensearchMessageFields, maxMessageLength))
             .withAlwaysWriteExceptions(false)
             .build();
     }
 
-    private String pattern(String type, String[] opensearchMessageFields) {
+    private String pattern(String type, String[] opensearchMessageFields, int maxMessageLength) {
         if (Strings.isEmpty(type)) {
             throw new IllegalArgumentException("layout parameter 'type_name' cannot be empty");
         }
+
+        String messageFormat = "%m";
+        if (maxMessageLength < 0) {
+            throw new IllegalArgumentException("layout parameter 'maxmessagelength' cannot be a negative number");
+        } else if (maxMessageLength > 0) {
+            messageFormat = "%.-" + Integer.toString(maxMessageLength) + "m";
+        }
+
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("type", inQuotes(type));
         map.put("timestamp", inQuotes("%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}"));
@@ -110,7 +121,7 @@ public class OpenSearchJsonLayout extends AbstractStringLayout {
         map.put("component", inQuotes("%c{1.}"));
         map.put("cluster.name", inQuotes("${sys:opensearch.logs.cluster_name}"));
         map.put("node.name", inQuotes("%node_name"));
-        map.put("message", inQuotes("%notEmpty{%enc{%marker}{JSON} }%enc{%.-100000m}{JSON}"));
+        map.put("message", inQuotes("%notEmpty{%enc{%marker}{JSON} }%enc{" + messageFormat + "}{JSON}"));
 
         for (String key : opensearchMessageFields) {
             map.put(key, inQuotes("%OpenSearchMessageField{" + key + "}"));
@@ -162,8 +173,8 @@ public class OpenSearchJsonLayout extends AbstractStringLayout {
     }
 
     @PluginFactory
-    public static OpenSearchJsonLayout createLayout(String type, Charset charset, String[] opensearchmessagefields) {
-        return new OpenSearchJsonLayout(type, charset, opensearchmessagefields);
+    public static OpenSearchJsonLayout createLayout(String type, Charset charset, String[] opensearchmessagefields, int maxMessageLength) {
+        return new OpenSearchJsonLayout(type, charset, opensearchmessagefields, maxMessageLength);
     }
 
     PatternLayout getPatternLayout() {
@@ -188,14 +199,18 @@ public class OpenSearchJsonLayout extends AbstractStringLayout {
         @PluginAttribute("opensearchmessagefields")
         private String opensearchMessageFields;
 
+        @PluginAttribute(value = "maxmessagelength", defaultInt = 10000)
+        private int maxMessageLength;
+
         public Builder() {
             setCharset(StandardCharsets.UTF_8);
+            setMaxMessageLength(10000);
         }
 
         @Override
         public OpenSearchJsonLayout build() {
             String[] split = Strings.isNullOrEmpty(opensearchMessageFields) ? new String[] {} : opensearchMessageFields.split(",");
-            return OpenSearchJsonLayout.createLayout(type, charset, split);
+            return OpenSearchJsonLayout.createLayout(type, charset, split, maxMessageLength);
         }
 
         public Charset getCharset() {
@@ -222,6 +237,15 @@ public class OpenSearchJsonLayout extends AbstractStringLayout {
 
         public B setOpenSearchMessageFields(String opensearchMessageFields) {
             this.opensearchMessageFields = opensearchMessageFields;
+            return asBuilder();
+        }
+
+        public int getMaxMessageLength() {
+            return maxMessageLength;
+        }
+
+        public B setMaxMessageLength(final int maxMessageLength) {
+            this.maxMessageLength = maxMessageLength;
             return asBuilder();
         }
     }
