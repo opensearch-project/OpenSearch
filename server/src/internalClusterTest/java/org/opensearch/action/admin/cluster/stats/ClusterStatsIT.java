@@ -55,6 +55,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -335,7 +336,8 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
     public void testNodeRolesWithClusterManagerRole() throws ExecutionException, InterruptedException {
         int total = 1;
         Settings clusterManagerNodeRoleSettings = Settings.builder()
-            .put("node.roles", String.format("%s, %s", DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(), DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName()))
+            .put("node.roles", String.format(Locale.ROOT, "%s, %s",
+                DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName(), DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName()))
             .build();
 
         internalCluster().startNodes(clusterManagerNodeRoleSettings);
