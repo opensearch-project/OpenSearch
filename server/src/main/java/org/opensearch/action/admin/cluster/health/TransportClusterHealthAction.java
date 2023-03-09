@@ -62,6 +62,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.node.NodeClosedException;
@@ -281,7 +282,7 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
             ClusterHealthResponse clusterHealthResponse = getResponse(request, currentState, waitCount, TimeoutState.OK);
             if (request.ensureNodeWeighedIn()) {
                 if (clusterHealthResponse.hasDiscoveredClusterManager() == false) {
-                    listener.onFailure(new NotClusterManagerException("cluster-manager not discovered"));
+                    listener.onFailure(new ClusterManagerNotDiscoveredException("cluster-manager not discovered"));
                 } else {
                     DiscoveryNode localNode = currentState.getNodes().getLocalNode();
                     // TODO: make this check more generic, check for node role instead

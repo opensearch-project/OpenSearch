@@ -15,6 +15,7 @@ import org.opensearch.action.admin.cluster.shards.routing.weighted.get.ClusterGe
 import org.opensearch.action.admin.cluster.shards.routing.weighted.put.ClusterPutWeightedRoutingResponse;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.snapshots.mockstore.MockRepository;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -336,7 +337,6 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         ).admin().cluster().prepareGetWeightedRouting().setAwarenessAttribute("zone").setRequestLocal(true).get();
         assertEquals(weightedRouting, weightedRoutingResponse.weights());
         assertFalse(weightedRoutingResponse.getDiscoveredClusterManager());
-
         logger.info("--> network disruption is stopped");
         networkDisruption.stopDisrupting();
 
@@ -639,28 +639,22 @@ public class WeightedRoutingIT extends OpenSearchIntegTestCase {
         Thread.sleep(13000);
 
         // Check cluster health for weighed in node when cluster manager is not discovered, health check should
-        // return a response with 200 status code
-        nodeLocalHealth = client(nodes_in_zone_a.get(0)).admin()
+        // return a response with 503 status code
+        assertThrows(ClusterManagerNotDiscoveredException.class, () -> client(nodes_in_zone_a.get(0)).admin()
             .cluster()
             .prepareHealth()
             .setLocal(true)
             .setEnsureNodeWeighedIn(true)
-            .get();
-        assertFalse(nodeLocalHealth.isTimedOut());
-        assertFalse(nodeLocalHealth.hasDiscoveredClusterManager());
+            .get());
 
         // Check cluster health for weighed away node when cluster manager is not discovered, health check should
-        // return a response with 200 status code with cluster manager discovered as false
-        // ensure_node_weighed_in is not executed if cluster manager is not discovered
-        nodeLocalHealth = client(nodes_in_zone_c.get(0)).admin()
+        // return a response with 503 status code
+        assertThrows(ClusterManagerNotDiscoveredException.class, () -> client(nodes_in_zone_c.get(0)).admin()
             .cluster()
             .prepareHealth()
             .setLocal(true)
             .setEnsureNodeWeighedIn(true)
-            .get();
-        assertFalse(nodeLocalHealth.isTimedOut());
-        assertFalse(nodeLocalHealth.hasDiscoveredClusterManager());
-
+            .get());
         networkDisruption.stopDisrupting();
         Thread.sleep(1000);
 
