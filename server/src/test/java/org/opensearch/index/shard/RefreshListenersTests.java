@@ -119,7 +119,7 @@ public class RefreshListenersTests extends OpenSearchTestCase {
             logger,
             threadPool.getThreadContext(),
             refreshMetric,
-            this::returnSeqNo
+            () -> 10L
         );
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
@@ -179,10 +179,6 @@ public class RefreshListenersTests extends OpenSearchTestCase {
     public void tearDownListeners() throws Exception {
         IOUtils.close(engine, store);
         terminate(threadPool);
-    }
-
-    public Long returnSeqNo() {
-        return 10L;
     }
 
     public void testBeforeRefresh() throws Exception {

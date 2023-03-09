@@ -793,6 +793,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     public static Tuple<Translog.Location, Long> performOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
         Translog.Location location = null;
         long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
+        final boolean isSegRepEnabled = replica.indexSettings().isSegRepEnabled();
         for (int i = 0; i < request.items().length; i++) {
             final BulkItemRequest item = request.items()[i];
             final BulkItemResponse response = item.getPrimaryResponse();
@@ -814,14 +815,18 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     primaryTerm,
                     response.getFailure().getMessage()
                 );
-                maxSeqNo = Math.max(response.getFailure().getSeqNo(), maxSeqNo);
+                if (isSegRepEnabled) {
+                    maxSeqNo = Math.max(response.getFailure().getSeqNo(), maxSeqNo);
+                }
             } else {
                 if (response.getResponse().getResult() == DocWriteResponse.Result.NOOP) {
                     continue; // ignore replication as it's a noop
                 }
                 assert response.getResponse().getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
                 operationResult = performOpOnReplica(response.getResponse(), item.request(), replica);
-                maxSeqNo = Math.max(response.getResponse().getSeqNo(), maxSeqNo);
+                if (isSegRepEnabled) {
+                    maxSeqNo = Math.max(response.getResponse().getSeqNo(), maxSeqNo);
+                }
             }
             assert operationResult != null : "operation result must never be null when primary response has no failure";
             location = syncOperationResultOrThrow(operationResult, location);
