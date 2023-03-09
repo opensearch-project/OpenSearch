@@ -43,7 +43,7 @@ public class DeletePitResponseTests extends OpenSearchTestCase {
     public void testDeletePitResponseToAndFromXContent() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
         DeletePitResponse originalResponse = createDeletePitResponseTestItem();
-        ;
+
         BytesReference originalBytes = toShuffledXContent(originalResponse, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
         DeletePitResponse parsedResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
