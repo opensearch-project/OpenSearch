@@ -1509,15 +1509,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.warn("Shard is in primary mode and cannot perform segment replication as a replica.");
             return false;
         }
-        if (this.routingEntry().primary()) {
-            logger.warn("Shard is marked as primary and cannot perform segment replication as a replica");
+        if (this.routingEntry().primary() && this.routingEntry().isRelocationTarget() == false) {
+            logger.warn("Shard is marked as primary but not relocating, so cannot perform segment replication");
             return false;
         }
         if (state().equals(IndexShardState.STARTED) == false
-            && (state() == IndexShardState.RECOVERING && shardRouting.state() == ShardRoutingState.INITIALIZING) == false) {
+            && ((state() == IndexShardState.RECOVERING || state() == IndexShardState.POST_RECOVERY) && shardRouting.state() == ShardRoutingState.INITIALIZING) == false) {
             logger.warn(
                 () -> new ParameterizedMessage(
-                    "Shard is not started or recovering {} {} and cannot perform segment replication as a replica",
+                    "Shard is not started or recovering {} {} and cannot perform segment replication",
                     state(),
                     shardRouting.state()
                 )
