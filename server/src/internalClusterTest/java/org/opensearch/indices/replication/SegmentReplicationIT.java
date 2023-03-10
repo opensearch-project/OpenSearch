@@ -32,8 +32,8 @@ import java.util.concurrent.CountDownLatch;
 
 import static java.util.Arrays.asList;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHits;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -420,6 +420,68 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             waitForSearchableDocs(expectedHitCount - 1, nodeA, nodeB);
             verifyStoreContent();
         }
+    }
+
+    /**
+     * This tests that the max seqNo we send to replicas is accurate and that after failover
+     * the new primary starts indexing from the correct maxSeqNo and replays the correct count of docs
+     * from xlog.
+     */
+    public void testReplicationPostDeleteAndForceMerge() throws Exception {
+        final String primary = internalCluster().startNode();
+        createIndex(INDEX_NAME);
+        final String replica = internalCluster().startNode();
+        ensureGreen(INDEX_NAME);
+        final int initialDocCount = scaledRandomIntBetween(10, 200);
+        for (int i = 0; i < initialDocCount; i++) {
+            client().prepareIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("foo", "bar").get();
+        }
+        refresh(INDEX_NAME);
+        waitForSearchableDocs(initialDocCount, primary, replica);
+
+        final int deletedDocCount = randomIntBetween(10, initialDocCount);
+        for (int i = 0; i < deletedDocCount; i++) {
+            client(primary).prepareDelete(INDEX_NAME, String.valueOf(i)).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        }
+        client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).setFlush(false).get();
+
+        // randomly flush here after the force merge to wipe any old segments.
+        if (randomBoolean()) {
+            flush(INDEX_NAME);
+        }
+
+        final IndexShard primaryShard = getIndexShard(primary, INDEX_NAME);
+        final IndexShard replicaShard = getIndexShard(replica, INDEX_NAME);
+        assertBusy(
+            () -> assertEquals(
+                primaryShard.getLatestReplicationCheckpoint().getSegmentInfosVersion(),
+                replicaShard.getLatestReplicationCheckpoint().getSegmentInfosVersion()
+            )
+        );
+
+        // add some docs to the xlog and drop primary.
+        final int additionalDocs = randomIntBetween(1, 50);
+        for (int i = initialDocCount; i < initialDocCount + additionalDocs; i++) {
+            client().prepareIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("foo", "bar").get();
+        }
+        // Drop the primary and wait until replica is promoted.
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primary));
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+
+        final ShardRouting replicaShardRouting = getShardRoutingForNodeName(replica);
+        assertNotNull(replicaShardRouting);
+        assertTrue(replicaShardRouting + " should be promoted as a primary", replicaShardRouting.primary());
+        refresh(INDEX_NAME);
+        final long expectedHitCount = initialDocCount + additionalDocs - deletedDocCount;
+        assertHitCount(client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount);
+
+        int expectedMaxSeqNo = initialDocCount + deletedDocCount + additionalDocs - 1;
+        assertEquals(expectedMaxSeqNo, replicaShard.seqNoStats().getMaxSeqNo());
+
+        // index another doc.
+        client().prepareIndex(INDEX_NAME).setId(String.valueOf(expectedMaxSeqNo + 1)).setSource("another", "doc").get();
+        refresh(INDEX_NAME);
+        assertHitCount(client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), expectedHitCount + 1);
     }
 
     public void testUpdateOperations() throws Exception {

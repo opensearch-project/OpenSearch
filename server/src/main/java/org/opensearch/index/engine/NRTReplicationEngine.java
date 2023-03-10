@@ -40,6 +40,8 @@ import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
 
+import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
+
 /**
  * This is an {@link Engine} implementation intended for replica shards when Segment Replication
  * is enabled.  This Engine does not create an IndexWriter, rather it refreshes a {@link NRTReplicationReaderManager}
@@ -122,10 +124,11 @@ public class NRTReplicationEngine extends Engine {
         return translogManager;
     }
 
-    public synchronized void updateSegments(final SegmentInfos infos, long seqNo) throws IOException {
+    public synchronized void updateSegments(final SegmentInfos infos) throws IOException {
         // Update the current infos reference on the Engine's reader.
         ensureOpen();
         try (ReleasableLock lock = writeLock.acquire()) {
+            final long maxSeqNo = Long.parseLong(infos.userData.get(MAX_SEQ_NO));
             final long incomingGeneration = infos.getGeneration();
             readerManager.updateSegments(infos);
 
@@ -133,11 +136,11 @@ public class NRTReplicationEngine extends Engine {
             // lower/higher gens are possible from a new primary that was just elected.
             if (incomingGeneration != lastReceivedGen) {
                 commitSegmentInfos();
-                translogManager.getDeletionPolicy().setLocalCheckpointOfSafeCommit(seqNo);
+                translogManager.getDeletionPolicy().setLocalCheckpointOfSafeCommit(maxSeqNo);
                 translogManager.rollTranslogGeneration();
             }
             lastReceivedGen = incomingGeneration;
-            localCheckpointTracker.fastForwardProcessedSeqNo(seqNo);
+            localCheckpointTracker.fastForwardProcessedSeqNo(maxSeqNo);
         }
     }
 

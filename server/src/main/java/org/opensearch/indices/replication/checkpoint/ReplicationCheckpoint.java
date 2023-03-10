@@ -28,7 +28,6 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
     private final ShardId shardId;
     private final long primaryTerm;
     private final long segmentsGen;
-    private final long seqNo;
     private final long segmentInfosVersion;
 
     public static ReplicationCheckpoint empty(ShardId shardId) {
@@ -39,15 +38,13 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         this.shardId = shardId;
         primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
         segmentsGen = SequenceNumbers.NO_OPS_PERFORMED;
-        seqNo = SequenceNumbers.NO_OPS_PERFORMED;
         segmentInfosVersion = SequenceNumbers.NO_OPS_PERFORMED;
     }
 
-    public ReplicationCheckpoint(ShardId shardId, long primaryTerm, long segmentsGen, long seqNo, long segmentInfosVersion) {
+    public ReplicationCheckpoint(ShardId shardId, long primaryTerm, long segmentsGen, long segmentInfosVersion) {
         this.shardId = shardId;
         this.primaryTerm = primaryTerm;
         this.segmentsGen = segmentsGen;
-        this.seqNo = seqNo;
         this.segmentInfosVersion = segmentInfosVersion;
     }
 
@@ -55,7 +52,6 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         shardId = new ShardId(in);
         primaryTerm = in.readLong();
         segmentsGen = in.readLong();
-        seqNo = in.readLong();
         segmentInfosVersion = in.readLong();
     }
 
@@ -83,13 +79,6 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
     }
 
     /**
-     * @return the Seq number
-     */
-    public long getSeqNo() {
-        return seqNo;
-    }
-
-    /**
      * Shard Id of primary shard.
      *
      * @return the Shard Id
@@ -103,7 +92,6 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         shardId.writeTo(out);
         out.writeLong(primaryTerm);
         out.writeLong(segmentsGen);
-        out.writeLong(seqNo);
         out.writeLong(segmentInfosVersion);
     }
 
@@ -119,14 +107,13 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         ReplicationCheckpoint that = (ReplicationCheckpoint) o;
         return primaryTerm == that.primaryTerm
             && segmentsGen == that.segmentsGen
-            && seqNo == that.seqNo
             && segmentInfosVersion == that.segmentInfosVersion
             && Objects.equals(shardId, that.shardId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(shardId, primaryTerm, segmentsGen, seqNo);
+        return Objects.hash(shardId, primaryTerm, segmentsGen);
     }
 
     /**
@@ -148,8 +135,6 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
             + primaryTerm
             + ", segmentsGen="
             + segmentsGen
-            + ", seqNo="
-            + seqNo
             + ", version="
             + segmentInfosVersion
             + '}';
