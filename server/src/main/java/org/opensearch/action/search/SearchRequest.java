@@ -250,7 +250,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         ccsMinimizeRoundtrips = in.readBoolean();
         cancelAfterTimeInterval = in.readOptionalTimeValue();
-        pipeline = in.readOptionalString();
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) { // TODO: Update if/when we backport to 2.x
+            pipeline = in.readOptionalString();
+        }
     }
 
     @Override
@@ -279,7 +281,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
         out.writeOptionalTimeValue(cancelAfterTimeInterval);
-        out.writeOptionalString(pipeline);
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) { // TODO: Update if/when we backport to 2.x
+            out.writeOptionalString(pipeline);
+        }
     }
 
     @Override

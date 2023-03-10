@@ -69,7 +69,7 @@ public final class SearchPipelinesClient {
     }
 
     /**
-     * Get an existing pipeline.
+     * Get existing pipelines.
      *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -87,7 +87,7 @@ public final class SearchPipelinesClient {
     }
 
     /**
-     * Asynchronously get an existing pipeline.
+     * Asynchronously get existing pipelines.
      *
      * @param request the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized

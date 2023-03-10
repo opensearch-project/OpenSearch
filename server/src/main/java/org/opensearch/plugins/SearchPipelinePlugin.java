@@ -18,7 +18,7 @@ import java.util.Map;
  *
  * @opensearch.api
  */
-public interface SearchPipelinesPlugin {
+public interface SearchPipelinePlugin {
     /**
      * Returns additional search pipeline processor types added by this plugin.
      *

@@ -29,7 +29,6 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -39,7 +38,7 @@ import org.opensearch.gateway.GatewayService;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.node.ReportingService;
-import org.opensearch.plugins.SearchPipelinesPlugin;
+import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -79,14 +78,14 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         ScriptService scriptService,
         AnalysisRegistry analysisRegistry,
         NamedXContentRegistry namedXContentRegistry,
-        List<SearchPipelinesPlugin> searchPipelinesPlugins,
+        List<SearchPipelinePlugin> searchPipelinePlugins,
         Client client
     ) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
         this.threadPool = threadPool;
         this.processorFactories = processorFactories(
-            searchPipelinesPlugins,
+            searchPipelinePlugins,
             new Processor.Parameters(
                 env,
                 scriptService,
@@ -105,12 +104,12 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
     }
 
     private static Map<String, Processor.Factory> processorFactories(
-        List<SearchPipelinesPlugin> searchPipelinesPlugins,
+        List<SearchPipelinePlugin> searchPipelinePlugins,
         Processor.Parameters parameters
     ) {
         Map<String, Processor.Factory> processorFactories = new HashMap<>();
-        for (SearchPipelinesPlugin searchPipelinesPlugin : searchPipelinesPlugins) {
-            Map<String, Processor.Factory> newProcessors = searchPipelinesPlugin.getProcessors(parameters);
+        for (SearchPipelinePlugin searchPipelinePlugin : searchPipelinePlugins) {
+            Map<String, Processor.Factory> newProcessors = searchPipelinePlugin.getProcessors(parameters);
             for (Map.Entry<String, Processor.Factory> entry : newProcessors.entrySet()) {
                 if (processorFactories.put(entry.getKey(), entry.getValue()) != null) {
                     throw new IllegalArgumentException("Ingest processor [" + entry.getKey() + "] is already registered");
@@ -316,23 +315,19 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         return newState.build();
     }
 
-    public SearchRequest transformRequest(SearchRequest searchRequest) throws Exception {
+    public SearchRequest transformRequest(SearchRequest searchRequest) {
         String pipelineId = searchRequest.pipeline();
         if (pipelineId != null) {
             PipelineHolder pipeline = pipelines.get(pipelineId);
             if (pipeline == null) {
                 throw new IllegalArgumentException("Pipeline " + pipelineId + " is not defined");
             }
-            // Save the original request by deep cloning the existing request.
-            BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
-            searchRequest.writeTo(bytesStreamOutput);
-            SearchRequest clonedRequest = new SearchRequest(bytesStreamOutput.bytes().streamInput());
-            return pipeline.pipeline.transformRequest(clonedRequest);
+            return pipeline.pipeline.transformRequest(searchRequest);
         }
         return searchRequest;
     }
 
-    public SearchResponse transformResponse(SearchRequest request, SearchResponse searchResponse) throws Exception {
+    public SearchResponse transformResponse(SearchRequest request, SearchResponse searchResponse) {
         String pipelineId = request.pipeline();
         if (pipelineId != null) {
             PipelineHolder pipeline = pipelines.get(pipelineId);

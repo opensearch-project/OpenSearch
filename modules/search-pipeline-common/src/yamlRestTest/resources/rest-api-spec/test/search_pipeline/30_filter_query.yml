@@ -1,0 +1,60 @@
+---
+teardown:
+  - do:
+      search_pipelines.delete_pipeline:
+        id: "my_pipeline"
+        ignore: 404
+
+---
+"Test filter_query processor":
+  - do:
+      search_pipelines.put_pipeline:
+        id: "my_pipeline"
+        body: >
+          {
+            "description": "_description",
+            "request_processors": [
+              {
+                "filter_query" : {
+                  "query" : {
+                    "term" : {
+                      "field" : "value"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: {
+          "field" : "foo"
+        }
+  - do:
+      index:
+        index: test
+        id: 2
+        body: {
+          "field": "value"
+        }
+
+  - do:
+      indices.refresh:
+        index: test
+
+  - do:
+      search:
+        body: { }
+  - match: { hits.total.value: 2 }
+
+  - do:
+      search:
+        index: test
+        search_pipeline: "my_pipeline"
+        body: { }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "2" }

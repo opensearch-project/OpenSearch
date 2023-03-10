@@ -37,6 +37,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.index.analysis.AnalysisRegistry;
+import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.Scheduler;
 
@@ -95,7 +96,7 @@ public interface Processor {
 
     /**
      * Infrastructure class that holds services that can be used by processor factories to create processor instances
-     * and that gets passed around to all {@link org.opensearch.plugins.SearchPipelinesPlugin}s.
+     * and that gets passed around to all {@link SearchPipelinePlugin}s.
      */
     class Parameters {
 

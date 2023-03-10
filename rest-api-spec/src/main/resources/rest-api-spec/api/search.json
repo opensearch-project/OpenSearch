@@ -225,6 +225,10 @@
         "type":"boolean",
         "description":"Indicates whether hits.total should be rendered as an integer or an object in the rest search response",
         "default":false
+      },
+      "search_pipeline": {
+        "type": "string",
+        "description": "The search pipeline to use to execute this request"
       }
     },
     "body":{

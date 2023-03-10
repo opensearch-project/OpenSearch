@@ -46,7 +46,7 @@ import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.NoopExtensionsManager;
-import org.opensearch.plugins.SearchPipelinesPlugin;
+import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.search.backpressure.SearchBackpressureService;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.pipeline.SearchPipelineService;
@@ -960,7 +960,7 @@ public class Node implements Closeable {
                 scriptService,
                 analysisModule.getAnalysisRegistry(),
                 xContentRegistry,
-                pluginsService.filterPlugins(SearchPipelinesPlugin.class),
+                pluginsService.filterPlugins(SearchPipelinePlugin.class),
                 client
             );
             this.nodeService = new NodeService(

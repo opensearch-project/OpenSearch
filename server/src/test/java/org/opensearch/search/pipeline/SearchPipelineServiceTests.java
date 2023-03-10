@@ -30,7 +30,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.plugins.SearchPipelinesPlugin;
+import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -51,7 +51,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SearchPipelineServiceTests extends OpenSearchTestCase {
-    private static final SearchPipelinesPlugin DUMMY_PLUGIN = new SearchPipelinesPlugin() {
+    private static final SearchPipelinePlugin DUMMY_PLUGIN = new SearchPipelinePlugin() {
         @Override
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
             return Map.of("foo", (factories, tag, description, config) -> null);
@@ -211,7 +211,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             null,
             null,
             null,
-            Collections.singletonList(new SearchPipelinesPlugin() {
+            Collections.singletonList(new SearchPipelinePlugin() {
                 @Override
                 public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
                     return processors;

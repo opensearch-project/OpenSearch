@@ -9,7 +9,7 @@
 package org.opensearch.search.pipeline.common;
 
 import org.opensearch.plugins.Plugin;
-import org.opensearch.plugins.SearchPipelinesPlugin;
+import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.search.pipeline.Processor;
 
 import java.util.Map;
@@ -17,7 +17,7 @@ import java.util.Map;
 /**
  * Plugin providing common search request/response processors for use in search pipelines.
  */
-public class SearchPipelineCommonModulePlugin extends Plugin implements SearchPipelinesPlugin {
+public class SearchPipelineCommonModulePlugin extends Plugin implements SearchPipelinePlugin {
 
     /**
      * No constructor needed, but build complains if we don't have a constructor with JavaDoc.

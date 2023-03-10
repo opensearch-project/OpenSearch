@@ -44,7 +44,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore '_common', 'search_pipelines', 'cluster', 'indices', 'index', 'nodes', 'get', 'update', 'cat', 'mget'
+    includeCore '_common', 'search_pipelines', 'cluster', 'indices', 'index', 'nodes', 'get', 'update', 'cat', 'mget', 'search'
   }
 }
 

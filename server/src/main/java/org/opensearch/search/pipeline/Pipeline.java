@@ -12,6 +12,7 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.ingest.ConfigurationUtils;
 
 import java.util.ArrayList;
@@ -26,7 +27,7 @@ import static org.opensearch.ingest.Pipeline.VERSION_KEY;
 /**
  * Concrete representation of a search pipeline, holding multiple processors.
  */
-public class Pipeline {
+class Pipeline {
 
     public static final String REQUEST_PROCESSORS_KEY = "request_processors";
     public static final String RESPONSE_PROCESSORS_KEY = "response_processors";
@@ -142,17 +143,29 @@ public class Pipeline {
         return searchResponseProcessors;
     }
 
-    SearchRequest transformRequest(SearchRequest request) throws Exception {
-        for (SearchRequestProcessor searchRequestProcessor : searchRequestProcessors) {
-            request = searchRequestProcessor.processRequest(request);
+    SearchRequest transformRequest(SearchRequest originalRequest) throws SearchPipelineProcessingException {
+        try {
+            // Save the original request by deep cloning the existing request.
+            BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
+            originalRequest.writeTo(bytesStreamOutput);
+            SearchRequest request = new SearchRequest(bytesStreamOutput.bytes().streamInput());
+            for (SearchRequestProcessor searchRequestProcessor : searchRequestProcessors) {
+                request = searchRequestProcessor.processRequest(request);
+            }
+            return request;
+        } catch (Exception e) {
+            throw new SearchPipelineProcessingException(e);
         }
-        return request;
     }
 
-    SearchResponse transformResponse(SearchRequest request, SearchResponse response) throws Exception {
-        for (SearchResponseProcessor responseProcessor : searchResponseProcessors) {
-            response = responseProcessor.processResponse(request, response);
+    SearchResponse transformResponse(SearchRequest request, SearchResponse response) throws SearchPipelineProcessingException {
+        try {
+            for (SearchResponseProcessor responseProcessor : searchResponseProcessors) {
+                response = responseProcessor.processResponse(request, response);
+            }
+            return response;
+        } catch (Exception e) {
+            throw new SearchPipelineProcessingException(e);
         }
-        return response;
     }
 }

@@ -16,7 +16,6 @@ import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.search.pipeline.Pipeline;
 
 import java.io.IOException;
 
@@ -92,7 +91,7 @@ public class SearchPipelinesClientIT extends OpenSearchRestHighLevelClientTestCa
         builder.startObject();
         {
             builder.field("description", "a pipeline description");
-            builder.startArray(Pipeline.REQUEST_PROCESSORS_KEY);
+            builder.startArray("request_processors");
             {
                 builder.startObject().startObject("filter_query");
                 {
