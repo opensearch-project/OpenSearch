@@ -12,6 +12,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.junit.Assert;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.delete.DeleteRequest;
 import org.opensearch.action.index.IndexRequest;
@@ -157,6 +158,14 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         assertNotNull(segmentInfos);
         assertEquals(checkpoint.getSegmentInfosVersion(), segmentInfos.getVersion());
         assertEquals(checkpoint.getSegmentsGen(), segmentInfos.getGeneration());
+    }
+
+    public void testGetReplicationGroupOnReplica() throws IOException {
+        final IndexShard indexShard = newShard(false, settings);
+        OpenSearchException exception = assertThrows(OpenSearchException.class, () -> indexShard.getReplicationGroup());
+        String expectedMessage = "shard is not in primary mode";
+        assertEquals(expectedMessage, exception.getMessage());
+        closeShards(indexShard);
     }
 
     public void testIsSegmentReplicationAllowed_WrongEngineType() throws IOException {

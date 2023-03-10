@@ -2998,6 +2998,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @return the replication group
      */
     public ReplicationGroup getReplicationGroup() {
+        if (indexSettings.isSegRepEnabled() && replicationTracker.isPrimaryMode() == false) {
+            throw new OpenSearchException("shard is not in primary mode");
+        }
         assert assertPrimaryMode();
         verifyNotClosed();
         ReplicationGroup replicationGroup = replicationTracker.getReplicationGroup();

@@ -118,7 +118,12 @@ public class PublishCheckpointAction extends TransportReplicationAction<
             PublishCheckpointRequest request = new PublishCheckpointRequest(indexShard.getLatestReplicationCheckpoint());
             final ReplicationCheckpoint checkpoint = request.getCheckpoint();
 
-            final List<ShardRouting> replicationTargets = indexShard.getReplicationGroup().getReplicationTargets();
+            final List<ShardRouting> replicationTargets;
+            try {
+                replicationTargets = indexShard.getReplicationGroup().getReplicationTargets();
+            } catch (OpenSearchException e) {
+                return;
+            }
             for (ShardRouting replicationTarget : replicationTargets) {
                 if (replicationTarget.primary()) {
                     continue;
