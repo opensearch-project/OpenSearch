@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.client.Requests;
+import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
@@ -282,6 +283,27 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             refresh(INDEX_NAME);
             verifyStoreContent();
         }
+    }
+
+    /**
+     * This test verifies that segment replication does not fail for closed indices
+     */
+    public void testClosedIndices() {
+        internalCluster().startClusterManagerOnlyNode();
+        List<String> nodes = new ArrayList<>();
+        // start 1st node so that it contains the primary
+        nodes.add(internalCluster().startNode());
+        createIndex(INDEX_NAME, super.indexSettings());
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        // start 2nd node so that it contains the replica
+        nodes.add(internalCluster().startNode());
+        ensureGreen(INDEX_NAME);
+
+        logger.info("--> Close index");
+        assertAcked(client().admin().indices().prepareClose(INDEX_NAME));
+
+        logger.info("--> waiting for allocation to have shards assigned");
+        waitForRelocation(ClusterHealthStatus.GREEN);
     }
 
     public void testCancellation() throws Exception {
