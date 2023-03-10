@@ -544,10 +544,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         }
         assertBusy(() -> {
             assertTrue(pendingIndexResponses.stream().allMatch(response -> response.actionGet().status().equals(RestStatus.CREATED)));
-            assertEquals(
-                primaryShard.getProcessedLocalCheckpoint(),
-                replicaShard.getProcessedLocalCheckpoint()
-            );
+            assertEquals(primaryShard.getProcessedLocalCheckpoint(), replicaShard.getProcessedLocalCheckpoint());
         }, 1, TimeUnit.MINUTES);
         assertHitCount(client(primaryNode).prepareSearch(INDEX_NAME).setPreference("_only_local").setSize(0).get(), initialDocCount);
         assertHitCount(client(replicaNode).prepareSearch(INDEX_NAME).setPreference("_only_local").setSize(0).get(), initialDocCount);
