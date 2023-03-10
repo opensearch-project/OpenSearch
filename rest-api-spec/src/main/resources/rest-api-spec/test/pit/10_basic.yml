@@ -138,5 +138,7 @@
   - match: {pits.0.successful: true }
 
   - do:
-      catch: missing
-      delete_all_pits: { }
+      delete_all_pits: {}
+
+  - match: {pits: []}
+  - length: {pits: 0}
