@@ -9,6 +9,9 @@
 package org.opensearch.indices.replication;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import org.opensearch.OpenSearchCorruptionException;
+import org.opensearch.action.ActionFuture;
+import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.client.Requests;
@@ -20,15 +23,18 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.rest.RestStatus;
 import org.opensearch.test.BackgroundIndexer;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Arrays.asList;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
@@ -577,4 +583,99 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             verifyStoreContent();
         }
     }
+
+    public void testWaitUntilRefresh() throws Exception {
+        final String primaryNode = internalCluster().startNode();
+        createIndex(INDEX_NAME);
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        final String replicaNode = internalCluster().startNode();
+        ensureGreen(INDEX_NAME);
+        final int initialDocCount = scaledRandomIntBetween(6000, 7000);
+        final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
+        IndexShard primaryShard = getIndexShard(primaryNode, INDEX_NAME);
+        IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
+
+        for (int i = 0; i < initialDocCount; i++) {
+            pendingIndexResponses.add(
+                client().prepareIndex(INDEX_NAME)
+                    .setId(Integer.toString(i))
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
+                    .setSource("field", "value" + i)
+                    .execute()
+            );
+        }
+        assertBusy(() -> {
+            assertTrue(pendingIndexResponses.stream().allMatch(response -> response.actionGet().status().equals(RestStatus.CREATED)));
+            assertEquals(primaryShard.getProcessedLocalCheckpoint(), replicaShard.getProcessedLocalCheckpoint());
+        }, 1, TimeUnit.MINUTES);
+        assertHitCount(client(primaryNode).prepareSearch(INDEX_NAME).setPreference("_only_local").setSize(0).get(), initialDocCount);
+        assertHitCount(client(replicaNode).prepareSearch(INDEX_NAME).setPreference("_only_local").setSize(0).get(), initialDocCount);
+    }
+
+    public void testWaitUntilWhenReplicaPromoted() throws Exception {
+        final String primaryNode = internalCluster().startNode();
+        createIndex(INDEX_NAME);
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        final String replicaNode = internalCluster().startNode();
+        final CountDownLatch waitForReplication = new CountDownLatch(1);
+        // Mock transport service to add behaviour of throwing corruption exception during segment replication process.
+        MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            primaryNode
+        ));
+        mockTransportService.addSendBehavior(
+            internalCluster().getInstance(TransportService.class, replicaNode),
+            (connection, requestId, action, request, options) -> {
+                if (action.equals(SegmentReplicationTargetService.Actions.FILE_CHUNK)) {
+                    try {
+                        waitForReplication.await();
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                    throw new OpenSearchCorruptionException("expected");
+                }
+                connection.sendRequest(requestId, action, request, options);
+            }
+        );
+        ensureGreen(INDEX_NAME);
+        final int initialDocCount = scaledRandomIntBetween(700, 5000);
+        final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
+        for (int i = 0; i < initialDocCount; i++) {
+            pendingIndexResponses.add(
+                client().prepareIndex(INDEX_NAME)
+                    .setId(Integer.toString(i))
+                    .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)
+                    .setSource("field", "value" + i)
+                    .execute()
+            );
+        }
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
+        final ShardRouting replicaShardRouting = getShardRoutingForNodeName(replicaNode);
+        assertNotNull(replicaShardRouting);
+        waitForReplication.countDown();
+        assertBusy(() -> {
+            assertTrue(replicaShardRouting + " should be promoted as a primary", replicaShardRouting.primary());
+            client().admin().indices().prepareRefresh().execute().actionGet();
+            assertTrue(pendingIndexResponses.stream().allMatch(ActionFuture::isDone));
+        }, 1, TimeUnit.MINUTES);
+        int successfulDocCount = 0;
+        for (ActionFuture<IndexResponse> response : pendingIndexResponses) {
+            try {
+                IndexResponse indexResponse = response.actionGet();
+                successfulDocCount++;
+            } catch (Exception e) {
+                logger.trace("Failed to index Doc", e);
+            }
+        }
+        assertTrue(
+            client(replicaNode).prepareSearch(INDEX_NAME)
+                .setPreference("_only_local")
+                .setSize(0)
+                .get()
+                .getHits()
+                .getTotalHits().value >= successfulDocCount
+        );
+
+    }
+
 }

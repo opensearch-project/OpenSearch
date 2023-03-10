@@ -73,6 +73,7 @@ import org.opensearch.cluster.routing.ShardRoutingHelper;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.collect.Iterators;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.lease.Releasable;
@@ -1021,10 +1022,11 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
             request
         );
         final Translog.Location location;
+        final Tuple<Translog.Location, Long> tuple;
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
-            location = TransportShardBulkAction.performOnReplica(request, replica);
+            tuple = TransportShardBulkAction.performOnReplica(request, replica);
         }
-        TransportWriteActionTestHelper.performPostWriteActions(replica, request, location, logger);
+        TransportWriteActionTestHelper.performPostWriteActions(replica, request, tuple.v1(), logger);
     }
 
     /**
