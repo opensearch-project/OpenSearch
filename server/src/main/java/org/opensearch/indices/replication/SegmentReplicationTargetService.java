@@ -389,6 +389,11 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         public void messageReceived(final ForceSyncRequest request, TransportChannel channel, Task task) throws Exception {
             assert indicesService != null;
             final IndexShard indexShard = indicesService.getShardOrNull(request.getShardId());
+            // Proceed with round of segment replication only when it is allowed
+            if (indexShard.isSegmentReplicationAllowed() == false) {
+                channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                return;
+            }
             startReplication(
                 ReplicationCheckpoint.empty(request.getShardId()),
                 indexShard,
