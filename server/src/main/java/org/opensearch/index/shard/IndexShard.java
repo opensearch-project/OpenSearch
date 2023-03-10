@@ -1514,7 +1514,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return false;
         }
         if (state().equals(IndexShardState.STARTED) == false
-            && (state() == IndexShardState.POST_RECOVERY && shardRouting.state() == ShardRoutingState.INITIALIZING) == false) {
+            && (state() == IndexShardState.RECOVERING && shardRouting.state() == ShardRoutingState.INITIALIZING) == false) {
             logger.warn(
                 () -> new ParameterizedMessage(
                     "Shard is not started or recovering {} {} and cannot perform segment replication as a replica",
