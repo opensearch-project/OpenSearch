@@ -42,11 +42,12 @@ import org.apache.lucene.search.TermStatistics;
 import org.opensearch.common.collect.HppcMaps;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.rescore.RescoreContext;
-import org.opensearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+
+import static org.opensearch.tasks.TaskCancellationService.throwTaskCancelledException;
 
 /**
  * Dfs phase of a search request, used to make scoring 100% accurate by collecting additional info from each shard before the query phase.
@@ -64,7 +65,7 @@ public class DfsPhase {
                 @Override
                 public TermStatistics termStatistics(Term term, int docFreq, long totalTermFreq) throws IOException {
                     if (context.isCancelled()) {
-                        throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
+                        throwTaskCancelledException(context.getTask().getReasonCancelled());
                     }
                     TermStatistics ts = super.termStatistics(term, docFreq, totalTermFreq);
                     if (ts != null) {
@@ -76,7 +77,7 @@ public class DfsPhase {
                 @Override
                 public CollectionStatistics collectionStatistics(String field) throws IOException {
                     if (context.isCancelled()) {
-                        throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
+                        throwTaskCancelledException(context.getTask().getReasonCancelled());
                     }
                     CollectionStatistics cs = super.collectionStatistics(field);
                     if (cs != null) {

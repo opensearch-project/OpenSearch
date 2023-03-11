@@ -43,6 +43,7 @@ import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.EmptyTransportResponseHandler;
 import org.opensearch.transport.TransportChannel;
@@ -63,6 +64,8 @@ import java.util.List;
  */
 public class TaskCancellationService {
     public static final String BAN_PARENT_ACTION_NAME = "internal:admin/tasks/ban";
+    public static final String REASON_PARENT_CANCELLED_HIGH_RESOURCE_CONSUMPTION =
+        "The parent task was cancelled due to high resource consumption";
     private static final Logger logger = LogManager.getLogger(TaskCancellationService.class);
     private final TransportService transportService;
     private final TaskManager taskManager;
@@ -88,7 +91,13 @@ public class TaskCancellationService {
             logger.trace("cancelling task [{}] and its descendants", taskId);
             StepListener<Void> completedListener = new StepListener<>();
             GroupedActionListener<Void> groupedListener = new GroupedActionListener<>(ActionListener.map(completedListener, r -> null), 3);
-            Collection<DiscoveryNode> childrenNodes = taskManager.startBanOnChildrenNodes(task.getId(), () -> {
+            String cancelChildTaskReason = reason;
+            // if parent task gets cancelled due to high resource consumption, child task should be cancelled saying parent task was
+            // cancelled
+            if (reason.contains("usage exceeded")) {
+                cancelChildTaskReason = REASON_PARENT_CANCELLED_HIGH_RESOURCE_CONSUMPTION;
+            }
+            Collection<DiscoveryNode> childrenNodes = taskManager.startBanOnChildrenNodes(task.getId(), cancelChildTaskReason, () -> {
                 logger.trace("child tasks of parent [{}] are completed", taskId);
                 groupedListener.onResponse(null);
             });
@@ -97,7 +106,7 @@ public class TaskCancellationService {
                 groupedListener.onResponse(null);
             });
             StepListener<Void> banOnNodesListener = new StepListener<>();
-            setBanOnNodes(reason, waitForCompletion, task, childrenNodes, banOnNodesListener);
+            setBanOnNodes(cancelChildTaskReason, waitForCompletion, task, childrenNodes, banOnNodesListener);
             banOnNodesListener.whenComplete(groupedListener::onResponse, groupedListener::onFailure);
             // If we start unbanning when the last child task completed and that child task executed with a specific user, then unban
             // requests are denied because internal requests can't run with a user. We need to remove bans with the current thread context.
@@ -256,5 +265,16 @@ public class TaskCancellationService {
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
             }
         }
+    }
+
+    public static void throwTaskCancelledException(String reason) {
+        if (isRejection(reason)) {
+            throw new TaskCancelledException(new OpenSearchRejectedExecutionException("cancelled task with reason: " + reason));
+        }
+        throw new TaskCancelledException(reason);
+    }
+
+    private static boolean isRejection(String reason) {
+        return (reason.contains("usage exceeded") || REASON_PARENT_CANCELLED_HIGH_RESOURCE_CONSUMPTION.equals(reason));
     }
 }

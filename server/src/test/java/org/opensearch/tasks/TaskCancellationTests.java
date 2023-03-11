@@ -9,6 +9,8 @@
 package org.opensearch.tasks;
 
 import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.rest.RestStatus;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTracker;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -51,6 +53,15 @@ public class TaskCancellationTests extends OpenSearchTestCase {
         assertEquals(1, mockTracker1.getCancellations());
         assertEquals(1, mockTracker2.getCancellations());
         assertEquals(0, mockTracker3.getCancellations());
+    }
+
+    public void testTaskCancellationFromSearchBackpressure() {
+        TaskCancelledException taskCancelledException = new TaskCancelledException(
+            new OpenSearchRejectedExecutionException(
+                "cancelled task with reason: cpu usage exceeded [17.9ms >= 15ms], elapsed time exceeded [1.1s >= 300ms]"
+            )
+        );
+        assertEquals(taskCancelledException.status(), RestStatus.TOO_MANY_REQUESTS);
     }
 
     private static TaskResourceUsageTracker createMockTaskResourceUsageTracker(String name) {

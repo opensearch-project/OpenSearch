@@ -50,6 +50,7 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.sort.MinAndMax;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
+import org.opensearch.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.Transport;
 
@@ -57,6 +58,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -128,7 +130,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             shardsIter,
             timeProvider,
             ClusterState.EMPTY_STATE,
-            null,
+            new SearchTask(1, "test", "test", () -> "Test", TaskId.EMPTY_TASK_ID, new HashMap<>()),
             (iter) -> new SearchPhase("test") {
                 @Override
                 public void run() throws IOException {
@@ -219,7 +221,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             shardsIter,
             timeProvider,
             ClusterState.EMPTY_STATE,
-            null,
+            new SearchTask(1, "test", "test", () -> "Test", TaskId.EMPTY_TASK_ID, new HashMap<>()),
             (iter) -> new SearchPhase("test") {
                 @Override
                 public void run() throws IOException {
@@ -300,7 +302,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
             shardsIter,
             timeProvider,
             ClusterState.EMPTY_STATE,
-            null,
+            new SearchTask(1, "test", "test", () -> "Test", TaskId.EMPTY_TASK_ID, new HashMap<>()),
             (iter) -> new AbstractSearchAsyncAction<SearchPhaseResult>("test", logger, transportService, (cluster, node) -> {
                 assert cluster == null : "cluster was not null: " + cluster;
                 return lookup.get(node);
@@ -314,7 +316,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 iter,
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                 ClusterState.EMPTY_STATE,
-                null,
+                new SearchTask(1, "test", "test", () -> "Test", TaskId.EMPTY_TASK_ID, new HashMap<>()),
                 new ArraySearchPhaseResults<>(iter.size()),
                 randomIntBetween(1, 32),
                 SearchResponse.Clusters.EMPTY
@@ -420,7 +422,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 shardsIter,
                 timeProvider,
                 ClusterState.EMPTY_STATE,
-                null,
+                new SearchTask(1, "test", "test", () -> "Test", TaskId.EMPTY_TASK_ID, new HashMap<>()),
                 (iter) -> new SearchPhase("test") {
                     @Override
                     public void run() {
@@ -519,7 +521,7 @@ public class CanMatchPreFilterSearchPhaseTests extends OpenSearchTestCase {
                 shardsIter,
                 timeProvider,
                 ClusterState.EMPTY_STATE,
-                null,
+                new SearchTask(1, "test", "test", () -> "Test", TaskId.EMPTY_TASK_ID, new HashMap<>()),
                 (iter) -> new SearchPhase("test") {
                     @Override
                     public void run() {

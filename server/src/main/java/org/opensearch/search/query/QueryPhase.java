@@ -64,7 +64,6 @@ import org.opensearch.search.profile.query.InternalProfileCollector;
 import org.opensearch.search.rescore.RescorePhase;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.suggest.SuggestPhase;
-import org.opensearch.tasks.TaskCancelledException;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -77,6 +76,7 @@ import static org.opensearch.search.query.QueryCollectorContext.createFilteredCo
 import static org.opensearch.search.query.QueryCollectorContext.createMinScoreCollectorContext;
 import static org.opensearch.search.query.QueryCollectorContext.createMultiCollectorContext;
 import static org.opensearch.search.query.TopDocsCollectorContext.createTopDocsCollectorContext;
+import static org.opensearch.tasks.TaskCancellationService.throwTaskCancelledException;
 
 /**
  * Query phase of a search request, used to run the query and get back from each shard information about the matching documents
@@ -112,7 +112,7 @@ public class QueryPhase {
             cancellation = context.searcher().addQueryCancellation(() -> {
                 SearchShardTask task = context.getTask();
                 if (task != null && task.isCancelled()) {
-                    throw new TaskCancelledException("cancelled task with reason: " + task.getReasonCancelled());
+                    throwTaskCancelledException(context.getTask().getReasonCancelled());
                 }
             });
         } else {
@@ -253,7 +253,7 @@ public class QueryPhase {
                 searcher.addQueryCancellation(() -> {
                     SearchShardTask task = searchContext.getTask();
                     if (task != null && task.isCancelled()) {
-                        throw new TaskCancelledException("cancelled task with reason: " + task.getReasonCancelled());
+                        throwTaskCancelledException(task.getReasonCancelled());
                     }
                 });
             }

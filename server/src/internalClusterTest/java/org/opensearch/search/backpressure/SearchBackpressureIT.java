@@ -26,8 +26,10 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.rest.RestStatus;
 import org.opensearch.search.backpressure.settings.NodeDuressSettings;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
@@ -51,6 +53,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
@@ -129,6 +132,7 @@ public class SearchBackpressureIT extends OpenSearchIntegTestCase {
         assertNotNull("SearchTask should have been cancelled with TaskCancelledException", caughtException);
         MatcherAssert.assertThat(caughtException, instanceOf(TaskCancelledException.class));
         MatcherAssert.assertThat(caughtException.getMessage(), containsString("elapsed time exceeded"));
+        MatcherAssert.assertThat(((TaskCancelledException) caughtException).status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
     }
 
     public void testSearchShardTaskCancellationWithHighElapsedTime() throws InterruptedException {
@@ -146,6 +150,7 @@ public class SearchBackpressureIT extends OpenSearchIntegTestCase {
         assertNotNull("SearchShardTask should have been cancelled with TaskCancelledException", caughtException);
         MatcherAssert.assertThat(caughtException, instanceOf(TaskCancelledException.class));
         MatcherAssert.assertThat(caughtException.getMessage(), containsString("elapsed time exceeded"));
+        MatcherAssert.assertThat(((TaskCancelledException) caughtException).status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
     }
 
     public void testSearchTaskCancellationWithHighCpu() throws InterruptedException {
@@ -177,6 +182,7 @@ public class SearchBackpressureIT extends OpenSearchIntegTestCase {
         assertNotNull("SearchTask should have been cancelled with TaskCancelledException", caughtException);
         MatcherAssert.assertThat(caughtException, instanceOf(TaskCancelledException.class));
         MatcherAssert.assertThat(caughtException.getMessage(), containsString("cpu usage exceeded"));
+        MatcherAssert.assertThat(((TaskCancelledException) caughtException).status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
     }
 
     public void testSearchShardTaskCancellationWithHighCpu() throws InterruptedException {
@@ -194,6 +200,7 @@ public class SearchBackpressureIT extends OpenSearchIntegTestCase {
         assertNotNull("SearchShardTask should have been cancelled with TaskCancelledException", caughtException);
         MatcherAssert.assertThat(caughtException, instanceOf(TaskCancelledException.class));
         MatcherAssert.assertThat(caughtException.getMessage(), containsString("cpu usage exceeded"));
+        MatcherAssert.assertThat(((TaskCancelledException) caughtException).status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
     }
 
     public void testSearchTaskCancellationWithHighHeapUsage() throws InterruptedException {
@@ -250,6 +257,7 @@ public class SearchBackpressureIT extends OpenSearchIntegTestCase {
         assertNotNull("SearchTask should have been cancelled with TaskCancelledException", caughtException);
         MatcherAssert.assertThat(caughtException, instanceOf(TaskCancelledException.class));
         MatcherAssert.assertThat(caughtException.getMessage(), containsString("heap usage exceeded"));
+        MatcherAssert.assertThat(((TaskCancelledException) caughtException).status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
     }
 
     public void testSearchShardTaskCancellationWithHighHeapUsage() throws InterruptedException {
@@ -278,6 +286,7 @@ public class SearchBackpressureIT extends OpenSearchIntegTestCase {
         assertNotNull("SearchShardTask should have been cancelled with TaskCancelledException", caughtException);
         MatcherAssert.assertThat(caughtException, instanceOf(TaskCancelledException.class));
         MatcherAssert.assertThat(caughtException.getMessage(), containsString("heap usage exceeded"));
+        MatcherAssert.assertThat(((TaskCancelledException) caughtException).status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
     }
 
     public void testSearchCancellationWithBackpressureDisabled() throws InterruptedException {
@@ -294,6 +303,7 @@ public class SearchBackpressureIT extends OpenSearchIntegTestCase {
 
         Exception caughtException = listener.getException();
         assertNull("SearchShardTask shouldn't have cancelled for monitor_only mode", caughtException);
+        MatcherAssert.assertThat(((TaskCancelledException) caughtException).status(), equalTo(RestStatus.TOO_MANY_REQUESTS));
     }
 
     private static class ExceptionCatchingListener implements ActionListener<TestResponse> {
@@ -405,7 +415,8 @@ public class SearchBackpressureIT extends OpenSearchIntegTestCase {
                         && (System.nanoTime() - startTime) < TIMEOUT.getNanos());
 
                     if (cancellableTask.isCancelled()) {
-                        throw new TaskCancelledException(cancellableTask.getReasonCancelled());
+                        String reason = cancellableTask.getReasonCancelled();
+                        throw new TaskCancelledException(new OpenSearchRejectedExecutionException(reason));
                     } else {
                         listener.onResponse(new TestResponse());
                     }

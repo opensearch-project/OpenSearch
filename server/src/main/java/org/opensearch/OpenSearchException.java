@@ -55,6 +55,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.snapshots.SnapshotInUseDeletionException;
+import org.opensearch.tasks.TaskCancelledException;
 import org.opensearch.transport.TcpTransport;
 
 import java.io.IOException;
@@ -258,7 +259,10 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
      */
     public RestStatus status() {
         Throwable cause = unwrapCause();
-        if (cause == this) {
+        if (cause.getCause() instanceof TaskCancelledException
+            && ((TaskCancelledException) cause.getCause()).status() == RestStatus.TOO_MANY_REQUESTS) {
+            return ((TaskCancelledException) cause.getCause()).status();
+        } else if (cause == this) {
             return RestStatus.INTERNAL_SERVER_ERROR;
         } else {
             return ExceptionsHelper.status(cause);

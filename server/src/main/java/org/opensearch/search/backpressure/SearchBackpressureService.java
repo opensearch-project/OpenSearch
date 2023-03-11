@@ -197,8 +197,9 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         }
 
         for (TaskCancellation taskCancellation : getTaskCancellations(cancellableTasks)) {
+            Class<? extends SearchBackpressureTask> taskType = getTaskType(taskCancellation.getTask());
             logger.debug(
-                "[{} mode] cancelling task [{}] due to high resource consumption [{}]",
+                "[{} mode] cancelling [{}] task with id [{}] due to high resource consumption [{}]",
                 mode.getName(),
                 taskCancellation.getTask().getId(),
                 taskCancellation.getReasonString()
@@ -207,8 +208,6 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
             if (mode != SearchBackpressureMode.ENFORCED) {
                 continue;
             }
-
-            Class<? extends SearchBackpressureTask> taskType = getTaskType(taskCancellation.getTask());
 
             // Independently remove tokens from both token buckets.
             SearchBackpressureState searchBackpressureState = searchBackpressureStates.get(taskType);

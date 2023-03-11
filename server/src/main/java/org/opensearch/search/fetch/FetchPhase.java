@@ -71,7 +71,6 @@ import org.opensearch.search.fetch.subphase.InnerHitsPhase;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.search.lookup.SourceLookup;
-import org.opensearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -86,6 +85,7 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
+import static org.opensearch.tasks.TaskCancellationService.throwTaskCancelledException;
 
 /**
  * Fetch phase of a search request, used to fetch the actual top matching documents to be returned to the client, identified
@@ -109,7 +109,7 @@ public class FetchPhase {
         }
 
         if (context.isCancelled()) {
-            throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
+            throwTaskCancelledException(context.getTask().getReasonCancelled());
         }
 
         if (context.docIdsToLoadSize() == 0) {
@@ -141,7 +141,7 @@ public class FetchPhase {
         boolean hasSequentialDocs = hasSequentialDocs(docs);
         for (int index = 0; index < context.docIdsToLoadSize(); index++) {
             if (context.isCancelled()) {
-                throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
+                throwTaskCancelledException(context.getTask().getReasonCancelled());
             }
             int docId = docs[index].docId;
             try {
@@ -184,7 +184,7 @@ public class FetchPhase {
             }
         }
         if (context.isCancelled()) {
-            throw new TaskCancelledException("cancelled task with reason: " + context.getTask().getReasonCancelled());
+            throwTaskCancelledException(context.getTask().getReasonCancelled());
         }
 
         TotalHits totalHits = context.queryResult().getTotalHits();

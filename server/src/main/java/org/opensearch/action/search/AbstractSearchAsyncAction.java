@@ -50,6 +50,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
@@ -57,6 +58,7 @@ import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchRequest;
+import org.opensearch.tasks.TaskCancelledException;
 import org.opensearch.transport.Transport;
 
 import java.util.ArrayDeque;
@@ -370,6 +372,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 : OpenSearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
             logger.debug(() -> new ParameterizedMessage("All shards failed for phase: [{}]", getName()), cause);
             onPhaseFailure(currentPhase, "all shards failed", cause);
+        } else if (getTask().isCancelled()) {
+            // checking if the task handling the search got cancelled. Adding this check only while starting the next phase to avoid
+            // slowing down the search operation
+            String reason = getTask().getReasonCancelled();
+            onPhaseFailure(
+                currentPhase,
+                "SearchTask was cancelled",
+                new TaskCancelledException(new OpenSearchRejectedExecutionException("cancelled task with reason: " + reason))
+            );
         } else {
             Boolean allowPartialResults = request.allowPartialSearchResults();
             assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";

@@ -53,12 +53,14 @@ import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.Transport;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -158,7 +160,7 @@ public class AbstractSearchAsyncActionTests extends OpenSearchTestCase {
             new GroupShardsIterator<>(Arrays.asList(shards)),
             timeProvider,
             ClusterState.EMPTY_STATE,
-            null,
+            new SearchTask(1, "test", "test", () -> "Test", TaskId.EMPTY_TASK_ID, new HashMap<>()),
             results,
             request.getMaxConcurrentShardRequests(),
             SearchResponse.Clusters.EMPTY

@@ -51,6 +51,7 @@ import org.opensearch.action.support.WriteRequest;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginsService;
@@ -209,7 +210,9 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
             final Throwable topFailureCause = searchFailure.getCause();
             assertTrue(
                 searchFailure.toString(),
-                topFailureCause instanceof TransportException || topFailureCause instanceof TaskCancelledException
+                topFailureCause instanceof TransportException
+                    || topFailureCause instanceof TaskCancelledException
+                    || topFailureCause instanceof OpenSearchRejectedExecutionException
             );
             if (topFailureCause instanceof TransportException) {
                 assertTrue(topFailureCause.getCause() instanceof TaskCancelledException);

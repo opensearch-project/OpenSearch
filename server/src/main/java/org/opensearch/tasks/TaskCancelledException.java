@@ -32,6 +32,7 @@
 package org.opensearch.tasks;
 
 import org.opensearch.OpenSearchException;
+import org.opensearch.OpenSearchWrapperException;
 import org.opensearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -41,10 +42,14 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class TaskCancelledException extends OpenSearchException {
+public class TaskCancelledException extends OpenSearchException implements OpenSearchWrapperException {
 
     public TaskCancelledException(String msg) {
         super(msg);
+    }
+
+    public TaskCancelledException(Throwable cause) {
+        super(cause);
     }
 
     public TaskCancelledException(StreamInput in) throws IOException {

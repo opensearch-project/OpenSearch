@@ -48,6 +48,7 @@ import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -59,6 +60,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
 import org.opensearch.threadpool.ThreadPool;
@@ -84,6 +86,7 @@ import java.util.stream.StreamSupport;
 
 import static org.opensearch.common.unit.TimeValue.timeValueMillis;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
+import static org.opensearch.tasks.TaskCancellationService.REASON_PARENT_CANCELLED_HIGH_RESOURCE_CONSUMPTION;
 
 /**
  * Task Manager service for keeping track of currently running tasks on the nodes
@@ -238,6 +241,9 @@ public class TaskManager implements ClusterStateApplier {
             if (reason != null) {
                 try {
                     holder.cancel(reason);
+                    if (REASON_PARENT_CANCELLED_HIGH_RESOURCE_CONSUMPTION.equals(reason)) {
+                        throw new TaskCancelledException(new OpenSearchRejectedExecutionException("cancelled task with reason: " + reason));
+                    }
                     throw new TaskCancelledException("Task cancelled before it started: " + reason);
                 } finally {
                     // let's clean up the registration
@@ -480,10 +486,10 @@ public class TaskManager implements ClusterStateApplier {
      * @param onChildTasksCompleted called when all child tasks are completed or failed
      * @return the set of current nodes that have outstanding child tasks
      */
-    public Collection<DiscoveryNode> startBanOnChildrenNodes(long taskId, Runnable onChildTasksCompleted) {
+    public Collection<DiscoveryNode> startBanOnChildrenNodes(long taskId, @Nullable String reason, Runnable onChildTasksCompleted) {
         final CancellableTaskHolder holder = cancellableTasks.get(taskId);
         if (holder != null) {
-            return holder.startBan(onChildTasksCompleted);
+            return holder.startBan(onChildTasksCompleted, reason);
         } else {
             onChildTasksCompleted.run();
             return Collections.emptySet();
@@ -548,6 +554,8 @@ public class TaskManager implements ClusterStateApplier {
         private List<Runnable> cancellationListeners = null;
         private ObjectIntMap<DiscoveryNode> childTasksPerNode = null;
         private boolean banChildren = false;
+        @Nullable
+        private String banReason = null;
         private List<Runnable> childTaskCompletedListeners = null;
 
         CancellableTaskHolder(CancellableTask task) {
@@ -625,6 +633,9 @@ public class TaskManager implements ClusterStateApplier {
 
         synchronized void registerChildNode(DiscoveryNode node) {
             if (banChildren) {
+                if (banReason != null && REASON_PARENT_CANCELLED_HIGH_RESOURCE_CONSUMPTION.equals(banReason)) {
+                    throw new TaskCancelledException(new OpenSearchRejectedExecutionException("cancelled task with reason: " + banReason));
+                }
                 throw new TaskCancelledException("The parent task was cancelled, shouldn't start any child tasks");
             }
             if (childTasksPerNode == null) {
@@ -649,11 +660,12 @@ public class TaskManager implements ClusterStateApplier {
             notifyListeners(listeners);
         }
 
-        Set<DiscoveryNode> startBan(Runnable onChildTasksCompleted) {
+        Set<DiscoveryNode> startBan(Runnable onChildTasksCompleted, @Nullable String banReason) {
             final Set<DiscoveryNode> pendingChildNodes;
             final Runnable toRun;
             synchronized (this) {
-                banChildren = true;
+                this.banChildren = true;
+                this.banReason = banReason;
                 if (childTasksPerNode == null) {
                     pendingChildNodes = Collections.emptySet();
                 } else {
