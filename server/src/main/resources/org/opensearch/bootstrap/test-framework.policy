@@ -128,9 +128,13 @@ grant codeBase "${codebase.httpasyncclient}" {
   permission java.net.NetPermission "getProxySelector";
 };
 
-
 grant codeBase "${codebase.junit-rt.jar}" {
   // allows IntelliJ IDEA JUnit test runner to control number of test iterations
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+};
+
+grant codeBase "${codebase.idea_rt.jar}" {
+  // allows IntelliJ IDEA (2022.3.3) JUnit test runner to control number of test iterations
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
