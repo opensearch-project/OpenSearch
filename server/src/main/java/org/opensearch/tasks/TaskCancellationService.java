@@ -66,6 +66,7 @@ public class TaskCancellationService {
     public static final String BAN_PARENT_ACTION_NAME = "internal:admin/tasks/ban";
     public static final String REASON_PARENT_CANCELLED_HIGH_RESOURCE_CONSUMPTION =
         "The parent task was cancelled due to high resource consumption";
+    public static final String USAGE_EXCEEDED = "usage exceeded";
     private static final Logger logger = LogManager.getLogger(TaskCancellationService.class);
     private final TransportService transportService;
     private final TaskManager taskManager;
@@ -275,6 +276,6 @@ public class TaskCancellationService {
     }
 
     private static boolean isRejection(String reason) {
-        return (reason.contains("usage exceeded") || REASON_PARENT_CANCELLED_HIGH_RESOURCE_CONSUMPTION.equals(reason));
+        return (reason != null && (reason.contains(USAGE_EXCEEDED) || REASON_PARENT_CANCELLED_HIGH_RESOURCE_CONSUMPTION.equals(reason)));
     }
 }

@@ -259,12 +259,12 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
      */
     public RestStatus status() {
         Throwable cause = unwrapCause();
-        if (cause.getCause() instanceof TaskCancelledException
-            && ((TaskCancelledException) cause.getCause()).status() == RestStatus.TOO_MANY_REQUESTS) {
-            return ((TaskCancelledException) cause.getCause()).status();
-        } else if (cause == this) {
+        if (cause == this) {
             return RestStatus.INTERNAL_SERVER_ERROR;
         } else {
+            if (cause.getCause() != cause) {
+                return ExceptionsHelper.status(cause.getCause());
+            }
             return ExceptionsHelper.status(cause);
         }
     }
