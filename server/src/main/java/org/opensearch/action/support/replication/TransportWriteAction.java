@@ -307,7 +307,7 @@ public abstract class TransportWriteAction<
                  * We call this after replication because this might wait for a refresh and that can take a while.
                  * This way we wait for the refresh in parallel on the primary and on the replica.
                  */
-                new AsyncAfterWriteAction(primary, replicaRequest, location, null, new RespondingWriteResult() {
+                new AsyncAfterWriteAction(primary, replicaRequest, location, new RespondingWriteResult() {
                     @Override
                     public void onSuccess(boolean forcedRefresh) {
                         finalResponseIfSuccessful.setForcedRefresh(forcedRefresh);
@@ -329,23 +329,20 @@ public abstract class TransportWriteAction<
      * @opensearch.internal
      */
     public static class WriteReplicaResult<ReplicaRequest extends ReplicatedWriteRequest<ReplicaRequest>> extends ReplicaResult {
-        private final Location location;
+        public final Location location;
         private final ReplicaRequest request;
         private final IndexShard replica;
         private final Logger logger;
-        private final Long maxSeqNo;
 
         public WriteReplicaResult(
             ReplicaRequest request,
-            @Nullable final Translog.Location location,
-            @Nullable final Long maxSeqNo,
+            @Nullable Location location,
             @Nullable Exception operationFailure,
             IndexShard replica,
             Logger logger
         ) {
             super(operationFailure);
             this.location = location;
-            this.maxSeqNo = maxSeqNo;
             this.request = request;
             this.replica = replica;
             this.logger = logger;
@@ -356,7 +353,7 @@ public abstract class TransportWriteAction<
             if (finalFailure != null) {
                 listener.onFailure(finalFailure);
             } else {
-                new AsyncAfterWriteAction(replica, request, location, maxSeqNo, new RespondingWriteResult() {
+                new AsyncAfterWriteAction(replica, request, location, new RespondingWriteResult() {
                     @Override
                     public void onSuccess(boolean forcedRefresh) {
                         listener.onResponse(null);
@@ -406,6 +403,7 @@ public abstract class TransportWriteAction<
      * @opensearch.internal
      */
     static final class AsyncAfterWriteAction {
+        private final Location location;
         private final boolean waitUntilRefresh;
         private final boolean sync;
         private final AtomicInteger pendingOps = new AtomicInteger(1);
@@ -416,15 +414,10 @@ public abstract class TransportWriteAction<
         private final WriteRequest<?> request;
         private final Logger logger;
 
-        private final Location location;
-
-        private final Long maxSeqNo;
-
         AsyncAfterWriteAction(
             final IndexShard indexShard,
             final WriteRequest<?> request,
             @Nullable final Translog.Location location,
-            @Nullable final Long maxSeqNo,
             final RespondingWriteResult respond,
             final Logger logger
         ) {
@@ -450,7 +443,6 @@ public abstract class TransportWriteAction<
             this.waitUntilRefresh = waitUntilRefresh;
             this.respond = respond;
             this.location = location;
-            this.maxSeqNo = maxSeqNo;
             if ((sync = indexShard.getTranslogDurability() == Translog.Durability.REQUEST && location != null)) {
                 pendingOps.incrementAndGet();
             }
@@ -482,7 +474,7 @@ public abstract class TransportWriteAction<
             maybeFinish();
             if (waitUntilRefresh) {
                 assert pendingOps.get() > 0;
-                indexShard.addRefreshListener(location, maxSeqNo, forcedRefresh -> {
+                indexShard.addRefreshListener(location, forcedRefresh -> {
                     if (forcedRefresh) {
                         logger.warn("block until refresh ran out of slots and forced a refresh: [{}]", request);
                     }

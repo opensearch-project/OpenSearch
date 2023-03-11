@@ -161,7 +161,7 @@ public class TransportWriteActionTests extends OpenSearchTestCase {
             assertNotNull(listener.response);
             assertNull(listener.failure);
             verify(indexShard, never()).refresh(any());
-            verify(indexShard, never()).addRefreshListener(any(), any(), any());
+            verify(indexShard, never()).addRefreshListener(any(), any());
         }));
     }
 
@@ -177,7 +177,7 @@ public class TransportWriteActionTests extends OpenSearchTestCase {
         assertNotNull(listener.response);
         assertNull(listener.failure);
         verify(indexShard, never()).refresh(any());
-        verify(indexShard, never()).addRefreshListener(any(), any(), any());
+        verify(indexShard, never()).addRefreshListener(any(), any());
     }
 
     public void testPrimaryImmediateRefresh() throws Exception {
@@ -191,7 +191,7 @@ public class TransportWriteActionTests extends OpenSearchTestCase {
             assertNull(listener.failure);
             assertTrue(listener.response.forcedRefresh);
             verify(indexShard).refresh("refresh_flag_index");
-            verify(indexShard, never()).addRefreshListener(any(), any(), any());
+            verify(indexShard, never()).addRefreshListener(any(), any());
         }));
     }
 
@@ -207,7 +207,7 @@ public class TransportWriteActionTests extends OpenSearchTestCase {
         assertNotNull(listener.response);
         assertNull(listener.failure);
         verify(indexShard).refresh("refresh_flag_index");
-        verify(indexShard, never()).addRefreshListener(any(), any(), any());
+        verify(indexShard, never()).addRefreshListener(any(), any());
     }
 
     public void testPrimaryWaitForRefresh() throws Exception {
@@ -223,7 +223,7 @@ public class TransportWriteActionTests extends OpenSearchTestCase {
             @SuppressWarnings({ "unchecked", "rawtypes" })
             ArgumentCaptor<Consumer<Boolean>> refreshListener = ArgumentCaptor.forClass((Class) Consumer.class);
             verify(indexShard, never()).refresh(any());
-            verify(indexShard).addRefreshListener(any(), any(), refreshListener.capture());
+            verify(indexShard).addRefreshListener(any(), refreshListener.capture());
 
             // Now we can fire the listener manually and we'll get a response
             boolean forcedRefresh = randomBoolean();
@@ -247,7 +247,7 @@ public class TransportWriteActionTests extends OpenSearchTestCase {
         @SuppressWarnings({ "unchecked", "rawtypes" })
         ArgumentCaptor<Consumer<Boolean>> refreshListener = ArgumentCaptor.forClass((Class) Consumer.class);
         verify(indexShard, never()).refresh(any());
-        verify(indexShard).addRefreshListener(any(), any(), refreshListener.capture());
+        verify(indexShard).addRefreshListener(any(), refreshListener.capture());
 
         // Now we can fire the listener manually and we'll get a response
         boolean forcedRefresh = randomBoolean();
@@ -531,9 +531,9 @@ public class TransportWriteActionTests extends OpenSearchTestCase {
             ActionListener.completeWith(listener, () -> {
                 final WriteReplicaResult<TestRequest> replicaResult;
                 if (withDocumentFailureOnReplica) {
-                    replicaResult = new WriteReplicaResult<>(request, null, null, new RuntimeException("simulated"), replica, logger);
+                    replicaResult = new WriteReplicaResult<>(request, null, new RuntimeException("simulated"), replica, logger);
                 } else {
-                    replicaResult = new WriteReplicaResult<>(request, location, null, null, replica, logger);
+                    replicaResult = new WriteReplicaResult<>(request, location, null, replica, logger);
                 }
                 return replicaResult;
             });
