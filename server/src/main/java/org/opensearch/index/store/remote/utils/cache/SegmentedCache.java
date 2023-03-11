@@ -13,7 +13,6 @@ import org.opensearch.common.cache.RemovalNotification;
 import org.opensearch.common.cache.Weigher;
 import org.opensearch.index.store.remote.utils.cache.stats.CacheStats;
 
-import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
@@ -91,27 +90,15 @@ public class SegmentedCache<K, V> implements RefCountedCache<K, V> {
     }
 
     @Override
-    public void putAll(Map<? extends K, ? extends V> m) {
-        for (Map.Entry<? extends K, ? extends V> e : m.entrySet())
-            put(e.getKey(), e.getValue());
-    }
-
-    @Override
-    public V computeIfPresent(K key, BiFunction<? super K, ? super V, ? extends V> remappingFunction) {
+    public V compute(K key, BiFunction<? super K, ? super V, ? extends V> remappingFunction) {
         if (key == null || remappingFunction == null) throw new NullPointerException();
-        return segmentFor(key).computeIfPresent(key, remappingFunction);
+        return segmentFor(key).compute(key, remappingFunction);
     }
 
     @Override
     public void remove(K key) {
         if (key == null) throw new NullPointerException();
         segmentFor(key).remove(key);
-    }
-
-    @Override
-    public void removeAll(Iterable<? extends K> keys) {
-        for (K k : keys)
-            remove(k);
     }
 
     @Override
