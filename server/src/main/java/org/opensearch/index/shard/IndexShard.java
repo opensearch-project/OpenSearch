@@ -1509,15 +1509,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.warn("Shard is in primary mode and cannot perform segment replication as a replica.");
             return false;
         }
-        if (this.routingEntry().primary()) {
-            logger.warn("Shard is marked as primary and cannot perform segment replication as a replica");
+        if (this.routingEntry().primary() && this.routingEntry().isRelocationTarget() == false) {
+            logger.warn("Shard is marked as primary but not relocating, so cannot perform segment replication");
             return false;
         }
         if (state().equals(IndexShardState.STARTED) == false
-            && (state() == IndexShardState.POST_RECOVERY && shardRouting.state() == ShardRoutingState.INITIALIZING) == false) {
+            && ((state() == IndexShardState.RECOVERING || state() == IndexShardState.POST_RECOVERY)
+                && shardRouting.state() == ShardRoutingState.INITIALIZING) == false) {
             logger.warn(
                 () -> new ParameterizedMessage(
-                    "Shard is not started or recovering {} {} and cannot perform segment replication as a replica",
+                    "Shard is not started or recovering {} {} and cannot perform segment replication",
                     state(),
                     shardRouting.state()
                 )
@@ -3993,8 +3994,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             () -> refresh("too_many_listeners"),
             logger,
             threadPool.getThreadContext(),
-            externalRefreshMetric,
-            this::getProcessedLocalCheckpoint
+            externalRefreshMetric
         );
     }
 
@@ -4137,7 +4137,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         markSearcherAccessed(); // move the shard into non-search idle
         final Translog.Location location = pendingRefreshLocation.get();
         if (location != null) {
-            addRefreshListener(location, null, (b) -> {
+            addRefreshListener(location, (b) -> {
                 pendingRefreshLocation.compareAndSet(location, null);
                 listener.accept(true);
             });
@@ -4147,14 +4147,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Add a listener for refreshes. Only on Segment replication enabled replica shards we listen for maxSeqNo. In all other cases we listen for translog location
+     * Add a listener for refreshes.
      *
-     * @param location the translog location to listen for on a refresh
-     * @param maxSeqNo the Sequence Number to listen for on a refresh
+     * @param location the location to listen for
      * @param listener for the refresh. Called with true if registering the listener ran it out of slots and forced a refresh. Called with
      *        false otherwise.
      */
-    public void addRefreshListener(Translog.Location location, Long maxSeqNo, Consumer<Boolean> listener) {
+    public void addRefreshListener(Translog.Location location, Consumer<Boolean> listener) {
         final boolean readAllowed;
         if (isReadAllowed()) {
             readAllowed = true;
@@ -4167,11 +4166,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
         }
         if (readAllowed) {
-            if (indexSettings.isSegRepEnabled() && shardRouting.primary() == false) {
-                refreshListeners.addOrNotify(maxSeqNo, listener);
-            } else {
-                refreshListeners.addOrNotify(location, listener);
-            }
+            refreshListeners.addOrNotify(location, listener);
         } else {
             // we're not yet ready fo ready for reads, just ignore refresh cycles
             listener.accept(false);

@@ -10,14 +10,13 @@ package org.opensearch.index.store.remote.utils.cache;
 
 import org.opensearch.index.store.remote.utils.cache.stats.CacheStats;
 
-import java.util.Map;
 import java.util.function.BiFunction;
 
 /**
  * Custom Cache which support typical cache operations (put, get, ...) and it support reference counting per individual key which might
  * change eviction behavior
  * @param <K> type of the key
- * @param <V> type of th value
+ * @param <V> type of the value
  *
  * @opensearch.internal
  */
@@ -25,7 +24,8 @@ public interface RefCountedCache<K, V> {
 
     /**
      * Returns the value associated with {@code key} in this cache, or {@code null} if there is no
-     * cached value for {@code key}.
+     * cached value for {@code key}. Retrieving an item automatically increases its reference
+     * count.
      */
     V get(K key);
 
@@ -36,35 +36,27 @@ public interface RefCountedCache<K, V> {
     V put(K key, V value);
 
     /**
-     * Copies all the mappings from the specified map to the cache. The effect of this call is
-     * equivalent to that of calling {@code put(k, v)} on this map once for each mapping from key
-     * {@code k} to value {@code v} in the specified map. The behavior of this operation is undefined
-     * if the specified map is modified while the operation is in progress.
-     */
-    void putAll(Map<? extends K, ? extends V> m);
-
-    /**
      * If the specified key is already associated with a value, attempts to update its value using the given mapping
-     * function and enters the new value into this map unless null.
-     *
-     * If the specified key is NOT already associated with a value, return null without applying the mapping function.
-     *
+     * function and enters the new value. If the mapping function returns null the item is removed from the
+     * cache, regardless of its reference count. If the mapping function returns non-null the value is updated.
+     * The new entry will have the reference count of the previous entry plus one, as this method automatically
+     * increases the reference count by one when it returns the newly mapped value.
+     * <p>
+     * If the specified key is NOT already associated with a value, then the value of the remapping function
+     * will be associated with the given key, and its reference count will be set to one. If the remapping function
+     * returns null then nothing is done.
+     * <p>
      * The remappingFunction method for a given key will be invoked at most once.
      */
-    V computeIfPresent(K key, BiFunction<? super K, ? super V, ? extends V> remappingFunction);
+    V compute(K key, BiFunction<? super K, ? super V, ? extends V> remappingFunction);
 
     /**
-     * Discards any cached value for key {@code key}.
+     * Discards any cached value for key {@code key}, regardless of reference count.
      */
     void remove(K key);
 
     /**
-     * Discards any cached values for keys {@code keys}.
-     */
-    void removeAll(Iterable<? extends K> keys);
-
-    /**
-     * Discards all entries in the cache.
+     * Discards all entries in the cache, regardless of reference count.
      */
     void clear();
 
@@ -83,6 +75,11 @@ public interface RefCountedCache<K, V> {
      */
     void decRef(K key);
 
+    /**
+     * Removes all cache entries with a reference count of zero, regardless of current capacity.
+     *
+     * @return The total weight of all removed entries.
+     */
     long prune();
 
     /**

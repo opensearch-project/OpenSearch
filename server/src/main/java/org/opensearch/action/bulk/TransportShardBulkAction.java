@@ -780,8 +780,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     @Override
     protected void dispatchedShardOperationOnReplica(BulkShardRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
         ActionListener.completeWith(listener, () -> {
-            final Tuple<Translog.Location, Long> tuple = performOnReplica(request, replica);
-            return new WriteReplicaResult<>(request, tuple.v1(), tuple.v2(), null, replica, logger);
+            final Translog.Location location = performOnReplica(request, replica);
+            return new WriteReplicaResult<>(request, location, null, replica, logger);
         });
     }
 
@@ -790,10 +790,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         return request.ramBytesUsed();
     }
 
-    public static Tuple<Translog.Location, Long> performOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
+    public static Translog.Location performOnReplica(BulkShardRequest request, IndexShard replica) throws Exception {
         Translog.Location location = null;
-        long maxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
-        final boolean isSegRepEnabled = replica.indexSettings().isSegRepEnabled();
         for (int i = 0; i < request.items().length; i++) {
             final BulkItemRequest item = request.items()[i];
             final BulkItemResponse response = item.getPrimaryResponse();
@@ -815,23 +813,17 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     primaryTerm,
                     response.getFailure().getMessage()
                 );
-                if (isSegRepEnabled) {
-                    maxSeqNo = Math.max(response.getFailure().getSeqNo(), maxSeqNo);
-                }
             } else {
                 if (response.getResponse().getResult() == DocWriteResponse.Result.NOOP) {
                     continue; // ignore replication as it's a noop
                 }
                 assert response.getResponse().getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO;
                 operationResult = performOpOnReplica(response.getResponse(), item.request(), replica);
-                if (isSegRepEnabled) {
-                    maxSeqNo = Math.max(response.getResponse().getSeqNo(), maxSeqNo);
-                }
             }
             assert operationResult != null : "operation result must never be null when primary response has no failure";
             location = syncOperationResultOrThrow(operationResult, location);
         }
-        return new Tuple<>(location, maxSeqNo);
+        return location;
     }
 
     private static Engine.Result performOpOnReplica(

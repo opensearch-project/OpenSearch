@@ -118,8 +118,7 @@ public class RefreshListenersTests extends OpenSearchTestCase {
             () -> engine.refresh("too-many-listeners"),
             logger,
             threadPool.getThreadContext(),
-            refreshMetric,
-            () -> 10L
+            refreshMetric
         );
 
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("index", Settings.EMPTY);
@@ -209,46 +208,6 @@ public class RefreshListenersTests extends OpenSearchTestCase {
         assertFalse(listener.forcedRefresh.get());
         listener.assertNoError();
         assertEquals(0, listeners.pendingCount());
-    }
-
-    public void testSeqNoRefreshListenersReleasedOnForceRefresh() throws IOException {
-        assertEquals(0, listeners.pendingCount());
-        Engine.IndexResult indexOne = index("1");
-        Engine.IndexResult indexTwo = index("2");
-        Engine.IndexResult indexThree = index("3");
-        DummyRefreshListener listenerOne = new DummyRefreshListener();
-        DummyRefreshListener listenerTwo = new DummyRefreshListener();
-        DummyRefreshListener listenerThree = new DummyRefreshListener();
-
-        // Add two listeners
-        listeners.addOrNotify(indexOne.getSeqNo(), listenerOne);
-        listeners.addOrNotify(indexTwo.getSeqNo(), listenerTwo);
-
-        // verify that two listeners are added successfully
-        assertEquals(2, listeners.pendingCount());
-
-        // now Force refresh which would fire all seqNO listeners and block addition of any new seqNo Listeners.
-        listeners.forceRefreshes();
-
-        // Add new listener and verify this listener is not added.
-        listeners.addOrNotify(indexThree.getSeqNo(), listenerThree);
-        assertEquals(0, listeners.pendingCount());
-
-    }
-
-    public void testSeqNoRefreshListener() throws IOException {
-        assertEquals(0, listeners.pendingCount());
-        Engine.IndexResult index = index("1");
-        DummyRefreshListener listener = new DummyRefreshListener();
-
-        // Add new listener
-        listeners.addOrNotify(index.getSeqNo(), listener);
-        assertEquals(1, listeners.pendingCount());
-
-        // Refresh and verify that listener is fired.
-        engine.refresh("test");
-        assertEquals(0, listeners.pendingCount());
-
     }
 
     public void testContextIsPreserved() throws IOException, InterruptedException {

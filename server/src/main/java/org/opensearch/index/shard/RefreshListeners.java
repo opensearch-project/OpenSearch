@@ -39,7 +39,6 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.metrics.MeanMetric;
 import org.opensearch.common.util.concurrent.RunOnce;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.Translog;
 
 import java.io.Closeable;
@@ -48,7 +47,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
-import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static java.util.Objects.requireNonNull;
@@ -67,8 +65,6 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     private final Logger logger;
     private final ThreadContext threadContext;
     private final MeanMetric refreshMetric;
-
-    private final LongSupplier getProcessedCheckpoint;
 
     /**
      * Time in nanosecond when beforeRefresh() is called. Used for calculating refresh metrics.
@@ -94,38 +90,29 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      * We never set this to non-null while closed it {@code true}.
      */
     private volatile List<Tuple<Translog.Location, Consumer<Boolean>>> refreshListeners = null;
-
-    private volatile List<Tuple<Long, Consumer<Boolean>>> seqNoRefreshListeners = null;
     /**
      * The translog location that was last made visible by a refresh.
      */
     private volatile Translog.Location lastRefreshedLocation;
-
-    private volatile Long lastMaxSeqNo = SequenceNumbers.NO_OPS_PERFORMED;
 
     public RefreshListeners(
         final IntSupplier getMaxRefreshListeners,
         final Runnable forceRefresh,
         final Logger logger,
         final ThreadContext threadContext,
-        final MeanMetric refreshMetric,
-        final LongSupplier getProcessedLocalCheckpoint
+        final MeanMetric refreshMetric
     ) {
         this.getMaxRefreshListeners = getMaxRefreshListeners;
         this.forceRefresh = forceRefresh;
         this.logger = logger;
         this.threadContext = threadContext;
         this.refreshMetric = refreshMetric;
-        this.getProcessedCheckpoint = getProcessedLocalCheckpoint;
     }
 
     /**
      * Force-refreshes newly added listeners and forces a refresh if there are currently listeners registered. See {@link #refreshForcers}.
      */
     public Releasable forceRefreshes() {
-        if (seqNoRefreshListeners != null) {
-            releaseSeqNoRefreshListeners();
-        }
         synchronized (this) {
             assert refreshForcers >= 0;
             refreshForcers += 1;
@@ -146,17 +133,6 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         }
         assert refreshListeners == null;
         return () -> runOnce.run();
-    }
-
-    // Release refresh listeners on replica shard with segment replication enabled
-    private void releaseSeqNoRefreshListeners() {
-        List<Tuple<Long, Consumer<Boolean>>> oldSeqNoListeners;
-        synchronized (this) {
-            oldSeqNoListeners = seqNoRefreshListeners;
-            seqNoRefreshListeners = null;
-        }
-        // Fire any listeners we might have had
-        fireSeqNoListeners(oldSeqNoListeners);
     }
 
     /**
@@ -184,7 +160,13 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
             List<Tuple<Translog.Location, Consumer<Boolean>>> listeners = refreshListeners;
             final int maxRefreshes = getMaxRefreshListeners.getAsInt();
             if (refreshForcers == 0 && maxRefreshes > 0 && (listeners == null || listeners.size() < maxRefreshes)) {
-                Consumer<Boolean> contextPreservingListener = getContextListener(listener);
+                ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true);
+                Consumer<Boolean> contextPreservingListener = forced -> {
+                    try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+                        storedContext.restore();
+                        listener.accept(forced);
+                    }
+                };
                 if (listeners == null) {
                     listeners = new ArrayList<>();
                 }
@@ -200,69 +182,16 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         return true;
     }
 
-    /**
-     * Add a listener for refreshes, calling it immediately if the max sequence number is already visible. If this runs out of listener slots then it
-     * forces a refresh and calls the listener immediately as well.
-     *
-     * @param maxSeqNo the Sequence number to listen on segment replication enabled replica shards
-     * @param listener for the refresh.It waits until max sequence number is visible. Called with true if registering the listener ran it out of slots and forced a refresh. Called with
-     * false otherwise.
-     * @return did we call the listener (true) or register the listener to call later (false)?
-     */
-    public boolean addOrNotify(Long maxSeqNo, Consumer<Boolean> listener) {
-        requireNonNull(listener, "listener cannot be null");
-        requireNonNull(maxSeqNo, "maxSeqNo cannot be null");
-
-        if (lastMaxSeqNo != SequenceNumbers.NO_OPS_PERFORMED && lastMaxSeqNo >= maxSeqNo) {
-            listener.accept(false);
-            return true;
-        }
-        synchronized (this) {
-            if (closed) {
-                throw new IllegalStateException("can't wait for refresh on a closed index");
-            }
-            List<Tuple<Long, Consumer<Boolean>>> listeners = seqNoRefreshListeners;
-            final int maxRefreshes = getMaxRefreshListeners.getAsInt();
-            if (refreshForcers == 0 && maxRefreshes > 0 && (listeners == null || listeners.size() < maxRefreshes)) {
-                Consumer<Boolean> contextPreservingListener = getContextListener(listener);
-                if (listeners == null) {
-                    listeners = new ArrayList<>();
-                }
-                listeners.add(new Tuple<>(maxSeqNo, contextPreservingListener));
-                seqNoRefreshListeners = listeners;
-                return false;
-            }
-        }
-        // No free slot so release existing refresh listeners and call the listener in this thread
-        releaseSeqNoRefreshListeners();
-        listener.accept(true);
-        return true;
-    }
-
-    private Consumer<Boolean> getContextListener(Consumer<Boolean> listener) {
-        ThreadContext.StoredContext storedContext = threadContext.newStoredContext(true);
-        return forced -> {
-            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-                storedContext.restore();
-                listener.accept(forced);
-            }
-        };
-    }
-
     @Override
     public void close() throws IOException {
         List<Tuple<Translog.Location, Consumer<Boolean>>> oldListeners;
-        List<Tuple<Long, Consumer<Boolean>>> oldSeqNoListeners;
         synchronized (this) {
             oldListeners = refreshListeners;
-            oldSeqNoListeners = seqNoRefreshListeners;
             refreshListeners = null;
-            seqNoRefreshListeners = null;
             closed = true;
         }
         // Fire any listeners we might have had
         fireListeners(oldListeners);
-        fireSeqNoListeners(oldSeqNoListeners);
     }
 
     /**
@@ -270,9 +199,6 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
      */
     public boolean refreshNeeded() {
         // A null list doesn't need a refresh. If we're closed we don't need a refresh either.
-        if (seqNoRefreshListeners != null) {
-            return false == closed;
-        }
         return refreshListeners != null && false == closed;
     }
 
@@ -282,12 +208,8 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     public int pendingCount() {
         // No need to synchronize here because we're doing a single volatile read
         List<Tuple<Translog.Location, Consumer<Boolean>>> listeners = refreshListeners;
-        List<Tuple<Long, Consumer<Boolean>>> seqNoListeners = seqNoRefreshListeners;
-        int count = 0;
         // A null list means we haven't accumulated any listeners. Otherwise we need the size.
-        count += listeners == null ? 0 : listeners.size();
-        count += seqNoListeners == null ? 0 : seqNoListeners.size();
-        return count;
+        return listeners == null ? 0 : listeners.size();
     }
 
     /**
@@ -331,73 +253,9 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
          * assignment into the synchronized block below and double checking lastRefreshedLocation in addOrNotify's synchronized block but
          * that doesn't seem worth it given that we already skip this process early if there aren't any listeners to iterate. */
         lastRefreshedLocation = currentRefreshLocation;
-
-        // Checks if there are any sequence number based refresh listeners that can be fired or preserved.
-        checkSeqNoRefreshListeners();
-
-        // Checks if there are any translog location based refresh listeners that can be fired or preserved.
-        checkRefreshListeners();
-    }
-
-    private void checkSeqNoRefreshListeners() {
-        /* Grab the current Sequence Number refresh listeners and replace them with null while synchronized. Any listeners that come in after this won't be
-         * in the list we iterate over and very likely won't be candidates for refresh anyway because we've already moved the
-         * lastRefreshedLocation. */
-
-        List<Tuple<Long, Consumer<Boolean>>> candidates;
-        synchronized (this) {
-            candidates = seqNoRefreshListeners;
-            // No listeners to check so just bail early
-            if (candidates == null) {
-                return;
-            }
-            seqNoRefreshListeners = null;
-        }
-        // Iterate the list of listeners, copying the listeners to fire to one list and those to preserve to another list.
-        List<Tuple<Long, Consumer<Boolean>>> listenersToFire = null;
-        List<Tuple<Long, Consumer<Boolean>>> preservedListeners = null;
-
-        for (Tuple<Long, Consumer<Boolean>> tuple : candidates) {
-            Long seqNo = tuple.v1();
-            if (seqNo <= getProcessedCheckpoint.getAsLong()) {
-                if (listenersToFire == null) {
-                    listenersToFire = new ArrayList<>();
-                }
-                listenersToFire.add(tuple);
-            } else {
-                if (preservedListeners == null) {
-                    preservedListeners = new ArrayList<>();
-                }
-                preservedListeners.add(tuple);
-            }
-        }
-        /* Now deal with the listeners that it isn't time yet to fire. We need to do this under lock so we don't miss a concurrent close or
-         * newly registered listener. If we're not closed we just add the listeners to the list of listeners we check next time. If we are
-         * closed we fire the listeners even though it isn't time for them. */
-        if (preservedListeners != null) {
-            synchronized (this) {
-                if (seqNoRefreshListeners == null) {
-                    if (closed) {
-                        listenersToFire.addAll(preservedListeners);
-                    } else {
-                        seqNoRefreshListeners = preservedListeners;
-                    }
-                } else {
-                    assert closed == false : "Can't be closed and have non-null refreshListeners";
-                    seqNoRefreshListeners.addAll(preservedListeners);
-                }
-            }
-        }
-        // Lastly, fire the listeners that are ready
-        fireSeqNoListeners(listenersToFire);
-    }
-
-    private void checkRefreshListeners() {
-
         /* Grab the current refresh listeners and replace them with null while synchronized. Any listeners that come in after this won't be
          * in the list we iterate over and very likely won't be candidates for refresh anyway because we've already moved the
          * lastRefreshedLocation. */
-
         List<Tuple<Translog.Location, Consumer<Boolean>>> candidates;
         synchronized (this) {
             candidates = refreshListeners;
@@ -410,7 +268,6 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
         // Iterate the list of listeners, copying the listeners to fire to one list and those to preserve to another list.
         List<Tuple<Translog.Location, Consumer<Boolean>>> listenersToFire = null;
         List<Tuple<Translog.Location, Consumer<Boolean>>> preservedListeners = null;
-
         for (Tuple<Translog.Location, Consumer<Boolean>> tuple : candidates) {
             Translog.Location location = tuple.v1();
             if (location.compareTo(currentRefreshLocation) <= 0) {
@@ -452,21 +309,6 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
     private void fireListeners(final List<Tuple<Translog.Location, Consumer<Boolean>>> listenersToFire) {
         if (listenersToFire != null) {
             for (final Tuple<Translog.Location, Consumer<Boolean>> listener : listenersToFire) {
-                try {
-                    listener.v2().accept(false);
-                } catch (final Exception e) {
-                    logger.warn("error firing refresh listener", e);
-                }
-            }
-        }
-    }
-
-    /**
-     * Fire Sequence number based replica shard listeners. Does nothing if the list of listeners is null.
-     */
-    private void fireSeqNoListeners(final List<Tuple<Long, Consumer<Boolean>>> listenersToFire) {
-        if (listenersToFire != null) {
-            for (final Tuple<Long, Consumer<Boolean>> listener : listenersToFire) {
                 try {
                     listener.v2().accept(false);
                 } catch (final Exception e) {
