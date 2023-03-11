@@ -69,6 +69,7 @@ public class UploadMonitor implements Callable<UploadResult>, TransferMonitor {
     private final UploadCallable multipartUploadCallable;
     private final UploadImpl transfer;
     private final ExecutorContainer executorContainer;
+    private final String threadPoolName;
 
     /*
      * Futures of threads that upload the parts.
@@ -84,7 +85,8 @@ public class UploadMonitor implements Callable<UploadResult>, TransferMonitor {
     private UploadMonitor(TransferManager manager, UploadImpl transfer,
                           ExecutorContainer executorContainer,
                           UploadCallable multipartUploadCallable, PutObjectRequest putObjectRequest,
-                          ProgressListenerChain progressListenerChain) {
+                          ProgressListenerChain progressListenerChain,
+                          String threadPoolName) {
 
         this.s3 = manager.getAmazonS3Client();
         this.multipartUploadCallable = multipartUploadCallable;
@@ -92,6 +94,7 @@ public class UploadMonitor implements Callable<UploadResult>, TransferMonitor {
         this.listener = progressListenerChain;
         this.transfer = transfer;
         this.executorContainer = executorContainer;
+        this.threadPoolName = threadPoolName;
     }
 
     /**
@@ -119,7 +122,7 @@ public class UploadMonitor implements Callable<UploadResult>, TransferMonitor {
 
         UploadMonitor uploadMonitor = new UploadMonitor(manager, transfer,
             executorContainer, multipartUploadCallable, putObjectRequest,
-            progressListenerChain);
+            progressListenerChain, threadPoolName);
         Future<UploadResult> thisFuture = (Future<UploadResult>) executorContainer.getThreadExecutor()
             .apply(uploadMonitor, threadPoolName);
         // Use an atomic compareAndSet to prevent a possible race between the
@@ -166,7 +169,7 @@ public class UploadMonitor implements Callable<UploadResult>, TransferMonitor {
                     .getETags(), listener, this);
                 futureReference.set((Future<UploadResult>) executorContainer.getThreadExecutor().apply(
                     new PrivilegedCallable<>(completeMultipartUpload),
-                    ThreadPool.Names.REMOTE_UPLOAD
+                    threadPoolName
                 ));
             } else {
                 uploadComplete();
