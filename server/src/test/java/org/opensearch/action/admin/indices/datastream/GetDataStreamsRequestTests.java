@@ -83,8 +83,8 @@ public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<
     public void testGetDataStream() {
         final String dataStreamName = "my-data-stream";
         ClusterState cs = getClusterStateWithDataStreams(
-            org.opensearch.common.collect.List.of(new Tuple<>(dataStreamName, 1)),
-            org.opensearch.common.collect.List.of()
+            List.of(new Tuple<>(dataStreamName, 1)),
+            List.of()
         );
         GetDataStreamAction.Request req = new GetDataStreamAction.Request(new String[] { dataStreamName });
         List<DataStream> dataStreams = GetDataStreamAction.TransportAction.getDataStreams(
@@ -99,8 +99,8 @@ public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<
     public void testGetDataStreamsWithWildcards() {
         final String[] dataStreamNames = { "my-data-stream", "another-data-stream" };
         ClusterState cs = getClusterStateWithDataStreams(
-            org.opensearch.common.collect.List.of(new Tuple<>(dataStreamNames[0], 1), new Tuple<>(dataStreamNames[1], 1)),
-            org.opensearch.common.collect.List.of()
+            List.of(new Tuple<>(dataStreamNames[0], 1), new Tuple<>(dataStreamNames[1], 1)),
+            List.of()
         );
 
         GetDataStreamAction.Request req = new GetDataStreamAction.Request(new String[] { dataStreamNames[1].substring(0, 5) + "*" });
@@ -144,8 +144,8 @@ public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<
     public void testGetDataStreamsWithoutWildcards() {
         final String[] dataStreamNames = { "my-data-stream", "another-data-stream" };
         ClusterState cs = getClusterStateWithDataStreams(
-            org.opensearch.common.collect.List.of(new Tuple<>(dataStreamNames[0], 1), new Tuple<>(dataStreamNames[1], 1)),
-            org.opensearch.common.collect.List.of()
+            List.of(new Tuple<>(dataStreamNames[0], 1), new Tuple<>(dataStreamNames[1], 1)),
+            List.of()
         );
 
         GetDataStreamAction.Request req = new GetDataStreamAction.Request(new String[] { dataStreamNames[0], dataStreamNames[1] });

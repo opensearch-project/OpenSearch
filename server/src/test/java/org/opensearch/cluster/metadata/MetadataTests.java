@@ -1065,7 +1065,7 @@ public class MetadataTests extends OpenSearchTestCase {
                 IndexMetadata.builder(dataStreamName).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).build(),
                 false
             )
-            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), org.opensearch.common.collect.List.of(idx.getIndex())));
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(idx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(
@@ -1084,7 +1084,7 @@ public class MetadataTests extends OpenSearchTestCase {
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).putAlias(AliasMetadata.builder(dataStreamName).build()).build();
         Metadata.Builder b = Metadata.builder()
             .put(idx, false)
-            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), org.opensearch.common.collect.List.of(idx.getIndex())));
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(idx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(
@@ -1111,7 +1111,7 @@ public class MetadataTests extends OpenSearchTestCase {
                 new DataStream(
                     dataStreamName,
                     createTimestampField("@timestamp"),
-                    org.opensearch.common.collect.List.of(validIdx.getIndex())
+                    List.of(validIdx.getIndex())
                 )
             );
 
@@ -1134,7 +1134,7 @@ public class MetadataTests extends OpenSearchTestCase {
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).putAlias(new AliasMetadata.Builder(conflictingName)).build();
         Metadata.Builder b = Metadata.builder()
             .put(idx, false)
-            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), org.opensearch.common.collect.List.of(idx.getIndex())));
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(idx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(
@@ -1269,7 +1269,7 @@ public class MetadataTests extends OpenSearchTestCase {
         Index index = standaloneIndexConflictingWithBackingIndices.getIndex();
         indicesLookup.put(index.getName(), new IndexAbstraction.Index(standaloneIndexConflictingWithBackingIndices, null));
 
-        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(org.opensearch.common.collect.Map.of(dataStreamName, dataStream));
+        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(Map.of(dataStreamName, dataStream));
 
         IllegalStateException illegalStateException = expectThrows(
             IllegalStateException.class,
@@ -1362,7 +1362,7 @@ public class MetadataTests extends OpenSearchTestCase {
                 indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.Index(indexMeta, dataStreamAbstraction));
             }
         }
-        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(org.opensearch.common.collect.Map.of(dataStreamName, dataStream));
+        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(Map.of(dataStreamName, dataStream));
 
         // prefixed indices with a lower generation than the data stream's generation are allowed even if the non-prefixed, matching the
         // data stream backing indices naming pattern, indices are already in the system

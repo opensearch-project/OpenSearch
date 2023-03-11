@@ -55,7 +55,7 @@ public class RestGetDataStreamsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.opensearch.common.collect.List.of(
+        return List.of(
             new Route(RestRequest.Method.GET, "/_data_stream"),
             new Route(RestRequest.Method.GET, "/_data_stream/{name}")
         );

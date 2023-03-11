@@ -452,7 +452,7 @@ public class MetadataIndexStateServiceTests extends OpenSearchTestCase {
         }
         ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(
             dataStreamsToCreate,
-            org.opensearch.common.collect.List.of()
+            List.of()
         );
 
         ClusterService clusterService = mock(ClusterService.class);

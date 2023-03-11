@@ -37,10 +37,10 @@ import java.util.Collection;
 /**
  * Java 9 Set
  *
- * todo: deprecate and remove w/ min jdk upgrade to 11?
  *
  * @opensearch.internal
  */
+@Deprecated
 public class Set {
 
     /**

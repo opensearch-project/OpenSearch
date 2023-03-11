@@ -231,7 +231,7 @@ public class AutoCreateIndexTests extends OpenSearchTestCase {
             settings,
             clusterSettings,
             new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
-            new SystemIndices(org.opensearch.common.collect.Map.of())
+            new SystemIndices(Map.of())
         );
         assertThat(autoCreateIndex.getAutoCreate().isAutoCreateIndex(), equalTo(value));
 
@@ -258,9 +258,9 @@ public class AutoCreateIndexTests extends OpenSearchTestCase {
 
     private AutoCreateIndex newAutoCreateIndex(Settings settings) {
         SystemIndices systemIndices = new SystemIndices(
-            org.opensearch.common.collect.Map.of(
+            Map.of(
                 "plugin",
-                org.opensearch.common.collect.List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME, ""))
+                List.of(new SystemIndexDescriptor(TEST_SYSTEM_INDEX_NAME, ""))
             )
         );
         return new AutoCreateIndex(

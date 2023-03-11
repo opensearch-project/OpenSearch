@@ -101,7 +101,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         when(clusterApplierService.threadPool()).thenReturn(threadPool);
         final ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterApplierService()).thenReturn(clusterApplierService);
-        Map<String, Repository.Factory> typesRegistry = org.opensearch.common.collect.Map.of(
+        Map<String, Repository.Factory> typesRegistry = Map.of(
             TestRepository.TYPE,
             TestRepository::new,
             MeteredRepositoryTypeA.TYPE,
@@ -391,7 +391,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
 
     private static class MeteredRepositoryTypeA extends MeteredBlobStoreRepository {
         private static final String TYPE = "type-a";
-        private static final RepositoryStats STATS = new RepositoryStats(org.opensearch.common.collect.Map.of("GET", 10L));
+        private static final RepositoryStats STATS = new RepositoryStats(Map.of("GET", 10L));
 
         private MeteredRepositoryTypeA(RepositoryMetadata metadata, ClusterService clusterService) {
             super(
@@ -400,7 +400,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
                 mock(NamedXContentRegistry.class),
                 clusterService,
                 mock(RecoverySettings.class),
-                org.opensearch.common.collect.Map.of("bucket", "bucket-a")
+                Map.of("bucket", "bucket-a")
             );
         }
 
@@ -422,7 +422,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
 
     private static class MeteredRepositoryTypeB extends MeteredBlobStoreRepository {
         private static final String TYPE = "type-b";
-        private static final RepositoryStats STATS = new RepositoryStats(org.opensearch.common.collect.Map.of("LIST", 20L));
+        private static final RepositoryStats STATS = new RepositoryStats(Map.of("LIST", 20L));
 
         private MeteredRepositoryTypeB(RepositoryMetadata metadata, ClusterService clusterService) {
             super(
@@ -431,7 +431,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
                 mock(NamedXContentRegistry.class),
                 clusterService,
                 mock(RecoverySettings.class),
-                org.opensearch.common.collect.Map.of("bucket", "bucket-b")
+                Map.of("bucket", "bucket-b")
             );
         }
 

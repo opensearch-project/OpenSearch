@@ -494,20 +494,20 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
             .subAggregation(new VariableWidthHistogramAggregationBuilder("v").field("v").setNumBuckets(2));
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             iw.addDocument(
-                org.opensearch.common.collect.List.of(new SortedNumericDocValuesField("t", 1), new SortedNumericDocValuesField("v", 1))
+                List.of(new SortedNumericDocValuesField("t", 1), new SortedNumericDocValuesField("v", 1))
             );
             iw.addDocument(
-                org.opensearch.common.collect.List.of(new SortedNumericDocValuesField("t", 1), new SortedNumericDocValuesField("v", 10))
+                List.of(new SortedNumericDocValuesField("t", 1), new SortedNumericDocValuesField("v", 10))
             );
             iw.addDocument(
-                org.opensearch.common.collect.List.of(new SortedNumericDocValuesField("t", 1), new SortedNumericDocValuesField("v", 11))
+                List.of(new SortedNumericDocValuesField("t", 1), new SortedNumericDocValuesField("v", 11))
             );
 
             iw.addDocument(
-                org.opensearch.common.collect.List.of(new SortedNumericDocValuesField("t", 2), new SortedNumericDocValuesField("v", 20))
+                List.of(new SortedNumericDocValuesField("t", 2), new SortedNumericDocValuesField("v", 20))
             );
             iw.addDocument(
-                org.opensearch.common.collect.List.of(new SortedNumericDocValuesField("t", 2), new SortedNumericDocValuesField("v", 30))
+                List.of(new SortedNumericDocValuesField("t", 2), new SortedNumericDocValuesField("v", 30))
             );
         };
         Consumer<LongTerms> verify = terms -> {
@@ -520,14 +520,14 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
             InternalVariableWidthHistogram v1 = t1.getAggregations().get("v");
             assertThat(
                 v1.getBuckets().stream().map(InternalVariableWidthHistogram.Bucket::centroid).collect(toList()),
-                equalTo(org.opensearch.common.collect.List.of(1.0, 10.5))
+                equalTo(List.of(1.0, 10.5))
             );
 
             LongTerms.Bucket t2 = terms.getBucketByKey("1");
             InternalVariableWidthHistogram v2 = t2.getAggregations().get("v");
             assertThat(
                 v2.getBuckets().stream().map(InternalVariableWidthHistogram.Bucket::centroid).collect(toList()),
-                equalTo(org.opensearch.common.collect.List.of(20.0, 30))
+                equalTo(List.of(20.0, 30))
             );
         };
         Exception e = expectThrows(
@@ -550,7 +550,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
             IllegalArgumentException.class,
             () -> testSearchCase(
                 DEFAULT_QUERY,
-                org.opensearch.common.collect.List.of(),
+                List.of(),
                 true,
                 aggregation -> aggregation.field(NUMERIC_FIELD).setNumBuckets(2).setShardSize(2),
                 histogram -> { fail(); }
@@ -568,7 +568,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
             aggregation -> aggregation.field(NUMERIC_FIELD).setShardSize(1000000000),
             histogram -> assertThat(
                 histogram.getBuckets().stream().map(InternalVariableWidthHistogram.Bucket::getKey).collect(toList()),
-                equalTo(org.opensearch.common.collect.List.of(1.0, 2.0, 3.0))
+                equalTo(List.of(1.0, 2.0, 3.0))
             )
         );
     }
@@ -578,7 +578,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
             IllegalArgumentException.class,
             () -> testSearchCase(
                 DEFAULT_QUERY,
-                org.opensearch.common.collect.List.of(),
+                List.of(),
                 true,
                 aggregation -> aggregation.field(NUMERIC_FIELD).setInitialBuffer(1),
                 histogram -> { fail(); }
@@ -597,7 +597,7 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
             histogram -> {
                 assertThat(
                     histogram.getBuckets().stream().map(InternalVariableWidthHistogram.Bucket::getKey).collect(toList()),
-                    equalTo(org.opensearch.common.collect.List.of(1.0, 2.0, 3.0))
+                    equalTo(List.of(1.0, 2.0, 3.0))
                 );
             }
         );

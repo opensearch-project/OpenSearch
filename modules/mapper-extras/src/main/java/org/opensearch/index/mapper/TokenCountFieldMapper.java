@@ -122,7 +122,7 @@ public class TokenCountFieldMapper extends ParametrizedFieldMapper {
         @Override
         public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
             if (hasDocValues() == false) {
-                return lookup -> org.opensearch.common.collect.List.of();
+                return lookup -> List.of();
             }
             return new DocValueFetcher(docValueFormat(format, null), searchLookup.doc().getForField(this));
         }

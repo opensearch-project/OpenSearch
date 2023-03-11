@@ -72,6 +72,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
@@ -245,18 +246,18 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     private static IndexAnalyzers createIndexAnalyzers() {
         return new IndexAnalyzers(
-            org.opensearch.common.collect.Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-            org.opensearch.common.collect.Map.ofEntries(
-                org.opensearch.common.collect.Map.entry(
+            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
+            Map.ofEntries(
+                Map.entry(
                     "lowercase",
                     new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())
                 ),
-                org.opensearch.common.collect.Map.entry(
+                Map.entry(
                     "other_lowercase",
                     new NamedAnalyzer("other_lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())
                 )
             ),
-            org.opensearch.common.collect.Map.of(
+            Map.of(
                 "lowercase",
                 new NamedAnalyzer(
                     "lowercase",

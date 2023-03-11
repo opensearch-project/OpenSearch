@@ -155,7 +155,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
 
         return fieldToCopiedFields.containsKey(resolvedField)
             ? fieldToCopiedFields.get(resolvedField)
-            : org.opensearch.common.collect.Set.of(resolvedField);
+            : Set.of(resolvedField);
     }
 
     @Override

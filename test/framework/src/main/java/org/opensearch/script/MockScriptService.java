@@ -79,13 +79,13 @@ public class MockScriptService extends ScriptService {
 
             @Override
             public Set<ScriptContext<?>> getSupportedContexts() {
-                return org.opensearch.common.collect.Set.of(context);
+                return Set.of(context);
             }
         };
         return new MockScriptService(
             Settings.EMPTY,
-            org.opensearch.common.collect.Map.of("lang", engine),
-            org.opensearch.common.collect.Map.of(context.name, context)
+            Map.of("lang", engine),
+            Map.of(context.name, context)
         ) {
             @Override
             protected StoredScriptSource getScriptFromClusterState(String id) {

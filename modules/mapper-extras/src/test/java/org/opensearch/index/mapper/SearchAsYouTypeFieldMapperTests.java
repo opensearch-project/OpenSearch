@@ -76,6 +76,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -134,7 +135,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return org.opensearch.common.collect.List.of(new MapperExtrasPlugin());
+        return List.of(new MapperExtrasPlugin());
     }
 
     @Override
@@ -150,7 +151,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         NamedAnalyzer simple = new NamedAnalyzer("simple", AnalyzerScope.INDEX, new SimpleAnalyzer());
         NamedAnalyzer whitespace = new NamedAnalyzer("whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer());
         return new IndexAnalyzers(
-            org.opensearch.common.collect.Map.of(
+            Map.of(
                 "default",
                 dflt,
                 "standard",
@@ -162,8 +163,8 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
                 "whitespace",
                 whitespace
             ),
-            org.opensearch.common.collect.Map.of(),
-            org.opensearch.common.collect.Map.of()
+            Map.of(),
+            Map.of()
         );
     }
 

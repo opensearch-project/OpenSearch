@@ -51,6 +51,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 
 import static org.opensearch.cluster.DataStreamTestHelper.createFirstBackingIndex;
@@ -128,8 +129,8 @@ public class ToAndFromJsonMetadataTests extends OpenSearchTestCase {
             )
             .put(idx1, false)
             .put(idx2, false)
-            .put(new DataStream("data-stream1", createTimestampField("@timestamp"), org.opensearch.common.collect.List.of(idx1.getIndex())))
-            .put(new DataStream("data-stream2", createTimestampField("@timestamp"), org.opensearch.common.collect.List.of(idx2.getIndex())))
+            .put(new DataStream("data-stream1", createTimestampField("@timestamp"), List.of(idx1.getIndex())))
+            .put(new DataStream("data-stream2", createTimestampField("@timestamp"), List.of(idx2.getIndex())))
             .build();
 
         XContentBuilder builder = JsonXContent.contentBuilder();

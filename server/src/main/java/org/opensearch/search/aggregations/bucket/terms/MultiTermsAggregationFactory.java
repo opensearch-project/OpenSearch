@@ -52,7 +52,7 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             REGISTRY_KEY,
-            org.opensearch.common.collect.List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
+            List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
             config -> {
                 final IncludeExclude.StringFilter filter = config.v2() == null
                     ? null
@@ -64,7 +64,7 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
 
         builder.register(
             REGISTRY_KEY,
-            org.opensearch.common.collect.List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.DATE),
+            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.DATE),
             config -> {
                 ValuesSourceConfig valuesSourceConfig = config.v1();
                 IncludeExclude includeExclude = config.v2();

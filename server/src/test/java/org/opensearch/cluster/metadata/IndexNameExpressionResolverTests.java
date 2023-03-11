@@ -2024,7 +2024,7 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
                 new DataStream(
                     dataStreamName,
                     createTimestampField("@timestamp"),
-                    org.opensearch.common.collect.List.of(backingIndex.getIndex()),
+                    List.of(backingIndex.getIndex()),
                     1
                 )
             );
@@ -2252,7 +2252,7 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
                 new DataStream(
                     dataStreamName,
                     createTimestampField("@timestamp"),
-                    org.opensearch.common.collect.List.of(index1.getIndex(), index2.getIndex()),
+                    List.of(index1.getIndex(), index2.getIndex()),
                     2
                 )
             );
@@ -2351,14 +2351,14 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
                 new DataStream(
                     dataStream1,
                     createTimestampField("@timestamp"),
-                    org.opensearch.common.collect.List.of(index1.getIndex(), index2.getIndex())
+                    List.of(index1.getIndex(), index2.getIndex())
                 )
             )
             .put(
                 new DataStream(
                     dataStream2,
                     createTimestampField("@timestamp"),
-                    org.opensearch.common.collect.List.of(index3.getIndex(), index4.getIndex())
+                    List.of(index3.getIndex(), index4.getIndex())
                 )
             );
 
@@ -2421,14 +2421,14 @@ public class IndexNameExpressionResolverTests extends OpenSearchTestCase {
                 new DataStream(
                     dataStream1,
                     createTimestampField("@timestamp"),
-                    org.opensearch.common.collect.List.of(index1.getIndex(), index2.getIndex())
+                    List.of(index1.getIndex(), index2.getIndex())
                 )
             )
             .put(
                 new DataStream(
                     dataStream2,
                     createTimestampField("@timestamp"),
-                    org.opensearch.common.collect.List.of(index3.getIndex(), index4.getIndex())
+                    List.of(index3.getIndex(), index4.getIndex())
                 )
             );
 

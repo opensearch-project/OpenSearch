@@ -74,13 +74,13 @@ public class MergingBucketsDeferringCollectorTests extends AggregatorTestCase {
             deferringCollector.prepareSelectedBuckets(0, 8, 9);
 
             equalTo(
-                org.opensearch.common.collect.Map.of(
+                Map.of(
                     0L,
-                    org.opensearch.common.collect.List.of(0, 1, 2, 3, 4, 5, 6, 7),
+                    List.of(0, 1, 2, 3, 4, 5, 6, 7),
                     1L,
-                    org.opensearch.common.collect.List.of(8),
+                    List.of(8),
                     2L,
-                    org.opensearch.common.collect.List.of(9)
+                    List.of(9)
                 )
             );
         });
@@ -102,13 +102,13 @@ public class MergingBucketsDeferringCollectorTests extends AggregatorTestCase {
             assertThat(
                 finalCollector.collection,
                 equalTo(
-                    org.opensearch.common.collect.Map.of(
+                    Map.of(
                         0L,
-                        org.opensearch.common.collect.List.of(4, 5, 6, 7),
+                        List.of(4, 5, 6, 7),
                         1L,
-                        org.opensearch.common.collect.List.of(8),
+                        List.of(8),
                         2L,
-                        org.opensearch.common.collect.List.of(9)
+                        List.of(9)
                     )
                 )
             );
@@ -132,13 +132,13 @@ public class MergingBucketsDeferringCollectorTests extends AggregatorTestCase {
             assertThat(
                 finalCollector.collection,
                 equalTo(
-                    org.opensearch.common.collect.Map.of(
+                    Map.of(
                         0L,
-                        org.opensearch.common.collect.List.of(0, 1, 2, 3),
+                        List.of(0, 1, 2, 3),
                         1L,
-                        org.opensearch.common.collect.List.of(8),
+                        List.of(8),
                         2L,
-                        org.opensearch.common.collect.List.of(9)
+                        List.of(9)
                     )
                 )
             );

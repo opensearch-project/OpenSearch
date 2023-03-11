@@ -69,7 +69,7 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
     private static final String INITIALIZE = AggregationTimingType.INITIALIZE.toString();
     private static final String BUILD_AGGREGATION = AggregationTimingType.BUILD_AGGREGATION.toString();
     private static final String REDUCE = AggregationTimingType.REDUCE.toString();
-    private static final Set<String> BREAKDOWN_KEYS = org.opensearch.common.collect.Set.of(
+    private static final Set<String> BREAKDOWN_KEYS = Set.of(
         INITIALIZE,
         BUILD_LEAF_COLLECTOR,
         COLLECT,
@@ -107,7 +107,7 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             client().admin()
                 .indices()
                 .prepareCreate("idx")
-                .setSettings(org.opensearch.common.collect.Map.of("number_of_shards", 1, "number_of_replicas", 0))
+                .setSettings(Map.of("number_of_shards", 1, "number_of_replicas", 0))
                 .setMapping(STRING_FIELD, "type=keyword", NUMBER_FIELD, "type=integer", TAG_FIELD, "type=keyword")
                 .get()
         );
@@ -166,7 +166,7 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(breakdown.get(REDUCE), equalTo(0L));
             Map<String, Object> debug = histoAggResult.getDebugInfo();
             assertThat(debug, notNullValue());
-            assertThat(debug.keySet(), equalTo(org.opensearch.common.collect.Set.of(TOTAL_BUCKETS)));
+            assertThat(debug.keySet(), equalTo(Set.of(TOTAL_BUCKETS)));
             assertThat(((Number) debug.get(TOTAL_BUCKETS)).longValue(), greaterThan(0L));
         }
     }
@@ -209,7 +209,7 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(histoBreakdown.get(REDUCE), equalTo(0L));
             Map<String, Object> histoDebugInfo = histoAggResult.getDebugInfo();
             assertThat(histoDebugInfo, notNullValue());
-            assertThat(histoDebugInfo.keySet(), equalTo(org.opensearch.common.collect.Set.of(TOTAL_BUCKETS)));
+            assertThat(histoDebugInfo.keySet(), equalTo(Set.of(TOTAL_BUCKETS)));
             assertThat(((Number) histoDebugInfo.get(TOTAL_BUCKETS)).longValue(), greaterThan(0L));
             assertThat(histoAggResult.getProfiledChildren().size(), equalTo(1));
 
@@ -240,7 +240,7 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(avgBreakdown.get(COLLECT), greaterThan(0L));
             assertThat(avgBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(avgBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(avgAggResult.getDebugInfo(), equalTo(org.opensearch.common.collect.Map.of()));
+            assertThat(avgAggResult.getDebugInfo(), equalTo(Map.of()));
             assertThat(avgAggResult.getProfiledChildren().size(), equalTo(0));
         }
     }
@@ -295,7 +295,7 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(histoBreakdown.get(REDUCE), equalTo(0L));
             Map<String, Object> histoDebugInfo = histoAggResult.getDebugInfo();
             assertThat(histoDebugInfo, notNullValue());
-            assertThat(histoDebugInfo.keySet(), equalTo(org.opensearch.common.collect.Set.of(TOTAL_BUCKETS)));
+            assertThat(histoDebugInfo.keySet(), equalTo(Set.of(TOTAL_BUCKETS)));
             assertThat(((Number) histoDebugInfo.get(TOTAL_BUCKETS)).longValue(), greaterThan(0L));
             assertThat(histoAggResult.getProfiledChildren().size(), equalTo(1));
 
@@ -326,7 +326,7 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(avgBreakdown.get(COLLECT), greaterThan(0L));
             assertThat(avgBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(avgBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(avgAggResult.getDebugInfo(), equalTo(org.opensearch.common.collect.Map.of()));
+            assertThat(avgAggResult.getDebugInfo(), equalTo(Map.of()));
             assertThat(avgAggResult.getProfiledChildren().size(), equalTo(0));
         }
     }
@@ -368,7 +368,7 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(diversifyBreakdown.get(REDUCE), equalTo(0L));
             assertThat(
                 diversifyAggResult.getDebugInfo(),
-                equalTo(org.opensearch.common.collect.Map.of(DEFERRED, org.opensearch.common.collect.List.of("max")))
+                equalTo(Map.of(DEFERRED, List.of("max")))
             );
             assertThat(diversifyAggResult.getProfiledChildren().size(), equalTo(1));
 
@@ -386,7 +386,7 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(diversifyBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(maxBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(maxBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(maxAggResult.getDebugInfo(), equalTo(org.opensearch.common.collect.Map.of()));
+            assertThat(maxAggResult.getDebugInfo(), equalTo(Map.of()));
             assertThat(maxAggResult.getProfiledChildren().size(), equalTo(0));
         }
     }
@@ -441,7 +441,7 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(histoBreakdown.get(REDUCE), equalTo(0L));
             Map<String, Object> histoDebugInfo = histoAggResult.getDebugInfo();
             assertThat(histoDebugInfo, notNullValue());
-            assertThat(histoDebugInfo.keySet(), equalTo(org.opensearch.common.collect.Set.of(TOTAL_BUCKETS)));
+            assertThat(histoDebugInfo.keySet(), equalTo(Set.of(TOTAL_BUCKETS)));
             assertThat(((Number) histoDebugInfo.get(TOTAL_BUCKETS)).longValue(), greaterThan(0L));
             assertThat(histoAggResult.getProfiledChildren().size(), equalTo(2));
 
@@ -482,7 +482,7 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(avgBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(avgBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(avgBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(avgAggResult.getDebugInfo(), equalTo(org.opensearch.common.collect.Map.of()));
+            assertThat(avgAggResult.getDebugInfo(), equalTo(Map.of()));
             assertThat(avgAggResult.getProfiledChildren().size(), equalTo(0));
 
             ProfileResult maxAggResult = tagsAggResultSubAggregations.get("max");
@@ -498,7 +498,7 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(maxBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(maxBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(maxBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(maxAggResult.getDebugInfo(), equalTo(org.opensearch.common.collect.Map.of()));
+            assertThat(maxAggResult.getDebugInfo(), equalTo(Map.of()));
             assertThat(maxAggResult.getProfiledChildren().size(), equalTo(0));
 
             ProfileResult stringsAggResult = histoAggResultSubAggregations.get("strings");
@@ -534,7 +534,7 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(avgBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(avgBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(avgBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(avgAggResult.getDebugInfo(), equalTo(org.opensearch.common.collect.Map.of()));
+            assertThat(avgAggResult.getDebugInfo(), equalTo(Map.of()));
             assertThat(avgAggResult.getProfiledChildren().size(), equalTo(0));
 
             maxAggResult = stringsAggResultSubAggregations.get("max");
@@ -550,7 +550,7 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(maxBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(maxBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(maxBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(maxAggResult.getDebugInfo(), equalTo(org.opensearch.common.collect.Map.of()));
+            assertThat(maxAggResult.getDebugInfo(), equalTo(Map.of()));
             assertThat(maxAggResult.getProfiledChildren().size(), equalTo(0));
 
             tagsAggResult = stringsAggResultSubAggregations.get("tags");
@@ -587,7 +587,7 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(avgBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(avgBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(avgBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(avgAggResult.getDebugInfo(), equalTo(org.opensearch.common.collect.Map.of()));
+            assertThat(avgAggResult.getDebugInfo(), equalTo(Map.of()));
             assertThat(avgAggResult.getProfiledChildren().size(), equalTo(0));
 
             maxAggResult = tagsAggResultSubAggregations.get("max");
@@ -603,7 +603,7 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(maxBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(maxBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(maxBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(maxAggResult.getDebugInfo(), equalTo(org.opensearch.common.collect.Map.of()));
+            assertThat(maxAggResult.getDebugInfo(), equalTo(Map.of()));
             assertThat(maxAggResult.getProfiledChildren().size(), equalTo(0));
         }
     }

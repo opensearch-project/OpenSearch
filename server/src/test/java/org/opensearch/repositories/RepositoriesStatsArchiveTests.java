@@ -37,6 +37,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -61,7 +62,7 @@ public class RepositoriesStatsArchiveTests extends OpenSearchTestCase {
         int statsToBeRetainedCount = randomInt(10);
         for (int i = 0; i < statsToBeRetainedCount; i++) {
             RepositoryStatsSnapshot repoStats = createRepositoryStats(
-                new RepositoryStats(org.opensearch.common.collect.Map.of("GET", 10L))
+                new RepositoryStats(Map.of("GET", 10L))
             );
             repositoriesStatsArchive.archive(repoStats);
         }
@@ -71,7 +72,7 @@ public class RepositoriesStatsArchiveTests extends OpenSearchTestCase {
         for (RepositoryStatsSnapshot repositoryStatsSnapshot : archivedStats) {
             assertThat(
                 repositoryStatsSnapshot.getRepositoryStats().requestCounts,
-                equalTo(org.opensearch.common.collect.Map.of("GET", 10L))
+                equalTo(Map.of("GET", 10L))
             );
         }
     }
@@ -129,7 +130,7 @@ public class RepositoriesStatsArchiveTests extends OpenSearchTestCase {
             UUIDs.randomBase64UUID(),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
-            org.opensearch.common.collect.Map.of("bucket", randomAlphaOfLength(10)),
+            Map.of("bucket", randomAlphaOfLength(10)),
             System.currentTimeMillis(),
             null
         );

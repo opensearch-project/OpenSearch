@@ -48,6 +48,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -288,7 +289,7 @@ public class ClusterFormationFailureHelperTests extends OpenSearchTestCase {
             "local",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            org.opensearch.common.collect.Set.of(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
+            Set.of(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
             Version.CURRENT
         );
         clusterState = ClusterState.builder(ClusterName.DEFAULT)

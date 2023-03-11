@@ -59,6 +59,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpClient;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.cluster.InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL_SETTING;
@@ -211,7 +212,7 @@ public class InternalClusterInfoServiceSchedulingTests extends OpenSearchTestCas
                 // ClusterInfoService handles ClusterBlockExceptions quietly, so we invent such an exception to avoid excess logging
                 listener.onFailure(
                     new ClusterBlockException(
-                        org.opensearch.common.collect.Set.of(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ALL)
+                        Set.of(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ALL)
                     )
                 );
             } else {

@@ -157,7 +157,7 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
                                                  IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                                                  IndexNameExpressionResolver indexNameExpressionResolver,
                                                  Supplier<DiscoveryNodes> nodesInCluster) {
-            return org.opensearch.common.collect.List.of(new AddDocRestHandler());
+            return List.of(new AddDocRestHandler());
         }
 
         @Override
@@ -178,7 +178,7 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
 
             @Override
             public List<Route> routes() {
-                return org.opensearch.common.collect.List.of(new Route(RestRequest.Method.POST, "/_sys_index_test/add_doc/{id}"));
+                return List.of(new Route(RestRequest.Method.POST, "/_sys_index_test/add_doc/{id}"));
             }
 
             @Override
@@ -186,7 +186,7 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
                 IndexRequest indexRequest = new IndexRequest(SYSTEM_INDEX_NAME);
                 indexRequest.id(request.param("id"));
                 indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-                indexRequest.source(org.opensearch.common.collect.Map.of("some_field", "some_value"));
+                indexRequest.source(Map.of("some_field", "some_value"));
                 return channel -> client.index(indexRequest,
                     new RestStatusToXContentListener<>(channel, r -> r.getLocation(indexRequest.routing())));
             }

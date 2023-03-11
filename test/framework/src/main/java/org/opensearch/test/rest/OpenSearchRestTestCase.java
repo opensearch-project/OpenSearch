@@ -626,7 +626,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
             // We hit a version of ES that doesn't serialize DeleteDataStreamAction.Request#wildcardExpressionsOriginallySpecified field or
             // that doesn't support data streams so it's safe to ignore
             int statusCode = e.getResponse().getStatusLine().getStatusCode();
-            if (org.opensearch.common.collect.Set.of(404, 405, 500).contains(statusCode) == false) {
+            if (Set.of(404, 405, 500).contains(statusCode) == false) {
                 throw e;
             }
         }

@@ -125,20 +125,20 @@ public class ProfileResultTests extends OpenSearchTestCase {
             new ProfileResult(
                 "child1",
                 "desc1",
-                org.opensearch.common.collect.Map.of("key1", 100L),
-                org.opensearch.common.collect.Map.of(),
+                Map.of("key1", 100L),
+                Map.of(),
                 100L,
-                org.opensearch.common.collect.List.of()
+                List.of()
             )
         );
         children.add(
             new ProfileResult(
                 "child2",
                 "desc2",
-                org.opensearch.common.collect.Map.of("key1", 123356L),
-                org.opensearch.common.collect.Map.of(),
+                Map.of("key1", 123356L),
+                Map.of(),
                 123356L,
-                org.opensearch.common.collect.List.of()
+                List.of()
             )
         );
         Map<String, Long> breakdown = new LinkedHashMap<>();
@@ -228,10 +228,10 @@ public class ProfileResultTests extends OpenSearchTestCase {
         result = new ProfileResult(
             "profileName",
             "some description",
-            org.opensearch.common.collect.Map.of("key1", 12345678L),
-            org.opensearch.common.collect.Map.of(),
+            Map.of("key1", 12345678L),
+            Map.of(),
             12345678L,
-            org.opensearch.common.collect.List.of()
+            List.of()
         );
         builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -251,10 +251,10 @@ public class ProfileResultTests extends OpenSearchTestCase {
         result = new ProfileResult(
             "profileName",
             "some description",
-            org.opensearch.common.collect.Map.of("key1", 1234567890L),
-            org.opensearch.common.collect.Map.of(),
+            Map.of("key1", 1234567890L),
+            Map.of(),
             1234567890L,
-            org.opensearch.common.collect.List.of()
+            List.of()
         );
         builder = XContentFactory.jsonBuilder().prettyPrint().humanReadable(true);
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);

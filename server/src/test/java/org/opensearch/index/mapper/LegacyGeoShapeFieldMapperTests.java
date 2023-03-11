@@ -39,7 +39,6 @@ import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.Strings;
-import org.opensearch.common.collect.List;
 import org.opensearch.common.geo.GeoUtils;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.geo.SpatialStrategy;
@@ -54,6 +53,7 @@ import org.opensearch.test.TestGeoShapeFieldMapperPlugin;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 
 import static java.util.Collections.singletonMap;
@@ -80,7 +80,7 @@ public class LegacyGeoShapeFieldMapperTests extends FieldMapperTestCase2<LegacyG
 
     @Override
     protected Set<String> unsupportedProperties() {
-        return org.opensearch.common.collect.Set.of("analyzer", "similarity", "doc_values", "store");
+        return Set.of("analyzer", "similarity", "doc_values", "store");
     }
 
     @Override

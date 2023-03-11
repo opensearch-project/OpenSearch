@@ -959,7 +959,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
                 IllegalStateException.class,
                 () -> clusterStateCreateIndex(
                     currentClusterState,
-                    org.opensearch.common.collect.Set.of(),
+                    Set.of(),
                     newIndex,
                     (state, reason) -> state,
                     null
@@ -988,7 +988,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
         ClusterState updatedClusterState = clusterStateCreateIndex(
             currentClusterState,
-            org.opensearch.common.collect.Set.of(INDEX_READ_ONLY_BLOCK),
+            Set.of(INDEX_READ_ONLY_BLOCK),
             newIndexMetadata,
             rerouteRoutingTable,
             null
@@ -1027,7 +1027,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
         ClusterState updatedClusterState = clusterStateCreateIndex(
             currentClusterState,
-            org.opensearch.common.collect.Set.of(INDEX_READ_ONLY_BLOCK),
+            Set.of(INDEX_READ_ONLY_BLOCK),
             newIndexMetadata,
             (clusterState, y) -> clusterState,
             metadataTransformer

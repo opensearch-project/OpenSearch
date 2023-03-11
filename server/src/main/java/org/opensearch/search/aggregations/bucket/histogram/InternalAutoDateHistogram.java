@@ -483,7 +483,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
         Bucket lastBucket = null;
         ListIterator<Bucket> iter = list.listIterator();
         InternalAggregations reducedEmptySubAggs = InternalAggregations.reduce(
-            org.opensearch.common.collect.List.of(bucketInfo.emptySubAggregations),
+            List.of(bucketInfo.emptySubAggregations),
             reduceContext
         );
 

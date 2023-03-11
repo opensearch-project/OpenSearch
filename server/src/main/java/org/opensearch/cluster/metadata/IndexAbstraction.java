@@ -46,7 +46,6 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
-import static org.opensearch.common.collect.List.copyOf;
 
 /**
  * An index abstraction is a reference to one or more concrete indices.
@@ -346,7 +345,7 @@ public interface IndexAbstraction {
 
         public DataStream(org.opensearch.cluster.metadata.DataStream dataStream, List<IndexMetadata> dataStreamIndices) {
             this.dataStream = dataStream;
-            this.dataStreamIndices = copyOf(dataStreamIndices);
+            this.dataStreamIndices = List.copyOf(dataStreamIndices);
             this.writeIndex = dataStreamIndices.get(dataStreamIndices.size() - 1);
             assert writeIndex.getIndex().getName().equals(getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration()));
         }
