@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.Arrays.asList;
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.FS;
@@ -377,56 +378,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         assertBusy(() -> { assertDocCounts(docCount, replicaNode); });
     }
 
-    protected ShardRouting corruptRandomFile(String indexName, String nodeId) throws IOException {
-//        ClusterState state = client().admin().cluster().prepareState().get().getState();
-//        Index test = state.metadata().index("test").getIndex();
-//        GroupShardsIterator shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(new String[] { "test" }, false);
-//        List<ShardIterator> iterators = iterableAsArrayList(shardIterators);
-//        ShardIterator shardIterator = RandomPicks.randomFrom(random(), iterators);
-//        ShardRouting shardRouting = shardIterator.nextOrNull();
-//        assertNotNull(shardRouting);
-//        assertTrue(shardRouting.primary());
-//        assertTrue(shardRouting.assignedToNode());
-//        String nodeId = shardRouting.currentNodeId();
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
-        Index test = state.metadata().index(indexName).getIndex();
-
-        final IndexShard indexShard = getIndexShard(nodeId, INDEX_NAME);
-        final ShardRouting shardRouting = indexShard.routingEntry();
-
-        NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(nodeId).addMetric(FS.metricName()).get();
-        Set<Path> files = new TreeSet<>(); // treeset makes sure iteration order is deterministic
-        for (FsInfo.Path info : nodeStatses.getNodes().get(0).getFs()) {
-            String path = info.getPath();
-            Path file = PathUtils.get(path)
-                .resolve("indices")
-                .resolve(test.getUUID())
-                .resolve(Integer.toString(shardRouting.getId()))
-                .resolve("index");
-            if (Files.exists(file)) { // multi data path might only have one path in use
-                try (Directory dir = FSDirectory.open(file)) {
-                    SegmentInfos segmentCommitInfos = Lucene.readSegmentInfos(dir);
-//                    if (includePerCommitFiles) {
-//                        files.add(file.resolve(segmentCommitInfos.getSegmentsFileName()));
-//                    }
-                    for (SegmentCommitInfo commitInfo : segmentCommitInfos) {
-                        if (commitInfo.getDelCount() + commitInfo.getSoftDelCount() == commitInfo.info.maxDoc()) {
-                            // don't corrupt fully deleted segments - they might be removed on snapshot
-                            continue;
-                        }
-                        for (String commitFile : commitInfo.files()) {
-//                            if (includePerCommitFiles || isPerSegmentFile(commitFile)) {
-//                                files.add(file.resolve(commitFile));
-//                            }
-                            logger.info("--> File name {}", commitFile);
-                        }
-                    }
-                }
-            }
-        }
-        CorruptionUtils.corruptFile(random(), files.toArray(new Path[0]));
-        return shardRouting;
-    }
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6578")
     public void testFileCorruption() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         final String primaryNode = internalCluster().startNode();
@@ -436,30 +388,31 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         final String replicaNode = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
 
-        final int initialDocCount = scaledRandomIntBetween(10, 200);
+        final int initialDocCount = scaledRandomIntBetween(10, 20);
         for (int i = 0; i < initialDocCount; i++) {
             client().prepareIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("foo", "bar").get();
         }
         logger.info("--> trigger round of segment replication so that replica have files");
-        flush(INDEX_NAME);
+        refresh(INDEX_NAME);
         waitForSearchableDocs(initialDocCount, primaryNode, replicaNode);
         verifyStoreContent();
+        flush(INDEX_NAME);
+        waitForSegmentReplication(replicaNode);
 
-        // Primary & replica should be in sync now. Corrupt one file on replica to ensure there is replica shard failure
-        final IndexShard primaryShard = getIndexShard(primaryNode, INDEX_NAME);
-        logger.info("--> Store files {}", Arrays.toString(primaryShard.store().directory().listAll()));
-//        final ShardRouting replicaShardRouting = replicaShard.routingEntry();
+        // Corrupt one file on replica to ensure there is replica shard failure
+        final IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
+        logger.info("--> Store files {}", Arrays.toString(replicaShard.store().directory().listAll()));
+        corruptRandomFile(INDEX_NAME, replicaNode);
 
-//        corruptRandomFile(INDEX_NAME, replicaNode);
-//
-//        // Insert more docs and trigger another round of segment replication
-//        for (int i = initialDocCount; i < 2 * initialDocCount; i++) {
-//            client().prepareIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("foo", "bar").get();
-//        }
-//        logger.info("--> refresh again and expect shard failure on replica");
-//        refresh(INDEX_NAME);
-
-        // Should see segrep failure
+        // Insert more docs and trigger another round of segment replication
+        for (int i = initialDocCount; i < 2 * initialDocCount; i++) {
+            client().prepareIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("foo", "bar").get();
+        }
+        logger.info("--> trigger another round of segment replication");
+        refresh(INDEX_NAME);
+        waitForSegmentReplication(replicaNode);
+        waitForSearchableDocs(initialDocCount, primaryNode, replicaNode);
+        verifyStoreContent();
     }
 
     public void testCancellation() throws Exception {

@@ -8,6 +8,12 @@
 
 package org.opensearch.indices.replication;
 
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -16,6 +22,8 @@ import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.Index;
@@ -26,19 +34,27 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.test.CorruptionUtils;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
+import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.FS;
 import static org.opensearch.test.OpenSearchIntegTestCase.client;
 import static org.opensearch.test.OpenSearchTestCase.assertBusy;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
@@ -132,6 +148,57 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
 
     protected void waitForSearchableDocs(long docCount, String... nodes) throws Exception {
         waitForSearchableDocs(docCount, Arrays.stream(nodes).collect(Collectors.toList()));
+    }
+
+    protected void waitForSegmentReplication(String node) throws Exception {
+        assertBusy(() -> {
+            SegmentReplicationStatsResponse segmentReplicationStatsResponse = client(node).admin()
+                .indices()
+                .prepareSegmentReplicationStats(INDEX_NAME)
+                .execute()
+                .actionGet();
+            assertEquals(
+                segmentReplicationStatsResponse.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getStage(),
+                SegmentReplicationState.Stage.DONE
+            );
+        }, 1, TimeUnit.MINUTES);
+    }
+
+    protected void corruptRandomFile(String indexName, String nodeId) throws IOException {
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        Index test = state.metadata().index(indexName).getIndex();
+
+        final IndexShard indexShard = getIndexShard(nodeId, INDEX_NAME);
+        final ShardRouting shardRouting = indexShard.routingEntry();
+
+        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats(nodeId).addMetric(FS.metricName()).get();
+        Set<Path> files = new TreeSet<>();
+        for (FsInfo.Path info : nodeStats.getNodes().get(0).getFs()) {
+            String path = info.getPath();
+            Path file = PathUtils.get(path)
+                .resolve("indices")
+                .resolve(test.getUUID())
+                .resolve(Integer.toString(shardRouting.getId()))
+                .resolve("index");
+            if (Files.exists(file)) { // multi data path might only have one path in use
+                try (Directory dir = FSDirectory.open(file)) {
+                    SegmentInfos segmentCommitInfos = Lucene.readSegmentInfos(dir);
+                    for (SegmentCommitInfo commitInfo : segmentCommitInfos) {
+                        if (commitInfo.getDelCount() + commitInfo.getSoftDelCount() == commitInfo.info.maxDoc()) {
+                            // don't corrupt fully deleted segments - they might be removed on snapshot
+                            continue;
+                        }
+                        for (String commitFile : commitInfo.files()) {
+                            if (commitFile.contains("segments") == false) {
+                                files.add(file.resolve(commitFile));
+                            }
+                            logger.info("--> File name {}", commitFile);
+                        }
+                    }
+                }
+            }
+        }
+        CorruptionUtils.corruptFile(random(), files.toArray(new Path[0]));
     }
 
     protected void verifyStoreContent() throws Exception {
