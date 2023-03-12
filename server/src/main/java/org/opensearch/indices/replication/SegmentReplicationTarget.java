@@ -172,13 +172,11 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         finalizeListener.whenComplete(r -> listener.onResponse(null), listener::onFailure);
     }
 
-    private void getFiles(CheckpointInfoResponse checkpointInfo, StepListener<GetSegmentFilesResponse> getFilesListener) throws IOException {
+    private void getFiles(CheckpointInfoResponse checkpointInfo, StepListener<GetSegmentFilesResponse> getFilesListener)
+        throws IOException {
         cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
-        final Store.RecoveryDiff diff = Store.segmentReplicationDiff(
-            checkpointInfo.getMetadataMap(),
-            indexShard.getSegmentMetadataMap()
-        );
+        final Store.RecoveryDiff diff = Store.segmentReplicationDiff(checkpointInfo.getMetadataMap(), indexShard.getSegmentMetadataMap());
         logger.trace("Replication diff for checkpoint {} {}", checkpointInfo.getCheckpoint(), diff);
         /*
          * Segments are immutable. So if the replica has any segments with the same name that differ from the one in the incoming
