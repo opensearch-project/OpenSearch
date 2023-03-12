@@ -28,7 +28,7 @@ public class InitializeExtensionRequestTests extends OpenSearchTestCase {
         String expectedUniqueId = "test uniqueid";
         Version expectedVersion = Version.fromString("2.0.0");
         ExtensionDependency expectedDependency = new ExtensionDependency(expectedUniqueId, expectedVersion);
-        DiscoveryExtensionNode extensionNode = new DiscoveryExtensionNode(
+        DiscoveryExtensionNode expectedExtensionNode = new DiscoveryExtensionNode(
             "firstExtension",
             "uniqueid1",
             new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
@@ -41,13 +41,13 @@ public class InitializeExtensionRequestTests extends OpenSearchTestCase {
             "sourceNode",
             "uniqueid2",
             new TransportAddress(InetAddress.getByName("127.0.0.0"), 1000),
-            new HashMap<String, String>(),
+            new HashMap<>(),
             DiscoveryNodeRole.BUILT_IN_ROLES,
             Version.fromString("3.0.0")
         );
 
-        InitializeExtensionRequest initializeExtensionRequest = new InitializeExtensionRequest(expectedSourceNode, extensionNode);
-        assertEquals(extensionNode, initializeExtensionRequest.getExtension());
+        InitializeExtensionRequest initializeExtensionRequest = new InitializeExtensionRequest(expectedSourceNode, expectedExtensionNode);
+        assertEquals(expectedExtensionNode, initializeExtensionRequest.getExtension());
         assertEquals(expectedSourceNode, initializeExtensionRequest.getSourceNode());
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -56,7 +56,7 @@ public class InitializeExtensionRequestTests extends OpenSearchTestCase {
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 initializeExtensionRequest = new InitializeExtensionRequest(in);
 
-                assertEquals(extensionNode, initializeExtensionRequest.getExtension());
+                assertEquals(expectedExtensionNode, initializeExtensionRequest.getExtension());
                 assertEquals(expectedSourceNode, initializeExtensionRequest.getSourceNode());
             }
         }
