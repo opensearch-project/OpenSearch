@@ -1800,9 +1800,9 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             .filter(id -> tracker.shardAllocationId.equals(id) == false)
             .collect(Collectors.toSet());
 
-        final ReplicationCheckpoint initialCheckpoint = new ReplicationCheckpoint(tracker.shardId(), 0L, 1, 0, 1, 1L);
-        final ReplicationCheckpoint secondCheckpoint = new ReplicationCheckpoint(tracker.shardId(), 0L, 2, 1, 2, 50L);
-        final ReplicationCheckpoint thirdCheckpoint = new ReplicationCheckpoint(tracker.shardId(), 0L, 2, 2, 3, 100L);
+        final ReplicationCheckpoint initialCheckpoint = new ReplicationCheckpoint(tracker.shardId(), 0L, 1, 1, 1L);
+        final ReplicationCheckpoint secondCheckpoint = new ReplicationCheckpoint(tracker.shardId(), 0L, 2, 2, 50L);
+        final ReplicationCheckpoint thirdCheckpoint = new ReplicationCheckpoint(tracker.shardId(), 0L, 2, 3, 100L);
 
         tracker.setLatestReplicationCheckpoint(initialCheckpoint);
         tracker.setLatestReplicationCheckpoint(secondCheckpoint);
