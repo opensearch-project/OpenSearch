@@ -15,6 +15,8 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -45,14 +47,14 @@ public class BlobStoreTransferService implements TransferService {
         String threadpoolName,
         final TransferFileSnapshot fileSnapshot,
         Iterable<String> remoteTransferPath,
-        ActionListener<TransferFileSnapshot> listener
+        ActionListener<TransferFileSnapshot> listener,
+        WritePriority writePriority
     ) {
         assert remoteTransferPath instanceof BlobPath;
         BlobPath blobPath = (BlobPath) remoteTransferPath;
         threadPool.executor(threadpoolName).execute(ActionRunnable.wrap(listener, l -> {
             try (InputStream inputStream = fileSnapshot.inputStream()) {
-                blobStore.blobContainer(blobPath)
-                    .writeBlobAtomic(fileSnapshot.getName(), inputStream, fileSnapshot.getContentLength(), true);
+                doMultipartUploadIfSupported(fileSnapshot, blobPath, inputStream, writePriority);
                 l.onResponse(fileSnapshot);
             } catch (Exception e) {
                 logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", fileSnapshot.getName()), e);
@@ -62,11 +64,33 @@ public class BlobStoreTransferService implements TransferService {
     }
 
     @Override
-    public void uploadBlob(final TransferFileSnapshot fileSnapshot, Iterable<String> remoteTransferPath) throws IOException {
+    public void uploadBlob(final TransferFileSnapshot fileSnapshot, Iterable<String> remoteTransferPath,
+                           WritePriority writePriority) throws IOException {
         assert remoteTransferPath instanceof BlobPath;
         BlobPath blobPath = (BlobPath) remoteTransferPath;
         try (InputStream inputStream = fileSnapshot.inputStream()) {
+            doMultipartUploadIfSupported(fileSnapshot, blobPath, inputStream, writePriority);
+        } catch (Exception ex) {
+            throw ex;
+        }
+    }
+
+    private void doMultipartUploadIfSupported(TransferFileSnapshot fileSnapshot,
+                                              BlobPath blobPath,
+                                              InputStream inputStream,
+                                              WritePriority writePriority) throws IOException {
+        // path in fileSnapshot will be null in case of metadata upload
+        if (!blobStore.blobContainer(blobPath).isMultiStreamUploadSupported() || fileSnapshot.getPath() == null) {
             blobStore.blobContainer(blobPath).writeBlobAtomic(fileSnapshot.getName(), inputStream, fileSnapshot.getContentLength(), true);
+        } else {
+            RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
+                fileSnapshot.getPath(),
+                0,
+                fileSnapshot.getName(),
+                true,
+                writePriority
+            );
+            blobStore.blobContainer(blobPath).writeStreams(remoteTransferContainer.createWriteContext());
         }
     }
 

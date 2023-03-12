@@ -32,6 +32,9 @@
 
 package org.opensearch.common.blobstore;
 
+import org.opensearch.common.blobstore.stream.read.ReadContext;
+import org.opensearch.common.blobstore.stream.write.WriteContext;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
@@ -123,6 +126,14 @@ public interface BlobContainer {
      * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
      */
     void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException;
+
+    default boolean isMultiStreamUploadSupported() {
+        return false;
+    }
+
+    default void writeStreams(WriteContext writeContext) throws IOException {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Reads blob content from the input stream and writes it to the container in a new blob with the given name,

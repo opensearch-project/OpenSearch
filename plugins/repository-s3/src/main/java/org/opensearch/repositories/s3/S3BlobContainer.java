@@ -45,6 +45,7 @@ import com.amazonaws.services.s3.model.PartETag;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.model.UploadPartResult;
+import com.amazonaws.services.s3.transfer.Upload;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -57,11 +58,14 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStoreException;
 import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.stream.StreamContext;
+import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.support.AbstractBlobContainer;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.repositories.s3.multipart.transfer.TransferManagerUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -85,6 +89,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     /**
      * Maximum number of deletes in a {@link DeleteObjectsRequest}.
+     *
      * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/multiobjectdeleteapi.html">S3 Documentation</a>.
      */
     private static final int MAX_BULK_DELETES = 1000;
@@ -147,6 +152,59 @@ class S3BlobContainer extends AbstractBlobContainer {
             }
             return null;
         });
+    }
+
+    @Override
+    public boolean isMultiStreamUploadSupported() {
+        return true;
+    }
+
+    @Override
+    public void writeStreams(WriteContext writeContext) throws IOException {
+        final long partSize = TransferManagerUtils.getOptimalPartSize(
+            writeContext.getFileSize(),
+            blobStore.getMultipartTransferManager().getConfiguration()
+        );
+        final Tuple<Long, Long> multiparts = numberOfMultiparts(writeContext.getFileSize(), partSize);
+
+        if (multiparts.v1() > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("Too many multipart upload requests, maybe try a larger buffer size?");
+        }
+
+        final int nbParts = multiparts.v1().intValue();
+        if (nbParts > 1) {
+            logger.info("Doing multipart upload");
+        }
+        final long lastPartSize = multiparts.v2();
+        assert writeContext.getFileSize() == (((nbParts - 1) * partSize) + lastPartSize) :
+            "fileSize does not match multipart sizes";
+
+        boolean uploadSuccess = false;
+        try {
+            StreamContext streamContext = SocketAccess.doPrivileged(() -> writeContext.getStreamContext(partSize));
+            if (streamContext.getStreamSuppliers().size() != nbParts) {
+                logger.warn("For {} parts {} stream suppliers were supplied in s3 upload. " +
+                        "For efficient/successful upload, both should be equal",
+                    nbParts, streamContext.getStreamSuppliers().size());
+            }
+
+            Upload upload = blobStore.getMultipartTransferManager().upload(
+                blobStore.bucket(),
+                buildKey(writeContext.getFileName()),
+                null,
+                null,
+                streamContext,
+                null,
+                writeContext.getWritePriority()
+            );
+
+            upload.waitForCompletion();
+            uploadSuccess = true;
+        } catch (InterruptedException e) {
+            throw new IOException(e);
+        } finally {
+            writeContext.getFinalizeUploadConsumer().accept(uploadSuccess);
+        }
     }
 
     // package private for testing

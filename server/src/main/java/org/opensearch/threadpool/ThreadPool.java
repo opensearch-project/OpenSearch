@@ -61,8 +61,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ScheduledExecutorService;
@@ -110,6 +112,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String SYSTEM_WRITE = "system_write";
         public static final String TRANSLOG_TRANSFER = "translog_transfer";
         public static final String TRANSLOG_SYNC = "translog_sync";
+        public static final String REMOTE_UPLOAD = "remote_upload";
+        public static final String PRIORITY_REMOTE_UPLOAD = "priority_remote_upload";
         public static final String REMOTE_PURGE = "remote_purge";
     }
 
@@ -177,6 +181,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.SYSTEM_WRITE, ThreadPoolType.FIXED);
         map.put(Names.TRANSLOG_TRANSFER, ThreadPoolType.SCALING);
         map.put(Names.TRANSLOG_SYNC, ThreadPoolType.FIXED);
+        map.put(Names.REMOTE_UPLOAD, ThreadPoolType.SCALING);
+        map.put(Names.PRIORITY_REMOTE_UPLOAD, ThreadPoolType.SCALING);
         map.put(Names.REMOTE_PURGE, ThreadPoolType.SCALING);
         THREAD_POOL_TYPES = Collections.unmodifiableMap(map);
     }
@@ -255,6 +261,14 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             new ScalingExecutorBuilder(Names.TRANSLOG_TRANSFER, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5))
         );
         builders.put(Names.TRANSLOG_SYNC, new FixedExecutorBuilder(settings, Names.TRANSLOG_SYNC, allocatedProcessors * 4, 10000));
+        builders.put(
+            Names.REMOTE_UPLOAD,
+            new ScalingExecutorBuilder(Names.REMOTE_UPLOAD, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5))
+        );
+        builders.put(
+            Names.PRIORITY_REMOTE_UPLOAD,
+            new ScalingExecutorBuilder(Names.PRIORITY_REMOTE_UPLOAD, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5))
+        );
         builders.put(Names.REMOTE_PURGE, new ScalingExecutorBuilder(Names.REMOTE_PURGE, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
 
         for (final ExecutorBuilder<?> builder : customBuilders) {
@@ -419,6 +433,16 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             command = new ThreadedRunnable(command, executor(executor));
         }
         return new ScheduledCancellableAdapter(scheduler.schedule(command, delay.millis(), TimeUnit.MILLISECONDS));
+    }
+
+    public Future<?> executeCallable(Callable<?> command, String executorName) {
+        ExecutorService executorService = executor(executorName);
+        return executorService.submit(command);
+    }
+
+    public boolean isExecutorShutDown(String executorName) {
+        ExecutorService executorService = executor(executorName);
+        return executorService.isShutdown();
     }
 
     public void scheduleUnlessShuttingDown(TimeValue delay, String executor, Runnable command) {

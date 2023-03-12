@@ -37,6 +37,7 @@ import com.amazonaws.Response;
 import com.amazonaws.metrics.RequestMetricCollector;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.StorageClass;
+import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.amazonaws.util.AWSRequestMetrics;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -46,12 +47,14 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.BlobStoreException;
 import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.repositories.s3.multipart.transfer.MultipartTransferManager;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 class S3BlobStore implements BlobStore {
 
@@ -73,6 +76,8 @@ class S3BlobStore implements BlobStore {
 
     private final Stats stats = new Stats();
 
+    private final MultipartTransferManager multipartTransferManager;
+
     final RequestMetricCollector getMetricCollector;
     final RequestMetricCollector listMetricCollector;
     final RequestMetricCollector putMetricCollector;
@@ -85,7 +90,8 @@ class S3BlobStore implements BlobStore {
         ByteSizeValue bufferSize,
         String cannedACL,
         String storageClass,
-        RepositoryMetadata repositoryMetadata
+        RepositoryMetadata repositoryMetadata,
+        ExecutorContainer executorContainer
     ) {
         this.service = service;
         this.bucket = bucket;
@@ -122,6 +128,10 @@ class S3BlobStore implements BlobStore {
                 stats.postCount.addAndGet(getRequestCount(request));
             }
         };
+        this.multipartTransferManager = new MultipartTransferManager(
+            TransferManagerBuilder.standard().withS3Client(this.clientReference().get()),
+            executorContainer
+        );
     }
 
     private long getRequestCount(Request<?> request) {
@@ -166,6 +176,7 @@ class S3BlobStore implements BlobStore {
     @Override
     public void close() throws IOException {
         this.service.close();
+        this.multipartTransferManager.close();
     }
 
     @Override
@@ -213,6 +224,10 @@ class S3BlobStore implements BlobStore {
         }
 
         throw new BlobStoreException("cannedACL is not valid: [" + cannedACL + "]");
+    }
+
+    public MultipartTransferManager getMultipartTransferManager() {
+        return multipartTransferManager;
     }
 
     static class Stats {

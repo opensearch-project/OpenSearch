@@ -9,6 +9,7 @@
 package org.opensearch.index.translog.transfer;
 
 import org.opensearch.action.ActionListener;
+import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 
 import java.io.IOException;
@@ -34,16 +35,19 @@ public interface TransferService {
         String threadpoolName,
         final TransferFileSnapshot fileSnapshot,
         Iterable<String> remotePath,
-        ActionListener<TransferFileSnapshot> listener
+        ActionListener<TransferFileSnapshot> listener,
+        WritePriority writePriority
     );
 
     /**
      * Uploads the {@link TransferFileSnapshot} blob
      * @param fileSnapshot the file snapshot to upload
      * @param remotePath the remote path where upload should be made
+     * @param writePriority Priority by which content needs to be written.
      * @throws IOException the exception while transferring the data
      */
-    void uploadBlob(final TransferFileSnapshot fileSnapshot, Iterable<String> remotePath) throws IOException;
+    void uploadBlob(final TransferFileSnapshot fileSnapshot, Iterable<String> remotePath, WritePriority writePriority)
+        throws IOException;
 
     void deleteBlobs(Iterable<String> path, List<String> fileNames) throws IOException;
 

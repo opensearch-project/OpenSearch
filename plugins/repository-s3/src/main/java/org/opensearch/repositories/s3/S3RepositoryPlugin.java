@@ -34,27 +34,37 @@ package org.opensearch.repositories.s3;
 
 import com.amazonaws.util.json.Jackson;
 import org.opensearch.SpecialPermission;
+import org.opensearch.client.Client;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
+import org.opensearch.env.NodeEnvironment;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.ReloadablePlugin;
 import org.opensearch.plugins.RepositoryPlugin;
+import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
+import org.opensearch.script.ScriptService;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * A plugin to add a repository type that writes to and from the AWS S3.
@@ -80,6 +90,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     protected final S3Service service;
     private final Path configPath;
 
+    private ExecutorContainer executorContainer;
+
     public S3RepositoryPlugin(final Settings settings, final Path configPath) {
         this(settings, configPath, new S3Service(configPath));
     }
@@ -92,6 +104,30 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         this.service.refreshAndClearCache(clientsSettings);
     }
 
+    @Override
+    public Collection<Object> createComponents(
+        final Client client,
+        final ClusterService clusterService,
+        final ThreadPool threadPool,
+        final ResourceWatcherService resourceWatcherService,
+        final ScriptService scriptService,
+        final NamedXContentRegistry xContentRegistry,
+        final Environment environment,
+        final NodeEnvironment nodeEnvironment,
+        final NamedWriteableRegistry namedWriteableRegistry,
+        final IndexNameExpressionResolver expressionResolver,
+        final Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
+
+        this.executorContainer = new ExecutorContainer(threadPool::executeCallable, threadPool::isExecutorShutDown);
+
+        return Collections.emptyList();
+    }
+
+    static int boundedBy(int value, int min, int max) {
+        return Math.min(max, Math.max(min, value));
+    }
+
     // proxy method for testing
     protected S3Repository createRepository(
         final RepositoryMetadata metadata,
@@ -99,7 +135,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final ClusterService clusterService,
         final RecoverySettings recoverySettings
     ) {
-        return new S3Repository(metadata, registry, service, clusterService, recoverySettings);
+        return new S3Repository(metadata, registry, service, clusterService, recoverySettings, executorContainer);
     }
 
     @Override

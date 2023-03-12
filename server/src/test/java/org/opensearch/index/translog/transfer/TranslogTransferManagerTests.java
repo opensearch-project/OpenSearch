@@ -15,6 +15,8 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.Translog;
@@ -81,13 +83,14 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         AtomicInteger translogTransferFailed = new AtomicInteger();
 
         doNothing().when(transferService)
-            .uploadBlob(any(TransferFileSnapshot.class), Mockito.eq(remoteBaseTransferPath.add(String.valueOf(primaryTerm))));
+            .uploadBlob(any(TransferFileSnapshot.class), Mockito.eq(remoteBaseTransferPath.add(String.valueOf(primaryTerm))),
+                any());
         doAnswer(invocationOnMock -> {
             ActionListener<TransferFileSnapshot> listener = (ActionListener<TransferFileSnapshot>) invocationOnMock.getArguments()[3];
             listener.onResponse((TransferFileSnapshot) invocationOnMock.getArguments()[1]);
             return null;
-        }).when(transferService)
-            .uploadBlobAsync(any(String.class), any(TransferFileSnapshot.class), any(BlobPath.class), any(ActionListener.class));
+        }).when(transferService).uploadBlobAsync(any(TransferFileSnapshot.class), any(BlobPath.class),
+            any(ActionListener.class), any(WritePriority.class));
 
         FileTransferTracker fileTransferTracker = new FileTransferTracker(new ShardId("index", "indexUUid", 0)) {
             @Override
