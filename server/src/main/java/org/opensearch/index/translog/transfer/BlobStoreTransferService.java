@@ -83,14 +83,14 @@ public class BlobStoreTransferService implements TransferService {
         if (!blobStore.blobContainer(blobPath).isMultiStreamUploadSupported() || fileSnapshot.getPath() == null) {
             blobStore.blobContainer(blobPath).writeBlobAtomic(fileSnapshot.getName(), inputStream, fileSnapshot.getContentLength(), true);
         } else {
-            RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
+            try (RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
                 fileSnapshot.getPath(),
-                0,
                 fileSnapshot.getName(),
                 true,
                 writePriority
-            );
-            blobStore.blobContainer(blobPath).writeStreams(remoteTransferContainer.createWriteContext());
+            )) {
+                blobStore.blobContainer(blobPath).writeStreams(remoteTransferContainer.createWriteContext());
+            }
         }
     }
 

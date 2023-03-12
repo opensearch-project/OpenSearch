@@ -116,7 +116,7 @@ public class TransferManagerUtils {
      * Computes and returns the optimal part size for the upload.
      */
     public static long getOptimalPartSize(long contentLength, TransferManagerConfiguration configuration) {
-        if (contentLength <= 5 * MB) {
+        if (contentLength <= configuration.getMultipartUploadThreshold()) {
             return contentLength;
         }
 

@@ -16,7 +16,6 @@ import org.opensearch.common.Stream;
 import org.opensearch.common.blobstore.stream.StreamContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
-import org.opensearch.common.blobstore.transfer.exception.CorruptedLocalFileException;
 import org.opensearch.index.translog.ChannelFactory;
 
 import java.io.Closeable;
@@ -41,7 +40,6 @@ public class RemoteTransferContainer implements Closeable {
     private long lastPartSize;
 
     private final long contentLength;
-    private final long expectedChecksum;
     private final SetOnce<CheckedInputStream[]> inputStreams = new SetOnce<>();
     private final String fileName;
     private final boolean failTransferIfFileExists;
@@ -50,13 +48,11 @@ public class RemoteTransferContainer implements Closeable {
     private static final Logger log = LogManager.getLogger(RemoteTransferContainer.class);
 
     public RemoteTransferContainer(Path localFile,
-                                   long expectedChecksum,
                                    String fileName,
                                    boolean failTransferIfFileExists,
                                    WritePriority writePriority) throws IOException {
         this.fileName = fileName;
         this.localFile = localFile;
-        this.expectedChecksum = expectedChecksum;
         this.failTransferIfFileExists = failTransferIfFileExists;
         this.writePriority = writePriority;
 
@@ -68,13 +64,11 @@ public class RemoteTransferContainer implements Closeable {
     }
 
     public RemoteTransferContainer(IndexInput indexInput,
-                                   long expectedChecksum,
                                    String fileName,
                                    boolean failTransferIfFileExists,
                                    WritePriority writePriority) {
         this.fileName = fileName;
         this.indexInput = indexInput;
-        this.expectedChecksum = expectedChecksum;
         this.failTransferIfFileExists = failTransferIfFileExists;
         this.contentLength = indexInput.length();
         this.writePriority = writePriority;
@@ -166,37 +160,7 @@ public class RemoteTransferContainer implements Closeable {
     }
 
     public void finalizeUpload(boolean uploadSuccessful) {
-        try {
-            this.close();
-        } catch (IOException e) {
-            log.error("Error closing RemoteTransferContainer", e);
-        }
-        if (uploadSuccessful) {
-            try {
-                this.verifyChecksum();
-            } catch (CorruptedLocalFileException e) {
-                log.error(String.format("Local file %s is corrupted", fileName));
-            }
-        }
-    }
-
-    public void verifyChecksum() throws CorruptedLocalFileException {
-        int lastPartNumber = numberOfParts - 1;
-        log.debug("File " + fileName + " numberOfParts: " + numberOfParts + " partSize: " + partSize +
-            " rawLastPartSize: " + lastPartSize + " lastPartNumber: " + lastPartNumber);
-        long checksum = inputStreams.get()[0].getChecksum().getValue();
-        for (int checkSumIdx = 1; checkSumIdx < inputStreams.get().length - 1; checkSumIdx++) {
-            checksum = ChecksumUtils.combine(checksum, inputStreams.get()[checkSumIdx].getChecksum().getValue(),
-                partSize);
-        }
-        if (numberOfParts > 1) {
-            checksum = ChecksumUtils.combine(checksum, inputStreams.get()[lastPartNumber].getChecksum().getValue(),
-                lastPartSize);
-        }
-
-        if (expectedChecksum != checksum) {
-            throw new CorruptedLocalFileException("Excepted checksum of local file did not match after upload");
-        }
+        // verification of upload and other cleanup can be done here
     }
 
     @Override

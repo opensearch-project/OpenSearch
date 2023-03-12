@@ -9,6 +9,7 @@
 package org.opensearch.common.blobstore.stream.write;
 
 import org.opensearch.common.blobstore.stream.StreamContext;
+import org.opensearch.common.blobstore.transfer.UploadFinalizer;
 
 import java.util.function.Consumer;
 
@@ -24,7 +25,7 @@ public class WriteContext {
     private final long fileSize;
     private final boolean failIfAlreadyExists;
     private final WritePriority writePriority;
-    private final Consumer<Boolean> finalizeUploadConsumer;
+    private final UploadFinalizer uploadFinalizer;
 
     /**
      * ABCDE
@@ -35,13 +36,13 @@ public class WriteContext {
      * @param failIfAlreadyExists
      */
     public WriteContext(String fileName, StreamContextSupplier streamContextSupplier, long fileSize,
-                        boolean failIfAlreadyExists, WritePriority writePriority, Consumer<Boolean> finalizeUploadConsumer) {
+                        boolean failIfAlreadyExists, WritePriority writePriority, UploadFinalizer uploadFinalizer) {
         this.fileName = fileName;
         this.streamContextSupplier = streamContextSupplier;
         this.fileSize = fileSize;
         this.failIfAlreadyExists = failIfAlreadyExists;
         this.writePriority = writePriority;
-        this.finalizeUploadConsumer = finalizeUploadConsumer;
+        this.uploadFinalizer = uploadFinalizer;
     }
 
     /**
@@ -85,7 +86,7 @@ public class WriteContext {
         return writePriority;
     }
 
-    public Consumer<Boolean> getFinalizeUploadConsumer() {
-        return finalizeUploadConsumer;
+    public UploadFinalizer getUploadFinalizer() {
+        return uploadFinalizer;
     }
 }

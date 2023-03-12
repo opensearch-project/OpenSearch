@@ -203,7 +203,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         } catch (InterruptedException e) {
             throw new IOException(e);
         } finally {
-            writeContext.getFinalizeUploadConsumer().accept(uploadSuccess);
+            writeContext.getUploadFinalizer().accept(uploadSuccess);
         }
     }
 
