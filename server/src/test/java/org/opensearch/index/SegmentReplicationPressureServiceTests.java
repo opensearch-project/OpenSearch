@@ -34,7 +34,7 @@ import static org.mockito.Mockito.when;
 import static org.opensearch.index.SegmentReplicationPressureService.MAX_REPLICATION_TIME_SETTING;
 import static org.opensearch.index.SegmentReplicationPressureService.SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED;
 
-public class SegmentReplicationPressureServiceTest extends OpenSearchIndexLevelReplicationTestCase {
+public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevelReplicationTestCase {
 
     private static final Settings settings = Settings.builder()
         .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
