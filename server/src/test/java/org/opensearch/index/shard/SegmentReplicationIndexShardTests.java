@@ -569,21 +569,21 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             numDocs = randomIntBetween(numDocs + 1, numDocs + 10);
             shards.indexDocs(numDocs);
             flushShard(primary, false);
-            assertLatestCommitGen(4, primary);
+            assertLatestCommitGen(5, primary);
             replicateSegments(primary, List.of(replica_1));
 
             assertEqualCommittedSegments(primary, replica_1);
-            assertLatestCommitGen(4, primary);
-            assertLatestCommitGen(5, replica_1);
-            assertLatestCommitGen(3, replica_2);
+            assertLatestCommitGen(5, primary);
+            assertLatestCommitGen(6, replica_1);
+            assertLatestCommitGen(4, replica_2);
 
             shards.promoteReplicaToPrimary(replica_2).get();
             primary.close("demoted", false);
             primary.store().close();
             IndexShard oldPrimary = shards.addReplicaWithExistingPath(primary.shardPath(), primary.routingEntry().currentNodeId());
             shards.recoverReplica(oldPrimary);
-            assertLatestCommitGen(5, oldPrimary);
-            assertLatestCommitGen(5, replica_2);
+            assertLatestCommitGen(6, oldPrimary);
+            assertLatestCommitGen(6, replica_2);
 
             numDocs = randomIntBetween(numDocs + 1, numDocs + 10);
             shards.indexDocs(numDocs);
