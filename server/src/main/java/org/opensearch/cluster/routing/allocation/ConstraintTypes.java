@@ -10,6 +10,11 @@ package org.opensearch.cluster.routing.allocation;
 
 import java.util.function.Predicate;
 
+/**
+ * Defines different constraints definitions
+ *
+ * @opensearch.internal
+ */
 public class ConstraintTypes {
     public final static long CONSTRAINT_WEIGHT = 1000000L;
 
