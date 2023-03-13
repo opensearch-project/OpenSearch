@@ -27,6 +27,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardClosedException;
+import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.common.ReplicationTimer;
@@ -119,7 +120,7 @@ public class PublishCheckpointAction extends TransportReplicationAction<
             final ReplicationTimer timer = new ReplicationTimer();
             timer.start();
             transportService.sendChildRequest(
-                clusterService.localNode(),
+                indexShard.recoveryState().getTargetNode(),
                 transportPrimaryAction,
                 new ConcreteShardRequest<>(request, primaryAllocationId, primaryTerm),
                 task,
@@ -156,17 +157,15 @@ public class PublishCheckpointAction extends TransportReplicationAction<
                         logger.trace("[shardId {}] Failed to publish checkpoint, timing: {}", indexShard.shardId().getId(), timer.time());
                         task.setPhase("finished");
                         taskManager.unregister(task);
-                        if (ExceptionsHelper.unwrap(e, NodeClosedException.class) != null) {
-                            // node shutting down
-                            return;
-                        }
                         if (ExceptionsHelper.unwrap(
                             e,
+                            NodeClosedException.class,
                             IndexNotFoundException.class,
                             AlreadyClosedException.class,
-                            IndexShardClosedException.class
+                            IndexShardClosedException.class,
+                            ShardNotInPrimaryModeException.class
                         ) != null) {
-                            // the index was deleted or the shard is closed
+                            // Node is shutting down or the index was deleted or the shard is closed
                             return;
                         }
                         logger.warn(
