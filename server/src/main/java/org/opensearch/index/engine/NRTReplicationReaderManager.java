@@ -53,12 +53,11 @@ public class NRTReplicationReaderManager extends OpenSearchReaderManager {
         OpenSearchDirectoryReader reader,
         Consumer<Collection<String>> onNewReader,
         Consumer<Collection<String>> onReaderClosed
-    ) throws IOException {
+    ) {
         super(reader);
         currentInfos = unwrapStandardReader(reader).getSegmentInfos();
         this.onReaderClosed = onReaderClosed;
         this.onNewReader = onNewReader;
-        onNewReader.accept(currentInfos.files(true));
     }
 
     @Override
