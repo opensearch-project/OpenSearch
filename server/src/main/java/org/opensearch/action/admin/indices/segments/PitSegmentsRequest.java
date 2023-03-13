@@ -19,7 +19,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
@@ -87,7 +89,7 @@ public class PitSegmentsRequest extends BroadcastRequest<PitSegmentsRequest> {
     }
 
     public void fromXContent(XContentParser parser) throws IOException {
-        pitIds.clear();
+        Set<String> pitIds = new HashSet<>();
         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
             throw new IllegalArgumentException("Malformed content, must start with an object");
         } else {
@@ -117,5 +119,7 @@ public class PitSegmentsRequest extends BroadcastRequest<PitSegmentsRequest> {
                 }
             }
         }
+        this.pitIds.clear();
+        this.pitIds.addAll(pitIds);
     }
 }

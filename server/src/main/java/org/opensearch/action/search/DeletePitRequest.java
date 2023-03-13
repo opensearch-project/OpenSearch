@@ -21,7 +21,9 @@ import org.opensearch.core.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
 
@@ -91,7 +93,7 @@ public class DeletePitRequest extends ActionRequest implements ToXContentObject 
     }
 
     public void fromXContent(XContentParser parser) throws IOException {
-        pitIds.clear();
+        Set<String> pitIds = new HashSet<>();
         if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
             throw new IllegalArgumentException("Malformed content, must start with an object");
         } else {
@@ -121,6 +123,8 @@ public class DeletePitRequest extends ActionRequest implements ToXContentObject 
                 }
             }
         }
+        this.pitIds.clear();
+        this.pitIds.addAll(pitIds);
     }
 
 }
