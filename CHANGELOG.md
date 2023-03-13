@@ -38,9 +38,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.maxmind.geoip2:geoip2` from 4.0.0 to 4.0.1
 - Bump `com.networknt:json-schema-validator` from 1.0.76 to 1.0.78
 - Bump `com.netflix.nebula:gradle-info-plugin` from 12.0.0 to 12.0.1
-- Bump `com.avast.gradle:gradle-docker-compose-plugin` from 0.15.2 to 0.16.11
-- Bump `net.minidev:json-smart` from 2.4.8 to 2.4.9
-- Bump `com.google.protobuf:protobuf-java` from 3.22.0 to 3.22.2
 
 ### Changed
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
@@ -89,6 +86,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.azure:azure-storage-common` from 12.19.3 to 12.20.0 ([#6492](https://github.com/opensearch-project/OpenSearch/pull/6492)
 - Bump `snakeyaml` from 1.33 to 2.0 ([#6511](https://github.com/opensearch-project/OpenSearch/pull/6511))
 - Bump `io.projectreactor.netty:reactor-netty` from 1.1.3 to 1.1.4
+- Bump `com.avast.gradle:gradle-docker-compose-plugin` from 0.15.2 to 0.16.11
+- Bump `net.minidev:json-smart` from 2.4.8 to 2.4.9
+- Bump `com.google.protobuf:protobuf-java` from 3.22.0 to 3.22.2
 
 ### Changed
 - Require MediaType in Strings.toString API ([#6009](https://github.com/opensearch-project/OpenSearch/pull/6009))
