@@ -172,9 +172,6 @@ class S3BlobContainer extends AbstractBlobContainer {
         }
 
         final int nbParts = multiparts.v1().intValue();
-        if (nbParts > 1) {
-            logger.info("Doing multipart upload");
-        }
         final long lastPartSize = multiparts.v2();
         assert writeContext.getFileSize() == (((nbParts - 1) * partSize) + lastPartSize) :
             "fileSize does not match multipart sizes";

@@ -103,9 +103,6 @@ public class RemoteTransferContainer implements Closeable {
         this.numberOfParts = (int) ((contentLength % partSize) == 0 ? contentLength / partSize
             : (contentLength / partSize) + 1);
 
-        if (numberOfParts > 1) {
-            log.info("part count is >1");
-        }
         CheckedInputStream[] checkedInputStreams = new CheckedInputStream[numberOfParts];
         List<Supplier<Stream>> streamSuppliers = new ArrayList<>();
         for (int partNo = 0; partNo < numberOfParts; partNo++) {
