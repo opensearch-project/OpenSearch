@@ -40,6 +40,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.netflix.nebula:gradle-info-plugin` from 12.0.0 to 12.0.1
 - Bump `com.avast.gradle:gradle-docker-compose-plugin` from 0.15.2 to 0.16.11
 - Bump `net.minidev:json-smart` from 2.4.8 to 2.4.9
+- Bump `com.google.protobuf:protobuf-java` from 3.22.0 to 3.22.2
 
 ### Changed
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
