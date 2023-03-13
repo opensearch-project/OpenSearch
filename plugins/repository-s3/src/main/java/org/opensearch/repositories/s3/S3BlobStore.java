@@ -46,6 +46,7 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.BlobStoreException;
+import org.opensearch.common.blobstore.transfer.RemoteStoreSettings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.repositories.s3.multipart.transfer.MultipartTransferManager;
 
@@ -54,7 +55,6 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Supplier;
 
 class S3BlobStore implements BlobStore {
 
@@ -65,6 +65,10 @@ class S3BlobStore implements BlobStore {
     private final String bucket;
 
     private final ByteSizeValue bufferSize;
+
+    private final ByteSizeValue multipartUploadMinimumPartSize;
+
+    private final boolean multipartParallelUploadEnabled;
 
     private final boolean serverSideEncryption;
 
@@ -97,6 +101,10 @@ class S3BlobStore implements BlobStore {
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
+        this.multipartUploadMinimumPartSize = S3Repository.MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING
+            .get(repositoryMetadata.settings());
+        this.multipartParallelUploadEnabled = RemoteStoreSettings.REMOTE_STORE_MULTIPART_PARALLEL_UPLOAD_SETTING
+            .get(repositoryMetadata.settings());
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
         this.repositoryMetadata = repositoryMetadata;
@@ -166,6 +174,14 @@ class S3BlobStore implements BlobStore {
 
     public long bufferSizeInBytes() {
         return bufferSize.getBytes();
+    }
+
+    public long multipartUploadMinimumPartSizeInBytes() {
+        return multipartUploadMinimumPartSize.getBytes();
+    }
+
+    public boolean isMultipartParallelUploadEnabled() {
+        return multipartParallelUploadEnabled;
     }
 
     @Override

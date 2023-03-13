@@ -115,7 +115,9 @@ public class TransferManagerUtils {
     /**
      * Computes and returns the optimal part size for the upload.
      */
-    public static long getOptimalPartSize(long contentLength, TransferManagerConfiguration configuration) {
+    public static long getOptimalPartSize(long contentLength,
+                                          TransferManagerConfiguration configuration,
+                                          long minimumPartSizeSetting) {
         if (contentLength <= configuration.getMultipartUploadThreshold()) {
             return contentLength;
         }
@@ -124,7 +126,8 @@ public class TransferManagerUtils {
 
         // round up so we don't push the upload over the maximum number of parts
         optimalPartSizeDecimal = Math.ceil(optimalPartSizeDecimal);
-        long optimalPartSize = (long) Math.max(optimalPartSizeDecimal, configuration.getMinimumUploadPartSize());
+        long minimumPartSize = Math.max(minimumPartSizeSetting, configuration.getMinimumUploadPartSize());
+        long optimalPartSize = (long) Math.max(optimalPartSizeDecimal, minimumPartSize);
 
         // If optimalPartSize > contentLength, file should be uploaded in a single chunk
         return Math.min(optimalPartSize, contentLength);

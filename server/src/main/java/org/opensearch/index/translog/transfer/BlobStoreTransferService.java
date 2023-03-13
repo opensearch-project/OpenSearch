@@ -54,7 +54,7 @@ public class BlobStoreTransferService implements TransferService {
         BlobPath blobPath = (BlobPath) remoteTransferPath;
         threadPool.executor(threadpoolName).execute(ActionRunnable.wrap(listener, l -> {
             try (InputStream inputStream = fileSnapshot.inputStream()) {
-                doMultipartUploadIfSupported(fileSnapshot, blobPath, inputStream, writePriority);
+                performUpload(fileSnapshot, blobPath, inputStream, writePriority);
                 l.onResponse(fileSnapshot);
             } catch (Exception e) {
                 logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", fileSnapshot.getName()), e);
@@ -69,16 +69,16 @@ public class BlobStoreTransferService implements TransferService {
         assert remoteTransferPath instanceof BlobPath;
         BlobPath blobPath = (BlobPath) remoteTransferPath;
         try (InputStream inputStream = fileSnapshot.inputStream()) {
-            doMultipartUploadIfSupported(fileSnapshot, blobPath, inputStream, writePriority);
+            performUpload(fileSnapshot, blobPath, inputStream, writePriority);
         } catch (Exception ex) {
             throw ex;
         }
     }
 
-    private void doMultipartUploadIfSupported(TransferFileSnapshot fileSnapshot,
-                                              BlobPath blobPath,
-                                              InputStream inputStream,
-                                              WritePriority writePriority) throws IOException {
+    private void performUpload(TransferFileSnapshot fileSnapshot,
+                               BlobPath blobPath,
+                               InputStream inputStream,
+                               WritePriority writePriority) throws IOException {
         // path in fileSnapshot will be null in case of metadata upload
         if (!blobStore.blobContainer(blobPath).isMultiStreamUploadSupported() || fileSnapshot.getPath() == null) {
             blobStore.blobContainer(blobPath).writeBlobAtomic(fileSnapshot.getName(), inputStream, fileSnapshot.getContentLength(), true);

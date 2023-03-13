@@ -156,14 +156,15 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public boolean isMultiStreamUploadSupported() {
-        return true;
+        return false;
     }
 
     @Override
     public void writeStreams(WriteContext writeContext) throws IOException {
         final long partSize = TransferManagerUtils.getOptimalPartSize(
             writeContext.getFileSize(),
-            blobStore.getMultipartTransferManager().getConfiguration()
+            blobStore.getMultipartTransferManager().getConfiguration(),
+            blobStore.multipartUploadMinimumPartSizeInBytes()
         );
         final Tuple<Long, Long> multiparts = numberOfMultiparts(writeContext.getFileSize(), partSize);
 

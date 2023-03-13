@@ -32,7 +32,6 @@
 
 package org.opensearch.common.blobstore;
 
-import org.opensearch.common.blobstore.stream.read.ReadContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 
 import java.io.IOException;

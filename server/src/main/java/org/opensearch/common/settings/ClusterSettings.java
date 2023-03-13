@@ -35,6 +35,7 @@ import org.apache.logging.log4j.LogManager;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.action.search.CreatePitController;
 import org.opensearch.cluster.routing.allocation.decider.NodeLoadAwareAllocationDecider;
+import org.opensearch.common.blobstore.transfer.RemoteStoreSettings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
@@ -631,6 +632,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SegmentReplicationPressureService.MAX_INDEXING_CHECKPOINTS,
                 SegmentReplicationPressureService.MAX_REPLICATION_TIME_SETTING,
                 SegmentReplicationPressureService.MAX_ALLOWED_STALE_SHARDS
+                RemoteStoreSettings.REMOTE_STORE_MULTIPART_PARALLEL_UPLOAD_SETTING
             )
         )
     );
