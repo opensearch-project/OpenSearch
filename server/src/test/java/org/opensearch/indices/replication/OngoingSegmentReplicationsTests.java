@@ -366,12 +366,7 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
 
         OngoingSegmentReplications replications = new OngoingSegmentReplications(mockIndicesService, recoverySettings);
         final String replicaAllocationId = replica.routingEntry().allocationId().getId();
-        final CheckpointInfoRequest request = new CheckpointInfoRequest(
-            1L,
-            replicaAllocationId,
-            primaryDiscoveryNode,
-            testCheckpoint
-        );
+        final CheckpointInfoRequest request = new CheckpointInfoRequest(1L, replicaAllocationId, primaryDiscoveryNode, testCheckpoint);
 
         final CopyState copyState = replications.prepareForReplication(request, mock(FileChunkWriter.class));
         assertEquals(1, copyState.refCount());
