@@ -8,6 +8,9 @@
 
 package org.opensearch.indices.replication;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -26,6 +29,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -90,6 +94,8 @@ class OngoingSegmentReplications {
             return copyState;
         }
     }
+
+    private static final Logger logger = LogManager.getLogger(OngoingSegmentReplications.class);
 
     /**
      * Start sending files to the replica.
@@ -163,8 +169,8 @@ class OngoingSegmentReplications {
     /**
      * Cancel all Replication events for the given allocation ID, intended to be called when a primary is shutting down.
      *
-     * @param allocationId  {@link String} - Allocation ID.
-     * @param reason {@link String} - Reason for the cancel
+     * @param allocationId {@link String} - Allocation ID.
+     * @param reason       {@link String} - Reason for the cancel
      */
     synchronized void cancel(String allocationId, String reason) {
         final SegmentReplicationSourceHandler handler = allocationIdToHandlers.remove(allocationId);
@@ -254,8 +260,22 @@ class OngoingSegmentReplications {
             .filter(predicate)
             .map(SegmentReplicationSourceHandler::getAllocationId)
             .collect(Collectors.toList());
+        logger.trace(() -> new ParameterizedMessage("Cancelling replications for allocationIds {}", allocationIds));
         for (String allocationId : allocationIds) {
             cancel(allocationId, reason);
         }
+    }
+
+    /**
+     * Clear copystate and target handlers for any non insync allocationIds.
+     * @param shardId {@link ShardId}
+     * @param inSyncAllocationIds {@link List} of in-sync allocation Ids.
+     */
+    public void clearOutOfSyncIds(ShardId shardId, Set<String> inSyncAllocationIds) {
+        cancelHandlers(
+            (handler) -> handler.getCopyState().getShard().shardId().equals(shardId)
+                && inSyncAllocationIds.contains(handler.getAllocationId()) == false,
+            "Shard is no longer in-sync with the primary"
+        );
     }
 }
