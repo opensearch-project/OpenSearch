@@ -182,18 +182,27 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
 
         final String indexName = "test-index";
         int shardCount = randomIntBetween(1, 500);
-        int primaryShardCount = randomIntBetween(1, shardCount);
-        float avgShardsPerNode = 1.0f + (random().nextFloat()) * 999.0f;
-        float avgPrimaryShardsPerNode = (random().nextFloat()) * avgShardsPerNode;
+        float avgPerIndexShardsPerNode = 1.0f + (random().nextFloat()) * 999.0f;
 
-        when(balancer.avgPrimaryShardsPerNode(anyString())).thenReturn(avgPrimaryShardsPerNode);
-        when(node.numPrimaryShards(anyString())).thenReturn(primaryShardCount);
-        when(balancer.avgShardsPerNode(anyString())).thenReturn(avgShardsPerNode);
-        when(node.numShards(anyString())).thenReturn(shardCount);
+        int perIndexPrimaryShardCount = randomIntBetween(1, shardCount);
+        float avgPerIndexPrimaryShardsPerNode = (random().nextFloat()) * avgPerIndexShardsPerNode;
+
+        float avgPrimaryShardsPerNode = 1.0f + (random().nextFloat()) * 999.0f;
+        int primaryShardsPerNode = randomIntBetween(1, shardCount);
+
+        when(balancer.avgPrimaryShardsPerNode(indexName)).thenReturn(avgPerIndexPrimaryShardsPerNode);
+        when(node.numPrimaryShards(indexName)).thenReturn(perIndexPrimaryShardCount);
+
+        when(balancer.avgPrimaryShardsPerNode()).thenReturn(avgPrimaryShardsPerNode);
+        when(node.numPrimaryShards()).thenReturn(primaryShardsPerNode);
+
+        when(balancer.avgShardsPerNode(indexName)).thenReturn(avgPerIndexShardsPerNode);
+        when(node.numShards(indexName)).thenReturn(shardCount);
         when(node.getNodeId()).thenReturn("test-node");
 
-        long expectedWeight = (shardCount >= avgShardsPerNode) ? CONSTRAINT_WEIGHT : 0;
-        expectedWeight += primaryShardCount > avgPrimaryShardsPerNode ? CONSTRAINT_WEIGHT : 0;
+        long expectedWeight = (shardCount >= avgPerIndexShardsPerNode) ? CONSTRAINT_WEIGHT : 0;
+        expectedWeight += perIndexPrimaryShardCount > avgPerIndexPrimaryShardsPerNode ? CONSTRAINT_WEIGHT : 0;
+        expectedWeight += primaryShardsPerNode >= avgPrimaryShardsPerNode ? CONSTRAINT_WEIGHT : 0;
         assertEquals(expectedWeight, constraints.weight(balancer, node, indexName));
     }
 
