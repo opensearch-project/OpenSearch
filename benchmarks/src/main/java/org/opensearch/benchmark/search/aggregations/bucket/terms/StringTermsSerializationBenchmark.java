@@ -64,9 +64,7 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Benchmark)
 public class StringTermsSerializationBenchmark {
     private static final NamedWriteableRegistry REGISTRY = new NamedWriteableRegistry(
-        List.of(
-            new NamedWriteableRegistry.Entry(InternalAggregation.class, StringTerms.NAME, StringTerms::new)
-        )
+        List.of(new NamedWriteableRegistry.Entry(InternalAggregation.class, StringTerms.NAME, StringTerms::new))
     );
     @Param(value = { "1000" })
     private int buckets;
@@ -81,9 +79,7 @@ public class StringTermsSerializationBenchmark {
     private StringTerms newTerms(boolean withNested) {
         List<StringTerms.Bucket> resultBuckets = new ArrayList<>(buckets);
         for (int i = 0; i < buckets; i++) {
-            InternalAggregations inner = withNested
-                ? InternalAggregations.from(List.of(newTerms(false)))
-                : InternalAggregations.EMPTY;
+            InternalAggregations inner = withNested ? InternalAggregations.from(List.of(newTerms(false))) : InternalAggregations.EMPTY;
             resultBuckets.add(new StringTerms.Bucket(new BytesRef("test" + i), i, inner, false, 0, DocValueFormat.RAW));
         }
         return new StringTerms(

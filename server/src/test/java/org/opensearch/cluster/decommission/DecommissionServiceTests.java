@@ -429,8 +429,7 @@ public class DecommissionServiceTests extends OpenSearchTestCase {
 
     private ClusterState addClusterManagerNodes(ClusterState clusterState, String zone, String... nodeIds) {
         DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder(clusterState.nodes());
-        List.of(nodeIds)
-            .forEach(nodeId -> nodeBuilder.add(newClusterManagerNode(nodeId, singletonMap("zone", zone))));
+        List.of(nodeIds).forEach(nodeId -> nodeBuilder.add(newClusterManagerNode(nodeId, singletonMap("zone", zone))));
         clusterState = ClusterState.builder(clusterState).nodes(nodeBuilder).build();
         return clusterState;
     }

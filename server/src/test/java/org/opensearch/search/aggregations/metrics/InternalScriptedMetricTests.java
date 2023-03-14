@@ -279,12 +279,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
 
     public void testOldSerialization() throws IOException {
         // A single element list looks like a fully reduced agg
-        InternalScriptedMetric original = new InternalScriptedMetric(
-            "test",
-            List.of("foo"),
-            new Script("test"),
-            null
-        );
+        InternalScriptedMetric original = new InternalScriptedMetric("test", List.of("foo"), new Script("test"), null);
         original.mergePipelineTreeForBWCSerialization(PipelineTree.EMPTY);
         InternalScriptedMetric roundTripped = (InternalScriptedMetric) copyNamedWriteable(
             original,
@@ -295,12 +290,7 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         assertThat(roundTripped, equalTo(original));
 
         // A multi-element list looks like a non-reduced agg
-        InternalScriptedMetric unreduced = new InternalScriptedMetric(
-            "test",
-            List.of("foo", "bar"),
-            new Script("test"),
-            null
-        );
+        InternalScriptedMetric unreduced = new InternalScriptedMetric("test", List.of("foo", "bar"), new Script("test"), null);
         unreduced.mergePipelineTreeForBWCSerialization(PipelineTree.EMPTY);
         Exception e = expectThrows(
             IllegalArgumentException.class,

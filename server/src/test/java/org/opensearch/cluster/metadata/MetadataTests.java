@@ -1107,13 +1107,7 @@ public class MetadataTests extends OpenSearchTestCase {
         Metadata.Builder b = Metadata.builder()
             .put(validIdx, false)
             .put(invalidIdx, false)
-            .put(
-                new DataStream(
-                    dataStreamName,
-                    createTimestampField("@timestamp"),
-                    List.of(validIdx.getIndex())
-                )
-            );
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(validIdx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(

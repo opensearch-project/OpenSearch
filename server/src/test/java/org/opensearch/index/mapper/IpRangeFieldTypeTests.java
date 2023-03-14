@@ -48,10 +48,7 @@ public class IpRangeFieldTypeTests extends FieldTypeTestCase {
 
         RangeFieldMapper mapper = new RangeFieldMapper.Builder("field", RangeType.IP, true, Version.V_EMPTY).build(context);
         Map<String, Object> range = Map.of("gte", "2001:db8:0:0:0:0:2:1");
-        assertEquals(
-            Collections.singletonList(Map.of("gte", "2001:db8::2:1")),
-            fetchSourceValue(mapper.fieldType(), range)
-        );
+        assertEquals(Collections.singletonList(Map.of("gte", "2001:db8::2:1")), fetchSourceValue(mapper.fieldType(), range));
         assertEquals(Collections.singletonList("2001:db8::2:1/32"), fetchSourceValue(mapper.fieldType(), "2001:db8:0:0:0:0:2:1/32"));
     }
 }

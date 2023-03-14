@@ -344,9 +344,7 @@ public class TransportBulkActionTests extends OpenSearchTestCase {
             ".bar",
             new Index(IndexMetadata.builder(".bar").settings(settings).system(true).numberOfShards(1).numberOfReplicas(0).build())
         );
-        SystemIndices systemIndices = new SystemIndices(
-            Map.of("plugin", List.of(new SystemIndexDescriptor(".test", "")))
-        );
+        SystemIndices systemIndices = new SystemIndices(Map.of("plugin", List.of(new SystemIndexDescriptor(".test", ""))));
         List<String> onlySystem = List.of(".foo", ".bar");
         assertTrue(bulkAction.includesSystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
 

@@ -50,17 +50,10 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
     private final boolean showTermDocCountError;
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(
-            REGISTRY_KEY,
-            List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
-            config -> {
-                final IncludeExclude.StringFilter filter = config.v2() == null
-                    ? null
-                    : config.v2().convertToStringFilter(config.v1().format());
-                return MultiTermsAggregator.InternalValuesSourceFactory.bytesValuesSource(config.v1().getValuesSource(), filter);
-            },
-            true
-        );
+        builder.register(REGISTRY_KEY, List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP), config -> {
+            final IncludeExclude.StringFilter filter = config.v2() == null ? null : config.v2().convertToStringFilter(config.v1().format());
+            return MultiTermsAggregator.InternalValuesSourceFactory.bytesValuesSource(config.v1().getValuesSource(), filter);
+        }, true);
 
         builder.register(
             REGISTRY_KEY,

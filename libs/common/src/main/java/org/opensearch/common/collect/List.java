@@ -40,7 +40,7 @@ import java.util.Collection;
  *
  * @opensearch.internal
  */
-@Deprecated
+@Deprecated(forRemoval = true)
 public class List {
 
     /**

@@ -230,18 +230,7 @@ public class TextFieldMapperTests extends MapperTestCase {
             )
         );
         return new IndexAnalyzers(
-            Map.of(
-                "default",
-                dflt,
-                "standard",
-                standard,
-                "keyword",
-                keyword,
-                "whitespace",
-                whitespace,
-                "my_stop_analyzer",
-                stop
-            ),
+            Map.of("default", dflt, "standard", standard, "keyword", keyword, "whitespace", whitespace, "my_stop_analyzer", stop),
             Map.of(),
             Map.of()
         );

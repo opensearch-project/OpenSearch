@@ -67,10 +67,7 @@ public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject();
 
-        List<FieldAndFormat> fieldAndFormats = List.of(
-            new FieldAndFormat("field", null),
-            new FieldAndFormat("object.field", null)
-        );
+        List<FieldAndFormat> fieldAndFormats = List.of(new FieldAndFormat("field", null), new FieldAndFormat("object.field", null));
         Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormats);
         assertThat(fields.size(), equalTo(2));
 

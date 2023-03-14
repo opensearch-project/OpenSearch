@@ -38,7 +38,7 @@ package org.opensearch.common.collect;
  *
  * @opensearch.internal
  */
-@Deprecated
+@Deprecated(forRemoval = true)
 public class Map {
 
     /**

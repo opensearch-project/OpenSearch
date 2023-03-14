@@ -166,16 +166,7 @@ public class ConditionalProcessorTests extends OpenSearchTestCase {
     public void testPrecompiledError() {
         ScriptService scriptService = MockScriptService.singleContext(
             IngestConditionalScript.CONTEXT,
-            code -> {
-                throw new ScriptException(
-                    "bad script",
-                    new ParseException("error", 0),
-                    List.of(),
-                    "",
-                    "lang",
-                    null
-                );
-            },
+            code -> { throw new ScriptException("bad script", new ParseException("error", 0), List.of(), "", "lang", null); },
             Map.of()
         );
         Script script = new Script(ScriptType.INLINE, "lang", "foo", Map.of());
@@ -189,14 +180,7 @@ public class ConditionalProcessorTests extends OpenSearchTestCase {
         storedScripts.put("foo", new StoredScriptSource("lang", "", Map.of()));
         ScriptService scriptService = MockScriptService.singleContext(IngestConditionalScript.CONTEXT, code -> {
             if (fail.get()) {
-                throw new ScriptException(
-                    "bad script",
-                    new ParseException("error", 0),
-                    List.of(),
-                    "",
-                    "lang",
-                    null
-                );
+                throw new ScriptException("bad script", new ParseException("error", 0), List.of(), "", "lang", null);
             } else {
                 return params -> new IngestConditionalScript(params) {
                     @Override

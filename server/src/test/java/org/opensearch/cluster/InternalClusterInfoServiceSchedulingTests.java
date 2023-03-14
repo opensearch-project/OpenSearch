@@ -210,11 +210,7 @@ public class InternalClusterInfoServiceSchedulingTests extends OpenSearchTestCas
             if (request instanceof NodesStatsRequest || request instanceof IndicesStatsRequest) {
                 requestCount++;
                 // ClusterInfoService handles ClusterBlockExceptions quietly, so we invent such an exception to avoid excess logging
-                listener.onFailure(
-                    new ClusterBlockException(
-                        Set.of(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ALL)
-                    )
-                );
+                listener.onFailure(new ClusterBlockException(Set.of(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_ALL)));
             } else {
                 fail("unexpected action: " + action.name());
             }

@@ -952,9 +952,7 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
             Metadata invalidGlobalTemplateMetadata = Metadata.builder()
                 .putCustom(
                     ComposableIndexTemplateMetadata.TYPE,
-                    new ComposableIndexTemplateMetadata(
-                        Map.of("invalid_global_template", invalidGlobalTemplate)
-                    )
+                    new ComposableIndexTemplateMetadata(Map.of("invalid_global_template", invalidGlobalTemplate))
                 )
                 .build();
 
@@ -1255,29 +1253,14 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
 
             Map<String, Object> firstParsedMapping = Map.of(
                 "_doc",
-                Map.of(
-                    "properties",
-                    Map.of(TIMESTAMP_FIELD.getName(), Map.of("type", "date"))
-                )
+                Map.of("properties", Map.of(TIMESTAMP_FIELD.getName(), Map.of("type", "date")))
             );
             assertThat(parsedMappings.get(0), equalTo(firstParsedMapping));
 
-            Map<String, Object> secondMapping = Map.of(
-                "_doc",
-                Map.of(
-                    "properties",
-                    Map.of("field1", Map.of("type", "keyword"))
-                )
-            );
+            Map<String, Object> secondMapping = Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))));
             assertThat(parsedMappings.get(1), equalTo(secondMapping));
 
-            Map<String, Object> thirdMapping = Map.of(
-                "_doc",
-                Map.of(
-                    "properties",
-                    Map.of("field2", Map.of("type", "integer"))
-                )
-            );
+            Map<String, Object> thirdMapping = Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "integer"))));
             assertThat(parsedMappings.get(2), equalTo(thirdMapping));
         }
 
@@ -1320,22 +1303,10 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
                 }
             }).collect(Collectors.toList());
 
-            Map<String, Object> firstMapping = Map.of(
-                "_doc",
-                Map.of(
-                    "properties",
-                    Map.of("field1", Map.of("type", "keyword"))
-                )
-            );
+            Map<String, Object> firstMapping = Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))));
             assertThat(parsedMappings.get(0), equalTo(firstMapping));
 
-            Map<String, Object> secondMapping = Map.of(
-                "_doc",
-                Map.of(
-                    "properties",
-                    Map.of("field2", Map.of("type", "integer"))
-                )
-            );
+            Map<String, Object> secondMapping = Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "integer"))));
             assertThat(parsedMappings.get(1), equalTo(secondMapping));
 
             // a default @timestamp mapping will not be added if the matching template doesn't have the data stream field configured, even
@@ -1358,22 +1329,10 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
                 }
             }).collect(Collectors.toList());
 
-            firstMapping = Map.of(
-                "_doc",
-                Map.of(
-                    "properties",
-                    Map.of("field1", Map.of("type", "keyword"))
-                )
-            );
+            firstMapping = Map.of("_doc", Map.of("properties", Map.of("field1", Map.of("type", "keyword"))));
             assertThat(parsedMappings.get(0), equalTo(firstMapping));
 
-            secondMapping = Map.of(
-                "_doc",
-                Map.of(
-                    "properties",
-                    Map.of("field2", Map.of("type", "integer"))
-                )
-            );
+            secondMapping = Map.of("_doc", Map.of("properties", Map.of("field2", Map.of("type", "integer"))));
             assertThat(parsedMappings.get(1), equalTo(secondMapping));
         }
     }
@@ -1434,22 +1393,13 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
 
             Map<String, Object> firstMapping = Map.of(
                 "_doc",
-                Map.of(
-                    "properties",
-                    Map.of(TIMESTAMP_FIELD.getName(), Map.of("type", "date"))
-                )
+                Map.of("properties", Map.of(TIMESTAMP_FIELD.getName(), Map.of("type", "date")))
             );
             assertThat(parsedMappings.get(0), equalTo(firstMapping));
 
             Map<String, Object> secondMapping = Map.of(
                 "_doc",
-                Map.of(
-                    "properties",
-                    Map.of(
-                        TIMESTAMP_FIELD.getName(),
-                        Map.of("type", "date_nanos")
-                    )
-                )
+                Map.of("properties", Map.of(TIMESTAMP_FIELD.getName(), Map.of("type", "date_nanos")))
             );
             assertThat(parsedMappings.get(1), equalTo(secondMapping));
         }
@@ -1499,22 +1449,13 @@ public class MetadataIndexTemplateServiceTests extends OpenSearchSingleNodeTestC
             }).collect(Collectors.toList());
             Map<String, Object> firstMapping = Map.of(
                 "_doc",
-                Map.of(
-                    "properties",
-                    Map.of(TIMESTAMP_FIELD.getName(), Map.of("type", "date"))
-                )
+                Map.of("properties", Map.of(TIMESTAMP_FIELD.getName(), Map.of("type", "date")))
             );
             assertThat(parsedMappings.get(0), equalTo(firstMapping));
 
             Map<String, Object> secondMapping = Map.of(
                 "_doc",
-                Map.of(
-                    "properties",
-                    Map.of(
-                        TIMESTAMP_FIELD.getName(),
-                        Map.of("type", "date_nanos")
-                    )
-                )
+                Map.of("properties", Map.of(TIMESTAMP_FIELD.getName(), Map.of("type", "date_nanos")))
             );
             assertThat(parsedMappings.get(1), equalTo(secondMapping));
         }

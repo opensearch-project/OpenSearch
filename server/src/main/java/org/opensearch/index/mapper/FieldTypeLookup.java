@@ -153,9 +153,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
             }
         }
 
-        return fieldToCopiedFields.containsKey(resolvedField)
-            ? fieldToCopiedFields.get(resolvedField)
-            : Set.of(resolvedField);
+        return fieldToCopiedFields.containsKey(resolvedField) ? fieldToCopiedFields.get(resolvedField) : Set.of(resolvedField);
     }
 
     @Override

@@ -336,7 +336,10 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         public Map<String, Object> getDataStreamMappingSnippet() {
             return singletonMap(
                 MapperService.SINGLE_MAPPING_NAME,
-                singletonMap("_data_stream_timestamp", unmodifiableMap(Map.of("enabled", true, "timestamp_field", getTimestampField().toMap())))
+                singletonMap(
+                    "_data_stream_timestamp",
+                    unmodifiableMap(Map.of("enabled", true, "timestamp_field", getTimestampField().toMap()))
+                )
             );
         }
 

@@ -82,10 +82,7 @@ public class GetDataStreamsRequestTests extends AbstractWireSerializingTestCase<
 
     public void testGetDataStream() {
         final String dataStreamName = "my-data-stream";
-        ClusterState cs = getClusterStateWithDataStreams(
-            List.of(new Tuple<>(dataStreamName, 1)),
-            List.of()
-        );
+        ClusterState cs = getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 1)), List.of());
         GetDataStreamAction.Request req = new GetDataStreamAction.Request(new String[] { dataStreamName });
         List<DataStream> dataStreams = GetDataStreamAction.TransportAction.getDataStreams(
             cs,

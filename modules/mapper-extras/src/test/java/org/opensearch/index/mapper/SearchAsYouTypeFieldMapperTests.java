@@ -151,18 +151,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         NamedAnalyzer simple = new NamedAnalyzer("simple", AnalyzerScope.INDEX, new SimpleAnalyzer());
         NamedAnalyzer whitespace = new NamedAnalyzer("whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer());
         return new IndexAnalyzers(
-            Map.of(
-                "default",
-                dflt,
-                "standard",
-                standard,
-                "keyword",
-                keyword,
-                "simple",
-                simple,
-                "whitespace",
-                whitespace
-            ),
+            Map.of("default", dflt, "standard", standard, "keyword", keyword, "simple", simple, "whitespace", whitespace),
             Map.of(),
             Map.of()
         );

@@ -96,10 +96,7 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
     public void testDeleteDataStream() {
         final String dataStreamName = "my-data-stream";
         final List<String> otherIndices = randomSubsetOf(List.of("foo", "bar", "baz"));
-        ClusterState cs = getClusterStateWithDataStreams(
-            List.of(new Tuple<>(dataStreamName, 2)),
-            otherIndices
-        );
+        ClusterState cs = getClusterStateWithDataStreams(List.of(new Tuple<>(dataStreamName, 2)), otherIndices);
         DeleteDataStreamAction.Request req = new DeleteDataStreamAction.Request(new String[] { dataStreamName });
         ClusterState newState = DeleteDataStreamAction.TransportAction.removeDataStream(getMetadataDeleteIndexService(), cs, req);
         assertThat(newState.metadata().dataStreams().size(), equalTo(0));

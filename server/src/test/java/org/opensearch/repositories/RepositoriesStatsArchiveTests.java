@@ -61,19 +61,14 @@ public class RepositoriesStatsArchiveTests extends OpenSearchTestCase {
         fakeRelativeClock.set(retentionTimeInMillis * 2);
         int statsToBeRetainedCount = randomInt(10);
         for (int i = 0; i < statsToBeRetainedCount; i++) {
-            RepositoryStatsSnapshot repoStats = createRepositoryStats(
-                new RepositoryStats(Map.of("GET", 10L))
-            );
+            RepositoryStatsSnapshot repoStats = createRepositoryStats(new RepositoryStats(Map.of("GET", 10L)));
             repositoriesStatsArchive.archive(repoStats);
         }
 
         List<RepositoryStatsSnapshot> archivedStats = repositoriesStatsArchive.getArchivedStats();
         assertThat(archivedStats.size(), equalTo(statsToBeRetainedCount));
         for (RepositoryStatsSnapshot repositoryStatsSnapshot : archivedStats) {
-            assertThat(
-                repositoryStatsSnapshot.getRepositoryStats().requestCounts,
-                equalTo(Map.of("GET", 10L))
-            );
+            assertThat(repositoryStatsSnapshot.getRepositoryStats().requestCounts, equalTo(Map.of("GET", 10L)));
         }
     }
 

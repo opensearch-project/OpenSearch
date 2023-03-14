@@ -248,14 +248,8 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         return new IndexAnalyzers(
             Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
             Map.ofEntries(
-                Map.entry(
-                    "lowercase",
-                    new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())
-                ),
-                Map.entry(
-                    "other_lowercase",
-                    new NamedAnalyzer("other_lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())
-                )
+                Map.entry("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),
+                Map.entry("other_lowercase", new NamedAnalyzer("other_lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()))
             ),
             Map.of(
                 "lowercase",

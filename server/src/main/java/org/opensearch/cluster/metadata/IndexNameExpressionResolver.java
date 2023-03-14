@@ -90,10 +90,7 @@ public class IndexNameExpressionResolver {
 
     private final DateMathExpressionResolver dateMathExpressionResolver = new DateMathExpressionResolver();
     private final WildcardExpressionResolver wildcardExpressionResolver = new WildcardExpressionResolver();
-    private final List<ExpressionResolver> expressionResolvers = List.of(
-        dateMathExpressionResolver,
-        wildcardExpressionResolver
-    );
+    private final List<ExpressionResolver> expressionResolvers = List.of(dateMathExpressionResolver, wildcardExpressionResolver);
 
     private final ThreadContext threadContext;
 

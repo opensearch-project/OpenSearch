@@ -170,10 +170,7 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
             tuple(dataStreamNames[2], randomIntBetween(1, 3))
         );
 
-        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(
-            dsMetadata,
-            List.of("index1", "index2", "index3")
-        );
+        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(dsMetadata, List.of("index1", "index2", "index3"));
         cs = addAliases(
             cs,
             List.of(
@@ -201,10 +198,7 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
             tuple(dataStreamNames[2], randomIntBetween(1, 3))
         );
 
-        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(
-            dsMetadata,
-            List.of("index1", "index2", "index3")
-        );
+        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(dsMetadata, List.of("index1", "index2", "index3"));
         cs = addAliases(
             cs,
             List.of(
@@ -234,10 +228,7 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
             tuple(dataStreamNames[2], randomIntBetween(1, 3))
         );
 
-        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(
-            dsMetadata,
-            List.of("index1", "index2", "index3")
-        );
+        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(dsMetadata, List.of("index1", "index2", "index3"));
         cs = addAliases(
             cs,
             List.of(
@@ -267,10 +258,7 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
             tuple(dataStreamNames[2], randomIntBetween(1, 3))
         );
 
-        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(
-            dsMetadata,
-            List.of("index1", "index2", "index3")
-        );
+        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(dsMetadata, List.of("index1", "index2", "index3"));
         final ClusterState cs2 = addAliases(
             cs,
             List.of(
@@ -294,10 +282,7 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
             tuple(dataStreamNames[2], randomIntBetween(1, 3))
         );
 
-        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(
-            dsMetadata,
-            List.of("index1", "index2", "index3")
-        );
+        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(dsMetadata, List.of("index1", "index2", "index3"));
         final ClusterState cs2 = addAliases(
             cs,
             List.of(

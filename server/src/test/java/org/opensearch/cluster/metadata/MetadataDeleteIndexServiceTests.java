@@ -209,10 +209,7 @@ public class MetadataDeleteIndexServiceTests extends OpenSearchTestCase {
         );
 
         Index indexToDelete = before.metadata().index(DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices)).getIndex();
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> service.deleteIndices(before, Set.of(indexToDelete))
-        );
+        Exception e = expectThrows(IllegalArgumentException.class, () -> service.deleteIndices(before, Set.of(indexToDelete)));
 
         assertThat(
             e.getMessage(),

@@ -450,10 +450,7 @@ public class MetadataIndexStateServiceTests extends OpenSearchTestCase {
             dataStreamsToCreate.add(new Tuple<>(dataStreamName, numBackingIndices));
             writeIndices.add(DataStream.getDefaultBackingIndexName(dataStreamName, numBackingIndices));
         }
-        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(
-            dataStreamsToCreate,
-            List.of()
-        );
+        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(dataStreamsToCreate, List.of());
 
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(cs);

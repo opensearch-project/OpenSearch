@@ -957,13 +957,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertThat(
             expectThrows(
                 IllegalStateException.class,
-                () -> clusterStateCreateIndex(
-                    currentClusterState,
-                    Set.of(),
-                    newIndex,
-                    (state, reason) -> state,
-                    null
-                )
+                () -> clusterStateCreateIndex(currentClusterState, Set.of(), newIndex, (state, reason) -> state, null)
             ).getMessage(),
             startsWith("alias [alias1] has more than one write index [")
         );

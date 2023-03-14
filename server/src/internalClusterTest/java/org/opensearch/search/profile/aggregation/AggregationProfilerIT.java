@@ -366,10 +366,7 @@ public class AggregationProfilerIT extends OpenSearchIntegTestCase {
             assertThat(diversifyBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(diversifyBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(diversifyBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(
-                diversifyAggResult.getDebugInfo(),
-                equalTo(Map.of(DEFERRED, List.of("max")))
-            );
+            assertThat(diversifyAggResult.getDebugInfo(), equalTo(Map.of(DEFERRED, List.of("max"))));
             assertThat(diversifyAggResult.getProfiledChildren().size(), equalTo(1));
 
             ProfileResult maxAggResult = diversifyAggResult.getProfiledChildren().get(0);

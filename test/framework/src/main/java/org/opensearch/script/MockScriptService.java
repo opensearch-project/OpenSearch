@@ -82,11 +82,7 @@ public class MockScriptService extends ScriptService {
                 return Set.of(context);
             }
         };
-        return new MockScriptService(
-            Settings.EMPTY,
-            Map.of("lang", engine),
-            Map.of(context.name, context)
-        ) {
+        return new MockScriptService(Settings.EMPTY, Map.of("lang", engine), Map.of(context.name, context)) {
             @Override
             protected StoredScriptSource getScriptFromClusterState(String id) {
                 return storedLookup.get(id);
