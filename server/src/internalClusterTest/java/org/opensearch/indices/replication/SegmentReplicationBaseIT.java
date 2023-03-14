@@ -164,43 +164,6 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
         }, 1, TimeUnit.MINUTES);
     }
 
-    protected void corruptRandomFile(String indexName, String nodeId) throws IOException {
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
-        Index test = state.metadata().index(indexName).getIndex();
-
-        final IndexShard indexShard = getIndexShard(nodeId, INDEX_NAME);
-        final ShardRouting shardRouting = indexShard.routingEntry();
-
-        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats(nodeId).addMetric(FS.metricName()).get();
-        Set<Path> files = new TreeSet<>();
-        for (FsInfo.Path info : nodeStats.getNodes().get(0).getFs()) {
-            String path = info.getPath();
-            Path file = PathUtils.get(path)
-                .resolve("indices")
-                .resolve(test.getUUID())
-                .resolve(Integer.toString(shardRouting.getId()))
-                .resolve("index");
-            if (Files.exists(file)) { // multi data path might only have one path in use
-                try (Directory dir = FSDirectory.open(file)) {
-                    SegmentInfos segmentCommitInfos = Lucene.readSegmentInfos(dir);
-                    for (SegmentCommitInfo commitInfo : segmentCommitInfos) {
-                        if (commitInfo.getDelCount() + commitInfo.getSoftDelCount() == commitInfo.info.maxDoc()) {
-                            // don't corrupt fully deleted segments - they might be removed on snapshot
-                            continue;
-                        }
-                        for (String commitFile : commitInfo.files()) {
-                            if (commitFile.contains("segments") == false) {
-                                files.add(file.resolve(commitFile));
-                            }
-                            logger.info("--> File name {}", commitFile);
-                        }
-                    }
-                }
-            }
-        }
-        CorruptionUtils.corruptFile(random(), files.toArray(new Path[0]));
-    }
-
     protected void verifyStoreContent() throws Exception {
         assertBusy(() -> {
             final ClusterState clusterState = getClusterState();

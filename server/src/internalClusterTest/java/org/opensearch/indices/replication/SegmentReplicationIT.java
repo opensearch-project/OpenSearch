@@ -9,6 +9,16 @@
 package org.opensearch.indices.replication;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.client.Requests;
@@ -20,6 +30,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexModule;
+import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -360,50 +371,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         blockFileCopy.countDown();
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
         assertBusy(() -> { assertDocCounts(docCount, replicaNode); });
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6578")
-    public void testFileCorruption() throws Exception {
-        internalCluster().startClusterManagerOnlyNode();
-        final String primaryNode = internalCluster().startNode();
-        // create index without auto refreshes
-        createIndex(
-            INDEX_NAME,
-            Settings.builder()
-                .put(indexSettings())
-                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put("index.refresh_interval", -1)
-                .build()
-        );
-        ensureYellow(INDEX_NAME);
-        final String replicaNode = internalCluster().startNode();
-        ensureGreen(INDEX_NAME);
-
-        final int initialDocCount = scaledRandomIntBetween(10, 20);
-        for (int i = 0; i < initialDocCount; i++) {
-            client().prepareIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("foo", "bar").get();
-        }
-        logger.info("--> trigger round of segment replication so that replica have files");
-        refresh(INDEX_NAME);
-        waitForSearchableDocs(initialDocCount, primaryNode, replicaNode);
-        verifyStoreContent();
-        flush(INDEX_NAME);
-        waitForSegmentReplication(replicaNode);
-
-        // Corrupt one file on replica to ensure there is replica shard failure
-        final IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
-        logger.info("--> Store files {}", Arrays.toString(replicaShard.store().directory().listAll()));
-        corruptRandomFile(INDEX_NAME, replicaNode);
-
-        // Insert more docs and trigger another round of segment replication
-        for (int i = initialDocCount; i < 2 * initialDocCount; i++) {
-            client().prepareIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("foo", "bar").get();
-        }
-        logger.info("--> trigger another round of segment replication");
-        refresh(INDEX_NAME);
-        waitForSegmentReplication(replicaNode);
-        waitForSearchableDocs(initialDocCount, primaryNode, replicaNode);
-        verifyStoreContent();
     }
 
     public void testCancellation() throws Exception {
