@@ -33,6 +33,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 /**
  * This test class verifies primary shard relocation with segment replication as replication strategy.
@@ -493,5 +494,64 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
             .actionGet();
         assertTrue(clusterHealthResponse.isTimedOut());
         ensureYellow(INDEX_NAME);
+    }
+
+    public void testFlushAfterRelocation() throws Exception {
+        // Starting two nodes with primary and replica shards respectively.
+        final String primaryNode = internalCluster().startNode();
+        prepareCreate(
+            INDEX_NAME,
+            Settings.builder()
+                // we want to control refreshes
+                .put("index.refresh_interval", -1)
+        ).get();
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        final String replicaNode = internalCluster().startNode();
+        ensureGreen(INDEX_NAME);
+
+        // Start another empty node for relocation
+        final String newPrimary = internalCluster().startNode();
+        ClusterHealthResponse clusterHealthResponse = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNodes("3")
+            .execute()
+            .actionGet();
+        assertEquals(clusterHealthResponse.isTimedOut(), false);
+        ensureGreen(INDEX_NAME);
+
+        // Start indexing docs and refresh index
+        final int initialDocCount = scaledRandomIntBetween(2000, 3000);
+        final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
+
+        for (int i = 0; i < initialDocCount; i++) {
+            pendingIndexResponses.add(
+                client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute()
+            );
+        }
+        refresh(INDEX_NAME);
+
+        // Relocate primary to new primary. When new primary starts it does perform a flush.
+        logger.info("--> relocate the shard from primary to newPrimary");
+        ActionFuture<ClusterRerouteResponse> relocationListener = client().admin()
+            .cluster()
+            .prepareReroute()
+            .add(new MoveAllocationCommand(INDEX_NAME, 0, primaryNode, newPrimary))
+            .execute();
+        clusterHealthResponse = client().admin()
+            .cluster()
+            .prepareHealth()
+            .setWaitForEvents(Priority.LANGUID)
+            .setWaitForNoRelocatingShards(true)
+            .setTimeout(ACCEPTABLE_RELOCATION_TIME)
+            .execute()
+            .actionGet();
+        assertEquals(clusterHealthResponse.isTimedOut(), false);
+
+        // Verify if all docs are present in replica after flush, if new relocated primary doesn't flush after relocation the below assert
+        // will fail
+        waitForSearchableDocs(initialDocCount, replicaNode);
+        assertHitCount(client(replicaNode).prepareSearch(INDEX_NAME).setPreference("_only_local").setSize(0).get(), initialDocCount);
     }
 }
