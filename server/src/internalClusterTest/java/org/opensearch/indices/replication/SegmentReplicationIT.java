@@ -9,16 +9,6 @@
 package org.opensearch.indices.replication;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.SortedDocValuesField;
-import org.apache.lucene.document.StringField;
-import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.tests.util.TestUtil;
-import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.client.Requests;
@@ -30,7 +20,6 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexModule;
-import org.opensearch.index.mapper.ParseContext;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -42,7 +31,6 @@ import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
