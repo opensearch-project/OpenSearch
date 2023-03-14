@@ -362,7 +362,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                             completedReplications.put(target.shardId(), target);
                         }
                     } else {
-                        onGoingReplications.fail(replicationId, new ReplicationFailedException("Segment Replication failed", e), true);
+                        onGoingReplications.fail(replicationId, new ReplicationFailedException("Segment Replication failed", e), false);
                     }
                 }
             });
