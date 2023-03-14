@@ -103,7 +103,7 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
             mockTargetService
         );
 
-        final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 1111, 111, 11, 1);
+        final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 1111, 11, 1);
         final PublishCheckpointRequest request = new PublishCheckpointRequest(checkpoint);
 
         expectThrows(OpenSearchException.class, () -> { action.shardOperationOnPrimary(request, indexShard, mock(ActionListener.class)); });
@@ -135,7 +135,7 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
             mockTargetService
         );
 
-        final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 1111, 111, 11, 1);
+        final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 1111, 11, 1);
 
         final PublishCheckpointRequest request = new PublishCheckpointRequest(checkpoint);
 

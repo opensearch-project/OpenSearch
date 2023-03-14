@@ -22,7 +22,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Objects;
 
 /**
  * This acts as entry point to fetch {@link BlobFetchRequest} and return actual {@link IndexInput}. Utilizes the BlobContainer interface to
@@ -34,12 +33,10 @@ public class TransferManager {
     private static final Logger logger = LogManager.getLogger(TransferManager.class);
 
     private final BlobContainer blobContainer;
-    private final ConcurrentInvocationLinearizer<Path, IndexInput> invocationLinearizer;
     private final FileCache fileCache;
 
     public TransferManager(final BlobContainer blobContainer, final FileCache fileCache) {
         this.blobContainer = blobContainer;
-        this.invocationLinearizer = new ConcurrentInvocationLinearizer<>();
         this.fileCache = fileCache;
     }
 
@@ -48,53 +45,46 @@ public class TransferManager {
      * @param blobFetchRequest to fetch
      * @return future of IndexInput augmented with internal caching maintenance tasks
      */
-    public IndexInput fetchBlob(BlobFetchRequest blobFetchRequest) throws InterruptedException, IOException {
-        final IndexInput indexInput = invocationLinearizer.linearize(
-            blobFetchRequest.getFilePath(),
-            p -> fetchOriginBlob(blobFetchRequest)
-        );
-        return indexInput.clone();
-    }
+    public IndexInput fetchBlob(BlobFetchRequest blobFetchRequest) throws IOException {
+        final Path key = blobFetchRequest.getFilePath();
 
-    /**
-     * Fetches the "origin" IndexInput from the cache, downloading it first if it is
-     * not already cached. This instance must be cloned before using. This method is
-     * accessed through the ConcurrentInvocationLinearizer so read-check-write is
-     * acceptable here
-     */
-    private IndexInput fetchOriginBlob(BlobFetchRequest blobFetchRequest) throws IOException {
-        // check if the origin is already in block cache
-        IndexInput origin = fileCache.computeIfPresent(blobFetchRequest.getFilePath(), (path, cachedIndexInput) -> {
-            if (cachedIndexInput.isClosed()) {
-                // if it's already in the file cache, but closed, open it and replace the original one
+        final IndexInput origin = fileCache.compute(key, (path, cachedIndexInput) -> {
+            if (cachedIndexInput == null) {
                 try {
-                    IndexInput luceneIndexInput = blobFetchRequest.getDirectory().openInput(blobFetchRequest.getFileName(), IOContext.READ);
-                    return new FileCachedIndexInput(fileCache, blobFetchRequest.getFilePath(), luceneIndexInput);
-                } catch (IOException ioe) {
-                    logger.warn("Open index input " + blobFetchRequest.getFilePath() + " got error ", ioe);
-                    // open failed so return null to download the file again
+                    return new FileCachedIndexInput(fileCache, blobFetchRequest.getFilePath(), downloadBlockLocally(blobFetchRequest));
+                } catch (IOException e) {
+                    logger.warn("Failed to download " + blobFetchRequest.getFilePath(), e);
                     return null;
                 }
-
+            } else {
+                if (cachedIndexInput.isClosed()) {
+                    // if it's already in the file cache, but closed, open it and replace the original one
+                    try {
+                        final IndexInput luceneIndexInput = blobFetchRequest.getDirectory()
+                            .openInput(blobFetchRequest.getFileName(), IOContext.READ);
+                        return new FileCachedIndexInput(fileCache, blobFetchRequest.getFilePath(), luceneIndexInput);
+                    } catch (IOException e) {
+                        logger.warn("Failed to open existing file for " + blobFetchRequest.getFilePath(), e);
+                        return null;
+                    }
+                }
+                // already in the cache and ready to be used (open)
+                return cachedIndexInput;
             }
-            // already in the cache and ready to be used (open)
-            return cachedIndexInput;
         });
 
-        if (Objects.isNull(origin)) {
-            // origin is not in file cache, download origin
-
-            // open new origin
-            IndexInput downloaded = downloadBlockLocally(blobFetchRequest);
-
-            // refcount = 0 at the beginning
-            FileCachedIndexInput newOrigin = new FileCachedIndexInput(fileCache, blobFetchRequest.getFilePath(), downloaded);
-
-            // put origin into file cache
-            fileCache.put(blobFetchRequest.getFilePath(), newOrigin);
-            origin = newOrigin;
+        if (origin == null) {
+            throw new IOException("Failed to create IndexInput for " + blobFetchRequest.getFileName());
         }
-        return origin;
+
+        // Origin was either retrieved from the cache or newly added, either
+        // way the reference count has been incremented by one. We can only
+        // decrement this reference _after_ creating the clone to be returned.
+        try {
+            return origin.clone();
+        } finally {
+            fileCache.decRef(key);
+        }
     }
 
     private IndexInput downloadBlockLocally(BlobFetchRequest blobFetchRequest) throws IOException {

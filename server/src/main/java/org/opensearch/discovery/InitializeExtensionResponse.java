@@ -37,7 +37,9 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.transport.TransportResponse;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
+import java.util.List;
 
 /**
  * PluginResponse to intialize plugin
@@ -46,18 +48,22 @@ import java.util.Objects;
  */
 public class InitializeExtensionResponse extends TransportResponse {
     private String name;
+    private List<String> implementedInterfaces;
 
-    public InitializeExtensionResponse(String name) {
+    public InitializeExtensionResponse(String name, List<String> implementedInterfaces) {
         this.name = name;
+        this.implementedInterfaces = implementedInterfaces;
     }
 
     public InitializeExtensionResponse(StreamInput in) throws IOException {
         name = in.readString();
+        this.implementedInterfaces = Arrays.asList(in.readStringArray());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
+        out.writeStringArray(implementedInterfaces.toArray(new String[0]));
     }
 
     /**
@@ -68,9 +74,17 @@ public class InitializeExtensionResponse extends TransportResponse {
         return this.name;
     }
 
+    /**
+     * @return interfaces implemented by an extension
+     */
+
+    public List<String> getImplementedInterfaces() {
+        return implementedInterfaces;
+    }
+
     @Override
     public String toString() {
-        return "PluginResponse{" + "name" + name + "}";
+        return "InitializeExtensionResponse{" + "name = " + name + " , " + "implementedInterfaces = " + implementedInterfaces + "}";
     }
 
     @Override
@@ -78,11 +92,11 @@ public class InitializeExtensionResponse extends TransportResponse {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         InitializeExtensionResponse that = (InitializeExtensionResponse) o;
-        return Objects.equals(name, that.name);
+        return Objects.equals(name, that.name) && Objects.equals(implementedInterfaces, that.implementedInterfaces);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name);
+        return Objects.hash(name, implementedInterfaces);
     }
 }

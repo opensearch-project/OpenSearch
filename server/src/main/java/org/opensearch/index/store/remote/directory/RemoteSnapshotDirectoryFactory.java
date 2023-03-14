@@ -73,7 +73,8 @@ public final class RemoteSnapshotDirectoryFactory implements IndexStorePlugin.Di
         ShardPath localShardPath,
         BlobStoreRepository blobStoreRepository
     ) throws IOException {
-        final BlobPath blobPath = new BlobPath().add("indices")
+        final BlobPath blobPath = blobStoreRepository.basePath()
+            .add("indices")
             .add(IndexSettings.SEARCHABLE_SNAPSHOT_INDEX_ID.get(indexSettings.getSettings()))
             .add(Integer.toString(localShardPath.getShardId().getId()));
         final SnapshotId snapshotId = new SnapshotId(

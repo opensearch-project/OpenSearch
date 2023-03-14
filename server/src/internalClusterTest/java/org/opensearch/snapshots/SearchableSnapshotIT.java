@@ -24,7 +24,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.GroupShardsIterator;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.common.collect.Map;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
@@ -44,6 +43,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.contains;
@@ -72,13 +72,14 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
     protected Settings.Builder randomRepositorySettings() {
         final Settings.Builder settings = Settings.builder();
         settings.put("location", randomRepoPath()).put("compress", randomBoolean());
+        settings.put(FsRepository.BASE_PATH_SETTING.getKey(), "my_base_path");
         return settings;
     }
 
     private Settings.Builder chunkedRepositorySettings() {
         final Settings.Builder settings = Settings.builder();
         settings.put("location", randomRepoPath()).put("compress", randomBoolean());
-        settings.put("chunk_size", 2 << 13, ByteSizeUnit.BYTES);
+        settings.put("chunk_size", 2 << 23, ByteSizeUnit.BYTES);
         return settings;
     }
 
@@ -387,6 +388,71 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
+    public void testFileCacheStats() throws Exception {
+        final String snapshotName = "test-snap";
+        final String repoName = "test-repo";
+        final String indexName1 = "test-idx-1";
+        final Client client = client();
+        final int numNodes = 2;
+
+        internalCluster().ensureAtLeastNumDataNodes(numNodes);
+        createIndexWithDocsAndEnsureGreen(1, 100, indexName1);
+
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName, repoName, indexName1);
+        deleteIndicesAndEnsureGreen(client, indexName1);
+        assertAllNodesFileCacheEmpty();
+
+        internalCluster().ensureAtLeastNumSearchNodes(numNodes);
+        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
+        assertNodesFileCacheNonEmpty(numNodes);
+    }
+
+    /**
+     * Tests file cache restore scenario for searchable snapshots by creating an index,
+     * taking a snapshot, restoring it as a searchable snapshot.
+     * It ensures file cache is restored post node restart.
+     */
+    public void testFileCacheRestore() throws Exception {
+        final String snapshotName = "test-snap";
+        final String repoName = "test-repo";
+        final String indexName = "test-idx";
+        final String restoredIndexName = indexName + "-copy";
+        // Keeping the replicas to 0 for reproducible cache results as shards can get reassigned otherwise
+        final int numReplicasIndex = 0;
+        final Client client = client();
+
+        internalCluster().ensureAtLeastNumDataNodes(numReplicasIndex + 1);
+        createIndexWithDocsAndEnsureGreen(numReplicasIndex, 100, indexName);
+
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName, repoName, indexName);
+        deleteIndicesAndEnsureGreen(client, indexName);
+
+        internalCluster().ensureAtLeastNumSearchNodes(numReplicasIndex + 1);
+        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
+        assertDocCount(restoredIndexName, 100L);
+        assertIndexDirectoryDoesNotExist(restoredIndexName);
+
+        NodesStatsResponse preRestoreStats = client().admin().cluster().nodesStats(new NodesStatsRequest().all()).actionGet();
+        for (NodeStats nodeStats : preRestoreStats.getNodes()) {
+            if (nodeStats.getNode().isSearchNode()) {
+                internalCluster().restartNode(nodeStats.getNode().getName());
+            }
+        }
+
+        NodesStatsResponse postRestoreStats = client().admin().cluster().nodesStats(new NodesStatsRequest().all()).actionGet();
+        Map<String, NodeStats> preRestoreStatsMap = preRestoreStats.getNodesMap();
+        Map<String, NodeStats> postRestoreStatsMap = postRestoreStats.getNodesMap();
+        for (String node : postRestoreStatsMap.keySet()) {
+            NodeStats preRestoreStat = preRestoreStatsMap.get(node);
+            NodeStats postRestoreStat = postRestoreStatsMap.get(node);
+            if (preRestoreStat.getNode().isSearchNode()) {
+                assertEquals(preRestoreStat.getFileCacheStats().getUsed(), postRestoreStat.getFileCacheStats().getUsed());
+            }
+        }
+    }
+
     /**
      * Picks a shard out of the cluster state for each given index and asserts
      * that the 'index' directory does not exist in the node's file system.
@@ -423,26 +489,6 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
                 MatcherAssert.assertThat("Expect file not to exist: " + file, Files.exists(file), is(false));
             }
         }
-    }
-
-    public void testFileCacheStats() throws Exception {
-        final String snapshotName = "test-snap";
-        final String repoName = "test-repo";
-        final String indexName1 = "test-idx-1";
-        final Client client = client();
-        final int numNodes = 2;
-
-        internalCluster().ensureAtLeastNumDataNodes(numNodes);
-        createIndexWithDocsAndEnsureGreen(1, 100, indexName1);
-
-        createRepositoryWithSettings(null, repoName);
-        takeSnapshot(client, snapshotName, repoName, indexName1);
-        deleteIndicesAndEnsureGreen(client, indexName1);
-        assertAllNodesFileCacheEmpty();
-
-        internalCluster().ensureAtLeastNumSearchNodes(numNodes);
-        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
-        assertNodesFileCacheNonEmpty(numNodes);
     }
 
     private void assertAllNodesFileCacheEmpty() {

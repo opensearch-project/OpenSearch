@@ -104,6 +104,7 @@ public class FsRepositoryTests extends OpenSearchTestCase {
                 .put("location", repo)
                 .put("compress", randomBoolean())
                 .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)
+                .put(FsRepository.BASE_PATH_SETTING.getKey(), "my_base_path")
                 .build();
 
             int numDocs = indexDocs(directory);

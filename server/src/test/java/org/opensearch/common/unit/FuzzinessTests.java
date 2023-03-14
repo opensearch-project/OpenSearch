@@ -31,6 +31,7 @@
 
 package org.opensearch.common.unit;
 
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -136,6 +137,26 @@ public class FuzzinessTests extends OpenSearchTestCase {
             }
         }
 
+    }
+
+    public void testFuzzinessValidationWithStrings() throws IOException {
+        String[] invalidStrings = new String[] { "+++", "asdfghjkl", "2k23" };
+        XContentBuilder json = jsonBuilder().startObject().field(Fuzziness.X_FIELD_NAME, randomFrom(invalidStrings)).endObject();
+        try (XContentParser parser = createParser(json)) {
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_STRING));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Fuzziness.parse(parser));
+            assertTrue(e.getMessage().startsWith("Invalid fuzziness value:"));
+        }
+        json = jsonBuilder().startObject().field(Fuzziness.X_FIELD_NAME, "AUTO:").endObject();
+        try (XContentParser parser = createParser(json)) {
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_STRING));
+            OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> Fuzziness.parse(parser));
+            assertTrue(e.getMessage().startsWith("failed to find low and high distance values"));
+        }
     }
 
     public void testAuto() {
