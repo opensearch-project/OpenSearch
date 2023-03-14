@@ -68,6 +68,7 @@ allprojects {
           removeUnusedImports()
           eclipse().configFile rootProject.file('buildSrc/formatterConfig.xml')
           trimTrailingWhitespace()
+          endWithNewline()
 
           custom 'Refuse wildcard imports', {
                 // Wildcard imports can't be resolved; fail the build
@@ -80,6 +81,12 @@ allprojects {
           if (System.getProperty('spotless.paddedcell') != null) {
             paddedCell()
           }
+        }
+        format 'misc', {
+            target '*.md', '*.gradle', '**/*.yaml', '**/*.yml', '**/*.svg'   
+
+            trimTrailingWhitespace()
+            endWithNewline()
         }
       }
 
