@@ -42,6 +42,7 @@ import com.amazonaws.services.s3.transfer.internal.TransferStateChangeListener;
 import org.opensearch.common.Stream;
 import org.opensearch.common.blobstore.stream.StreamContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.repositories.s3.ExecutorContainer;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -81,6 +82,7 @@ public class MultipartTransferManager extends TransferManager implements Closeab
             putObjectRequest.setMetadata(new ObjectMetadata());
         }
 
+        putObjectRequest.getRequestClientOptions().setReadLimit((int) ByteSizeUnit.KB.toBytes(10));
         putObjectRequest.setTagging(tagging);
 
         String description = "Uploading to " + putObjectRequest.getBucketName()

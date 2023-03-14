@@ -157,7 +157,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public boolean isMultiStreamUploadSupported() {
-        return true;
+        return false;
     }
 
     @Override

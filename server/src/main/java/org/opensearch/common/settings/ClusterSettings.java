@@ -631,7 +631,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SegmentReplicationPressureService.SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED,
                 SegmentReplicationPressureService.MAX_INDEXING_CHECKPOINTS,
                 SegmentReplicationPressureService.MAX_REPLICATION_TIME_SETTING,
-                SegmentReplicationPressureService.MAX_ALLOWED_STALE_SHARDS
+                SegmentReplicationPressureService.MAX_ALLOWED_STALE_SHARDS,
                 RemoteStoreSettings.REMOTE_STORE_MULTIPART_PARALLEL_UPLOAD_SETTING
             )
         )
