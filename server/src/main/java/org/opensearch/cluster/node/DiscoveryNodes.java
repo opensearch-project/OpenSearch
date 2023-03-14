@@ -35,7 +35,6 @@ package org.opensearch.cluster.node;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
@@ -279,18 +278,6 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
     public boolean nodeExistsWithSameRoles(DiscoveryNode discoveryNode) {
         final DiscoveryNode existing = nodes.get(discoveryNode.getId());
         return existing != null && existing.equals(discoveryNode) && existing.getRoles().equals(discoveryNode.getRoles());
-    }
-
-    /**
-     * Determine if the given node exists and has the right version. During upgrade from Elasticsearch version as OpenSearch node run in
-     * BWC mode and can have the version as 7.10.2 in cluster state from older cluster-manager to OpenSearch cluster-manager.
-     */
-    public boolean nodeExistsWithBWCVersion(DiscoveryNode discoveryNode) {
-        final DiscoveryNode existing = nodes.get(discoveryNode.getId());
-        return existing != null
-            && existing.equals(discoveryNode)
-            && existing.getVersion().equals(LegacyESVersion.V_7_10_2)
-            && discoveryNode.getVersion().onOrAfter(Version.V_1_0_0);
     }
 
     /**

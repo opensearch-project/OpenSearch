@@ -38,10 +38,10 @@ opensearchplugin {
 }
 
 versions << [
-  'tika'  : '2.5.0',
-  'pdfbox': '2.0.25',
-  'poi'   : '5.2.2',
-  'mime4j': '0.8.3'
+  'tika'  : '2.6.0',
+  'pdfbox': '2.0.27',
+  'poi'   : '5.2.3',
+  'mime4j': '0.8.8'
 ]
 
 dependencies {
@@ -54,7 +54,7 @@ dependencies {
   api "org.apache.tika:tika-langdetect-optimaize:${versions.tika}"
   // Optimaize libraries/dependencies
   runtimeOnly "com.optimaize.languagedetector:language-detector:0.6"
-  runtimeOnly 'com.google.guava:guava:23.0'
+  runtimeOnly "com.google.guava:guava:${versions.guava}"
   // Other dependencies
   api 'org.tukaani:xz:1.9'
   api 'commons-io:commons-io:2.11.0'
@@ -84,7 +84,7 @@ dependencies {
   // MS Office
   api "org.apache.poi:poi-scratchpad:${versions.poi}"
   // Apple iWork
-  api 'org.apache.commons:commons-compress:1.21'
+  api 'org.apache.commons:commons-compress:1.22'
   // Outlook documents
   api "org.apache.james:apache-mime4j-core:${versions.mime4j}"
   api "org.apache.james:apache-mime4j-dom:${versions.mime4j}"

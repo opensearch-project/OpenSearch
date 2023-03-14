@@ -97,6 +97,11 @@ public class ClusterStateResponse extends ActionResponse {
     }
 
     @Override
+    public String toString() {
+        return "ClusterStateResponse{" + "clusterState=" + clusterState + '}';
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;

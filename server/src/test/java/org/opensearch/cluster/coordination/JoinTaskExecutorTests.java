@@ -175,7 +175,7 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
-        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(Settings.EMPTY, allocationService, logger, rerouteService, null);
+        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(Settings.EMPTY, allocationService, logger, rerouteService);
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
 
@@ -233,10 +233,15 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
     public void testPreventJoinClusterWithDecommission() {
         Settings.builder().build();
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-1");
-        DecommissionStatus decommissionStatus = randomFrom(DecommissionStatus.IN_PROGRESS, DecommissionStatus.SUCCESSFUL);
+        DecommissionStatus decommissionStatus = randomFrom(
+            DecommissionStatus.IN_PROGRESS,
+            DecommissionStatus.SUCCESSFUL,
+            DecommissionStatus.DRAINING
+        );
         DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
             decommissionAttribute,
-            decommissionStatus
+            decommissionStatus,
+            randomAlphaOfLength(10)
         );
         Metadata metadata = Metadata.builder().decommissionAttributeMetadata(decommissionAttributeMetadata).build();
         DiscoveryNode discoveryNode = newDiscoveryNode(Collections.singletonMap("zone", "zone-1"));
@@ -253,7 +258,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         );
         DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
             decommissionAttribute,
-            decommissionStatus
+            decommissionStatus,
+            randomAlphaOfLength(10)
         );
         Metadata metadata = Metadata.builder().decommissionAttributeMetadata(decommissionAttributeMetadata).build();
 
@@ -266,14 +272,15 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
-        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(Settings.EMPTY, allocationService, logger, rerouteService, null);
+        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(Settings.EMPTY, allocationService, logger, rerouteService);
 
         final DiscoveryNode clusterManagerNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
 
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone1");
         DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
             decommissionAttribute,
-            DecommissionStatus.SUCCESSFUL
+            DecommissionStatus.SUCCESSFUL,
+            randomAlphaOfLength(10)
         );
         final ClusterState clusterManagerClusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(
@@ -311,7 +318,8 @@ public class JoinTaskExecutorTests extends OpenSearchTestCase {
         DecommissionAttribute decommissionAttribute = new DecommissionAttribute("zone", "zone-1");
         DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
             decommissionAttribute,
-            DecommissionStatus.FAILED
+            DecommissionStatus.FAILED,
+            randomAlphaOfLength(10)
         );
         Metadata metadata = Metadata.builder().decommissionAttributeMetadata(decommissionAttributeMetadata).build();
 

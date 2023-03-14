@@ -56,8 +56,8 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
@@ -343,7 +343,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
             "local tasks [{}]",
             localTasks.values()
                 .stream()
-                .map(t -> Strings.toString(t.taskInfo(testNodes[0].getNodeId(), true)))
+                .map(t -> Strings.toString(XContentType.JSON, t.taskInfo(testNodes[0].getNodeId(), true)))
                 .collect(Collectors.joining(","))
         );
         assertEquals(2, localTasks.size()); // all node tasks + 1 coordinating task
@@ -685,7 +685,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                             filteredNodes.add(node);
                         }
                     }
-                    return filteredNodes.toArray(new String[filteredNodes.size()]);
+                    return filteredNodes.toArray(new String[0]);
                 }
 
                 @Override

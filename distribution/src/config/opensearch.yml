@@ -86,3 +86,26 @@ ${path.logs}
 # Require explicit names when deleting indices:
 #
 #action.destructive_requires_name: true
+#
+# ---------------------------------- Experimental Features -----------------------------------
+#
+# Gates the visibility of the index setting that allows changing of replication type.
+# Once the feature is ready for production release, this feature flag can be removed.
+#
+#opensearch.experimental.feature.replication_type.enabled: false
+#
+#
+# Gates the visibility of the index setting that allows persisting data to remote store along with local disk.
+# Once the feature is ready for production release, this feature flag can be removed.
+#
+#opensearch.experimental.feature.remote_store.enabled: false
+#
+#
+# Gates the functionality of a new parameter to the snapshot restore API
+# that allows for creation of a new index type that searches a snapshot
+# directly in a remote repository without restoring all index data to disk
+# ahead of time.
+#
+#opensearch.experimental.feature.searchable_snapshot.enabled: false
+#
+#

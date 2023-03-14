@@ -54,6 +54,8 @@ import org.opensearch.cluster.routing.allocation.RoutingExplanations;
 import org.opensearch.cluster.routing.allocation.command.AbstractAllocateAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommand;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.Strings;
@@ -80,6 +82,7 @@ public class TransportClusterRerouteAction extends TransportClusterManagerNodeAc
     private static final Logger logger = LogManager.getLogger(TransportClusterRerouteAction.class);
 
     private final AllocationService allocationService;
+    private static ClusterManagerTaskThrottler.ThrottlingKey clusterRerouteTaskKey;
 
     @Inject
     public TransportClusterRerouteAction(
@@ -100,6 +103,8 @@ public class TransportClusterRerouteAction extends TransportClusterManagerNodeAc
             indexNameExpressionResolver
         );
         this.allocationService = allocationService;
+        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        clusterRerouteTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CLUSTER_REROUTE_API_KEY, true);
     }
 
     @Override
@@ -239,6 +244,11 @@ public class TransportClusterRerouteAction extends TransportClusterManagerNodeAc
             this.listener = listener;
             this.logger = logger;
             this.allocationService = allocationService;
+        }
+
+        @Override
+        public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+            return clusterRerouteTaskKey;
         }
 
         @Override

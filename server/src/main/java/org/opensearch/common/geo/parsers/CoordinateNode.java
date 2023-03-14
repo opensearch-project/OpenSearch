@@ -33,8 +33,8 @@ package org.opensearch.common.geo.parsers;
 
 import org.locationtech.jts.geom.Coordinate;
 import org.opensearch.OpenSearchException;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;

@@ -425,7 +425,7 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
             }
         }
         return IndicesStatsTests.newIndicesStatsResponse(
-            shardStats.toArray(new ShardStats[shardStats.size()]),
+            shardStats.toArray(new ShardStats[0]),
             shardStats.size(),
             shardStats.size(),
             0,

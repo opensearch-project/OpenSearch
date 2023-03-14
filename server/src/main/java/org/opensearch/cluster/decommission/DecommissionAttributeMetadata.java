@@ -17,13 +17,15 @@ import org.opensearch.cluster.metadata.Metadata.Custom;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Contains metadata about decommission attribute
@@ -36,6 +38,7 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
 
     private final DecommissionAttribute decommissionAttribute;
     private DecommissionStatus status;
+    private String requestID;
     public static final String attributeType = "awareness";
 
     /**
@@ -44,18 +47,19 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
      * @param decommissionAttribute attribute details
      * @param status                current status of the attribute decommission
      */
-    public DecommissionAttributeMetadata(DecommissionAttribute decommissionAttribute, DecommissionStatus status) {
+    public DecommissionAttributeMetadata(DecommissionAttribute decommissionAttribute, DecommissionStatus status, String requestId) {
         this.decommissionAttribute = decommissionAttribute;
         this.status = status;
+        this.requestID = requestId;
     }
 
     /**
-     * Constructs new decommission attribute metadata with status as {@link DecommissionStatus#INIT}
+     * Constructs new decommission attribute metadata with status as {@link DecommissionStatus#INIT} and request id
      *
      * @param decommissionAttribute attribute details
      */
-    public DecommissionAttributeMetadata(DecommissionAttribute decommissionAttribute) {
-        this(decommissionAttribute, DecommissionStatus.INIT);
+    public DecommissionAttributeMetadata(DecommissionAttribute decommissionAttribute, String requestID) {
+        this(decommissionAttribute, DecommissionStatus.INIT, requestID);
     }
 
     /**
@@ -77,6 +81,15 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
     }
 
     /**
+     * Returns the request id of the decommission
+     *
+     * @return request id
+     */
+    public String requestID() {
+        return this.requestID;
+    }
+
+    /**
      * Returns instance of the metadata with updated status
      * @param newStatus status to be updated with
      */
@@ -88,11 +101,14 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
         }
         // We don't expect that INIT will be new status, as it is registered only when starting the decommission action
         switch (newStatus) {
+            case DRAINING:
+                validateStatus(Set.of(DecommissionStatus.INIT), newStatus);
+                break;
             case IN_PROGRESS:
-                validateStatus(DecommissionStatus.INIT, newStatus);
+                validateStatus(Set.of(DecommissionStatus.DRAINING, DecommissionStatus.INIT), newStatus);
                 break;
             case SUCCESSFUL:
-                validateStatus(DecommissionStatus.IN_PROGRESS, newStatus);
+                validateStatus(Set.of(DecommissionStatus.IN_PROGRESS), newStatus);
                 break;
             default:
                 throw new IllegalArgumentException(
@@ -101,17 +117,17 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
         }
     }
 
-    private void validateStatus(DecommissionStatus expected, DecommissionStatus next) {
-        if (status.equals(expected) == false) {
+    private void validateStatus(Set<DecommissionStatus> expectedStatuses, DecommissionStatus next) {
+        if (expectedStatuses.contains(status) == false) {
             assert false : "can't move decommission status to ["
                 + next
                 + "]. current status: ["
                 + status
-                + "] (expected ["
-                + expected
+                + "] (allowed statuses ["
+                + expectedStatuses
                 + "])";
             throw new IllegalStateException(
-                "can't move decommission status to [" + next + "]. current status: [" + status + "] (expected [" + expected + "])"
+                "can't move decommission status to [" + next + "]. current status: [" + status + "] (expected [" + expectedStatuses + "])"
             );
         }
     }
@@ -124,12 +140,13 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
         DecommissionAttributeMetadata that = (DecommissionAttributeMetadata) o;
 
         if (!status.equals(that.status)) return false;
+        if (!requestID.equals(that.requestID)) return false;
         return decommissionAttribute.equals(that.decommissionAttribute);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(attributeType, decommissionAttribute, status);
+        return Objects.hash(attributeType, decommissionAttribute, status, requestID);
     }
 
     /**
@@ -142,12 +159,13 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_3_0_0;
+        return Version.V_2_4_0;
     }
 
     public DecommissionAttributeMetadata(StreamInput in) throws IOException {
         this.decommissionAttribute = new DecommissionAttribute(in);
         this.status = DecommissionStatus.fromString(in.readString());
+        this.requestID = in.readString();
     }
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws IOException {
@@ -161,12 +179,14 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
     public void writeTo(StreamOutput out) throws IOException {
         decommissionAttribute.writeTo(out);
         out.writeString(status.status());
+        out.writeString(requestID);
     }
 
     public static DecommissionAttributeMetadata fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token;
         DecommissionAttribute decommissionAttribute = null;
         DecommissionStatus status = null;
+        String requestID = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 String currentFieldName = parser.currentName();
@@ -206,6 +226,13 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
                         );
                     }
                     status = DecommissionStatus.fromString(parser.text());
+                } else if ("requestID".equals(currentFieldName)) {
+                    if (parser.nextToken() != XContentParser.Token.VALUE_STRING) {
+                        throw new OpenSearchParseException(
+                            "failed to parse status of decommissioning, expected string but found unknown type"
+                        );
+                    }
+                    requestID = parser.text();
                 } else {
                     throw new OpenSearchParseException(
                         "unknown field found [{}], failed to parse the decommission attribute",
@@ -214,7 +241,7 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
                 }
             }
         }
-        return new DecommissionAttributeMetadata(decommissionAttribute, status);
+        return new DecommissionAttributeMetadata(decommissionAttribute, status, requestID);
     }
 
     /**
@@ -222,7 +249,7 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
      */
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        toXContent(decommissionAttribute, status, attributeType, builder, params);
+        toXContent(decommissionAttribute, status, requestID, attributeType, builder, params);
         return builder;
     }
 
@@ -241,6 +268,7 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
     public static void toXContent(
         DecommissionAttribute decommissionAttribute,
         DecommissionStatus status,
+        String requestID,
         String attributeType,
         XContentBuilder builder,
         ToXContent.Params params
@@ -249,10 +277,11 @@ public class DecommissionAttributeMetadata extends AbstractNamedDiffable<Custom>
         builder.field(decommissionAttribute.attributeName(), decommissionAttribute.attributeValue());
         builder.endObject();
         builder.field("status", status.status());
+        builder.field("requestID", requestID);
     }
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 }

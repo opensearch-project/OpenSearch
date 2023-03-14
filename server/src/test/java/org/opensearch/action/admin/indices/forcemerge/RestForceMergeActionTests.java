@@ -34,7 +34,7 @@ package org.opensearch.action.admin.indices.forcemerge;
 
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.rest.RestRequest;

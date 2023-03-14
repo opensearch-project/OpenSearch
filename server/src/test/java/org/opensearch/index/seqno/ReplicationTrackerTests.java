@@ -437,6 +437,10 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
 
     private AtomicLong updatedGlobalCheckpoint = new AtomicLong(UNASSIGNED_SEQ_NO);
 
+    private ReplicationTracker newTracker(final AllocationId allocationId, Settings settings) {
+        return newTracker(allocationId, updatedGlobalCheckpoint::set, () -> 0L, settings);
+    }
+
     private ReplicationTracker newTracker(final AllocationId allocationId) {
         return newTracker(allocationId, updatedGlobalCheckpoint::set, () -> 0L);
     }
@@ -966,7 +970,11 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             relocatingId
         );
 
-        return new FakeClusterState(initialClusterStateVersion, activeAllocationIds, routingTable(initializingAllocationIds, primaryShard));
+        return new FakeClusterState(
+            initialClusterStateVersion,
+            activeAllocationIds,
+            routingTable(initializingAllocationIds, Collections.singleton(primaryShard.allocationId()), primaryShard)
+        );
     }
 
     private static void randomLocalCheckpointUpdate(ReplicationTracker gcp) {
@@ -1007,6 +1015,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             remainingInSyncIds.isEmpty() ? clusterState.inSyncIds : remainingInSyncIds,
             routingTable(
                 Sets.difference(Sets.union(initializingIdsExceptRelocationTargets, initializingIdsToAdd), initializingIdsToRemove),
+                Collections.singleton(clusterState.routingTable.primaryShard().allocationId()),
                 clusterState.routingTable.primaryShard()
             )
         );
@@ -1047,8 +1056,19 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         final String allocationId,
         final long localCheckpoint
     ) {
+        markAsTrackingAndInSyncQuietly(tracker, allocationId, localCheckpoint, true);
+    }
+
+    private static void markAsTrackingAndInSyncQuietly(
+        final ReplicationTracker tracker,
+        final String allocationId,
+        final long localCheckpoint,
+        final boolean addPRRL
+    ) {
         try {
-            addPeerRecoveryRetentionLease(tracker, allocationId);
+            if (addPRRL) {
+                addPeerRecoveryRetentionLease(tracker, allocationId);
+            }
             tracker.initiateTracking(allocationId);
             tracker.markAllocationIdAsInSync(allocationId, localCheckpoint);
         } catch (final InterruptedException e) {
@@ -1250,6 +1270,697 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
             currentTimeMillis.get(),
             lessThanOrEqualTo(testStartTimeMillis + maximumTestTimeMillis)
         );
+    }
+
+    /**
+     * This test checks that the global checkpoint update mechanism is honored and relies only on the shards that have
+     * translog stored locally.
+     */
+    public void testGlobalCheckpointUpdateWithRemoteTranslogEnabled() {
+        final long initialClusterStateVersion = randomNonNegativeLong();
+        Map<AllocationId, Long> activeWithCheckpoints = randomAllocationsWithLocalCheckpoints(1, 5);
+        Set<AllocationId> active = new HashSet<>(activeWithCheckpoints.keySet());
+        Map<AllocationId, Long> allocations = new HashMap<>(activeWithCheckpoints);
+        Map<AllocationId, Long> initializingWithCheckpoints = randomAllocationsWithLocalCheckpoints(0, 5);
+        Set<AllocationId> initializing = new HashSet<>(initializingWithCheckpoints.keySet());
+        allocations.putAll(initializingWithCheckpoints);
+        assertThat(allocations.size(), equalTo(active.size() + initializing.size()));
+
+        final AllocationId primaryId = active.iterator().next();
+        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        final ReplicationTracker tracker = newTracker(primaryId, settings);
+        assertThat(tracker.getGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
+
+        long primaryLocalCheckpoint = activeWithCheckpoints.get(primaryId);
+
+        logger.info("--> using allocations");
+        allocations.keySet().forEach(aId -> {
+            final String type;
+            if (active.contains(aId)) {
+                type = "active";
+            } else if (initializing.contains(aId)) {
+                type = "init";
+            } else {
+                throw new IllegalStateException(aId + " not found in any map");
+            }
+            logger.info("  - [{}], local checkpoint [{}], [{}]", aId, allocations.get(aId), type);
+        });
+
+        tracker.updateFromClusterManager(initialClusterStateVersion, ids(active), routingTable(initializing, primaryId));
+        tracker.activatePrimaryMode(NO_OPS_PERFORMED);
+        assertThat(tracker.getReplicationGroup().getReplicationTargets().size(), equalTo(1));
+        initializing.forEach(aId -> markAsTrackingAndInSyncQuietly(tracker, aId.getId(), NO_OPS_PERFORMED, false));
+        assertThat(tracker.getReplicationGroup().getReplicationTargets().size(), equalTo(1 + initializing.size()));
+        Set<AllocationId> replicationTargets = tracker.getReplicationGroup()
+            .getReplicationTargets()
+            .stream()
+            .map(ShardRouting::allocationId)
+            .collect(Collectors.toSet());
+        assertTrue(replicationTargets.containsAll(initializing));
+        allocations.keySet().forEach(aId -> updateLocalCheckpoint(tracker, aId.getId(), allocations.get(aId)));
+
+        assertEquals(tracker.getGlobalCheckpoint(), primaryLocalCheckpoint);
+
+        // increment checkpoints
+        active.forEach(aId -> allocations.put(aId, allocations.get(aId) + 1 + randomInt(4)));
+        initializing.forEach(aId -> allocations.put(aId, allocations.get(aId) + 1 + randomInt(4)));
+        allocations.keySet().forEach(aId -> updateLocalCheckpoint(tracker, aId.getId(), allocations.get(aId)));
+
+        final long minLocalCheckpointAfterUpdates = allocations.values().stream().min(Long::compareTo).orElse(UNASSIGNED_SEQ_NO);
+
+        // now insert an unknown active/insync id , the checkpoint shouldn't change but a refresh should be requested.
+        final AllocationId extraId = AllocationId.newInitializing();
+
+        // first check that adding it without the cluster-manager blessing doesn't change anything.
+        updateLocalCheckpoint(tracker, extraId.getId(), minLocalCheckpointAfterUpdates + 1 + randomInt(4));
+        assertNull(tracker.checkpoints.get(extraId.getId()));
+        expectThrows(IllegalStateException.class, () -> tracker.initiateTracking(extraId.getId()));
+
+        Set<AllocationId> newInitializing = new HashSet<>(initializing);
+        newInitializing.add(extraId);
+        tracker.updateFromClusterManager(initialClusterStateVersion + 1, ids(active), routingTable(newInitializing, primaryId));
+
+        tracker.initiateTracking(extraId.getId());
+
+        // now notify for the new id
+        if (randomBoolean()) {
+            updateLocalCheckpoint(tracker, extraId.getId(), minLocalCheckpointAfterUpdates + 1 + randomInt(4));
+            markAsTrackingAndInSyncQuietly(tracker, extraId.getId(), randomInt((int) minLocalCheckpointAfterUpdates), false);
+        } else {
+            markAsTrackingAndInSyncQuietly(tracker, extraId.getId(), minLocalCheckpointAfterUpdates + 1 + randomInt(4), false);
+        }
+    }
+
+    public void testUpdateFromClusterManagerWithRemoteTranslogEnabled() {
+        final long initialClusterStateVersion = randomNonNegativeLong();
+        Map<AllocationId, Long> activeWithCheckpoints = randomAllocationsWithLocalCheckpoints(2, 5);
+        Set<AllocationId> active = new HashSet<>(activeWithCheckpoints.keySet());
+        Map<AllocationId, Long> allocations = new HashMap<>(activeWithCheckpoints);
+        Map<AllocationId, Long> initializingWithCheckpoints = randomAllocationsWithLocalCheckpoints(0, 5);
+        Set<AllocationId> initializing = new HashSet<>(initializingWithCheckpoints.keySet());
+        allocations.putAll(initializingWithCheckpoints);
+        assertThat(allocations.size(), equalTo(active.size() + initializing.size()));
+
+        final AllocationId primaryId = active.iterator().next();
+        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        final ReplicationTracker tracker = newTracker(primaryId, settings);
+        assertThat(tracker.getGlobalCheckpoint(), equalTo(UNASSIGNED_SEQ_NO));
+
+        long primaryLocalCheckpoint = activeWithCheckpoints.get(primaryId);
+
+        logger.info("--> using allocations");
+        allocations.keySet().forEach(aId -> {
+            final String type;
+            if (active.contains(aId)) {
+                type = "active";
+            } else if (initializing.contains(aId)) {
+                type = "init";
+            } else {
+                throw new IllegalStateException(aId + " not found in any map");
+            }
+            logger.info("  - [{}], local checkpoint [{}], [{}]", aId, allocations.get(aId), type);
+        });
+
+        tracker.updateFromClusterManager(initialClusterStateVersion, ids(active), routingTable(initializing, active, primaryId));
+        tracker.activatePrimaryMode(NO_OPS_PERFORMED);
+        assertEquals(tracker.getReplicationGroup().getReplicationTargets().size(), active.size());
+        initializing.forEach(aId -> markAsTrackingAndInSyncQuietly(tracker, aId.getId(), NO_OPS_PERFORMED, false));
+        assertEquals(tracker.getReplicationGroup().getReplicationTargets().size(), active.size() + initializing.size());
+        Set<AllocationId> replicationTargets = tracker.getReplicationGroup()
+            .getReplicationTargets()
+            .stream()
+            .map(ShardRouting::allocationId)
+            .collect(Collectors.toSet());
+        assertTrue(replicationTargets.containsAll(initializing));
+        assertTrue(replicationTargets.containsAll(active));
+        allocations.keySet().forEach(aId -> updateLocalCheckpoint(tracker, aId.getId(), allocations.get(aId)));
+
+        assertEquals(tracker.getGlobalCheckpoint(), primaryLocalCheckpoint);
+
+        // increment checkpoints
+        active.forEach(aId -> allocations.put(aId, allocations.get(aId) + 1 + randomInt(4)));
+        initializing.forEach(aId -> allocations.put(aId, allocations.get(aId) + 1 + randomInt(4)));
+        allocations.keySet().forEach(aId -> updateLocalCheckpoint(tracker, aId.getId(), allocations.get(aId)));
+
+        final long minLocalCheckpointAfterUpdates = allocations.values().stream().min(Long::compareTo).orElse(UNASSIGNED_SEQ_NO);
+
+        // now insert an unknown active/insync id , the checkpoint shouldn't change but a refresh should be requested.
+        final AllocationId extraId = AllocationId.newInitializing();
+
+        // first check that adding it without the cluster-manager blessing doesn't change anything.
+        updateLocalCheckpoint(tracker, extraId.getId(), minLocalCheckpointAfterUpdates + 1 + randomInt(4));
+        assertNull(tracker.checkpoints.get(extraId.getId()));
+        expectThrows(IllegalStateException.class, () -> tracker.initiateTracking(extraId.getId()));
+
+        Set<AllocationId> newInitializing = new HashSet<>(initializing);
+        newInitializing.add(extraId);
+        tracker.updateFromClusterManager(initialClusterStateVersion + 1, ids(active), routingTable(newInitializing, primaryId));
+
+        tracker.initiateTracking(extraId.getId());
+
+        // now notify for the new id
+        if (randomBoolean()) {
+            updateLocalCheckpoint(tracker, extraId.getId(), minLocalCheckpointAfterUpdates + 1 + randomInt(4));
+            markAsTrackingAndInSyncQuietly(tracker, extraId.getId(), randomInt((int) minLocalCheckpointAfterUpdates), false);
+        } else {
+            markAsTrackingAndInSyncQuietly(tracker, extraId.getId(), minLocalCheckpointAfterUpdates + 1 + randomInt(4), false);
+        }
+    }
+
+    /**
+     * This test checks that updateGlobalCheckpointOnReplica with remote translog does not violate any of the invariants
+     */
+    public void testUpdateGlobalCheckpointOnReplicaWithRemoteTranslogEnabled() {
+        final AllocationId active = AllocationId.newInitializing();
+        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        final ReplicationTracker tracker = newTracker(active, settings);
+        final long globalCheckpoint = randomLongBetween(NO_OPS_PERFORMED, Long.MAX_VALUE - 1);
+        tracker.updateGlobalCheckpointOnReplica(globalCheckpoint, "test");
+        assertEquals(updatedGlobalCheckpoint.get(), globalCheckpoint);
+        final long nonUpdate = randomLongBetween(NO_OPS_PERFORMED, globalCheckpoint);
+        updatedGlobalCheckpoint.set(UNASSIGNED_SEQ_NO);
+        tracker.updateGlobalCheckpointOnReplica(nonUpdate, "test");
+        assertEquals(updatedGlobalCheckpoint.get(), UNASSIGNED_SEQ_NO);
+        final long update = randomLongBetween(globalCheckpoint, Long.MAX_VALUE);
+        tracker.updateGlobalCheckpointOnReplica(update, "test");
+        assertEquals(updatedGlobalCheckpoint.get(), update);
+    }
+
+    public void testMarkAllocationIdAsInSyncWithRemoteTranslogEnabled() throws Exception {
+        final long initialClusterStateVersion = randomNonNegativeLong();
+        Map<AllocationId, Long> activeWithCheckpoints = randomAllocationsWithLocalCheckpoints(1, 1);
+        Set<AllocationId> active = new HashSet<>(activeWithCheckpoints.keySet());
+        Map<AllocationId, Long> initializingWithCheckpoints = randomAllocationsWithLocalCheckpoints(1, 1);
+        Set<AllocationId> initializing = new HashSet<>(initializingWithCheckpoints.keySet());
+        final AllocationId primaryId = active.iterator().next();
+        final AllocationId replicaId = initializing.iterator().next();
+        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        final ReplicationTracker tracker = newTracker(primaryId, settings);
+        tracker.updateFromClusterManager(initialClusterStateVersion, ids(active), routingTable(initializing, primaryId));
+        final long localCheckpoint = randomLongBetween(0, Long.MAX_VALUE - 1);
+        tracker.activatePrimaryMode(localCheckpoint);
+        tracker.initiateTracking(replicaId.getId());
+        tracker.markAllocationIdAsInSync(replicaId.getId(), randomLongBetween(NO_OPS_PERFORMED, localCheckpoint - 1));
+        assertFalse(tracker.pendingInSync());
+        final long updatedLocalCheckpoint = randomLongBetween(1 + localCheckpoint, Long.MAX_VALUE);
+        updatedGlobalCheckpoint.set(UNASSIGNED_SEQ_NO);
+        tracker.updateLocalCheckpoint(primaryId.getId(), updatedLocalCheckpoint);
+        assertEquals(updatedGlobalCheckpoint.get(), updatedLocalCheckpoint);
+        tracker.updateLocalCheckpoint(replicaId.getId(), localCheckpoint);
+        assertEquals(updatedGlobalCheckpoint.get(), updatedLocalCheckpoint);
+        tracker.markAllocationIdAsInSync(replicaId.getId(), updatedLocalCheckpoint);
+        assertEquals(updatedGlobalCheckpoint.get(), updatedLocalCheckpoint);
+    }
+
+    public void testMissingActiveIdsDoesNotPreventAdvanceWithRemoteTranslogEnabled() {
+        final Map<AllocationId, Long> active = randomAllocationsWithLocalCheckpoints(2, 5);
+        final Map<AllocationId, Long> initializing = randomAllocationsWithLocalCheckpoints(0, 5);
+        final Map<AllocationId, Long> assigned = new HashMap<>();
+        assigned.putAll(active);
+        assigned.putAll(initializing);
+        AllocationId primaryId = active.keySet().iterator().next();
+        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        final ReplicationTracker tracker = newTracker(primaryId, settings);
+        tracker.updateFromClusterManager(randomNonNegativeLong(), ids(active.keySet()), routingTable(initializing.keySet(), primaryId));
+        tracker.activatePrimaryMode(NO_OPS_PERFORMED);
+        List<AllocationId> initializingRandomSubset = randomSubsetOf(initializing.keySet());
+        initializingRandomSubset.forEach(k -> markAsTrackingAndInSyncQuietly(tracker, k.getId(), NO_OPS_PERFORMED));
+        final AllocationId missingActiveID = randomFrom(active.keySet());
+        assigned.entrySet()
+            .stream()
+            .filter(e -> !e.getKey().equals(missingActiveID))
+            .forEach(e -> updateLocalCheckpoint(tracker, e.getKey().getId(), e.getValue()));
+        long primaryLocalCheckpoint = active.get(primaryId);
+
+        assertEquals(1 + initializingRandomSubset.size(), tracker.getReplicationGroup().getReplicationTargets().size());
+        if (missingActiveID.equals(primaryId) == false) {
+            assertEquals(tracker.getGlobalCheckpoint(), primaryLocalCheckpoint);
+            assertEquals(updatedGlobalCheckpoint.get(), primaryLocalCheckpoint);
+        }
+        // now update all knowledge of all shards
+        assigned.forEach((aid, localCP) -> updateLocalCheckpoint(tracker, aid.getId(), 10 + localCP));
+        assertEquals(tracker.getGlobalCheckpoint(), 10 + primaryLocalCheckpoint);
+        assertEquals(updatedGlobalCheckpoint.get(), 10 + primaryLocalCheckpoint);
+    }
+
+    public void testMissingInSyncIdsDoesNotPreventAdvanceWithRemoteTranslogEnabled() {
+        final Map<AllocationId, Long> active = randomAllocationsWithLocalCheckpoints(1, 5);
+        final Map<AllocationId, Long> initializing = randomAllocationsWithLocalCheckpoints(2, 5);
+        logger.info("active: {}, initializing: {}", active, initializing);
+
+        AllocationId primaryId = active.keySet().iterator().next();
+        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        final ReplicationTracker tracker = newTracker(primaryId, settings);
+        tracker.updateFromClusterManager(randomNonNegativeLong(), ids(active.keySet()), routingTable(initializing.keySet(), primaryId));
+        tracker.activatePrimaryMode(NO_OPS_PERFORMED);
+        randomSubsetOf(randomIntBetween(1, initializing.size() - 1), initializing.keySet()).forEach(
+            aId -> markAsTrackingAndInSyncQuietly(tracker, aId.getId(), NO_OPS_PERFORMED)
+        );
+        long primaryLocalCheckpoint = active.get(primaryId);
+
+        active.forEach((aid, localCP) -> updateLocalCheckpoint(tracker, aid.getId(), localCP));
+
+        assertEquals(tracker.getGlobalCheckpoint(), primaryLocalCheckpoint);
+        assertEquals(updatedGlobalCheckpoint.get(), primaryLocalCheckpoint);
+
+        // update again
+        initializing.forEach((aid, localCP) -> updateLocalCheckpoint(tracker, aid.getId(), localCP));
+        assertEquals(tracker.getGlobalCheckpoint(), primaryLocalCheckpoint);
+        assertEquals(updatedGlobalCheckpoint.get(), primaryLocalCheckpoint);
+    }
+
+    public void testInSyncIdsAreIgnoredIfNotValidatedByClusterManagerWithRemoteTranslogEnabled() {
+        final Map<AllocationId, Long> active = randomAllocationsWithLocalCheckpoints(1, 5);
+        final Map<AllocationId, Long> initializing = randomAllocationsWithLocalCheckpoints(1, 5);
+        final Map<AllocationId, Long> nonApproved = randomAllocationsWithLocalCheckpoints(1, 5);
+        final AllocationId primaryId = active.keySet().iterator().next();
+        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        final ReplicationTracker tracker = newTracker(primaryId, settings);
+        tracker.updateFromClusterManager(randomNonNegativeLong(), ids(active.keySet()), routingTable(initializing.keySet(), primaryId));
+        tracker.activatePrimaryMode(NO_OPS_PERFORMED);
+        initializing.keySet().forEach(k -> markAsTrackingAndInSyncQuietly(tracker, k.getId(), NO_OPS_PERFORMED));
+        nonApproved.keySet()
+            .forEach(
+                k -> expectThrows(IllegalStateException.class, () -> markAsTrackingAndInSyncQuietly(tracker, k.getId(), NO_OPS_PERFORMED))
+            );
+
+        List<Map<AllocationId, Long>> allocations = Arrays.asList(active, initializing, nonApproved);
+        Collections.shuffle(allocations, random());
+        allocations.forEach(a -> a.forEach((aid, localCP) -> updateLocalCheckpoint(tracker, aid.getId(), localCP)));
+
+        assertNotEquals(UNASSIGNED_SEQ_NO, tracker.getGlobalCheckpoint());
+    }
+
+    public void testInSyncIdsAreRemovedIfNotValidatedByClusterManagerWithRemoteTranslogEnabled() {
+        final long initialClusterStateVersion = randomNonNegativeLong();
+        final Map<AllocationId, Long> activeToStay = randomAllocationsWithLocalCheckpoints(1, 5);
+        final Map<AllocationId, Long> initializingToStay = randomAllocationsWithLocalCheckpoints(1, 5);
+        final Map<AllocationId, Long> activeToBeRemoved = randomAllocationsWithLocalCheckpoints(1, 5);
+        final Map<AllocationId, Long> initializingToBeRemoved = randomAllocationsWithLocalCheckpoints(1, 5);
+        final Set<AllocationId> active = Sets.union(activeToStay.keySet(), activeToBeRemoved.keySet());
+        final Set<AllocationId> initializing = Sets.union(initializingToStay.keySet(), initializingToBeRemoved.keySet());
+        final Map<AllocationId, Long> allocations = new HashMap<>();
+        final AllocationId primaryId = active.iterator().next();
+        if (activeToBeRemoved.containsKey(primaryId)) {
+            activeToStay.put(primaryId, activeToBeRemoved.remove(primaryId));
+        }
+        allocations.putAll(activeToStay);
+        if (randomBoolean()) {
+            allocations.putAll(activeToBeRemoved);
+        }
+        allocations.putAll(initializingToStay);
+        if (randomBoolean()) {
+            allocations.putAll(initializingToBeRemoved);
+        }
+        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        final ReplicationTracker tracker = newTracker(primaryId, settings);
+        tracker.updateFromClusterManager(initialClusterStateVersion, ids(active), routingTable(initializing, primaryId));
+        tracker.activatePrimaryMode(NO_OPS_PERFORMED);
+        if (randomBoolean()) {
+            initializingToStay.keySet().forEach(k -> markAsTrackingAndInSyncQuietly(tracker, k.getId(), NO_OPS_PERFORMED));
+        } else {
+            initializing.forEach(k -> markAsTrackingAndInSyncQuietly(tracker, k.getId(), NO_OPS_PERFORMED));
+        }
+        if (randomBoolean()) {
+            allocations.forEach((aid, localCP) -> updateLocalCheckpoint(tracker, aid.getId(), localCP));
+        }
+
+        // now remove shards
+        if (randomBoolean()) {
+            tracker.updateFromClusterManager(
+                initialClusterStateVersion + 1,
+                ids(activeToStay.keySet()),
+                routingTable(initializingToStay.keySet(), primaryId)
+            );
+            allocations.forEach((aid, ckp) -> updateLocalCheckpoint(tracker, aid.getId(), ckp + 10L));
+        } else {
+            allocations.forEach((aid, ckp) -> updateLocalCheckpoint(tracker, aid.getId(), ckp + 10L));
+            tracker.updateFromClusterManager(
+                initialClusterStateVersion + 2,
+                ids(activeToStay.keySet()),
+                routingTable(initializingToStay.keySet(), primaryId)
+            );
+        }
+
+        final long checkpoint = activeToStay.get(primaryId) + 10;
+        assertEquals(tracker.getGlobalCheckpoint(), checkpoint);
+    }
+
+    public void testUpdateAllocationIdsFromClusterManagerWithRemoteTranslogEnabled() throws Exception {
+        final long initialClusterStateVersion = randomNonNegativeLong();
+        final int numberOfActiveAllocationsIds = randomIntBetween(2, 16);
+        final int numberOfInitializingIds = randomIntBetween(2, 16);
+        final Tuple<Set<AllocationId>, Set<AllocationId>> activeAndInitializingAllocationIds = randomActiveAndInitializingAllocationIds(
+            numberOfActiveAllocationsIds,
+            numberOfInitializingIds
+        );
+        final Set<AllocationId> activeAllocationIds = activeAndInitializingAllocationIds.v1();
+        final Set<AllocationId> initializingIds = activeAndInitializingAllocationIds.v2();
+        AllocationId primaryId = activeAllocationIds.iterator().next();
+        IndexShardRoutingTable routingTable = routingTable(initializingIds, primaryId);
+        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        final ReplicationTracker tracker = newTracker(primaryId, settings);
+        tracker.updateFromClusterManager(initialClusterStateVersion, ids(activeAllocationIds), routingTable);
+        tracker.activatePrimaryMode(NO_OPS_PERFORMED);
+        assertThat(tracker.getReplicationGroup().getInSyncAllocationIds(), equalTo(ids(activeAllocationIds)));
+        assertThat(tracker.getReplicationGroup().getRoutingTable(), equalTo(routingTable));
+
+        // first we assert that the in-sync and tracking sets are set up correctly
+        assertTrue(activeAllocationIds.stream().allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).inSync));
+        assertTrue(
+            activeAllocationIds.stream()
+                .filter(a -> a.equals(primaryId) == false)
+                .allMatch(
+                    a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).getLocalCheckpoint() == SequenceNumbers.UNASSIGNED_SEQ_NO
+                )
+        );
+        assertTrue(initializingIds.stream().noneMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).inSync));
+        assertTrue(
+            initializingIds.stream()
+                .filter(a -> a.equals(primaryId) == false)
+                .allMatch(
+                    a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).getLocalCheckpoint() == SequenceNumbers.UNASSIGNED_SEQ_NO
+                )
+        );
+
+        // now we will remove some allocation IDs from these and ensure that they propagate through
+        final Set<AllocationId> removingActiveAllocationIds = new HashSet<>(randomSubsetOf(activeAllocationIds));
+        removingActiveAllocationIds.remove(primaryId);
+        final Set<AllocationId> newActiveAllocationIds = activeAllocationIds.stream()
+            .filter(a -> !removingActiveAllocationIds.contains(a))
+            .collect(Collectors.toSet());
+        final List<AllocationId> removingInitializingAllocationIds = randomSubsetOf(initializingIds);
+        final Set<AllocationId> newInitializingAllocationIds = initializingIds.stream()
+            .filter(a -> !removingInitializingAllocationIds.contains(a))
+            .collect(Collectors.toSet());
+        routingTable = routingTable(newInitializingAllocationIds, primaryId);
+        tracker.updateFromClusterManager(initialClusterStateVersion + 1, ids(newActiveAllocationIds), routingTable);
+        assertTrue(newActiveAllocationIds.stream().allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).inSync));
+        assertTrue(removingActiveAllocationIds.stream().allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()) == null));
+        assertTrue(newInitializingAllocationIds.stream().noneMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).inSync));
+        assertTrue(removingInitializingAllocationIds.stream().allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()) == null));
+        assertThat(
+            tracker.getReplicationGroup().getInSyncAllocationIds(),
+            equalTo(ids(Sets.difference(Sets.union(activeAllocationIds, newActiveAllocationIds), removingActiveAllocationIds)))
+        );
+        assertThat(tracker.getReplicationGroup().getRoutingTable(), equalTo(routingTable));
+
+        /*
+         * Now we will add an allocation ID to each of active and initializing and ensure they propagate through. Using different lengths
+         * than we have been using above ensures that we can not collide with a previous allocation ID
+         */
+        newInitializingAllocationIds.add(AllocationId.newInitializing());
+        tracker.updateFromClusterManager(
+            initialClusterStateVersion + 2,
+            ids(newActiveAllocationIds),
+            routingTable(newInitializingAllocationIds, primaryId)
+        );
+        assertTrue(newActiveAllocationIds.stream().allMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).inSync));
+        assertTrue(
+            newActiveAllocationIds.stream()
+                .filter(a -> a.equals(primaryId) == false)
+                .allMatch(
+                    a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).getLocalCheckpoint() == SequenceNumbers.UNASSIGNED_SEQ_NO
+                )
+        );
+        assertTrue(newInitializingAllocationIds.stream().noneMatch(a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).inSync));
+        assertTrue(
+            newInitializingAllocationIds.stream()
+                .allMatch(
+                    a -> tracker.getTrackedLocalCheckpointForShard(a.getId()).getLocalCheckpoint() == SequenceNumbers.UNASSIGNED_SEQ_NO
+                )
+        );
+
+        // the tracking allocation IDs should play no role in determining the global checkpoint
+        final Map<AllocationId, Integer> activeLocalCheckpoints = newActiveAllocationIds.stream()
+            .collect(Collectors.toMap(Function.identity(), a -> randomIntBetween(1, 1024)));
+        activeLocalCheckpoints.forEach((a, l) -> updateLocalCheckpoint(tracker, a.getId(), l));
+        final Map<AllocationId, Integer> initializingLocalCheckpoints = newInitializingAllocationIds.stream()
+            .collect(Collectors.toMap(Function.identity(), a -> randomIntBetween(1, 1024)));
+        initializingLocalCheckpoints.forEach((a, l) -> updateLocalCheckpoint(tracker, a.getId(), l));
+        assertTrue(
+            activeLocalCheckpoints.entrySet()
+                .stream()
+                .allMatch(e -> tracker.getTrackedLocalCheckpointForShard(e.getKey().getId()).getLocalCheckpoint() == e.getValue())
+        );
+        assertTrue(
+            initializingLocalCheckpoints.entrySet()
+                .stream()
+                .allMatch(e -> tracker.getTrackedLocalCheckpointForShard(e.getKey().getId()).getLocalCheckpoint() == e.getValue())
+        );
+        final long primaryLocalCheckpoint = activeLocalCheckpoints.get(primaryId);
+        assertThat(tracker.getGlobalCheckpoint(), equalTo(primaryLocalCheckpoint));
+        assertThat(updatedGlobalCheckpoint.get(), equalTo(primaryLocalCheckpoint));
+        final long minimumInitailizingLocalCheckpoint = (long) initializingLocalCheckpoints.values().stream().min(Integer::compareTo).get();
+
+        // now we are going to add a new allocation ID and bring it in sync which should move it to the in-sync allocation IDs
+        final long localCheckpoint = randomIntBetween(
+            0,
+            Math.toIntExact(Math.min(primaryLocalCheckpoint, minimumInitailizingLocalCheckpoint) - 1)
+        );
+
+        // using a different length than we have been using above ensures that we can not collide with a previous allocation ID
+        final AllocationId newSyncingAllocationId = AllocationId.newInitializing();
+        newInitializingAllocationIds.add(newSyncingAllocationId);
+        tracker.updateFromClusterManager(
+            initialClusterStateVersion + 3,
+            ids(newActiveAllocationIds),
+            routingTable(newInitializingAllocationIds, primaryId)
+        );
+        addPeerRecoveryRetentionLease(tracker, newSyncingAllocationId);
+        final CyclicBarrier barrier = new CyclicBarrier(2);
+        final Thread thread = new Thread(() -> {
+            try {
+                barrier.await();
+                tracker.initiateTracking(newSyncingAllocationId.getId());
+                tracker.markAllocationIdAsInSync(newSyncingAllocationId.getId(), localCheckpoint);
+                barrier.await();
+            } catch (final BrokenBarrierException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        });
+
+        thread.start();
+
+        barrier.await();
+
+        assertBusy(() -> {
+            assertFalse(tracker.pendingInSync.contains(newSyncingAllocationId.getId()));
+            assertTrue(tracker.getTrackedLocalCheckpointForShard(newSyncingAllocationId.getId()).inSync);
+        });
+
+        tracker.updateLocalCheckpoint(newSyncingAllocationId.getId(), randomIntBetween(Math.toIntExact(primaryLocalCheckpoint), 1024));
+
+        barrier.await();
+
+        assertFalse(tracker.pendingInSync.contains(newSyncingAllocationId.getId()));
+        assertTrue(tracker.getTrackedLocalCheckpointForShard(newSyncingAllocationId.getId()).inSync);
+
+        /*
+         * The new in-sync allocation ID is in the in-sync set now yet the cluster-manager does not know this; the allocation ID should still be in
+         * the in-sync set even if we receive a cluster state update that does not reflect this.
+         *
+         */
+        tracker.updateFromClusterManager(
+            initialClusterStateVersion + 4,
+            ids(newActiveAllocationIds),
+            routingTable(newInitializingAllocationIds, primaryId)
+        );
+        assertTrue(tracker.getTrackedLocalCheckpointForShard(newSyncingAllocationId.getId()).inSync);
+        assertFalse(tracker.pendingInSync.contains(newSyncingAllocationId.getId()));
+    }
+
+    public void testPrimaryContextHandoffWithRemoteTranslogEnabled() throws IOException {
+        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+
+        FakeClusterState clusterState = initialState();
+        final AllocationId aId = clusterState.routingTable.primaryShard().allocationId();
+        final LongConsumer onUpdate = updatedGlobalCheckpoint -> {};
+        final long primaryTerm = randomNonNegativeLong();
+        final long globalCheckpoint = UNASSIGNED_SEQ_NO;
+        final BiConsumer<RetentionLeases, ActionListener<ReplicationResponse>> onNewRetentionLease = (leases, listener) -> {};
+        ReplicationTracker oldPrimary = new ReplicationTracker(
+            shardId,
+            aId.getId(),
+            indexSettings,
+            primaryTerm,
+            globalCheckpoint,
+            onUpdate,
+            () -> 0L,
+            onNewRetentionLease,
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE
+        );
+        ReplicationTracker newPrimary = new ReplicationTracker(
+            shardId,
+            aId.getRelocationId(),
+            indexSettings,
+            primaryTerm,
+            globalCheckpoint,
+            onUpdate,
+            () -> 0L,
+            onNewRetentionLease,
+            OPS_BASED_RECOVERY_ALWAYS_REASONABLE
+        );
+
+        Set<String> allocationIds = new HashSet<>(Arrays.asList(oldPrimary.shardAllocationId, newPrimary.shardAllocationId));
+
+        clusterState.apply(oldPrimary);
+        clusterState.apply(newPrimary);
+
+        oldPrimary.activatePrimaryMode(randomIntBetween(Math.toIntExact(NO_OPS_PERFORMED), 10));
+        addPeerRecoveryRetentionLease(oldPrimary, newPrimary.shardAllocationId);
+        newPrimary.updateRetentionLeasesOnReplica(oldPrimary.getRetentionLeases());
+
+        final int numUpdates = randomInt(10);
+        for (int i = 0; i < numUpdates; i++) {
+            if (rarely()) {
+                clusterState = randomUpdateClusterState(allocationIds, clusterState);
+                clusterState.apply(oldPrimary);
+                clusterState.apply(newPrimary);
+            }
+            if (randomBoolean()) {
+                randomLocalCheckpointUpdate(oldPrimary);
+            }
+            if (randomBoolean()) {
+                randomMarkInSync(oldPrimary, newPrimary);
+            }
+        }
+
+        // simulate transferring the global checkpoint to the new primary after finalizing recovery before the handoff
+        markAsTrackingAndInSyncQuietly(
+            oldPrimary,
+            newPrimary.shardAllocationId,
+            Math.max(SequenceNumbers.NO_OPS_PERFORMED, oldPrimary.getGlobalCheckpoint() + randomInt(5))
+        );
+        oldPrimary.updateGlobalCheckpointForShard(newPrimary.shardAllocationId, oldPrimary.getGlobalCheckpoint());
+        ReplicationTracker.PrimaryContext primaryContext = oldPrimary.startRelocationHandoff(newPrimary.shardAllocationId);
+
+        if (randomBoolean()) {
+            // cluster state update after primary context handoff
+            if (randomBoolean()) {
+                clusterState = randomUpdateClusterState(allocationIds, clusterState);
+                clusterState.apply(oldPrimary);
+                clusterState.apply(newPrimary);
+            }
+
+            // abort handoff, check that we can continue updates and retry handoff
+            oldPrimary.abortRelocationHandoff();
+
+            if (rarely()) {
+                clusterState = randomUpdateClusterState(allocationIds, clusterState);
+                clusterState.apply(oldPrimary);
+                clusterState.apply(newPrimary);
+            }
+            if (randomBoolean()) {
+                randomLocalCheckpointUpdate(oldPrimary);
+            }
+            if (randomBoolean()) {
+                randomMarkInSync(oldPrimary, newPrimary);
+            }
+
+            // do another handoff
+            primaryContext = oldPrimary.startRelocationHandoff(newPrimary.shardAllocationId);
+        }
+
+        // send primary context through the wire
+        BytesStreamOutput output = new BytesStreamOutput();
+        primaryContext.writeTo(output);
+        StreamInput streamInput = output.bytes().streamInput();
+        primaryContext = new ReplicationTracker.PrimaryContext(streamInput);
+        switch (randomInt(3)) {
+            case 0: {
+                // apply cluster state update on old primary while primary context is being transferred
+                clusterState = randomUpdateClusterState(allocationIds, clusterState);
+                clusterState.apply(oldPrimary);
+                // activate new primary
+                newPrimary.activateWithPrimaryContext(primaryContext);
+                // apply cluster state update on new primary so that the states on old and new primary are comparable
+                clusterState.apply(newPrimary);
+                break;
+            }
+            case 1: {
+                // apply cluster state update on new primary while primary context is being transferred
+                clusterState = randomUpdateClusterState(allocationIds, clusterState);
+                clusterState.apply(newPrimary);
+                // activate new primary
+                newPrimary.activateWithPrimaryContext(primaryContext);
+                // apply cluster state update on old primary so that the states on old and new primary are comparable
+                clusterState.apply(oldPrimary);
+                break;
+            }
+            case 2: {
+                // apply cluster state update on both copies while primary context is being transferred
+                clusterState = randomUpdateClusterState(allocationIds, clusterState);
+                clusterState.apply(oldPrimary);
+                clusterState.apply(newPrimary);
+                newPrimary.activateWithPrimaryContext(primaryContext);
+                break;
+            }
+            case 3: {
+                // no cluster state update
+                newPrimary.activateWithPrimaryContext(primaryContext);
+                break;
+            }
+        }
+
+        assertTrue(oldPrimary.primaryMode);
+        assertTrue(newPrimary.primaryMode);
+        assertThat(newPrimary.appliedClusterStateVersion, equalTo(oldPrimary.appliedClusterStateVersion));
+        /*
+         * We can not assert on shared knowledge of the global checkpoint between the old primary and the new primary as the new primary
+         * will update its global checkpoint state without the old primary learning of it, and the old primary could have updated its
+         * global checkpoint state after the primary context was transferred.
+         */
+        Map<String, ReplicationTracker.CheckpointState> oldPrimaryCheckpointsCopy = new HashMap<>(oldPrimary.checkpoints);
+        oldPrimaryCheckpointsCopy.remove(oldPrimary.shardAllocationId);
+        oldPrimaryCheckpointsCopy.remove(newPrimary.shardAllocationId);
+        Map<String, ReplicationTracker.CheckpointState> newPrimaryCheckpointsCopy = new HashMap<>(newPrimary.checkpoints);
+        newPrimaryCheckpointsCopy.remove(oldPrimary.shardAllocationId);
+        newPrimaryCheckpointsCopy.remove(newPrimary.shardAllocationId);
+        assertThat(newPrimaryCheckpointsCopy, equalTo(oldPrimaryCheckpointsCopy));
+        // we can however assert that shared knowledge of the local checkpoint and in-sync status is equal
+        assertThat(
+            oldPrimary.checkpoints.get(oldPrimary.shardAllocationId).localCheckpoint,
+            equalTo(newPrimary.checkpoints.get(oldPrimary.shardAllocationId).localCheckpoint)
+        );
+        assertThat(
+            oldPrimary.checkpoints.get(newPrimary.shardAllocationId).localCheckpoint,
+            equalTo(newPrimary.checkpoints.get(newPrimary.shardAllocationId).localCheckpoint)
+        );
+        assertThat(
+            oldPrimary.checkpoints.get(oldPrimary.shardAllocationId).inSync,
+            equalTo(newPrimary.checkpoints.get(oldPrimary.shardAllocationId).inSync)
+        );
+        assertThat(
+            oldPrimary.checkpoints.get(newPrimary.shardAllocationId).inSync,
+            equalTo(newPrimary.checkpoints.get(newPrimary.shardAllocationId).inSync)
+        );
+        assertThat(newPrimary.getGlobalCheckpoint(), equalTo(oldPrimary.getGlobalCheckpoint()));
+        assertThat(newPrimary.routingTable, equalTo(oldPrimary.routingTable));
+        assertThat(newPrimary.replicationGroup, equalTo(oldPrimary.replicationGroup));
+
+        assertFalse(oldPrimary.relocated);
+        oldPrimary.completeRelocationHandoff();
+        assertFalse(oldPrimary.primaryMode);
+        assertTrue(oldPrimary.relocated);
+    }
+
+    public void testIllegalStateExceptionIfUnknownAllocationIdWithRemoteTranslogEnabled() {
+        final AllocationId active = AllocationId.newInitializing();
+        final AllocationId initializing = AllocationId.newInitializing();
+        Settings settings = Settings.builder().put("index.remote_store.translog.enabled", "true").build();
+        final ReplicationTracker tracker = newTracker(active, settings);
+        tracker.updateFromClusterManager(
+            randomNonNegativeLong(),
+            Collections.singleton(active.getId()),
+            routingTable(Collections.singleton(initializing), active)
+        );
+        tracker.activatePrimaryMode(NO_OPS_PERFORMED);
+
+        expectThrows(IllegalStateException.class, () -> tracker.initiateTracking(randomAlphaOfLength(10)));
+        expectThrows(IllegalStateException.class, () -> tracker.markAllocationIdAsInSync(randomAlphaOfLength(10), randomNonNegativeLong()));
     }
 
 }

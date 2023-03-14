@@ -49,7 +49,7 @@ public class KuromojiPartOfSpeechFilterFactory extends AbstractTokenFilterFactor
 
     public KuromojiPartOfSpeechFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
-        List<String> wordList = Analysis.getWordList(env, settings, "stoptags");
+        List<String> wordList = Analysis.parseWordList(env, settings, "stoptags", s -> s);
         if (wordList != null) {
             stopTags.addAll(wordList);
         } else {

@@ -11,6 +11,7 @@ package org.opensearch.cluster.decommission;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
@@ -51,5 +52,10 @@ public class DecommissioningFailedException extends OpenSearchException {
      */
     public DecommissionAttribute decommissionAttribute() {
         return decommissionAttribute;
+    }
+
+    @Override
+    public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
     }
 }

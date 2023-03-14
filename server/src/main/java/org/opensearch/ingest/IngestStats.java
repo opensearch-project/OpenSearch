@@ -32,13 +32,12 @@
 
 package org.opensearch.ingest;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -88,9 +87,7 @@ public class IngestStats implements Writeable, ToXContentFragment {
             for (int j = 0; j < processorsSize; j++) {
                 String processorName = in.readString();
                 String processorType = "_NOT_AVAILABLE";
-                if (in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-                    processorType = in.readString();
-                }
+                processorType = in.readString();
                 Stats processorStat = new Stats(in);
                 processorStatsPerPipeline.add(new ProcessorStat(processorName, processorType, processorStat));
             }
@@ -112,9 +109,7 @@ public class IngestStats implements Writeable, ToXContentFragment {
                 out.writeVInt(processorStatsForPipeline.size());
                 for (ProcessorStat processorStat : processorStatsForPipeline) {
                     out.writeString(processorStat.getName());
-                    if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-                        out.writeString(processorStat.getType());
-                    }
+                    out.writeString(processorStat.getType());
                     processorStat.getStats().writeTo(out);
                 }
             }

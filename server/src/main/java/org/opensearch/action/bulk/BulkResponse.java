@@ -37,8 +37,8 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.StatusToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -214,6 +214,6 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
                 throwUnknownToken(token, parser.getTokenLocation());
             }
         }
-        return new BulkResponse(items.toArray(new BulkItemResponse[items.size()]), took, ingestTook);
+        return new BulkResponse(items.toArray(new BulkItemResponse[0]), took, ingestTook);
     }
 }

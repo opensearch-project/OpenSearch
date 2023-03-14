@@ -142,7 +142,7 @@ public class JoinHelper {
         this.nodeHealthService = nodeHealthService;
         this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
         this.nodeCommissioned = nodeCommissioned;
-        this.joinTaskExecutorGenerator = () -> new JoinTaskExecutor(settings, allocationService, logger, rerouteService, transportService) {
+        this.joinTaskExecutorGenerator = () -> new JoinTaskExecutor(settings, allocationService, logger, rerouteService) {
 
             private final long term = currentTermSupplier.getAsLong();
 

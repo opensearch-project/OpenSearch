@@ -38,7 +38,6 @@ import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
@@ -75,6 +74,8 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
@@ -119,7 +120,9 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SH
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_UPGRADED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.opensearch.common.util.FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY;
 import static org.opensearch.common.util.set.Sets.newHashSet;
+import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
 import static org.opensearch.snapshots.SnapshotUtils.filterIndices;
 
 /**
@@ -178,6 +181,8 @@ public class RestoreService implements ClusterStateApplier {
 
     private final ClusterSettings clusterSettings;
 
+    private final ClusterManagerTaskThrottler.ThrottlingKey restoreSnapshotTaskKey;
+
     private static final CleanRestoreStateTaskExecutor cleanRestoreStateTaskExecutor = new CleanRestoreStateTaskExecutor();
 
     public RestoreService(
@@ -199,6 +204,10 @@ public class RestoreService implements ClusterStateApplier {
         }
         this.clusterSettings = clusterService.getClusterSettings();
         this.shardLimitValidator = shardLimitValidator;
+
+        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        restoreSnapshotTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.RESTORE_SNAPSHOT_KEY, true);
+
     }
 
     /**
@@ -391,6 +400,11 @@ public class RestoreService implements ClusterStateApplier {
                     RestoreInfo restoreInfo = null;
 
                     @Override
+                    public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                        return restoreSnapshotTaskKey;
+                    }
+
+                    @Override
                     public ClusterState execute(ClusterState currentState) {
                         RestoreInProgress restoreInProgress = currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
                         // Check if the snapshot to restore is currently being deleted
@@ -419,9 +433,7 @@ public class RestoreService implements ClusterStateApplier {
                             // We have some indices to restore
                             ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shardsBuilder = ImmutableOpenMap
                                 .builder();
-                            final Version minIndexCompatibilityVersion = currentState.getNodes()
-                                .getMaxNodeVersion()
-                                .minimumIndexCompatibilityVersion();
+
                             for (Map.Entry<String, String> indexEntry : indices.entrySet()) {
                                 String renamedIndexName = indexEntry.getKey();
                                 String index = indexEntry.getValue();
@@ -433,7 +445,7 @@ public class RestoreService implements ClusterStateApplier {
                                     request.ignoreIndexSettings()
                                 );
                                 final boolean isSearchableSnapshot = FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT)
-                                    && IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey().equals(request.storageType().toString());
+                                    && IndexModule.Type.REMOTE_SNAPSHOT.match(request.storageType().toString());
                                 if (isSearchableSnapshot) {
                                     snapshotIndexMetadata = addSnapshotToIndexSettings(
                                         snapshotIndexMetadata,
@@ -448,6 +460,15 @@ public class RestoreService implements ClusterStateApplier {
                                     repositoryData.resolveIndexId(index),
                                     isSearchableSnapshot
                                 );
+                                final Version minIndexCompatibilityVersion;
+                                if (isSearchableSnapshot && isSearchableSnapshotsExtendedCompatibilityEnabled()) {
+                                    minIndexCompatibilityVersion = SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION
+                                        .minimumIndexCompatibilityVersion();
+                                } else {
+                                    minIndexCompatibilityVersion = currentState.getNodes()
+                                        .getMaxNodeVersion()
+                                        .minimumIndexCompatibilityVersion();
+                                }
                                 try {
                                     snapshotIndexMetadata = metadataIndexUpgradeService.upgradeIndexMetadata(
                                         snapshotIndexMetadata,
@@ -542,13 +563,8 @@ public class RestoreService implements ClusterStateApplier {
                                     final Settings.Builder indexSettingsBuilder = Settings.builder()
                                         .put(snapshotIndexMetadata.getSettings())
                                         .put(IndexMetadata.SETTING_INDEX_UUID, currentIndexMetadata.getIndexUUID());
-                                    // Only add a restore uuid if either all nodes in the cluster support it (version >= 7.9) or if the
-                                    // index itself was created after 7.9 and thus won't be restored to a node that doesn't support the
-                                    // setting anyway
-                                    if (snapshotIndexMetadata.getCreationVersion().onOrAfter(LegacyESVersion.V_7_9_0)
-                                        || currentState.nodes().getMinNodeVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-                                        indexSettingsBuilder.put(SETTING_HISTORY_UUID, UUIDs.randomBase64UUID());
-                                    }
+                                    // add a restore uuid
+                                    indexSettingsBuilder.put(SETTING_HISTORY_UUID, UUIDs.randomBase64UUID());
                                     indexMdBuilder.settings(indexSettingsBuilder);
                                     IndexMetadata updatedIndexMetadata = indexMdBuilder.index(renamedIndexName).build();
                                     rtBuilder.addAsRestore(updatedIndexMetadata, recoverySource);
@@ -1230,5 +1246,10 @@ public class RestoreService implements ClusterStateApplier {
             .put(metadata.getSettings())
             .build();
         return IndexMetadata.builder(metadata).settings(newSettings).build();
+    }
+
+    private static boolean isSearchableSnapshotsExtendedCompatibilityEnabled() {
+        return org.opensearch.Version.CURRENT.after(org.opensearch.Version.V_2_4_0)
+            && FeatureFlags.isEnabled(SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY);
     }
 }

@@ -57,7 +57,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLock;
@@ -88,8 +88,8 @@ import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.Store;
-import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -114,6 +114,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -173,6 +174,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexNameExpressionResolver expressionResolver;
     private final Supplier<Sort> indexSortSupplier;
     private final ValuesSourceRegistry valuesSourceRegistry;
+    private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
 
     public IndexService(
         IndexSettings indexSettings,
@@ -204,7 +206,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         BooleanSupplier allowExpensiveQueries,
         IndexNameExpressionResolver expressionResolver,
         ValuesSourceRegistry valuesSourceRegistry,
-        IndexStorePlugin.RecoveryStateFactory recoveryStateFactory
+        IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier
     ) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
@@ -276,6 +279,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.trimTranslogTask = new AsyncTrimTranslogTask(this);
         this.globalCheckpointTask = new AsyncGlobalCheckpointTask(this);
         this.retentionLeaseSyncTask = new AsyncRetentionLeaseSyncTask(this);
+        this.translogFactorySupplier = translogFactorySupplier;
         updateFsyncTaskIfNecessary();
     }
 
@@ -454,53 +458,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         try {
             lock = nodeEnv.shardLock(shardId, "starting shard", TimeUnit.SECONDS.toMillis(5));
             eventListener.beforeIndexShardCreated(shardId, indexSettings);
-            ShardPath path;
-            try {
-                path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings.customDataPath());
-            } catch (IllegalStateException ex) {
-                logger.warn("{} failed to load shard path, trying to remove leftover", shardId);
-                try {
-                    ShardPath.deleteLeftoverShardDirectory(logger, nodeEnv, lock, this.indexSettings);
-                    path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings.customDataPath());
-                } catch (Exception inner) {
-                    ex.addSuppressed(inner);
-                    throw ex;
-                }
-            }
-
-            if (path == null) {
-                // TODO: we should, instead, hold a "bytes reserved" of how large we anticipate this shard will be, e.g. for a shard
-                // that's being relocated/replicated we know how large it will become once it's done copying:
-                // Count up how many shards are currently on each data path:
-                Map<Path, Integer> dataPathToShardCount = new HashMap<>();
-                for (IndexShard shard : this) {
-                    Path dataPath = shard.shardPath().getRootStatePath();
-                    Integer curCount = dataPathToShardCount.get(dataPath);
-                    if (curCount == null) {
-                        curCount = 0;
-                    }
-                    dataPathToShardCount.put(dataPath, curCount + 1);
-                }
-                path = ShardPath.selectNewPathForShard(
-                    nodeEnv,
-                    shardId,
-                    this.indexSettings,
-                    routing.getExpectedShardSize() == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
-                        ? getAvgShardSizeInBytes()
-                        : routing.getExpectedShardSize(),
-                    dataPathToShardCount
-                );
-                logger.debug("{} creating using a new path [{}]", shardId, path);
-            } else {
-                logger.debug("{} creating using an existing path [{}]", shardId, path);
-            }
-
-            if (shards.containsKey(shardId.id())) {
-                throw new IllegalStateException(shardId + " already exists");
-            }
-
+            ShardPath path = getShardPath(routing, shardId, lock);
             logger.debug("creating shard_id {}", shardId);
-            // if we are on a shared FS we only own the shard (ie. we can safely delete it) if we are the primary.
+            // if we are on a shared FS we only own the shard (i.e. we can safely delete it) if we are the primary.
             final Engine.Warmer engineWarmer = (reader) -> {
                 IndexShard shard = getShardOrNull(shardId.getId());
                 if (shard != null) {
@@ -548,8 +508,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 () -> globalCheckpointSyncer.accept(shardId),
                 retentionLeaseSyncer,
                 circuitBreakerService,
-                // TODO Replace with remote translog factory in the follow up PR
-                this.indexSettings.isRemoteTranslogStoreEnabled() ? null : new InternalTranslogFactory(),
+                translogFactorySupplier,
                 this.indexSettings.isSegRepEnabled() ? checkpointPublisher : null,
                 remoteStore
             );
@@ -568,6 +527,63 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 closeShard("initialization failed", shardId, indexShard, store, eventListener);
             }
         }
+    }
+
+    /*
+      Fetches the shard path based on the index type -
+      For a remote snapshot index, the cache path is used to initialize the shards.
+      For a local index, a local shard path is loaded or a new path is calculated.
+     */
+    private ShardPath getShardPath(ShardRouting routing, ShardId shardId, ShardLock lock) throws IOException {
+        ShardPath path;
+        if (this.indexSettings.isRemoteSnapshot()) {
+            path = ShardPath.loadFileCachePath(nodeEnv, shardId);
+        } else {
+            try {
+                path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings.customDataPath());
+            } catch (IllegalStateException ex) {
+                logger.warn("{} failed to load shard path, trying to remove leftover", shardId);
+                try {
+                    ShardPath.deleteLeftoverShardDirectory(logger, nodeEnv, lock, this.indexSettings);
+                    path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings.customDataPath());
+                } catch (Exception inner) {
+                    ex.addSuppressed(inner);
+                    throw ex;
+                }
+            }
+
+            if (path == null) {
+                // TODO: we should, instead, hold a "bytes reserved" of how large we anticipate this shard will be, e.g. for a shard
+                // that's being relocated/replicated we know how large it will become once it's done copying:
+                // Count up how many shards are currently on each data path:
+                Map<Path, Integer> dataPathToShardCount = new HashMap<>();
+                for (IndexShard shard : this) {
+                    Path dataPath = shard.shardPath().getRootStatePath();
+                    Integer curCount = dataPathToShardCount.get(dataPath);
+                    if (curCount == null) {
+                        curCount = 0;
+                    }
+                    dataPathToShardCount.put(dataPath, curCount + 1);
+                }
+                path = ShardPath.selectNewPathForShard(
+                    nodeEnv,
+                    shardId,
+                    this.indexSettings,
+                    routing.getExpectedShardSize() == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
+                        ? getAvgShardSizeInBytes()
+                        : routing.getExpectedShardSize(),
+                    dataPathToShardCount
+                );
+                logger.debug("{} creating using a new path [{}]", shardId, path);
+            } else {
+                logger.debug("{} creating using an existing path [{}]", shardId, path);
+            }
+        }
+
+        if (shards.containsKey(shardId.id())) {
+            throw new IllegalStateException(shardId + " already exists");
+        }
+        return path;
     }
 
     @Override

@@ -32,7 +32,7 @@
 
 package org.opensearch.search.aggregations.metrics;
 
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.search.aggregations.AggregationInitializationException;
 import org.opensearch.search.aggregations.AggregatorFactories;

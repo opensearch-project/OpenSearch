@@ -39,7 +39,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.DistanceUnit;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
@@ -147,7 +147,7 @@ public class GeoDistanceIT extends OpenSearchIntegTestCase {
                     .setSource(jsonBuilder().startObject().field("value", i * 2).field("location", "52.0945, 5.116").endObject())
             );
         }
-        indexRandom(true, builders.toArray(new IndexRequestBuilder[builders.size()]));
+        indexRandom(true, builders.toArray(new IndexRequestBuilder[0]));
         ensureSearchable();
     }
 

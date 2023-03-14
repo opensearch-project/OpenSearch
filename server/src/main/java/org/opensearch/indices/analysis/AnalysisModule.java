@@ -33,7 +33,6 @@
 package org.opensearch.indices.analysis;
 
 import org.apache.lucene.analysis.LowerCaseFilter;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.NamedRegistry;
@@ -200,18 +199,11 @@ public final class AnalysisModule {
         preConfiguredTokenFilters.register("lowercase", PreConfiguredTokenFilter.singleton("lowercase", true, LowerCaseFilter::new));
         // Add "standard" for old indices (bwc)
         preConfiguredTokenFilters.register("standard", PreConfiguredTokenFilter.openSearchVersion("standard", true, (reader, version) -> {
-            // This was originally removed in 7_0_0 but due to a cacheing bug it was still possible
+            // This was originally removed in Legacy 7_0_0 but due to a cacheing bug it was still possible
             // in certain circumstances to create a new index referencing the standard token filter
-            // until version 7_5_2
-            if (version.before(LegacyESVersion.V_7_6_0)) {
-                deprecationLogger.deprecate(
-                    "standard_deprecation",
-                    "The [standard] token filter is deprecated and will be removed in a future version."
-                );
-            } else {
-                throw new IllegalArgumentException("The [standard] token filter has been removed.");
-            }
-            return reader;
+            // until legacy version 7_5_2
+            // todo verify this can be removed in 3.0
+            throw new IllegalArgumentException("The [standard] token filter has been removed.");
         }));
         /* Note that "stop" is available in lucene-core but it's pre-built
          * version uses a set of English stop words that are in

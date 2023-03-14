@@ -37,9 +37,9 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.text.Text;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -137,7 +137,7 @@ public class HighlightField implements ToXContentFragment, Writeable {
             while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                 values.add(new Text(parser.text()));
             }
-            fragments = values.toArray(new Text[values.size()]);
+            fragments = values.toArray(new Text[0]);
         } else if (token == XContentParser.Token.VALUE_NULL) {
             fragments = null;
         } else {

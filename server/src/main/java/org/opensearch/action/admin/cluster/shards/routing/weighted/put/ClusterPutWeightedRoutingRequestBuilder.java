@@ -30,4 +30,8 @@ public class ClusterPutWeightedRoutingRequestBuilder extends ClusterManagerNodeO
         return this;
     }
 
+    public ClusterPutWeightedRoutingRequestBuilder setVersion(long version) {
+        request.version(version);
+        return this;
+    }
 }

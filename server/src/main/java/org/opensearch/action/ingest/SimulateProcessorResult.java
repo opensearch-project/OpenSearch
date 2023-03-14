@@ -31,25 +31,24 @@
 
 package org.opensearch.action.ingest;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.ingest.IngestDocument;
 
 import java.io.IOException;
 import java.util.Locale;
 
-import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Simulates an ingest processor result
@@ -192,22 +191,13 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         this.processorTag = in.readString();
         this.ingestDocument = in.readOptionalWriteable(WriteableIngestDocument::new);
         this.failure = in.readException();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            this.description = in.readOptionalString();
+        this.description = in.readOptionalString();
+        this.type = in.readString();
+        boolean hasConditional = in.readBoolean();
+        if (hasConditional) {
+            this.conditionalWithResult = new Tuple<>(in.readString(), in.readBoolean());
         } else {
-            this.description = null;
-        }
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            this.type = in.readString();
-            boolean hasConditional = in.readBoolean();
-            if (hasConditional) {
-                this.conditionalWithResult = new Tuple<>(in.readString(), in.readBoolean());
-            } else {
-                this.conditionalWithResult = null; // no condition exists
-            }
-        } else {
-            this.conditionalWithResult = null;
-            this.type = null;
+            this.conditionalWithResult = null; // no condition exists
         }
     }
 
@@ -216,16 +206,12 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
         out.writeString(processorTag);
         out.writeOptionalWriteable(ingestDocument);
         out.writeException(failure);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            out.writeOptionalString(description);
-        }
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            out.writeString(type);
-            out.writeBoolean(conditionalWithResult != null);
-            if (conditionalWithResult != null) {
-                out.writeString(conditionalWithResult.v1());
-                out.writeBoolean(conditionalWithResult.v2());
-            }
+        out.writeOptionalString(description);
+        out.writeString(type);
+        out.writeBoolean(conditionalWithResult != null);
+        if (conditionalWithResult != null) {
+            out.writeString(conditionalWithResult.v1());
+            out.writeBoolean(conditionalWithResult.v2());
         }
     }
 

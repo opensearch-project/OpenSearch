@@ -502,7 +502,7 @@ public abstract class TransportWriteAction<
      *
      * @opensearch.internal
      */
-    class WriteActionReplicasProxy extends ReplicasProxy {
+    protected class WriteActionReplicasProxy extends ReplicasProxy {
 
         @Override
         public void failShardIfNeeded(

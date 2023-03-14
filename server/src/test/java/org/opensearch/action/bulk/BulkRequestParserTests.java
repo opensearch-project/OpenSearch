@@ -234,4 +234,30 @@ public class BulkRequestParserTests extends OpenSearchTestCase {
         assertSame(first.getPipeline(), second.getPipeline());
         assertSame(first.routing(), second.routing());
     }
+
+    public void testFailOnUnsupportedAction() {
+        BytesArray request = new BytesArray("{ \"baz\":{ \"_id\": \"bar\" } }\n{}\n");
+        BulkRequestParser parser = new BulkRequestParser();
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> parser.parse(
+                request,
+                "foo",
+                null,
+                null,
+                null,
+                true,
+                false,
+                XContentType.JSON,
+                req -> fail(),
+                req -> fail(),
+                req -> fail()
+            )
+        );
+        assertEquals(
+            "Malformed action/metadata line [1], expected one of [create, delete, index, update] but found [baz]",
+            ex.getMessage()
+        );
+    }
 }

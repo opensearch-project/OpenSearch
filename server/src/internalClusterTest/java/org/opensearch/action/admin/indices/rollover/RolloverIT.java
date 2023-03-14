@@ -39,6 +39,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
 import org.opensearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.AutoExpandReplicas;
@@ -237,20 +238,91 @@ public class RolloverIT extends OpenSearchIntegTestCase {
             containsString("expected total copies needs to be a multiple of total awareness attributes [2]")
         );
 
-        final Settings balancedReplicaSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .build();
-
         client().admin()
             .indices()
             .prepareRolloverIndex("test_alias")
-            .settings(balancedReplicaSettings)
+            .settings(
+                Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
+            )
             .alias(new Alias("extra_alias"))
             .waitForActiveShards(0)
             .get();
 
+        client().admin()
+            .indices()
+            .prepareRolloverIndex("test_alias")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
+                    .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
+                    .build()
+            )
+            .alias(new Alias("extra_alias"))
+            .waitForActiveShards(0)
+            .get();
+
+        client().admin()
+            .indices()
+            .prepareRolloverIndex("test_alias")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
+                    .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-all")
+                    .build()
+            )
+            .alias(new Alias("extra_alias"))
+            .waitForActiveShards(0)
+            .get();
+
+        final IllegalArgumentException restoreError2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin()
+                .indices()
+                .prepareRolloverIndex("test_alias")
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
+                        .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-0")
+                        .build()
+                )
+                .alias(new Alias("extra_alias"))
+                .get()
+        );
+
+        assertThat(
+            restoreError2.getMessage(),
+            containsString("expected max cap on auto expand to be a multiple of total awareness attributes [2]")
+        );
+
         manageReplicaBalanceSetting(false);
+    }
+
+    public void testRolloverWithIndexSettingsBalancedWithUseZoneForReplicaDefaultCount() throws Exception {
+        DeleteIndexTemplateRequestBuilder deleteTemplate = client().admin().indices().prepareDeleteTemplate("random_index_template");
+        assertAcked(deleteTemplate.execute().actionGet());
+
+        Alias testAlias = new Alias("test_alias");
+        boolean explicitWriteIndex = randomBoolean();
+        if (explicitWriteIndex) {
+            testAlias.writeIndex(true);
+        }
+        assertAcked(prepareCreate("test_index-2").addAlias(testAlias).get());
+        manageReplicaSettingForDefaultReplica(true);
+        index("test_index-2", "type1", "1", "field", "value");
+        flush("test_index-2");
+
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).build();
+        client().admin().indices().prepareRolloverIndex("test_alias").settings(settings).alias(new Alias("extra_alias")).get();
+
+        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final IndexMetadata newIndex = state.metadata().index("test_index-000003");
+        assertThat(newIndex.getNumberOfShards(), equalTo(3));
+        assertThat(newIndex.getNumberOfReplicas(), equalTo(2));
+        manageReplicaSettingForDefaultReplica(false);
+        randomIndexTemplate();
     }
 
     public void testRolloverWithIndexSettingsWithoutPrefix() throws Exception {

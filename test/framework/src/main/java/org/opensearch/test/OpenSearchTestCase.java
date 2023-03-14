@@ -94,15 +94,17 @@ import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContent;
-import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParser.Token;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.TestEnvironment;
@@ -882,6 +884,15 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         return RandomizedTest.randomRealisticUnicodeOfCodepointLength(codePoints);
     }
 
+    public static String replaceUnicodeControlCharacters(String uniCodeStr, String toReplaceWith) {
+        // replace control characters (https://stackoverflow.com/questions/3438854/replace-unicode-control-characters/)
+        return uniCodeStr.replaceAll("\\p{Cc}", toReplaceWith);
+    }
+
+    public static String replaceUnicodeControlCharacters(String uniCodeStr) {
+        return replaceUnicodeControlCharacters(uniCodeStr, " ");
+    }
+
     /**
      * @param maxArraySize The maximum number of elements in the random array
      * @param stringSize The length of each String in the array
@@ -1237,7 +1248,10 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
      * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
      * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
      * by the {@link ToXContent#isFragment()} method returns. Shuffles the keys to make sure that parsing never relies on keys ordering.
+     *
+     * @deprecated use {@link #toShuffledXContent(ToXContent, MediaType, ToXContent.Params, boolean, String...)} instead
      */
+    @Deprecated
     protected final BytesReference toShuffledXContent(
         ToXContent toXContent,
         XContentType xContentType,
@@ -1247,6 +1261,26 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     ) throws IOException {
         BytesReference bytes = XContentHelper.toXContent(toXContent, xContentType, params, humanReadable);
         try (XContentParser parser = createParser(xContentType.xContent(), bytes)) {
+            try (XContentBuilder builder = shuffleXContent(parser, rarely(), exceptFieldNames)) {
+                return BytesReference.bytes(builder);
+            }
+        }
+    }
+
+    /**
+     * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
+     * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
+     * by the {@link ToXContent#isFragment()} method returns. Shuffles the keys to make sure that parsing never relies on keys ordering.
+     */
+    protected final BytesReference toShuffledXContent(
+        ToXContent toXContent,
+        MediaType mediaType,
+        ToXContent.Params params,
+        boolean humanReadable,
+        String... exceptFieldNames
+    ) throws IOException {
+        BytesReference bytes = XContentHelper.toXContent(toXContent, mediaType, params, humanReadable);
+        try (XContentParser parser = createParser(mediaType.xContent(), bytes)) {
             try (XContentBuilder builder = shuffleXContent(parser, rarely(), exceptFieldNames)) {
                 return BytesReference.bytes(builder);
             }

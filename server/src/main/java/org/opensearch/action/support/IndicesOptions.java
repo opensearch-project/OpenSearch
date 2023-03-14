@@ -31,16 +31,15 @@
 
 package org.opensearch.action.support;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParser.Token;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.rest.RestRequest;
 
 import java.io.IOException;
@@ -276,21 +275,12 @@ public class IndicesOptions implements ToXContentFragment {
     public void writeIndicesOptions(StreamOutput out) throws IOException {
         EnumSet<Option> options = this.options;
         out.writeEnumSet(options);
-        if (out.getVersion().before(LegacyESVersion.V_7_7_0) && expandWildcards.contains(WildcardStates.HIDDEN)) {
-            final EnumSet<WildcardStates> states = EnumSet.copyOf(expandWildcards);
-            states.remove(WildcardStates.HIDDEN);
-            out.writeEnumSet(states);
-        } else {
-            out.writeEnumSet(expandWildcards);
-        }
+        out.writeEnumSet(expandWildcards);
     }
 
     public static IndicesOptions readIndicesOptions(StreamInput in) throws IOException {
         EnumSet<Option> options = in.readEnumSet(Option.class);
         EnumSet<WildcardStates> states = in.readEnumSet(WildcardStates.class);
-        if (in.getVersion().before(LegacyESVersion.V_7_7_0)) {
-            states.add(WildcardStates.HIDDEN);
-        }
         return new IndicesOptions(options, states);
     }
 

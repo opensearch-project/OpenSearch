@@ -32,13 +32,12 @@
 
 package org.opensearch.action.admin.indices.forcemerge;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
-import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.index.engine.Engine;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -74,13 +73,12 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
     private boolean onlyExpungeDeletes = Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = Defaults.FLUSH;
 
-    private static final Version FORCE_MERGE_UUID_VERSION = LegacyESVersion.V_7_7_0;
+    private static final Version FORCE_MERGE_UUID_VERSION = Version.V_3_0_0;
 
     /**
      * Force merge UUID to store in the live commit data of a shard under
      * {@link org.opensearch.index.engine.Engine#FORCE_MERGE_UUID_KEY} after force merging it.
      */
-    @Nullable
     private final String forceMergeUUID;
 
     /**
@@ -99,9 +97,11 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
         if (in.getVersion().onOrAfter(FORCE_MERGE_UUID_VERSION)) {
-            forceMergeUUID = in.readOptionalString();
-        } else {
-            forceMergeUUID = null;
+            forceMergeUUID = in.readString();
+        } else if ((forceMergeUUID = in.readOptionalString()) == null) {
+            throw new IllegalStateException(
+                "As of legacy version 7.7 [" + Engine.FORCE_MERGE_UUID_KEY + "] is no longer optional in force merge requests."
+            );
         }
     }
 
@@ -143,7 +143,6 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
      * Force merge UUID to use when force merging or {@code null} if not using one in a mixed version cluster containing nodes older than
      * {@link #FORCE_MERGE_UUID_VERSION}.
      */
-    @Nullable
     public String forceMergeUUID() {
         return forceMergeUUID;
     }
@@ -183,6 +182,8 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);
         if (out.getVersion().onOrAfter(FORCE_MERGE_UUID_VERSION)) {
+            out.writeString(forceMergeUUID);
+        } else {
             out.writeOptionalString(forceMergeUUID);
         }
     }

@@ -9,6 +9,7 @@
 package org.opensearch.index.translog;
 
 import java.io.IOException;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
@@ -26,10 +27,11 @@ public class InternalTranslogFactory implements TranslogFactory {
         TranslogDeletionPolicy translogDeletionPolicy,
         LongSupplier globalCheckpointSupplier,
         LongSupplier primaryTermSupplier,
-        LongConsumer persistedSequenceNumberConsumer
+        LongConsumer persistedSequenceNumberConsumer,
+        BooleanSupplier primaryModeSupplier
     ) throws IOException {
 
-        return new Translog(
+        return new LocalTranslog(
             translogConfig,
             translogUUID,
             translogDeletionPolicy,

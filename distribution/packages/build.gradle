@@ -63,7 +63,7 @@ import java.util.regex.Pattern
  */
 
 plugins {
-  id "nebula.ospackage-base" version "9.1.1"
+  id "com.netflix.nebula.ospackage-base" version "11.0.0"
 }
 
 void addProcessFilesTask(String type, boolean jdk) {
@@ -290,7 +290,7 @@ Closure commonPackageConfig(String type, boolean jdk, String architecture) {
   }
 }
 
-apply plugin: 'nebula.ospackage-base'
+apply plugin: 'com.netflix.nebula.ospackage-base'
 
 // this is package indepdendent configuration
 ospackage {
@@ -350,6 +350,10 @@ tasks.register('buildArm64Deb', Deb) {
   configure(commonDebConfig(true, 'arm64'))
 }
 
+tasks.register('buildNoJdkArm64Deb', Deb) {
+  configure(commonDebConfig(false, 'arm64'))
+}
+
 tasks.register('buildDeb', Deb) {
   configure(commonDebConfig(true, 'x64'))
 }
@@ -385,6 +389,10 @@ Closure commonRpmConfig(boolean jdk, String architecture) {
 
 tasks.register('buildArm64Rpm', Rpm) {
   configure(commonRpmConfig(true, 'arm64'))
+}
+
+tasks.register('buildNoJdkArm64Rpm', Rpm) {
+  configure(commonRpmConfig(false, 'arm64'))
 }
 
 tasks.register('buildRpm', Rpm) {

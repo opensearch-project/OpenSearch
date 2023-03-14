@@ -38,6 +38,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.junit.Assert;
+import org.mockito.Mockito;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
@@ -60,13 +61,16 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.internal.io.IOUtils;
@@ -85,6 +89,7 @@ import org.opensearch.index.engine.EngineTestCase;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceToParse;
+import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -95,7 +100,10 @@ import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.InternalTranslogFactory;
+import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.opensearch.indices.recovery.AsyncRecoveryTarget;
@@ -104,6 +112,7 @@ import org.opensearch.indices.recovery.RecoveryFailedException;
 import org.opensearch.indices.recovery.RecoveryResponse;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoverySourceHandler;
+import org.opensearch.indices.recovery.RecoverySourceHandlerFactory;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.recovery.StartRecoveryRequest;
@@ -122,7 +131,9 @@ import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationListener;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.repositories.IndexId;
+import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.OpenSearchBlobStoreRepositoryIntegTestCase;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.test.DummyShardLock;
@@ -132,8 +143,8 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
@@ -141,11 +152,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
@@ -167,6 +180,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     };
 
     private static final AtomicBoolean failOnShardFailures = new AtomicBoolean(true);
+
+    private RecoveryTarget recoveryTarget;
 
     private static final Consumer<IndexShard.ShardFailure> DEFAULT_SHARD_FAILURE_HANDLER = failure -> {
         if (failOnShardFailures.get()) {
@@ -237,6 +252,12 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
 
     protected Store createStore(ShardId shardId, IndexSettings indexSettings, Directory directory) throws IOException {
         return new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
+    }
+
+    protected Releasable acquirePrimaryOperationPermitBlockingly(IndexShard indexShard) throws ExecutionException, InterruptedException {
+        PlainActionFuture<Releasable> fut = new PlainActionFuture<>();
+        indexShard.acquirePrimaryOperationPermit(fut, ThreadPool.Names.WRITE, "");
+        return fut.get();
     }
 
     /**
@@ -543,15 +564,19 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 clusterSettings
             );
             if (remoteStore == null && indexSettings.isRemoteStoreEnabled()) {
-                ShardId shardId = shardPath.getShardId();
-                NodeEnvironment.NodePath remoteNodePath = new NodeEnvironment.NodePath(createTempDir());
-                ShardPath remoteShardPath = new ShardPath(false, remoteNodePath.resolve(shardId), remoteNodePath.resolve(shardId), shardId);
-                RemoteDirectory dataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
-                RemoteDirectory metadataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
-                RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory);
-                storeProvider = is -> createStore(shardId, is, remoteSegmentStoreDirectory);
-                remoteStore = storeProvider.apply(indexSettings);
+                remoteStore = createRemoteStore(createTempDir(), routing, indexMetadata);
             }
+
+            final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier = (settings, shardRouting) -> {
+                if (settings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
+                    return new RemoteBlobStoreInternalTranslogFactory(
+                        this::createRepositoriesService,
+                        threadPool,
+                        settings.getRemoteStoreTranslogRepository()
+                    );
+                }
+                return new InternalTranslogFactory();
+            };
             indexShard = new IndexShard(
                 routing,
                 indexSettings,
@@ -573,7 +598,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 globalCheckpointSyncer,
                 retentionLeaseSyncer,
                 breakerService,
-                new InternalTranslogFactory(),
+                translogFactorySupplier,
                 checkpointPublisher,
                 remoteStore
             );
@@ -585,6 +610,30 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             }
         }
         return indexShard;
+    }
+
+    protected RepositoriesService createRepositoriesService() {
+        RepositoriesService repositoriesService = Mockito.mock(RepositoriesService.class);
+        BlobStoreRepository repository = Mockito.mock(BlobStoreRepository.class);
+        when(repository.basePath()).thenReturn(new BlobPath());
+        BlobStore blobStore = Mockito.mock(BlobStore.class);
+        BlobContainer blobContainer = Mockito.mock(BlobContainer.class);
+        when(blobStore.blobContainer(any())).thenReturn(blobContainer);
+        when(repository.blobStore()).thenReturn(blobStore);
+        when(repositoriesService.repository(any(String.class))).thenReturn(repository);
+        return repositoriesService;
+    }
+
+    protected Store createRemoteStore(Path path, ShardRouting shardRouting, IndexMetadata metadata) throws IOException {
+        Settings nodeSettings = Settings.builder().put("node.name", shardRouting.currentNodeId()).build();
+
+        ShardId shardId = new ShardId("index", "_na_", 0);
+        NodeEnvironment.NodePath remoteNodePath = new NodeEnvironment.NodePath(path);
+        ShardPath remoteShardPath = new ShardPath(false, remoteNodePath.resolve(shardId), remoteNodePath.resolve(shardId), shardId);
+        RemoteDirectory dataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
+        RemoteDirectory metadataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory);
+        return createStore(shardId, new IndexSettings(metadata, nodeSettings), remoteSegmentStoreDirectory);
     }
 
     private RemoteDirectory newRemoteDirectory(Path f) throws IOException {
@@ -798,9 +847,47 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         );
     }
 
-    /** recovers a replica from the given primary **/
     protected void recoverReplica(IndexShard replica, IndexShard primary, boolean startReplica) throws IOException {
-        recoverReplica(replica, primary, (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener), true, startReplica);
+        recoverReplica(replica, primary, startReplica, getReplicationFunc(replica));
+    }
+
+    /** recovers a replica from the given primary **/
+    protected void recoverReplica(
+        IndexShard replica,
+        IndexShard primary,
+        boolean startReplica,
+        Function<List<IndexShard>, List<SegmentReplicationTarget>> replicatePrimaryFunction
+    ) throws IOException {
+        recoverReplica(
+            replica,
+            primary,
+            (r, sourceNode) -> new RecoveryTarget(r, sourceNode, recoveryListener),
+            true,
+            startReplica,
+            replicatePrimaryFunction
+        );
+    }
+
+    protected void recoverReplica(
+        final IndexShard replica,
+        final IndexShard primary,
+        final BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
+        final boolean markAsRecovering,
+        final boolean markAsStarted
+    ) throws IOException {
+        recoverReplica(replica, primary, targetSupplier, markAsRecovering, markAsStarted, (a) -> null);
+    }
+
+    public Function<List<IndexShard>, List<SegmentReplicationTarget>> getReplicationFunc(final IndexShard target) {
+        return target.indexSettings().isSegRepEnabled() ? (shardList) -> {
+            try {
+                assert shardList.size() >= 2;
+                final IndexShard primary = shardList.get(0);
+                return replicateSegments(primary, shardList.subList(1, shardList.size()));
+            } catch (IOException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        } : (a) -> null;
     }
 
     /** recovers a replica from the given primary **/
@@ -809,7 +896,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         final IndexShard primary,
         final BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
         final boolean markAsRecovering,
-        final boolean markAsStarted
+        final boolean markAsStarted,
+        final Function<List<IndexShard>, List<SegmentReplicationTarget>> replicatePrimaryFunction
     ) throws IOException {
         IndexShardRoutingTable.Builder newRoutingTable = new IndexShardRoutingTable.Builder(replica.shardId());
         newRoutingTable.addShard(primary.routingEntry());
@@ -818,7 +906,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         }
         final Set<String> inSyncIds = Collections.singleton(primary.routingEntry().allocationId().getId());
         final IndexShardRoutingTable routingTable = newRoutingTable.build();
-        recoverUnstartedReplica(replica, primary, targetSupplier, markAsRecovering, inSyncIds, routingTable);
+        recoverUnstartedReplica(replica, primary, targetSupplier, markAsRecovering, inSyncIds, routingTable, replicatePrimaryFunction);
         if (markAsStarted) {
             startReplicaAfterRecovery(replica, primary, inSyncIds, routingTable);
         }
@@ -841,7 +929,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         final BiFunction<IndexShard, DiscoveryNode, RecoveryTarget> targetSupplier,
         final boolean markAsRecovering,
         final Set<String> inSyncIds,
-        final IndexShardRoutingTable routingTable
+        final IndexShardRoutingTable routingTable,
+        final Function<List<IndexShard>, List<SegmentReplicationTarget>> replicatePrimaryFunction
     ) throws IOException {
         final DiscoveryNode pNode = getFakeDiscoNode(primary.routingEntry().currentNodeId());
         final DiscoveryNode rNode = getFakeDiscoNode(replica.routingEntry().currentNodeId());
@@ -861,17 +950,23 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             recoveryTarget,
             startingSeqNo
         );
-        int fileChunkSizeInBytes = Math.toIntExact(
-            randomBoolean() ? RecoverySettings.DEFAULT_CHUNK_SIZE.getBytes() : randomIntBetween(1, 10 * 1024 * 1024)
+        long fileChunkSizeInBytes = randomBoolean()
+            ? RecoverySettings.DEFAULT_CHUNK_SIZE.getBytes()
+            : randomIntBetween(1, 10 * 1024 * 1024);
+        final Settings settings = Settings.builder()
+            .put("indices.recovery.max_concurrent_file_chunks", Integer.toString(between(1, 4)))
+            .put("indices.recovery.max_concurrent_operations", Integer.toString(between(1, 4)))
+            .build();
+        RecoverySettings recoverySettings = new RecoverySettings(
+            settings,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
-        final RecoverySourceHandler recovery = new RecoverySourceHandler(
+        recoverySettings.setChunkSize(new ByteSizeValue(fileChunkSizeInBytes));
+        final RecoverySourceHandler recovery = RecoverySourceHandlerFactory.create(
             primary,
-            new AsyncRecoveryTarget(recoveryTarget, threadPool.generic()),
-            threadPool,
+            new AsyncRecoveryTarget(recoveryTarget, threadPool.generic(), primary, replica, replicatePrimaryFunction),
             request,
-            fileChunkSizeInBytes,
-            between(1, 8),
-            between(1, 8)
+            recoverySettings
         );
         primary.updateShardState(
             primary.routingEntry(),
@@ -1184,16 +1279,19 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      * been configured to return the given primaryShard's current segments.
      *
      * @param primaryShard {@link IndexShard} - The primary shard to replicate from.
+     * @param target {@link IndexShard} - The target replica shard in segment replication.
      */
-    public final SegmentReplicationTargetService prepareForReplication(IndexShard primaryShard) {
+    public final SegmentReplicationTargetService prepareForReplication(IndexShard primaryShard, IndexShard target) {
         final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
+        final IndicesService indicesService = mock(IndicesService.class);
         final SegmentReplicationTargetService targetService = new SegmentReplicationTargetService(
             threadPool,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             mock(TransportService.class),
-            sourceFactory
+            sourceFactory,
+            indicesService
         );
-        final SegmentReplicationSource replicationSource = new SegmentReplicationSource() {
+        final SegmentReplicationSource replicationSource = new TestReplicationSource() {
             @Override
             public void getCheckpointMetadata(
                 long replicationId,
@@ -1231,6 +1329,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             }
         };
         when(sourceFactory.get(any())).thenReturn(replicationSource);
+        when(indicesService.getShardOrNull(any())).thenReturn(target);
         return targetService;
     }
 
@@ -1244,15 +1343,6 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
      */
     public final List<SegmentReplicationTarget> replicateSegments(IndexShard primaryShard, List<IndexShard> replicaShards)
         throws IOException, InterruptedException {
-        final SegmentReplicationTargetService targetService = prepareForReplication(primaryShard);
-        return replicateSegments(targetService, primaryShard, replicaShards);
-    }
-
-    public final List<SegmentReplicationTarget> replicateSegments(
-        SegmentReplicationTargetService targetService,
-        IndexShard primaryShard,
-        List<IndexShard> replicaShards
-    ) throws IOException, InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(replicaShards.size());
         Map<String, StoreFileMetadata> primaryMetadata;
         try (final GatedCloseable<SegmentInfos> segmentInfosSnapshot = primaryShard.getSegmentInfosSnapshot()) {
@@ -1261,6 +1351,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         }
         List<SegmentReplicationTarget> ids = new ArrayList<>();
         for (IndexShard replica : replicaShards) {
+            final SegmentReplicationTargetService targetService = prepareForReplication(primaryShard, replica);
             final SegmentReplicationTarget target = targetService.startReplication(
                 ReplicationCheckpoint.empty(replica.shardId),
                 replica,
@@ -1293,8 +1384,9 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 }
             );
             ids.add(target);
-            countDownLatch.await(1, TimeUnit.SECONDS);
         }
+        countDownLatch.await(30, TimeUnit.SECONDS);
+        assertEquals("Replication should complete successfully", 0, countDownLatch.getCount());
         return ids;
     }
 

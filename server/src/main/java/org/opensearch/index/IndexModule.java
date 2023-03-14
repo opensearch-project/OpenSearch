@@ -40,12 +40,13 @@ import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.Version;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -53,7 +54,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.analysis.AnalysisRegistry;
@@ -70,7 +71,9 @@ import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.FsDirectoryFactory;
-import org.opensearch.index.store.RemoteSnapshotDirectoryFactory;
+import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
+import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -459,11 +462,19 @@ public final class IndexModule {
         }
 
         /**
-         * Convenience method to check whether the given IndexSettings contains
-         * an {@link #INDEX_STORE_TYPE_SETTING} set to the value of this type.
+         * Convenience method to check whether the given {@link IndexSettings}
+         * object contains an {@link #INDEX_STORE_TYPE_SETTING} set to the value of this type.
          */
         public boolean match(IndexSettings settings) {
-            return match(INDEX_STORE_TYPE_SETTING.get(settings.getSettings()));
+            return match(settings.getSettings());
+        }
+
+        /**
+         * Convenience method to check whether the given {@link Settings}
+         * object contains an {@link #INDEX_STORE_TYPE_SETTING} set to the value of this type.
+         */
+        public boolean match(Settings settings) {
+            return match(INDEX_STORE_TYPE_SETTING.get(settings));
         }
     }
 
@@ -492,7 +503,8 @@ public final class IndexModule {
         NamedWriteableRegistry namedWriteableRegistry,
         BooleanSupplier idFieldDataEnabled,
         ValuesSourceRegistry valuesSourceRegistry,
-        IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory
+        IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory,
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
@@ -547,7 +559,8 @@ public final class IndexModule {
                 allowExpensiveQueries,
                 expressionResolver,
                 valuesSourceRegistry,
-                recoveryStateFactory
+                recoveryStateFactory,
+                translogFactorySupplier
             );
             success = true;
             return indexService;
@@ -648,7 +661,9 @@ public final class IndexModule {
     }
 
     public static Map<String, IndexStorePlugin.DirectoryFactory> createBuiltInDirectoryFactories(
-        Supplier<RepositoriesService> repositoriesService
+        Supplier<RepositoriesService> repositoriesService,
+        ThreadPool threadPool,
+        FileCache remoteStoreFileCache
     ) {
         final Map<String, IndexStorePlugin.DirectoryFactory> factories = new HashMap<>();
         for (Type type : Type.values()) {
@@ -661,7 +676,10 @@ public final class IndexModule {
                     factories.put(type.getSettingsKey(), DEFAULT_DIRECTORY_FACTORY);
                     break;
                 case REMOTE_SNAPSHOT:
-                    factories.put(type.getSettingsKey(), new RemoteSnapshotDirectoryFactory(repositoriesService));
+                    factories.put(
+                        type.getSettingsKey(),
+                        new RemoteSnapshotDirectoryFactory(repositoriesService, threadPool, remoteStoreFileCache)
+                    );
                     break;
                 default:
                     throw new IllegalStateException("No directory factory mapping for built-in type " + type);

@@ -301,9 +301,7 @@ public class BuildTests extends OpenSearchTestCase {
 
         final List<Version> versions = Version.getDeclaredVersions(Version.class);
 
-        final Version post10OpenSearchVersion = randomFrom(
-            versions.stream().filter(v -> v.onOrAfter(Version.V_1_0_0)).collect(Collectors.toList())
-        );
+        final Version post10OpenSearchVersion = randomFrom(versions.stream().collect(Collectors.toList()));
         final WriteableBuild post10OpenSearch = copyWriteable(
             dockerBuild,
             writableRegistry(),

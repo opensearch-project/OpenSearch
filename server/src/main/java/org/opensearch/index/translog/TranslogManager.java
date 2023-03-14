@@ -119,4 +119,11 @@ public interface TranslogManager {
      * Checks if the translog has a pending recovery
      */
     void ensureCanFlush();
+
+    /**
+     *
+     * @param seqNo : operations greater or equal to seqNo should be persisted
+     * This might be required when segments are persisted via other mechanism than flush.
+     */
+    void setMinSeqNoToKeep(long seqNo);
 }

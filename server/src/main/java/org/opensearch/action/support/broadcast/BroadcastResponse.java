@@ -34,12 +34,12 @@ package org.opensearch.action.support.broadcast;
 
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.action.RestActions;
 
@@ -47,8 +47,8 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.opensearch.action.support.DefaultShardOperationFailedException.readShardOperationFailed;
-import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Base class for all broadcast operation based responses.
@@ -114,7 +114,7 @@ public class BroadcastResponse extends ActionResponse implements ToXContentObjec
         if (shardFailures == null) {
             this.shardFailures = EMPTY;
         } else {
-            this.shardFailures = shardFailures.toArray(new DefaultShardOperationFailedException[shardFailures.size()]);
+            this.shardFailures = shardFailures.toArray(new DefaultShardOperationFailedException[0]);
         }
     }
 

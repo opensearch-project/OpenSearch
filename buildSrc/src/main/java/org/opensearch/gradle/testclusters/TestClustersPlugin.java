@@ -31,11 +31,8 @@
 
 package org.opensearch.gradle.testclusters;
 
-import org.opensearch.gradle.Architecture;
 import org.opensearch.gradle.DistributionDownloadPlugin;
-import org.opensearch.gradle.Jdk;
 import org.opensearch.gradle.JdkDownloadPlugin;
-import org.opensearch.gradle.OS;
 import org.opensearch.gradle.ReaperPlugin;
 import org.opensearch.gradle.ReaperService;
 import org.opensearch.gradle.info.BuildParams;
@@ -68,8 +65,6 @@ public class TestClustersPlugin implements Plugin<Project> {
 
     private static final String LIST_TASK_NAME = "listTestClusters";
     private static final String REGISTRY_SERVICE_NAME = "testClustersRegistry";
-    private static final String LEGACY_JAVA_VENDOR = "adoptopenjdk";
-    private static final String LEGACY_JAVA_VERSION = "8u242+b08";
     private static final Logger logger = Logging.getLogger(TestClustersPlugin.class);
 
     @Inject
@@ -95,16 +90,8 @@ public class TestClustersPlugin implements Plugin<Project> {
 
         ReaperService reaper = project.getRootProject().getExtensions().getByType(ReaperService.class);
 
-        // register legacy jdk distribution for testing pre-7.0 BWC clusters
-        Jdk bwcJdk = JdkDownloadPlugin.getContainer(project).create("bwc_jdk", jdk -> {
-            jdk.setVendor(LEGACY_JAVA_VENDOR);
-            jdk.setVersion(LEGACY_JAVA_VERSION);
-            jdk.setPlatform(OS.current().name().toLowerCase());
-            jdk.setArchitecture(Architecture.current().name().toLowerCase());
-        });
-
         // enable the DSL to describe clusters
-        NamedDomainObjectContainer<OpenSearchCluster> container = createTestClustersContainerExtension(project, reaper, bwcJdk);
+        NamedDomainObjectContainer<OpenSearchCluster> container = createTestClustersContainerExtension(project, reaper);
 
         // provide a task to be able to list defined clusters.
         createListClustersTask(project, container);
@@ -125,11 +112,7 @@ public class TestClustersPlugin implements Plugin<Project> {
         project.getRootProject().getPluginManager().apply(TestClustersHookPlugin.class);
     }
 
-    private NamedDomainObjectContainer<OpenSearchCluster> createTestClustersContainerExtension(
-        Project project,
-        ReaperService reaper,
-        Jdk bwcJdk
-    ) {
+    private NamedDomainObjectContainer<OpenSearchCluster> createTestClustersContainerExtension(Project project, ReaperService reaper) {
         // Create an extensions that allows describing clusters
         NamedDomainObjectContainer<OpenSearchCluster> container = project.container(
             OpenSearchCluster.class,
@@ -139,8 +122,7 @@ public class TestClustersPlugin implements Plugin<Project> {
                 reaper,
                 new File(project.getBuildDir(), "testclusters"),
                 getFileSystemOperations(),
-                getArchiveOperations(),
-                bwcJdk
+                getArchiveOperations()
             )
         );
         project.getExtensions().add(EXTENSION_NAME, container);

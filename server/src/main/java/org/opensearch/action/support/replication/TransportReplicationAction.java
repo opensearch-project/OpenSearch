@@ -46,6 +46,7 @@ import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.action.support.TransportActions;
+import org.opensearch.action.support.replication.ReplicationOperation.Replicas;
 import org.opensearch.client.transport.NoNodeAvailableException;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
@@ -254,8 +255,44 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    protected ReplicationOperation.Replicas<ReplicaRequest> newReplicasProxy() {
+    protected Replicas<ReplicaRequest> newReplicasProxy() {
         return new ReplicasProxy();
+    }
+
+    /**
+     * This returns a ReplicaProxy that is used for primary term validation. The default behavior is that the control
+     * must not reach inside the performOn method for ReplicationActions. However, the implementations of the underlying
+     * class can provide primary term validation proxy that can allow performOn method to make calls to replica.
+     *
+     * @return Primary term validation replicas proxy.
+     */
+    protected Replicas<ReplicaRequest> primaryTermValidationReplicasProxy() {
+        return new ReplicasProxy() {
+            @Override
+            public void performOn(
+                ShardRouting replica,
+                ReplicaRequest request,
+                long primaryTerm,
+                long globalCheckpoint,
+                long maxSeqNoOfUpdatesOrDeletes,
+                ActionListener<ReplicationOperation.ReplicaResponse> listener
+            ) {
+                throw new UnsupportedOperationException("Primary term validation is not available for " + actionName);
+            }
+        };
+    }
+
+    /**
+     * This method is used for defining the {@link ReplicationMode} override per {@link TransportReplicationAction}.
+     *
+     * @param indexShard index shard used to determining the policy.
+     * @return the overridden replication mode.
+     */
+    public ReplicationMode getReplicationMode(IndexShard indexShard) {
+        if (indexShard.isRemoteTranslogEnabled()) {
+            return ReplicationMode.NO_REPLICATION;
+        }
+        return ReplicationMode.FULL_REPLICATION;
     }
 
     protected abstract Response newResponseInstance(StreamInput in) throws IOException;
@@ -523,17 +560,24 @@ public abstract class TransportReplicationAction<
                         onCompletionListener.onResponse(response);
                     }, e -> handleException(primaryShardReference, e));
 
+                    final Replicas<ReplicaRequest> replicasProxy = newReplicasProxy();
+                    final IndexShard indexShard = primaryShardReference.indexShard;
+                    final Replicas<ReplicaRequest> termValidationProxy = primaryTermValidationReplicasProxy();
+
                     new ReplicationOperation<>(
                         primaryRequest.getRequest(),
                         primaryShardReference,
                         ActionListener.map(responseListener, result -> result.finalResponseIfSuccessful),
-                        newReplicasProxy(),
+                        replicasProxy,
                         logger,
                         threadPool,
                         actionName,
                         primaryRequest.getPrimaryTerm(),
                         initialRetryBackoffBound,
-                        retryTimeout
+                        retryTimeout,
+                        indexShard.isRemoteTranslogEnabled()
+                            ? new ReplicationModeAwareProxy<>(getReplicationMode(indexShard), replicasProxy, termValidationProxy)
+                            : new FanoutReplicationProxy<>(replicasProxy)
                     ).execute();
                 }
             } catch (Exception e) {
@@ -813,7 +857,7 @@ public abstract class TransportReplicationAction<
         }
     }
 
-    private IndexShard getIndexShard(final ShardId shardId) {
+    protected IndexShard getIndexShard(final ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         return indexService.getShard(shardId.id());
     }
@@ -1266,7 +1310,7 @@ public abstract class TransportReplicationAction<
         private long localCheckpoint;
         private long globalCheckpoint;
 
-        ReplicaResponse(StreamInput in) throws IOException {
+        public ReplicaResponse(StreamInput in) throws IOException {
             super(in);
             localCheckpoint = in.readZLong();
             globalCheckpoint = in.readZLong();
@@ -1321,7 +1365,7 @@ public abstract class TransportReplicationAction<
      *
      * @opensearch.internal
      */
-    protected class ReplicasProxy implements ReplicationOperation.Replicas<ReplicaRequest> {
+    protected class ReplicasProxy implements Replicas<ReplicaRequest> {
 
         @Override
         public void performOn(
@@ -1384,7 +1428,9 @@ public abstract class TransportReplicationAction<
      */
     public static class ConcreteShardRequest<R extends TransportRequest> extends TransportRequest {
 
-        /** {@link AllocationId#getId()} of the shard this request is sent to **/
+        /**
+         * {@link AllocationId#getId()} of the shard this request is sent to
+         **/
         private final String targetAllocationID;
         private final long primaryTerm;
         private final R request;
@@ -1551,7 +1597,7 @@ public abstract class TransportReplicationAction<
      * Sets the current phase on the task if it isn't null. Pulled into its own
      * method because its more convenient that way.
      */
-    static void setPhase(ReplicationTask task, String phase) {
+    protected static void setPhase(ReplicationTask task, String phase) {
         if (task != null) {
             task.setPhase(phase);
         }

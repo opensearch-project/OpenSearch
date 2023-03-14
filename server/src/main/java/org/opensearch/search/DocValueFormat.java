@@ -272,6 +272,27 @@ public interface DocValueFormat extends NamedWriteable {
         public String toString() {
             return "DocValueFormat.DateTime(" + formatter + ", " + timeZone + ", " + resolution + ")";
         }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+
+            DateTime that = (DateTime) o;
+
+            return Objects.equals(formatter, that.formatter)
+                && Objects.equals(timeZone, that.timeZone)
+                && Objects.equals(resolution, that.resolution);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(formatter, timeZone, resolution);
+        }
     }
 
     DocValueFormat GEOHASH = new DocValueFormat() {

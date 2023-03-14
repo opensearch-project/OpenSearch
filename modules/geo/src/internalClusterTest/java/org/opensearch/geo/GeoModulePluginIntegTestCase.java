@@ -8,6 +8,8 @@
 
 package org.opensearch.geo;
 
+import org.opensearch.geometry.utils.StandardValidator;
+import org.opensearch.geometry.utils.WellKnownText;
 import org.opensearch.index.mapper.GeoShapeFieldMapper;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -23,6 +25,8 @@ import java.util.Collections;
 public abstract class GeoModulePluginIntegTestCase extends OpenSearchIntegTestCase {
 
     protected static final double GEOHASH_TOLERANCE = 1E-5D;
+
+    protected static final WellKnownText WKT = new WellKnownText(true, new StandardValidator(true));
 
     /**
      * Returns a collection of plugins that should be loaded on each node for doing the integration tests. As this

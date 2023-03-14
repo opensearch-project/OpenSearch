@@ -18,6 +18,7 @@ import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.core.internal.io.IOUtils;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
@@ -38,6 +39,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
+
+import static org.opensearch.index.seqno.SequenceNumbers.MAX_SEQ_NO;
 
 /**
  * This is an {@link Engine} implementation intended for replica shards when Segment Replication
@@ -106,7 +109,8 @@ public class NRTReplicationEngine extends Engine {
                     }
                 },
                 this,
-                engineConfig.getTranslogFactory()
+                engineConfig.getTranslogFactory(),
+                engineConfig.getPrimaryModeSupplier()
             );
             this.translogManager = translogManagerRef;
         } catch (IOException e) {
@@ -120,19 +124,24 @@ public class NRTReplicationEngine extends Engine {
         return translogManager;
     }
 
-    public synchronized void updateSegments(final SegmentInfos infos, long seqNo) throws IOException {
+    public synchronized void updateSegments(final SegmentInfos infos) throws IOException {
         // Update the current infos reference on the Engine's reader.
-        final long incomingGeneration = infos.getGeneration();
-        readerManager.updateSegments(infos);
+        ensureOpen();
+        try (ReleasableLock lock = writeLock.acquire()) {
+            final long maxSeqNo = Long.parseLong(infos.userData.get(MAX_SEQ_NO));
+            final long incomingGeneration = infos.getGeneration();
+            readerManager.updateSegments(infos);
 
-        // Commit and roll the xlog when we receive a different generation than what was last received.
-        // lower/higher gens are possible from a new primary that was just elected.
-        if (incomingGeneration != lastReceivedGen) {
-            commitSegmentInfos();
-            translogManager.rollTranslogGeneration();
+            // Commit and roll the translog when we receive a different generation than what was last received.
+            // lower/higher gens are possible from a new primary that was just elected.
+            if (incomingGeneration != lastReceivedGen) {
+                commitSegmentInfos();
+                translogManager.getDeletionPolicy().setLocalCheckpointOfSafeCommit(maxSeqNo);
+                translogManager.rollTranslogGeneration();
+            }
+            lastReceivedGen = incomingGeneration;
+            localCheckpointTracker.fastForwardProcessedSeqNo(maxSeqNo);
         }
-        lastReceivedGen = incomingGeneration;
-        localCheckpointTracker.fastForwardProcessedSeqNo(seqNo);
     }
 
     /**

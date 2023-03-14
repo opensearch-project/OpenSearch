@@ -88,7 +88,7 @@ public class ClusterSearchShardsResponseTests extends OpenSearchTestCase {
         }
         ClusterSearchShardsResponse clusterSearchShardsResponse = new ClusterSearchShardsResponse(
             clusterSearchShardsGroups,
-            nodes.toArray(new DiscoveryNode[nodes.size()]),
+            nodes.toArray(new DiscoveryNode[0]),
             indicesAndFilters
         );
 

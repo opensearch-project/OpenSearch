@@ -52,13 +52,6 @@ public class NoClusterManagerBlockServiceTests extends OpenSearchTestCase {
         noClusterManagerBlockService = new NoClusterManagerBlockService(settings, clusterSettings);
     }
 
-    private void assertDeprecatedWarningEmitted() {
-        assertWarnings(
-            "[discovery.zen.no_master_block] setting was deprecated in OpenSearch and will be removed in a future release! "
-                + "See the breaking changes documentation for the next major version."
-        );
-    }
-
     public void testBlocksWritesByDefault() {
         createService(Settings.EMPTY);
         assertThat(noClusterManagerBlockService.getNoClusterManagerBlock(), sameInstance(NO_CLUSTER_MANAGER_BLOCK_METADATA_WRITES));

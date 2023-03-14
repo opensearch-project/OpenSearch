@@ -8,6 +8,7 @@
 
 package org.opensearch.index.shard;
 
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -29,6 +30,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+
+import static org.opensearch.index.shard.RemoteStoreRefreshListener.SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX;
 
 public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     private IndexShard indexShard;
@@ -204,13 +207,29 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     private void verifyUploadedSegments(RemoteSegmentStoreDirectory remoteSegmentStoreDirectory) throws IOException {
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = remoteSegmentStoreDirectory
             .getSegmentsUploadedToRemoteStore();
+        String segmentsNFilename = null;
         try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
             SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
             for (String file : segmentInfos.files(true)) {
                 if (!RemoteStoreRefreshListener.EXCLUDE_FILES.contains(file)) {
                     assertTrue(uploadedSegments.containsKey(file));
                 }
+                if (file.startsWith(IndexFileNames.SEGMENTS)) {
+                    segmentsNFilename = file;
+                }
             }
+        }
+        if (segmentsNFilename != null) {
+            String commitGeneration = segmentsNFilename.substring((IndexFileNames.SEGMENTS + "_").length());
+            assertTrue(
+                uploadedSegments.keySet()
+                    .stream()
+                    .anyMatch(
+                        s -> s.startsWith(
+                            SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX + "__" + Long.parseLong(commitGeneration, Character.MAX_RADIX)
+                        )
+                    )
+            );
         }
     }
 }

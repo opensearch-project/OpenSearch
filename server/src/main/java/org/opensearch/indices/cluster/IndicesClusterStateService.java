@@ -45,11 +45,11 @@ import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.cluster.routing.IndexShardRoutingTable;
-import org.opensearch.cluster.routing.RecoverySource.Type;
-import org.opensearch.cluster.routing.RoutingNode;
-import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.RoutingTable;
+import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.RoutingNode;
+import org.opensearch.cluster.routing.RecoverySource.Type;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.component.AbstractLifecycleComponent;
@@ -143,6 +143,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final Consumer<ShardId> globalCheckpointSyncer;
     private final RetentionLeaseSyncer retentionLeaseSyncer;
 
+    private final SegmentReplicationTargetService segmentReplicationTargetService;
+
     private final SegmentReplicationCheckpointPublisher checkpointPublisher;
 
     @Inject
@@ -217,6 +219,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             indexEventListeners.add(segmentReplicationTargetService);
             indexEventListeners.add(segmentReplicationSourceService);
         }
+        this.segmentReplicationTargetService = segmentReplicationTargetService;
         this.builtInIndexListener = Collections.unmodifiableList(indexEventListeners);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
@@ -773,8 +776,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     public void handleRecoveryDone(ReplicationState state, ShardRouting shardRouting, long primaryTerm) {
-        RecoveryState RecState = (RecoveryState) state;
-        shardStateAction.shardStarted(shardRouting, primaryTerm, "after " + RecState.getRecoverySource(), SHARD_STATE_ACTION_LISTENER);
+        RecoveryState recoveryState = (RecoveryState) state;
+        shardStateAction.shardStarted(shardRouting, primaryTerm, "after " + recoveryState.getRecoverySource(), SHARD_STATE_ACTION_LISTENER);
     }
 
     private void failAndRemoveShard(

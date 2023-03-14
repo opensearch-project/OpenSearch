@@ -31,7 +31,6 @@
 
 package org.opensearch.upgrades;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.client.Request;
@@ -44,13 +43,13 @@ import org.opensearch.common.Booleans;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.test.rest.yaml.ObjectPath;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
-import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -193,25 +192,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
             default:
                 throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
         }
-    }
-
-    private void assertDocCountOnAllCopies(String index, int expectedCount) throws Exception {
-        assertBusy(() -> {
-            Map<String, ?> state = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state")));
-            String xpath = "routing_table.indices." + index + ".shards.0.node";
-            @SuppressWarnings("unchecked") List<String> assignedNodes = (List<String>) XContentMapValues.extractValue(xpath, state);
-            assertNotNull(state.toString(), assignedNodes);
-            for (String assignedNode : assignedNodes) {
-                try {
-                    assertCount(index, "_only_nodes:" + assignedNode, expectedCount);
-                } catch (ResponseException e) {
-                    if (e.getMessage().contains("no data nodes with criteria [" + assignedNode + "found for shard: [" + index + "][0]")) {
-                        throw new AssertionError(e); // shard is relocating - ask assert busy to retry
-                    }
-                    throw e;
-                }
-            }
-        });
     }
 
     private void assertCount(final String index, final String preference, final int expectedCount) throws IOException {
@@ -530,17 +510,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 break;
         }
     }
-    /**
-     * Returns the version in which the given index has been created
-     */
-    private static Version indexVersionCreated(final String indexName) throws IOException {
-        final Request request = new Request("GET", "/" + indexName + "/_settings");
-        final String versionCreatedSetting = indexName + ".settings.index.version.created";
-        request.addParameter("filter_path", versionCreatedSetting);
-
-        final Response response = client().performRequest(request);
-        return Version.fromId(Integer.parseInt(ObjectPath.createFromResponse(response).evaluate(versionCreatedSetting)));
-    }
 
     /**
      * Asserts that an index is closed in the cluster state. If `checkRoutingTable` is true, it also asserts
@@ -584,20 +553,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
         } else {
             assertThat(routingTable, nullValue());
             assertThat(XContentMapValues.extractValue("index.verified_before_close", settings), nullValue());
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private void assertPeerRecoveredFiles(String reason, String index, String targetNode, Matcher<Integer> sizeMatcher) throws IOException {
-        Map<?, ?> recoveryStats = entityAsMap(client().performRequest(new Request("GET", index + "/_recovery")));
-        List<Map<?, ?>> shards = (List<Map<?, ?>>) XContentMapValues.extractValue(index + "." + "shards", recoveryStats);
-        for (Map<?, ?> shard : shards) {
-            if (Objects.equals(XContentMapValues.extractValue("type", shard), "PEER")) {
-                if (Objects.equals(XContentMapValues.extractValue("target.name", shard), targetNode)) {
-                    Integer recoveredFileSize = (Integer) XContentMapValues.extractValue("index.files.recovered", shard);
-                    assertThat(reason + " target node [" + targetNode + "] stats [" + recoveryStats + "]", recoveredFileSize, sizeMatcher);
-                }
-            }
         }
     }
 
@@ -764,12 +719,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
 
         final int numberOfReplicas = Integer.parseInt(
             getIndexSettingsAsMap(indexName).get(IndexMetadata.SETTING_NUMBER_OF_REPLICAS).toString());
-        if (minimumNodeVersion.onOrAfter(LegacyESVersion.V_7_6_0)) {
-            assertEquals(nodes.size() - 2, numberOfReplicas);
-            ensureGreen(indexName);
-        } else {
-            assertEquals(nodes.size() - 1, numberOfReplicas);
-        }
+        assertEquals(nodes.size() - 2, numberOfReplicas);
+        ensureGreen(indexName);
     }
 
     public void testSoftDeletesDisabledWarning() throws Exception {
@@ -782,7 +733,7 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 settings.put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), softDeletesEnabled);
             }
             Request request = new Request("PUT", "/" + indexName);
-            request.setJsonEntity("{\"settings\": " + Strings.toString(settings.build()) + "}");
+            request.setJsonEntity("{\"settings\": " + Strings.toString(XContentType.JSON, settings.build()) + "}");
             if (softDeletesEnabled == false) {
                 expectSoftDeletesWarning(request, indexName);
             }

@@ -45,6 +45,8 @@ import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -81,6 +83,10 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     private final EnableAssignmentDecider decider;
     private final ThreadPool threadPool;
     private final PeriodicRechecker periodicRechecker;
+    private final ClusterManagerTaskThrottler.ThrottlingKey createPersistentTaskKey;
+    private final ClusterManagerTaskThrottler.ThrottlingKey finishPersistentTaskKey;
+    private final ClusterManagerTaskThrottler.ThrottlingKey removePersistentTaskKey;
+    private final ClusterManagerTaskThrottler.ThrottlingKey updatePersistentTaskKey;
 
     public PersistentTasksClusterService(
         Settings settings,
@@ -98,6 +104,12 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
         }
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING, this::setRecheckInterval);
+
+        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        createPersistentTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_PERSISTENT_TASK_KEY, true);
+        finishPersistentTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.FINISH_PERSISTENT_TASK_KEY, true);
+        removePersistentTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.REMOVE_PERSISTENT_TASK_KEY, true);
+        updatePersistentTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.UPDATE_TASK_STATE_KEY, true);
     }
 
     // visible for testing only
@@ -142,6 +154,11 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
 
                 Assignment assignment = createAssignment(taskName, taskParams, currentState);
                 return update(currentState, builder.addTask(taskId, taskName, taskParams, assignment));
+            }
+
+            @Override
+            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                return createPersistentTaskKey;
             }
 
             @Override
@@ -204,6 +221,11 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             }
 
             @Override
+            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                return finishPersistentTaskKey;
+            }
+
+            @Override
             public void onFailure(String source, Exception e) {
                 listener.onFailure(e);
             }
@@ -232,6 +254,11 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                 } else {
                     throw new ResourceNotFoundException("the task with id {} doesn't exist", id);
                 }
+            }
+
+            @Override
+            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                return removePersistentTaskKey;
             }
 
             @Override
@@ -275,6 +302,11 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                     }
                     throw new ResourceNotFoundException("the task with id {} and allocation id {} doesn't exist", taskId, taskAllocationId);
                 }
+            }
+
+            @Override
+            public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                return updatePersistentTaskKey;
             }
 
             @Override

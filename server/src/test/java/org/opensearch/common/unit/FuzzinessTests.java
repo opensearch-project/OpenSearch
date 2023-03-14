@@ -31,10 +31,11 @@
 
 package org.opensearch.common.unit;
 
+import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -138,6 +139,26 @@ public class FuzzinessTests extends OpenSearchTestCase {
 
     }
 
+    public void testFuzzinessValidationWithStrings() throws IOException {
+        String[] invalidStrings = new String[] { "+++", "asdfghjkl", "2k23" };
+        XContentBuilder json = jsonBuilder().startObject().field(Fuzziness.X_FIELD_NAME, randomFrom(invalidStrings)).endObject();
+        try (XContentParser parser = createParser(json)) {
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_STRING));
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Fuzziness.parse(parser));
+            assertTrue(e.getMessage().startsWith("Invalid fuzziness value:"));
+        }
+        json = jsonBuilder().startObject().field(Fuzziness.X_FIELD_NAME, "AUTO:").endObject();
+        try (XContentParser parser = createParser(json)) {
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
+            assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_STRING));
+            OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> Fuzziness.parse(parser));
+            assertTrue(e.getMessage().startsWith("failed to find low and high distance values"));
+        }
+    }
+
     public void testAuto() {
         assertThat(Fuzziness.AUTO.asFloat(), equalTo(1f));
     }
@@ -174,6 +195,12 @@ public class FuzzinessTests extends OpenSearchTestCase {
         assertNotSame(original, deserializedFuzziness);
         assertEquals(original, deserializedFuzziness);
         assertEquals(original.asString(), deserializedFuzziness.asString());
+
+        original = Fuzziness.customAuto(4, 7);
+        deserializedFuzziness = doSerializeRoundtrip(original);
+        assertNotSame(original, deserializedFuzziness);
+        assertEquals(original, deserializedFuzziness);
+        assertEquals(original.asString(), deserializedFuzziness.asString());
     }
 
     private static Fuzziness doSerializeRoundtrip(Fuzziness in) throws IOException {
@@ -205,5 +232,11 @@ public class FuzzinessTests extends OpenSearchTestCase {
         assertEquals(1, fuzziness.asDistance("abcdef"));
         assertEquals(2, fuzziness.asDistance("abcdefg"));
 
+        fuzziness = Fuzziness.customAuto(5, 7);
+        assertEquals(0, fuzziness.asDistance(""));
+        assertEquals(0, fuzziness.asDistance("abcd"));
+        assertEquals(1, fuzziness.asDistance("abcde"));
+        assertEquals(1, fuzziness.asDistance("abcdef"));
+        assertEquals(2, fuzziness.asDistance("abcdefg"));
     }
 }

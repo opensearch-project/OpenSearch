@@ -32,9 +32,9 @@
 
 package org.opensearch.join.spi;
 
-import org.opensearch.common.ParseField;
-import org.opensearch.common.xcontent.ContextParser;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ContextParser;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.join.aggregations.ChildrenAggregationBuilder;
 import org.opensearch.join.aggregations.ParentAggregationBuilder;
 import org.opensearch.join.aggregations.ParsedChildren;

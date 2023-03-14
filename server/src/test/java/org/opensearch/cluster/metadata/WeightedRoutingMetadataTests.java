@@ -9,7 +9,7 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.cluster.routing.WeightedRouting;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
@@ -20,7 +20,7 @@ public class WeightedRoutingMetadataTests extends AbstractXContentTestCase<Weigh
     protected WeightedRoutingMetadata createTestInstance() {
         Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
         WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
-        WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting);
+        WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting, -1);
         return weightedRoutingMetadata;
     }
 

@@ -32,7 +32,7 @@
 package org.opensearch.script.mustache;
 
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptException;

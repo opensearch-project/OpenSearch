@@ -40,7 +40,7 @@ import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.geometry.Circle;

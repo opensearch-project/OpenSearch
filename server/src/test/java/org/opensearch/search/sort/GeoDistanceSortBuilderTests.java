@@ -41,8 +41,8 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.geo.GeoDistance;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.unit.DistanceUnit;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -419,7 +419,7 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             expectedWarnings.add(nestedPathDeprecationWarning);
         }
         if (expectedWarnings.isEmpty() == false) {
-            assertWarnings(expectedWarnings.toArray(new String[expectedWarnings.size()]));
+            assertWarnings(expectedWarnings.toArray(new String[0]));
             assertedWarnings.addAll(expectedWarnings);
         }
     }

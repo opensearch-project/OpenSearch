@@ -20,7 +20,8 @@ import org.opensearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
-import static java.util.Collections.singletonList;
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.DELETE;
 
 /**
@@ -35,7 +36,12 @@ public class RestClusterDeleteWeightedRoutingAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(DELETE, "/_cluster/routing/awareness/weights"));
+        return unmodifiableList(
+            asList(
+                new Route(DELETE, "/_cluster/routing/awareness/weights"),
+                new Route(DELETE, "/_cluster/routing/awareness/{attribute}/weights")
+            )
+        );
     }
 
     @Override
@@ -45,9 +51,17 @@ public class RestClusterDeleteWeightedRoutingAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        ClusterDeleteWeightedRoutingRequest clusterDeleteWeightedRoutingRequest = Requests.deleteWeightedRoutingRequest();
+        ClusterDeleteWeightedRoutingRequest clusterDeleteWeightedRoutingRequest = createRequest(request);
         return channel -> client.admin()
             .cluster()
             .deleteWeightedRouting(clusterDeleteWeightedRoutingRequest, new RestToXContentListener<>(channel));
+    }
+
+    public static ClusterDeleteWeightedRoutingRequest createRequest(RestRequest request) throws IOException {
+        ClusterDeleteWeightedRoutingRequest deleteWeightedRoutingRequest = Requests.deleteWeightedRoutingRequest(
+            request.param("attribute")
+        );
+        request.applyContentParser(p -> deleteWeightedRoutingRequest.source(p.mapStrings()));
+        return deleteWeightedRoutingRequest;
     }
 }

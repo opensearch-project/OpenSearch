@@ -31,6 +31,7 @@
 
 package org.opensearch.cluster.remote.test;
 
+import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.index.IndexRequest;
@@ -122,6 +123,9 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
 
         RemoteConnectionInfo rci = cluster1Client().cluster().remoteInfo(new RemoteInfoRequest(), RequestOptions.DEFAULT).getInfos().get(0);
         logger.info("Connection info: {}", rci);
+        if (!rci.isConnected()) {    
+            logger.info("Cluster health: {}", cluster1Client().cluster().health(new ClusterHealthRequest(), RequestOptions.DEFAULT));
+        }
         assertTrue(rci.isConnected());
 
         assertEquals(2L, cluster1Client().search(

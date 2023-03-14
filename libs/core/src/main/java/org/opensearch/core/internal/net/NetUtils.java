@@ -41,6 +41,8 @@ import java.util.Arrays;
 
 /**
  * Utilities for network-related methods.
+ *
+ * @opensearch.internal
  */
 public class NetUtils {
 

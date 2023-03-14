@@ -37,10 +37,10 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.Rewriteable;
@@ -80,7 +80,7 @@ public class AliasValidator {
     /**
      * Allows to partially validate an alias, without knowing which index it'll get applied to.
      * Useful with index templates containing aliases. Checks also that it is possible to parse
-     * the alias filter via {@link org.opensearch.common.xcontent.XContentParser},
+     * the alias filter via {@link XContentParser},
      * without validating it as a filter though.
      * @throws IllegalArgumentException if the alias is not valid
      */

@@ -32,8 +32,8 @@
 
 package org.opensearch.client.indices;
 
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
@@ -74,8 +74,8 @@ public class PutMappingRequestTests extends AbstractXContentTestCase<PutMappingR
     protected void assertEqualInstances(PutMappingRequest expected, PutMappingRequest actual) {
         if (actual.source() != null) {
             try (
-                XContentParser expectedJson = createParser(expected.xContentType().xContent(), expected.source());
-                XContentParser actualJson = createParser(actual.xContentType().xContent(), actual.source())
+                XContentParser expectedJson = createParser(expected.mediaType().xContent(), expected.source());
+                XContentParser actualJson = createParser(actual.mediaType().xContent(), actual.source())
             ) {
                 assertEquals(expectedJson.mapOrdered(), actualJson.mapOrdered());
             } catch (IOException e) {

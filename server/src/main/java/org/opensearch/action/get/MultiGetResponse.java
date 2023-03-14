@@ -35,14 +35,14 @@ package org.opensearch.action.get;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionResponse;
-import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParser.Token;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.index.get.GetResult;
 import org.opensearch.index.mapper.MapperService;
 
@@ -63,6 +63,10 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
     private static final ParseField ID = new ParseField("_id");
     private static final ParseField ERROR = new ParseField("error");
     private static final ParseField DOCS = new ParseField("docs");
+    // In mixed clusters, the 1.x cluster could still return the '_type' in the response payload, it has to
+    // be handled gracefully
+    @Deprecated(forRemoval = true)
+    private static final ParseField TYPE = new ParseField("_type");
 
     /**
      * Represents a failure.
@@ -212,6 +216,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
                     currentFieldName = parser.currentName();
                     if (INDEX.match(currentFieldName, parser.getDeprecationHandler()) == false
                         && ID.match(currentFieldName, parser.getDeprecationHandler()) == false
+                        && TYPE.match(currentFieldName, parser.getDeprecationHandler()) == false
                         && ERROR.match(currentFieldName, parser.getDeprecationHandler()) == false) {
                         getResult = GetResult.fromXContentEmbedded(parser, index, id);
                     }

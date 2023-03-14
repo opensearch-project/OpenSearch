@@ -257,7 +257,7 @@ public final class MockTransportService extends TransportService {
         BoundTransportAddress boundTransportAddress = transportService.boundAddress();
         transportAddresses.addAll(Arrays.asList(boundTransportAddress.boundAddresses()));
         transportAddresses.add(boundTransportAddress.publishAddress());
-        return transportAddresses.toArray(new TransportAddress[transportAddresses.size()]);
+        return transportAddresses.toArray(new TransportAddress[0]);
     }
 
     @Override

@@ -32,7 +32,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.search.SearchService;
@@ -167,7 +167,7 @@ public class TransportPitSegmentsAction extends TransportBroadcastByNodeAction<P
         ClusterState clusterState
     ) {
         return new IndicesSegmentResponse(
-            results.toArray(new ShardSegments[results.size()]),
+            results.toArray(new ShardSegments[0]),
             totalShards,
             successfulShards,
             failedShards,

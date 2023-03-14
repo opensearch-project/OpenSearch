@@ -2168,9 +2168,10 @@ public final class PainlessLookupBuilder {
                 bridgeMethodWriter.loadArg(0);
             }
 
-            for (int typeParameterCount = 0; typeParameterCount < javaMethod.getParameterTypes().length; ++typeParameterCount) {
+            final Class<?>[] typeParameters = javaMethod.getParameterTypes();
+            for (int typeParameterCount = 0; typeParameterCount < typeParameters.length; ++typeParameterCount) {
                 bridgeMethodWriter.loadArg(typeParameterCount + bridgeTypeParameterOffset);
-                Class<?> typeParameter = javaMethod.getParameterTypes()[typeParameterCount];
+                Class<?> typeParameter = typeParameters[typeParameterCount];
 
                 if (typeParameter == Byte.class) bridgeMethodWriter.invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_BYTE_IMPLICIT);
                 else if (typeParameter == Short.class) bridgeMethodWriter.invokeStatic(DEF_UTIL_TYPE, DEF_TO_B_SHORT_IMPLICIT);

@@ -54,6 +54,14 @@ public interface RecoveryTargetHandler extends FileChunkWriter {
     void prepareForTranslogOperations(int totalTranslogOps, ActionListener<Void> listener);
 
     /**
+     * Used with Segment replication only
+     *
+     * This function is used to force a sync target primary node with source (old primary). This is to avoid segment files
+     * conflict with replicas when target is promoted as primary.
+     */
+    void forceSegmentFileSync();
+
+    /**
      * The finalize request refreshes the engine now that new segments are available, enables garbage collection of tombstone files, updates
      * the global checkpoint.
      *

@@ -50,6 +50,7 @@ dependencies {
   testImplementation "org.mockito:mockito-core:${versions.mockito}"
   testImplementation "org.objenesis:objenesis:${versions.objenesis}"
   testImplementation "net.bytebuddy:byte-buddy:${versions.bytebuddy}"
+  testImplementation "net.bytebuddy:byte-buddy-agent:${versions.bytebuddy}"
 }
 
 tasks.named('forbiddenApisMain').configure {

@@ -41,8 +41,8 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.support.QueryParsers;
 import org.opensearch.index.search.MatchQuery;
 
@@ -175,9 +175,16 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
         return this.minimumShouldMatch;
     }
 
+    @Deprecated
     /** Sets the fuzziness used when evaluated to a fuzzy query type. Defaults to "AUTO". */
     public MatchBoolPrefixQueryBuilder fuzziness(Object fuzziness) {
         this.fuzziness = Fuzziness.build(fuzziness);
+        return this;
+    }
+
+    /** Sets the fuzziness used when evaluated to a fuzzy query type. Defaults to "AUTO". */
+    public MatchBoolPrefixQueryBuilder fuzziness(Fuzziness fuzziness) {
+        this.fuzziness = fuzziness;
         return this;
     }
 
@@ -348,19 +355,16 @@ public class MatchBoolPrefixQueryBuilder extends AbstractQueryBuilder<MatchBoolP
             }
         }
 
-        MatchBoolPrefixQueryBuilder queryBuilder = new MatchBoolPrefixQueryBuilder(fieldName, value);
-        queryBuilder.analyzer(analyzer);
-        queryBuilder.operator(operator);
-        queryBuilder.minimumShouldMatch(minimumShouldMatch);
-        queryBuilder.boost(boost);
-        queryBuilder.queryName(queryName);
-        if (fuzziness != null) {
-            queryBuilder.fuzziness(fuzziness);
-        }
-        queryBuilder.prefixLength(prefixLength);
-        queryBuilder.maxExpansions(maxExpansion);
-        queryBuilder.fuzzyTranspositions(fuzzyTranspositions);
-        queryBuilder.fuzzyRewrite(fuzzyRewrite);
+        MatchBoolPrefixQueryBuilder queryBuilder = new MatchBoolPrefixQueryBuilder(fieldName, value).analyzer(analyzer)
+            .operator(operator)
+            .minimumShouldMatch(minimumShouldMatch)
+            .boost(boost)
+            .queryName(queryName)
+            .fuzziness(fuzziness)
+            .prefixLength(prefixLength)
+            .maxExpansions(maxExpansion)
+            .fuzzyTranspositions(fuzzyTranspositions)
+            .fuzzyRewrite(fuzzyRewrite);
         return queryBuilder;
     }
 

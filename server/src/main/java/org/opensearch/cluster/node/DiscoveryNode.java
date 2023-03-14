@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.node;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.StreamInput;
@@ -41,8 +40,8 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.Node;
 
 import java.io.IOException;
@@ -120,6 +119,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     public static boolean isRemoteClusterClient(final Settings settings) {
         return hasRole(settings, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
+    }
+
+    public static boolean isSearchNode(Settings settings) {
+        return hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
     }
 
     private final String nodeName;
@@ -325,12 +328,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         for (int i = 0; i < rolesSize; i++) {
             final String roleName = in.readString();
             final String roleNameAbbreviation = in.readString();
-            final boolean canContainData;
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-                canContainData = in.readBoolean();
-            } else {
-                canContainData = roleName.equals(DiscoveryNodeRole.DATA_ROLE.roleName());
-            }
+            final boolean canContainData = in.readBoolean();
             final DiscoveryNodeRole role = roleMap.get(roleName);
             if (role == null) {
                 if (in.getVersion().onOrAfter(Version.V_2_1_0)) {
@@ -370,15 +368,9 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             final DiscoveryNodeRole compatibleRole = role.getCompatibilityRole(out.getVersion());
             out.writeString(compatibleRole.roleName());
             out.writeString(compatibleRole.roleNameAbbreviation());
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-                out.writeBoolean(compatibleRole.canContainData());
-            }
+            out.writeBoolean(compatibleRole.canContainData());
         }
-        if (out.getVersion().before(Version.V_1_0_0) && version.onOrAfter(Version.V_1_0_0)) {
-            Version.writeVersion(LegacyESVersion.V_7_10_2, out);
-        } else {
-            Version.writeVersion(version, out);
-        }
+        Version.writeVersion(version, out);
     }
 
     /**
@@ -603,27 +595,6 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     public static Set<String> getPossibleRoleNames() {
         return roleMap.keySet();
-    }
-
-    /**
-     * Enum that holds all the possible roles that a node can fulfill in a cluster.
-     * Each role has its name and a corresponding abbreviation used by cat apis.
-     */
-    private enum LegacyRole {
-        MASTER("master"),
-        DATA("data"),
-        INGEST("ingest");
-
-        private final String roleName;
-
-        LegacyRole(final String roleName) {
-            this.roleName = roleName;
-        }
-
-        public String roleName() {
-            return roleName;
-        }
-
     }
 
 }

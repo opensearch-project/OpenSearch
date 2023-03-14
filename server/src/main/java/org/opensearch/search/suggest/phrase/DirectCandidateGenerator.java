@@ -324,7 +324,7 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
             final Set<Candidate> set = new HashSet<>(candidates);
             Collections.addAll(set, this.candidates);
 
-            this.candidates = set.toArray(new Candidate[set.size()]);
+            this.candidates = set.toArray(new Candidate[0]);
             // Sort strongest to weakest:
             Arrays.sort(this.candidates, Collections.reverseOrder());
         }

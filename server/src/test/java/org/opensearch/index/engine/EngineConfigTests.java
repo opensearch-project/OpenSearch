@@ -13,7 +13,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.seqno.RetentionLeases;
-import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
@@ -34,31 +33,9 @@ public class EngineConfigTests extends OpenSearchTestCase {
     }
 
     public void testEngineConfig_DefaultValueForReadOnlyEngine() {
-        EngineConfig config = new EngineConfig(
-            null,
-            null,
-            defaultIndexSettings,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            () -> RetentionLeases.EMPTY,
-            null,
-            null
-        );
+        EngineConfig config = new EngineConfig.Builder().indexSettings(defaultIndexSettings)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .build();
         assertFalse(config.isReadOnlyReplica());
     }
 
@@ -79,32 +56,9 @@ public class EngineConfigTests extends OpenSearchTestCase {
     }
 
     private EngineConfig createReadOnlyEngine(IndexSettings indexSettings) {
-        return new EngineConfig(
-            null,
-            null,
-            indexSettings,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            () -> RetentionLeases.EMPTY,
-            null,
-            null,
-            true,
-            new InternalTranslogFactory()
-        );
+        return new EngineConfig.Builder().indexSettings(indexSettings)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .readOnlyReplica(true)
+            .build();
     }
 }

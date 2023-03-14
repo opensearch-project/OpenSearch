@@ -45,7 +45,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
@@ -63,9 +62,11 @@ import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Numbers;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -93,9 +94,9 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardId;
@@ -202,7 +203,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * {@link BlobStoreIndexShardSnapshots}. This is the case for files for which {@link StoreFileMetadata#hashEqualsContents()} is
      * {@code true}.
      */
-    private static final String VIRTUAL_DATA_BLOB_PREFIX = "v__";
+    public static final String VIRTUAL_DATA_BLOB_PREFIX = "v__";
 
     /**
      * When set to {@code true}, {@link #bestEffortConsistency} will be set to {@code true} and concurrent modifications of the repository
@@ -332,9 +333,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * <ul>
      *     <li>All repositories that are read-only, i.e. for which {@link #isReadOnly()} returns {@code true} because there are no
      *     guarantees that another cluster is not writing to the repository at the same time</li>
-     *     <li>The node finds itself in a mixed-version cluster containing nodes older than
-     *     {@link RepositoryMetadata#REPO_GEN_IN_CS_VERSION} where the cluster-manager node does not update the value of
-     *     {@link RepositoryMetadata#generation()} when writing a new {@code index-N} blob</li>
      *     <li>The value of {@link RepositoryMetadata#generation()} for this repository is {@link RepositoryData#UNKNOWN_REPO_GEN}
      *     indicating that no consistent repository generation is tracked in the cluster state yet.</li>
      *     <li>The {@link #uncleanStart} flag is set to {@code true}</li>
@@ -453,6 +451,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 public TimeValue timeout() {
                     return updateTask.timeout();
                 }
+
+                @Override
+                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                    return updateTask.getClusterManagerThrottlingKey();
+                }
             });
         }, onFailure));
     }
@@ -556,7 +559,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         final boolean wasBestEffortConsistency = bestEffortConsistency;
         bestEffortConsistency = uncleanStart
             || isReadOnly()
-            || state.nodes().getMinNodeVersion().before(RepositoryMetadata.REPO_GEN_IN_CS_VERSION)
             || metadata.generation() == RepositoryData.UNKNOWN_REPO_GEN
             || ALLOW_CONCURRENT_MODIFICATION.get(metadata.settings());
         if (isReadOnly()) {
@@ -644,8 +646,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * Public for testing.
      */
     public BlobStore blobStore() {
-        assertSnapshotOrGenericThread();
-
         BlobStore store = blobStore.get();
         if (store == null) {
             synchronized (lock) {
@@ -1818,7 +1818,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return RepositoryData.EMPTY;
         }
         try {
-            final String snapshotsIndexBlobName = INDEX_FILE_PREFIX + Long.toString(indexGen);
+            final String snapshotsIndexBlobName = INDEX_FILE_PREFIX + indexGen;
 
             // EMPTY is safe here because RepositoryData#fromXContent calls namedObject
             try (
@@ -2417,7 +2417,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 newSnapshotsList.add(point);
             }
             final BlobStoreIndexShardSnapshots updatedBlobStoreIndexShardSnapshots = new BlobStoreIndexShardSnapshots(newSnapshotsList);
-            final Runnable afterWriteSnapBlob;
             // When using shard generations we can safely write the index-${uuid} blob before writing out any of the actual data
             // for this shard since the uuid named blob will simply not be referenced in case of error and thus we will never
             // reference a generation that has not had all its files fully upload.
@@ -2435,7 +2434,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     e
                 );
             }
-            afterWriteSnapBlob = () -> {};
             final StepListener<Collection<Void>> allFilesUploadedListener = new StepListener<>();
             allFilesUploadedListener.whenComplete(v -> {
                 final IndexShardSnapshotStatus.Copy lastSnapshotStatus = snapshotStatus.moveToFinalize(snapshotIndexCommit.getGeneration());
@@ -2460,7 +2458,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
                 }
-                afterWriteSnapBlob.run();
                 snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis(), indexGeneration);
                 listener.onResponse(indexGeneration);
             }, listener::onFailure);

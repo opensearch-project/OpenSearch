@@ -62,7 +62,7 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
@@ -308,7 +308,7 @@ public abstract class AbstractTermVectorsTestCase extends OpenSearchIntegTestCas
 
         refresh();
 
-        return configs.toArray(new TestConfig[configs.size()]);
+        return configs.toArray(new TestConfig[0]);
     }
 
     protected TestFieldSetting[] getFieldSettings() {

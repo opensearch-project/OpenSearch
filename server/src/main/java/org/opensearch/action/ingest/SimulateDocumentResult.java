@@ -32,7 +32,7 @@
 package org.opensearch.action.ingest;
 
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.ToXContentObject;
 
 /**
  * Interface to simulate a document result

@@ -201,7 +201,7 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
 
     public void testReassignTasksWithNoTasks() {
         ClusterState clusterState = initialState();
-        assertThat(reassign(clusterState).metadata().custom(PersistentTasksCustomMetadata.TYPE), nullValue());
+        assertThat(reassign(createService(), clusterState).metadata().custom(PersistentTasksCustomMetadata.TYPE), nullValue());
     }
 
     public void testReassignConsidersClusterStateUpdates() {
@@ -219,7 +219,7 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
 
         Metadata.Builder metadata = Metadata.builder(clusterState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
         clusterState = builder.metadata(metadata).nodes(nodes).build();
-        ClusterState newClusterState = reassign(clusterState);
+        ClusterState newClusterState = reassign(createService(), clusterState);
 
         PersistentTasksCustomMetadata tasksInProgress = newClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         assertThat(tasksInProgress, notNullValue());
@@ -238,7 +238,8 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         clusterState = builder.metadata(metadata).nodes(nodes).build();
 
         nonClusterStateCondition = false;
-        ClusterState newClusterState = reassign(clusterState);
+        PersistentTasksClusterService service = createService();
+        ClusterState newClusterState = reassign(service, clusterState);
 
         PersistentTasksCustomMetadata tasksInProgress = newClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         assertThat(tasksInProgress, notNullValue());
@@ -250,7 +251,7 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         assertThat(tasksInProgress.tasks().size(), equalTo(1));
 
         nonClusterStateCondition = true;
-        ClusterState finalClusterState = reassign(newClusterState);
+        ClusterState finalClusterState = reassign(service, newClusterState);
 
         tasksInProgress = finalClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         assertThat(tasksInProgress, notNullValue());
@@ -289,7 +290,7 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         }
         Metadata.Builder metadata = Metadata.builder(clusterState.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasks.build());
         clusterState = builder.metadata(metadata).nodes(nodes).build();
-        ClusterState newClusterState = reassign(clusterState);
+        ClusterState newClusterState = reassign(createService(), clusterState);
 
         PersistentTasksCustomMetadata tasksInProgress = newClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         assertThat(tasksInProgress, notNullValue());
@@ -624,8 +625,8 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         }
     }
 
-    private ClusterState reassign(ClusterState clusterState) {
-        PersistentTasksClusterService service = createService((params, currentState) -> {
+    private PersistentTasksClusterService createService() {
+        return createService((params, currentState) -> {
             TestParams testParams = (TestParams) params;
             switch (testParams.getTestParam()) {
                 case "assign_me":
@@ -644,7 +645,9 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
             }
             return NO_NODE_FOUND;
         });
+    }
 
+    private ClusterState reassign(PersistentTasksClusterService service, ClusterState clusterState) {
         return service.reassignTasks(clusterState);
     }
 

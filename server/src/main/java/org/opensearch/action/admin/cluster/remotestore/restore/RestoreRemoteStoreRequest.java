@@ -14,8 +14,9 @@ import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -86,7 +87,7 @@ public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<Restore
      * @return this request
      */
     public RestoreRemoteStoreRequest indices(List<String> indices) {
-        this.indices = indices.toArray(new String[indices.size()]);
+        this.indices = indices.toArray(new String[0]);
         return this;
     }
 
@@ -178,6 +179,6 @@ public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<Restore
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 }

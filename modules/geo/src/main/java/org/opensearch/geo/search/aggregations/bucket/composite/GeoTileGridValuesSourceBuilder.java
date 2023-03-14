@@ -33,17 +33,16 @@
 package org.opensearch.geo.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.IndexReader;
-import org.opensearch.LegacyESVersion;
-import org.opensearch.common.ParseField;
 import org.opensearch.common.geo.GeoBoundingBox;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.geo.search.aggregations.bucket.geogrid.CellIdSource;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.geo.search.aggregations.bucket.geogrid.cells.CellIdSource;
 import org.opensearch.geo.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.query.QueryShardContext;
@@ -175,9 +174,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     public GeoTileGridValuesSourceBuilder(StreamInput in) throws IOException {
         super(in);
         this.precision = in.readInt();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-            this.geoBoundingBox = new GeoBoundingBox(in);
-        }
+        this.geoBoundingBox = new GeoBoundingBox(in);
     }
 
     public GeoTileGridValuesSourceBuilder precision(int precision) {
@@ -198,9 +195,7 @@ public class GeoTileGridValuesSourceBuilder extends CompositeValuesSourceBuilder
     @Override
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeInt(precision);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-            geoBoundingBox.writeTo(out);
-        }
+        geoBoundingBox.writeTo(out);
     }
 
     @Override

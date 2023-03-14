@@ -36,6 +36,7 @@ import org.apache.lucene.store.BufferedChecksum;
 import org.opensearch.common.io.stream.FilterStreamInput;
 import org.opensearch.common.io.stream.StreamInput;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
@@ -117,7 +118,11 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
 
     @Override
     public int read() throws IOException {
-        return readByte() & 0xFF;
+        try {
+            return readByte() & 0xFF;
+        } catch (EOFException e) {
+            return -1;
+        }
     }
 
     @Override

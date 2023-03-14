@@ -12,12 +12,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
-import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
-import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsResponse;
-import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsAction;
-import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsRequest;
-import org.opensearch.action.admin.cluster.configuration.ClearVotingConfigExclusionsResponse;
+import org.opensearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsAction;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.ClusterStateTaskConfig;
@@ -29,9 +27,9 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.http.HttpStats;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
@@ -39,11 +37,15 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import static org.opensearch.action.admin.cluster.configuration.VotingConfigExclusionsHelper.clearExclusionsAndGetState;
 
 /**
  * Helper controller class to remove list of nodes from the cluster and update status
@@ -70,83 +72,6 @@ public class DecommissionController {
         this.transportService = transportService;
         this.nodeRemovalExecutor = new NodeRemovalClusterStateTaskExecutor(allocationService, logger);
         this.threadPool = threadPool;
-    }
-
-    /**
-     * Transport call to add nodes to voting config exclusion
-     *
-     * @param nodes set of nodes Ids to be added to voting config exclusion list
-     * @param listener callback for response or failure
-     */
-    public void excludeDecommissionedNodesFromVotingConfig(Set<String> nodes, ActionListener<Void> listener) {
-        transportService.sendRequest(
-            transportService.getLocalNode(),
-            AddVotingConfigExclusionsAction.NAME,
-            new AddVotingConfigExclusionsRequest(
-                Strings.EMPTY_ARRAY,
-                nodes.toArray(String[]::new),
-                Strings.EMPTY_ARRAY,
-                TimeValue.timeValueSeconds(120) // giving a larger timeout of 120 sec as cluster might already be in stress when
-                                                // decommission is triggered
-            ),
-            new TransportResponseHandler<AddVotingConfigExclusionsResponse>() {
-                @Override
-                public void handleResponse(AddVotingConfigExclusionsResponse response) {
-                    listener.onResponse(null);
-                }
-
-                @Override
-                public void handleException(TransportException exp) {
-                    listener.onFailure(exp);
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
-                }
-
-                @Override
-                public AddVotingConfigExclusionsResponse read(StreamInput in) throws IOException {
-                    return new AddVotingConfigExclusionsResponse(in);
-                }
-            }
-        );
-    }
-
-    /**
-     * Transport call to clear voting config exclusion
-     *
-     * @param listener callback for response or failure
-     */
-    public void clearVotingConfigExclusion(ActionListener<Void> listener, boolean waitForRemoval) {
-        final ClearVotingConfigExclusionsRequest clearVotingConfigExclusionsRequest = new ClearVotingConfigExclusionsRequest();
-        clearVotingConfigExclusionsRequest.setWaitForRemoval(waitForRemoval);
-        transportService.sendRequest(
-            transportService.getLocalNode(),
-            ClearVotingConfigExclusionsAction.NAME,
-            clearVotingConfigExclusionsRequest,
-            new TransportResponseHandler<ClearVotingConfigExclusionsResponse>() {
-                @Override
-                public void handleResponse(ClearVotingConfigExclusionsResponse response) {
-                    listener.onResponse(null);
-                }
-
-                @Override
-                public void handleException(TransportException exp) {
-                    listener.onFailure(exp);
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
-                }
-
-                @Override
-                public ClearVotingConfigExclusionsResponse read(StreamInput in) throws IOException {
-                    return new ClearVotingConfigExclusionsResponse(in);
-                }
-            }
-        );
     }
 
     /**
@@ -250,11 +175,18 @@ public class DecommissionController {
                 decommissionAttributeMetadata.validateNewStatus(decommissionStatus);
                 decommissionAttributeMetadata = new DecommissionAttributeMetadata(
                     decommissionAttributeMetadata.decommissionAttribute(),
-                    decommissionStatus
+                    decommissionStatus,
+                    decommissionAttributeMetadata.requestID()
                 );
-                return ClusterState.builder(currentState)
+                ClusterState newState = ClusterState.builder(currentState)
                     .metadata(Metadata.builder(currentState.metadata()).decommissionAttributeMetadata(decommissionAttributeMetadata))
                     .build();
+
+                // For terminal status we will go ahead and clear any exclusion that was added as part of decommission action
+                if (decommissionStatus.equals(DecommissionStatus.SUCCESSFUL) || decommissionStatus.equals(DecommissionStatus.FAILED)) {
+                    newState = clearExclusionsAndGetState(newState);
+                }
+                return newState;
             }
 
             @Override
@@ -270,5 +202,62 @@ public class DecommissionController {
                 listener.onResponse(decommissionAttributeMetadata.status());
             }
         });
+    }
+
+    private void logActiveConnections(NodesStatsResponse nodesStatsResponse) {
+        if (nodesStatsResponse == null || nodesStatsResponse.getNodes() == null) {
+            logger.info("Node stats response received is null/empty.");
+            return;
+        }
+
+        Map<String, Long> nodeActiveConnectionMap = new HashMap<>();
+        List<NodeStats> responseNodes = nodesStatsResponse.getNodes();
+        for (int i = 0; i < responseNodes.size(); i++) {
+            HttpStats httpStats = responseNodes.get(i).getHttp();
+            DiscoveryNode node = responseNodes.get(i).getNode();
+            nodeActiveConnectionMap.put(node.getId(), httpStats.getServerOpen());
+        }
+        logger.info("Decommissioning node with connections : [{}]", nodeActiveConnectionMap);
+    }
+
+    void getActiveRequestCountOnDecommissionedNodes(Set<DiscoveryNode> decommissionedNodes) {
+        if (decommissionedNodes == null || decommissionedNodes.isEmpty()) {
+            return;
+        }
+        String[] nodes = decommissionedNodes.stream().map(DiscoveryNode::getId).toArray(String[]::new);
+        if (nodes.length == 0) {
+            return;
+        }
+
+        final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(nodes);
+        nodesStatsRequest.clear();
+        nodesStatsRequest.addMetric(NodesStatsRequest.Metric.HTTP.metricName());
+
+        transportService.sendRequest(
+            transportService.getLocalNode(),
+            NodesStatsAction.NAME,
+            nodesStatsRequest,
+            new TransportResponseHandler<NodesStatsResponse>() {
+                @Override
+                public void handleResponse(NodesStatsResponse response) {
+                    logActiveConnections(response);
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    logger.error("Failure occurred while dumping connection for decommission nodes - ", exp.unwrapCause());
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
+
+                @Override
+                public NodesStatsResponse read(StreamInput in) throws IOException {
+                    return new NodesStatsResponse(in);
+                }
+            }
+        );
     }
 }

@@ -108,7 +108,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 flagSet.add(randomFrom(SimpleQueryStringFlag.values()));
             }
             if (flagSet.size() > 0) {
-                result.flags(flagSet.toArray(new SimpleQueryStringFlag[flagSet.size()]));
+                result.flags(flagSet.toArray(new SimpleQueryStringFlag[0]));
             }
         }
 

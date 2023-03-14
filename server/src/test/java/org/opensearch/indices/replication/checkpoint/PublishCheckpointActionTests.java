@@ -8,10 +8,11 @@
 
 package org.opensearch.indices.replication.checkpoint;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.action.support.replication.ReplicationMode;
 import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.service.ClusterService;
@@ -32,7 +33,6 @@ import org.opensearch.transport.TransportService;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
@@ -103,15 +103,10 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
             mockTargetService
         );
 
-        final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 1111, 111, 11, 1);
-
+        final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 1111, 11, 1);
         final PublishCheckpointRequest request = new PublishCheckpointRequest(checkpoint);
 
-        action.shardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
-            // we should forward the request containing the current publish checkpoint to the replica
-            assertThat(result.replicaRequest(), sameInstance(request));
-        }));
-
+        expectThrows(OpenSearchException.class, () -> { action.shardOperationOnPrimary(request, indexShard, mock(ActionListener.class)); });
     }
 
     public void testPublishCheckpointActionOnReplica() {
@@ -140,7 +135,7 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
             mockTargetService
         );
 
-        final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 1111, 111, 11, 1);
+        final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 1111, 11, 1);
 
         final PublishCheckpointRequest request = new PublishCheckpointRequest(checkpoint);
 
@@ -156,6 +151,33 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
         result.runPostReplicaActions(ActionListener.wrap(r -> success.set(true), e -> fail(e.toString())));
         assertTrue(success.get());
 
+    }
+
+    public void testGetReplicationModeWithRemoteTranslog() {
+        final PublishCheckpointAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
+        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    public void testGetReplicationModeWithLocalTranslog() {
+        final PublishCheckpointAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
+        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    private PublishCheckpointAction createAction() {
+        return new PublishCheckpointAction(
+            Settings.EMPTY,
+            transportService,
+            clusterService,
+            mock(IndicesService.class),
+            threadPool,
+            shardStateAction,
+            new ActionFilters(Collections.emptySet()),
+            mock(SegmentReplicationTargetService.class)
+        );
     }
 
 }

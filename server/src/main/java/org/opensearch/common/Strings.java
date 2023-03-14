@@ -37,9 +37,9 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.util.CollectionUtils;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -78,67 +78,6 @@ public class Strings {
                 to.append(line).append('\n');
             }
         }
-    }
-
-    /**
-     * Splits a backslash escaped string on the separator.
-     * <p>
-     * Current backslash escaping supported:
-     * <br> \n \t \r \b \f are escaped the same as a Java String
-     * <br> Other characters following a backslash are produced verbatim (\c =&gt; c)
-     *
-     * @param s         the string to split
-     * @param separator the separator to split on
-     * @param decode    decode backslash escaping
-     */
-    public static List<String> splitSmart(String s, String separator, boolean decode) {
-        ArrayList<String> lst = new ArrayList<>(2);
-        StringBuilder sb = new StringBuilder();
-        int pos = 0, end = s.length();
-        while (pos < end) {
-            if (s.startsWith(separator, pos)) {
-                if (sb.length() > 0) {
-                    lst.add(sb.toString());
-                    sb = new StringBuilder();
-                }
-                pos += separator.length();
-                continue;
-            }
-
-            char ch = s.charAt(pos++);
-            if (ch == '\\') {
-                if (!decode) sb.append(ch);
-                if (pos >= end) break;  // ERROR, or let it go?
-                ch = s.charAt(pos++);
-                if (decode) {
-                    switch (ch) {
-                        case 'n':
-                            ch = '\n';
-                            break;
-                        case 't':
-                            ch = '\t';
-                            break;
-                        case 'r':
-                            ch = '\r';
-                            break;
-                        case 'b':
-                            ch = '\b';
-                            break;
-                        case 'f':
-                            ch = '\f';
-                            break;
-                    }
-                }
-            }
-
-            sb.append(ch);
-        }
-
-        if (sb.length() > 0) {
-            lst.add(sb.toString());
-        }
-
-        return lst;
     }
 
     // ---------------------------------------------------------------------
@@ -303,7 +242,7 @@ public class Strings {
         // the index of an occurrence we've found, or -1
         int patLen = oldPattern.length();
         while (index >= 0) {
-            sb.append(inString.substring(pos, index));
+            sb.append(inString, pos, index);
             sb.append(newPattern);
             pos = index + patLen;
             index = inString.indexOf(oldPattern, pos);
@@ -423,7 +362,7 @@ public class Strings {
         if (collection == null) {
             return null;
         }
-        return collection.toArray(new String[collection.size()]);
+        return collection.toArray(new String[0]);
     }
 
     /**
@@ -773,8 +712,8 @@ public class Strings {
      * Wraps the output into an anonymous object if needed. The content is not pretty-printed
      * nor human readable.
      */
-    public static String toString(ToXContent toXContent) {
-        return toString(toXContent, false, false);
+    public static String toString(MediaType mediaType, ToXContent toXContent) {
+        return toString(mediaType, toXContent, false, false);
     }
 
     /**
@@ -783,8 +722,8 @@ public class Strings {
      * Allows to configure the params.
      * The content is not pretty-printed nor human readable.
      */
-    public static String toString(ToXContent toXContent, ToXContent.Params params) {
-        return toString(toXContent, params, false, false);
+    public static String toString(MediaType mediaType, ToXContent toXContent, ToXContent.Params params) {
+        return toString(mediaType, toXContent, params, false, false);
     }
 
     /**
@@ -801,8 +740,8 @@ public class Strings {
      * json needs to be pretty printed and human readable.
      *
      */
-    public static String toString(ToXContent toXContent, boolean pretty, boolean human) {
-        return toString(toXContent, ToXContent.EMPTY_PARAMS, pretty, human);
+    public static String toString(MediaType mediaType, ToXContent toXContent, boolean pretty, boolean human) {
+        return toString(mediaType, toXContent, ToXContent.EMPTY_PARAMS, pretty, human);
     }
 
     /**
@@ -811,9 +750,9 @@ public class Strings {
      * Allows to configure the params.
      * Allows to control whether the outputted json needs to be pretty printed and human readable.
      */
-    private static String toString(ToXContent toXContent, ToXContent.Params params, boolean pretty, boolean human) {
+    private static String toString(MediaType mediaType, ToXContent toXContent, ToXContent.Params params, boolean pretty, boolean human) {
         try {
-            XContentBuilder builder = createBuilder(pretty, human);
+            XContentBuilder builder = createBuilder(mediaType, pretty, human);
             if (toXContent.isFragment()) {
                 builder.startObject();
             }
@@ -824,7 +763,7 @@ public class Strings {
             return toString(builder);
         } catch (IOException e) {
             try {
-                XContentBuilder builder = createBuilder(pretty, human);
+                XContentBuilder builder = createBuilder(mediaType, pretty, human);
                 builder.startObject();
                 builder.field("error", "error building toString out of XContent: " + e.getMessage());
                 builder.field("stack_trace", ExceptionsHelper.stackTrace(e));
@@ -836,8 +775,8 @@ public class Strings {
         }
     }
 
-    private static XContentBuilder createBuilder(boolean pretty, boolean human) throws IOException {
-        XContentBuilder builder = JsonXContent.contentBuilder();
+    private static XContentBuilder createBuilder(MediaType mediaType, boolean pretty, boolean human) throws IOException {
+        XContentBuilder builder = XContentBuilder.builder(mediaType.xContent());
         if (pretty) {
             builder.prettyPrint();
         }
@@ -873,10 +812,6 @@ public class Strings {
 
     public static boolean isNullOrEmpty(@Nullable String s) {
         return s == null || s.isEmpty();
-    }
-
-    public static String coalesceToEmpty(@Nullable String s) {
-        return s == null ? "" : s;
     }
 
     public static String padStart(String s, int minimumLength, char c) {

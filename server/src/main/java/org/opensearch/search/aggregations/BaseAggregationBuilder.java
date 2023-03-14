@@ -32,7 +32,7 @@
 
 package org.opensearch.search.aggregations;
 
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.aggregations.AggregatorFactories.Builder;
 
 import java.util.Map;

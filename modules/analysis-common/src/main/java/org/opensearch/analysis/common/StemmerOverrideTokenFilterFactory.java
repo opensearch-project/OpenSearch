@@ -40,24 +40,31 @@ import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AbstractTokenFilterFactory;
 import org.opensearch.index.analysis.Analysis;
+import org.opensearch.index.analysis.MappingRule;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 public class StemmerOverrideTokenFilterFactory extends AbstractTokenFilterFactory {
 
+    private static final String MAPPING_SEPARATOR = "=>";
     private final StemmerOverrideMap overrideMap;
 
     StemmerOverrideTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) throws IOException {
         super(indexSettings, name, settings);
 
-        List<String> rules = Analysis.getWordList(env, settings, "rules");
+        List<MappingRule<List<String>, String>> rules = Analysis.parseWordList(env, settings, "rules", this::parse);
         if (rules == null) {
             throw new IllegalArgumentException("stemmer override filter requires either `rules` or `rules_path` to be configured");
         }
 
         StemmerOverrideFilter.Builder builder = new StemmerOverrideFilter.Builder(false);
-        parseRules(rules, builder, "=>");
+        for (MappingRule<List<String>, String> rule : rules) {
+            for (String key : rule.getLeft()) {
+                builder.add(key, rule.getRight());
+            }
+        }
         overrideMap = builder.build();
 
     }
@@ -67,27 +74,26 @@ public class StemmerOverrideTokenFilterFactory extends AbstractTokenFilterFactor
         return new StemmerOverrideFilter(tokenStream, overrideMap);
     }
 
-    static void parseRules(List<String> rules, StemmerOverrideFilter.Builder builder, String mappingSep) {
-        for (String rule : rules) {
-            String[] sides = rule.split(mappingSep, -1);
-            if (sides.length != 2) {
-                throw new RuntimeException("Invalid Keyword override Rule:" + rule);
-            }
-
-            String[] keys = sides[0].split(",", -1);
-            String override = sides[1].trim();
-            if (override.isEmpty() || override.indexOf(',') != -1) {
-                throw new RuntimeException("Invalid Keyword override Rule:" + rule);
-            }
-
-            for (String key : keys) {
-                String trimmedKey = key.trim();
-                if (trimmedKey.isEmpty()) {
-                    throw new RuntimeException("Invalid Keyword override Rule:" + rule);
-                }
-                builder.add(trimmedKey, override);
-            }
+    private MappingRule<List<String>, String> parse(String rule) {
+        String[] sides = rule.split(MAPPING_SEPARATOR, -1);
+        if (sides.length != 2) {
+            throw new RuntimeException("Invalid keyword override rule: " + rule);
         }
-    }
 
+        String[] keys = sides[0].split(",", -1);
+        String override = sides[1].trim();
+        if (override.isEmpty() || override.indexOf(',') != -1) {
+            throw new RuntimeException("Invalid keyword override rule: " + rule);
+        }
+
+        List<String> trimmedKeys = new ArrayList<>();
+        for (String key : keys) {
+            String trimmedKey = key.trim();
+            if (trimmedKey.isEmpty()) {
+                throw new RuntimeException("Invalid keyword override rule: " + rule);
+            }
+            trimmedKeys.add(trimmedKey);
+        }
+        return new MappingRule<>(trimmedKeys, override);
+    }
 }

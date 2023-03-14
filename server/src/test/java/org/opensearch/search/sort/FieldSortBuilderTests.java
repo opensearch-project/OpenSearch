@@ -55,8 +55,8 @@ import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.xcontent.XContentParseException;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParseException;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -707,7 +707,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
             expectedWarnings.add(nestedPathDeprecationWarning);
         }
         if (expectedWarnings.isEmpty() == false) {
-            assertWarnings(expectedWarnings.toArray(new String[expectedWarnings.size()]));
+            assertWarnings(expectedWarnings.toArray(new String[0]));
             assertedWarnings.addAll(expectedWarnings);
         }
     }

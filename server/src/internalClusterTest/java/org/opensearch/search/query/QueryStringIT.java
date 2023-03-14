@@ -36,7 +36,7 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.Operator;
@@ -214,6 +214,39 @@ public class QueryStringIT extends OpenSearchIntegTestCase {
         resp = client().prepareSearch("test").setQuery(queryStringQuery("Foo Bar")).get();
         assertHits(resp.getHits(), "1", "2", "3");
         assertHitCount(resp, 3L);
+    }
+
+    public void testRegexCaseInsensitivity() throws Exception {
+        createIndex("messages");
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
+        indexRequests.add(client().prepareIndex("messages").setId("1").setSource("message", "message: this is a TLS handshake"));
+        indexRequests.add(client().prepareIndex("messages").setId("2").setSource("message", "message: this is a tcp handshake"));
+        indexRandom(true, false, indexRequests);
+
+        SearchResponse response = client().prepareSearch("messages").setQuery(queryStringQuery("/TLS/").defaultField("message")).get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+        assertHits(response.getHits(), "1");
+
+        response = client().prepareSearch("messages").setQuery(queryStringQuery("/tls/").defaultField("message")).get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+        assertHits(response.getHits(), "1");
+
+        response = client().prepareSearch("messages").setQuery(queryStringQuery("/TCP/").defaultField("message")).get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+        assertHits(response.getHits(), "2");
+
+        response = client().prepareSearch("messages").setQuery(queryStringQuery("/tcp/").defaultField("message")).get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+        assertHits(response.getHits(), "2");
+
+        response = client().prepareSearch("messages").setQuery(queryStringQuery("/HANDSHAKE/").defaultField("message")).get();
+        assertNoFailures(response);
+        assertHitCount(response, 2);
+        assertHits(response.getHits(), "1", "2");
     }
 
     public void testAllFields() throws Exception {

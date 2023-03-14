@@ -138,7 +138,7 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
     }
 
     @Override
-    final Checkpoint getCheckpoint() {
+    final public Checkpoint getCheckpoint() {
         return checkpoint;
     }
 

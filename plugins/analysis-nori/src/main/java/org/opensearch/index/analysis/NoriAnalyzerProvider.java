@@ -52,7 +52,7 @@ public class NoriAnalyzerProvider extends AbstractIndexAnalyzerProvider<KoreanAn
         super(indexSettings, name, settings);
         final KoreanTokenizer.DecompoundMode mode = NoriTokenizerFactory.getMode(settings);
         final UserDictionary userDictionary = NoriTokenizerFactory.getUserDictionary(env, settings);
-        final List<String> tagList = Analysis.getWordList(env, settings, "stoptags");
+        final List<String> tagList = Analysis.parseWordList(env, settings, "stoptags", s -> s);
         final Set<POS.Tag> stopTags = tagList != null ? resolvePOSList(tagList) : KoreanPartOfSpeechStopFilter.DEFAULT_STOP_TAGS;
         analyzer = new KoreanAnalyzer(userDictionary, mode, stopTags, false);
     }

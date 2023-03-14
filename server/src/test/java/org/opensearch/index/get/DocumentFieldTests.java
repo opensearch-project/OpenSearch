@@ -37,8 +37,8 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Map;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.document.DocumentField;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.IgnoredFieldMapper;
 import org.opensearch.indices.IndicesModule;
@@ -60,7 +60,7 @@ public class DocumentFieldTests extends OpenSearchTestCase {
 
     public void testToXContent() {
         DocumentField documentField = new DocumentField("field", Arrays.asList("value1", "value2"));
-        String output = Strings.toString(documentField);
+        String output = Strings.toString(XContentType.JSON, documentField);
         assertEquals("{\"field\":[\"value1\",\"value2\"]}", output);
     }
 

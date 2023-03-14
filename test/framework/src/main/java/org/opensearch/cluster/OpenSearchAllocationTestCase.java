@@ -60,11 +60,14 @@ import org.opensearch.test.gateway.TestGatewayAllocator;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Formatter;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.TreeMap;
 
 import static java.util.Collections.emptyMap;
 import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -166,6 +169,10 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
 
     protected static DiscoveryNode newNode(String nodeId, Set<DiscoveryNodeRole> roles) {
         return new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
+    }
+
+    protected static DiscoveryNode newNode(String nodeName, String nodeId, Set<DiscoveryNodeRole> roles) {
+        return new DiscoveryNode(nodeName, nodeId, buildNewFakeTransportAddress(), emptyMap(), roles, Version.CURRENT);
     }
 
     protected static DiscoveryNode newNode(String nodeId, Version version) {
@@ -299,6 +306,101 @@ public abstract class OpenSearchAllocationTestCase extends OpenSearchTestCase {
         @Override
         public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
             return decision;
+        }
+    }
+
+    /**
+     * Utility class to show shards distribution across nodes.
+     */
+    public static class ShardAllocations {
+
+        private static final String separator = "===================================================";
+        private static final String ONE_LINE_RETURN = "\n";
+        private static final String TWO_LINE_RETURN = "\n\n";
+
+        /**
+         Store shard primary/replica shard count against a node.
+         String: NodeId
+         int[]: tuple storing primary shard count in 0th index and replica's in 1st
+         */
+        static TreeMap<String, int[]> nodeToShardCountMap = new TreeMap<>();
+
+        /**
+         * Helper map containing NodeName to NodeId
+         */
+        static TreeMap<String, String> nameToNodeId = new TreeMap<>();
+
+        /*
+        Unassigned array containing primary at 0, replica at 1
+         */
+        static int[] unassigned = new int[2];
+
+        static int[] totalShards = new int[2];
+
+        private final static String printShardAllocationWithHeader(int[] shardCount) {
+            StringBuffer sb = new StringBuffer();
+            Formatter formatter = new Formatter(sb, Locale.getDefault());
+            formatter.format("%-20s %-20s\n", "P", shardCount[0]);
+            formatter.format("%-20s %-20s\n", "R", shardCount[1]);
+            return sb.toString();
+        }
+
+        private static void reset() {
+            nodeToShardCountMap.clear();
+            nameToNodeId.clear();
+            totalShards[0] = totalShards[1] = 0;
+            unassigned[0] = unassigned[1] = 0;
+        }
+
+        private static void buildMap(ClusterState inputState) {
+            reset();
+            for (RoutingNode node : inputState.getRoutingNodes()) {
+                if (node.node().getName() != null && node.node().getName().isEmpty() == false) {
+                    nameToNodeId.putIfAbsent(node.node().getName(), node.nodeId());
+                } else {
+                    nameToNodeId.putIfAbsent(node.nodeId(), node.nodeId());
+                }
+                nodeToShardCountMap.putIfAbsent(node.nodeId(), new int[] { 0, 0 });
+            }
+            for (ShardRouting shardRouting : inputState.routingTable().allShards()) {
+                // Fetch shard to update. Initialize local array
+                updateMap(nodeToShardCountMap, shardRouting);
+            }
+        }
+
+        private static void updateMap(TreeMap<String, int[]> mapToUpdate, ShardRouting shardRouting) {
+            int[] shard;
+            shard = shardRouting.assignedToNode() ? mapToUpdate.get(shardRouting.currentNodeId()) : unassigned;
+            // Update shard type count
+            if (shardRouting.primary()) {
+                shard[0]++;
+                totalShards[0]++;
+            } else {
+                shard[1]++;
+                totalShards[1]++;
+            }
+            // For assigned shards, put back counter
+            if (shardRouting.assignedToNode()) mapToUpdate.put(shardRouting.currentNodeId(), shard);
+        }
+
+        private static String allocation() {
+            StringBuffer sb = new StringBuffer();
+            sb.append(TWO_LINE_RETURN + separator + ONE_LINE_RETURN);
+            Formatter formatter = new Formatter(sb, Locale.getDefault());
+            for (Map.Entry<String, String> entry : nameToNodeId.entrySet()) {
+                String nodeId = nameToNodeId.get(entry.getKey());
+                formatter.format("%-20s\n", entry.getKey().toUpperCase(Locale.getDefault()));
+                sb.append(printShardAllocationWithHeader(nodeToShardCountMap.get(nodeId)));
+            }
+            sb.append(ONE_LINE_RETURN);
+            formatter.format("%-20s (P)%-5s (R)%-5s\n\n", "Unassigned ", unassigned[0], unassigned[1]);
+            formatter.format("%-20s (P)%-5s (R)%-5s\n\n", "Total Shards", totalShards[0], totalShards[1]);
+            return sb.toString();
+        }
+
+        public static String printShardDistribution(ClusterState state) {
+            buildMap(state);
+            return allocation();
         }
     }
 

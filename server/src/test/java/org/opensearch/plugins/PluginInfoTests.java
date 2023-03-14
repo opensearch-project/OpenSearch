@@ -77,34 +77,6 @@ public class PluginInfoTests extends OpenSearchTestCase {
         assertThat(info.getExtendedPlugins(), empty());
     }
 
-    public void testReadFromPropertiesWithFolderNameAndVersionBefore() throws Exception {
-        Path pluginDir = createTempDir().resolve("fake-plugin");
-        PluginTestUtil.writePluginProperties(
-            pluginDir,
-            "description",
-            "fake desc",
-            "name",
-            "my_plugin",
-            "version",
-            "1.0",
-            "opensearch.version",
-            Version.V_1_0_0.toString(),
-            "java.version",
-            System.getProperty("java.specification.version"),
-            "classname",
-            "FakePlugin",
-            "custom.foldername",
-            "custom-folder"
-        );
-        PluginInfo info = PluginInfo.readFromProperties(pluginDir);
-        assertEquals("my_plugin", info.getName());
-        assertEquals("fake desc", info.getDescription());
-        assertEquals("1.0", info.getVersion());
-        assertEquals("FakePlugin", info.getClassname());
-        assertEquals("my_plugin", info.getTargetFolderName());
-        assertThat(info.getExtendedPlugins(), empty());
-    }
-
     public void testReadFromPropertiesWithFolderNameAndVersionAfter() throws Exception {
         Path pluginDir = createTempDir().resolve("fake-plugin");
         PluginTestUtil.writePluginProperties(

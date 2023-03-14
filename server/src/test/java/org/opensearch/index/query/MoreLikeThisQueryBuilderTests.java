@@ -51,10 +51,10 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.search.MoreLikeThisQuery;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CollectionUtils;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.query.MoreLikeThisQueryBuilder.Item;
@@ -246,10 +246,7 @@ public class MoreLikeThisQueryBuilderTests extends AbstractQueryTestCase<MoreLik
                 if (request.doc() != null) {
                     generatedFields = generateFields(randomFields, request.doc().utf8ToString());
                 } else {
-                    generatedFields = generateFields(
-                        request.selectedFields().toArray(new String[request.selectedFields().size()]),
-                        request.id()
-                    );
+                    generatedFields = generateFields(request.selectedFields().toArray(new String[0]), request.id());
                 }
                 EnumSet<TermVectorsRequest.Flag> flags = EnumSet.of(TermVectorsRequest.Flag.Positions, TermVectorsRequest.Flag.Offsets);
                 response.setFields(generatedFields, request.selectedFields(), flags, generatedFields);

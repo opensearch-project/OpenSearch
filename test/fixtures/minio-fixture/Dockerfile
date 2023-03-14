@@ -1,4 +1,4 @@
-FROM minio/minio:RELEASE.2022-06-25T15-50-16Z
+FROM minio/minio:RELEASE.2022-11-17T23-20-09Z
 
 ARG bucket
 ARG accessKey

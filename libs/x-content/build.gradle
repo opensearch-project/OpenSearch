@@ -32,6 +32,7 @@ apply plugin: 'opensearch.build'
 apply plugin: 'opensearch.publish'
 
 dependencies {
+  api project(':libs:opensearch-common')
   api project(':libs:opensearch-core')
 
   api "org.yaml:snakeyaml:${versions.snakeyaml}"
@@ -47,6 +48,7 @@ dependencies {
   testImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'opensearch-x-content'
   }
+  testImplementation(project(":libs:opensearch-core"))
 
 }
 

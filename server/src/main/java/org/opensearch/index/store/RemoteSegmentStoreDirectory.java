@@ -17,6 +17,9 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.UUIDs;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
+import org.opensearch.common.io.VersionedCodecStreamWrapper;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
 
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
@@ -66,7 +69,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      * To prevent explosion of refresh metadata files, we replace refresh files for the given primary term and generation
      * This is achieved by uploading refresh metadata file with the same UUID suffix.
      */
-    private String metadataFileUniqueSuffix;
+    private String commonFilenameSuffix;
 
     /**
      * Keeps track of local segment filename to uploaded filename along with other attributes like checksum.
@@ -74,6 +77,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      * It is important to initialize this map on creation of RemoteSegmentStoreDirectory and update it on each upload and delete.
      */
     private Map<String, UploadedSegmentMetadata> segmentsUploadedToRemoteStore;
+
+    private static final VersionedCodecStreamWrapper<RemoteSegmentMetadata> metadataStreamWrapper = new VersionedCodecStreamWrapper<>(
+        new RemoteSegmentMetadataHandler(),
+        RemoteSegmentMetadata.CURRENT_VERSION,
+        RemoteSegmentMetadata.METADATA_CODEC
+    );
 
     private static final Logger logger = LogManager.getLogger(RemoteSegmentStoreDirectory.class);
 
@@ -92,7 +101,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      * @throws IOException if there were any failures in reading the metadata file
      */
     public void init() throws IOException {
-        this.metadataFileUniqueSuffix = UUIDs.base64UUID();
+        this.commonFilenameSuffix = UUIDs.base64UUID();
         this.segmentsUploadedToRemoteStore = new ConcurrentHashMap<>(readLatestMetadataFile());
     }
 
@@ -126,10 +135,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
 
     private Map<String, UploadedSegmentMetadata> readMetadataFile(String metadataFilename) throws IOException {
         try (IndexInput indexInput = remoteMetadataDirectory.openInput(metadataFilename, IOContext.DEFAULT)) {
-            Map<String, String> segmentMetadata = indexInput.readMapOfStrings();
-            return segmentMetadata.entrySet()
-                .stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, entry -> UploadedSegmentMetadata.fromString(entry.getValue())));
+            RemoteSegmentMetadata metadata = metadataStreamWrapper.readStream(indexInput);
+            return metadata.getMetadata();
         }
     }
 
@@ -139,6 +146,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
     public static class UploadedSegmentMetadata {
         // Visible for testing
         static final String SEPARATOR = "::";
+
         private final String originalFilename;
         private final String uploadedFilename;
         private final String checksum;
@@ -152,6 +160,10 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
         @Override
         public String toString() {
             return String.join(SEPARATOR, originalFilename, uploadedFilename, checksum);
+        }
+
+        public String getChecksum() {
+            return this.checksum;
         }
 
         public static UploadedSegmentMetadata fromString(String uploadedFilename) {
@@ -293,17 +305,26 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
         }
     }
 
+    public void copyFrom(Directory from, String src, String dest, IOContext context, boolean useCommonSuffix) throws IOException {
+        String remoteFilename;
+        if (useCommonSuffix) {
+            remoteFilename = dest + SEGMENT_NAME_UUID_SEPARATOR + this.commonFilenameSuffix;
+        } else {
+            remoteFilename = getNewRemoteSegmentFilename(dest);
+        }
+        remoteDataDirectory.copyFrom(from, src, remoteFilename, context);
+        String checksum = getChecksumOfLocalFile(from, src);
+        UploadedSegmentMetadata segmentMetadata = new UploadedSegmentMetadata(src, remoteFilename, checksum);
+        segmentsUploadedToRemoteStore.put(src, segmentMetadata);
+    }
+
     /**
      * Copies an existing src file from directory from to a non-existent file dest in this directory.
      * Once the segment is uploaded to remote segment store, update the cache accordingly.
      */
     @Override
     public void copyFrom(Directory from, String src, String dest, IOContext context) throws IOException {
-        String remoteFilename = getNewRemoteSegmentFilename(dest);
-        remoteDataDirectory.copyFrom(from, src, remoteFilename, context);
-        String checksum = getChecksumOfLocalFile(from, src);
-        UploadedSegmentMetadata segmentMetadata = new UploadedSegmentMetadata(src, remoteFilename, checksum);
-        segmentsUploadedToRemoteStore.put(src, segmentMetadata);
+        copyFrom(from, src, dest, context, false);
     }
 
     /**
@@ -330,7 +351,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
     public void uploadMetadata(Collection<String> segmentFiles, Directory storeDirectory, long primaryTerm, long generation)
         throws IOException {
         synchronized (this) {
-            String metadataFilename = MetadataFilenameUtils.getMetadataFilename(primaryTerm, generation, this.metadataFileUniqueSuffix);
+            String metadataFilename = MetadataFilenameUtils.getMetadataFilename(primaryTerm, generation, this.commonFilenameSuffix);
             IndexOutput indexOutput = storeDirectory.createOutput(metadataFilename, IOContext.DEFAULT);
             Map<String, String> uploadedSegments = new HashMap<>();
             for (String file : segmentFiles) {
@@ -340,7 +361,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
                     throw new NoSuchFileException(file);
                 }
             }
-            indexOutput.writeMapOfStrings(uploadedSegments);
+            metadataStreamWrapper.writeStream(indexOutput, RemoteSegmentMetadata.fromMapOfStrings(uploadedSegments));
             indexOutput.close();
             storeDirectory.sync(Collections.singleton(metadataFilename));
             remoteMetadataDirectory.copyFrom(storeDirectory, metadataFilename, metadataFilename, IOContext.DEFAULT);

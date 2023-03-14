@@ -37,6 +37,7 @@ import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.action.support.replication.ReplicationMode;
 import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.service.ClusterService;
@@ -207,6 +208,32 @@ public class RetentionLeaseBackgroundSyncActionTests extends OpenSearchTestCase 
         );
 
         assertNull(action.indexBlockLevel());
+    }
+
+    public void testGetReplicationModeWithRemoteTranslog() {
+        final RetentionLeaseBackgroundSyncAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(true);
+        assertEquals(ReplicationMode.NO_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    public void testGetReplicationModeWithLocalTranslog() {
+        final RetentionLeaseBackgroundSyncAction action = createAction();
+        final IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
+        assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    private RetentionLeaseBackgroundSyncAction createAction() {
+        return new RetentionLeaseBackgroundSyncAction(
+            Settings.EMPTY,
+            transportService,
+            clusterService,
+            mock(IndicesService.class),
+            threadPool,
+            shardStateAction,
+            new ActionFilters(Collections.emptySet())
+        );
     }
 
 }

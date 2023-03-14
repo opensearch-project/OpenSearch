@@ -173,8 +173,6 @@ public class InboundDecoder implements Releasable {
         int fixedHeaderSize = TcpHeader.headerSize(remoteVersion);
         if (fixedHeaderSize > reference.length()) {
             return 0;
-        } else if (remoteVersion.before(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-            return fixedHeaderSize;
         } else {
             int variableHeaderSize = reference.getInt(TcpHeader.VARIABLE_HEADER_SIZE_POSITION);
             int totalHeaderSize = fixedHeaderSize + variableHeaderSize;
@@ -198,11 +196,9 @@ public class InboundDecoder implements Releasable {
             if (invalidVersion != null) {
                 throw invalidVersion;
             } else {
-                if (remoteVersion.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-                    // Skip since we already have ensured enough data available
-                    streamInput.readInt();
-                    header.finishParsingHeader(streamInput);
-                }
+                // Skip since we already have ensured enough data available
+                streamInput.readInt();
+                header.finishParsingHeader(streamInput);
             }
             return header;
         }

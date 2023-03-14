@@ -35,14 +35,12 @@ package org.opensearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.component.AbstractLifecycleComponent;
@@ -73,7 +71,6 @@ import java.io.UncheckedIOException;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -400,6 +397,11 @@ public class TransportService extends AbstractLifecycleComponent
         connectToNode(node, (ConnectionProfile) null);
     }
 
+    // We are skipping node validation for extensibility as extensionNode and opensearchNode(LocalNode) will have different ephemeral id's
+    public void connectToExtensionNode(final DiscoveryNode node) {
+        PlainActionFuture.get(fut -> connectToExtensionNode(node, (ConnectionProfile) null, ActionListener.map(fut, x -> null)));
+    }
+
     /**
      * Connect to the specified node with the given connection profile
      *
@@ -408,6 +410,10 @@ public class TransportService extends AbstractLifecycleComponent
      */
     public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile) {
         PlainActionFuture.get(fut -> connectToNode(node, connectionProfile, ActionListener.map(fut, x -> null)));
+    }
+
+    public void connectToExtensionNode(final DiscoveryNode node, ConnectionProfile connectionProfile) {
+        PlainActionFuture.get(fut -> connectToExtensionNode(node, connectionProfile, ActionListener.map(fut, x -> null)));
     }
 
     /**
@@ -419,6 +425,10 @@ public class TransportService extends AbstractLifecycleComponent
      */
     public void connectToNode(DiscoveryNode node, ActionListener<Void> listener) throws ConnectTransportException {
         connectToNode(node, null, listener);
+    }
+
+    public void connectToExtensionNode(DiscoveryNode node, ActionListener<Void> listener) throws ConnectTransportException {
+        connectToExtensionNode(node, null, listener);
     }
 
     /**
@@ -437,14 +447,35 @@ public class TransportService extends AbstractLifecycleComponent
         connectionManager.connectToNode(node, connectionProfile, connectionValidator(node), listener);
     }
 
+    public void connectToExtensionNode(final DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Void> listener) {
+        if (isLocalNode(node)) {
+            listener.onResponse(null);
+            return;
+        }
+        connectionManager.connectToNode(node, connectionProfile, extensionConnectionValidator(node), listener);
+    }
+
     public ConnectionManager.ConnectionValidator connectionValidator(DiscoveryNode node) {
         return (newConnection, actualProfile, listener) -> {
             // We don't validate cluster names to allow for CCS connections.
             handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true, ActionListener.map(listener, resp -> {
                 final DiscoveryNode remote = resp.discoveryNode;
+
                 if (node.equals(remote) == false) {
                     throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
                 }
+
+                return null;
+            }));
+        };
+    }
+
+    public ConnectionManager.ConnectionValidator extensionConnectionValidator(DiscoveryNode node) {
+        return (newConnection, actualProfile, listener) -> {
+            // We don't validate cluster names to allow for CCS connections.
+            handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true, ActionListener.map(listener, resp -> {
+                final DiscoveryNode remote = resp.discoveryNode;
+                logger.info("Connection validation was skipped");
                 return null;
             }));
         };
@@ -612,22 +643,14 @@ public class TransportService extends AbstractLifecycleComponent
             super(in);
             discoveryNode = in.readOptionalWriteable(DiscoveryNode::new);
             clusterName = new ClusterName(in);
-            Version tmpVersion = Version.readVersion(in);
-            if (in.getVersion().onOrBefore(LegacyESVersion.V_7_10_2)) {
-                tmpVersion = LegacyESVersion.V_7_10_2;
-            }
-            version = tmpVersion;
+            version = Version.readVersion(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalWriteable(discoveryNode);
             clusterName.writeTo(out);
-            if (out.getVersion().before(Version.V_1_0_0)) {
-                Version.writeVersion(LegacyESVersion.V_7_10_2, out);
-            } else {
-                Version.writeVersion(version, out);
-            }
+            Version.writeVersion(version, out);
         }
 
         public DiscoveryNode getDiscoveryNode() {
@@ -742,6 +765,7 @@ public class TransportService extends AbstractLifecycleComponent
         final TransportResponseHandler<T> handler
     ) {
         try {
+            logger.debug("Action: " + action);
             final TransportResponseHandler<T> delegate;
             if (request.getParentTask().isSet()) {
                 // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.
@@ -800,18 +824,6 @@ public class TransportService extends AbstractLifecycleComponent
         } else {
             return connectionManager.getConnection(node);
         }
-    }
-
-    public Map<String, Version> getChannelVersion(DiscoveryNodes nodes) {
-        Map<String, Version> nodeChannelVersions = new HashMap<>(nodes.getSize());
-        for (DiscoveryNode node : nodes) {
-            try {
-                nodeChannelVersions.putIfAbsent(node.getId(), connectionManager.getConnection(node).getVersion());
-            } catch (Exception e) {
-                // ignore in case node is not connected
-            }
-        }
-        return nodeChannelVersions;
     }
 
     public final <T extends TransportResponse> void sendChildRequest(

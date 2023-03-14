@@ -729,7 +729,8 @@ public class QueryStringQueryParser extends XQueryParser {
             if (getAllowLeadingWildcard() == false && (termStr.startsWith("*") || termStr.startsWith("?"))) {
                 throw new ParseException("'*' or '?' not allowed as first character in WildcardQuery");
             }
-            return currentFieldType.wildcardQuery(termStr, getMultiTermRewriteMethod(), context);
+            // query string query is always normalized
+            return currentFieldType.normalizedWildcardQuery(termStr, getMultiTermRewriteMethod(), context);
         } catch (RuntimeException e) {
             if (lenient) {
                 return newLenientFieldQuery(field, e);

@@ -35,6 +35,8 @@ package org.opensearch.common.settings;
 import org.opensearch.common.inject.ModuleTestCase;
 import org.opensearch.common.settings.Setting.Property;
 import org.hamcrest.Matchers;
+import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.test.FeatureFlagSetter;
 
 import java.util.Arrays;
 
@@ -231,10 +233,55 @@ public class SettingsModuleTests extends ModuleTestCase {
 
     public void testOldMaxClauseCountSetting() {
         Settings settings = Settings.builder().put("index.query.bool.max_clause_count", 1024).build();
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new SettingsModule(settings));
+        SettingsException ex = expectThrows(SettingsException.class, () -> new SettingsModule(settings));
         assertEquals(
             "unknown setting [index.query.bool.max_clause_count] did you mean [indices.query.bool.max_clause_count]?",
             ex.getMessage()
         );
+    }
+
+    public void testDynamicNodeSettingsRegistration() throws Exception {
+        try (FeatureFlagSetter f = FeatureFlagSetter.set(FeatureFlags.EXTENSIONS)) {
+            Settings settings = Settings.builder().put("some.custom.setting", "2.0").build();
+            SettingsModule module = new SettingsModule(settings, Setting.floatSetting("some.custom.setting", 1.0f, Property.NodeScope));
+            assertNotNull(module.getClusterSettings().get("some.custom.setting"));
+            // For unregistered setting the value is expected to be null
+            assertNull(module.getClusterSettings().get("some.custom.setting2"));
+            assertInstanceBinding(module, Settings.class, (s) -> s == settings);
+
+            assertTrue(module.registerDynamicSetting(Setting.floatSetting("some.custom.setting2", 1.0f, Property.NodeScope)));
+            assertNotNull(module.getClusterSettings().get("some.custom.setting2"));
+            // verify if some.custom.setting still exists
+            assertNotNull(module.getClusterSettings().get("some.custom.setting"));
+
+            // verify exception is thrown when setting registration fails
+            expectThrows(
+                SettingsException.class,
+                () -> module.registerDynamicSetting(Setting.floatSetting("some.custom.setting", 1.0f, Property.NodeScope))
+            );
+        }
+    }
+
+    public void testDynamicIndexSettingsRegistration() throws Exception {
+        try (FeatureFlagSetter f = FeatureFlagSetter.set(FeatureFlags.EXTENSIONS)) {
+            Settings settings = Settings.builder().put("some.custom.setting", "2.0").build();
+            SettingsModule module = new SettingsModule(settings, Setting.floatSetting("some.custom.setting", 1.0f, Property.NodeScope));
+            assertNotNull(module.getClusterSettings().get("some.custom.setting"));
+            // For unregistered setting the value is expected to be null
+            assertNull(module.getIndexScopedSettings().get("index.custom.setting2"));
+            assertInstanceBinding(module, Settings.class, (s) -> s == settings);
+
+            assertTrue(module.registerDynamicSetting(Setting.floatSetting("index.custom.setting2", 1.0f, Property.IndexScope)));
+            assertNotNull(module.getIndexScopedSettings().get("index.custom.setting2"));
+
+            // verify if some.custom.setting still exists
+            assertNotNull(module.getClusterSettings().get("some.custom.setting"));
+
+            // verify exception is thrown when setting registration fails
+            expectThrows(
+                SettingsException.class,
+                () -> module.registerDynamicSetting(Setting.floatSetting("index.custom.setting2", 1.0f, Property.IndexScope))
+            );
+        }
     }
 }

@@ -35,6 +35,7 @@ import org.opensearch.gradle.test.GradleUnitTestCase;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
@@ -95,7 +96,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
         expectedException.expect(GradleException.class);
         expectedException.expectMessage(containsString("does not exist, but there are dependencies"));
 
-        project.getDependencies().add("compileClasspath", dependency);
+        project.getDependencies().add("someCompileConfiguration", dependency);
         task.get().checkDependencies();
     }
 
@@ -113,7 +114,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
         createFileIn(licensesDir, "groovy-LICENSE.txt", PERMISSIVE_LICENSE_TEXT);
         createFileIn(licensesDir, "groovy-NOTICE.txt", "");
 
-        project.getDependencies().add("compileClasspath", project.getDependencies().localGroovy());
+        project.getDependencies().add("someCompileConfiguration", project.getDependencies().localGroovy());
         task.get().checkDependencies();
     }
 
@@ -122,7 +123,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
         expectedException.expect(GradleException.class);
         expectedException.expectMessage(containsString("Missing LICENSE for "));
 
-        project.getDependencies().add("compileClasspath", project.getDependencies().localGroovy());
+        project.getDependencies().add("someCompileConfiguration", project.getDependencies().localGroovy());
 
         getLicensesDir(project).mkdir();
         updateShas.updateShas();
@@ -134,7 +135,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
         expectedException.expect(GradleException.class);
         expectedException.expectMessage(containsString("Missing NOTICE for "));
 
-        project.getDependencies().add("compileClasspath", dependency);
+        project.getDependencies().add("someCompileConfiguration", dependency);
 
         createFileIn(getLicensesDir(project), "groovy-LICENSE.txt", PERMISSIVE_LICENSE_TEXT);
 
@@ -147,7 +148,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
         expectedException.expect(GradleException.class);
         expectedException.expectMessage(containsString("Missing SOURCES for "));
 
-        project.getDependencies().add("compileClasspath", dependency);
+        project.getDependencies().add("someCompileConfiguration", dependency);
 
         createFileIn(getLicensesDir(project), "groovy-LICENSE.txt", STRICT_LICENSE_TEXT);
         createFileIn(getLicensesDir(project), "groovy-NOTICE.txt", "");
@@ -158,7 +159,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
 
     @Test
     public void givenProjectWithStrictDependencyAndEverythingInOrderThenShouldReturnSilently() throws Exception {
-        project.getDependencies().add("compileClasspath", dependency);
+        project.getDependencies().add("someCompileConfiguration", dependency);
 
         createFileIn(getLicensesDir(project), "groovy-LICENSE.txt", STRICT_LICENSE_TEXT);
         createFileIn(getLicensesDir(project), "groovy-NOTICE.txt", "");
@@ -174,7 +175,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
 
     @Test
     public void givenProjectWithDependencyAndEverythingInOrderThenShouldReturnSilently() throws Exception {
-        project.getDependencies().add("compileClasspath", dependency);
+        project.getDependencies().add("someCompileConfiguration", dependency);
 
         File licensesDir = getLicensesDir(project);
 
@@ -187,7 +188,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
         expectedException.expect(GradleException.class);
         expectedException.expectMessage(containsString("Unused license "));
 
-        project.getDependencies().add("compileClasspath", dependency);
+        project.getDependencies().add("someCompileConfiguration", dependency);
 
         File licensesDir = getLicensesDir(project);
         createAllDefaultDependencyFiles(licensesDir, "groovy", "javaparser-core");
@@ -201,7 +202,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
         expectedException.expect(GradleException.class);
         expectedException.expectMessage(containsString("Unused notice "));
 
-        project.getDependencies().add("compileClasspath", dependency);
+        project.getDependencies().add("someCompileConfiguration", dependency);
 
         File licensesDir = getLicensesDir(project);
         createAllDefaultDependencyFiles(licensesDir, "groovy", "javaparser-core");
@@ -215,7 +216,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
         expectedException.expect(GradleException.class);
         expectedException.expectMessage(containsString("Unused sha files found: \n"));
 
-        project.getDependencies().add("compileClasspath", dependency);
+        project.getDependencies().add("someCompileConfiguration", dependency);
 
         File licensesDir = getLicensesDir(project);
         createAllDefaultDependencyFiles(licensesDir, "groovy", "javaparser-core");
@@ -229,7 +230,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
         expectedException.expect(GradleException.class);
         expectedException.expectMessage(containsString("SHA has changed! Expected "));
 
-        project.getDependencies().add("compileClasspath", dependency);
+        project.getDependencies().add("someCompileConfiguration", dependency);
 
         File licensesDir = getLicensesDir(project);
         createAllDefaultDependencyFiles(licensesDir, "groovy");
@@ -243,7 +244,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
 
     @Test
     public void givenProjectWithADependencyMappingThenShouldReturnSilently() throws Exception {
-        project.getDependencies().add("compileClasspath", dependency);
+        project.getDependencies().add("someCompileConfiguration", dependency);
 
         File licensesDir = getLicensesDir(project);
         createAllDefaultDependencyFiles(licensesDir, "groovy", "javaparser");
@@ -258,7 +259,7 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
 
     @Test
     public void givenProjectWithAIgnoreShaConfigurationAndNoShaFileThenShouldReturnSilently() throws Exception {
-        project.getDependencies().add("compileClasspath", dependency);
+        project.getDependencies().add("someCompileConfiguration", dependency);
 
         File licensesDir = getLicensesDir(project);
         createFileIn(licensesDir, "groovy-LICENSE.txt", PERMISSIVE_LICENSE_TEXT);
@@ -296,6 +297,11 @@ public class DependencyLicensesTaskTests extends GradleUnitTestCase {
     private Project createProject() {
         Project project = ProjectBuilder.builder().build();
         project.getPlugins().apply(JavaPlugin.class);
+
+        Configuration compileClasspath = project.getConfigurations().getByName("compileClasspath");
+        Configuration someCompileConfiguration = project.getConfigurations().create("someCompileConfiguration");
+        // Declare a configuration that is going to resolve the compile classpath of the application
+        project.getConfigurations().add(compileClasspath.extendsFrom(someCompileConfiguration));
 
         return project;
     }

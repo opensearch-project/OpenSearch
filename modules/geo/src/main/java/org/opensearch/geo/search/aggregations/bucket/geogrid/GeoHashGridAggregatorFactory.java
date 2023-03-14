@@ -33,6 +33,9 @@
 package org.opensearch.geo.search.aggregations.bucket.geogrid;
 
 import org.opensearch.common.geo.GeoBoundingBox;
+import org.opensearch.geo.search.aggregations.bucket.geogrid.cells.CellIdSource;
+import org.opensearch.geo.search.aggregations.bucket.geogrid.cells.GeoShapeCellIdSource;
+import org.opensearch.geo.search.aggregations.bucket.geogrid.util.GeoShapeHashUtil;
 import org.opensearch.geometry.utils.Geohash;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.Aggregator;
@@ -120,6 +123,7 @@ class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
+        // register GeoPoint Aggregation
         builder.register(
             GeoHashGridAggregationBuilder.REGISTRY_KEY,
             CoreValuesSourceType.GEOPOINT,
@@ -140,6 +144,42 @@ class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory {
                     precision,
                     geoBoundingBox,
                     Geohash::longEncode
+                );
+                return new GeoHashGridAggregator(
+                    name,
+                    factories,
+                    cellIdSource,
+                    requiredSize,
+                    shardSize,
+                    aggregationContext,
+                    parent,
+                    cardinality,
+                    metadata
+                );
+            },
+            true
+        );
+        // register GeoShape Aggregation
+        builder.register(
+            GeoHashGridAggregationBuilder.REGISTRY_KEY,
+            CoreValuesSourceType.GEO_SHAPE,
+            (
+                name,
+                factories,
+                valuesSource,
+                precision,
+                geoBoundingBox,
+                requiredSize,
+                shardSize,
+                aggregationContext,
+                parent,
+                cardinality,
+                metadata) -> {
+                final GeoShapeCellIdSource cellIdSource = new GeoShapeCellIdSource(
+                    (ValuesSource.GeoShape) valuesSource,
+                    precision,
+                    geoBoundingBox,
+                    GeoShapeHashUtil::encodeShape
                 );
                 return new GeoHashGridAggregator(
                     name,

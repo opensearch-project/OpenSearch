@@ -40,8 +40,8 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.engine.Engine;
@@ -421,7 +421,7 @@ public class IndexServiceTests extends OpenSearchSingleNodeTestCase {
         final String indexName = "test";
         IndexService indexService = createIndex(
             indexName,
-            Settings.builder().put(TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING.getKey(), "100ms").build()
+            Settings.builder().put(TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING.getKey(), "200ms").build()
         );
 
         Translog translog = IndexShardTestCase.getTranslog(indexService.getShard(0));

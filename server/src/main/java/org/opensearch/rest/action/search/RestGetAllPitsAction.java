@@ -14,7 +14,7 @@ import org.opensearch.action.search.GetAllPitNodesResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
@@ -54,7 +54,7 @@ public class RestGetAllPitsAction extends BaseRestHandler {
         for (DiscoveryNode node : nodesInCluster.get()) {
             nodes.add(node);
         }
-        DiscoveryNode[] disNodesArr = nodes.toArray(new DiscoveryNode[nodes.size()]);
+        DiscoveryNode[] disNodesArr = nodes.toArray(new DiscoveryNode[0]);
         GetAllPitNodesRequest getAllPitNodesRequest = new GetAllPitNodesRequest(disNodesArr);
         return channel -> client.getAllPits(getAllPitNodesRequest, new RestBuilderListener<GetAllPitNodesResponse>(channel) {
             @Override

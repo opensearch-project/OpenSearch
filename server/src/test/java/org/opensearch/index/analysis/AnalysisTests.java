@@ -39,14 +39,10 @@ import org.opensearch.env.TestEnvironment;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.BufferedWriter;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.charset.CharacterCodingException;
-import java.nio.charset.MalformedInputException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
@@ -79,13 +75,10 @@ public class AnalysisTests extends OpenSearchTestCase {
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> Analysis.getWordList(env, nodeSettings, "foo.bar")
+            () -> Analysis.parseWordList(env, nodeSettings, "foo.bar", s -> s)
         );
-        assertEquals("IOException while reading foo.bar_path: " + tempDir.resolve("foo.dict").toString(), ex.getMessage());
-        assertTrue(
-            ex.getCause().toString(),
-            ex.getCause() instanceof FileNotFoundException || ex.getCause() instanceof NoSuchFileException
-        );
+        assertEquals("IOException while reading foo.bar_path: file not readable", ex.getMessage());
+        assertNull(ex.getCause());
     }
 
     public void testParseFalseEncodedFile() throws IOException {
@@ -99,18 +92,10 @@ public class AnalysisTests extends OpenSearchTestCase {
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> Analysis.getWordList(env, nodeSettings, "foo.bar")
+            () -> Analysis.parseWordList(env, nodeSettings, "foo.bar", s -> s)
         );
-        assertEquals(
-            "Unsupported character encoding detected while reading foo.bar_path: "
-                + tempDir.resolve("foo.dict").toString()
-                + " - files must be UTF-8 encoded",
-            ex.getMessage()
-        );
-        assertTrue(
-            ex.getCause().toString(),
-            ex.getCause() instanceof MalformedInputException || ex.getCause() instanceof CharacterCodingException
-        );
+        assertEquals("Unsupported character encoding detected while reading foo.bar_path: files must be UTF-8 encoded", ex.getMessage());
+        assertNull(ex.getCause());
     }
 
     public void testParseWordList() throws IOException {
@@ -124,8 +109,52 @@ public class AnalysisTests extends OpenSearchTestCase {
             writer.write('\n');
         }
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
-        List<String> wordList = Analysis.getWordList(env, nodeSettings, "foo.bar");
+        List<String> wordList = Analysis.parseWordList(env, nodeSettings, "foo.bar", s -> s);
         assertEquals(Arrays.asList("hello", "world"), wordList);
+    }
 
+    public void testParseWordListError() throws IOException {
+        Path home = createTempDir();
+        Path config = home.resolve("config");
+        Files.createDirectory(config);
+        Path dict = config.resolve("foo.dict");
+        Settings nodeSettings = Settings.builder().put("foo.bar_path", dict).put(Environment.PATH_HOME_SETTING.getKey(), home).build();
+        try (BufferedWriter writer = Files.newBufferedWriter(dict, StandardCharsets.UTF_8)) {
+            writer.write("abcd");
+            writer.write('\n');
+        }
+        Environment env = TestEnvironment.newEnvironment(nodeSettings);
+        RuntimeException ex = expectThrows(
+            RuntimeException.class,
+            () -> Analysis.parseWordList(
+                env,
+                nodeSettings,
+                "foo.bar",
+                s -> { throw new RuntimeException("Error while parsing rule = " + s); }
+            )
+        );
+        assertEquals("Line [1]: Error while parsing rule = abcd", ex.getMessage());
+    }
+
+    public void testParseWordListOutsideConfigDirError() throws IOException {
+        Path home = createTempDir();
+        Path temp = createTempDir();
+        Path dict = temp.resolve("foo.dict");
+        try (BufferedWriter writer = Files.newBufferedWriter(dict, StandardCharsets.UTF_8)) {
+            writer.write("abcd");
+            writer.write('\n');
+        }
+        Settings nodeSettings = Settings.builder().put("foo.bar_path", dict).put(Environment.PATH_HOME_SETTING.getKey(), home).build();
+        Environment env = TestEnvironment.newEnvironment(nodeSettings);
+        RuntimeException ex = expectThrows(
+            RuntimeException.class,
+            () -> Analysis.parseWordList(
+                env,
+                nodeSettings,
+                "foo.bar",
+                s -> { throw new RuntimeException("Error while parsing rule = " + s); }
+            )
+        );
+        assertEquals("Line [1]: Invalid rule", ex.getMessage());
     }
 }

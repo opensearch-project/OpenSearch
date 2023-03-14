@@ -9,6 +9,7 @@
 package org.opensearch.action.admin.cluster.node.tasks;
 
 import com.sun.management.ThreadMXBean;
+import org.apache.lucene.util.Constants;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.NotifyOnceListener;
@@ -303,7 +304,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
                 actualTaskMemoryOverhead - taskTestContext.memoryConsumptionWhenExecutionStarts,
                 expectedArrayAllocationOverhead
             );
-            assertTrue(task.getTotalResourceStats().getCpuTimeInNanos() > 0);
+            assertCPUTime(task.getTotalResourceStats().getCpuTimeInNanos());
         };
 
         startResourceAwareNodesAction(testNodes[0], false, taskTestContext, new ActionListener<NodesResponse>() {
@@ -362,7 +363,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
                 actualTaskMemoryOverhead - taskTestContext.memoryConsumptionWhenExecutionStarts,
                 expectedOverhead
             );
-            assertTrue(task.getTotalResourceStats().getCpuTimeInNanos() > 0);
+            assertCPUTime(task.getTotalResourceStats().getCpuTimeInNanos());
         };
 
         startResourceAwareNodesAction(testNodes[0], true, taskTestContext, new ActionListener<NodesResponse>() {
@@ -463,7 +464,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
                 actualTaskMemoryOverhead - taskTestContext.memoryConsumptionWhenExecutionStarts,
                 expectedArrayAllocationOverhead
             );
-            assertTrue(task.getTotalResourceStats().getCpuTimeInNanos() > 0);
+            assertCPUTime(task.getTotalResourceStats().getCpuTimeInNanos());
         };
 
         startResourceAwareNodesAction(testNodes[0], false, taskTestContext, new ActionListener<NodesResponse>() {
@@ -543,7 +544,7 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
 
             assertNotNull(taskInfo.getResourceStats());
             assertNotNull(taskInfo.getResourceStats().getResourceUsageInfo());
-            assertTrue(taskInfo.getResourceStats().getResourceUsageInfo().get("total").getCpuTimeInNanos() > 0);
+            assertCPUTime(taskInfo.getResourceStats().getResourceUsageInfo().get("total").getCpuTimeInNanos());
             assertTrue(taskInfo.getResourceStats().getResourceUsageInfo().get("total").getMemoryInBytes() > 0);
         };
 
@@ -654,5 +655,16 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
         // 5% buffer up to 200 KB to account for classloading overhead.
         long maxOverhead = Math.min(200000, expected * 5 / 100);
         assertThat(actual, lessThanOrEqualTo(expected + maxOverhead));
+    }
+
+    private void assertCPUTime(long cpuTimeInNanos) {
+        // Windows registers a cpu tick at a default of ~15ms which is slightly slower than other OSs.
+        // The work done within the runnable in this test often completes in under that time and returns a 0 value from
+        // ThreadMXBean.getThreadCpuTime. To reduce flakiness in this test accept 0 as a value on Windows.
+        if (Constants.WINDOWS) {
+            assertTrue("Cpu should be non negative on windows", cpuTimeInNanos >= 0);
+        } else {
+            assertTrue("Cpu should have a positive value", cpuTimeInNanos > 0);
+        }
     }
 }

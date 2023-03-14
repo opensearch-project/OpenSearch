@@ -49,14 +49,14 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentLocation;
-import org.opensearch.common.xcontent.XContentParseException;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentLocation;
+import org.opensearch.core.xcontent.XContentParseException;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;
@@ -449,8 +449,8 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
 
         { // test equivalence
             OpenSearchException ex = new RemoteTransportException("foobar", new FileNotFoundException("foo not found"));
-            String toXContentString = Strings.toString(ex);
-            String throwableString = Strings.toString((builder, params) -> {
+            String toXContentString = Strings.toString(XContentType.JSON, ex);
+            String throwableString = Strings.toString(XContentType.JSON, (builder, params) -> {
                 OpenSearchException.generateThrowableXContent(builder, params, ex);
                 return builder;
             });
@@ -742,7 +742,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         BytesReference throwableBytes = toShuffledXContent((builder, params) -> {
             OpenSearchException.generateThrowableXContent(builder, params, throwable);
             return builder;
-        }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
+        }, xContent.mediaType(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         OpenSearchException parsedException;
         try (XContentParser parser = createParser(xContent, throwableBytes)) {
@@ -774,7 +774,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
             // Prints a null failure using generateFailureXContent()
             OpenSearchException.generateFailureXContent(builder, params, null, randomBoolean());
             return builder;
-        }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
+        }, xContent.mediaType(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         OpenSearchException parsedFailure;
         try (XContentParser parser = createParser(xContent, failureBytes)) {
@@ -798,7 +798,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         BytesReference failureBytes = toShuffledXContent((builder, params) -> {
             OpenSearchException.generateFailureXContent(builder, params, failure, false);
             return builder;
-        }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
+        }, xContent.mediaType(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         try (XContentParser parser = createParser(xContent, failureBytes)) {
             failureBytes = BytesReference.bytes(shuffleXContent(parser, randomBoolean()));
@@ -952,7 +952,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         BytesReference failureBytes = toShuffledXContent((builder, params) -> {
             OpenSearchException.generateFailureXContent(builder, params, finalFailure, true);
             return builder;
-        }, xContent.type(), ToXContent.EMPTY_PARAMS, randomBoolean());
+        }, xContent.mediaType(), ToXContent.EMPTY_PARAMS, randomBoolean());
 
         try (XContentParser parser = createParser(xContent, failureBytes)) {
             failureBytes = BytesReference.bytes(shuffleXContent(parser, randomBoolean()));

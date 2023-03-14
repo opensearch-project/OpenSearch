@@ -36,9 +36,9 @@ import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.io.entity.StringEntity;
 import org.junit.Before;
-import org.opensearch.common.ParseField;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -153,7 +153,7 @@ public class RestHighLevelClientExtTests extends OpenSearchTestCase {
                 values.add(parser.text());
             }
             assertEquals(XContentParser.Token.END_ARRAY, parser.currentToken());
-            CustomResponseSection2 responseSection2 = new CustomResponseSection2(values.toArray(new String[values.size()]));
+            CustomResponseSection2 responseSection2 = new CustomResponseSection2(values.toArray(new String[0]));
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             return responseSection2;
         }

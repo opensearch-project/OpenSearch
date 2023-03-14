@@ -57,6 +57,8 @@ import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.index.store.StoreStats;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -141,11 +143,12 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
             .prepareStats(sourceIndex)
             .clear()
             .setDocs(true)
+            .setStore(true)
             .execute(ActionListener.delegateFailure(listener, (delegatedListener, indicesStatsResponse) -> {
                 CreateIndexClusterStateUpdateRequest updateRequest = prepareCreateIndexRequest(resizeRequest, state, i -> {
                     IndexShardStats shard = indicesStatsResponse.getIndex(sourceIndex).getIndexShards().get(i);
                     return shard == null ? null : shard.getPrimary().getDocs();
-                }, sourceIndex, targetIndex);
+                }, indicesStatsResponse.getPrimaries().store, sourceIndex, targetIndex);
                 createIndexService.createIndex(
                     updateRequest,
                     ActionListener.map(
@@ -162,6 +165,7 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
         final ResizeRequest resizeRequest,
         final ClusterState state,
         final IntFunction<DocsStats> perShardDocStats,
+        final StoreStats primaryShardsStoreStats,
         String sourceIndexName,
         String targetIndexName
     ) {
@@ -176,12 +180,22 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
         targetIndexSettingsBuilder.remove(IndexMetadata.SETTING_HISTORY_UUID);
         final Settings targetIndexSettings = targetIndexSettingsBuilder.build();
         final int numShards;
+
+        // max_shard_size is only supported for shrink
+        ByteSizeValue maxShardSize = resizeRequest.getMaxShardSize();
+        if (resizeRequest.getResizeType() != ResizeType.SHRINK && maxShardSize != null) {
+            throw new IllegalArgumentException("Unsupported parameter [max_shard_size]");
+        }
+
         if (IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
             numShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings);
+            if (resizeRequest.getResizeType() == ResizeType.SHRINK && maxShardSize != null) {
+                throw new IllegalArgumentException("Cannot set max_shard_size and index.number_of_shards at the same time!");
+            }
         } else {
             assert resizeRequest.getResizeType() != ResizeType.SPLIT : "split must specify the number of shards explicitly";
             if (resizeRequest.getResizeType() == ResizeType.SHRINK) {
-                numShards = 1;
+                numShards = calculateTargetIndexShardsNum(maxShardSize, primaryShardsStoreStats, metadata);
             } else {
                 assert resizeRequest.getResizeType() == ResizeType.CLONE;
                 numShards = metadata.getNumberOfShards();
@@ -248,6 +262,46 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
             .recoverFrom(metadata.getIndex())
             .resizeType(resizeRequest.getResizeType())
             .copySettings(resizeRequest.getCopySettings() == null ? false : resizeRequest.getCopySettings());
+    }
+
+    /**
+     * Calculate target index's shards count according to max_shard_ize and the source index's storage(only primary shards included)
+     * for shrink. Target index's shards count is the lowest factor of the source index's primary shards count which satisfies the
+     * maximum shard size requirement. If max_shard_size is less than the source index's single shard size, then target index's shards count
+     * will be equal to the source index's shards count.
+     * @param maxShardSize the maximum size of a primary shard in the target index
+     * @param sourceIndexShardStoreStats primary shards' store stats of the source index
+     * @param sourceIndexMetaData source index's metadata
+     * @return target index's shards number
+     */
+    protected static int calculateTargetIndexShardsNum(
+        ByteSizeValue maxShardSize,
+        StoreStats sourceIndexShardStoreStats,
+        IndexMetadata sourceIndexMetaData
+    ) {
+        if (maxShardSize == null
+            || sourceIndexShardStoreStats == null
+            || maxShardSize.getBytes() == 0
+            || sourceIndexShardStoreStats.getSizeInBytes() == 0) {
+            return 1;
+        }
+
+        int sourceIndexShardsNum = sourceIndexMetaData.getNumberOfShards();
+        // calculate the minimum shards count according to source index's storage, ceiling ensures that the minimum shards count is never
+        // less than 1
+        int minValue = (int) Math.ceil((double) sourceIndexShardStoreStats.getSizeInBytes() / maxShardSize.getBytes());
+        // if minimum shards count is greater than the source index's shards count, then the source index's shards count will be returned
+        if (minValue >= sourceIndexShardsNum) {
+            return sourceIndexShardsNum;
+        }
+
+        // find the lowest factor of the source index's shards count here, because minimum shards count may not be a factor
+        for (int i = minValue; i < sourceIndexShardsNum; i++) {
+            if (sourceIndexShardsNum % i == 0) {
+                return i;
+            }
+        }
+        return sourceIndexShardsNum;
     }
 
     @Override

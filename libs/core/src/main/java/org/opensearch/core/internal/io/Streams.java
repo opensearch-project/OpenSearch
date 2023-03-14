@@ -42,6 +42,8 @@ import java.io.OutputStream;
  * <p>
  * Mainly for use within the framework,
  * but also useful for application code.
+ *
+ * @opensearch.internal
  */
 public abstract class Streams {
 

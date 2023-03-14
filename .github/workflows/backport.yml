@@ -7,11 +7,22 @@ on:
 
 jobs:
   backport:
+    name: Backport
     runs-on: ubuntu-latest
+    # Only react to merged PRs for security reasons.
+    # See https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#pull_request_target.
+    if: >
+      github.event.pull_request.merged
+      && (
+        github.event.action == 'closed'
+        || (
+          github.event.action == 'labeled'
+          && contains(github.event.label.name, 'backport')
+        )
+      )
     permissions:
       contents: write
       pull-requests: write
-    name: Backport
     steps:
       - name: GitHub App token
         id: github_app_token
@@ -22,7 +33,7 @@ jobs:
           installation_id: 22958780
 
       - name: Backport
-        uses: VachaShah/backport@v1.1.4
+        uses: VachaShah/backport@v2.1.0
         with:
           github_token: ${{ steps.github_app_token.outputs.token }}
-          branch_name: backport/backport-${{ github.event.number }}
+          head_template: backport/backport-<%= number %>-to-<%= base %>

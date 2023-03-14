@@ -22,6 +22,7 @@ import org.opensearch.index.translog.listener.TranslogEventListener;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -55,7 +56,8 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         String translogUUID,
         TranslogEventListener translogEventListener,
         LifecycleAware engineLifeCycleAware,
-        TranslogFactory translogFactory
+        TranslogFactory translogFactory,
+        BooleanSupplier primaryModeSupplier
     ) throws IOException {
         this.shardId = shardId;
         this.readLock = readLock;
@@ -68,7 +70,7 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
             if (tracker != null) {
                 tracker.markSeqNoAsPersisted(seqNo);
             }
-        }, translogUUID, translogFactory);
+        }, translogUUID, translogFactory, primaryModeSupplier);
         assert translog.getGeneration() != null;
         this.translog = translog;
         assert pendingTranslogRecovery.get() == false : "translog recovery can't be pending before we set it";
@@ -289,6 +291,11 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         }
     }
 
+    @Override
+    public void setMinSeqNoToKeep(long seqNo) {
+        translog.setMinSeqNoToKeep(seqNo);
+    }
+
     /**
      * Reads operations from the translog
      * @param location location of translog
@@ -340,16 +347,17 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         LongSupplier globalCheckpointSupplier,
         LongConsumer persistedSequenceNumberConsumer,
         String translogUUID,
-        TranslogFactory translogFactory
+        TranslogFactory translogFactory,
+        BooleanSupplier primaryModeSupplier
     ) throws IOException {
-
         return translogFactory.newTranslog(
             translogConfig,
             translogUUID,
             translogDeletionPolicy,
             globalCheckpointSupplier,
             primaryTermSupplier,
-            persistedSequenceNumberConsumer
+            persistedSequenceNumberConsumer,
+            primaryModeSupplier
         );
     }
 

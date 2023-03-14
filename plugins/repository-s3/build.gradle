@@ -173,9 +173,9 @@ if (!s3EC2Bucket && !s3EC2BasePath && !s3ECSBucket && !s3ECSBasePath && !s3EKSBu
 processYamlRestTestResources {
   Map<String, Object> expansions = [
     'permanent_bucket': s3PermanentBucket,
-    'permanent_base_path': s3PermanentBasePath + "_integration_tests",
+    'permanent_base_path': s3PermanentBasePath + "_integration_tests_" + BuildParams.testSeed,
     'temporary_bucket': s3TemporaryBucket,
-    'temporary_base_path': s3TemporaryBasePath + "_integration_tests",
+    'temporary_base_path': s3TemporaryBasePath + "_integration_tests_" + BuildParams.testSeed,
     'ec2_bucket': s3EC2Bucket,
     'ec2_base_path': s3EC2BasePath,
     'ecs_bucket': s3ECSBucket,

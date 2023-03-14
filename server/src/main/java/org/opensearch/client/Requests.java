@@ -578,8 +578,8 @@ public class Requests {
      *
      * @return delete weight request
      */
-    public static ClusterDeleteWeightedRoutingRequest deleteWeightedRoutingRequest() {
-        return new ClusterDeleteWeightedRoutingRequest();
+    public static ClusterDeleteWeightedRoutingRequest deleteWeightedRoutingRequest(String attributeName) {
+        return new ClusterDeleteWeightedRoutingRequest(attributeName);
     }
 
     /**

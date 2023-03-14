@@ -105,7 +105,7 @@ public class TransportNodesActionTests extends OpenSearchTestCase {
             String nodeId = randomFrom(nodeIds);
             nodeSelectors.add(nodeId);
         }
-        String[] finalNodesIds = nodeSelectors.toArray(new String[nodeSelectors.size()]);
+        String[] finalNodesIds = nodeSelectors.toArray(new String[0]);
         TestNodesRequest request = new TestNodesRequest(finalNodesIds);
         action.new AsyncAction(null, request, new PlainActionFuture<>()).start();
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.getCapturedRequestsByTargetNodeAndClear();

@@ -32,6 +32,8 @@
 
 package org.opensearch.index.analysis;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.ar.ArabicAnalyzer;
 import org.apache.lucene.analysis.bg.BulgarianAnalyzer;
@@ -94,6 +96,7 @@ import static java.util.Collections.unmodifiableMap;
  * @opensearch.internal
  */
 public class Analysis {
+    private static final Logger LOGGER = LogManager.getLogger(Analysis.class);
 
     public static CharArraySet parseStemExclusion(Settings settings, CharArraySet defaultStemExclusion) {
         String value = settings.get("stem_exclusion");
@@ -166,7 +169,7 @@ public class Analysis {
                 return resolveNamedWords(settings.getAsList(name), namedWords, ignoreCase);
             }
         }
-        List<String> pathLoadedWords = getWordList(env, settings, name);
+        List<String> pathLoadedWords = parseWordList(env, settings, name, s -> s);
         if (pathLoadedWords != null) {
             return resolveNamedWords(pathLoadedWords, namedWords, ignoreCase);
         }
@@ -207,7 +210,7 @@ public class Analysis {
     }
 
     public static CharArraySet getWordSet(Environment env, Settings settings, String settingsPrefix) {
-        List<String> wordList = getWordList(env, settings, settingsPrefix);
+        List<String> wordList = parseWordList(env, settings, settingsPrefix, s -> s);
         if (wordList == null) {
             return null;
         }
@@ -215,15 +218,48 @@ public class Analysis {
         return new CharArraySet(wordList, ignoreCase);
     }
 
+    public static <T> List<T> parseWordList(Environment env, Settings settings, String settingPrefix, CustomMappingRuleParser<T> parser) {
+        return parseWordList(env, settings, settingPrefix + "_path", settingPrefix, parser);
+    }
+
     /**
-     * Fetches a list of words from the specified settings file. The list should either be available at the key
-     * specified by settingsPrefix or in a file specified by settingsPrefix + _path.
+     * Parses a list of words from the specified settings or from a file, with the given parser.
      *
      * @throws IllegalArgumentException
      *          If the word list cannot be found at either key.
+     * @throws RuntimeException
+     *          If there is error parsing the words
      */
-    public static List<String> getWordList(Environment env, Settings settings, String settingPrefix) {
-        return getWordList(env, settings, settingPrefix + "_path", settingPrefix, true);
+    public static <T> List<T> parseWordList(
+        Environment env,
+        Settings settings,
+        String settingPath,
+        String settingList,
+        CustomMappingRuleParser<T> parser
+    ) {
+        List<String> words = getWordList(env, settings, settingPath, settingList);
+        if (words == null) {
+            return null;
+        }
+        List<T> rules = new ArrayList<>();
+        int lineNum = 0;
+        for (String word : words) {
+            lineNum++;
+            if (word.startsWith("#") == false) {
+                try {
+                    rules.add(parser.apply(word));
+                } catch (RuntimeException ex) {
+                    String wordListPath = settings.get(settingPath, null);
+                    if (wordListPath == null || isUnderConfig(env, wordListPath)) {
+                        throw new RuntimeException("Line [" + lineNum + "]: " + ex.getMessage());
+                    } else {
+                        LOGGER.error("Line [{}]: {}", lineNum, ex);
+                        throw new RuntimeException("Line [" + lineNum + "]: " + "Invalid rule");
+                    }
+                }
+            }
+        }
+        return rules;
     }
 
     /**
@@ -233,43 +269,33 @@ public class Analysis {
      * @throws IllegalArgumentException
      *          If the word list cannot be found at either key.
      */
-    public static List<String> getWordList(
-        Environment env,
-        Settings settings,
-        String settingPath,
-        String settingList,
-        boolean removeComments
-    ) {
+    private static List<String> getWordList(Environment env, Settings settings, String settingPath, String settingList) {
         String wordListPath = settings.get(settingPath, null);
 
         if (wordListPath == null) {
-            List<String> explicitWordList = settings.getAsList(settingList, null);
-            if (explicitWordList == null) {
-                return null;
-            } else {
-                return explicitWordList;
-            }
+            return settings.getAsList(settingList, null);
         }
 
-        final Path path = env.configDir().resolve(wordListPath);
+        final Path path = resolveAnalyzerPath(env, wordListPath);
 
         try {
-            return loadWordList(path, removeComments);
+            return loadWordList(path);
         } catch (CharacterCodingException ex) {
             String message = String.format(
                 Locale.ROOT,
-                "Unsupported character encoding detected while reading %s: %s - files must be UTF-8 encoded",
-                settingPath,
-                path.toString()
+                "Unsupported character encoding detected while reading %s: files must be UTF-8 encoded",
+                settingPath
             );
-            throw new IllegalArgumentException(message, ex);
+            LOGGER.error("{}: from file: {}, exception is: {}", message, path.toString(), ex);
+            throw new IllegalArgumentException(message);
         } catch (IOException ioe) {
-            String message = String.format(Locale.ROOT, "IOException while reading %s: %s", settingPath, path.toString());
-            throw new IllegalArgumentException(message, ioe);
+            String message = String.format(Locale.ROOT, "IOException while reading %s: file not readable", settingPath);
+            LOGGER.error("{}, from file: {}, exception is: {}", message, path.toString(), ioe);
+            throw new IllegalArgumentException(message);
         }
     }
 
-    private static List<String> loadWordList(Path path, boolean removeComments) throws IOException {
+    private static List<String> loadWordList(Path path) throws IOException {
         final List<String> result = new ArrayList<>();
         try (BufferedReader br = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
             String word;
@@ -277,9 +303,7 @@ public class Analysis {
                 if (Strings.hasText(word) == false) {
                     continue;
                 }
-                if (removeComments == false || word.startsWith("#") == false) {
-                    result.add(word.trim());
-                }
+                result.add(word.trim());
             }
         }
         return result;
@@ -296,21 +320,34 @@ public class Analysis {
         if (filePath == null) {
             return null;
         }
-        final Path path = env.configDir().resolve(filePath);
+        final Path path = resolveAnalyzerPath(env, filePath);
         try {
             return Files.newBufferedReader(path, StandardCharsets.UTF_8);
         } catch (CharacterCodingException ex) {
             String message = String.format(
                 Locale.ROOT,
-                "Unsupported character encoding detected while reading %s_path: %s files must be UTF-8 encoded",
-                settingPrefix,
-                path.toString()
+                "Unsupported character encoding detected while reading %s_path: files must be UTF-8 encoded",
+                settingPrefix
             );
-            throw new IllegalArgumentException(message, ex);
+            LOGGER.error("{}: from file: {}, exception is: {}", message, path.toString(), ex);
+            throw new IllegalArgumentException(message);
         } catch (IOException ioe) {
-            String message = String.format(Locale.ROOT, "IOException while reading %s_path: %s", settingPrefix, path.toString());
-            throw new IllegalArgumentException(message, ioe);
+            String message = String.format(Locale.ROOT, "IOException while reading %s_path: file not readable", settingPrefix);
+            LOGGER.error("{}, from file: {}, exception is: {}", message, path.toString(), ioe);
+            throw new IllegalArgumentException(message);
         }
     }
 
+    public static Path resolveAnalyzerPath(Environment env, String wordListPath) {
+        return env.configDir().resolve(wordListPath).normalize();
+    }
+
+    private static boolean isUnderConfig(Environment env, String wordListPath) {
+        try {
+            final Path path = env.configDir().resolve(wordListPath).normalize();
+            return path.startsWith(env.configDir().toAbsolutePath());
+        } catch (Exception ex) {
+            return false;
+        }
+    }
 }

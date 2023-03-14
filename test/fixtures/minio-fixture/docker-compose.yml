@@ -14,6 +14,14 @@ services:
         soft: 4096
     ports:
       - "9000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    volumes:
+      - type: tmpfs
+        target: /minio/data
     command: ["server", "--console-address", ":9001", "/minio/data"]
   minio-fixture-other:
     build:
@@ -29,6 +37,14 @@ services:
         soft: 4096
     ports:
       - "9000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    volumes:
+      - type: tmpfs
+        target: /minio/data
     command: ["server", "--console-address", ":9001", "/minio/data"]
   minio-fixture-for-snapshot-tool:
     build:
@@ -44,4 +60,12 @@ services:
         soft: 4096
     ports:
       - "9000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+    volumes:
+      - type: tmpfs
+        target: /minio/data
     command: ["server", "--console-address", ":9001", "/minio/data"]

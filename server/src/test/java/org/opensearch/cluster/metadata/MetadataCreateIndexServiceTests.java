@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.opensearch.ExceptionsHelper;
@@ -66,7 +65,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.env.Environment;
 import org.opensearch.index.Index;
@@ -94,7 +93,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -1074,6 +1072,13 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     public void testvalidateIndexSettings() {
         ClusterService clusterService = mock(ClusterService.class);
+        Metadata metadata = Metadata.builder()
+            .transientSettings(Settings.builder().put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 1).build())
+            .build();
+        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+            .metadata(metadata)
+            .build();
+
         ThreadPool threadPool = new TestThreadPool(getTestName());
         Settings settings = Settings.builder()
             .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone, rack")
@@ -1084,6 +1089,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         when(clusterService.getSettings()).thenReturn(settings);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        when(clusterService.state()).thenReturn(clusterState);
+
         MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
             settings,
             clusterService,
@@ -1300,14 +1307,6 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         } catch (IOException e) {
             throw ExceptionsHelper.convertToRuntime(e);
         }
-    }
-
-    private static Map<String, CompressedXContent> convertMappings(ImmutableOpenMap<String, CompressedXContent> mappings) {
-        Map<String, CompressedXContent> converted = new HashMap<>(mappings.size());
-        for (ObjectObjectCursor<String, CompressedXContent> cursor : mappings) {
-            converted.put(cursor.key, cursor.value);
-        }
-        return converted;
     }
 
     private ShardLimitValidator randomShardLimitService() {

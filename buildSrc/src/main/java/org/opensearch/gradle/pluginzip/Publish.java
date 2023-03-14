@@ -59,7 +59,7 @@ public class Publish implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getPluginManager().apply("nebula.maven-base-publish");
+        project.getPluginManager().apply("com.netflix.nebula.maven-nebula-publish");
         project.getPluginManager().apply(MavenPublishPlugin.class);
         project.afterEvaluate(evaluatedProject -> {
             if (isZipPublicationPresent(project)) {

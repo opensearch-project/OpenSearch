@@ -32,6 +32,7 @@
 package org.opensearch.common.lucene.store;
 
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.RandomAccessInput;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -41,14 +42,14 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class ByteArrayIndexInput extends IndexInput {
+public class ByteArrayIndexInput extends IndexInput implements RandomAccessInput {
     private final byte[] bytes;
 
+    private final int offset;
+
+    private final int length;
+
     private int pos;
-
-    private int offset;
-
-    private int length;
 
     public ByteArrayIndexInput(String resourceDesc, byte[] bytes) {
         this(resourceDesc, bytes, 0, bytes.length);
@@ -106,18 +107,66 @@ public class ByteArrayIndexInput extends IndexInput {
 
     @Override
     public byte readByte() throws IOException {
-        if (pos >= offset + length) {
-            throw new EOFException("seek past EOF");
-        }
+        validatePos(pos, Byte.BYTES);
         return bytes[offset + pos++];
     }
 
     @Override
     public void readBytes(final byte[] b, final int offset, int len) throws IOException {
-        if (pos + len > this.offset + length) {
-            throw new EOFException("seek past EOF");
-        }
+        validatePos(pos, len);
         System.arraycopy(bytes, this.offset + pos, b, offset, len);
         pos += len;
+    }
+
+    @Override
+    public byte readByte(long pos) throws IOException {
+        validatePos(pos, Byte.BYTES);
+        return internalReadByte(pos);
+    }
+
+    @Override
+    public short readShort(long pos) throws IOException {
+        validatePos(pos, Short.BYTES);
+        return internalReadShort(pos);
+    }
+
+    @Override
+    public int readInt(long pos) throws IOException {
+        validatePos(pos, Integer.BYTES);
+        return internalReadInt(pos);
+    }
+
+    @Override
+    public long readLong(long pos) throws IOException {
+        validatePos(pos, Long.BYTES);
+        return internalReadLong(pos);
+    }
+
+    private byte internalReadByte(long pos) {
+        return bytes[offset + (int) pos];
+    }
+
+    private short internalReadShort(long pos) {
+        final byte p1 = internalReadByte(pos);
+        final byte p2 = internalReadByte(pos + 1);
+        return (short) (((p2 & 0xFF) << 8) | (p1 & 0xFF));
+    }
+
+    private int internalReadInt(long pos) {
+        final short p1 = internalReadShort(pos);
+        final short p2 = internalReadShort(pos + Short.BYTES);
+        return ((p2 & 0xFFFF) << 16) | (p1 & 0xFFFF);
+    }
+
+    public long internalReadLong(long pos) {
+        final int p1 = internalReadInt(pos);
+        final int p2 = internalReadInt(pos + Integer.BYTES);
+        return (((long) p2) << 32) | (p1 & 0xFFFFFFFFL);
+    }
+
+    private void validatePos(long pos, int len) throws EOFException {
+        if (pos < 0 || pos + len > length + offset) {
+            throw new EOFException("seek past EOF");
+        }
     }
 }

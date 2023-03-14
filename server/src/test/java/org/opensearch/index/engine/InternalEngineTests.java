@@ -80,7 +80,6 @@ import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.SetOnce;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.opensearch.OpenSearchException;
@@ -96,6 +95,7 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.CheckedBiConsumer;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.Randomness;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.Strings;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.UUIDs;
@@ -141,12 +141,13 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.shard.ShardUtils;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
+import org.opensearch.index.translog.LocalTranslog;
 import org.opensearch.index.translog.SnapshotMatchers;
 import org.opensearch.index.translog.TestTranslog;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
-import org.opensearch.index.translog.TranslogException;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
+import org.opensearch.index.translog.TranslogException;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.IndexSettingsModule;
@@ -3525,17 +3526,6 @@ public class InternalEngineTests extends EngineTestCase {
         }
     }
 
-    private Path[] filterExtraFSFiles(Path[] files) {
-        List<Path> paths = new ArrayList<>();
-        for (Path p : files) {
-            if (p.getFileName().toString().startsWith("extra")) {
-                continue;
-            }
-            paths.add(p);
-        }
-        return paths.toArray(new Path[0]);
-    }
-
     public void testTranslogReplay() throws IOException {
         final LongSupplier inSyncGlobalCheckpointSupplier = () -> this.engine.getProcessedLocalCheckpoint();
         final int numDocs = randomIntBetween(1, 10);
@@ -3675,7 +3665,7 @@ public class InternalEngineTests extends EngineTestCase {
 
         final Path badTranslogLog = createTempDir();
         final String badUUID = Translog.createEmptyTranslog(badTranslogLog, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
-        Translog translog = new Translog(
+        Translog translog = new LocalTranslog(
             new TranslogConfig(shardId, badTranslogLog, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE),
             badUUID,
             createTranslogDeletionPolicy(INDEX_SETTINGS),
@@ -3696,30 +3686,29 @@ public class InternalEngineTests extends EngineTestCase {
             BigArrays.NON_RECYCLING_INSTANCE
         );
 
-        EngineConfig brokenConfig = new EngineConfig(
-            shardId,
-            threadPool,
-            config.getIndexSettings(),
-            null,
-            store,
-            newMergePolicy(),
-            config.getAnalyzer(),
-            config.getSimilarity(),
-            new CodecService(null, logger),
-            config.getEventListener(),
-            IndexSearcher.getDefaultQueryCache(),
-            IndexSearcher.getDefaultQueryCachingPolicy(),
-            translogConfig,
-            TimeValue.timeValueMinutes(5),
-            config.getExternalRefreshListener(),
-            config.getInternalRefreshListener(),
-            null,
-            new NoneCircuitBreakerService(),
-            () -> UNASSIGNED_SEQ_NO,
-            () -> RetentionLeases.EMPTY,
-            primaryTerm::get,
-            tombstoneDocSupplier()
-        );
+        EngineConfig brokenConfig = new EngineConfig.Builder().shardId(shardId)
+            .threadPool(threadPool)
+            .indexSettings(config.getIndexSettings())
+            .warmer(null)
+            .store(store)
+            .mergePolicy(newMergePolicy())
+            .analyzer(config.getAnalyzer())
+            .similarity(config.getSimilarity())
+            .codecService(new CodecService(null, logger))
+            .eventListener(config.getEventListener())
+            .queryCache(IndexSearcher.getDefaultQueryCache())
+            .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
+            .translogConfig(translogConfig)
+            .flushMergesAfter(TimeValue.timeValueMinutes(5))
+            .externalRefreshListener(config.getExternalRefreshListener())
+            .internalRefreshListener(config.getInternalRefreshListener())
+            .indexSort(null)
+            .circuitBreakerService(new NoneCircuitBreakerService())
+            .globalCheckpointSupplier(() -> UNASSIGNED_SEQ_NO)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .primaryTermSupplier(primaryTerm::get)
+            .tombstoneDocSupplier(tombstoneDocSupplier())
+            .build();
         expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
 
         engine = createEngine(store, primaryTranslogDir); // and recover again!
@@ -3739,31 +3728,30 @@ public class InternalEngineTests extends EngineTestCase {
         TranslogDeletionPolicyFactory translogDeletionPolicyFactory = CustomTranslogDeletionPolicy::new;
 
         EngineConfig config = engine.config();
-        EngineConfig configWithCustomTranslogDeletionPolicyFactory = new EngineConfig(
-            config.getShardId(),
-            config.getThreadPool(),
-            config.getIndexSettings(),
-            config.getWarmer(),
-            config.getStore(),
-            config.getMergePolicy(),
-            config.getAnalyzer(),
-            config.getSimilarity(),
-            new CodecService(null, logger),
-            config.getEventListener(),
-            config.getQueryCache(),
-            config.getQueryCachingPolicy(),
-            config.getTranslogConfig(),
-            translogDeletionPolicyFactory,
-            config.getFlushMergesAfter(),
-            config.getExternalRefreshListener(),
-            config.getInternalRefreshListener(),
-            config.getIndexSort(),
-            config.getCircuitBreakerService(),
-            config.getGlobalCheckpointSupplier(),
-            config.retentionLeasesSupplier(),
-            config.getPrimaryTermSupplier(),
-            config.getTombstoneDocSupplier()
-        );
+        EngineConfig configWithCustomTranslogDeletionPolicyFactory = new EngineConfig.Builder().shardId(config.getShardId())
+            .threadPool(config.getThreadPool())
+            .indexSettings(config.getIndexSettings())
+            .warmer(config.getWarmer())
+            .store(config.getStore())
+            .mergePolicy(config.getMergePolicy())
+            .analyzer(config.getAnalyzer())
+            .similarity(config.getSimilarity())
+            .codecService(new CodecService(null, logger))
+            .eventListener(config.getEventListener())
+            .queryCache(config.getQueryCache())
+            .queryCachingPolicy(config.getQueryCachingPolicy())
+            .translogConfig(config.getTranslogConfig())
+            .translogDeletionPolicyFactory(translogDeletionPolicyFactory)
+            .flushMergesAfter(config.getFlushMergesAfter())
+            .externalRefreshListener(config.getExternalRefreshListener())
+            .internalRefreshListener(config.getInternalRefreshListener())
+            .indexSort(config.getIndexSort())
+            .circuitBreakerService(config.getCircuitBreakerService())
+            .globalCheckpointSupplier(config.getGlobalCheckpointSupplier())
+            .retentionLeasesSupplier(config.retentionLeasesSupplier())
+            .primaryTermSupplier(config.getPrimaryTermSupplier())
+            .tombstoneDocSupplier(config.getTombstoneDocSupplier())
+            .build();
         engine.close();
         engine = createEngine(configWithCustomTranslogDeletionPolicyFactory);
         engine.ensureOpen();
@@ -7383,30 +7371,29 @@ public class InternalEngineTests extends EngineTestCase {
                 config.getTranslogConfig().getIndexSettings(),
                 config.getTranslogConfig().getBigArrays()
             );
-            EngineConfig configWithWarmer = new EngineConfig(
-                config.getShardId(),
-                config.getThreadPool(),
-                config.getIndexSettings(),
-                warmer,
-                store,
-                config.getMergePolicy(),
-                config.getAnalyzer(),
-                config.getSimilarity(),
-                new CodecService(null, logger),
-                config.getEventListener(),
-                config.getQueryCache(),
-                config.getQueryCachingPolicy(),
-                translogConfig,
-                config.getFlushMergesAfter(),
-                config.getExternalRefreshListener(),
-                config.getInternalRefreshListener(),
-                config.getIndexSort(),
-                config.getCircuitBreakerService(),
-                config.getGlobalCheckpointSupplier(),
-                config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(),
-                config.getTombstoneDocSupplier()
-            );
+            EngineConfig configWithWarmer = new EngineConfig.Builder().shardId(config.getShardId())
+                .threadPool(config.getThreadPool())
+                .indexSettings(config.getIndexSettings())
+                .warmer(warmer)
+                .store(store)
+                .mergePolicy(config.getMergePolicy())
+                .analyzer(config.getAnalyzer())
+                .similarity(config.getSimilarity())
+                .codecService(new CodecService(null, logger))
+                .eventListener(config.getEventListener())
+                .queryCache(config.getQueryCache())
+                .queryCachingPolicy(config.getQueryCachingPolicy())
+                .translogConfig(translogConfig)
+                .flushMergesAfter(config.getFlushMergesAfter())
+                .externalRefreshListener(config.getExternalRefreshListener())
+                .internalRefreshListener(config.getInternalRefreshListener())
+                .indexSort(config.getIndexSort())
+                .circuitBreakerService(config.getCircuitBreakerService())
+                .globalCheckpointSupplier(config.getGlobalCheckpointSupplier())
+                .retentionLeasesSupplier(config.retentionLeasesSupplier())
+                .primaryTermSupplier(config.getPrimaryTermSupplier())
+                .tombstoneDocSupplier(config.getTombstoneDocSupplier())
+                .build();
             try (InternalEngine engine = createEngine(configWithWarmer)) {
                 assertThat(warmedUpReaders, empty());
                 assertThat(
@@ -7559,6 +7546,161 @@ public class InternalEngineTests extends EngineTestCase {
         long actualLocalCheckpoint = engine.getProcessedLocalCheckpoint();
         assertEquals(expectedLocalCheckpoint, actualLocalCheckpoint);
         verify(mockCheckpointTracker, atLeastOnce()).getProcessedCheckpoint();
+        store.close();
+        engine.close();
+    }
+
+    public void testGetMaxSeqNoRefreshedWithoutRefresh() throws IOException {
+        IOUtils.close(store, engine);
+
+        final Settings.Builder settings = Settings.builder().put(defaultSettings.getSettings()).put("index.refresh_interval", "300s");
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
+
+        Store store = createStore();
+        InternalEngine engine = createEngine(indexSettings, store, createTempDir(), newMergePolicy());
+
+        int numDocs = randomIntBetween(10, 100);
+        for (int i = 0; i < numDocs; i++) {
+            engine.index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
+        }
+
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            assertEquals(NO_OPS_PERFORMED, engine.getMaxSeqNoFromSearcher(searcher));
+        }
+
+        store.close();
+        engine.close();
+    }
+
+    public void testGetMaxSeqNoRefreshed() throws IOException {
+        IOUtils.close(store, engine);
+
+        final Settings.Builder settings = Settings.builder().put(defaultSettings.getSettings()).put("index.refresh_interval", "300s");
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
+
+        Store store = createStore();
+        InternalEngine engine = createEngine(indexSettings, store, createTempDir(), newMergePolicy());
+
+        int totalNumberOfDocsRefreshed = 0;
+        for (int j = 0; j < randomIntBetween(1, 10); j++) {
+            int numDocs = randomIntBetween(10, 100);
+            for (int i = totalNumberOfDocsRefreshed; i < (totalNumberOfDocsRefreshed + numDocs); i++) {
+                engine.index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
+            }
+            // this is just to make sure that refresh post flush has the same impact.
+            if (randomBoolean()) {
+                engine.refresh("test");
+            } else {
+                engine.flush();
+            }
+            totalNumberOfDocsRefreshed += numDocs;
+        }
+        // Optionally, index more docs without refreshing. These should not be part of getMaxSeqNoRefreshed
+        if (randomBoolean()) {
+            for (int i = totalNumberOfDocsRefreshed; i < (totalNumberOfDocsRefreshed + randomIntBetween(10, 100)); i++) {
+                engine.index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
+            }
+        }
+
+        try (Engine.Searcher searcher = engine.acquireSearcher("test", Engine.SearcherScope.INTERNAL)) {
+            assertEquals(totalNumberOfDocsRefreshed - 1, engine.getMaxSeqNoFromSearcher(searcher));
+        }
+
+        store.close();
+        engine.close();
+    }
+
+    public void testGetMaxSeqNoFromSegmentInfos() throws IOException {
+        IOUtils.close(store, engine);
+
+        final Settings.Builder settings = Settings.builder().put(defaultSettings.getSettings()).put("index.refresh_interval", "300s");
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
+
+        Store store = createStore();
+        InternalEngine engine = createEngine(indexSettings, store, createTempDir(), newMergePolicy());
+
+        int totalNumberOfDocsRefreshed = 0;
+        for (int j = 0; j < randomIntBetween(1, 10); j++) {
+            int numDocs = randomIntBetween(10, 100);
+            for (int i = totalNumberOfDocsRefreshed; i < (totalNumberOfDocsRefreshed + numDocs); i++) {
+                engine.index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
+            }
+            // this is just to make sure that refresh post flush has the same impact.
+            if (randomBoolean()) {
+                engine.refresh("test");
+            } else {
+                engine.flush();
+            }
+            totalNumberOfDocsRefreshed += numDocs;
+        }
+        // Optionally, index more docs without refreshing. These should not be part of getMaxSeqNoRefreshed
+        if (randomBoolean()) {
+            for (int i = totalNumberOfDocsRefreshed; i < (totalNumberOfDocsRefreshed + randomIntBetween(10, 100)); i++) {
+                engine.index(indexForDoc(createParsedDoc(Integer.toString(i), null)));
+            }
+        }
+
+        try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = engine.getSegmentInfosSnapshot()) {
+            assertEquals(totalNumberOfDocsRefreshed - 1, engine.getMaxSeqNoFromSegmentInfos(segmentInfosGatedCloseable.get()));
+        }
+
+        store.close();
+        engine.close();
+    }
+
+    public void testGetMaxSeqNoFromSegmentInfosConcurrentWrites() throws IOException, BrokenBarrierException, InterruptedException {
+        IOUtils.close(store, engine);
+
+        final Settings.Builder settings = Settings.builder().put(defaultSettings.getSettings()).put("index.refresh_interval", "300s");
+        final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+        final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
+
+        Store store = createStore();
+        InternalEngine engine = createEngine(indexSettings, store, createTempDir(), newMergePolicy());
+
+        final int numIndexingThreads = scaledRandomIntBetween(3, 8);
+        final int numDocsPerThread = randomIntBetween(500, 1000);
+        final CyclicBarrier barrier = new CyclicBarrier(numIndexingThreads + 1);
+        final List<Thread> indexingThreads = new ArrayList<>();
+        final CountDownLatch doneLatch = new CountDownLatch(numIndexingThreads);
+        // create N indexing threads to index documents simultaneously
+        for (int threadNum = 0; threadNum < numIndexingThreads; threadNum++) {
+            final int threadIdx = threadNum;
+            Thread indexingThread = new Thread(() -> {
+                try {
+                    barrier.await(); // wait for all threads to start at the same time
+                    // index random number of docs
+                    for (int i = 0; i < numDocsPerThread; i++) {
+                        final String id = "thread" + threadIdx + "#" + i;
+                        ParsedDocument doc = testParsedDocument(id, null, testDocument(), B_1, null);
+                        engine.index(indexForDoc(doc));
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                } finally {
+                    doneLatch.countDown();
+                }
+
+            });
+            indexingThreads.add(indexingThread);
+        }
+
+        // start the indexing threads
+        for (Thread thread : indexingThreads) {
+            thread.start();
+        }
+        barrier.await(); // wait for indexing threads to all be ready to start
+        assertTrue(doneLatch.await(10, TimeUnit.SECONDS));
+
+        engine.refresh("test");
+
+        try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = engine.getSegmentInfosSnapshot()) {
+            assertEquals(numIndexingThreads * numDocsPerThread - 1, engine.getMaxSeqNoFromSegmentInfos(segmentInfosGatedCloseable.get()));
+        }
+
         store.close();
         engine.close();
     }

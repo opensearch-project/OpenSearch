@@ -49,11 +49,17 @@ import org.opensearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.Index;
+import org.opensearch.index.IndexModule;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.stream.Stream;
+import java.util.Set;
+
+import static org.opensearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 
 /**
  * Transport action for updating index settings
@@ -63,6 +69,19 @@ import java.io.IOException;
 public class TransportUpdateSettingsAction extends TransportClusterManagerNodeAction<UpdateSettingsRequest, AcknowledgedResponse> {
 
     private static final Logger logger = LogManager.getLogger(TransportUpdateSettingsAction.class);
+
+    private final static Set<String> ALLOWLIST_REMOTE_SNAPSHOT_SETTINGS = Set.of(
+        "index.max_result_window",
+        "index.max_inner_result_window",
+        "index.max_rescore_window",
+        "index.max_docvalue_fields_search",
+        "index.max_script_fields",
+        "index.max_terms_count",
+        "index.max_regex_length",
+        "index.highlight.max_analyzed_offset"
+    );
+
+    private final static String[] ALLOWLIST_REMOTE_SNAPSHOT_SETTINGS_PREFIXES = { "index.search.slowlog" };
 
     private final MetadataUpdateSettingsService updateSettingsService;
 
@@ -106,6 +125,37 @@ public class TransportUpdateSettingsAction extends TransportClusterManagerNodeAc
             || IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.exists(request.settings())) {
             return null;
         }
+
+        if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT)) {
+            final Index[] requestIndices = indexNameExpressionResolver.concreteIndices(state, request);
+            boolean allowSearchableSnapshotSettingsUpdate = true;
+            // check if all indices in the request are remote snapshot
+            for (Index index : requestIndices) {
+                if (state.blocks().indexBlocked(ClusterBlockLevel.METADATA_WRITE, index.getName())) {
+                    allowSearchableSnapshotSettingsUpdate = allowSearchableSnapshotSettingsUpdate
+                        && IndexModule.Type.REMOTE_SNAPSHOT.match(
+                            state.getMetadata().getIndexSafe(index).getSettings().get(INDEX_STORE_TYPE_SETTING.getKey())
+                        );
+                }
+            }
+            // check if all settings in the request are in the allow list
+            if (allowSearchableSnapshotSettingsUpdate) {
+                for (String setting : request.settings().keySet()) {
+                    allowSearchableSnapshotSettingsUpdate = allowSearchableSnapshotSettingsUpdate
+                        && (ALLOWLIST_REMOTE_SNAPSHOT_SETTINGS.contains(setting)
+                            || Stream.of(ALLOWLIST_REMOTE_SNAPSHOT_SETTINGS_PREFIXES).anyMatch(setting::startsWith));
+                }
+            }
+
+            return allowSearchableSnapshotSettingsUpdate
+                ? null
+                : state.blocks()
+                    .indicesBlockedException(
+                        ClusterBlockLevel.METADATA_WRITE,
+                        indexNameExpressionResolver.concreteIndexNames(state, request)
+                    );
+        }
+
         return state.blocks()
             .indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, indexNameExpressionResolver.concreteIndexNames(state, request));
     }

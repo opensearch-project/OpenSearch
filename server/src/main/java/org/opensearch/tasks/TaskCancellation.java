@@ -9,13 +9,17 @@
 package org.opensearch.tasks;
 
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.action.ActionListener;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
 /**
- * TaskCancellation is a wrapper for a task and its cancellation reasons.
+ * TaskCancellation represents a task eligible for cancellation.
+ * It doesn't guarantee that the task will actually get cancelled or not; that decision is left to the caller.
+ *
+ * It contains a list of cancellation reasons along with callbacks that are invoked when cancel() is called.
  *
  * @opensearch.internal
  */
@@ -51,7 +55,25 @@ public class TaskCancellation implements Comparable<TaskCancellation> {
         }
 
         task.cancel(getReasonString());
+        runOnCancelCallbacks();
+    }
 
+    /**
+     *  Cancels the task and its descendants and invokes all onCancelCallbacks.
+     */
+    public void cancelTaskAndDescendants(TaskManager taskManager) {
+        if (isEligibleForCancellation() == false) {
+            return;
+        }
+
+        taskManager.cancelTaskAndDescendants(task, getReasonString(), false, ActionListener.wrap(() -> {}));
+        runOnCancelCallbacks();
+    }
+
+    /**
+     * invokes all onCancelCallbacks.
+     */
+    private void runOnCancelCallbacks() {
         List<Exception> exceptions = new ArrayList<>();
         for (Runnable callback : onCancelCallbacks) {
             try {

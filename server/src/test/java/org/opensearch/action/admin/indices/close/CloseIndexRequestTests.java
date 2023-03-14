@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.indices.close;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
@@ -75,13 +74,8 @@ public class CloseIndexRequestTests extends OpenSearchTestCase {
                     assertEquals(request.clusterManagerNodeTimeout(), in.readTimeValue());
                     assertEquals(request.timeout(), in.readTimeValue());
                     assertArrayEquals(request.indices(), in.readStringArray());
-                    // indices options are not equivalent when sent to an older version and re-read due
-                    // to the addition of hidden indices as expand to hidden indices is always true when
-                    // read from a prior version
                     final IndicesOptions indicesOptions = IndicesOptions.readIndicesOptions(in);
-                    if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0) || request.indicesOptions().expandWildcardsHidden()) {
-                        assertEquals(request.indicesOptions(), indicesOptions);
-                    }
+                    assertEquals(request.indicesOptions(), indicesOptions);
                     assertEquals(request.waitForActiveShards(), ActiveShardCount.readFrom(in));
                 }
             }
@@ -107,12 +101,7 @@ public class CloseIndexRequestTests extends OpenSearchTestCase {
                 assertEquals(sample.clusterManagerNodeTimeout(), deserializedRequest.clusterManagerNodeTimeout());
                 assertEquals(sample.timeout(), deserializedRequest.timeout());
                 assertArrayEquals(sample.indices(), deserializedRequest.indices());
-                // indices options are not equivalent when sent to an older version and re-read due
-                // to the addition of hidden indices as expand to hidden indices is always true when
-                // read from a prior version
-                if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0) || sample.indicesOptions().expandWildcardsHidden()) {
-                    assertEquals(sample.indicesOptions(), deserializedRequest.indicesOptions());
-                }
+                assertEquals(sample.indicesOptions(), deserializedRequest.indicesOptions());
                 assertEquals(sample.waitForActiveShards(), deserializedRequest.waitForActiveShards());
             }
         }

@@ -88,7 +88,7 @@ public class ScriptClassInfo {
                             + "] has more than one."
                     );
                 }
-            } else if (m.getName().startsWith("needs") && m.getReturnType() == boolean.class && m.getParameterTypes().length == 0) {
+            } else if (m.getName().startsWith("needs") && m.getReturnType() == boolean.class && m.getParameterCount() == 0) {
                 needsMethods.add(new org.objectweb.asm.commons.Method(m.getName(), NEEDS_PARAMETER_METHOD_TYPE.toMethodDescriptorString()));
             } else if (m.getName().startsWith("get")
                 && m.getName().equals("getClass") == false
@@ -124,7 +124,7 @@ public class ScriptClassInfo {
         FunctionTable.LocalFunction defConverter = null;
         for (java.lang.reflect.Method m : baseClass.getMethods()) {
             if (m.getName().startsWith("convertFrom")
-                && m.getParameterTypes().length == 1
+                && m.getParameterCount() == 1
                 && m.getReturnType() == returnType
                 && Modifier.isStatic(m.getModifiers())) {
 

@@ -32,8 +32,6 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.Aggregations;
@@ -43,7 +41,6 @@ import org.opensearch.search.aggregations.InternalMultiBucketAggregation;
 import org.opensearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.opensearch.search.aggregations.support.AggregationPath;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -69,24 +66,6 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
         this.gapPolicy = gapPolicy;
         this.format = format;
     }
-
-    /**
-     * Read from a stream.
-     */
-    BucketMetricsPipelineAggregator(StreamInput in) throws IOException {
-        super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
-        gapPolicy = GapPolicy.readFrom(in);
-    }
-
-    @Override
-    public final void doWriteTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(format);
-        gapPolicy.writeTo(out);
-        innerWriteTo(out);
-    }
-
-    protected void innerWriteTo(StreamOutput out) throws IOException {}
 
     @Override
     public final InternalAggregation doReduce(Aggregations aggregations, ReduceContext context) {

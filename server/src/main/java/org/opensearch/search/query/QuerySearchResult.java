@@ -34,7 +34,6 @@ package org.opensearch.search.query;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.TotalHits;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.DelayableWriteable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -95,11 +94,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     public QuerySearchResult(StreamInput in) throws IOException {
         super(in);
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            isNull = in.readBoolean();
-        } else {
-            isNull = false;
-        }
+        isNull = in.readBoolean();
         if (isNull == false) {
             ShardSearchContextId id = new ShardSearchContextId(in);
             readFromWithId(id, in);
@@ -355,14 +350,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
             }
         }
         setTopDocs(readTopDocs(in));
-        if (in.getVersion().before(LegacyESVersion.V_7_7_0)) {
-            if (hasAggs = in.readBoolean()) {
-                aggregations = DelayableWriteable.referencing(InternalAggregations.readFrom(in));
-            }
-        } else {
-            if (hasAggs = in.readBoolean()) {
-                aggregations = DelayableWriteable.delayed(InternalAggregations::readFrom, in);
-            }
+        if (hasAggs = in.readBoolean()) {
+            aggregations = DelayableWriteable.delayed(InternalAggregations::readFrom, in);
         }
         if (in.readBoolean()) {
             suggest = new Suggest(in);
@@ -373,17 +362,13 @@ public final class QuerySearchResult extends SearchPhaseResult {
         hasProfileResults = profileShardResults != null;
         serviceTimeEWMA = in.readZLong();
         nodeQueueSize = in.readInt();
-        if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
-            setRescoreDocIds(new RescoreDocIds(in));
-        }
+        setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
+        setRescoreDocIds(new RescoreDocIds(in));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_7_0)) {
-            out.writeBoolean(isNull);
-        }
+        out.writeBoolean(isNull);
         if (isNull == false) {
             contextId.writeTo(out);
             writeToNoId(out);
@@ -406,12 +391,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            if (out.getVersion().before(LegacyESVersion.V_7_7_0)) {
-                InternalAggregations aggs = aggregations.expand();
-                aggs.writeTo(out);
-            } else {
-                aggregations.writeTo(out);
-            }
+            aggregations.writeTo(out);
         }
         if (suggest == null) {
             out.writeBoolean(false);
@@ -424,10 +404,8 @@ public final class QuerySearchResult extends SearchPhaseResult {
         out.writeOptionalWriteable(profileShardResults);
         out.writeZLong(serviceTimeEWMA);
         out.writeInt(nodeQueueSize);
-        if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
-            out.writeOptionalWriteable(getShardSearchRequest());
-            getRescoreDocIds().writeTo(out);
-        }
+        out.writeOptionalWriteable(getShardSearchRequest());
+        getRescoreDocIds().writeTo(out);
     }
 
     public TotalHits getTotalHits() {

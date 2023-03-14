@@ -305,6 +305,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     public void onIndexModule(IndexModule indexModule) {
+        logger.info("PluginService:onIndexModule index:" + indexModule.getIndex());
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
             plugin.v2().onIndexModule(indexModule);
         }

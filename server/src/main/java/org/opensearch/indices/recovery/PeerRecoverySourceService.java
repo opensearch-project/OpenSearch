@@ -378,15 +378,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     recoverySettings,
                     throttleTime -> shard.recoveryStats().addThrottleTime(throttleTime)
                 );
-                handler = new RecoverySourceHandler(
-                    shard,
-                    recoveryTarget,
-                    shard.getThreadPool(),
-                    request,
-                    Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
-                    recoverySettings.getMaxConcurrentFileChunks(),
-                    recoverySettings.getMaxConcurrentOperations()
-                );
+                handler = RecoverySourceHandlerFactory.create(shard, recoveryTarget, request, recoverySettings);
                 return Tuple.tuple(handler, recoveryTarget);
             }
         }

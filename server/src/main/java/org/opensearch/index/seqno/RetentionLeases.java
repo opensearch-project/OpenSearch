@@ -32,15 +32,16 @@
 
 package org.opensearch.index.seqno;
 
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContent;
 import org.opensearch.gateway.MetadataStateFormat;
 
 import java.io.IOException;
@@ -223,8 +224,8 @@ public class RetentionLeases implements ToXContentFragment, Writeable {
     }
 
     /**
-     * Parses a retention leases collection from {@link org.opensearch.common.xcontent.XContent}. This method assumes that the retention
-     * leases were converted to {@link org.opensearch.common.xcontent.XContent} via {@link #toXContent(XContentBuilder, Params)}.
+     * Parses a retention leases collection from {@link XContent}. This method assumes that the retention
+     * leases were converted to {@link XContent} via {@link #toXContent(XContentBuilder, Params)}.
      *
      * @param parser the parser
      * @return a retention leases collection

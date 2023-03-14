@@ -56,6 +56,8 @@ import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.regex.Regex;
@@ -114,6 +116,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final ThreadPool threadPool;
     private final IngestMetric totalMetrics = new IngestMetric();
     private final List<Consumer<ClusterState>> ingestClusterStateListeners = new CopyOnWriteArrayList<>();
+    private final ClusterManagerTaskThrottler.ThrottlingKey putPipelineTaskKey;
+    private final ClusterManagerTaskThrottler.ThrottlingKey deletePipelineTaskKey;
     private volatile ClusterState state;
 
     public IngestService(
@@ -141,8 +145,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 threadPool.generic()::execute
             )
         );
-
         this.threadPool = threadPool;
+
+        // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
+        putPipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.PUT_PIPELINE_KEY, true);
+        deletePipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_PIPELINE_KEY, true);
     }
 
     private static Map<String, Processor.Factory> processorFactories(List<IngestPlugin> ingestPlugins, Processor.Parameters parameters) {
@@ -291,6 +298,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 public ClusterState execute(ClusterState currentState) {
                     return innerDelete(request, currentState);
                 }
+
+                @Override
+                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                    return deletePipelineTaskKey;
+                }
             }
         );
     }
@@ -384,6 +396,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return innerPut(request, currentState);
+                }
+
+                @Override
+                public ClusterManagerTaskThrottler.ThrottlingKey getClusterManagerThrottlingKey() {
+                    return putPipelineTaskKey;
                 }
             }
         );

@@ -46,7 +46,7 @@ public class ActionFilters {
     private final ActionFilter[] filters;
 
     public ActionFilters(Set<ActionFilter> actionFilters) {
-        this.filters = actionFilters.toArray(new ActionFilter[actionFilters.size()]);
+        this.filters = actionFilters.toArray(new ActionFilter[0]);
         Arrays.sort(filters, new Comparator<ActionFilter>() {
             @Override
             public int compare(ActionFilter o1, ActionFilter o2) {

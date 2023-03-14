@@ -37,7 +37,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionListener;
@@ -54,7 +53,6 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.engine.RecoveryEngineException;
 import org.opensearch.index.mapper.MapperException;
@@ -246,7 +244,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                     indexShard.prepareForIndexRecovery();
                     final boolean hasRemoteTranslog = recoveryTarget.state().getPrimary() == false && indexShard.isRemoteTranslogEnabled();
-                    final boolean hasNoTranslog = IndexModule.Type.REMOTE_SNAPSHOT.match(indexShard.indexSettings());
+                    final boolean hasNoTranslog = indexShard.indexSettings().isRemoteSnapshot();
                     final boolean verifyTranslog = (hasRemoteTranslog || hasNoTranslog) == false;
                     final long startingSeqNo = indexShard.recoverLocallyAndFetchStartSeqNo(!hasRemoteTranslog);
                     assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
@@ -724,11 +722,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     recoverySettings.retryDelayNetwork(),
                     cause.getMessage()
                 );
-                if (request.sourceNode().getVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-                    reestablishRecovery(request, cause.getMessage(), recoverySettings.retryDelayNetwork());
-                } else {
-                    retryRecovery(recoveryId, cause.getMessage(), recoverySettings.retryDelayNetwork(), recoverySettings.activityTimeout());
-                }
+                reestablishRecovery(request, cause.getMessage(), recoverySettings.retryDelayNetwork());
                 return;
             }
 

@@ -38,8 +38,8 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -157,13 +157,9 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.opensearchVersion = Version.readVersion(in);
         this.javaVersion = in.readString();
         this.classname = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-            customFolderName = in.readString();
-        } else {
-            customFolderName = this.name;
-        }
-        extendedPlugins = in.readStringList();
-        hasNativeController = in.readBoolean();
+        this.customFolderName = in.readString();
+        this.extendedPlugins = in.readStringList();
+        this.hasNativeController = in.readBoolean();
     }
 
     @Override
@@ -174,12 +170,10 @@ public class PluginInfo implements Writeable, ToXContentObject {
         Version.writeVersion(opensearchVersion, out);
         out.writeString(javaVersion);
         out.writeString(classname);
-        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-            if (customFolderName != null) {
-                out.writeString(customFolderName);
-            } else {
-                out.writeString(name);
-            }
+        if (customFolderName != null) {
+            out.writeString(customFolderName);
+        } else {
+            out.writeString(name);
         }
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
@@ -234,11 +228,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
 
         final String customFolderNameValue = propsMap.remove("custom.foldername");
         final String customFolderName;
-        if (opensearchVersion.onOrAfter(Version.V_1_1_0)) {
-            customFolderName = customFolderNameValue;
-        } else {
-            customFolderName = name;
-        }
+        customFolderName = customFolderNameValue;
 
         final String extendedString = propsMap.remove("extended.plugins");
         final List<String> extendedPlugins;

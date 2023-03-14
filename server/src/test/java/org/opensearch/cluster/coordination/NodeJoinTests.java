@@ -67,6 +67,7 @@ import org.opensearch.transport.RequestHandlerRegistry;
 import org.opensearch.transport.TestTransportChannel;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportRequest;
+import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 import org.junit.After;
@@ -217,6 +218,17 @@ public class NodeJoinTests extends OpenSearchTestCase {
                 } else {
                     super.onSendRequest(requestId, action, request, destination);
                 }
+            }
+
+            @Override
+            protected void onSendRequest(
+                long requestId,
+                String action,
+                TransportRequest request,
+                DiscoveryNode destination,
+                TransportRequestOptions options
+            ) {
+                onSendRequest(requestId, action, request, destination);
             }
         };
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -847,7 +859,8 @@ public class NodeJoinTests extends OpenSearchTestCase {
     ) {
         DecommissionAttributeMetadata decommissionAttributeMetadata = new DecommissionAttributeMetadata(
             decommissionAttribute,
-            DecommissionStatus.SUCCESSFUL
+            DecommissionStatus.SUCCESSFUL,
+            randomAlphaOfLength(10)
         );
         return ClusterState.builder(clusterState)
             .metadata(Metadata.builder(clusterState.metadata()).decommissionAttributeMetadata(decommissionAttributeMetadata))

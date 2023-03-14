@@ -286,11 +286,12 @@ public class InternalEngine extends Engine {
                     translogDeletionPolicy,
                     shardId,
                     readLock,
-                    () -> getLocalCheckpointTracker(),
+                    this::getLocalCheckpointTracker,
                     translogUUID,
                     new CompositeTranslogEventListener(Arrays.asList(internalTranslogEventListener, translogEventListener), shardId),
                     this::ensureOpen,
-                    engineConfig.getTranslogFactory()
+                    engineConfig.getTranslogFactory(),
+                    engineConfig.getPrimaryModeSupplier()
                 );
                 this.translogManager = translogManagerRef;
                 this.softDeletesPolicy = newSoftDeletesPolicy();
@@ -1288,6 +1289,7 @@ public class InternalEngine extends Engine {
             }
         } else {
             try (Searcher searcher = acquireSearcher("assert doc doesn't exist", SearcherScope.INTERNAL)) {
+                searcher.setQueryCache(null);
                 final long docsWithId = searcher.count(new TermQuery(index.uid()));
                 if (docsWithId > 0) {
                     throw new AssertionError("doc [" + index.id() + "] exists [" + docsWithId + "] times in index");
@@ -2748,7 +2750,7 @@ public class InternalEngine extends Engine {
     /**
      * Returned the last local checkpoint value has been refreshed internally.
      */
-    final long lastRefreshedCheckpoint() {
+    public final long lastRefreshedCheckpoint() {
         return lastRefreshedCheckpointListener.refreshedCheckpoint.get();
     }
 

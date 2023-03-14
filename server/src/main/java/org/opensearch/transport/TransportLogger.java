@@ -112,13 +112,7 @@ public final class TransportLogger {
                 sb.append(", request id: ").append(requestId);
                 sb.append(", type: ").append(type);
                 sb.append(", version: ").append(version);
-
-                if (version.onOrAfter(TcpHeader.VERSION_WITH_HEADER_SIZE)) {
-                    sb.append(", header size: ").append(streamInput.readInt()).append('B');
-                } else {
-                    streamInput = decompressingStream(status, streamInput);
-                    InboundHandler.assertRemoteVersion(streamInput, version);
-                }
+                sb.append(", header size: ").append(streamInput.readInt()).append('B');
 
                 // read and discard headers
                 ThreadContext.readHeadersFromStream(streamInput);

@@ -24,4 +24,15 @@ public class ClusterDeleteWeightedRoutingRequestBuilder extends ClusterManagerNo
     public ClusterDeleteWeightedRoutingRequestBuilder(OpenSearchClient client, ClusterDeleteWeightedRoutingAction action) {
         super(client, action, new ClusterDeleteWeightedRoutingRequest());
     }
+
+    public ClusterDeleteWeightedRoutingRequestBuilder setVersion(long version) {
+        request.setVersion(version);
+        return this;
+    }
+
+    public ClusterDeleteWeightedRoutingRequestBuilder setAwarenessAttribute(String attribute) {
+        request.setAwarenessAttribute(attribute);
+        return this;
+    }
+
 }

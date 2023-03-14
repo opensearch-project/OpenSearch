@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.action.index;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.mapping.put.AutoPutMappingAction;
@@ -157,18 +156,11 @@ public class MappingUpdatedAction {
         putMappingRequest.source(mappingUpdate.toString(), XContentType.JSON);
         putMappingRequest.clusterManagerNodeTimeout(dynamicMappingUpdateTimeout);
         putMappingRequest.timeout(TimeValue.ZERO);
-        if (clusterService.state().nodes().getMinNodeVersion().onOrAfter(LegacyESVersion.V_7_9_0)) {
-            client.execute(
-                AutoPutMappingAction.INSTANCE,
-                putMappingRequest,
-                ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure)
-            );
-        } else {
-            client.putMapping(
-                putMappingRequest,
-                ActionListener.wrap(r -> listener.onResponse(null), e -> listener.onFailure(unwrapException(e)))
-            );
-        }
+        client.execute(
+            AutoPutMappingAction.INSTANCE,
+            putMappingRequest,
+            ActionListener.wrap(r -> listener.onResponse(null), listener::onFailure)
+        );
     }
 
     // todo: this explicit unwrap should not be necessary, but is until guessRootCause is fixed to allow wrapped non-es exception.

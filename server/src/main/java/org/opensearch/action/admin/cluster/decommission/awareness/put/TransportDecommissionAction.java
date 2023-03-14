@@ -76,6 +76,6 @@ public class TransportDecommissionAction extends TransportClusterManagerNodeActi
     protected void clusterManagerOperation(DecommissionRequest request, ClusterState state, ActionListener<DecommissionResponse> listener)
         throws Exception {
         logger.info("starting awareness attribute [{}] decommissioning", request.getDecommissionAttribute().toString());
-        decommissionService.startDecommissionAction(request.getDecommissionAttribute(), listener);
+        decommissionService.startDecommissionAction(request, listener);
     }
 }

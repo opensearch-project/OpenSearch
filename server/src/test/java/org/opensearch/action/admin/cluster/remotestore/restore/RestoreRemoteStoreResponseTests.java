@@ -8,7 +8,7 @@
 
 package org.opensearch.action.admin.cluster.remotestore.restore;
 
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.snapshots.RestoreInfo;
 import org.opensearch.test.AbstractXContentTestCase;
 

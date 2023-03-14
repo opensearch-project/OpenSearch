@@ -7,13 +7,17 @@ on:
       - 'dependabot/**'
   pull_request_target:
     types: [opened, synchronize, reopened]
-  workflow_run:
-    workflows: ["Gradle Precommit"]
-    types:
-      - completed
+
+permissions:
+  contents: read # to fetch code (actions/checkout)
 
 jobs:
   gradle-check:
+    permissions:
+      contents: read # to fetch code (actions/checkout)
+      pull-requests: write # to create or update comment (peter-evans/create-or-update-comment)
+      issues: write # To create an issue if check fails on push.
+
     runs-on: ubuntu-latest
     timeout-minutes: 130
     steps:
@@ -37,6 +41,7 @@ jobs:
             repo_url="https://github.com/opensearch-project/OpenSearch"
             ref_id=$(git rev-parse HEAD)
             branch_name=$(git rev-parse --abbrev-ref HEAD)
+            echo "branch_name=$branch_name" >> $GITHUB_ENV
             echo "pr_from_sha=$ref_id" >> $GITHUB_ENV
             echo "pr_from_clone_url=$repo_url" >> $GITHUB_ENV
             echo "pr_to_clone_url=$repo_url" >> $GITHUB_ENV
@@ -71,7 +76,7 @@ jobs:
           files: ./codeCoverage.xml
 
       - name: Create Comment Success
-        if: ${{ github.event_name == 'pull_request_target' && success() }}
+        if: ${{ github.event_name == 'pull_request_target' && success() && env.result == 'SUCCESS' }}
         uses: peter-evans/create-or-update-comment@v2
         with:
           issue-number: ${{ env.pr_number }}
@@ -81,6 +86,33 @@ jobs:
               * **URL:** ${{ env.workflow_url }}
               * **CommitID:** ${{ env.pr_from_sha }}
 
+      - name: Extract Test Failure
+        if: ${{ github.event_name == 'pull_request_target' && env.result != 'SUCCESS' }}
+        run: |
+            TEST_FAILURES=`curl -s "${{ env.workflow_url }}/testReport/api/json?tree=suites\[cases\[status,className,name\]\]" | jq -r '.. | objects | select(.status=="FAILED",.status=="REGRESSION") | (.className + "." +  .name)' | uniq -c | sort -n -r | head -n 10`
+            if [[ "$TEST_FAILURES" != "" ]]
+            then
+              echo "test_failures<<EOF" >> $GITHUB_ENV
+              echo "" >> $GITHUB_ENV
+              echo "* **TEST FAILURES:**" >> $GITHUB_ENV
+              echo '```' >> $GITHUB_ENV
+              echo "$TEST_FAILURES" >> $GITHUB_ENV
+              echo '```' >> $GITHUB_ENV
+              echo "EOF" >> $GITHUB_ENV
+            fi
+
+      - name: Create Comment Flaky
+        if: ${{ github.event_name == 'pull_request_target' && success() && env.result != 'SUCCESS' }}
+        uses: peter-evans/create-or-update-comment@v2
+        with:
+          issue-number: ${{ env.pr_number }}
+          body: |
+            ### Gradle Check (Jenkins) Run Completed with:
+            * **RESULT:** ${{ env.result }} :grey_exclamation: ${{ env.test_failures }}
+            * **URL:** ${{ env.workflow_url }}
+            * **CommitID:** ${{ env.pr_from_sha }}
+            Please review all [flaky tests](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) that succeeded after retry and create an issue if one does not already exist to track the flaky failure.
+
       - name: Create Comment Failure
         if: ${{ github.event_name == 'pull_request_target' && failure() }}
         uses: peter-evans/create-or-update-comment@v2
@@ -88,6 +120,17 @@ jobs:
           issue-number: ${{ env.pr_number }}
           body: |
               ### Gradle Check (Jenkins) Run Completed with:
-              * **RESULT:** ${{ env.result }} :x:
+              * **RESULT:** ${{ env.result }} :x: ${{ env.test_failures }}
               * **URL:** ${{ env.workflow_url }}
               * **CommitID:** ${{ env.pr_from_sha }}
+              Please examine the workflow log, locate, and copy-paste the failure(s) below, then iterate to green.
+              Is the failure [a flaky test](https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md#flaky-tests) unrelated to your change?
+
+      - name: Create Issue On Push Failure
+        if: ${{ github.event_name == 'push' && failure() }}
+        uses: dblock/create-a-github-issue@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          assignees: ${{ github.event.head_commit.author.username }}, ${{ github.triggering_actor }}
+          filename: .github/ISSUE_TEMPLATE/failed_check.md

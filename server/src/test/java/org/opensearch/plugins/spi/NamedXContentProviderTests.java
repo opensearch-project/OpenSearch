@@ -32,9 +32,9 @@
 
 package org.opensearch.plugins.spi;
 
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.Streams;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.search.aggregations.Aggregation;
 import org.opensearch.search.aggregations.pipeline.ParsedSimpleValue;
 import org.opensearch.search.suggest.Suggest;

@@ -1,3 +1,10 @@
+<!--  Thanks for sending a pull request, here are some tips:
+
+1. If this is a fix for an undisclosed security vulnerability, please STOP. All security vulnerability reporting and fixes should be done as per our security policy https://github.com/opensearch-project/OpenSearch/security/policy
+2. If this is your first time, please read our contributor guidelines: https://github.com/opensearch-project/OpenSearch/blob/main/CONTRIBUTING.md and developer guide https://github.com/opensearch-project/OpenSearch/blob/main/DEVELOPER_GUIDE.md
+3. Ensure you have added or ran the appropriate tests for your PR: https://github.com/opensearch-project/OpenSearch/blob/main/TESTING.md
+-->
+
 ### Description
 [Describe what this change achieves]
 

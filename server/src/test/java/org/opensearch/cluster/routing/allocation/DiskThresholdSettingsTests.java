@@ -221,7 +221,6 @@ public class DiskThresholdSettingsTests extends OpenSearchTestCase {
         final String expected = "illegal value can't update [cluster.routing.allocation.disk.watermark.high] from [90%] to [75%]";
         assertThat(e, hasToString(containsString(expected)));
         assertNotNull(e.getCause());
-        assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
         final IllegalArgumentException cause = (IllegalArgumentException) e.getCause();
         assertThat(cause, hasToString(containsString("low disk watermark [85%] more than high disk watermark [75%]")));

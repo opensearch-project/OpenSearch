@@ -121,7 +121,7 @@ public class TransportUpgradeStatusAction extends TransportBroadcastByNodeAction
         ClusterState clusterState
     ) {
         return new UpgradeStatusResponse(
-            responses.toArray(new ShardUpgradeStatus[responses.size()]),
+            responses.toArray(new ShardUpgradeStatus[0]),
             totalShards,
             successfulShards,
             failedShards,

@@ -33,7 +33,6 @@
 package org.opensearch.action.bulk;
 
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.DocWriteRequest.OpType;
@@ -42,16 +41,17 @@ import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.common.CheckedConsumer;
-import org.opensearch.common.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
 import org.opensearch.common.xcontent.StatusToXContentObject;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
@@ -59,10 +59,10 @@ import org.opensearch.rest.RestStatus;
 
 import java.io.IOException;
 
-import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.opensearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.common.xcontent.XContentParserUtils.throwUnknownField;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Represents a single item response for an action executed as part of the bulk API. Holds the index/type/id
@@ -270,11 +270,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             cause = in.readException();
             status = ExceptionsHelper.status(cause);
             seqNo = in.readZLong();
-            if (in.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-                term = in.readVLong();
-            } else {
-                term = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
-            }
+            term = in.readVLong();
             aborted = in.readBoolean();
         }
 
@@ -287,9 +283,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             out.writeOptionalString(id);
             out.writeException(cause);
             out.writeZLong(seqNo);
-            if (out.getVersion().onOrAfter(LegacyESVersion.V_7_6_0)) {
-                out.writeVLong(term);
-            }
+            out.writeVLong(term);
             out.writeBoolean(aborted);
         }
 
@@ -374,7 +368,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
 
         @Override
         public String toString() {
-            return Strings.toString(this);
+            return Strings.toString(XContentType.JSON, this);
         }
     }
 

@@ -13,6 +13,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -24,6 +25,11 @@ import java.util.Objects;
 public class WeightedRouting implements Writeable {
     private String attributeName;
     private Map<String, Double> weights;
+
+    public WeightedRouting() {
+        this.attributeName = "";
+        this.weights = new HashMap<>(3);
+    }
 
     public WeightedRouting(String attributeName, Map<String, Double> weights) {
         this.attributeName = attributeName;
@@ -38,6 +44,10 @@ public class WeightedRouting implements Writeable {
     public WeightedRouting(StreamInput in) throws IOException {
         attributeName = in.readString();
         weights = (Map<String, Double>) in.readGenericValue();
+    }
+
+    public boolean isSet() {
+        return (!this.attributeName.isEmpty() && !this.weights.isEmpty());
     }
 
     @Override

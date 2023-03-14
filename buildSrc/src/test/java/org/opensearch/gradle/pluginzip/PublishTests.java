@@ -89,7 +89,7 @@ public class PublishTests extends GradleUnitTestCase {
             project.getTasks().size()
         );
 
-        // Tasks applied from "nebula.maven-base-publish"
+        // Tasks applied from "com.netflix.nebula.maven-base-publish"
         assertTrue(
             project.getTasks()
                 .findByName("generateMetadataFileForNebulaPublication") instanceof org.gradle.api.publish.tasks.GenerateModuleMetadata
@@ -126,8 +126,8 @@ public class PublishTests extends GradleUnitTestCase {
             project.getPlugins().findPlugin(org.gradle.api.publish.plugins.PublishingPlugin.class)
         );
         assertNotNull(
-            "Project is expected to have nebula MavenBasePublishPlugin plugin (applied from OpenSearch pluginzip plugin)",
-            project.getPlugins().findPlugin(nebula.plugin.publishing.maven.MavenBasePublishPlugin.class)
+            "Project is expected to have nebula MavenNebulaPublishPlugin plugin (applied from OpenSearch pluginzip plugin)",
+            project.getPlugins().findPlugin(nebula.plugin.publishing.maven.MavenNebulaPublishPlugin.class)
         );
     }
 

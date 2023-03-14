@@ -31,7 +31,6 @@
 
 package org.opensearch.gradle.testclusters;
 
-import org.opensearch.gradle.Jdk;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.tasks.Nested;
@@ -51,9 +50,6 @@ public interface TestClustersAware extends Task {
 
         // Add configured distributions as task dependencies so they are built before starting the cluster
         cluster.getNodes().stream().flatMap(node -> node.getDistributions().stream()).forEach(distro -> dependsOn(distro.getExtracted()));
-
-        // Add legacy BWC JDK runtime as a dependency so it's downloaded before starting the cluster if necessary
-        cluster.getNodes().stream().map(node -> (Callable<Jdk>) node::getBwcJdk).forEach(this::dependsOn);
 
         cluster.getNodes().forEach(node -> dependsOn((Callable<Collection<Configuration>>) node::getPluginAndModuleConfigurations));
         getClusters().add(cluster);

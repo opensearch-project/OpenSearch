@@ -33,8 +33,8 @@
 package org.opensearch.example.customsigheuristic;
 
 import org.opensearch.common.io.stream.Writeable.Reader;
-import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParser.Token;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;

@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.node;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
@@ -51,12 +50,14 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.opensearch.test.NodeRoles.nonRemoteClusterClientNode;
-import static org.opensearch.test.NodeRoles.remoteClusterClientNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
+import static org.opensearch.test.NodeRoles.nonRemoteClusterClientNode;
+import static org.opensearch.test.NodeRoles.remoteClusterClientNode;
+import static org.opensearch.test.NodeRoles.searchNode;
+import static org.opensearch.test.NodeRoles.nonSearchNode;
 
 public class DiscoveryNodeTests extends OpenSearchTestCase {
 
@@ -153,11 +154,11 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
 
         {
             BytesStreamOutput streamOutput = new BytesStreamOutput();
-            streamOutput.setVersion(LegacyESVersion.V_7_9_0);
+            streamOutput.setVersion(Version.V_2_0_0);
             node.writeTo(streamOutput);
 
             StreamInput in = StreamInput.wrap(streamOutput.bytes().toBytesRef().bytes);
-            in.setVersion(LegacyESVersion.V_7_9_0);
+            in.setVersion(Version.V_2_0_0);
             DiscoveryNode serialized = new DiscoveryNode(in);
             assertThat(serialized.getRoles().stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining()), equalTo("data"));
         }
@@ -176,6 +177,14 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
         runTestDiscoveryNodeIsRemoteClusterClient(nonRemoteClusterClientNode(), false);
     }
 
+    public void testDiscoveryNodeIsSearchSet() {
+        runTestDiscoveryNodeIsSearch(searchNode(), true);
+    }
+
+    public void testDiscoveryNodeIsSearchUnset() {
+        runTestDiscoveryNodeIsSearch(nonSearchNode(), false);
+    }
+
     // Added in 2.0 temporarily, validate the MASTER_ROLE is in the list of known roles.
     // MASTER_ROLE was removed from BUILT_IN_ROLES and is imported by setDeprecatedMasterRole(),
     // as a workaround for making the new CLUSTER_MANAGER_ROLE has got the same abbreviation 'm'.
@@ -192,6 +201,16 @@ public class DiscoveryNodeTests extends OpenSearchTestCase {
             assertThat(node.getRoles(), hasItem(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE));
         } else {
             assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)));
+        }
+    }
+
+    private void runTestDiscoveryNodeIsSearch(final Settings settings, final boolean expected) {
+        final DiscoveryNode node = DiscoveryNode.createLocal(settings, new TransportAddress(TransportAddress.META_ADDRESS, 9200), "node");
+        assertThat(node.isSearchNode(), equalTo(expected));
+        if (expected) {
+            assertThat(node.getRoles(), hasItem(DiscoveryNodeRole.SEARCH_ROLE));
+        } else {
+            assertThat(node.getRoles(), not(hasItem(DiscoveryNodeRole.SEARCH_ROLE)));
         }
     }
 

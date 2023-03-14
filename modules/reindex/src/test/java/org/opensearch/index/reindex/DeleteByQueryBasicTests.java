@@ -362,7 +362,7 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
         int slices = randomSlices(1, 10);
         int expectedSlices = expectedSliceStatuses(slices, docs.keySet());
 
-        String[] sourceIndexNames = docs.keySet().toArray(new String[docs.size()]);
+        String[] sourceIndexNames = docs.keySet().toArray(new String[0]);
 
         assertThat(
             deleteByQuery().source(sourceIndexNames).filter(QueryBuilders.matchAllQuery()).refresh(true).setSlices(slices).get(),

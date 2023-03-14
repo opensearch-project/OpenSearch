@@ -39,6 +39,7 @@ import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
@@ -83,7 +84,7 @@ public class MetadataDeleteIndexServiceTests extends OpenSearchTestCase {
         when(allocationService.reroute(any(ClusterState.class), any(String.class))).thenAnswer(
             mockInvocation -> mockInvocation.getArguments()[0]
         );
-        service = new MetadataDeleteIndexService(Settings.EMPTY, null, allocationService);
+        service = new MetadataDeleteIndexService(Settings.EMPTY, mock(ClusterService.class), allocationService);
     }
 
     public void testDeleteMissing() {

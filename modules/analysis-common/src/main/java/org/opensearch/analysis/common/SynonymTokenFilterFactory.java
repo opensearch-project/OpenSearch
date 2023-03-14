@@ -32,6 +32,7 @@
 
 package org.opensearch.analysis.common;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
@@ -155,14 +156,15 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             }
             return parser.build();
         } catch (Exception e) {
-            throw new IllegalArgumentException("failed to build synonyms", e);
+            LogManager.getLogger(SynonymTokenFilterFactory.class).error("Failed to build synonyms: ", e);
+            throw new IllegalArgumentException("Failed to build synonyms");
         }
     }
 
     Reader getRulesFromSettings(Environment env) {
         Reader rulesReader;
         if (settings.getAsList("synonyms", null) != null) {
-            List<String> rulesList = Analysis.getWordList(env, settings, "synonyms");
+            List<String> rulesList = Analysis.parseWordList(env, settings, "synonyms", s -> s);
             StringBuilder sb = new StringBuilder();
             for (String line : rulesList) {
                 sb.append(line).append(System.lineSeparator());

@@ -33,11 +33,11 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.opensearch.common.Explicit;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.mapper.LegacyGeoShapeFieldMapper.DeprecatedParameters;
 
