@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.replication;
 
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -132,6 +133,20 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
 
     protected void waitForSearchableDocs(long docCount, String... nodes) throws Exception {
         waitForSearchableDocs(docCount, Arrays.stream(nodes).collect(Collectors.toList()));
+    }
+
+    protected void waitForSegmentReplication(String node) throws Exception {
+        assertBusy(() -> {
+            SegmentReplicationStatsResponse segmentReplicationStatsResponse = client(node).admin()
+                .indices()
+                .prepareSegmentReplicationStats(INDEX_NAME)
+                .execute()
+                .actionGet();
+            assertEquals(
+                segmentReplicationStatsResponse.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getStage(),
+                SegmentReplicationState.Stage.DONE
+            );
+        }, 1, TimeUnit.MINUTES);
     }
 
     protected void verifyStoreContent() throws Exception {
