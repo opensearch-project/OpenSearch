@@ -17,12 +17,10 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.replication.SegmentReplicationBaseIT;
-import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
-import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -269,32 +267,5 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
                 replicaShard.getLatestReplicationCheckpoint().getSegmentInfosVersion()
             );
         }
-    }
-
-    private Releasable blockReplication(List<String> nodes, CountDownLatch latch) {
-        CountDownLatch pauseReplicationLatch = new CountDownLatch(nodes.size());
-        for (String node : nodes) {
-
-            MockTransportService mockTargetTransportService = ((MockTransportService) internalCluster().getInstance(
-                TransportService.class,
-                node
-            ));
-            mockTargetTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(SegmentReplicationSourceService.Actions.GET_SEGMENT_FILES)) {
-                    try {
-                        latch.countDown();
-                        pauseReplicationLatch.await();
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-                connection.sendRequest(requestId, action, request, options);
-            });
-        }
-        return () -> {
-            while (pauseReplicationLatch.getCount() > 0) {
-                pauseReplicationLatch.countDown();
-            }
-        };
     }
 }

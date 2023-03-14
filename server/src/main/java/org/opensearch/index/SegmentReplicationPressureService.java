@@ -21,7 +21,6 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 
-import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -104,8 +103,8 @@ public class SegmentReplicationPressureService {
     }
 
     private void validateReplicationGroup(IndexShard shard) {
-        final Set<SegmentReplicationShardStats> replicaStatus = shard.getReplicationStats();
-        final List<SegmentReplicationShardStats> staleReplicas = getStaleReplicas(replicaStatus);
+        final Set<SegmentReplicationShardStats> replicaStats = shard.getReplicationStats();
+        final Set<SegmentReplicationShardStats> staleReplicas = getStaleReplicas(replicaStats);
         if (staleReplicas.isEmpty() == false) {
             // inSyncIds always considers the primary id, so filter it out.
             final float percentStale = staleReplicas.size() * 100f / (shard.getReplicationGroup().getInSyncAllocationIds().size() - 1);
@@ -121,11 +120,11 @@ public class SegmentReplicationPressureService {
         }
     }
 
-    private List<SegmentReplicationShardStats> getStaleReplicas(final Set<SegmentReplicationShardStats> replicas) {
+    private Set<SegmentReplicationShardStats> getStaleReplicas(final Set<SegmentReplicationShardStats> replicas) {
         return replicas.stream()
             .filter(entry -> entry.getCheckpointsBehindCount() > maxCheckpointsBehind)
             .filter(entry -> entry.getCurrentReplicationTimeMillis() > maxReplicationTime.millis())
-            .collect(Collectors.toList());
+            .collect(Collectors.toSet());
     }
 
     public SegmentReplicationStats nodeStats() {
