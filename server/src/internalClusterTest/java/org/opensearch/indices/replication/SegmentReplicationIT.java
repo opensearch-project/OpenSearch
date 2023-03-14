@@ -17,6 +17,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexModule;
@@ -317,14 +318,31 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     public void testNodeDropWithOngoingReplication() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         final String primaryNode = internalCluster().startNode();
-        createIndex(INDEX_NAME, Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build());
+        createIndex(
+            INDEX_NAME,
+            Settings.builder()
+                .put(indexSettings())
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .build()
+        );
         ensureYellow(INDEX_NAME);
         final String replicaNode = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
 
         // block auto refreshes
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.refresh_interval", -1)));
+        assertAcked(prepareCreate(INDEX_NAME).setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        // Get replica allocation id
+        final String replicaAllocationId = state.routingTable()
+            .index(INDEX_NAME)
+            .shardsWithState(ShardRoutingState.STARTED)
+            .stream()
+            .filter(routing -> routing.primary() == false)
+            .findFirst()
+            .get()
+            .allocationId()
+            .getId();
         DiscoveryNode primaryDiscovery = state.nodes().resolveNode(primaryNode);
 
         CountDownLatch blockFileCopy = new CountDownLatch(1);
@@ -359,6 +377,18 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         blockFileCopy.countDown();
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
         assertBusy(() -> { assertDocCounts(docCount, replicaNode); });
+        state = client().admin().cluster().prepareState().execute().actionGet().getState();
+        // replica now promoted as primary should have same allocation id
+        final String currentAllocationID = state.routingTable()
+            .index(INDEX_NAME)
+            .shardsWithState(ShardRoutingState.STARTED)
+            .stream()
+            .filter(routing -> routing.primary())
+            .findFirst()
+            .get()
+            .allocationId()
+            .getId();
+        assertEquals(currentAllocationID, replicaAllocationId);
     }
 
     public void testCancellation() throws Exception {
