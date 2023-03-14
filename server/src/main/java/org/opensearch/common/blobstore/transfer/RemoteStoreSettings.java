@@ -16,6 +16,6 @@ public class RemoteStoreSettings {
         "remote_store.multipart_parallel_upload.enabled",
         true,
         Setting.Property.NodeScope,
-        Setting.Property.Dynamic
+        Setting.Property.Final
     );
 }

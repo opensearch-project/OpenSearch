@@ -143,6 +143,7 @@ class S3BlobContainer extends AbstractBlobContainer {
      */
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
+        logger.info("writeBlob called");
         assert inputStream.markSupported() : "No mark support on inputStream breaks the S3 SDK's ability to retry requests";
         SocketAccess.doPrivilegedIOException(() -> {
             if (blobSize <= getLargeBlobThresholdInBytes()) {
@@ -156,7 +157,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public boolean isMultiStreamUploadSupported() {
-        return true;
+        return false;
     }
 
     @Override
@@ -176,6 +177,12 @@ class S3BlobContainer extends AbstractBlobContainer {
         final long lastPartSize = multiparts.v2();
         assert writeContext.getFileSize() == (((nbParts - 1) * partSize) + lastPartSize) :
             "fileSize does not match multipart sizes";
+
+        if (nbParts > 1) {
+            logger.info("writeStreams called; Doing multipart upload");
+        } else {
+            logger.info("writeStreams called; Doing single upload");
+        }
 
         boolean uploadSuccess = false;
         try {

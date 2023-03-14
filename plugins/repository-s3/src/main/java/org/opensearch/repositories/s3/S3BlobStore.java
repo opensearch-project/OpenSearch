@@ -68,8 +68,6 @@ class S3BlobStore implements BlobStore {
 
     private final ByteSizeValue multipartUploadMinimumPartSize;
 
-    private final boolean multipartParallelUploadEnabled;
-
     private final boolean serverSideEncryption;
 
     private final CannedAccessControlList cannedACL;
@@ -102,8 +100,6 @@ class S3BlobStore implements BlobStore {
         this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
         this.multipartUploadMinimumPartSize = S3Repository.MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING
-            .get(repositoryMetadata.settings());
-        this.multipartParallelUploadEnabled = RemoteStoreSettings.REMOTE_STORE_MULTIPART_PARALLEL_UPLOAD_SETTING
             .get(repositoryMetadata.settings());
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
@@ -178,10 +174,6 @@ class S3BlobStore implements BlobStore {
 
     public long multipartUploadMinimumPartSizeInBytes() {
         return multipartUploadMinimumPartSize.getBytes();
-    }
-
-    public boolean isMultipartParallelUploadEnabled() {
-        return multipartParallelUploadEnabled;
     }
 
     @Override
