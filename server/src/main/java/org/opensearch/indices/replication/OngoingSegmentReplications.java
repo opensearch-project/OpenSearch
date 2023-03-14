@@ -201,6 +201,11 @@ class OngoingSegmentReplications {
         return allocationIdToHandlers.size();
     }
 
+    // Visible for tests.
+    Map<String, SegmentReplicationSourceHandler> getHandlers() {
+        return allocationIdToHandlers;
+    }
+
     int cachedCopyStateSize() {
         return copyStateMap.size();
     }
@@ -260,7 +265,7 @@ class OngoingSegmentReplications {
             .filter(predicate)
             .map(SegmentReplicationSourceHandler::getAllocationId)
             .collect(Collectors.toList());
-        logger.trace(() -> new ParameterizedMessage("Cancelling replications for allocationIds {}", allocationIds));
+        logger.warn(() -> new ParameterizedMessage("Cancelling replications for allocationIds {}", allocationIds));
         for (String allocationId : allocationIds) {
             cancel(allocationId, reason);
         }

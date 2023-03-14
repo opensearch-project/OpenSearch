@@ -701,7 +701,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         final String replicaNode = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
 
-        final IndexShard indexShard = getIndexShard(replicaNode, INDEX_NAME);
+        final IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
         IndexWriterConfig iwc = newIndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.APPEND);
 
         // create a doc to index
@@ -722,7 +722,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             docs.add(doc);
         }
         // create some segments on the replica before copy.
-        try (IndexWriter writer = new IndexWriter(indexShard.store().directory(), iwc)) {
+        try (IndexWriter writer = new IndexWriter(replicaShard.store().directory(), iwc)) {
             for (Document d : docs) {
                 writer.addDocument(d);
             }
@@ -730,8 +730,8 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             writer.commit();
         }
 
-        final SegmentInfos segmentInfos = SegmentInfos.readLatestCommit(indexShard.store().directory());
-        indexShard.finalizeReplication(segmentInfos);
+        final SegmentInfos segmentInfos = SegmentInfos.readLatestCommit(replicaShard.store().directory());
+        replicaShard.finalizeReplication(segmentInfos);
 
         final int docCount = scaledRandomIntBetween(10, 200);
         for (int i = 0; i < docCount; i++) {
@@ -740,5 +740,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         }
         // Refresh, this should trigger round of segment replication
         assertBusy(() -> { assertDocCounts(docCount, replicaNode); });
+        final IndexShard replicaAfterFailure = getIndexShard(replicaNode, INDEX_NAME);
+        assertNotEquals(replicaAfterFailure.routingEntry().allocationId().getId(), replicaShard.routingEntry().allocationId().getId());
     }
 }
