@@ -324,14 +324,12 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
                 .put(indexSettings())
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("index.refresh_interval", -1)
                 .build()
         );
         ensureYellow(INDEX_NAME);
         final String replicaNode = internalCluster().startNode();
         ensureGreen(INDEX_NAME);
-
-        // block auto refreshes
-        assertAcked(prepareCreate(INDEX_NAME).setSettings(Settings.builder().put("index.refresh_interval", -1)));
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
         // Get replica allocation id
         final String replicaAllocationId = state.routingTable()
