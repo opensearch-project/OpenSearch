@@ -9,6 +9,16 @@
 package org.opensearch.indices.replication;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.SortedDocValuesField;
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.TextField;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.client.Requests;
@@ -682,5 +692,56 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             waitForSearchableDocs(initialDocCount + 1, dataNodes);
             verifyStoreContent();
         }
+    }
+
+    public void testReplicaHasDiffFilesThanPrimary() throws Exception {
+        internalCluster().startClusterManagerOnlyNode();
+        final String primaryNode = internalCluster().startNode();
+        createIndex(INDEX_NAME, Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build());
+        ensureYellow(INDEX_NAME);
+        final String replicaNode = internalCluster().startNode();
+        ensureGreen(INDEX_NAME);
+
+        final IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
+        IndexWriterConfig iwc = newIndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+
+        // create a doc to index
+        int numDocs = 2 + random().nextInt(100);
+
+        List<Document> docs = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            Document doc = new Document();
+            doc.add(new StringField("id", "" + i, random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+            doc.add(
+                new TextField(
+                    "body",
+                    TestUtil.randomRealisticUnicodeString(random()),
+                    random().nextBoolean() ? Field.Store.YES : Field.Store.NO
+                )
+            );
+            doc.add(new SortedDocValuesField("dv", new BytesRef(TestUtil.randomRealisticUnicodeString(random()))));
+            docs.add(doc);
+        }
+        // create some segments on the replica before copy.
+        try (IndexWriter writer = new IndexWriter(replicaShard.store().directory(), iwc)) {
+            for (Document d : docs) {
+                writer.addDocument(d);
+            }
+            writer.flush();
+            writer.commit();
+        }
+
+        final SegmentInfos segmentInfos = SegmentInfos.readLatestCommit(replicaShard.store().directory());
+        replicaShard.finalizeReplication(segmentInfos);
+
+        final int docCount = scaledRandomIntBetween(10, 200);
+        for (int i = 0; i < docCount; i++) {
+            client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().get();
+            refresh(INDEX_NAME);
+        }
+        // Refresh, this should trigger round of segment replication
+        assertBusy(() -> { assertDocCounts(docCount, replicaNode); });
+        final IndexShard replicaAfterFailure = getIndexShard(replicaNode, INDEX_NAME);
+        assertNotEquals(replicaAfterFailure.routingEntry().allocationId().getId(), replicaShard.routingEntry().allocationId().getId());
     }
 }
