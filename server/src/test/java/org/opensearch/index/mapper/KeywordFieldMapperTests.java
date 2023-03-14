@@ -173,7 +173,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void assertParseMaximalWarnings() {
-        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
+        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 3.0");
     }
 
     protected void registerParameters(ParameterChecker checker) throws IOException {
@@ -309,7 +309,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     public void testBoost() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("boost", 2f)));
         assertThat(mapperService.fieldType("field").boost(), equalTo(2f));
-        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
+        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 3.0");
     }
 
     public void testEnableNorms() throws IOException {
