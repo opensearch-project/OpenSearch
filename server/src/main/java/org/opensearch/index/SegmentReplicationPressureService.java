@@ -39,14 +39,14 @@ public class SegmentReplicationPressureService {
     private static final Logger logger = LogManager.getLogger(SegmentReplicationPressureService.class);
 
     public static final Setting<Boolean> SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED = Setting.boolSetting(
-        "index.segrep.pressure.enabled",
+        "segrep.pressure.enabled",
         false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
     public static final Setting<Integer> MAX_INDEXING_CHECKPOINTS = Setting.intSetting(
-        "index.segrep.pressure.checkpoint.limit",
+        "segrep.pressure.checkpoint.limit",
         4,
         1,
         Setting.Property.Dynamic,
@@ -54,14 +54,14 @@ public class SegmentReplicationPressureService {
     );
 
     public static final Setting<TimeValue> MAX_REPLICATION_TIME_SETTING = Setting.positiveTimeSetting(
-        "index.segrep.pressure.time.limit",
+        "segrep.pressure.time.limit",
         TimeValue.timeValueMinutes(5),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
     public static final Setting<Double> MAX_ALLOWED_STALE_SHARDS = Setting.doubleSetting(
-        "index.segrep.replica.stale.limit",
+        "segrep.pressure.replica.stale.limit",
         .5,
         0,
         1,
