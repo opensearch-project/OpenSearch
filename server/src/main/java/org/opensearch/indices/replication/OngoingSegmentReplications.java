@@ -147,15 +147,13 @@ class OngoingSegmentReplications {
      */
     CopyState prepareForReplication(CheckpointInfoRequest request, FileChunkWriter fileChunkWriter) throws IOException {
         final CopyState copyState = getCachedCopyState(request.getCheckpoint());
-        // Clear (if any) existing handler
-        if (allocationIdToHandlers.containsKey(request.getTargetAllocationId())) {
-            logger.warn("Override handler for allocation id {}", request.getTargetAllocationId());
-            cancel(request.getTargetAllocationId(), "cancel due to retry");
-        }
-        allocationIdToHandlers.putIfAbsent(
-            request.getTargetAllocationId(),
-            createTargetHandler(request.getTargetNode(), copyState, request.getTargetAllocationId(), fileChunkWriter)
-        );
+        allocationIdToHandlers.compute(request.getTargetAllocationId(), (allocationId, segrepHandler) -> {
+            if (segrepHandler != null) {
+                logger.warn("Override handler for allocation id {}", request.getTargetAllocationId());
+                cancelHandlers(handler -> handler.getAllocationId().equals(request.getTargetAllocationId()), "cancel due to retry");
+            }
+            return createTargetHandler(request.getTargetNode(), copyState, request.getTargetAllocationId(), fileChunkWriter);
+        });
         return copyState;
     }
 

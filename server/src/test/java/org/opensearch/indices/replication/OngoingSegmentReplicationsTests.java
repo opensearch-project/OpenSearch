@@ -9,7 +9,6 @@
 package org.opensearch.indices.replication;
 
 import org.junit.Assert;
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
