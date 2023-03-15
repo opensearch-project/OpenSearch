@@ -167,7 +167,21 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<TimeValue> READ_TIMEOUT_SETTING = Setting.affixKeySetting(
         PREFIX,
         "read_timeout",
-        key -> Setting.timeSetting(key, TimeValue.timeValueMillis(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT), Property.NodeScope)
+        key -> Setting.timeSetting(key, TimeValue.timeValueMinutes(2), Property.NodeScope)
+    );
+
+    /** The socket timeout for connecting to s3. */
+    static final Setting.AffixSetting<TimeValue> REQUEST_TIMEOUT_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "request_timeout",
+        key -> Setting.timeSetting(key, TimeValue.timeValueMinutes(2), Property.NodeScope)
+    );
+
+    /** The socket timeout for connecting to s3. */
+    static final Setting.AffixSetting<TimeValue> CONNECTION_TIMEOUT_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "connection_timeout",
+        key -> Setting.timeSetting(key, TimeValue.timeValueMinutes(1), Property.NodeScope)
     );
 
     /** The number of retries to use when an s3 request fails. */
@@ -230,6 +244,12 @@ final class S3ClientSettings {
     /** The read timeout for the s3 client. */
     final int readTimeoutMillis;
 
+    /** The request timeout for the s3 client */
+    final int requestTimeoutMillis;
+
+    /** The connection timeout for the s3 client */
+    final int connectionTimeoutMillis;
+
     /** The number of retries to use for the s3 client. */
     final int maxRetries;
 
@@ -254,6 +274,8 @@ final class S3ClientSettings {
         String endpoint,
         Protocol protocol,
         int readTimeoutMillis,
+        int requestTimeoutMillis,
+        int connectionTimeoutMillis,
         int maxRetries,
         boolean throttleRetries,
         boolean pathStyleAccess,
@@ -267,6 +289,8 @@ final class S3ClientSettings {
         this.endpoint = endpoint;
         this.protocol = protocol;
         this.readTimeoutMillis = readTimeoutMillis;
+        this.requestTimeoutMillis = requestTimeoutMillis;
+        this.connectionTimeoutMillis = connectionTimeoutMillis;
         this.maxRetries = maxRetries;
         this.throttleRetries = throttleRetries;
         this.pathStyleAccess = pathStyleAccess;
@@ -298,6 +322,12 @@ final class S3ClientSettings {
         final int newReadTimeoutMillis = Math.toIntExact(
             getRepoSettingOrDefault(READ_TIMEOUT_SETTING, normalizedSettings, TimeValue.timeValueMillis(readTimeoutMillis)).millis()
         );
+        final int newRequestTimeoutMillis = Math.toIntExact(
+            getRepoSettingOrDefault(REQUEST_TIMEOUT_SETTING, normalizedSettings, TimeValue.timeValueMillis(requestTimeoutMillis)).millis()
+        );
+        final int newConnectionTimeoutMillis = Math.toIntExact(
+            getRepoSettingOrDefault(CONNECTION_TIMEOUT_SETTING, normalizedSettings, TimeValue.timeValueMillis(connectionTimeoutMillis)).millis()
+        );
         final int newMaxRetries = getRepoSettingOrDefault(MAX_RETRIES_SETTING, normalizedSettings, maxRetries);
         final boolean newThrottleRetries = getRepoSettingOrDefault(USE_THROTTLE_RETRIES_SETTING, normalizedSettings, throttleRetries);
         final boolean newPathStyleAccess = getRepoSettingOrDefault(USE_PATH_STYLE_ACCESS, normalizedSettings, pathStyleAccess);
@@ -319,6 +349,8 @@ final class S3ClientSettings {
             && Objects.equals(proxySettings.getHostName(), newProxyHost)
             && proxySettings.getPort() == newProxyPort
             && newReadTimeoutMillis == readTimeoutMillis
+            && newRequestTimeoutMillis == requestTimeoutMillis
+            && newConnectionTimeoutMillis == connectionTimeoutMillis
             && maxRetries == newMaxRetries
             && newThrottleRetries == throttleRetries
             && Objects.equals(credentials, newCredentials)
@@ -336,6 +368,8 @@ final class S3ClientSettings {
             newEndpoint,
             newProtocol,
             newReadTimeoutMillis,
+            newRequestTimeoutMillis,
+            newConnectionTimeoutMillis,
             newMaxRetries,
             newThrottleRetries,
             newPathStyleAccess,
@@ -461,6 +495,8 @@ final class S3ClientSettings {
             getConfigValue(settings, clientName, ENDPOINT_SETTING),
             awsProtocol,
             Math.toIntExact(getConfigValue(settings, clientName, READ_TIMEOUT_SETTING).millis()),
+            Math.toIntExact(getConfigValue(settings, clientName, REQUEST_TIMEOUT_SETTING).millis()),
+            Math.toIntExact(getConfigValue(settings, clientName, CONNECTION_TIMEOUT_SETTING).millis()),
             getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
             getConfigValue(settings, clientName, USE_THROTTLE_RETRIES_SETTING),
             getConfigValue(settings, clientName, USE_PATH_STYLE_ACCESS),
@@ -530,6 +566,8 @@ final class S3ClientSettings {
         }
         final S3ClientSettings that = (S3ClientSettings) o;
         return readTimeoutMillis == that.readTimeoutMillis
+            && requestTimeoutMillis == that.requestTimeoutMillis
+            && connectionTimeoutMillis == that.connectionTimeoutMillis
             && maxRetries == that.maxRetries
             && throttleRetries == that.throttleRetries
             && Objects.equals(credentials, that.credentials)
@@ -550,6 +588,8 @@ final class S3ClientSettings {
             protocol,
             proxySettings,
             readTimeoutMillis,
+            requestTimeoutMillis,
+            connectionTimeoutMillis,
             maxRetries,
             throttleRetries,
             disableChunkedEncoding,
