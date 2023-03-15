@@ -309,11 +309,22 @@ public class NRTReplicationEngine extends Engine {
     }
 
     @Override
-    public void refresh(String source) throws EngineException {}
+    public void refresh(String source) throws EngineException {
+        maybeRefresh(source);
+    }
 
     @Override
     public boolean maybeRefresh(String source) throws EngineException {
-        return false;
+        try {
+            return readerManager.maybeRefresh();
+        } catch (IOException e) {
+            try {
+                failEngine("refresh failed source[" + source + "]", e);
+            } catch (Exception inner) {
+                e.addSuppressed(inner);
+            }
+            throw new RefreshFailedEngineException(shardId, e);
+        }
     }
 
     @Override
