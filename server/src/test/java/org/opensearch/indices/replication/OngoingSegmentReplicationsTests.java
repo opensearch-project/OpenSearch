@@ -277,7 +277,8 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
             listener.onResponse(null);
         };
         replications.prepareForReplication(request, segmentSegmentFileChunkWriter);
-        assertThrows(OpenSearchException.class, () -> { replications.prepareForReplication(request, segmentSegmentFileChunkWriter); });
+        CopyState copyState = replications.prepareForReplication(request, segmentSegmentFileChunkWriter);
+        assertEquals(1, copyState.refCount());
     }
 
     public void testStartReplicationWithNoFilesToFetch() throws IOException {
