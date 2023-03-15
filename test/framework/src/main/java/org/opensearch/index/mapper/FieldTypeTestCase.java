@@ -38,6 +38,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -65,7 +66,7 @@ public abstract class FieldTypeTestCase extends OpenSearchTestCase {
     public static List<?> fetchSourceValue(MappedFieldType fieldType, Object sourceValue, String format) throws IOException {
         String field = fieldType.name();
         QueryShardContext context = mock(QueryShardContext.class);
-        when(context.sourcePath(field)).thenReturn(org.opensearch.common.collect.Set.of(field));
+        when(context.sourcePath(field)).thenReturn(Set.of(field));
 
         ValueFetcher fetcher = fieldType.valueFetcher(context, null, format);
         SourceLookup lookup = new SourceLookup();

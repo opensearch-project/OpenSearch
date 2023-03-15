@@ -328,7 +328,7 @@ public class ArchiveTests extends PackagingTestCase {
     public void test70CustomPathConfAndJvmOptions() throws Exception {
 
         withCustomConfig(tempConf -> {
-            final List<String> jvmOptions = org.opensearch.common.collect.List.of("-Xms512m", "-Xmx512m", "-Dlog4j2.disable.jmx=true");
+            final List<String> jvmOptions = List.of("-Xms512m", "-Xmx512m", "-Dlog4j2.disable.jmx=true");
             Files.write(tempConf.resolve("jvm.options"), jvmOptions, CREATE, APPEND);
 
             sh.getEnv().put("OPENSEARCH_JAVA_OPTS", "-XX:-UseCompressedOops");

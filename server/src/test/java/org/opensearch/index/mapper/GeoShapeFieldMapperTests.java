@@ -33,7 +33,6 @@ package org.opensearch.index.mapper;
 
 import org.opensearch.common.Explicit;
 import org.opensearch.common.Strings;
-import org.opensearch.common.collect.List;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentBuilder;
@@ -45,6 +44,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
@@ -56,7 +56,7 @@ public class GeoShapeFieldMapperTests extends FieldMapperTestCase2<GeoShapeField
 
     @Override
     protected Set<String> unsupportedProperties() {
-        return org.opensearch.common.collect.Set.of("analyzer", "similarity", "doc_values", "store");
+        return Set.of("analyzer", "similarity", "doc_values", "store");
     }
 
     @Override

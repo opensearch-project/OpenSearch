@@ -358,7 +358,7 @@ public abstract class OpenSearchMockAPIBasedRepositoryIntegTestCase extends Open
         }
 
         synchronized Map<String, Long> getOperationsCount() {
-            return org.opensearch.common.collect.Map.copyOf(operationCount);
+            return Map.copyOf(operationCount);
         }
 
         protected synchronized void trackRequest(final String requestType) {

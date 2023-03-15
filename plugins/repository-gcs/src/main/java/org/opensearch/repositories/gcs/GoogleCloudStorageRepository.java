@@ -115,12 +115,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
-        return org.opensearch.common.collect.Map.of(
-            "base_path",
-            BASE_PATH.get(metadata.settings()),
-            "bucket",
-            getSetting(BUCKET, metadata)
-        );
+        return Map.of("base_path", BASE_PATH.get(metadata.settings()), "bucket", getSetting(BUCKET, metadata));
     }
 
     @Override

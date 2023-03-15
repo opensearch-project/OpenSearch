@@ -731,7 +731,7 @@ public class MetadataCreateIndexService {
                 // shard id and the current timestamp
                 indexService.newQueryShardContext(0, null, () -> 0L, null)
             ),
-            org.opensearch.common.collect.List.of(),
+            List.of(),
             metadataTransformer
         );
     }

@@ -92,7 +92,7 @@ public class InternalFilterTests extends InternalSingleBucketAggregationTestCase
             }
         };
         PipelineTree tree = new PipelineTree(
-            org.opensearch.common.collect.Map.of(inner.getName(), new PipelineTree(emptyMap(), singletonList(mockPipeline))),
+            Map.of(inner.getName(), new PipelineTree(emptyMap(), singletonList(mockPipeline))),
             emptyList()
         );
         InternalFilter reduced = (InternalFilter) test.reducePipelines(test, emptyReduceContextBuilder().forFinalReduction(), tree);
