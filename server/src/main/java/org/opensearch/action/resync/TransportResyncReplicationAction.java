@@ -148,7 +148,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
     ) {
         ActionListener.completeWith(
             listener,
-            () -> new WritePrimaryResult<>(performOnPrimary(request), new ResyncReplicationResponse(), null, null, primary, logger)
+            () -> new WritePrimaryResult<>(performOnPrimary(request), new ResyncReplicationResponse(), null, null, primary, logger, this)
         );
     }
 

@@ -417,7 +417,7 @@ public class TransportWriteActionForIndexingPressureTests extends OpenSearchTest
         ) {
             ActionListener.completeWith(
                 listener,
-                () -> new WritePrimaryResult<>(request, new TestResponse(), location, null, primary, logger)
+                () -> new WritePrimaryResult<>(request, new TestResponse(), location, null, primary, logger, this)
             );
         }
 

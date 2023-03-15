@@ -162,6 +162,7 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.discovery.Discovery;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.TestEnvironment;
@@ -1980,7 +1981,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     actionFilters,
                     new IndexingPressureService(settings, clusterService),
                     new SegmentReplicationPressureService(settings, clusterService, mock(IndicesService.class)),
-                    new SystemIndices(emptyMap())
+                    new SystemIndices(emptyMap()),
+                    mock(Discovery.class)
                 );
                 actions.put(
                     BulkAction.INSTANCE,

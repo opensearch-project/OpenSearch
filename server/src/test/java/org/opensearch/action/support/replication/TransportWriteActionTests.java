@@ -519,9 +519,9 @@ public class TransportWriteActionTests extends OpenSearchTestCase {
         ) {
             ActionListener.completeWith(listener, () -> {
                 if (withDocumentFailureOnPrimary) {
-                    return new WritePrimaryResult<>(request, null, null, new RuntimeException("simulated"), primary, logger);
+                    return new WritePrimaryResult<>(request, null, null, new RuntimeException("simulated"), primary, logger, this);
                 } else {
-                    return new WritePrimaryResult<>(request, new TestResponse(), location, null, primary, logger);
+                    return new WritePrimaryResult<>(request, new TestResponse(), location, null, primary, logger, this);
                 }
             });
         }

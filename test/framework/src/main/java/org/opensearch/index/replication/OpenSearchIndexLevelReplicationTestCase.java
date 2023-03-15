@@ -49,6 +49,7 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.resync.ResyncReplicationRequest;
 import org.opensearch.action.resync.ResyncReplicationResponse;
 import org.opensearch.action.resync.TransportResyncReplicationAction;
+import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.WriteRequest;
@@ -62,6 +63,8 @@ import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.action.support.replication.TransportReplicationAction.ReplicaResponse;
 import org.opensearch.action.support.replication.TransportWriteAction;
 import org.opensearch.action.support.replication.TransportWriteActionTestHelper;
+import org.opensearch.cluster.action.index.MappingUpdatedAction;
+import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -72,6 +75,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingHelper;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.collect.Iterators;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
@@ -81,8 +85,12 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.discovery.Discovery;
 import org.opensearch.index.Index;
+import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.IndexingPressureService;
+import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
@@ -100,11 +108,14 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -127,6 +138,10 @@ import java.util.stream.StreamSupport;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShardTestCase {
 
@@ -960,13 +975,27 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
         }
         final PlainActionFuture<Releasable> permitAcquiredFuture = new PlainActionFuture<>();
         primary.acquirePrimaryOperationPermit(permitAcquiredFuture, ThreadPool.Names.SAME, request);
+        final String aId = "test-allocation-id";
+        TransportShardBulkAction action = new TransportShardBulkAction(
+            Settings.EMPTY,
+            mock(TransportService.class),
+            mockClusterService(),
+            mockIndicesService(aId, 1L),
+            threadPool,
+            mock(ShardStateAction.class),
+            mock(MappingUpdatedAction.class),
+            null,
+            mock(ActionFilters.class),
+            mock(IndexingPressureService.class),
+            mock(SegmentReplicationPressureService.class),
+            mock(SystemIndices.class),
+            mock(Discovery.class)
+        );
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
             MappingUpdatePerformer noopMappingUpdater = (update, shardId, listener1) -> {};
             TransportShardBulkAction.performOnPrimary(
                 request,
                 primary,
-                null,
-                System::currentTimeMillis,
                 noopMappingUpdater,
                 null,
                 ActionTestUtils.assertNoFailureListener(result -> {
@@ -978,12 +1007,37 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
                     );
                     listener.onResponse((TransportWriteAction.WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result);
                 }),
-                threadPool,
-                Names.WRITE
+                Names.WRITE,
+                action
             );
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    private ClusterService mockClusterService() {
+        ClusterService clusterService = mock(ClusterService.class);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        return clusterService;
+    }
+
+    private IndicesService mockIndicesService(String aId, long primaryTerm) {
+        // Mock few of the required classes
+        IndicesService indicesService = mock(IndicesService.class);
+        IndexService indexService = mock(IndexService.class);
+        IndexShard indexShard = mock(IndexShard.class);
+        when(indicesService.indexServiceSafe(any(Index.class))).thenReturn(indexService);
+        when(indexService.getShard(anyInt())).thenReturn(indexShard);
+        when(indexShard.getOperationPrimaryTerm()).thenReturn(primaryTerm);
+
+        // Mock routing entry, allocation id
+        AllocationId allocationId = mock(AllocationId.class);
+        ShardRouting shardRouting = mock(ShardRouting.class);
+        when(indexShard.routingEntry()).thenReturn(shardRouting);
+        when(shardRouting.allocationId()).thenReturn(allocationId);
+        when(allocationId.getId()).thenReturn(aId);
+        return indicesService;
     }
 
     private <Request extends ReplicatedWriteRequest & DocWriteRequest> BulkShardRequest executeReplicationRequestOnPrimary(
@@ -1141,7 +1195,8 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
                 null,
                 null,
                 primary,
-                logger
+                logger,
+                null
             );
         TransportWriteActionTestHelper.performPostWriteActions(primary, request, result.location, logger);
         return result;

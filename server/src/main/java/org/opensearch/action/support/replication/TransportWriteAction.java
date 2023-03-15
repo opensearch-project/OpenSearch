@@ -277,6 +277,7 @@ public abstract class TransportWriteAction<
         public final Location location;
         public final IndexShard primary;
         private final Logger logger;
+        private final TransportWriteAction action;
 
         public WritePrimaryResult(
             ReplicaRequest request,
@@ -284,12 +285,14 @@ public abstract class TransportWriteAction<
             @Nullable Location location,
             @Nullable Exception operationFailure,
             IndexShard primary,
-            Logger logger
+            Logger logger,
+            TransportWriteAction action
         ) {
             super(request, finalResponse, operationFailure);
             this.location = location;
             this.primary = primary;
             this.logger = logger;
+            this.action = action;
             assert location == null || operationFailure == null : "expected either failure to be null or translog location to be null, "
                 + "but found: ["
                 + location
@@ -307,7 +310,7 @@ public abstract class TransportWriteAction<
                  * We call this after replication because this might wait for a refresh and that can take a while.
                  * This way we wait for the refresh in parallel on the primary and on the replica.
                  */
-                new AsyncAfterWriteAction(primary, replicaRequest, location, new RespondingWriteResult() {
+                action.createAsyncAfterWriteAction(primary, replicaRequest, location, new RespondingWriteResult() {
                     @Override
                     public void onSuccess(boolean forcedRefresh) {
                         finalResponseIfSuccessful.setForcedRefresh(forcedRefresh);
@@ -321,6 +324,16 @@ public abstract class TransportWriteAction<
                 }, logger).run();
             }
         }
+    }
+
+    protected AsyncAfterWriteAction createAsyncAfterWriteAction(
+        final IndexShard indexShard,
+        final WriteRequest<?> request,
+        final Translog.Location location,
+        final RespondingWriteResult respond,
+        final Logger logger
+    ) {
+        return new AsyncAfterWriteAction(indexShard, request, location, respond, logger);
     }
 
     /**
@@ -382,7 +395,7 @@ public abstract class TransportWriteAction<
      * callback used by {@link AsyncAfterWriteAction} to notify that all post
      * process actions have been executed
      */
-    interface RespondingWriteResult {
+    protected interface RespondingWriteResult {
         /**
          * Called on successful processing of all post write actions
          * @param forcedRefresh <code>true</code> iff this write has caused a refresh
@@ -402,19 +415,19 @@ public abstract class TransportWriteAction<
      *
      * @opensearch.internal
      */
-    static final class AsyncAfterWriteAction {
+    protected static class AsyncAfterWriteAction {
         private final Location location;
         private final boolean waitUntilRefresh;
         private final boolean sync;
         private final AtomicInteger pendingOps = new AtomicInteger(1);
-        private final AtomicBoolean refreshed = new AtomicBoolean(false);
-        private final AtomicReference<Exception> syncFailure = new AtomicReference<>(null);
-        private final RespondingWriteResult respond;
+        protected final AtomicBoolean refreshed = new AtomicBoolean(false);
+        protected final AtomicReference<Exception> syncFailure = new AtomicReference<>(null);
+        protected final RespondingWriteResult respond;
         private final IndexShard indexShard;
         private final WriteRequest<?> request;
         private final Logger logger;
 
-        AsyncAfterWriteAction(
+        protected AsyncAfterWriteAction(
             final IndexShard indexShard,
             final WriteRequest<?> request,
             @Nullable final Translog.Location location,
@@ -454,16 +467,20 @@ public abstract class TransportWriteAction<
         private void maybeFinish() {
             final int numPending = pendingOps.decrementAndGet();
             if (numPending == 0) {
-                if (syncFailure.get() != null) {
-                    respond.onFailure(syncFailure.get());
-                } else {
-                    respond.onSuccess(refreshed.get());
-                }
+                finishOnNoPendingOps();
             }
             assert numPending >= 0 && numPending <= 2 : "numPending must either 2, 1 or 0 but was " + numPending;
         }
 
-        void run() {
+        protected void finishOnNoPendingOps() {
+            if (syncFailure.get() != null) {
+                respond.onFailure(syncFailure.get());
+            } else {
+                respond.onSuccess(refreshed.get());
+            }
+        }
+
+        final void run() {
             /*
              * We either respond immediately (i.e., if we do not fsync per request or wait for
              * refresh), or we there are past async operations and we wait for them to return to

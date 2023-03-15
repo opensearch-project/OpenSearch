@@ -32,6 +32,7 @@
 
 package org.opensearch;
 
+import org.opensearch.action.bulk.LeaderCheckerBeforeThresholdException;
 import org.opensearch.action.support.replication.ReplicationOperation;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.routing.NodeWeighedAwayException;
@@ -75,6 +76,7 @@ import static org.opensearch.Version.V_2_1_0;
 import static org.opensearch.Version.V_2_4_0;
 import static org.opensearch.Version.V_2_5_0;
 import static org.opensearch.Version.V_2_6_0;
+import static org.opensearch.Version.V_2_7_0;
 import static org.opensearch.Version.V_3_0_0;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -1642,6 +1644,12 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             V_2_6_0
         ),
         NODE_WEIGHED_AWAY_EXCEPTION(NodeWeighedAwayException.class, NodeWeighedAwayException::new, 169, V_2_6_0),
+        LEADER_CHECKER_BEFORE_THRESHOLD_EXCEPTION(
+            LeaderCheckerBeforeThresholdException.class,
+            LeaderCheckerBeforeThresholdException::new,
+            169,
+            V_2_7_0
+        ),
         INDEX_CREATE_BLOCK_EXCEPTION(
             org.opensearch.cluster.block.IndexCreateBlockException.class,
             org.opensearch.cluster.block.IndexCreateBlockException::new,

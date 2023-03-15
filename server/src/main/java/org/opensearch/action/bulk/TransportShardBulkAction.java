@@ -48,6 +48,7 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ChannelActionListener;
+import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.replication.ReplicationMode;
 import org.opensearch.action.support.replication.ReplicationOperation;
 import org.opensearch.action.support.replication.ReplicationTask;
@@ -61,12 +62,14 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.coordination.Coordinator;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.compress.CompressedXContent;
@@ -74,12 +77,15 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.discovery.Discovery;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.engine.Engine;
@@ -132,6 +138,16 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }
     };
 
+    /**
+     * This setting is used as threshold for failing requests if latest successful leader check happened before a threshold
+     */
+    public static final Setting<TimeValue> REMOTE_STORE_INDEX_LEADER_CHECK_TIME_THRESHOLD = Setting.timeSetting(
+        "index.remote_store.action.bulk.leader_check.time.threshold",
+        TimeValue.timeValueMinutes(5),
+        TimeValue.timeValueMinutes(5),
+        Setting.Property.NodeScope
+    );
+
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
     private final SegmentReplicationPressureService segmentReplicationPressureService;
@@ -144,6 +160,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
      * term validation in presence of a new primary.
      */
     private final String transportPrimaryTermValidationAction;
+
+    private final LongSupplier latestSuccessfulLeaderCheckerTimeSupplier;
+
+    private final TimeValue latestLeaderCheckThreshold;
 
     @Inject
     public TransportShardBulkAction(
@@ -158,7 +178,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ActionFilters actionFilters,
         IndexingPressureService indexingPressureService,
         SegmentReplicationPressureService segmentReplicationPressureService,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        Discovery discovery
     ) {
         super(
             settings,
@@ -180,16 +201,23 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.segmentReplicationPressureService = segmentReplicationPressureService;
 
-        this.transportPrimaryTermValidationAction = ACTION_NAME + "[validate_primary_term]";
-
-        transportService.registerRequestHandler(
-            transportPrimaryTermValidationAction,
-            executor,
-            true,
-            true,
-            PrimaryTermValidationRequest::new,
-            this::handlePrimaryTermValidationRequest
-        );
+        if (FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE)) {
+            this.latestSuccessfulLeaderCheckerTimeSupplier = () -> ((Coordinator) discovery).getLatestSuccessfulLeaderCheckerTime();
+            this.latestLeaderCheckThreshold = REMOTE_STORE_INDEX_LEADER_CHECK_TIME_THRESHOLD.get(settings);
+            this.transportPrimaryTermValidationAction = ACTION_NAME + "[validate_primary_term]";
+            transportService.registerRequestHandler(
+                transportPrimaryTermValidationAction,
+                executor,
+                true,
+                true,
+                PrimaryTermValidationRequest::new,
+                this::handlePrimaryTermValidationRequest
+            );
+        } else {
+            this.latestSuccessfulLeaderCheckerTimeSupplier = null;
+            this.transportPrimaryTermValidationAction = null;
+            this.latestLeaderCheckThreshold = null;
+        }
     }
 
     protected void handlePrimaryTermValidationRequest(
@@ -347,6 +375,67 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     @Override
+    protected TransportWriteAction.AsyncAfterWriteAction createAsyncAfterWriteAction(
+        IndexShard indexShard,
+        WriteRequest<?> request,
+        Translog.Location location,
+        TransportWriteAction.RespondingWriteResult respond,
+        Logger logger
+    ) {
+        return new AsyncAfterShardBulkAction(
+            indexShard,
+            request,
+            location,
+            respond,
+            logger,
+            latestSuccessfulLeaderCheckerTimeSupplier,
+            latestLeaderCheckThreshold
+        );
+    }
+
+    private static class AsyncAfterShardBulkAction extends AsyncAfterWriteAction {
+
+        private final IndexShard indexShard;
+        private final LongSupplier latestSuccessfulLeaderCheckerTimeSupplier;
+        private final TimeValue leaderCheckerTimeThreshold;
+
+        public AsyncAfterShardBulkAction(
+            final IndexShard indexShard,
+            final WriteRequest<?> request,
+            @Nullable final Translog.Location location,
+            final RespondingWriteResult respond,
+            final Logger logger,
+            final LongSupplier latestSuccessfulLeaderCheckerTimeSupplier,
+            final TimeValue leaderCheckerTimeThreshold
+        ) {
+            super(indexShard, request, location, respond, logger);
+            this.indexShard = indexShard;
+            this.latestSuccessfulLeaderCheckerTimeSupplier = latestSuccessfulLeaderCheckerTimeSupplier;
+            this.leaderCheckerTimeThreshold = leaderCheckerTimeThreshold;
+        }
+
+        @Override
+        protected void finishOnNoPendingOps() {
+            if (indexShard.isRemoteTranslogEnabled() && elapsedTimeSinceLatestSuccessfulLeaderCheckBeforeThreshold()) {
+                respond.onFailure(
+                    new LeaderCheckerBeforeThresholdException(
+                        "Latest successful leader checker time is {} while threshold is {}",
+                        latestSuccessfulLeaderCheckerTimeSupplier.getAsLong(),
+                        leaderCheckerTimeThreshold
+                    )
+                );
+            } else {
+                super.finishOnNoPendingOps();
+            }
+        }
+
+        private boolean elapsedTimeSinceLatestSuccessfulLeaderCheckBeforeThreshold() {
+            return System.currentTimeMillis() - latestSuccessfulLeaderCheckerTimeSupplier.getAsLong() >= leaderCheckerTimeThreshold
+                .getMillis();
+        }
+    }
+
+    @Override
     protected ReplicationOperation.Replicas<BulkShardRequest> primaryTermValidationReplicasProxy() {
         return new PrimaryTermValidationProxy();
     }
@@ -404,7 +493,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener
     ) {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
-        performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, mappingListener) -> {
+        performOnPrimary(request, primary, (update, shardId, mappingListener) -> {
             assert update != null;
             assert shardId != null;
             mappingUpdatedAction.updateMappingOnClusterManager(shardId.getIndex(), update, mappingListener);
@@ -423,7 +512,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             public void onTimeout(TimeValue timeout) {
                 mappingUpdateListener.onFailure(new MapperException("timed out while waiting for a dynamic mapping update"));
             }
-        }), listener, threadPool, executor(primary));
+        }), listener, executor(primary), this);
     }
 
     @Override
@@ -442,17 +531,15 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     public static void performOnPrimary(
         BulkShardRequest request,
         IndexShard primary,
-        UpdateHelper updateHelper,
-        LongSupplier nowInMillisSupplier,
         MappingUpdatePerformer mappingUpdater,
         Consumer<ActionListener<Void>> waitForMappingUpdate,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
-        ThreadPool threadPool,
-        String executorName
+        String executorName,
+        TransportShardBulkAction action
     ) {
         new ActionRunnable<PrimaryResult<BulkShardRequest, BulkShardResponse>>(listener) {
 
-            private final Executor executor = threadPool.executor(executorName);
+            private final Executor executor = action.threadPool.executor(executorName);
 
             private final BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary);
 
@@ -461,8 +548,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 while (context.hasMoreOperationsToExecute()) {
                     if (executeBulkItemRequest(
                         context,
-                        updateHelper,
-                        nowInMillisSupplier,
+                        action.updateHelper,
+                        action.threadPool::absoluteTimeInMillis,
                         mappingUpdater,
                         waitForMappingUpdate,
                         ActionListener.wrap(v -> executor.execute(this), this::onRejection)
@@ -519,7 +606,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         context.getLocationToSync(),
                         null,
                         context.getPrimary(),
-                        logger
+                        logger,
+                        action
                     )
                 );
             }

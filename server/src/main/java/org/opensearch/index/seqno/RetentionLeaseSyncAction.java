@@ -191,7 +191,7 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
             Objects.requireNonNull(request);
             Objects.requireNonNull(primary);
             primary.persistRetentionLeases();
-            return new WritePrimaryResult<>(request, new Response(), null, null, primary, getLogger());
+            return new WritePrimaryResult<>(request, new Response(), null, null, primary, getLogger(), this);
         });
     }
 

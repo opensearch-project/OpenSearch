@@ -65,6 +65,7 @@ import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.discovery.Discovery;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -239,11 +240,25 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         rejectItem.abort("index", rejectionCause);
 
         final CountDownLatch latch = new CountDownLatch(1);
+        final String aId = "test-allocation-id";
+        TransportShardBulkAction action = new TransportShardBulkAction(
+            Settings.EMPTY,
+            mock(TransportService.class),
+            mockClusterService(),
+            mockIndicesService(aId, 1L),
+            threadPool,
+            mock(ShardStateAction.class),
+            mock(MappingUpdatedAction.class),
+            null,
+            mock(ActionFilters.class),
+            mock(IndexingPressureService.class),
+            mock(SegmentReplicationPressureService.class),
+            mock(SystemIndices.class),
+            mock(Discovery.class)
+        );
         TransportShardBulkAction.performOnPrimary(
             bulkShardRequest,
             shard,
-            null,
-            threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(),
             listener -> {},
             ActionListener.runAfter(ActionTestUtils.assertNoFailureListener(result -> {
@@ -277,8 +292,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                     throw new AssertionError(e);
                 }
             }), latch::countDown),
-            threadPool,
-            Names.WRITE
+            Names.WRITE,
+            action
         );
 
         latch.await();
@@ -920,13 +935,26 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         BulkItemRequest[] items = new BulkItemRequest[] { primaryRequest };
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
-
+        final String aId = "test-allocation-id";
+        TransportShardBulkAction action = new TransportShardBulkAction(
+            Settings.EMPTY,
+            mock(TransportService.class),
+            mockClusterService(),
+            mockIndicesService(aId, 1L),
+            threadPool,
+            mock(ShardStateAction.class),
+            mock(MappingUpdatedAction.class),
+            updateHelper,
+            mock(ActionFilters.class),
+            mock(IndexingPressureService.class),
+            mock(SegmentReplicationPressureService.class),
+            mock(SystemIndices.class),
+            mock(Discovery.class)
+        );
         final CountDownLatch latch = new CountDownLatch(1);
         TransportShardBulkAction.performOnPrimary(
             bulkShardRequest,
             shard,
-            updateHelper,
-            threadPool::absoluteTimeInMillis,
             new NoopMappingUpdatePerformer(),
             listener -> listener.onResponse(null),
             new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result -> {
@@ -939,8 +967,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 assertThat(response.status(), equalTo(RestStatus.CREATED));
                 assertThat(response.getSeqNo(), equalTo(13L));
             }), latch),
-            threadPool,
-            Names.WRITE
+            Names.WRITE,
+            action
         );
         latch.await();
     }
@@ -1000,30 +1028,39 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             AtomicInteger updateCalled = new AtomicInteger();
 
             final CountDownLatch latch = new CountDownLatch(1);
-            TransportShardBulkAction.performOnPrimary(
-                bulkShardRequest,
-                shard,
-                null,
-                rejectingThreadPool::absoluteTimeInMillis,
-                (update, shardId, listener) -> {
-                    // There should indeed be a mapping update
-                    assertNotNull(update);
-                    updateCalled.incrementAndGet();
-                    listener.onResponse(null);
-                    try {
-                        // Release blocking task now that the continue write execution has been rejected and
-                        // the finishRequest execution has been force enqueued
-                        cyclicBarrier.await();
-                    } catch (InterruptedException | BrokenBarrierException e) {
-                        throw new IllegalStateException(e);
-                    }
-                },
-                listener -> listener.onResponse(null),
-                new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result ->
-                // Assert that we still need to fsync the location that was successfully written
-                assertThat(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, equalTo(resultLocation1))), latch),
+            final String aId = "test-allocation-id";
+            TransportShardBulkAction action = new TransportShardBulkAction(
+                Settings.EMPTY,
+                mock(TransportService.class),
+                mockClusterService(),
+                mockIndicesService(aId, 1L),
                 rejectingThreadPool,
-                Names.WRITE
+                mock(ShardStateAction.class),
+                mock(MappingUpdatedAction.class),
+                null,
+                mock(ActionFilters.class),
+                mock(IndexingPressureService.class),
+                mock(SegmentReplicationPressureService.class),
+                mock(SystemIndices.class),
+                mock(Discovery.class)
+            );
+            TransportShardBulkAction.performOnPrimary(bulkShardRequest, shard, (update, shardId, listener) -> {
+                // There should indeed be a mapping update
+                assertNotNull(update);
+                updateCalled.incrementAndGet();
+                listener.onResponse(null);
+                try {
+                    // Release blocking task now that the continue write execution has been rejected and
+                    // the finishRequest execution has been force enqueued
+                    cyclicBarrier.await();
+                } catch (InterruptedException | BrokenBarrierException e) {
+                    throw new IllegalStateException(e);
+                }
+            }, listener -> listener.onResponse(null), new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(result ->
+            // Assert that we still need to fsync the location that was successfully written
+            assertThat(((WritePrimaryResult<BulkShardRequest, BulkShardResponse>) result).location, equalTo(resultLocation1))), latch),
+                Names.WRITE,
+                action
             );
             latch.await();
 
@@ -1072,7 +1109,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(ActionFilters.class),
             mock(IndexingPressureService.class),
             mock(SegmentReplicationPressureService.class),
-            mock(SystemIndices.class)
+            mock(SystemIndices.class),
+            mock(Discovery.class)
         );
         action.handlePrimaryTermValidationRequest(
             new TransportShardBulkAction.PrimaryTermValidationRequest(aId + "-1", 1, shardId),
@@ -1102,7 +1140,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(ActionFilters.class),
             mock(IndexingPressureService.class),
             mock(SegmentReplicationPressureService.class),
-            mock(SystemIndices.class)
+            mock(SystemIndices.class),
+            mock(Discovery.class)
         );
         action.handlePrimaryTermValidationRequest(
             new TransportShardBulkAction.PrimaryTermValidationRequest(aId, 1, shardId),
@@ -1132,7 +1171,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(ActionFilters.class),
             mock(IndexingPressureService.class),
             mock(SegmentReplicationPressureService.class),
-            mock(SystemIndices.class)
+            mock(SystemIndices.class),
+            mock(Discovery.class)
         );
         action.handlePrimaryTermValidationRequest(
             new TransportShardBulkAction.PrimaryTermValidationRequest(aId, 1, shardId),
@@ -1173,7 +1213,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(ActionFilters.class),
             mock(IndexingPressureService.class),
             mock(SegmentReplicationPressureService.class),
-            mock(SystemIndices.class)
+            mock(SystemIndices.class),
+            mock(Discovery.class)
         );
     }
 
