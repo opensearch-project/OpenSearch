@@ -120,7 +120,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         }, internalMissing -> {
             assertEquals(numDocs, internalMissing.getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
-        }, org.opensearch.common.collect.List.of(aggFieldType, anotherFieldType));
+        }, List.of(aggFieldType, anotherFieldType));
     }
 
     public void testMatchSparse() throws IOException {
@@ -145,7 +145,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
             assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
-        }, org.opensearch.common.collect.List.of(aggFieldType, anotherFieldType));
+        }, List.of(aggFieldType, anotherFieldType));
     }
 
     public void testMatchSparseRangeField() throws IOException {
@@ -225,7 +225,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         }, internalMissing -> {
             assertEquals(0, internalMissing.getDocCount());
             assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
-        }, org.opensearch.common.collect.List.of(aggFieldType, anotherFieldType));
+        }, List.of(aggFieldType, anotherFieldType));
     }
 
     public void testMultiValuedField() throws IOException {
@@ -241,7 +241,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             if (randomBoolean()) {
                 final long randomLong = randomLong();
                 docs.add(
-                    org.opensearch.common.collect.Set.of(
+                    Set.of(
                         new SortedNumericDocValuesField(aggFieldType.name(), randomLong),
                         new SortedNumericDocValuesField(aggFieldType.name(), randomLong + 1)
                     )
@@ -256,7 +256,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
             assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
-        }, org.opensearch.common.collect.List.of(aggFieldType, anotherFieldType));
+        }, List.of(aggFieldType, anotherFieldType));
     }
 
     public void testSingleValuedFieldWithValueScript() throws IOException {
@@ -289,12 +289,12 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         testCase(newMatchAllQuery(), builder, writer -> writer.addDocuments(docs), internalMissing -> {
             assertEquals(finalDocsMissingField, internalMissing.getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
-        }, org.opensearch.common.collect.List.of(aggFieldType, anotherFieldType));
+        }, List.of(aggFieldType, anotherFieldType));
     }
 
     public void testMultiValuedFieldWithFieldScriptWithParams() throws IOException {
         final long threshold = 10;
-        final Map<String, Object> params = org.opensearch.common.collect.Map.of("field", "agg_field", "threshold", threshold);
+        final Map<String, Object> params = Map.of("field", "agg_field", "threshold", threshold);
         fieldScriptTestCase(new Script(ScriptType.INLINE, MockScriptEngine.NAME, FIELD_SCRIPT_PARAMS, params), threshold);
     }
 
@@ -320,7 +320,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                 docsBelowThreshold++;
             }
             docs.add(
-                org.opensearch.common.collect.Set.of(
+                Set.of(
                     new SortedNumericDocValuesField(aggFieldType.name(), firstValue),
                     new SortedNumericDocValuesField(aggFieldType.name(), secondValue)
                 )
@@ -362,7 +362,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return org.opensearch.common.collect.List.of(
+        return List.of(
             CoreValuesSourceType.NUMERIC,
             CoreValuesSourceType.BYTES,
             CoreValuesSourceType.GEOPOINT,

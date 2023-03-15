@@ -207,18 +207,18 @@ public class TextFieldTypeTests extends FieldTypeTestCase {
         TextFieldType fieldType = createFieldType();
         fieldType.setIndexAnalyzer(Lucene.STANDARD_ANALYZER);
 
-        assertEquals(org.opensearch.common.collect.List.of("value"), fetchSourceValue(fieldType, "value"));
-        assertEquals(org.opensearch.common.collect.List.of("42"), fetchSourceValue(fieldType, 42L));
-        assertEquals(org.opensearch.common.collect.List.of("true"), fetchSourceValue(fieldType, true));
+        assertEquals(List.of("value"), fetchSourceValue(fieldType, "value"));
+        assertEquals(List.of("42"), fetchSourceValue(fieldType, 42L));
+        assertEquals(List.of("true"), fetchSourceValue(fieldType, true));
 
         TextFieldMapper.PrefixFieldType prefixFieldType = new TextFieldMapper.PrefixFieldType(fieldType, "field._index_prefix", 2, 10);
-        assertEquals(org.opensearch.common.collect.List.of("value"), fetchSourceValue(prefixFieldType, "value"));
-        assertEquals(org.opensearch.common.collect.List.of("42"), fetchSourceValue(prefixFieldType, 42L));
-        assertEquals(org.opensearch.common.collect.List.of("true"), fetchSourceValue(prefixFieldType, true));
+        assertEquals(List.of("value"), fetchSourceValue(prefixFieldType, "value"));
+        assertEquals(List.of("42"), fetchSourceValue(prefixFieldType, 42L));
+        assertEquals(List.of("true"), fetchSourceValue(prefixFieldType, true));
 
         TextFieldMapper.PhraseFieldType phraseFieldType = new TextFieldMapper.PhraseFieldType(fieldType);
-        assertEquals(org.opensearch.common.collect.List.of("value"), fetchSourceValue(phraseFieldType, "value"));
-        assertEquals(org.opensearch.common.collect.List.of("42"), fetchSourceValue(phraseFieldType, 42L));
-        assertEquals(org.opensearch.common.collect.List.of("true"), fetchSourceValue(phraseFieldType, true));
+        assertEquals(List.of("value"), fetchSourceValue(phraseFieldType, "value"));
+        assertEquals(List.of("42"), fetchSourceValue(phraseFieldType, 42L));
+        assertEquals(List.of("true"), fetchSourceValue(phraseFieldType, true));
     }
 }

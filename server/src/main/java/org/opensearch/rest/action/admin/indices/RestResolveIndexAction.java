@@ -57,7 +57,7 @@ public class RestResolveIndexAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.opensearch.common.collect.List.of(new Route(RestRequest.Method.GET, "/_resolve/index/{name}"));
+        return List.of(new Route(RestRequest.Method.GET, "/_resolve/index/{name}"));
     }
 
     @Override

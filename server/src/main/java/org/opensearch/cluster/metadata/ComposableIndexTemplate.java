@@ -57,7 +57,6 @@ import java.util.Objects;
 
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.opensearch.common.collect.Map.of;
 
 /**
  * An index template is comprised of a set of index patterns, an optional template, and a list of
@@ -325,7 +324,10 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         public Map<String, Object> getDataStreamMappingSnippet() {
             return singletonMap(
                 MapperService.SINGLE_MAPPING_NAME,
-                singletonMap("_data_stream_timestamp", unmodifiableMap(of("enabled", true, "timestamp_field", getTimestampField().toMap())))
+                singletonMap(
+                    "_data_stream_timestamp",
+                    unmodifiableMap(Map.of("enabled", true, "timestamp_field", getTimestampField().toMap()))
+                )
             );
         }
 
