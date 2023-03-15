@@ -41,6 +41,8 @@ import java.util.stream.Collectors;
  * @opensearch.internal
  */
 class OngoingSegmentReplications {
+
+    private static final Logger logger = LogManager.getLogger(OngoingSegmentReplications.class);
     private final RecoverySettings recoverySettings;
     private final IndicesService indicesService;
     private final Map<ReplicationCheckpoint, CopyState> copyStateMap;
@@ -94,8 +96,6 @@ class OngoingSegmentReplications {
             return copyState;
         }
     }
-
-    private static final Logger logger = LogManager.getLogger(OngoingSegmentReplications.class);
 
     /**
      * Start sending files to the replica.
@@ -269,6 +269,9 @@ class OngoingSegmentReplications {
             .filter(predicate)
             .map(SegmentReplicationSourceHandler::getAllocationId)
             .collect(Collectors.toList());
+        if (allocationIds.size() == 0) {
+            return;
+        }
         logger.warn(() -> new ParameterizedMessage("Cancelling replications for allocationIds {}", allocationIds));
         for (String allocationId : allocationIds) {
             cancel(allocationId, reason);
