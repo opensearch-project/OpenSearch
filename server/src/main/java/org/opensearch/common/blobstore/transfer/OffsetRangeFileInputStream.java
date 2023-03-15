@@ -14,28 +14,64 @@ import java.io.IOException;
 import java.nio.channels.FileChannel;
 
 public class OffsetRangeFileInputStream extends FileInputStream {
+    private final FileChannel fileChannel;
+    private final String fileName;
 
+    private final long actualSizeToRead;
+    // This is the maximum position till stream is to be read. If read methods exceed maxPos then bytes are read
+    // till maxPos. If no byte is left after maxPos, then -1 is returned from read methods.
+    private final long limit;
+    // Position in stream from which read will start.
     private long counter = 0;
 
     private long markPointer;
     private long markCounter;
 
-    private final FileChannel fileChannel;
-    private final String fileName;
-
-    // This is the maximum position till stream is to be read. If read methods exceed maxPos then bytes are read
-    // till maxPos. If no byte is left after maxPos, then -1 is returned from read methods.
-    private final long maxLen;
-    // Position in stream from which read will start.
-    private long curLen;
-
     public OffsetRangeFileInputStream(File file, long size, long position) throws IOException {
         super(file);
         this.fileChannel = this.getChannel();
+        long totalLength = fileChannel.size();
         this.getChannel().position(position);
-        this.curLen = 0;
-        this.maxLen = size;
+        this.counter = 0;
+        this.limit = size;
         this.fileName = file.getName();
+        if ((totalLength - position) > limit) {
+            actualSizeToRead = limit;
+        } else {
+            actualSizeToRead = totalLength - position;
+        }
+    }
+
+    @Override
+    public int read(byte[] b, int off, int len) throws IOException {
+        if (b == null) {
+            throw new NullPointerException();
+        } else if (off < 0 || len < 0 || len > b.length - off) {
+            throw new IndexOutOfBoundsException();
+        }
+        if (fileChannel.position() >= fileChannel.size()) {
+            return -1;
+        }
+        if (fileChannel.position() + len > fileChannel.size()) {
+            len = (int) (fileChannel.size() - fileChannel.position());
+        }
+        if (counter + len > limit) {
+            len = (int) (limit - counter);
+        }
+        if (len <= 0) {
+            return -1;
+        }
+        super.read(b, off, len);
+        counter += len;
+        return len;
+    }
+
+    @Override
+    public int read() throws IOException {
+        if (counter++ >= limit) {
+            return -1;
+        }
+        return (fileChannel.position() < fileChannel.size()) ? (super.read() & 0xff) : -1;
     }
 
     @Override
@@ -57,30 +93,5 @@ public class OffsetRangeFileInputStream extends FileInputStream {
     public synchronized void reset() throws IOException {
         fileChannel.position(markPointer);
         counter = markCounter;
-    }
-
-    @Override
-    public int read() throws IOException {
-        if (hasBytesConsumed()) return -1;
-        curLen++;
-        return super.read();
-    }
-
-    @Override
-    public int read(byte []b, int off, int len) throws IOException {
-        if (hasBytesConsumed()) return -1;
-        long inputLen = limitLength(len);
-        curLen += inputLen;
-        return super.read(b, off, (int)inputLen);
-    }
-
-    private long limitLength(int len) {
-        if (len < 0) return 0;
-        long lengthAfterRead = curLen + len;
-        return lengthAfterRead < maxLen ? len : maxLen - curLen;
-    }
-
-    private boolean hasBytesConsumed() {
-        return curLen >= maxLen;
     }
 }
