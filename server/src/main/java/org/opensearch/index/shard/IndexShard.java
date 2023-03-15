@@ -494,6 +494,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return indexSettings.getIndexMetadata().isSystem();
     }
 
+    public String getCodecName() {
+        return codecService.codec("default").getName();
+    }
+
     /**
      * USE THIS METHOD WITH CARE!
      * Returns the primary term the index shard is supposed to be on. In case of primary promotion or when a replica learns about
@@ -1484,7 +1488,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return null;
         }
         if (getEngineOrNull() == null) {
-            return new Tuple<>(new GatedCloseable<>(null, () -> {}), ReplicationCheckpoint.empty(shardId));
+            return new Tuple<>(new GatedCloseable<>(null, () -> {}), ReplicationCheckpoint.empty(shardId, getCodecName()));
         }
         // do not close the snapshot - caller will close it.
         final GatedCloseable<SegmentInfos> snapshot = getSegmentInfosSnapshot();
@@ -1501,13 +1505,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         // getSegmentInfosSnapshot, so computing length from SegmentInfos can cause issues.
                         shardRouting.primary()
                             ? store.getSegmentMetadataMap(segmentInfos).values().stream().mapToLong(StoreFileMetadata::length).sum()
-                            : store.stats(StoreStats.UNKNOWN_RESERVED_BYTES).getSizeInBytes()
+                            : store.stats(StoreStats.UNKNOWN_RESERVED_BYTES).getSizeInBytes(),
+                        getEngine().config().getCodec().getName()
                     )
                 );
             } catch (IOException e) {
                 throw new OpenSearchException("Error Fetching SegmentInfos and latest checkpoint", e);
             }
-        }).orElseGet(() -> new Tuple<>(new GatedCloseable<>(null, () -> {}), ReplicationCheckpoint.empty(shardId)));
+        }).orElseGet(() -> new Tuple<>(new GatedCloseable<>(null, () -> {}), ReplicationCheckpoint.empty(shardId, getCodecName())));
     }
 
     /**
@@ -1574,6 +1579,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (localCheckpoint.equals(requestCheckpoint)) {
             logger.trace(
                 () -> new ParameterizedMessage("Ignoring new replication checkpoint - Shard is already on checkpoint {}", requestCheckpoint)
+            );
+            return false;
+        }
+        if (localCheckpoint.getCodec().equals(requestCheckpoint.getCodec()) == false) {
+            logger.trace(
+                () -> new ParameterizedMessage("Shard does not support the received lucene codec version {}", requestCheckpoint.getCodec())
             );
             return false;
         }

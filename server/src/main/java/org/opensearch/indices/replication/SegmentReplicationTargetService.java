@@ -401,7 +401,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                 return;
             }
             startReplication(
-                ReplicationCheckpoint.empty(request.getShardId()),
+                ReplicationCheckpoint.empty(request.getShardId(), indexShard.getCodecName()),
                 indexShard,
                 new SegmentReplicationTargetService.SegmentReplicationListener() {
                     @Override

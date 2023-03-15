@@ -8,6 +8,7 @@
 
 package org.opensearch.index.shard;
 
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.SegmentInfos;
 import org.junit.Assert;
 import org.opensearch.ExceptionsHelper;
@@ -306,7 +307,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         assertEquals(false, primaryShard.getReplicationTracker().isPrimaryMode());
         assertEquals(true, primaryShard.routingEntry().primary());
 
-        spy.onNewCheckpoint(new ReplicationCheckpoint(primaryShard.shardId(), 0L, 0L, 0L), spyShard);
+        spy.onNewCheckpoint(new ReplicationCheckpoint(primaryShard.shardId(), 0L, 0L, 0L, Codec.getDefault().getName()), spyShard);
 
         // Verify that checkpoint is not processed as shard routing is primary.
         verify(spy, times(0)).startReplication(any(), any(), any());
@@ -1020,7 +1021,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
 
     private void resolveCheckpointInfoResponseListener(ActionListener<CheckpointInfoResponse> listener, IndexShard primary) {
         try {
-            final CopyState copyState = new CopyState(ReplicationCheckpoint.empty(primary.shardId), primary);
+            final CopyState copyState = new CopyState(ReplicationCheckpoint.empty(primary.shardId, primary.getCodecName()), primary);
             listener.onResponse(
                 new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
             );
@@ -1034,7 +1035,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         final SegmentReplicationTarget target = targetService.startReplication(
-            ReplicationCheckpoint.empty(replica.shardId),
+            ReplicationCheckpoint.empty(replica.shardId, replica.getCodecName()),
             replica,
             new SegmentReplicationTargetService.SegmentReplicationListener() {
                 @Override
