@@ -9,7 +9,7 @@
                     "output_unigrams" : false,
                     "filler_token" : "FILLER"
                 }
-            }            
+            }
         }
     }
 }

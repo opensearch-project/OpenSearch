@@ -11,9 +11,11 @@ package org.opensearch.index.engine;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
@@ -179,6 +181,28 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             final SegmentInfos lastCommittedSegmentInfos = nrtEngine.getLastCommittedSegmentInfos();
             assertEquals(primaryInfos.getVersion(), nrtEngine.getLatestSegmentInfos().getVersion());
             assertEquals(primaryInfos.getVersion(), lastCommittedSegmentInfos.getVersion());
+        }
+    }
+
+    public void testRefreshOnNRTEngine() throws IOException {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+
+        try (
+            final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore)
+        ) {
+            assertEquals(2, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
+            assertEquals(2, nrtEngine.getLatestSegmentInfos().getGeneration());
+
+            ReferenceManager<OpenSearchDirectoryReader> referenceManager = nrtEngine.getReferenceManager(Engine.SearcherScope.EXTERNAL);
+            OpenSearchDirectoryReader readerBeforeRefresh = referenceManager.acquire();
+
+            nrtEngine.refresh("test refresh");
+            OpenSearchDirectoryReader readerAfterRefresh = referenceManager.acquire();
+
+            // Verify both readers before and after refresh are same and no change in segments
+            assertSame(readerBeforeRefresh, readerAfterRefresh);
+
         }
     }
 

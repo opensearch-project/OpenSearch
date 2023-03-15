@@ -8,9 +8,9 @@
 
 package org.opensearch.indices.replication.checkpoint;
 
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.replication.ReplicationMode;
 import org.opensearch.action.support.replication.TransportReplicationAction;
@@ -33,6 +33,7 @@ import org.opensearch.transport.TransportService;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
@@ -106,7 +107,10 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
         final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 1111, 11, 1);
         final PublishCheckpointRequest request = new PublishCheckpointRequest(checkpoint);
 
-        expectThrows(OpenSearchException.class, () -> { action.shardOperationOnPrimary(request, indexShard, mock(ActionListener.class)); });
+        action.shardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
+            // we should forward the request containing the current publish checkpoint to the replica
+            assertThat(result.replicaRequest(), sameInstance(request));
+        }));
     }
 
     public void testPublishCheckpointActionOnReplica() {
