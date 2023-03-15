@@ -12,6 +12,7 @@ import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteResponse;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.cluster.ClusterState;
@@ -521,16 +522,19 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         assertEquals(clusterHealthResponse.isTimedOut(), false);
         ensureGreen(INDEX_NAME);
 
-        // Start indexing docs and refresh index
+        // Start indexing docs
         final int initialDocCount = scaledRandomIntBetween(2000, 3000);
-        final List<ActionFuture<IndexResponse>> pendingIndexResponses = new ArrayList<>();
-
         for (int i = 0; i < initialDocCount; i++) {
-            pendingIndexResponses.add(
-                client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute()
-            );
+            client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
-        refresh(INDEX_NAME);
+
+        // Verify segment replication event never happened on replica shard
+        SegmentReplicationStatsResponse segmentReplicationStatsResponse = dataNodeClient().admin()
+            .indices()
+            .prepareSegmentReplicationStats(INDEX_NAME)
+            .execute()
+            .actionGet();
+        assertFalse(segmentReplicationStatsResponse.hasSegmentReplicationStats());
 
         // Relocate primary to new primary. When new primary starts it does perform a flush.
         logger.info("--> relocate the shard from primary to newPrimary");
@@ -549,9 +553,16 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
             .actionGet();
         assertEquals(clusterHealthResponse.isTimedOut(), false);
 
-        // Verify if all docs are present in replica after flush, if new relocated primary doesn't flush after relocation the below assert
+        // Verify if all docs are present in replica after relocation, if new relocated primary doesn't flush after relocation the below
+        // assert
         // will fail
-        waitForSearchableDocs(initialDocCount, replicaNode);
-        assertHitCount(client(replicaNode).prepareSearch(INDEX_NAME).setPreference("_only_local").setSize(0).get(), initialDocCount);
+        assertBusy(
+            () -> {
+                assertHitCount(
+                    client(replicaNode).prepareSearch(INDEX_NAME).setPreference("_only_local").setSize(0).get(),
+                    initialDocCount
+                );
+            }
+        );
     }
 }
