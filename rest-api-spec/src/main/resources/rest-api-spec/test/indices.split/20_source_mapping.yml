@@ -2,7 +2,7 @@
 "Split index ignores target template mapping":
   - skip:
       features: allowed_warnings
-  
+
   # create index
   - do:
       indices.create:

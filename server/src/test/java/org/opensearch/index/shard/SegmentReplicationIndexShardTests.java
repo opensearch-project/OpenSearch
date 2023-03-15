@@ -257,7 +257,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         refreshListener.afterRefresh(true);
 
         // verify checkpoint is published
-        verify(mock, times(1)).publish(any());
+        verify(mock, times(1)).publish(any(), any());
         closeShards(shard);
     }
 
@@ -279,7 +279,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         refreshListener.afterRefresh(true);
 
         // verify checkpoint is not published
-        verify(mock, times(0)).publish(any());
+        verify(mock, times(0)).publish(any(), any());
         closeShards(shard);
     }
 

@@ -227,9 +227,10 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                     public void onReplicationDone(SegmentReplicationState state) {
                         logger.trace(
                             () -> new ParameterizedMessage(
-                                "[shardId {}] [replication id {}] Replication complete, timing data: {}",
+                                "[shardId {}] [replication id {}] Replication complete to {}, timing data: {}",
                                 replicaShard.shardId().getId(),
                                 state.getReplicationId(),
+                                replicaShard.getLatestReplicationCheckpoint(),
                                 state.getTimingData()
                             )
                         );
@@ -362,7 +363,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                             completedReplications.put(target.shardId(), target);
                         }
                     } else {
-                        onGoingReplications.fail(replicationId, new ReplicationFailedException("Segment Replication failed", e), true);
+                        onGoingReplications.fail(replicationId, new ReplicationFailedException("Segment Replication failed", e), false);
                     }
                 }
             });
@@ -402,9 +403,10 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                     public void onReplicationDone(SegmentReplicationState state) {
                         logger.trace(
                             () -> new ParameterizedMessage(
-                                "[shardId {}] [replication id {}] Replication complete, timing data: {}",
+                                "[shardId {}] [replication id {}] Replication complete to {}, timing data: {}",
                                 indexShard.shardId().getId(),
                                 state.getReplicationId(),
+                                indexShard.getLatestReplicationCheckpoint(),
                                 state.getTimingData()
                             )
                         );
