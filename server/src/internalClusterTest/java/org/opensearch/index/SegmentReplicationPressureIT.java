@@ -57,6 +57,7 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
         return asList(MockTransportService.TestPlugin.class);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6671")
     public void testWritesRejected() throws Exception {
         final String primaryNode = internalCluster().startNode();
         createIndex(INDEX_NAME);
@@ -97,6 +98,7 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
      * This test ensures that a replica can be added while the index is under write block.
      * Ensuring that only write requests are blocked.
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6671")
     public void testAddReplicaWhileWritesBlocked() throws Exception {
         final String primaryNode = internalCluster().startNode();
         createIndex(INDEX_NAME);
