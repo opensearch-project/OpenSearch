@@ -33,8 +33,8 @@ public class InitializeExtensionRequestTests extends OpenSearchTestCase {
             "uniqueid1",
             new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
             new HashMap<>(),
-            Version.fromString("3.0.0"),
-            Version.fromString("3.0.0"),
+            Version.CURRENT,
+            Version.CURRENT,
             List.of(expectedDependency)
         );
         DiscoveryNode expectedSourceNode = new DiscoveryNode(
@@ -43,7 +43,7 @@ public class InitializeExtensionRequestTests extends OpenSearchTestCase {
             new TransportAddress(InetAddress.getByName("127.0.0.0"), 1000),
             new HashMap<>(),
             DiscoveryNodeRole.BUILT_IN_ROLES,
-            Version.fromString("3.0.0")
+            Version.CURRENT
         );
 
         InitializeExtensionRequest initializeExtensionRequest = new InitializeExtensionRequest(expectedSourceNode, expectedExtensionNode);
