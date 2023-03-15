@@ -34,11 +34,6 @@ public class OffsetRangeIndexInputStream extends InputStreamIndexInput {
     }
 
     @Override
-    public boolean markSupported() {
-        return false;
-    }
-
-    @Override
     public int read() throws IOException {
         if (hasBytesConsumed()) return -1;
         curLen++;

@@ -16,12 +16,12 @@ import org.opensearch.common.Stream;
 import org.opensearch.common.blobstore.stream.StreamContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
-import org.opensearch.index.translog.BufferedChecksumStreamInput;
 import org.opensearch.index.translog.ChannelFactory;
 
 import java.io.BufferedInputStream;
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -29,8 +29,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
-import java.util.zip.CRC32;
-import java.util.zip.CheckedInputStream;
 
 public class RemoteTransferContainer implements Closeable {
 
@@ -42,7 +40,7 @@ public class RemoteTransferContainer implements Closeable {
     private long lastPartSize;
 
     private final long contentLength;
-    private final SetOnce<BufferedInputStream[]> inputStreams = new SetOnce<>();
+    private final SetOnce<InputStream[]> inputStreams = new SetOnce<>();
     private final String fileName;
     private final boolean failTransferIfFileExists;
     private final WritePriority writePriority;
@@ -105,22 +103,22 @@ public class RemoteTransferContainer implements Closeable {
         this.numberOfParts = (int) ((contentLength % partSize) == 0 ? contentLength / partSize
             : (contentLength / partSize) + 1);
 
-        BufferedInputStream[] checkedInputStreams = new BufferedInputStream[numberOfParts];
+        InputStream[] streams = new InputStream[numberOfParts];
         List<Supplier<Stream>> streamSuppliers = new ArrayList<>();
         for (int partNo = 0; partNo < numberOfParts; partNo++) {
             long position = partSize * partNo;
             long size = partNo == numberOfParts - 1 ? lastPartSize : partSize;
-            checkedInputStreams[partNo] = localFile != null
+            streams[partNo] = localFile != null
                 ? getMultiPartStreamSupplierForFile().apply(size, position)
                 : getMultiPartStreamSupplierForIndexInput().apply(size, position);
-            if (checkedInputStreams[partNo] == null) {
+            if (streams[partNo] == null) {
                 throw new IOException("Error creating multipart stream during opening streams for read");
             }
 
             final int finalPartNo = partNo;
-            streamSuppliers.add(() -> new Stream(checkedInputStreams[finalPartNo], size, position));
+            streamSuppliers.add(() -> new Stream(streams[finalPartNo], size, position));
         }
-        inputStreams.set(checkedInputStreams);
+        this.inputStreams.set(streams);
 
         return new StreamContext(
             streamSuppliers,
@@ -128,7 +126,7 @@ public class RemoteTransferContainer implements Closeable {
         );
     }
 
-    private BiFunction<Long, Long, BufferedInputStream> getMultiPartStreamSupplierForFile() {
+    private BiFunction<Long, Long, InputStream> getMultiPartStreamSupplierForFile() {
         return (size, position) -> {
             OffsetRangeFileInputStream offsetRangeInputStream;
             try {
@@ -137,12 +135,11 @@ public class RemoteTransferContainer implements Closeable {
                 log.error("Failed to create input stream", e);
                 return null;
             }
-            CheckedInputStream checkedInputStream = new CheckedInputStream(offsetRangeInputStream, new CRC32());
-            return new BufferedInputStream(checkedInputStream);
+            return offsetRangeInputStream;
         };
     }
 
-    private BiFunction<Long, Long, BufferedInputStream> getMultiPartStreamSupplierForIndexInput() {
+    private BiFunction<Long, Long, InputStream> getMultiPartStreamSupplierForIndexInput() {
         return (size, position) -> {
             OffsetRangeIndexInputStream offsetRangeInputStream;
             try {
@@ -151,8 +148,7 @@ public class RemoteTransferContainer implements Closeable {
                 log.error("Failed to create input stream", e);
                 return null;
             }
-            CheckedInputStream checkedInputStream = new CheckedInputStream(offsetRangeInputStream, new CRC32());
-            return new BufferedInputStream(checkedInputStream);
+            return offsetRangeInputStream;
         };
     }
 
@@ -169,9 +165,9 @@ public class RemoteTransferContainer implements Closeable {
         assert inputStreams.get() != null : "Input streams are not yet set for multi stream upload";
 
         boolean closeStreamException = false;
-        for (BufferedInputStream cis : inputStreams.get()) {
+        for (InputStream is : inputStreams.get()) {
             try {
-                cis.close();
+                is.close();
             } catch (IOException ex) {
                 closeStreamException = true;
                 // Attempting to close all streams first before throwing exception.

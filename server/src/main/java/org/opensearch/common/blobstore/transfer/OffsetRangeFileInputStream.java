@@ -14,6 +14,12 @@ import java.io.IOException;
 import java.nio.channels.FileChannel;
 
 public class OffsetRangeFileInputStream extends FileInputStream {
+
+    private long counter = 0;
+
+    private long markPointer;
+    private long markCounter;
+
     private final FileChannel fileChannel;
     private final String fileName;
 
@@ -34,7 +40,23 @@ public class OffsetRangeFileInputStream extends FileInputStream {
 
     @Override
     public boolean markSupported() {
-        return false;
+        return true;
+    }
+
+    @Override
+    public synchronized void mark(int readlimit) {
+        try {
+            markPointer = fileChannel.position();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        markCounter = counter;
+    }
+
+    @Override
+    public synchronized void reset() throws IOException {
+        fileChannel.position(markPointer);
+        counter = markCounter;
     }
 
     @Override
