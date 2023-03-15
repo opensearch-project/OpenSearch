@@ -122,12 +122,12 @@ public class IntValuesComparatorSource extends IndexFieldData.XFieldComparatorSo
             public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
                 return new Leaf(ctx) {
                     private final NumericDocValues docValues = getNumericDocValues(ctx, iMissingValue);
-                    private long docValue;
+                    private int docValue;
 
                     @Override
                     protected boolean advanceExact(int doc) throws IOException {
                         if (docValues.advanceExact(doc)) {
-                            docValue = docValues.longValue();
+                            docValue = (int) docValues.longValue();
                             return true;
                         }
                         return false;
@@ -135,7 +135,7 @@ public class IntValuesComparatorSource extends IndexFieldData.XFieldComparatorSo
 
                     @Override
                     protected int docValue() {
-                        return (int) docValue;
+                        return docValue;
                     }
                 };
             }

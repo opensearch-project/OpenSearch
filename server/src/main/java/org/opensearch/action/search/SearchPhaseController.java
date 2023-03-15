@@ -237,16 +237,12 @@ public final class SearchPhaseController {
         if (numShards == 1 && from == 0) { // only one shard and no pagination we can just return the topDocs as we got them.
             return topDocs;
         } else if (topDocs instanceof CollapseTopFieldDocs) {
-            CollapseTopFieldDocs firstTopDocs = (CollapseTopFieldDocs) topDocs;
-            final Sort sort = new Sort(firstTopDocs.fields);
             final CollapseTopFieldDocs[] shardTopDocs = results.toArray(new CollapseTopFieldDocs[numShards]);
-            applySortFieldWidening(sort, shardTopDocs);
+            final Sort sort = createSort(shardTopDocs);
             mergedTopDocs = CollapseTopFieldDocs.merge(sort, from, topN, shardTopDocs, false);
         } else if (topDocs instanceof TopFieldDocs) {
-            TopFieldDocs firstTopDocs = (TopFieldDocs) topDocs;
-            final Sort sort = new Sort(firstTopDocs.fields);
             final TopFieldDocs[] shardTopDocs = results.toArray(new TopFieldDocs[numShards]);
-            applySortFieldWidening(sort, shardTopDocs);
+            final Sort sort = createSort(shardTopDocs);
             mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
         } else {
             final TopDocs[] shardTopDocs = results.toArray(new TopDocs[numShards]);
@@ -605,6 +601,7 @@ public final class SearchPhaseController {
     }
 
     /**
+     * Creates Sort object from topFieldsDocs fields.
      * It is necessary to widen the SortField.Type to maximum byte size for merging sorted docs.
      * Different indices might have different types. This will avoid user to do re-index of data
      * in case of mapping field change for newly indexed data.
@@ -613,18 +610,24 @@ public final class SearchPhaseController {
      * support sort optimization, we removed type widening there and taking care here during merging.
      * More details here https://github.com/opensearch-project/OpenSearch/issues/6326
      */
-    private static void applySortFieldWidening(Sort sort, TopFieldDocs[] topFieldDocs) {
-        for (int i = 0; i < sort.getSort().length; i++) {
-            if (isSortWideningRequired(topFieldDocs, i) && sort.getSort()[i] instanceof SortedNumericSortField) {
-                final SortedNumericSortField delegate = (SortedNumericSortField) sort.getSort()[i];
-                sort.getSort()[i] = new SortedWiderNumericSortField(
+    private static Sort createSort(TopFieldDocs[] topFieldDocs) {
+        final SortField[] firstTopDocFields = topFieldDocs[0].fields;
+        final SortField[] newFields = new SortField[firstTopDocFields.length];
+
+        for (int i = 0; i < firstTopDocFields.length; i++) {
+            if (isSortWideningRequired(topFieldDocs, i) && firstTopDocFields[i] instanceof SortedNumericSortField) {
+                final SortedNumericSortField delegate = (SortedNumericSortField) firstTopDocFields[i];
+                newFields[i] = new SortedWiderNumericSortField(
                     delegate.getField(),
                     delegate.getNumericType(),
                     delegate.getReverse(),
                     delegate.getSelector()
                 );
+            } else {
+                newFields[i] = firstTopDocFields[i];
             }
         }
+        return new Sort(newFields);
     }
 
     /**
