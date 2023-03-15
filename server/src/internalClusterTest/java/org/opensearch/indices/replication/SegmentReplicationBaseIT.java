@@ -17,6 +17,7 @@ import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.Index;
@@ -30,12 +31,14 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.TransportService;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -195,6 +198,33 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
         IndexService indexService = indicesService.indexServiceSafe(index);
         final Optional<Integer> shardId = indexService.shardIds().stream().findFirst();
         return indexService.getShard(shardId.get());
+    }
+
+    protected Releasable blockReplication(List<String> nodes, CountDownLatch latch) {
+        CountDownLatch pauseReplicationLatch = new CountDownLatch(nodes.size());
+        for (String node : nodes) {
+
+            MockTransportService mockTargetTransportService = ((MockTransportService) internalCluster().getInstance(
+                TransportService.class,
+                node
+            ));
+            mockTargetTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (action.equals(SegmentReplicationSourceService.Actions.GET_SEGMENT_FILES)) {
+                    try {
+                        latch.countDown();
+                        pauseReplicationLatch.await();
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+        }
+        return () -> {
+            while (pauseReplicationLatch.getCount() > 0) {
+                pauseReplicationLatch.countDown();
+            }
+        };
     }
 
 }

@@ -39,6 +39,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressure;
+import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.ShardIndexingPressureMemoryManager;
 import org.opensearch.index.ShardIndexingPressureSettings;
 import org.opensearch.index.ShardIndexingPressureStore;
@@ -625,7 +626,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchShardTaskSettings.SETTING_TOTAL_HEAP_PERCENT_THRESHOLD,
                 SearchBackpressureSettings.SETTING_CANCELLATION_RATIO,  // deprecated
                 SearchBackpressureSettings.SETTING_CANCELLATION_RATE,   // deprecated
-                SearchBackpressureSettings.SETTING_CANCELLATION_BURST   // deprecated
+                SearchBackpressureSettings.SETTING_CANCELLATION_BURST,   // deprecated
+                SegmentReplicationPressureService.SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED,
+                SegmentReplicationPressureService.MAX_INDEXING_CHECKPOINTS,
+                SegmentReplicationPressureService.MAX_REPLICATION_TIME_SETTING,
+                SegmentReplicationPressureService.MAX_ALLOWED_STALE_SHARDS
             )
         )
     );
