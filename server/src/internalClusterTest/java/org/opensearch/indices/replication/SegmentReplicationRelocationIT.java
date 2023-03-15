@@ -554,8 +554,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         assertEquals(clusterHealthResponse.isTimedOut(), false);
 
         // Verify if all docs are present in replica after relocation, if new relocated primary doesn't flush after relocation the below
-        // assert
-        // will fail
+        // assert will fail.
         assertBusy(
             () -> {
                 assertHitCount(
