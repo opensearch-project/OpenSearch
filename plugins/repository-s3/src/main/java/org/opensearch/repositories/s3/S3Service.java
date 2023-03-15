@@ -261,6 +261,7 @@ class S3Service implements Closeable {
         clientConfiguration.setSocketTimeout(clientSettings.readTimeoutMillis);
         clientConfiguration.setRequestTimeout(clientSettings.requestTimeoutMillis);
         clientConfiguration.setConnectionTimeout(clientSettings.connectionTimeoutMillis);
+        clientConfiguration.setMaxConnections(clientSettings.maxConnections);
 
         return clientConfiguration;
     }
