@@ -61,6 +61,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
@@ -679,6 +680,56 @@ public class DiskThresholdMonitorTests extends OpenSearchAllocationTestCase {
             aboveLowWatermark,
             "high disk watermark [90%] no longer exceeded on * but low disk watermark [85%] is still exceeded"
         );
+    }
+
+    public void testIndexCreateBlockWhenNoDataNodeHealthy() {
+        AllocationService allocation = createAllocationService(
+            Settings.builder().put("cluster.routing.allocation.node_concurrent_recoveries", 10).build()
+        );
+        Metadata metadata = Metadata.builder().build();
+        RoutingTable routingTable = RoutingTable.builder().build();
+        final ClusterState clusterState = applyStartedShardsUntilNoChange(
+            ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+                .metadata(metadata)
+                .routingTable(routingTable)
+                .build(),
+            allocation
+        );
+        AtomicInteger countBlocksCalled = new AtomicInteger();
+        AtomicBoolean reroute = new AtomicBoolean(false);
+        AtomicReference<Set<String>> indices = new AtomicReference<>();
+        AtomicLong currentTime = new AtomicLong();
+        Settings settings = Settings.builder().build();
+        DiskThresholdMonitor monitor = new DiskThresholdMonitor(
+            settings,
+            () -> clusterState,
+            new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            null,
+            currentTime::get,
+            (reason, priority, listener) -> {
+                assertTrue(reroute.compareAndSet(false, true));
+                assertThat(priority, equalTo(Priority.HIGH));
+                listener.onResponse(null);
+            }
+        ) {
+
+            @Override
+            protected void updateIndicesReadOnly(Set<String> indicesToMarkReadOnly, ActionListener<Void> listener, boolean readOnly) {
+                assertTrue(indices.compareAndSet(null, indicesToMarkReadOnly));
+                assertFalse(readOnly);
+                listener.onResponse(null);
+            }
+
+            @Override
+            protected void setIndexCreateBlock(ActionListener<Void> listener, boolean indexCreateBlock) {
+                countBlocksCalled.set(countBlocksCalled.get() + 1);
+                listener.onResponse(null);
+            }
+        };
+
+        ImmutableOpenMap.Builder<String, DiskUsage> builder = ImmutableOpenMap.builder();
+        monitor.onNewInfo(clusterInfo(builder.build()));
+        assertTrue(countBlocksCalled.get() == 0);
     }
 
     private void assertNoLogging(DiskThresholdMonitor monitor, ImmutableOpenMap<String, DiskUsage> diskUsages)
