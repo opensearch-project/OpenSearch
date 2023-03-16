@@ -14,6 +14,7 @@ import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStor
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -30,6 +31,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
@@ -206,5 +208,29 @@ public class RemoteStoreIT extends OpenSearchIntegTestCase {
 
     public void testRemoteTranslogRestoreWithCommittedData() throws IOException {
         testRestoreFlow(true, randomIntBetween(2, 5), true);
+    }
+
+    public void testPeerRecoveryWithRemoteStoreNoRemoteTranslog() throws Exception {
+        internalCluster().startDataOnlyNodes(3);
+        createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        ensureGreen(INDEX_NAME);
+
+        Map<String, Long> indexStats = indexData(randomIntBetween(2, 5), true);
+
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(INDEX_NAME)
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+            .get();
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        ensureGreen(INDEX_NAME);
+
+        String replicaNodeName = replicaNodeName(INDEX_NAME);
+        assertBusy(() -> assertHitCount(client(replicaNodeName).prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(TOTAL_OPERATIONS)), 30, TimeUnit.SECONDS);
+        IndexResponse response = indexSingleDoc();
+        assertEquals(indexStats.get(MAX_SEQ_NO_TOTAL) + 1, response.getSeqNo());
+        refresh(INDEX_NAME);
+        assertHitCount(client(replicaNodeName).prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(TOTAL_OPERATIONS) + 1);
     }
 }
