@@ -23,6 +23,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
@@ -143,10 +144,14 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
             SegmentReplicationStatsResponse segmentReplicationStatsResponse = client(node).admin()
                 .indices()
                 .prepareSegmentReplicationStats(INDEX_NAME)
+                .setDetailed(true)
                 .execute()
                 .actionGet();
+            final SegmentReplicationPerGroupStats perGroupStats = segmentReplicationStatsResponse.getReplicationStats()
+                .get(INDEX_NAME)
+                .get(0);
             assertEquals(
-                segmentReplicationStatsResponse.shardSegmentReplicationStates().get(INDEX_NAME).get(0).getStage(),
+                perGroupStats.getReplicaStats().stream().findFirst().get().getCurrentReplicationState().getStage(),
                 SegmentReplicationState.Stage.DONE
             );
         }, 1, TimeUnit.MINUTES);

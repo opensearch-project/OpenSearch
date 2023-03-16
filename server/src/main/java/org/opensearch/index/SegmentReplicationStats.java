@@ -28,7 +28,7 @@ public class SegmentReplicationStats implements Writeable, ToXContentFragment {
 
     private final Map<ShardId, SegmentReplicationPerGroupStats> shardStats;
 
-    public SegmentReplicationStats(Map<ShardId, SegmentReplicationPerGroupStats> shardStats) {
+    public SegmentReplicationStats(final Map<ShardId, SegmentReplicationPerGroupStats> shardStats) {
         this.shardStats = shardStats;
     }
 
