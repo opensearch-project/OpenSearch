@@ -63,6 +63,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -254,8 +256,8 @@ public class InboundHandlerTests extends OpenSearchTestCase {
         );
         final InboundMessage requestMessage = unreadableInboundHandshake(remoteVersion, requestHeader);
         requestHeader.actionName = TransportHandshaker.HANDSHAKE_ACTION_NAME;
-        requestHeader.headers = Tuple.tuple(org.opensearch.common.collect.Map.of(), org.opensearch.common.collect.Map.of());
-        requestHeader.features = org.opensearch.common.collect.Set.of();
+        requestHeader.headers = Tuple.tuple(Map.of(), Map.of());
+        requestHeader.features = Set.of();
         handler.inboundMessage(channel, requestMessage);
 
         final BytesReference responseBytesReference = channel.getMessageCaptor().get();
@@ -294,8 +296,8 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             );
             final InboundMessage requestMessage = unreadableInboundHandshake(remoteVersion, requestHeader);
             requestHeader.actionName = TransportHandshaker.HANDSHAKE_ACTION_NAME;
-            requestHeader.headers = Tuple.tuple(org.opensearch.common.collect.Map.of(), org.opensearch.common.collect.Map.of());
-            requestHeader.features = org.opensearch.common.collect.Set.of();
+            requestHeader.headers = Tuple.tuple(Map.of(), Map.of());
+            requestHeader.features = Set.of();
             handler.inboundMessage(channel, requestMessage);
             assertTrue(isClosed.get());
             assertNull(channel.getMessageCaptor().get());
@@ -332,7 +334,7 @@ public class InboundHandlerTests extends OpenSearchTestCase {
             });
             requestHeader.actionName = TransportHandshaker.HANDSHAKE_ACTION_NAME;
             requestHeader.headers = Tuple.tuple(Collections.emptyMap(), Collections.emptyMap());
-            requestHeader.features = org.opensearch.common.collect.Set.of();
+            requestHeader.features = Set.of();
             handler.inboundMessage(channel, requestMessage);
             assertNotNull(channel.getMessageCaptor().get());
             mockAppender.assertAllExpectationsMatched();

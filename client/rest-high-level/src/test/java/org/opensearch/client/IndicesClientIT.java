@@ -2031,8 +2031,8 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
         CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"host_name\":{\"type\":\"keyword\"}}}");
         AliasMetadata alias = AliasMetadata.builder("alias").writeIndex(true).build();
-        Template template = new Template(settings, mappings, org.opensearch.common.collect.Map.of("alias", alias));
-        List<String> pattern = org.opensearch.common.collect.List.of("pattern");
+        Template template = new Template(settings, mappings, Map.of("alias", alias));
+        List<String> pattern = List.of("pattern");
         ComposableIndexTemplate indexTemplate = new ComposableIndexTemplate(
             pattern,
             template,
@@ -2057,7 +2057,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         AliasMetadata simulationAlias = AliasMetadata.builder("simulation-alias").writeIndex(true).build();
         ComposableIndexTemplate simulationTemplate = new ComposableIndexTemplate(
             pattern,
-            new Template(null, null, org.opensearch.common.collect.Map.of("simulation-alias", simulationAlias)),
+            new Template(null, null, Map.of("simulation-alias", simulationAlias)),
             Collections.emptyList(),
             2L,
             1L,

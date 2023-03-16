@@ -28,6 +28,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
@@ -43,7 +44,7 @@ public class NodeLoadAwareAllocationTests extends OpenSearchAllocationTestCase {
 
     public void testNewUnassignedPrimaryAllocationOnOverload() {
         AllocationService strategy = createAllocationServiceWithAdditionalSettings(
-            org.opensearch.common.collect.Map.of(
+            Map.of(
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey(),
                 5,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING.getKey(),
@@ -136,7 +137,7 @@ public class NodeLoadAwareAllocationTests extends OpenSearchAllocationTestCase {
 
     public void testNoAllocationLimitsOnOverloadForDisabledLoadFactor() {
         AllocationService strategy = createAllocationServiceWithAdditionalSettings(
-            org.opensearch.common.collect.Map.of(
+            Map.of(
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey(),
                 5,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING.getKey(),
@@ -231,7 +232,7 @@ public class NodeLoadAwareAllocationTests extends OpenSearchAllocationTestCase {
     public void testExistingPrimariesAllocationOnOverload() {
         GatewayAllocator gatewayAllocator = new TestGatewayAllocator();
         AllocationService strategy = createAllocationServiceWithAdditionalSettings(
-            org.opensearch.common.collect.Map.of(
+            Map.of(
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey(),
                 5,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING.getKey(),
@@ -317,7 +318,7 @@ public class NodeLoadAwareAllocationTests extends OpenSearchAllocationTestCase {
 
         logger.info("--> change the overload load factor to zero and verify if unassigned primaries on disk get assigned despite overload");
         strategy = createAllocationServiceWithAdditionalSettings(
-            org.opensearch.common.collect.Map.of(
+            Map.of(
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey(),
                 5,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING.getKey(),
@@ -383,7 +384,7 @@ public class NodeLoadAwareAllocationTests extends OpenSearchAllocationTestCase {
     public void testSingleZoneOneReplicaLimitsShardAllocationOnOverload() {
         GatewayAllocator gatewayAllocator = new TestGatewayAllocator();
         AllocationService strategy = createAllocationServiceWithAdditionalSettings(
-            org.opensearch.common.collect.Map.of(
+            Map.of(
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey(),
                 5,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING.getKey(),
@@ -494,7 +495,7 @@ public class NodeLoadAwareAllocationTests extends OpenSearchAllocationTestCase {
 
         logger.info("change settings to allow unassigned primaries");
         strategy = createAllocationServiceWithAdditionalSettings(
-            org.opensearch.common.collect.Map.of(
+            Map.of(
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey(),
                 5,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING.getKey(),
@@ -534,7 +535,7 @@ public class NodeLoadAwareAllocationTests extends OpenSearchAllocationTestCase {
 
     public void testThreeZoneTwoReplicaLimitsShardAllocationOnOverload() {
         AllocationService strategy = createAllocationServiceWithAdditionalSettings(
-            org.opensearch.common.collect.Map.of(
+            Map.of(
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey(),
                 15,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING.getKey(),
@@ -643,7 +644,7 @@ public class NodeLoadAwareAllocationTests extends OpenSearchAllocationTestCase {
 
     public void testThreeZoneOneReplicaLimitsShardAllocationOnOverload() {
         AllocationService strategy = createAllocationServiceWithAdditionalSettings(
-            org.opensearch.common.collect.Map.of(
+            Map.of(
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey(),
                 15,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING.getKey(),
@@ -738,7 +739,7 @@ public class NodeLoadAwareAllocationTests extends OpenSearchAllocationTestCase {
 
     public void testThreeZoneTwoReplicaLimitsShardAllocationOnOverloadAcrossZones() {
         AllocationService strategy = createAllocationServiceWithAdditionalSettings(
-            org.opensearch.common.collect.Map.of(
+            Map.of(
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey(),
                 9,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING.getKey(),
@@ -832,7 +833,7 @@ public class NodeLoadAwareAllocationTests extends OpenSearchAllocationTestCase {
 
     public void testSingleZoneTwoReplicaLimitsReplicaAllocationOnOverload() {
         AllocationService strategy = createAllocationServiceWithAdditionalSettings(
-            org.opensearch.common.collect.Map.of(
+            Map.of(
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey(),
                 3,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING.getKey(),
@@ -893,7 +894,7 @@ public class NodeLoadAwareAllocationTests extends OpenSearchAllocationTestCase {
 
     public void testSingleZoneOneReplicaLimitsReplicaAllocationOnOverload() {
         AllocationService strategy = createAllocationServiceWithAdditionalSettings(
-            org.opensearch.common.collect.Map.of(
+            Map.of(
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey(),
                 5,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING.getKey(),
@@ -976,7 +977,7 @@ public class NodeLoadAwareAllocationTests extends OpenSearchAllocationTestCase {
 
     public void testThreeZoneTwoReplicaLimitsReplicaAllocationUnderFullZoneFailure() {
         AllocationService strategy = createAllocationServiceWithAdditionalSettings(
-            org.opensearch.common.collect.Map.of(
+            Map.of(
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey(),
                 15,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING.getKey(),
@@ -1087,7 +1088,7 @@ public class NodeLoadAwareAllocationTests extends OpenSearchAllocationTestCase {
 
     public void testThreeZoneOneReplicaWithSkewFactorZeroAllShardsAssignedAfterRecovery() {
         AllocationService strategy = createAllocationServiceWithAdditionalSettings(
-            org.opensearch.common.collect.Map.of(
+            Map.of(
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_PROVISIONED_CAPACITY_SETTING.getKey(),
                 15,
                 NodeLoadAwareAllocationDecider.CLUSTER_ROUTING_ALLOCATION_LOAD_AWARENESS_SKEW_FACTOR_SETTING.getKey(),
@@ -1201,13 +1202,13 @@ public class NodeLoadAwareAllocationTests extends OpenSearchAllocationTestCase {
 
     private ClusterState removeNodes(ClusterState clusterState, AllocationService allocationService, String... nodeIds) {
         DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder(clusterState.getNodes());
-        org.opensearch.common.collect.List.of(nodeIds).forEach(nodeId -> nodeBuilder.remove(nodeId));
+        List.of(nodeIds).forEach(nodeId -> nodeBuilder.remove(nodeId));
         return allocationService.disassociateDeadNodes(ClusterState.builder(clusterState).nodes(nodeBuilder).build(), true, "reroute");
     }
 
     private ClusterState addNodes(ClusterState clusterState, AllocationService allocationService, String zone, String... nodeIds) {
         DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder(clusterState.nodes());
-        org.opensearch.common.collect.List.of(nodeIds).forEach(nodeId -> nodeBuilder.add(newNode(nodeId, singletonMap("zone", zone))));
+        List.of(nodeIds).forEach(nodeId -> nodeBuilder.add(newNode(nodeId, singletonMap("zone", zone))));
         clusterState = ClusterState.builder(clusterState).nodes(nodeBuilder).build();
         return allocationService.reroute(clusterState, "reroute");
     }
