@@ -14,12 +14,14 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateListener;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
@@ -35,6 +37,7 @@ import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -160,6 +163,19 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
         if (event.nodesRemoved()) {
             for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
                 ongoingSegmentReplications.cancelReplication(removedNode);
+            }
+        }
+        // if a replica for one of the primary shards on this node has closed,
+        // we need to ensure its state has cleared up in ongoing replications.
+        if (event.routingTableChanged()) {
+            for (IndexService indexService : indicesService) {
+                for (IndexShard indexShard : indexService) {
+                    if (indexShard.routingEntry().primary()) {
+                        final IndexMetadata indexMetadata = indexService.getIndexSettings().getIndexMetadata();
+                        final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(indexShard.shardId().id());
+                        ongoingSegmentReplications.clearOutOfSyncIds(indexShard.shardId(), inSyncAllocationIds);
+                    }
+                }
             }
         }
     }

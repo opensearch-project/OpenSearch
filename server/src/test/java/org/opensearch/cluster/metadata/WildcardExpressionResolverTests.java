@@ -302,7 +302,7 @@ public class WildcardExpressionResolverTests extends OpenSearchTestCase {
                 new DataStream(
                     dataStreamName,
                     createTimestampField("@timestamp"),
-                    org.opensearch.common.collect.List.of(firstBackingIndexMetadata.getIndex(), secondBackingIndexMetadata.getIndex())
+                    List.of(firstBackingIndexMetadata.getIndex(), secondBackingIndexMetadata.getIndex())
                 )
             );
 

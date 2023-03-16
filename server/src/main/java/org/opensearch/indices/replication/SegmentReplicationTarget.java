@@ -108,7 +108,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     @Override
     public void notifyListener(ReplicationFailedException e, boolean sendShardFailure) {
-        // Cancellations still are passed to our SegmentReplicationListner as failures, if we have failed because of cancellation
+        // Cancellations still are passed to our SegmentReplicationListener as failures, if we have failed because of cancellation
         // update the stage.
         final Throwable cancelledException = ExceptionsHelper.unwrap(e, CancellableThreads.ExecutionCancelledException.class);
         if (cancelledException != null) {
@@ -184,15 +184,20 @@ public class SegmentReplicationTarget extends ReplicationTarget {
          * IllegalStateException to fail the shard
          */
         if (diff.different.isEmpty() == false) {
-            getFilesListener.onFailure(
-                new IllegalStateException(
-                    new ParameterizedMessage(
-                        "Shard {} has local copies of segments that differ from the primary {}",
-                        indexShard.shardId(),
-                        diff.different
-                    ).getFormattedMessage()
-                )
+            IllegalStateException illegalStateException = new IllegalStateException(
+                new ParameterizedMessage(
+                    "Shard {} has local copies of segments that differ from the primary {}",
+                    indexShard.shardId(),
+                    diff.different
+                ).getFormattedMessage()
             );
+            ReplicationFailedException rfe = new ReplicationFailedException(
+                indexShard.shardId(),
+                "different segment files",
+                illegalStateException
+            );
+            fail(rfe, true);
+            throw rfe;
         }
 
         for (StoreFileMetadata file : diff.missing) {
@@ -208,10 +213,10 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         ActionListener.completeWith(listener, () -> {
             cancellableThreads.checkForCancel();
             state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);
-            multiFileWriter.renameAllTempFiles();
-            final Store store = store();
-            store.incRef();
             try {
+                multiFileWriter.renameAllTempFiles();
+                final Store store = store();
+                store.incRef();
                 // Deserialize the new SegmentInfos object sent from the primary.
                 final ReplicationCheckpoint responseCheckpoint = checkpointInfoResponse.getCheckpoint();
                 SegmentInfos infos = SegmentInfos.readCommit(

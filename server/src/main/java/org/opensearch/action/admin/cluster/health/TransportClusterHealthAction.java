@@ -283,6 +283,7 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
             if (request.ensureNodeWeighedIn()) {
                 if (clusterHealthResponse.hasDiscoveredClusterManager() == false) {
                     listener.onFailure(new ClusterManagerNotDiscoveredException("cluster-manager not discovered"));
+                    return;
                 } else {
                     DiscoveryNode localNode = currentState.getNodes().getLocalNode();
                     // TODO: make this check more generic, check for node role instead

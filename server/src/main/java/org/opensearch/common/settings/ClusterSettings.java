@@ -39,6 +39,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressure;
+import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.ShardIndexingPressureMemoryManager;
 import org.opensearch.index.ShardIndexingPressureSettings;
 import org.opensearch.index.ShardIndexingPressureStore;
@@ -232,7 +233,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING,
                 BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING,
                 BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING,
-                BalancedShardsAllocator.PREFER_PER_INDEX_PRIMARY_SHARD_BALANCE,
+                BalancedShardsAllocator.PREFER_PRIMARY_SHARD_BALANCE,
                 BalancedShardsAllocator.SHARD_MOVE_PRIMARY_FIRST_SETTING,
                 BalancedShardsAllocator.THRESHOLD_SETTING,
                 BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING,
@@ -625,7 +626,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchShardTaskSettings.SETTING_TOTAL_HEAP_PERCENT_THRESHOLD,
                 SearchBackpressureSettings.SETTING_CANCELLATION_RATIO,  // deprecated
                 SearchBackpressureSettings.SETTING_CANCELLATION_RATE,   // deprecated
-                SearchBackpressureSettings.SETTING_CANCELLATION_BURST   // deprecated
+                SearchBackpressureSettings.SETTING_CANCELLATION_BURST,   // deprecated
+                SegmentReplicationPressureService.SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED,
+                SegmentReplicationPressureService.MAX_INDEXING_CHECKPOINTS,
+                SegmentReplicationPressureService.MAX_REPLICATION_TIME_SETTING,
+                SegmentReplicationPressureService.MAX_ALLOWED_STALE_SHARDS
             )
         )
     );

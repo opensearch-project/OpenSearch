@@ -90,8 +90,8 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         this.type = type;
         this.description = description;
         this.breakdown = Objects.requireNonNull(breakdown, "required breakdown argument missing");
-        this.debug = debug == null ? org.opensearch.common.collect.Map.of() : debug;
-        this.children = children == null ? org.opensearch.common.collect.List.of() : children;
+        this.debug = debug == null ? Map.of() : debug;
+        this.children = children == null ? List.of() : children;
         this.nodeTime = nodeTime;
     }
 

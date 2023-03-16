@@ -230,20 +230,9 @@ public class TextFieldMapperTests extends MapperTestCase {
             )
         );
         return new IndexAnalyzers(
-            org.opensearch.common.collect.Map.of(
-                "default",
-                dflt,
-                "standard",
-                standard,
-                "keyword",
-                keyword,
-                "whitespace",
-                whitespace,
-                "my_stop_analyzer",
-                stop
-            ),
-            org.opensearch.common.collect.Map.of(),
-            org.opensearch.common.collect.Map.of()
+            Map.of("default", dflt, "standard", standard, "keyword", keyword, "whitespace", whitespace, "my_stop_analyzer", stop),
+            Map.of(),
+            Map.of()
         );
     }
 

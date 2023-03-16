@@ -8,7 +8,6 @@
 
 package org.opensearch.index.shard;
 
-import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.junit.Assert;
 import org.opensearch.ExceptionsHelper;
@@ -258,7 +257,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         refreshListener.afterRefresh(true);
 
         // verify checkpoint is published
-        verify(mock, times(1)).publish(any());
+        verify(mock, times(1)).publish(any(), any());
         closeShards(shard);
     }
 
@@ -280,7 +279,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         refreshListener.afterRefresh(true);
 
         // verify checkpoint is not published
-        verify(mock, times(0)).publish(any());
+        verify(mock, times(0)).publish(any(), any());
         closeShards(shard);
     }
 
@@ -569,21 +568,15 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             numDocs = randomIntBetween(numDocs + 1, numDocs + 10);
             shards.indexDocs(numDocs);
             flushShard(primary, false);
-            assertLatestCommitGen(4, primary);
             replicateSegments(primary, List.of(replica_1));
 
             assertEqualCommittedSegments(primary, replica_1);
-            assertLatestCommitGen(4, primary);
-            assertLatestCommitGen(5, replica_1);
-            assertLatestCommitGen(3, replica_2);
 
             shards.promoteReplicaToPrimary(replica_2).get();
             primary.close("demoted", false);
             primary.store().close();
             IndexShard oldPrimary = shards.addReplicaWithExistingPath(primary.shardPath(), primary.routingEntry().currentNodeId());
             shards.recoverReplica(oldPrimary);
-            assertLatestCommitGen(5, oldPrimary);
-            assertLatestCommitGen(5, replica_2);
 
             numDocs = randomIntBetween(numDocs + 1, numDocs + 10);
             shards.indexDocs(numDocs);
@@ -1076,14 +1069,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         primary = shards.addReplicaWithExistingPath(primary.shardPath(), primary.routingEntry().currentNodeId());
         shards.recoverReplica(primary);
         return newPrimary;
-    }
-
-    private void assertLatestCommitGen(long expected, IndexShard... shards) throws IOException {
-        for (IndexShard indexShard : shards) {
-            try (final GatedCloseable<IndexCommit> commit = indexShard.acquireLastIndexCommit(false)) {
-                assertEquals(expected, commit.get().getGeneration());
-            }
-        }
     }
 
     private void assertEqualCommittedSegments(IndexShard primary, IndexShard... replicas) throws IOException {

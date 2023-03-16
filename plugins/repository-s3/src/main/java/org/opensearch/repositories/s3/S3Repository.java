@@ -278,12 +278,7 @@ class S3Repository extends MeteredBlobStoreRepository {
     }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
-        return org.opensearch.common.collect.Map.of(
-            "base_path",
-            BASE_PATH_SETTING.get(metadata.settings()),
-            "bucket",
-            BUCKET_SETTING.get(metadata.settings())
-        );
+        return Map.of("base_path", BASE_PATH_SETTING.get(metadata.settings()), "bucket", BUCKET_SETTING.get(metadata.settings()));
     }
 
     /**

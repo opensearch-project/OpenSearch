@@ -29,6 +29,7 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
     private final long primaryTerm;
     private final long segmentsGen;
     private final long segmentInfosVersion;
+    private final long length;
 
     public static ReplicationCheckpoint empty(ShardId shardId) {
         return new ReplicationCheckpoint(shardId);
@@ -39,13 +40,19 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         primaryTerm = SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
         segmentsGen = SequenceNumbers.NO_OPS_PERFORMED;
         segmentInfosVersion = SequenceNumbers.NO_OPS_PERFORMED;
+        length = 0L;
     }
 
     public ReplicationCheckpoint(ShardId shardId, long primaryTerm, long segmentsGen, long segmentInfosVersion) {
+        this(shardId, primaryTerm, segmentsGen, segmentInfosVersion, 0L);
+    }
+
+    public ReplicationCheckpoint(ShardId shardId, long primaryTerm, long segmentsGen, long segmentInfosVersion, long length) {
         this.shardId = shardId;
         this.primaryTerm = primaryTerm;
         this.segmentsGen = segmentsGen;
         this.segmentInfosVersion = segmentInfosVersion;
+        this.length = length;
     }
 
     public ReplicationCheckpoint(StreamInput in) throws IOException {
@@ -53,6 +60,7 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         primaryTerm = in.readLong();
         segmentsGen = in.readLong();
         segmentInfosVersion = in.readLong();
+        length = in.readLong();
     }
 
     /**
@@ -87,12 +95,20 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         return shardId;
     }
 
+    /**
+     * @return The size in bytes of this checkpoint.
+     */
+    public long getLength() {
+        return length;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         shardId.writeTo(out);
         out.writeLong(primaryTerm);
         out.writeLong(segmentsGen);
         out.writeLong(segmentInfosVersion);
+        out.writeLong(length);
     }
 
     @Override
@@ -137,6 +153,8 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
             + segmentsGen
             + ", version="
             + segmentInfosVersion
+            + ", size="
+            + length
             + '}';
     }
 }
