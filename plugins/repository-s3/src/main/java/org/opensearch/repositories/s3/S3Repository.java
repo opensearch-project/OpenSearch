@@ -62,9 +62,9 @@ import org.opensearch.threadpool.Scheduler;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * Shared file system implementation of the BlobStoreRepository
@@ -214,7 +214,8 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     private final RepositoryMetadata repositoryMetadata;
 
-    private final ExecutorContainer executorContainer;
+    private final ExecutorService priorityRemoteUploadExecutor;
+    private final ExecutorService remoteUploadExecutor;
 
     /**
      * Constructs an s3 backed repository
@@ -225,7 +226,8 @@ class S3Repository extends MeteredBlobStoreRepository {
         final S3Service service,
         final ClusterService clusterService,
         final RecoverySettings recoverySettings,
-        ExecutorContainer executorContainer
+        final ExecutorService priorityRemoteUploadExecutor,
+        final ExecutorService remoteUploadExecutor
     ) {
         super(
             metadata,
@@ -238,7 +240,8 @@ class S3Repository extends MeteredBlobStoreRepository {
         this.service = service;
 
         this.repositoryMetadata = metadata;
-        this.executorContainer = executorContainer;
+        this.priorityRemoteUploadExecutor = priorityRemoteUploadExecutor;
+        this.remoteUploadExecutor = remoteUploadExecutor;
 
         // Parse and validate the user's S3 Storage Class setting
         this.bucket = BUCKET_SETTING.get(metadata.settings());
@@ -345,7 +348,7 @@ class S3Repository extends MeteredBlobStoreRepository {
     @Override
     protected S3BlobStore createBlobStore() {
         return new S3BlobStore(service, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass,
-            repositoryMetadata, executorContainer);
+            repositoryMetadata, priorityRemoteUploadExecutor, remoteUploadExecutor);
     }
 
     // only use for testing

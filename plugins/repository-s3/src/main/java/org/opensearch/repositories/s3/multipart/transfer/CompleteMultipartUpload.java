@@ -34,8 +34,7 @@ import com.amazonaws.services.s3.model.CompleteMultipartUploadResult;
 import com.amazonaws.services.s3.model.PartETag;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.transfer.model.UploadResult;
-import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.util.concurrent.FutureUtils;
+import org.opensearch.repositories.s3.SocketAccess;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,9 +49,7 @@ import static com.amazonaws.event.SDKProgressPublisher.publishProgress;
  */
 public class CompleteMultipartUpload implements Callable<UploadResult> {
 
-    /**
-     * The upload id associated with the multi-part upload.
-     */
+    /** The upload id associated with the multi-part upload. */
     private final String uploadId;
 
     /**
@@ -61,14 +58,10 @@ public class CompleteMultipartUpload implements Callable<UploadResult> {
      */
     private final AmazonS3 s3;
 
-    /**
-     * The reference to the request initiated by the user.
-     */
+    /** The reference to the request initiated by the user. */
     private final PutObjectRequest origReq;
 
-    /**
-     * The futures of threads that upload individual parts.
-     */
+    /** The futures of threads that upload individual parts. */
     private final List<Future<PartETag>> futures;
 
     /**
@@ -77,14 +70,10 @@ public class CompleteMultipartUpload implements Callable<UploadResult> {
      */
     private final List<PartETag> eTagsBeforeResume;
 
-    /**
-     * The monitor to which the upload progress has to be communicated.
-     */
+    /** The monitor to which the upload progress has to be communicated. */
     private final UploadMonitor monitor;
 
-    /**
-     * The listener where progress of the upload needs to be published.
-     */
+    /** The listener where progress of the upload needs to be published. */
     private final ProgressListenerChain listener;
 
     public CompleteMultipartUpload(String uploadId, AmazonS3 s3,
@@ -101,7 +90,6 @@ public class CompleteMultipartUpload implements Callable<UploadResult> {
     }
 
     @Override
-    @SuppressForbidden(reason = "Future#cancel()")
     public UploadResult call() throws Exception {
         CompleteMultipartUploadResult res;
 
@@ -113,7 +101,7 @@ public class CompleteMultipartUpload implements Callable<UploadResult> {
                 .withGeneralProgressListener(origReq.getGeneralProgressListener())
                 .withRequestMetricCollector(origReq.getRequestMetricCollector())
                 .withRequestCredentialsProvider(origReq.getRequestCredentialsProvider());
-            res = s3.completeMultipartUpload(req);
+            res = SocketAccess.doPrivilegedIOException(() -> s3.completeMultipartUpload(req));
         } catch (Exception e) {
             monitor.uploadFailure();
             publishProgress(listener, ProgressEventType.TRANSFER_FAILED_EVENT);

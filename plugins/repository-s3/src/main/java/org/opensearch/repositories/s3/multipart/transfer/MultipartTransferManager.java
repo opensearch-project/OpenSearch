@@ -43,11 +43,10 @@ import org.opensearch.common.Stream;
 import org.opensearch.common.blobstore.stream.StreamContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.repositories.s3.ExecutorContainer;
-import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 
 /**
@@ -59,11 +58,14 @@ import java.util.function.Supplier;
 public class MultipartTransferManager extends TransferManager implements Closeable {
 
     private final AmazonS3 s3;
-    private final ExecutorContainer executorContainer;
+    private final ExecutorService priorityRemoteUploadExecutor;
+    private final ExecutorService remoteUploadExecutor;
 
-    public MultipartTransferManager(TransferManagerBuilder builder, ExecutorContainer executorContainer) {
+    public MultipartTransferManager(TransferManagerBuilder builder, ExecutorService priorityRemoteUploadExecutor,
+        ExecutorService remoteUploadExecutor) {
         super(builder);
-        this.executorContainer = executorContainer;
+        this.priorityRemoteUploadExecutor = priorityRemoteUploadExecutor;
+        this.remoteUploadExecutor = remoteUploadExecutor;
         this.s3 = builder.getS3Client();
     }
 
@@ -105,19 +107,16 @@ public class MultipartTransferManager extends TransferManager implements Closeab
          * processing the complete multi part upload request.
          */
         Stream[] uploadStreams = streamContext.getStreamSuppliers().stream().map(Supplier::get).toArray(Stream[]::new);
-        UploadCallable uploadCallable = new UploadCallable(this, executorContainer,
-            upload, putObjectRequest, listenerChain, null, transferProgress, uploadStreams,
-            streamContext.getTotalContentLength(), getUploadThreadPoolName(writePriority));
-        UploadMonitor watcher = UploadMonitor.create(this, upload, executorContainer,
-            uploadCallable, putObjectRequest, listenerChain, getUploadThreadPoolName(writePriority));
+        ExecutorService executorService = WritePriority.HIGH == writePriority ? priorityRemoteUploadExecutor :
+            remoteUploadExecutor;
+        UploadCallable uploadCallable = new UploadCallable(this, executorService,
+            upload, putObjectRequest, listenerChain, null, transferProgress,
+            streamContext.getTotalContentLength(), uploadStreams);
+        UploadMonitor watcher = UploadMonitor.create(this, upload, executorService,
+            uploadCallable, putObjectRequest, listenerChain);
         upload.setMonitor(watcher);
 
         return upload;
-    }
-
-    private String getUploadThreadPoolName(WritePriority writePriority) {
-        return writePriority == WritePriority.HIGH ? ThreadPool.Names.PRIORITY_REMOTE_UPLOAD :
-            ThreadPool.Names.REMOTE_UPLOAD;
     }
 
     @Override

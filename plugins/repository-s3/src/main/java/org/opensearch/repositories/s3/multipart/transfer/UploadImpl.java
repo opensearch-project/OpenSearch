@@ -65,7 +65,7 @@ public class UploadImpl extends AbstractTransfer implements Upload {
      *             complete.
      */
     public UploadResult waitForUploadResult()
-            throws AmazonClientException, AmazonServiceException, InterruptedException {
+        throws AmazonClientException, AmazonServiceException, InterruptedException {
         try {
             UploadResult result = null;
             while (!monitor.isDone() || result == null) {
@@ -98,7 +98,7 @@ public class UploadImpl extends AbstractTransfer implements Upload {
      * operation.
      */
     private PauseResult<PersistableUpload> pause(
-            final boolean forceCancelTransfers) throws AmazonClientException {
+        final boolean forceCancelTransfers) throws AmazonClientException {
         UploadMonitor uploadMonitor = (UploadMonitor) monitor;
         return uploadMonitor.pause(forceCancelTransfers);
     }

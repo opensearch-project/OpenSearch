@@ -54,6 +54,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 
 class S3BlobStore implements BlobStore {
@@ -84,6 +85,8 @@ class S3BlobStore implements BlobStore {
     final RequestMetricCollector listMetricCollector;
     final RequestMetricCollector putMetricCollector;
     final RequestMetricCollector multiPartUploadMetricCollector;
+    private final ExecutorService priorityRemoteUploadExecutor;
+    private final ExecutorService remoteUploadExecutor;
 
     S3BlobStore(
         S3Service service,
@@ -93,7 +96,8 @@ class S3BlobStore implements BlobStore {
         String cannedACL,
         String storageClass,
         RepositoryMetadata repositoryMetadata,
-        ExecutorContainer executorContainer
+        ExecutorService priorityRemoteUploadExecutor,
+        ExecutorService remoteUploadExecutor
     ) {
         this.service = service;
         this.bucket = bucket;
@@ -104,6 +108,8 @@ class S3BlobStore implements BlobStore {
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
         this.repositoryMetadata = repositoryMetadata;
+        this.priorityRemoteUploadExecutor = priorityRemoteUploadExecutor;
+        this.remoteUploadExecutor = remoteUploadExecutor;
         this.getMetricCollector = new RequestMetricCollector() {
             @Override
             public void collectMetrics(Request<?> request, Response<?> response) {
@@ -134,7 +140,7 @@ class S3BlobStore implements BlobStore {
         };
         this.multipartTransferManager = new MultipartTransferManager(
             TransferManagerBuilder.standard().withS3Client(this.clientReference().get()),
-            executorContainer
+            priorityRemoteUploadExecutor, remoteUploadExecutor
         );
     }
 

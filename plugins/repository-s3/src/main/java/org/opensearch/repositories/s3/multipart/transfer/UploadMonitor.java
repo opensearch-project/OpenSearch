@@ -36,19 +36,14 @@ import com.amazonaws.services.s3.transfer.Transfer.TransferState;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.internal.TransferMonitor;
 import com.amazonaws.services.s3.transfer.model.UploadResult;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.util.concurrent.FutureUtils;
-import org.opensearch.repositories.s3.ExecutorContainer;
 import org.opensearch.repositories.s3.SocketAccess;
-import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -63,85 +58,30 @@ import static com.amazonaws.event.SDKProgressPublisher.publishProgress;
  */
 public class UploadMonitor implements Callable<UploadResult>, TransferMonitor {
 
-    private static final Logger logger = LogManager.getLogger(UploadMonitor.class);
 
     private final AmazonS3 s3;
     private final PutObjectRequest origReq;
     private final ProgressListenerChain listener;
     private final UploadCallable multipartUploadCallable;
     private final UploadImpl transfer;
-    private final ExecutorContainer executorContainer;
-    private final String threadPoolName;
+    private final ExecutorService threadPool;
 
     /*
      * Futures of threads that upload the parts.
      */
     private final List<Future<PartETag>> futures = Collections
         .synchronizedList(new ArrayList<Future<PartETag>>());
-    private final AtomicReference<Future<UploadResult>> futureReference = new AtomicReference<Future<UploadResult>>(null);
+
     /*
      * State for clients wishing to poll for completion
      */
     private boolean isUploadDone = false;
-
-    private UploadMonitor(TransferManager manager, UploadImpl transfer,
-                          ExecutorContainer executorContainer,
-                          UploadCallable multipartUploadCallable, PutObjectRequest putObjectRequest,
-                          ProgressListenerChain progressListenerChain,
-                          String threadPoolName) {
-
-        this.s3 = manager.getAmazonS3Client();
-        this.multipartUploadCallable = multipartUploadCallable;
-        this.origReq = putObjectRequest;
-        this.listener = progressListenerChain;
-        this.transfer = transfer;
-        this.executorContainer = executorContainer;
-        this.threadPoolName = threadPoolName;
-    }
-
-    /**
-     * Constructs a new upload watcher and then immediately submits it to
-     * the thread pool.
-     *
-     * @param manager                 The {@link TransferManager} that owns this upload.
-     * @param transfer                The transfer being processed.
-     * @param executorContainer       Consists of reference to executor to which we should submit new
-     *                                tasks.
-     * @param multipartUploadCallable The callable responsible for processing the upload
-     *                                asynchronously
-     * @param putObjectRequest        The original putObject request
-     * @param progressListenerChain   A chain of listeners that wish to be notified of upload
-     *                                progress
-     */
-    public static UploadMonitor create(
-        TransferManager manager,
-        UploadImpl transfer,
-        ExecutorContainer executorContainer,
-        UploadCallable multipartUploadCallable,
-        PutObjectRequest putObjectRequest,
-        ProgressListenerChain progressListenerChain,
-        String threadPoolName) {
-
-        UploadMonitor uploadMonitor = new UploadMonitor(manager, transfer,
-            executorContainer, multipartUploadCallable, putObjectRequest,
-            progressListenerChain, threadPoolName);
-        Future<UploadResult> thisFuture = (Future<UploadResult>) executorContainer.getThreadExecutor()
-            .apply(uploadMonitor, threadPoolName);
-        // Use an atomic compareAndSet to prevent a possible race between the
-        // setting of the UploadMonitor's futureReference, and setting the
-        // CompleteMultipartUpload's futureReference within the call() method.
-        // We only want to set the futureReference to UploadMonitor's futureReference if the
-        // current value is null, otherwise the futureReference that's set is
-        // CompleteMultipartUpload's which is ultimately what we want.
-        uploadMonitor.futureReference.compareAndSet(null, thisFuture);
-        return uploadMonitor;
-    }
+    private AtomicReference<Future<UploadResult>> futureReference = new AtomicReference<Future<UploadResult>>(null);
 
     public Future<UploadResult> getFuture() {
         return futureReference.get();
     }
 
-    @SuppressForbidden(reason = "Future#cancel()")
     private synchronized void cancelFuture() {
         futureReference.get().cancel(true);
     }
@@ -154,26 +94,76 @@ public class UploadMonitor implements Callable<UploadResult>, TransferMonitor {
         isUploadDone = true;
     }
 
+    /**
+     * Constructs a new upload watcher and then immediately submits it to
+     * the thread pool.
+     *
+     * @param manager
+     *            The {@link TransferManager} that owns this upload.
+     * @param transfer
+     *            The transfer being processed.
+     * @param threadPool
+     *            The {@link ExecutorService} to which we should submit new
+     *            tasks.
+     * @param multipartUploadCallable
+     *            The callable responsible for processing the upload
+     *            asynchronously
+     * @param putObjectRequest
+     *            The original putObject request
+     * @param progressListenerChain
+     *            A chain of listeners that wish to be notified of upload
+     *            progress
+     */
+    public static UploadMonitor create(
+        TransferManager manager,
+        UploadImpl transfer,
+        ExecutorService threadPool,
+        UploadCallable multipartUploadCallable,
+        PutObjectRequest putObjectRequest,
+        ProgressListenerChain progressListenerChain) {
+
+        UploadMonitor uploadMonitor = new UploadMonitor(manager, transfer,
+            threadPool, multipartUploadCallable, putObjectRequest,
+            progressListenerChain);
+        Future<UploadResult> thisFuture = threadPool.submit(uploadMonitor);
+        // Use an atomic compareAndSet to prevent a possible race between the
+        // setting of the UploadMonitor's futureReference, and setting the
+        // CompleteMultipartUpload's futureReference within the call() method.
+        // We only want to set the futureReference to UploadMonitor's futureReference if the
+        // current value is null, otherwise the futureReference that's set is
+        // CompleteMultipartUpload's which is ultimately what we want.
+        uploadMonitor.futureReference.compareAndSet(null, thisFuture);
+        return uploadMonitor;
+    }
+
+    private UploadMonitor(TransferManager manager, UploadImpl transfer, ExecutorService threadPool,
+                          UploadCallable multipartUploadCallable, PutObjectRequest putObjectRequest,
+                          ProgressListenerChain progressListenerChain) {
+
+        this.s3 = manager.getAmazonS3Client();
+        this.multipartUploadCallable = multipartUploadCallable;
+        this.origReq = putObjectRequest;
+        this.listener = progressListenerChain;
+        this.transfer = transfer;
+        this.threadPool = threadPool;
+    }
+
     @Override
     public UploadResult call() throws Exception {
         try {
-            UploadResult result = SocketAccess.doPrivileged(multipartUploadCallable::call);
+            UploadResult result = SocketAccess.doPrivilegedIOException(multipartUploadCallable::call);
 
-            /*
-              If the result is null, it is a multipart parallel upload. So, a
-              new task is submitted for initiating a complete multipart upload
-              request.
+            /**
+             * If the result is null, it is a mutli part parellel upload. So, an
+             * new task is submitted for initiating a complete multi part upload
+             * request.
              */
             if (result == null) {
                 futures.addAll(multipartUploadCallable.getFutures());
-                CompleteMultipartUpload completeMultipartUpload = new CompleteMultipartUpload(
-                    multipartUploadCallable.getUploadId(), s3,
+                futureReference.set(threadPool.submit(new CompleteMultipartUpload(
+                    multipartUploadCallable.getMultipartUploadId(), s3,
                     origReq, futures, multipartUploadCallable
-                    .getETags(), listener, this);
-                futureReference.set((Future<UploadResult>) executorContainer.getThreadExecutor().apply(
-                    new PrivilegedCallable<>(completeMultipartUpload),
-                    threadPoolName
-                ));
+                    .getETags(), listener, this)));
             } else {
                 uploadComplete();
             }
@@ -184,7 +174,6 @@ public class UploadMonitor implements Callable<UploadResult>, TransferMonitor {
             throw new SdkClientException("Upload canceled");
         } catch (Exception e) {
             transfer.setState(TransferState.Failed);
-            publishProgress(listener, ProgressEventType.TRANSFER_FAILED_EVENT);
             throw e;
         }
     }
@@ -236,7 +225,6 @@ public class UploadMonitor implements Callable<UploadResult>, TransferMonitor {
     /**
      * Cancels the inflight transfers if they are not completed.
      */
-    @SuppressForbidden(reason = "Future#cancel()")
     private void cancelFutures() {
         cancelFuture();
         for (Future<PartETag> f : futures) {
@@ -254,40 +242,6 @@ public class UploadMonitor implements Callable<UploadResult>, TransferMonitor {
     void performAbort() {
         cancelFutures();
         multipartUploadCallable.performAbortMultipartUpload();
-        if (!waitForTransferComplete()) {
-            if (TransferState.Waiting == transfer.getState()) {
-                transfer.setState(TransferState.Canceled);
-                logger.warn("Transfer is in waiting state, marking it as cancelled as futures are cancelled, file : {}",
-                    origReq.getKey());
-            }
-            logger.warn("Transfer couldn't be stopped within wait period in abort operation, may result in intermittent inconsistent transfer state, file : {}", origReq.getKey());
-        }
-
         publishProgress(listener, ProgressEventType.TRANSFER_CANCELED_EVENT);
-    }
-
-    /**
-     * @return true, if transfer was completed within wait, else false.
-     * after aborting, we are waiting to make sure, underneath transfer happening in  asynchronously on
-     * different thread got closed and transfer status updated to done state
-     * else this might result in intermittent issues, as underneath real transfer is not closed
-     */
-    private boolean waitForTransferComplete() {
-        int maxWaitTimeMillis = 10000;
-        int totalWaitTimeMillis = 0;
-        int currentWaitTimeMillis = 10;
-        while (totalWaitTimeMillis < maxWaitTimeMillis && !transfer.isDone()) {
-            try {
-                logger.info("transfer not completed, sleeping for {}", currentWaitTimeMillis);
-                Thread.sleep(currentWaitTimeMillis);
-            } catch (InterruptedException e) {
-                logger.warn("transfer not completed, sleep interrupted ", e);
-                break;
-            }
-            totalWaitTimeMillis += currentWaitTimeMillis;
-            currentWaitTimeMillis *= 1.5;
-        }
-
-        return transfer.isDone();
     }
 }

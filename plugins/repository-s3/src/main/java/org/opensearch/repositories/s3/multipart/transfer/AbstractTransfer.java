@@ -26,6 +26,7 @@ package org.opensearch.repositories.s3.multipart.transfer;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
+import com.amazonaws.event.ProgressEventType;
 import com.amazonaws.event.ProgressListener;
 import com.amazonaws.event.ProgressListenerChain;
 import com.amazonaws.services.s3.model.LegacyS3ProgressListener;
@@ -39,6 +40,7 @@ import java.util.LinkedList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
+import static com.amazonaws.event.SDKProgressPublisher.publishProgress;
 
 /**
  * Abstract transfer implementation.
@@ -61,6 +63,10 @@ public abstract class AbstractTransfer implements Transfer {
     /** Collection of listeners to be notified for changes to the state of this transfer via setState() */
     protected final Collection<TransferStateChangeListener> stateChangeListeners = new LinkedList<TransferStateChangeListener>();
 
+    AbstractTransfer(String description, TransferProgress transferProgress, ProgressListenerChain progressListenerChain) {
+        this(description, transferProgress, progressListenerChain, null);
+    }
+
     AbstractTransfer(String description, TransferProgress transferProgress,
                      ProgressListenerChain progressListenerChain, TransferStateChangeListener stateChangeListener) {
         this.description = description;
@@ -78,8 +84,8 @@ public abstract class AbstractTransfer implements Transfer {
      */
     public final synchronized boolean isDone() {
         return (state == TransferState.Failed ||
-                state == TransferState.Completed ||
-                state == TransferState.Canceled);
+            state == TransferState.Completed ||
+            state == TransferState.Canceled);
     }
 
     /**
@@ -97,7 +103,7 @@ public abstract class AbstractTransfer implements Transfer {
      *             to complete.
      */
     public void waitForCompletion()
-            throws AmazonClientException, AmazonServiceException, InterruptedException {
+        throws AmazonClientException, AmazonServiceException, InterruptedException {
         try {
             Object result = null;
             while (!monitor.isDone() || result == null) {
@@ -249,6 +255,15 @@ public abstract class AbstractTransfer implements Transfer {
     public void setMonitor(TransferMonitor monitor) {
         this.monitor = monitor;
     }
+
+    public TransferMonitor getMonitor() {
+        return monitor;
+    }
+
+    protected void fireProgressEvent(final ProgressEventType eventType) {
+        publishProgress(listenerChain, eventType);
+    }
+
     /**
      * Examines the cause of the specified ExecutionException and either
      * rethrows it directly (if it's a type of AmazonClientException) or wraps

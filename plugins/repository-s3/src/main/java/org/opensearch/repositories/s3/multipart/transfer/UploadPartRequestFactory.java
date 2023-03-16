@@ -24,14 +24,12 @@
 package org.opensearch.repositories.s3.multipart.transfer;
 
 import com.amazonaws.AmazonWebServiceRequest;
-import com.amazonaws.internal.ReleasableInputStream;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.SSECustomerKey;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import org.opensearch.common.Stream;
-import org.opensearch.common.SuppressForbidden;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -48,56 +46,56 @@ import static com.amazonaws.services.s3.Headers.SERVER_SIDE_ENCRYPTION_CUSTOMER_
  * for each large upload, when we won't need most of those request objects for a
  * while.
  */
-@SuppressForbidden(reason = "java.io.File")
 public class UploadPartRequestFactory {
     private final String bucketName;
     private final String key;
     private final String uploadId;
     private final File file;
     private final PutObjectRequest origReq;
+    private volatile long offset = 0;
     private final SSECustomerKey sseCustomerKey;
-    private final long totalContentLength;
+    private final long multiStreamsContentLength;
     private final AtomicInteger multiStreamUploadIndex = new AtomicInteger();
+
     /**
      * Wrapped to provide necessary mark-and-reset support for the underlying
      * input stream. In particular, it provides support for unlimited
      * mark-and-reset if the underlying stream is a {@link FileInputStream}.
      */
-    private final Stream[] streams;
-    private volatile long offset = 0;
+    private final Stream[] inputStreams;
 
     // Note: Do not copy object metadata from PutObjectRequest to the UploadPartRequest
     // as headers "like x-amz-server-side-encryption" are valid in PutObject but not in UploadPart API
     public UploadPartRequestFactory(PutObjectRequest origReq, String uploadId,
-                                    Stream[] streams, long totalContentLength) {
+                                    Stream[] inputStreams, long multiStreamsContentLength) {
         this.origReq = origReq;
         this.uploadId = uploadId;
         this.bucketName = origReq.getBucketName();
         this.key = origReq.getKey();
         this.file = TransferManagerUtils.getRequestFile(origReq);
         this.sseCustomerKey = origReq.getSSECustomerKey();
-        this.totalContentLength = totalContentLength;
-        this.streams = new Stream[streams.length];
-        int inputStreamIdx = 0;
-        for (Stream is : streams) {
-            this.streams[inputStreamIdx++] = new Stream(ReleasableInputStream.wrap(is.getInputStream()),
-                is.getContentLength());
-        }
+        this.multiStreamsContentLength = multiStreamsContentLength;
+        this.inputStreams = inputStreams;
     }
 
     public synchronized boolean hasMoreRequests() {
-        return multiStreamUploadIndex.get() < streams.length;
+        return multiStreamUploadIndex.get() < inputStreams.length;
+    }
+
+    public Stream getStreamContainer(int partNumber) {
+        return inputStreams[partNumber-1];
     }
 
     public synchronized UploadPartRequest getNextUploadPartRequest() {
-        long partSize = streams[multiStreamUploadIndex.get()].getContentLength();
+        long partSize = inputStreams[multiStreamUploadIndex.get()].getContentLength();
+        int partNumber = multiStreamUploadIndex.get()+1;
 
         UploadPartRequest req = addCredentialsToRequest(new UploadPartRequest()
             .withBucketName(bucketName)
             .withKey(key)
             .withUploadId(uploadId)
-            .withInputStream(streams[multiStreamUploadIndex.get()].getInputStream())
-            .withPartNumber(multiStreamUploadIndex.get() + 1)
+            .withInputStream(getStreamContainer(partNumber).getInputStream())
+            .withPartNumber(partNumber)
             .withPartSize(partSize));
 
 
@@ -127,7 +125,7 @@ public class UploadPartRequestFactory {
 
         offset += partSize;
 
-        req.setLastPart(TransferManagerUtils.isLastPart(multiStreamUploadIndex.get(), streams));
+        req.setLastPart(TransferManagerUtils.isLastPart(multiStreamUploadIndex.get(), inputStreams));
 
         req.withGeneralProgressListener(origReq.getGeneralProgressListener())
             .withRequestMetricCollector(origReq.getRequestMetricCollector())

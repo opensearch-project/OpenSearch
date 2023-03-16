@@ -52,8 +52,6 @@ import com.amazonaws.services.s3.transfer.model.UploadResult;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.opensearch.common.Stream;
-import org.opensearch.common.SuppressForbidden;
-import org.opensearch.repositories.s3.ExecutorContainer;
 import org.opensearch.repositories.s3.SocketAccess;
 
 import java.io.InputStream;
@@ -63,50 +61,51 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
 import static com.amazonaws.event.SDKProgressPublisher.publishProgress;
 
 public class UploadCallable implements Callable<UploadResult> {
-    private static final Log log = LogFactory.getLog(UploadCallable.class);
     private final AmazonS3 s3;
-    private final ExecutorContainer executorContainer;
-    private final String threadPoolName;
+    private final ExecutorService threadPool;
     private final PutObjectRequest origReq;
-    private final long totalContentLength;
+    private String multipartUploadId;
+    private final long multiStreamsContentLength;
     private final Stream[] inputStreams;
     private final UploadImpl upload;
+
+    private static final Log log = LogFactory.getLog(UploadCallable.class);
     private final TransferManagerConfiguration configuration;
     private final List<Future<PartETag>> futures = new ArrayList<Future<PartETag>>();
     private final ProgressListenerChain listener;
     private final TransferProgress transferProgress;
+
     /**
      * ETags retrieved from Amazon S3 for a multi-part upload id. These parts
      * will be skipped while resuming a paused upload.
      */
     private final List<PartETag> eTagsToSkip = new ArrayList<PartETag>();
-    private String uploadId;
+
     private PersistableUpload persistableUpload;
 
     public UploadCallable(TransferManager transferManager,
-                          ExecutorContainer executorContainer, UploadImpl upload,
+                          ExecutorService threadPool, UploadImpl upload,
                           PutObjectRequest origReq,
                           ProgressListenerChain progressListenerChain, String uploadId,
                           TransferProgress transferProgress,
-                          Stream[] streams,
-                          long totalContentLength,
-                          String threadPoolName) {
+                          long multiStreamsContentLength, Stream[] inputStreams) {
         this.s3 = transferManager.getAmazonS3Client();
         this.configuration = transferManager.getConfiguration();
-        this.executorContainer = executorContainer;
+
+        this.threadPool = threadPool;
         this.origReq = origReq;
         this.listener = progressListenerChain;
         this.upload = upload;
-        this.totalContentLength = totalContentLength;
-        this.inputStreams = streams;
+        this.multiStreamsContentLength = multiStreamsContentLength;
+        this.inputStreams = inputStreams;
         this.transferProgress = transferProgress;
-        this.uploadId = uploadId;
-        this.threadPoolName = threadPoolName;
+        this.multipartUploadId = uploadId;
     }
 
     List<Future<PartETag>> getFutures() {
@@ -121,22 +120,22 @@ public class UploadCallable implements Callable<UploadResult> {
         return eTagsToSkip;
     }
 
-    String getUploadId() {
-        return uploadId;
+    String getMultipartUploadId() {
+        return multipartUploadId;
     }
 
     /**
      * Returns true if this UploadCallable is processing a multipart upload.
-     *
      * @return True if this UploadCallable is processing a multipart upload.
      */
     public boolean isMultipartUpload() {
-        return TransferManagerUtils.shouldUseMultipartUpload(totalContentLength, configuration, inputStreams[0].getContentLength());
+        return TransferManagerUtils.shouldUseMultipartUpload(multiStreamsContentLength, configuration,
+            inputStreams[0].getContentLength());
     }
 
-    public UploadResult call() {
+    public UploadResult call() throws Exception {
         upload.setState(TransferState.InProgress);
-        if (isMultipartUpload()) {
+        if ( isMultipartUpload() ) {
             publishProgress(listener, ProgressEventType.TRANSFER_STARTED_EVENT);
             return uploadInParts();
         } else {
@@ -151,7 +150,7 @@ public class UploadCallable implements Callable<UploadResult> {
         assert inputStreams.length == 1 : "Single chunk upload request has multiple InputStream objects";
 
         origReq.setInputStream(inputStreams[0].getInputStream());
-        PutObjectResult putObjectResult = SocketAccess.doPrivileged(() -> s3.putObject(origReq));
+        PutObjectResult putObjectResult = SocketAccess.doPrivileged(()->s3.putObject(origReq));
 
         UploadResult uploadResult = new UploadResult();
         uploadResult.setBucketName(origReq.getBucketName());
@@ -164,12 +163,11 @@ public class UploadCallable implements Callable<UploadResult> {
     /**
      * Captures the state of the upload.
      */
-    @SuppressForbidden(reason = "Future#cancel()")
     private void captureUploadStateIfPossible() {
         if (origReq.getSSECustomerKey() == null && !TransferManagerUtils.isMultiStreamUpload(inputStreams)) {
             persistableUpload = new PersistableUpload(origReq.getBucketName(),
                 origReq.getKey(), origReq.getFile()
-                .getAbsolutePath(), uploadId,
+                .getAbsolutePath(), multipartUploadId,
                 configuration.getMinimumUploadPartSize(),
                 configuration.getMultipartUploadThreshold());
             notifyPersistableTransferAvailability();
@@ -193,20 +191,21 @@ public class UploadCallable implements Callable<UploadResult> {
      * to the thread pool and recording its corresponding Future object, as well
      * as the multipart upload id.
      */
-    private UploadResult uploadInParts() {
+    private UploadResult uploadInParts() throws Exception {
         boolean isUsingEncryption = s3 instanceof AmazonS3Encryption;
 
         try {
-            if (uploadId == null) {
-                uploadId = initiateMultipartUpload(origReq, isUsingEncryption);
+            if (multipartUploadId == null) {
+                multipartUploadId = initiateMultipartUpload(origReq,
+                    isUsingEncryption);
             }
 
-            UploadPartRequestFactory requestFactory = new UploadPartRequestFactory(origReq, uploadId,
-                inputStreams, totalContentLength);
+            UploadPartRequestFactory requestFactory = new UploadPartRequestFactory(origReq, multipartUploadId,
+                inputStreams, multiStreamsContentLength);
 
             if (TransferManagerUtils.isUploadParallelizable(origReq, inputStreams)) {
                 captureUploadStateIfPossible();
-                uploadPartsInParallel(requestFactory, uploadId);
+                uploadPartsInParallel(requestFactory, multipartUploadId);
                 return null;
             } else {
                 return uploadPartsInSeries(requestFactory);
@@ -217,9 +216,7 @@ public class UploadCallable implements Callable<UploadResult> {
             throw e;
         } finally {
             if (origReq.getInputStream() != null) {
-                try {
-                    origReq.getInputStream().close();
-                } catch (Exception e) {
+                try {origReq.getInputStream().close(); } catch (Exception e) {
                     log.warn("Unable to cleanly close input stream: " + e.getMessage(), e);
                 }
             }
@@ -232,14 +229,14 @@ public class UploadCallable implements Callable<UploadResult> {
      * operation for the given multi-part upload.
      */
     void performAbortMultipartUpload() {
-        if (uploadId == null) {
+        if (multipartUploadId == null) {
             return;
         }
         try {
             AbortMultipartUploadRequest abortRequest = addCredentialsToRequest(new AbortMultipartUploadRequest(origReq.getBucketName(), origReq.getKey(),
-                uploadId)
+                multipartUploadId)
                 .withRequesterPays(origReq.isRequesterPays()));
-            s3.abortMultipartUpload(abortRequest);
+            SocketAccess.doPrivilegedVoid(()->s3.abortMultipartUpload(abortRequest));
         } catch (Exception e2) {
             log.info(
                 "Unable to abort multipart upload, you may need to manually remove uploaded parts: "
@@ -256,9 +253,7 @@ public class UploadCallable implements Callable<UploadResult> {
         final List<PartETag> partETags = new ArrayList<PartETag>();
 
         while (requestFactory.hasMoreRequests()) {
-            if (executorContainer.getExecutorShutdownSignal().apply(threadPoolName)) {
-                throw new CancellationException("TransferManager has been shutdown");
-            }
+            if (threadPool.isShutdown()) throw new CancellationException("TransferManager has been shutdown");
             UploadPartRequest uploadPartRequest = requestFactory.getNextUploadPartRequest();
             // Mark the stream in case we need to reset it
             InputStream inputStream = uploadPartRequest.getInputStream();
@@ -266,20 +261,20 @@ public class UploadCallable implements Callable<UploadResult> {
                 if (uploadPartRequest.getPartSize() >= Integer.MAX_VALUE) {
                     inputStream.mark(Integer.MAX_VALUE);
                 } else {
-                    inputStream.mark((int) uploadPartRequest.getPartSize());
+                    inputStream.mark((int)uploadPartRequest.getPartSize());
                 }
             }
-            partETags.add(s3.uploadPart(uploadPartRequest).getPartETag());
+            partETags.add(SocketAccess.doPrivileged(() -> s3.uploadPart(uploadPartRequest).getPartETag()));
         }
 
         CompleteMultipartUploadRequest req =
             addCredentialsToRequest(new CompleteMultipartUploadRequest(
-                origReq.getBucketName(), origReq.getKey(), uploadId,
+                origReq.getBucketName(), origReq.getKey(), multipartUploadId,
                 partETags)
                 .withRequesterPays(origReq.isRequesterPays())
                 .withGeneralProgressListener(origReq.getGeneralProgressListener())
                 .withRequestMetricCollector(origReq.getRequestMetricCollector()));
-        CompleteMultipartUploadResult res = SocketAccess.doPrivileged(() -> s3.completeMultipartUpload(req));
+        CompleteMultipartUploadResult res = SocketAccess.doPrivileged(()->s3.completeMultipartUpload(req));
 
         UploadResult uploadResult = new UploadResult();
         uploadResult.setBucketName(res.getBucketName());
@@ -295,12 +290,10 @@ public class UploadCallable implements Callable<UploadResult> {
     private void uploadPartsInParallel(UploadPartRequestFactory requestFactory,
                                        String uploadId) {
 
-        Map<Integer, PartSummary> partNumbers = identifyExistingPartsForResume(uploadId);
+        Map<Integer,PartSummary> partNumbers = identifyExistingPartsForResume(uploadId);
 
         while (requestFactory.hasMoreRequests()) {
-            if (executorContainer.getExecutorShutdownSignal().apply(threadPoolName)) {
-                throw new CancellationException("TransferManager has been shutdown");
-            }
+            if (threadPool.isShutdown()) throw new CancellationException("TransferManager has been shutdown");
             UploadPartRequest request = requestFactory.getNextUploadPartRequest();
             if (partNumbers.containsKey(request.getPartNumber())) {
                 PartSummary summary = partNumbers.get(request.getPartNumber());
@@ -309,11 +302,9 @@ public class UploadCallable implements Callable<UploadResult> {
                 transferProgress.updateProgress(summary.getSize());
                 continue;
             }
-            UploadPartCallable uploadPartCallable = new UploadPartCallable(s3, request, shouldCalculatePartMd5());
-            futures.add((Future<PartETag>) executorContainer.getThreadExecutor().apply(
-                new PrivilegedCallable<>(uploadPartCallable),
-                threadPoolName
-            ));
+
+            futures.add(threadPool.submit(SocketAccess.doPrivileged(()->new
+                UploadPartCallable(s3, request, shouldCalculatePartMd5()))));
         }
     }
 
@@ -326,11 +317,12 @@ public class UploadCallable implements Callable<UploadResult> {
         int partNumber = 0;
 
         while (true) {
-            PartListing parts = s3.listParts(addCredentialsToRequest(new ListPartsRequest(
+            final int partNo = partNumber;
+            PartListing parts = SocketAccess.doPrivileged(()->s3.listParts(addCredentialsToRequest(new ListPartsRequest(
                 origReq.getBucketName(),
                 origReq.getKey(), uploadId)
-                .withPartNumberMarker(partNumber)
-                .withRequesterPays(origReq.isRequesterPays())));
+                .withPartNumberMarker(partNo)
+                .withRequesterPays(origReq.isRequesterPays()))));
             for (PartSummary partSummary : parts.getParts()) {
                 partNumbers.put(partSummary.getPartNumber(), partSummary);
             }
@@ -346,7 +338,7 @@ public class UploadCallable implements Callable<UploadResult> {
      */
     private String initiateMultipartUpload(PutObjectRequest origReq, boolean isUsingEncryption) {
 
-        InitiateMultipartUploadRequest req = null;
+        InitiateMultipartUploadRequest req;
         if (isUsingEncryption && origReq instanceof EncryptedPutObjectRequest) {
             req = addCredentialsToRequest(new EncryptedInitiateMultipartUploadRequest(
                 origReq.getBucketName(), origReq.getKey()).withCannedACL(
@@ -377,7 +369,7 @@ public class UploadCallable implements Callable<UploadResult> {
             .withObjectLockRetainUntilDate(origReq.getObjectLockRetainUntilDate())
             .withObjectLockLegalHoldStatus(origReq.getObjectLockLegalHoldStatus());
 
-        String uploadId = s3.initiateMultipartUpload(req).getUploadId();
+        String uploadId = SocketAccess.doPrivileged(()->s3.initiateMultipartUpload(req).getUploadId());
         log.debug("Initiated new multipart upload: " + uploadId);
 
         return uploadId;

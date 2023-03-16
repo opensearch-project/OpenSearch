@@ -41,6 +41,8 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
@@ -51,6 +53,8 @@ import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.script.ScriptService;
+import org.opensearch.threadpool.ExecutorBuilder;
+import org.opensearch.threadpool.ScalingExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
 
@@ -58,18 +62,22 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 
 /**
  * A plugin to add a repository type that writes to and from the AWS S3.
  */
 public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
+    private static final String PRIORITY_REMOTE_UPLOAD = "priority_remote_upload";
+    private static final String REMOTE_UPLOAD = "remote_upload";
 
     static {
         SpecialPermission.check();
@@ -90,10 +98,23 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     protected final S3Service service;
     private final Path configPath;
 
-    private ExecutorContainer executorContainer;
+    private ExecutorService priorityRemoteUpload;
+    private ExecutorService remoteUpload;
 
     public S3RepositoryPlugin(final Settings settings, final Path configPath) {
         this(settings, configPath, new S3Service(configPath));
+    }
+
+    @Override
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        final int availableProcessors = OpenSearchExecutors.allocatedProcessors(settings);
+        List<ExecutorBuilder<?>> executorBuilders = new ArrayList<>();
+
+        executorBuilders.add(new ScalingExecutorBuilder(PRIORITY_REMOTE_UPLOAD, 1, 10,
+            TimeValue.timeValueMinutes(5)));
+        executorBuilders.add(new ScalingExecutorBuilder(REMOTE_UPLOAD, 1, 10,
+            TimeValue.timeValueMinutes(5)));
+        return executorBuilders;
     }
 
     S3RepositoryPlugin(final Settings settings, final Path configPath, final S3Service service) {
@@ -119,8 +140,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
 
-        this.executorContainer = new ExecutorContainer(threadPool::executeCallable, threadPool::isExecutorShutDown);
-
+        this.priorityRemoteUpload = threadPool.executor(PRIORITY_REMOTE_UPLOAD);
+        this.remoteUpload = threadPool.executor(REMOTE_UPLOAD);
         return Collections.emptyList();
     }
 
@@ -135,7 +156,8 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final ClusterService clusterService,
         final RecoverySettings recoverySettings
     ) {
-        return new S3Repository(metadata, registry, service, clusterService, recoverySettings, executorContainer);
+        return new S3Repository(metadata, registry, service, clusterService, recoverySettings, priorityRemoteUpload,
+            remoteUpload);
     }
 
     @Override

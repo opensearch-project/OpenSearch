@@ -157,7 +157,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 bufferSize == null ? S3Repository.BUFFER_SIZE_SETTING.getDefault(Settings.EMPTY) : bufferSize,
                 S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
                 S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
-                repositoryMetadata, null
+                repositoryMetadata, null, null
             )
         ) {
             @Override
