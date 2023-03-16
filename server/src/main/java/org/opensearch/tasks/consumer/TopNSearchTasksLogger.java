@@ -36,7 +36,7 @@ public class TopNSearchTasksLogger implements Consumer<Task> {
     private static final Logger SEARCH_TASK_DETAILS_LOGGER = LogManager.getLogger(TASK_DETAILS_LOG_PREFIX + ".search");
 
     // number of memory expensive search tasks that are logged
-    private static final Setting<Integer> LOG_TOP_QUERIES_SIZE_SETTING = Setting.intSetting(
+    public static final Setting<Integer> LOG_TOP_QUERIES_SIZE_SETTING = Setting.intSetting(
         LOG_TOP_QUERIES_SIZE,
         10,
         Setting.Property.Dynamic,
@@ -44,7 +44,7 @@ public class TopNSearchTasksLogger implements Consumer<Task> {
     );
 
     // frequency in which memory expensive search tasks are logged
-    private static final Setting<TimeValue> LOG_TOP_QUERIES_FREQUENCY_SETTING = Setting.timeSetting(
+    public static final Setting<TimeValue> LOG_TOP_QUERIES_FREQUENCY_SETTING = Setting.timeSetting(
         LOG_TOP_QUERIES_FREQUENCY,
         TimeValue.timeValueSeconds(60L),
         Setting.Property.Dynamic,
