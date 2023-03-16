@@ -414,6 +414,15 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
             this.blockMask = blockSize - 1;
             return this;
         }
+
+        Builder blockSize(long blockSize) {
+            assert blockSize < 1L << 31 && blockSize > 0 : "invalid block size";
+            assert ((blockSize & (blockSize - 1)) == 0) : "block size must be a power of 2";
+            this.blockSize = (int) blockSize;
+            this.blockMask = this.blockSize - 1;
+            this.blockSizeShift = (int) (Math.log(this.blockSize) / Math.log(2));
+            return this;
+        }
     }
 
     /**

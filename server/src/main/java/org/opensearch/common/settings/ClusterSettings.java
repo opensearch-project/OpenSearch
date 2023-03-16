@@ -43,6 +43,7 @@ import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.ShardIndexingPressureMemoryManager;
 import org.opensearch.index.ShardIndexingPressureSettings;
 import org.opensearch.index.ShardIndexingPressureStore;
+import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
 import org.opensearch.search.backpressure.settings.NodeDuressSettings;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
@@ -644,7 +645,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
      */
     public static final Map<String, List<Setting>> FEATURE_FLAGGED_CLUSTER_SETTINGS = Map.of(
         FeatureFlags.SEARCHABLE_SNAPSHOT,
-        List.of(Node.NODE_SEARCH_CACHE_SIZE_SETTING)
+        List.of(Node.NODE_SEARCH_CACHE_SIZE_SETTING, RemoteSnapshotDirectoryFactory.SEARACHBLE_SNAPSHOT_BLOCK_SIZE_SETTING)
     );
 
 }

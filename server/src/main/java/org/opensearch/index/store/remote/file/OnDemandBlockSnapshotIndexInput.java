@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IndexInput;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 import org.opensearch.index.store.remote.utils.BlobFetchRequest;
 import org.opensearch.index.store.remote.utils.TransferManager;
@@ -57,7 +58,12 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
      */
     protected final long originalFileSize;
 
-    public OnDemandBlockSnapshotIndexInput(FileInfo fileInfo, FSDirectory directory, TransferManager transferManager) {
+    public OnDemandBlockSnapshotIndexInput(
+        FileInfo fileInfo,
+        FSDirectory directory,
+        TransferManager transferManager,
+        ByteSizeValue blockSize
+    ) {
         this(
             "BlockedSnapshotIndexInput(path=\""
                 + directory.getDirectory().toString()
@@ -74,7 +80,8 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
             fileInfo.length(),
             false,
             directory,
-            transferManager
+            transferManager,
+            blockSize
         );
     }
 
@@ -85,10 +92,16 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
         long length,
         boolean isClone,
         FSDirectory directory,
-        TransferManager transferManager
+        TransferManager transferManager,
+        ByteSizeValue blockSize
     ) {
         this(
-            OnDemandBlockIndexInput.builder().resourceDescription(resourceDescription).isClone(isClone).offset(offset).length(length),
+            OnDemandBlockIndexInput.builder()
+                .blockSize(blockSize.getBytes())
+                .resourceDescription(resourceDescription)
+                .isClone(isClone)
+                .offset(offset)
+                .length(length),
             fileInfo,
             directory,
             transferManager

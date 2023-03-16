@@ -19,9 +19,14 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.SettingsException;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.opensearch.index.store.remote.file.OnDemandBlockSnapshotIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.utils.TransferManager;
 import org.opensearch.plugins.IndexStorePlugin;
@@ -38,6 +43,12 @@ import org.opensearch.threadpool.ThreadPool;
  * @opensearch.internal
  */
 public final class RemoteSnapshotDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
+    public static final Setting<ByteSizeValue> SEARACHBLE_SNAPSHOT_BLOCK_SIZE_SETTING = Setting.byteSizeSetting(
+        "node.searchable_snapshot.block.size",
+        new ByteSizeValue(OnDemandBlockSnapshotIndexInput.Builder.DEFAULT_BLOCK_SIZE, ByteSizeUnit.BYTES),
+        Setting.Property.NodeScope
+    );
+
     public static final String LOCAL_STORE_LOCATION = "RemoteLocalStore";
 
     private final Supplier<RepositoriesService> repositoriesService;
@@ -73,6 +84,13 @@ public final class RemoteSnapshotDirectoryFactory implements IndexStorePlugin.Di
         ShardPath localShardPath,
         BlobStoreRepository blobStoreRepository
     ) throws IOException {
+        ByteSizeValue blockSize = SEARACHBLE_SNAPSHOT_BLOCK_SIZE_SETTING.get(indexSettings.getSettings());
+        long blockSizeBytes = blockSize.getBytes();
+        if ((blockSizeBytes & (blockSizeBytes - 1)) != 0) {
+            throw new SettingsException(
+                "Invalid configuration for " + SEARACHBLE_SNAPSHOT_BLOCK_SIZE_SETTING.getKey() + " - value must be a power of 2"
+            );
+        }
         final BlobPath blobPath = blobStoreRepository.basePath()
             .add("indices")
             .add(IndexSettings.SEARCHABLE_SNAPSHOT_INDEX_ID.get(indexSettings.getSettings()))
@@ -91,7 +109,7 @@ public final class RemoteSnapshotDirectoryFactory implements IndexStorePlugin.Di
             final BlobContainer blobContainer = blobStoreRepository.blobStore().blobContainer(blobPath);
             final BlobStoreIndexShardSnapshot snapshot = blobStoreRepository.loadShardSnapshot(blobContainer, snapshotId);
             TransferManager transferManager = new TransferManager(blobContainer, remoteStoreFileCache);
-            return new RemoteSnapshotDirectory(snapshot, localStoreDir, transferManager);
+            return new RemoteSnapshotDirectory(snapshot, localStoreDir, transferManager, blockSize);
         });
     }
 }

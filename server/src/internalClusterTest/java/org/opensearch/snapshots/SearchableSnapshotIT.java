@@ -27,12 +27,15 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
+import org.opensearch.index.store.remote.file.OnDemandBlockSnapshotIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.repositories.fs.FsRepository;
@@ -57,6 +60,19 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
+
+    private ByteSizeValue blockSizeValue = new ByteSizeValue(
+        OnDemandBlockSnapshotIndexInput.Builder.DEFAULT_BLOCK_SIZE,
+        ByteSizeUnit.BYTES
+    );
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(RemoteSnapshotDirectoryFactory.SEARACHBLE_SNAPSHOT_BLOCK_SIZE_SETTING.getKey(), blockSizeValue)
+            .build();
+    }
 
     @Override
     protected boolean addMockInternalEngine() {
@@ -451,6 +467,51 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
                 assertEquals(preRestoreStat.getFileCacheStats().getUsed(), postRestoreStat.getFileCacheStats().getUsed());
             }
         }
+    }
+
+    public void testBlockSizeConfiguration() throws Exception {
+        final String snapshotName = "test-snap";
+        final String repoName = "test-repo";
+        final String indexName = "test-idx";
+        final String restoredIndexName = indexName + "-copy";
+        final int numReplicasIndex = randomIntBetween(1, 4);
+        final int numberOfDocs = 1000;
+        final Client client = client();
+
+        internalCluster().ensureAtLeastNumDataNodes(numReplicasIndex + 1);
+        createIndexWithDocsAndEnsureGreen(numReplicasIndex, numberOfDocs, indexName);
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName, repoName, indexName);
+        deleteIndicesAndEnsureGreen(client, indexName);
+
+        // Test with 2 KB blocks
+        blockSizeValue = new ByteSizeValue(2, ByteSizeUnit.KB);
+        internalCluster().ensureAtLeastNumSearchNodes(numReplicasIndex + 1);
+        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
+        assertDocCount(restoredIndexName, numberOfDocs);
+        deleteIndicesAndEnsureGreen(client, restoredIndexName);
+
+        for (int i = 0; i < numReplicasIndex + 1; i++) {
+            internalCluster().stopRandomSearchNode();
+        }
+
+        // Test with 4 KB blocks
+        blockSizeValue = new ByteSizeValue(4, ByteSizeUnit.KB);
+        internalCluster().ensureAtLeastNumSearchNodes(numReplicasIndex + 1);
+        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
+        assertDocCount(restoredIndexName, numberOfDocs);
+        deleteIndicesAndEnsureGreen(client, restoredIndexName);
+
+        for (int i = 0; i < numReplicasIndex + 1; i++) {
+            internalCluster().stopRandomSearchNode();
+        }
+
+        // Test with 8 KB blocks
+        blockSizeValue = new ByteSizeValue(8, ByteSizeUnit.KB);
+        internalCluster().ensureAtLeastNumSearchNodes(numReplicasIndex + 1);
+        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
+        assertDocCount(restoredIndexName, numberOfDocs);
+        deleteIndicesAndEnsureGreen(client, restoredIndexName);
     }
 
     /**
