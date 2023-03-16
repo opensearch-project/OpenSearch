@@ -33,25 +33,18 @@ apply plugin: 'opensearch.internal-cluster-test'
 opensearchplugin {
   description 'Module for search pipeline processors that do not require additional security permissions or have large dependencies and resources'
   classname 'org.opensearch.search.pipeline.common.SearchPipelineCommonModulePlugin'
-  extendedPlugins = ['lang-painless']
 }
 
 dependencies {
-  compileOnly project(':modules:lang-painless')
-  api project(':libs:opensearch-grok')
-  api project(':libs:opensearch-dissect')
 }
 
 restResources {
   restApi {
-    includeCore '_common', 'search_pipelines', 'cluster', 'indices', 'index', 'nodes', 'get', 'update', 'cat', 'mget', 'search'
+    includeCore '_common', 'search_pipelines', 'cluster', 'indices', 'index', 'nodes',  'search'
   }
 }
 
 testClusters.all {
-  // Needed in order to test ingest pipeline templating:
-  // (this is because the integTest node is not using default distribution, but only the minimal number of required modules)
-  module ':modules:lang-mustache'
 }
 
 thirdPartyAudit.ignoreMissingClasses(
