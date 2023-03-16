@@ -11,14 +11,13 @@ package org.opensearch.common.blobstore.transfer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.SetOnce;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.Stream;
 import org.opensearch.common.blobstore.stream.StreamContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.index.translog.ChannelFactory;
 
-import java.io.BufferedInputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -130,7 +129,7 @@ public class RemoteTransferContainer implements Closeable {
         return (size, position) -> {
             OffsetRangeFileInputStream offsetRangeInputStream;
             try {
-                offsetRangeInputStream = new OffsetRangeFileInputStream(localFile.toFile(), size, position);
+                offsetRangeInputStream = new OffsetRangeFileInputStream(localFile.getFileName(), localFile.toString(), size, position);
             } catch (IOException e) {
                 log.error("Failed to create input stream", e);
                 return null;

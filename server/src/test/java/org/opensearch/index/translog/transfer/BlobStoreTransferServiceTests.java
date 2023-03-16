@@ -51,7 +51,7 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
         Path testFile = createTempFile();
         Files.write(testFile, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
         FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(testFile, randomNonNegativeLong());
-        TransferService transferService = new BlobStoreTransferService(repository.blobStore(), executorService);
+        TransferService transferService = new BlobStoreTransferService(repository.blobStore(), threadPool);
         transferService.uploadBlob(transferFileSnapshot, repository.basePath(), WritePriority.HIGH);
     }
 
@@ -61,7 +61,7 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
             randomByteArrayOfLength(128),
             1
         );
-        TransferService transferService = new BlobStoreTransferService(repository.blobStore(), executorService);
+        TransferService transferService = new BlobStoreTransferService(repository.blobStore(), threadPool);
         transferService.uploadBlob(transferFileSnapshot, repository.basePath(), WritePriority.NORMAL);
     }
 

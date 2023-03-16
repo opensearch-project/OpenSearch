@@ -23,7 +23,7 @@ public class Stream {
     private final long offset;
 
     /**
-     * ABCDE
+     * Construct a new stream
      *
      * @param inputStream
      * @param contentLength
@@ -36,7 +36,7 @@ public class Stream {
     }
 
     /**
-     * ABCDE
+     * Construct a new stream. Sets <code>offset</code> to 0
      *
      * @param inputStream
      * @param contentLength
@@ -48,7 +48,7 @@ public class Stream {
     }
 
     /**
-     * ABCDE
+     * Return the input stream
      *
      * @return
      */

@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
@@ -89,7 +90,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             ActionListener<TransferFileSnapshot> listener = (ActionListener<TransferFileSnapshot>) invocationOnMock.getArguments()[3];
             listener.onResponse((TransferFileSnapshot) invocationOnMock.getArguments()[1]);
             return null;
-        }).when(transferService).uploadBlobAsync(any(TransferFileSnapshot.class), any(BlobPath.class),
+        }).when(transferService).uploadBlobAsync(anyString(), any(TransferFileSnapshot.class), any(BlobPath.class),
             any(ActionListener.class), any(WritePriority.class));
 
         FileTransferTracker fileTransferTracker = new FileTransferTracker(new ShardId("index", "indexUUid", 0)) {
