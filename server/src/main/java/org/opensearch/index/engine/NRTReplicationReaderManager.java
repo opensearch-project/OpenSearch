@@ -51,6 +51,10 @@ public class NRTReplicationReaderManager extends OpenSearchReaderManager {
     @Override
     protected OpenSearchDirectoryReader refreshIfNeeded(OpenSearchDirectoryReader referenceToRefresh) throws IOException {
         Objects.requireNonNull(referenceToRefresh);
+        // checks if an actual refresh (change in segments) happened
+        if (unwrapStandardReader(referenceToRefresh).getSegmentInfos().version == currentInfos.version) {
+            return null;
+        }
         final List<LeafReader> subs = new ArrayList<>();
         final StandardDirectoryReader standardDirectoryReader = unwrapStandardReader(referenceToRefresh);
         for (LeafReaderContext ctx : standardDirectoryReader.leaves()) {
