@@ -11,14 +11,16 @@ package org.opensearch.remotestore;
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
+import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
+import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalTestCluster;
@@ -31,6 +33,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -227,7 +230,22 @@ public class RemoteStoreIT extends OpenSearchIntegTestCase {
         ensureGreen(INDEX_NAME);
 
         String replicaNodeName = replicaNodeName(INDEX_NAME);
-        assertBusy(() -> assertHitCount(client(replicaNodeName).prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(TOTAL_OPERATIONS)), 30, TimeUnit.SECONDS);
+        assertBusy(
+            () -> assertHitCount(client(replicaNodeName).prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(TOTAL_OPERATIONS)),
+            30,
+            TimeUnit.SECONDS
+        );
+
+        RecoveryResponse recoveryResponse = client(replicaNodeName).admin().indices().prepareRecoveries().get();
+
+        Optional<RecoveryState> recoverySource = recoveryResponse.shardRecoveryStates()
+            .get(INDEX_NAME)
+            .stream()
+            .filter(rs -> rs.getRecoverySource().getType() == RecoverySource.Type.PEER)
+            .findFirst();
+        assertFalse(recoverySource.isEmpty());
+        assertEquals(0, recoverySource.get().getIndex().recoveredFileCount());
+
         IndexResponse response = indexSingleDoc();
         assertEquals(indexStats.get(MAX_SEQ_NO_TOTAL) + 1, response.getSeqNo());
         refresh(INDEX_NAME);
