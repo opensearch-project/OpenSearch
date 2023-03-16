@@ -99,7 +99,7 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
             .addCell("target_host", "alias:thost;desc:target host")
             .addCell("checkpoints_behind", "alias:cpb;desc:checkpoints behind primary")
             .addCell("bytes_behind", "alias:bb;desc:bytes behind primary")
-            .addCell("current_lag", "alias:cpb;desc:ongoing time for replica to catch up to primary refresh")
+            .addCell("current_lag", "alias:clag;desc:ongoing time elapsed waiting for replica to catch up to primary")
             .addCell("last_completed_lag", "alias:lcl;desc:time taken for replica to catch up to latest primary refresh")
             .addCell("rejected_requests", "alias:rr;desc:count of rejected requests for the replication group");
         if (detailed) {
