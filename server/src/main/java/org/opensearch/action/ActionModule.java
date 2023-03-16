@@ -448,6 +448,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -455,6 +456,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
+import static java.util.Objects.requireNonNull;
 
 /**
  * Builds and binds the generic action map, all {@link TransportAction}s, and {@link ActionFilters}.
@@ -471,7 +473,10 @@ public class ActionModule extends AbstractModule {
     private final ClusterSettings clusterSettings;
     private final SettingsFilter settingsFilter;
     private final List<ActionPlugin> actionPlugins;
+    // An unmodifiable map containing OpenSearch and Plugin actions
     private final Map<String, ActionHandler<?, ?>> actions;
+    // A dynamic map containing Extension actions
+    private final DynamicActionRegistry extensionActions;
     private final ActionFilters actionFilters;
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
@@ -501,6 +506,7 @@ public class ActionModule extends AbstractModule {
         this.actionPlugins = actionPlugins;
         this.threadPool = threadPool;
         actions = setupActions(actionPlugins);
+        extensionActions = FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS) ? new DynamicActionRegistry() : null;
         actionFilters = setupActionFilters(actionPlugins);
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
@@ -720,6 +726,13 @@ public class ActionModule extends AbstractModule {
         actions.register(DeleteDecommissionStateAction.INSTANCE, TransportDeleteDecommissionStateAction.class);
 
         return unmodifiableMap(actions.getRegistry());
+    }
+
+    public DynamicActionRegistry getExtensionActions() {
+        if (!FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
+            throw new UnsupportedOperationException("This method requires enabling the feature flag [" + FeatureFlags.EXTENSIONS + "].");
+        }
+        return extensionActions;
     }
 
     private ActionFilters setupActionFilters(List<ActionPlugin> actionPlugins) {
@@ -954,6 +967,11 @@ public class ActionModule extends AbstractModule {
                 bind(supportAction).asEagerSingleton();
             }
         }
+
+        // register dynamic ActionType -> transportAction Map used by NodeClient
+        if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
+            bind(DynamicActionRegistry.class).toInstance(extensionActions);
+        }
     }
 
     public ActionFilters getActionFilters() {
@@ -962,5 +980,30 @@ public class ActionModule extends AbstractModule {
 
     public RestController getRestController() {
         return restController;
+    }
+
+    public static class DynamicActionRegistry {
+        private final Map<String, ActionHandler<?, ?>> registry = new ConcurrentHashMap<>();
+
+        public void registerExtensionAction(ActionHandler<?, ?> handler) {
+            requireNonNull(handler, "action handler is required");
+            String name = handler.getAction().name();
+            requireNonNull(name, "name is required");
+            if (registry.putIfAbsent(name, handler) != null) {
+                throw new IllegalArgumentException("action handler for name [" + name + "] already registered");
+            }
+        }
+
+        public void unregisterExtensionAction(String name) {
+            requireNonNull(name, "name is required");
+            if (registry.remove(name) == null) {
+                throw new IllegalArgumentException("action handler for name [" + name + "] was not registered");
+            }
+        }
+
+        public ActionHandler<?, ?> get(String name) {
+            requireNonNull(name, "name is required");
+            return registry.get(name);
+        }
     }
 }
