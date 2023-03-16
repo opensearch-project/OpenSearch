@@ -22,7 +22,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-final class ReplicaFileDeleter {
+final class ReplicaFileTracker {
 
     private final Map<String, Integer> refCounts = new HashMap<>();
 
@@ -45,11 +45,7 @@ final class ReplicaFileDeleter {
         }
     }
 
-    public synchronized Integer getRefCount(String fileName) {
-        return refCounts.get(fileName);
-    }
-
-    public synchronized boolean skipDelete(String fileName) {
-        return refCounts.containsKey(fileName);
+    public synchronized boolean canDelete(String fileName) {
+        return refCounts.containsKey(fileName) == false;
     }
 }

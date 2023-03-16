@@ -17,6 +17,7 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.ActionFuture;
@@ -41,17 +42,23 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.SegmentReplicationShardStats;
+import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.NRTReplicationReaderManager;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.FileChunkRequest;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.PointInTimeBuilder;
+import org.opensearch.search.internal.PitReaderContext;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.test.BackgroundIndexer;
@@ -69,6 +76,7 @@ import java.util.concurrent.CountDownLatch;
 
 import static java.util.Arrays.asList;
 import static org.opensearch.action.search.PitTestsUtil.assertSegments;
+import static org.opensearch.action.search.SearchContextId.decode;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
@@ -984,8 +992,22 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         FlushRequest flushRequest = Requests.flushRequest(INDEX_NAME);
         client().admin().indices().flush(flushRequest).get();
         final IndexShard replicaShard = getIndexShard(replica, INDEX_NAME);
-        final SegmentInfos segmentInfos = replicaShard.getLatestSegmentInfosAndCheckpoint().v1().get();
-        final Collection<String> snapshottedSegments = segmentInfos.files(true);
+
+        // fetch the segments snapshotted when the reader context was created.
+        Collection<String> snapshottedSegments;
+        SearchService searchService = internalCluster().getInstance(SearchService.class, replica);
+        NamedWriteableRegistry registry = internalCluster().getInstance(NamedWriteableRegistry.class, replica);
+        final PitReaderContext pitReaderContext = searchService.getPitReaderContext(
+            decode(registry, pitResponse.getId()).shards().get(replicaShard.routingEntry().shardId()).getSearchContextId()
+        );
+        try (final Engine.Searcher searcher = pitReaderContext.acquireSearcher("test")) {
+            final StandardDirectoryReader standardDirectoryReader = NRTReplicationReaderManager.unwrapStandardReader(
+                (OpenSearchDirectoryReader) searcher.getDirectoryReader()
+            );
+            final SegmentInfos infos = standardDirectoryReader.getSegmentInfos();
+            snapshottedSegments = infos.files(true);
+        }
+        ;
 
         flush(INDEX_NAME);
         for (int i = 101; i < 200; i++) {
@@ -1042,6 +1064,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         client().execute(DeletePitAction.INSTANCE, deletePITRequest).actionGet();
 
         currentFiles = List.of(replicaShard.store().directory().listAll());
-        assertFalse("Files should be preserved", currentFiles.containsAll(snapshottedSegments));
+        assertFalse("Files should be cleaned up", currentFiles.containsAll(snapshottedSegments));
     }
 }
