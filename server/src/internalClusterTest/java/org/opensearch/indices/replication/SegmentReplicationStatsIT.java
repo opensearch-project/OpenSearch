@@ -218,7 +218,6 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
         List<String> nodes = new ArrayList<>();
         final String primaryNode = internalCluster().startNode();
         nodes.add(primaryNode);
-        nodes.add(internalCluster().startNode());
         createIndex(
             INDEX_NAME,
             Settings.builder()
@@ -227,7 +226,8 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
                 .build()
         );
-        ensureYellow(INDEX_NAME);
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        nodes.add(internalCluster().startNode());
         ensureGreen(INDEX_NAME);
 
         final long numDocs = scaledRandomIntBetween(50, 100);
@@ -281,11 +281,11 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
         final String index_2 = "tst-index-2";
         List<String> nodes = new ArrayList<>();
         final String primaryNode = internalCluster().startNode();
-        nodes.add(internalCluster().startNode());
-
         nodes.add(primaryNode);
-        createIndex(INDEX_NAME);
-        createIndex(index_2);
+        createIndex(INDEX_NAME, index_2);
+
+        ensureYellowAndNoInitializingShards(INDEX_NAME, index_2);
+        nodes.add(internalCluster().startNode());
         ensureGreen(INDEX_NAME, index_2);
 
         final long numDocs = scaledRandomIntBetween(50, 100);
@@ -297,28 +297,50 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
         waitForSearchableDocs(INDEX_NAME, numDocs, nodes);
         waitForSearchableDocs(index_2, numDocs, nodes);
 
-        final IndexShard indexShard = getIndexShard(primaryNode, INDEX_NAME);
+        final IndexShard index_1_primary = getIndexShard(primaryNode, INDEX_NAME);
+        final IndexShard index_2_primary = getIndexShard(primaryNode, index_2);
 
-        assertBusy(() -> {
-            SegmentReplicationStatsResponse segmentReplicationStatsResponse = dataNodeClient().admin()
-                .indices()
-                .prepareSegmentReplicationStats()
-                .execute()
-                .actionGet();
+        assertTrue(index_1_primary.routingEntry().primary());
+        assertTrue(index_2_primary.routingEntry().primary());
 
-            final Map<String, List<SegmentReplicationPerGroupStats>> replicationStats = segmentReplicationStatsResponse
-                .getReplicationStats();
-            assertEquals(2, replicationStats.size());
-            final List<SegmentReplicationPerGroupStats> replicationPerGroupStats = replicationStats.get(INDEX_NAME);
-            assertEquals(1, replicationPerGroupStats.size());
-            final SegmentReplicationPerGroupStats perGroupStats = replicationPerGroupStats.get(0);
-            assertEquals(perGroupStats.getShardId(), indexShard.shardId());
-            final Set<SegmentReplicationShardStats> replicaStats = perGroupStats.getReplicaStats();
-            assertEquals(1, replicaStats.size());
-            for (SegmentReplicationShardStats replica : replicaStats) {
-                assertNotNull(replica.getCurrentReplicationState());
-            }
-        });
+        // test both indices are returned in the response.
+        SegmentReplicationStatsResponse segmentReplicationStatsResponse = client().admin()
+            .indices()
+            .prepareSegmentReplicationStats()
+            .execute()
+            .actionGet();
+
+        Map<String, List<SegmentReplicationPerGroupStats>> replicationStats = segmentReplicationStatsResponse.getReplicationStats();
+        assertEquals(2, replicationStats.size());
+        List<SegmentReplicationPerGroupStats> replicationPerGroupStats = replicationStats.get(INDEX_NAME);
+        assertEquals(1, replicationPerGroupStats.size());
+        SegmentReplicationPerGroupStats perGroupStats = replicationPerGroupStats.get(0);
+        assertEquals(perGroupStats.getShardId(), index_1_primary.shardId());
+        Set<SegmentReplicationShardStats> replicaStats = perGroupStats.getReplicaStats();
+        assertEquals(1, replicaStats.size());
+        for (SegmentReplicationShardStats replica : replicaStats) {
+            assertNotNull(replica.getCurrentReplicationState());
+        }
+
+        replicationPerGroupStats = replicationStats.get(index_2);
+        assertEquals(1, replicationPerGroupStats.size());
+        perGroupStats = replicationPerGroupStats.get(0);
+        assertEquals(perGroupStats.getShardId(), index_2_primary.shardId());
+        replicaStats = perGroupStats.getReplicaStats();
+        assertEquals(1, replicaStats.size());
+        for (SegmentReplicationShardStats replica : replicaStats) {
+            assertNotNull(replica.getCurrentReplicationState());
+        }
+
+        // test only single index queried.
+        segmentReplicationStatsResponse = client().admin()
+            .indices()
+            .prepareSegmentReplicationStats()
+            .setIndices(index_2)
+            .execute()
+            .actionGet();
+        assertEquals(1, segmentReplicationStatsResponse.getReplicationStats().size());
+        assertTrue(segmentReplicationStatsResponse.getReplicationStats().containsKey(index_2));
     }
 
     public void testQueryAgainstDocRepIndex() {
@@ -326,7 +348,6 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
         List<String> nodes = new ArrayList<>();
         final String primaryNode = internalCluster().startNode();
         nodes.add(primaryNode);
-        nodes.add(internalCluster().startNode());
         createIndex(
             INDEX_NAME,
             Settings.builder()
@@ -336,7 +357,8 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
                 .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
                 .build()
         );
-        ensureYellow(INDEX_NAME);
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        nodes.add(internalCluster().startNode());
         ensureGreen(INDEX_NAME);
 
         final long numDocs = scaledRandomIntBetween(50, 100);

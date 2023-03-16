@@ -115,7 +115,7 @@ public class SegmentReplicationShardStats implements Writeable, ToXContentFragme
     @Override
     public String toString() {
         return "SegmentReplicationShardStats{"
-            + "allocationId='"
+            + "allocationId="
             + allocationId
             + ", checkpointsBehindCount="
             + checkpointsBehindCount
