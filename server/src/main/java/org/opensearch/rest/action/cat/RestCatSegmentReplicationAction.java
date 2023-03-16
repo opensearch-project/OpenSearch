@@ -71,7 +71,6 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
         segmentReplicationStatsRequest.detailed(request.paramAsBoolean("detailed", false));
         segmentReplicationStatsRequest.shards(Strings.splitStringByCommaToArray(request.param("shards")));
         segmentReplicationStatsRequest.activeOnly(request.paramAsBoolean("active_only", false));
-        segmentReplicationStatsRequest.completedOnly(request.paramAsBoolean("completed_only", false));
         segmentReplicationStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, segmentReplicationStatsRequest.indicesOptions()));
 
         return channel -> client.admin()

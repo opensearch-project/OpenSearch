@@ -160,11 +160,6 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
         if (request.activeOnly()) {
             return new SegmentReplicationShardStatsResponse(targetService.getOngoingEventSegmentReplicationState(shardId));
         }
-
-        // return information about only latest completed segment replication events.
-        if (request.completedOnly()) {
-            return new SegmentReplicationShardStatsResponse(targetService.getlatestCompletedEventSegmentReplicationState(shardId));
-        }
         return new SegmentReplicationShardStatsResponse(targetService.getSegmentReplicationState(shardId));
     }
 
