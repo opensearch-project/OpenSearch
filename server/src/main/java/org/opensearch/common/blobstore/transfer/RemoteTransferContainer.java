@@ -129,7 +129,7 @@ public class RemoteTransferContainer implements Closeable {
         return (size, position) -> {
             OffsetRangeFileInputStream offsetRangeInputStream;
             try {
-                offsetRangeInputStream = new OffsetRangeFileInputStream(localFile.getFileName(), localFile.toString(), size, position);
+                offsetRangeInputStream = new OffsetRangeFileInputStream(localFile, fileName, size, position);
             } catch (IOException e) {
                 log.error("Failed to create input stream", e);
                 return null;

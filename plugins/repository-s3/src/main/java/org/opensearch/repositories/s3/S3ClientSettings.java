@@ -195,7 +195,7 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<Integer> MAX_CONNECTIONS_SETTING = Setting.affixKeySetting(
         PREFIX,
         "max_connections",
-        key -> Setting.intSetting(key, 10, Property.NodeScope)
+        key -> Setting.intSetting(key, 50, Property.NodeScope)
     );
 
     /** The number of retries to use when an s3 request fails. */

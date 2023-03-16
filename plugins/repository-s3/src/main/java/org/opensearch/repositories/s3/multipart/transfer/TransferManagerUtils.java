@@ -31,6 +31,7 @@ import com.amazonaws.services.s3.transfer.TransferManagerConfiguration;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.opensearch.common.Stream;
+import org.opensearch.common.SuppressForbidden;
 
 import java.io.File;
 
@@ -40,6 +41,7 @@ import static com.amazonaws.services.s3.internal.Constants.MB;
 /**
  * Internal utilities for multipart uploads with TransferManager.
  */
+@SuppressForbidden(reason = "java.io.File")
 public class TransferManagerUtils {
 
     private static final Log log = LogFactory.getLog(TransferManagerUtils.class);

@@ -52,6 +52,7 @@ import com.amazonaws.services.s3.transfer.model.UploadResult;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.opensearch.common.Stream;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.repositories.s3.ExecutorContainer;
 import org.opensearch.repositories.s3.SocketAccess;
 
@@ -163,6 +164,7 @@ public class UploadCallable implements Callable<UploadResult> {
     /**
      * Captures the state of the upload.
      */
+    @SuppressForbidden(reason = "Future#cancel()")
     private void captureUploadStateIfPossible() {
         if (origReq.getSSECustomerKey() == null && !TransferManagerUtils.isMultiStreamUpload(inputStreams)) {
             persistableUpload = new PersistableUpload(origReq.getBucketName(),

@@ -38,6 +38,8 @@ import com.amazonaws.services.s3.transfer.internal.TransferMonitor;
 import com.amazonaws.services.s3.transfer.model.UploadResult;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.repositories.s3.ExecutorContainer;
 import org.opensearch.repositories.s3.SocketAccess;
 import org.opensearch.threadpool.ThreadPool;
@@ -139,6 +141,7 @@ public class UploadMonitor implements Callable<UploadResult>, TransferMonitor {
         return futureReference.get();
     }
 
+    @SuppressForbidden(reason = "Future#cancel()")
     private synchronized void cancelFuture() {
         futureReference.get().cancel(true);
     }
@@ -233,6 +236,7 @@ public class UploadMonitor implements Callable<UploadResult>, TransferMonitor {
     /**
      * Cancels the inflight transfers if they are not completed.
      */
+    @SuppressForbidden(reason = "Future#cancel()")
     private void cancelFutures() {
         cancelFuture();
         for (Future<PartETag> f : futures) {

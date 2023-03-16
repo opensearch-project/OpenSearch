@@ -34,6 +34,8 @@ import com.amazonaws.services.s3.model.CompleteMultipartUploadResult;
 import com.amazonaws.services.s3.model.PartETag;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.transfer.model.UploadResult;
+import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.util.concurrent.FutureUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -99,6 +101,7 @@ public class CompleteMultipartUpload implements Callable<UploadResult> {
     }
 
     @Override
+    @SuppressForbidden(reason = "Future#cancel()")
     public UploadResult call() throws Exception {
         CompleteMultipartUploadResult res;
 

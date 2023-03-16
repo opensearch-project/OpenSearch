@@ -31,6 +31,7 @@ import com.amazonaws.services.s3.model.SSECustomerKey;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import org.opensearch.common.Stream;
+import org.opensearch.common.SuppressForbidden;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -47,6 +48,7 @@ import static com.amazonaws.services.s3.Headers.SERVER_SIDE_ENCRYPTION_CUSTOMER_
  * for each large upload, when we won't need most of those request objects for a
  * while.
  */
+@SuppressForbidden(reason = "java.io.File")
 public class UploadPartRequestFactory {
     private final String bucketName;
     private final String key;
