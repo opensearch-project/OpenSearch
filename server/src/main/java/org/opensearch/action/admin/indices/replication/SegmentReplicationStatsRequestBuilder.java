@@ -35,11 +35,6 @@ public class SegmentReplicationStatsRequestBuilder extends BroadcastOperationReq
         return this;
     }
 
-    public SegmentReplicationStatsRequestBuilder setCompletedOnly(boolean completedOnly) {
-        request.completedOnly(completedOnly);
-        return this;
-    }
-
     public SegmentReplicationStatsRequestBuilder shards(String... indices) {
         request.shards(indices);
         return this;
