@@ -2,20 +2,21 @@ package org.opensearch.common.blobstore.transfer;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
 public class OffsetRangeFileInputStream extends InputStream {
-    private final FileChannel fileChannel;
+    private final InputStream inputStream;
     private final String fileName;
-    private final ByteBuffer byteBuffer = ByteBuffer.allocate(1);
+    private final FileChannel fileChannel;
 
     private final long actualSizeToRead;
-    // This is the maximum position till stream is to be read. If read methods exceed limit then bytes are read
-    // till limit. If no byte is left after limit, then -1 is returned from read methods.
+    // This is the maximum position till stream is to be read. If read methods exceed maxPos then bytes are read
+    // till maxPos. If no byte is left after maxPos, then -1 is returned from read methods.
     private final long limit;
+    // Position in stream from which read will start.
     private long counter = 0;
 
     private long markPointer;
@@ -24,6 +25,7 @@ public class OffsetRangeFileInputStream extends InputStream {
     public OffsetRangeFileInputStream(Path path, String fileName, long size, long position) throws IOException {
         fileChannel = FileChannel.open(path, StandardOpenOption.READ);
         fileChannel.position(position);
+        inputStream = Channels.newInputStream(fileChannel);
         long totalLength = fileChannel.size();
         this.counter = 0;
         this.limit = size;
@@ -54,8 +56,8 @@ public class OffsetRangeFileInputStream extends InputStream {
         if (len <= 0) {
             return -1;
         }
-        ByteBuffer buffer = ByteBuffer.wrap(b, off, len);
-        fileChannel.read(buffer);
+
+        inputStream.read(b, off, len);
         counter += len;
         return len;
     }
@@ -65,12 +67,7 @@ public class OffsetRangeFileInputStream extends InputStream {
         if (counter++ >= limit) {
             return -1;
         }
-        if (fileChannel.position() < fileChannel.size()) {
-            byteBuffer.rewind();
-            fileChannel.read(byteBuffer);
-            return byteBuffer.get(0) & 0xff;
-        }
-        return -1;
+        return (fileChannel.position() < fileChannel.size()) ? (inputStream.read() & 0xff) : -1;
     }
 
     @Override
@@ -92,5 +89,15 @@ public class OffsetRangeFileInputStream extends InputStream {
     public synchronized void reset() throws IOException {
         fileChannel.position(markPointer);
         counter = markCounter;
+    }
+
+    public FileChannel getFileChannel() {
+        return fileChannel;
+    }
+
+    @Override
+    public void close() throws IOException {
+        inputStream.close();
+        super.close();
     }
 }
