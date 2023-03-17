@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.codec.customcodec;
+package org.opensearch.index.codec.customcodecs;
 
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.EnginePlugin;

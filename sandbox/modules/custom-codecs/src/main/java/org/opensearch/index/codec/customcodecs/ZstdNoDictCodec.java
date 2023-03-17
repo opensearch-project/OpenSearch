@@ -6,27 +6,27 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.codec.customcodec;
+package org.opensearch.index.codec.customcodecs;
 
 /**
- * ZstdCodec provides ZSTD compressor using the <a href="https://github.com/luben/zstd-jni">zstd-jni</a> library.
+ * ZstdNoDictCodec provides ZSTD compressor without a dictionary support.
  */
-public class ZstdCodec extends Lucene95CustomCodec {
+public class ZstdNoDictCodec extends Lucene95CustomCodec {
 
     /**
-     * Creates a new ZstdCodec instance with the default compression level.
+     * Creates a new ZstdNoDictCodec instance with the default compression level.
      */
-    public ZstdCodec() {
+    public ZstdNoDictCodec() {
         this(DEFAULT_COMPRESSION_LEVEL);
     }
 
     /**
-     * Creates a new ZstdCodec instance.
+     * Creates a new ZstdNoDictCodec instance.
      *
      * @param compressionLevel The compression level.
      */
-    public ZstdCodec(int compressionLevel) {
-        super(Mode.ZSTD, compressionLevel);
+    public ZstdNoDictCodec(int compressionLevel) {
+        super(Mode.ZSTDNODICT, compressionLevel);
     }
 
     @Override

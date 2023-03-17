@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.codec.customcodec;
+package org.opensearch.index.codec.customcodecs;
 
 import com.github.luben.zstd.Zstd;
 import java.io.IOException;
@@ -43,38 +43,37 @@ public class ZstdNoDictCompressionMode extends CompressionMode {
 
     @Override
     public Compressor newCompressor() {
-        return new ZSTDCompressor(compressionLevel);
+        return new ZstdCompressor(compressionLevel);
     }
 
     @Override
     public Decompressor newDecompressor() {
-        return new ZSTDDecompressor();
+        return new ZstdDecompressor();
     }
 
     /** zstandard compressor */
-    private static final class ZSTDCompressor extends Compressor {
+    private static final class ZstdCompressor extends Compressor {
 
         private final int compressionLevel;
         private byte[] compressedBuffer;
 
         /** compressor with a given compresion level */
-        public ZSTDCompressor(int compressionLevel) {
+        public ZstdCompressor(int compressionLevel) {
             this.compressionLevel = compressionLevel;
             compressedBuffer = BytesRef.EMPTY_BYTES;
         }
 
-        @Override
-        public void close() throws IOException {}
+        private void compress(byte[] bytes, int offset, int length, DataOutput out) throws IOException {
+            assert offset >= 0 : "offset value must be greater than 0";
 
-        private void compress(byte[] bytes, int off, int len, DataOutput out) throws IOException {
-
-            int blockLength = (len + NUM_SUB_BLOCKS - 1) / NUM_SUB_BLOCKS;
+            int blockLength = (length + NUM_SUB_BLOCKS - 1) / NUM_SUB_BLOCKS;
             out.writeVInt(blockLength);
 
-            final int end = off + len;
+            final int end = offset + length;
+            assert end >= 0 : "buffer read size must be greater than 0";
 
-            for (int start = off; start < end; start += blockLength) {
-                int l = Math.min(blockLength, off + len - start);
+            for (int start = offset; start < end; start += blockLength) {
+                int l = Math.min(blockLength, end - start);
 
                 if (l == 0) {
                     out.writeVInt(0);
@@ -91,7 +90,7 @@ public class ZstdNoDictCompressionMode extends CompressionMode {
                     bytes,
                     start,
                     l,
-                    this.compressionLevel
+                    compressionLevel
                 );
 
                 out.writeVInt(compressedSize);
@@ -101,26 +100,29 @@ public class ZstdNoDictCompressionMode extends CompressionMode {
 
         @Override
         public void compress(ByteBuffersDataInput buffersInput, DataOutput out) throws IOException {
-            final int len = (int) buffersInput.size();
-            byte[] bytes = new byte[len];
-            buffersInput.readBytes(bytes, 0, len);
-            compress(bytes, 0, len, out);
+            final int length = (int) buffersInput.size();
+            byte[] bytes = new byte[length];
+            buffersInput.readBytes(bytes, 0, length);
+            compress(bytes, 0, length, out);
         }
+
+        @Override
+        public void close() throws IOException {}
     }
 
     /** zstandard decompressor */
-    private static final class ZSTDDecompressor extends Decompressor {
+    private static final class ZstdDecompressor extends Decompressor {
 
         private byte[] compressed;
 
         /** default decompressor */
-        public ZSTDDecompressor() {
+        public ZstdDecompressor() {
             compressed = BytesRef.EMPTY_BYTES;
         }
 
         @Override
         public void decompress(DataInput in, int originalLength, int offset, int length, BytesRef bytes) throws IOException {
-            assert offset + length <= originalLength;
+            assert offset + length <= originalLength : "buffer read size must be within limit";
 
             if (length == 0) {
                 bytes.length = 0;
@@ -164,12 +166,13 @@ public class ZstdNoDictCompressionMode extends CompressionMode {
 
             bytes.offset = offsetInBytesRef;
             bytes.length = length;
-            assert bytes.isValid();
+
+            assert bytes.isValid() : "decompression output is corrupted.";
         }
 
         @Override
         public Decompressor clone() {
-            return new ZSTDDecompressor();
+            return new ZstdDecompressor();
         }
     }
 }

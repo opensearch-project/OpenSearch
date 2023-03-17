@@ -9,4 +9,4 @@
 /**
  * A plugin that implements compression codecs with native implementation.
  */
-package org.opensearch.index.codec.customcodec;
+package org.opensearch.index.codec.customcodecs;

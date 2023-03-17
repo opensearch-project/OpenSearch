@@ -15,7 +15,7 @@ apply plugin: 'opensearch.yaml-rest-test'
 opensearchplugin {
   name 'custom-codecs'
   description 'A plugin that implements custom compression codecs.'
-  classname 'org.opensearch.index.codec.customcodec.CustomCodecPlugin'
+  classname 'org.opensearch.index.codec.customcodecs.CustomCodecPlugin'
   licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
   noticeFile rootProject.file('NOTICE.txt')
 }

@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index.codec.customcodec;
+package org.opensearch.index.codec.customcodecs;
 
 import com.github.luben.zstd.Zstd;
 import com.github.luben.zstd.ZstdCompressCtx;
@@ -48,61 +48,61 @@ public class ZstdCompressionMode extends CompressionMode {
 
     @Override
     public Compressor newCompressor() {
-        return new ZSTDCompressor(compressionLevel);
+        return new ZstdCompressor(compressionLevel);
     }
 
     @Override
     public Decompressor newDecompressor() {
-        return new ZSTDDecompressor();
+        return new ZstdDecompressor();
     }
 
     /** zstandard compressor */
-    private static final class ZSTDCompressor extends Compressor {
+    private static final class ZstdCompressor extends Compressor {
 
         private final int compressionLevel;
         private byte[] compressedBuffer;
 
         /** compressor with a given compresion level */
-        public ZSTDCompressor(int compressionLevel) {
+        public ZstdCompressor(int compressionLevel) {
             this.compressionLevel = compressionLevel;
             compressedBuffer = BytesRef.EMPTY_BYTES;
         }
 
-        @Override
-        public void close() throws IOException {}
-
         /*resuable compress function*/
-        private void doCompress(byte[] bytes, int off, int len, ZstdCompressCtx cctx, DataOutput out) throws IOException {
-            if (len == 0) {
+        private void doCompress(byte[] bytes, int offset, int length, ZstdCompressCtx cctx, DataOutput out) throws IOException {
+            if (length == 0) {
                 out.writeVInt(0);
                 return;
             }
-            final int maxCompressedLength = (int) Zstd.compressBound(len);
+            final int maxCompressedLength = (int) Zstd.compressBound(length);
             compressedBuffer = ArrayUtil.grow(compressedBuffer, maxCompressedLength);
 
-            int compressedSize = cctx.compressByteArray(compressedBuffer, 0, compressedBuffer.length, bytes, off, len);
+            int compressedSize = cctx.compressByteArray(compressedBuffer, 0, compressedBuffer.length, bytes, offset, length);
 
             out.writeVInt(compressedSize);
             out.writeBytes(compressedBuffer, compressedSize);
         }
 
-        private void compress(byte[] bytes, int off, int len, DataOutput out) throws IOException {
-            final int dictLength = len / (NUM_SUB_BLOCKS * DICT_SIZE_FACTOR);
-            final int blockLength = (len - dictLength + NUM_SUB_BLOCKS - 1) / NUM_SUB_BLOCKS;
+        private void compress(byte[] bytes, int offset, int length, DataOutput out) throws IOException {
+            assert offset >= 0 : "offset value must be greater than 0";
+
+            final int dictLength = length / (NUM_SUB_BLOCKS * DICT_SIZE_FACTOR);
+            final int blockLength = (length - dictLength + NUM_SUB_BLOCKS - 1) / NUM_SUB_BLOCKS;
             out.writeVInt(dictLength);
             out.writeVInt(blockLength);
 
-            final int end = off + len;
+            final int end = offset + length;
+            assert end >= 0 : "buffer read size must be greater than 0";
 
             try (ZstdCompressCtx cctx = new ZstdCompressCtx()) {
-                cctx.setLevel(this.compressionLevel);
+                cctx.setLevel(compressionLevel);
 
                 // dictionary compression first
-                doCompress(bytes, off, dictLength, cctx, out);
-                cctx.loadDict(new ZstdDictCompress(bytes, off, dictLength, this.compressionLevel));
+                doCompress(bytes, offset, dictLength, cctx, out);
+                cctx.loadDict(new ZstdDictCompress(bytes, offset, dictLength, compressionLevel));
 
-                for (int start = off + dictLength; start < end; start += blockLength) {
-                    int l = Math.min(blockLength, off + len - start);
+                for (int start = offset + dictLength; start < end; start += blockLength) {
+                    int l = Math.min(blockLength, end - start);
                     doCompress(bytes, start, l, cctx, out);
                 }
             }
@@ -110,21 +110,23 @@ public class ZstdCompressionMode extends CompressionMode {
 
         @Override
         public void compress(ByteBuffersDataInput buffersInput, DataOutput out) throws IOException {
-            final int len = (int) buffersInput.size();
-            byte[] bytes = new byte[len];
-            buffersInput.readBytes(bytes, 0, len);
-            compress(bytes, 0, len, out);
+            final int length = (int) buffersInput.size();
+            byte[] bytes = new byte[length];
+            buffersInput.readBytes(bytes, 0, length);
+            compress(bytes, 0, length, out);
         }
 
+        @Override
+        public void close() throws IOException {}
     }
 
     /** zstandard decompressor */
-    private static final class ZSTDDecompressor extends Decompressor {
+    private static final class ZstdDecompressor extends Decompressor {
 
         private byte[] compressedBuffer;
 
         /** default decompressor */
-        public ZSTDDecompressor() {
+        public ZstdDecompressor() {
             compressedBuffer = BytesRef.EMPTY_BYTES;
         }
 
@@ -149,7 +151,7 @@ public class ZstdCompressionMode extends CompressionMode {
 
         @Override
         public void decompress(DataInput in, int originalLength, int offset, int length, BytesRef bytes) throws IOException {
-            assert offset + length <= originalLength;
+            assert offset + length <= originalLength : "buffer read size must be within limit";
 
             if (length == 0) {
                 bytes.length = 0;
@@ -188,13 +190,14 @@ public class ZstdCompressionMode extends CompressionMode {
 
                 bytes.offset = offsetInBytesRef;
                 bytes.length = length;
-                assert bytes.isValid();
+
+                assert bytes.isValid() : "decompression output is corrupted";
             }
         }
 
         @Override
         public Decompressor clone() {
-            return new ZSTDDecompressor();
+            return new ZstdDecompressor();
         }
     }
 }
