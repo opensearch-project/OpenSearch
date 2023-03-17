@@ -419,7 +419,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             if (indexShard.isRemoteTranslogEnabled() && elapsedTimeSinceLatestSuccessfulLeaderCheckBeforeThreshold()) {
                 respond.onFailure(
                     new LeaderCheckerBeforeThresholdException(
-                        "Latest successful leader checker time is {} while threshold is {}",
+                        "Latest successful leader checker epoch time is {} while threshold is {}",
                         latestSuccessfulLeaderCheckerTimeSupplier.getAsLong(),
                         leaderCheckerTimeThreshold
                     )
