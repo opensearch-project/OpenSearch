@@ -47,7 +47,7 @@ public class ExtensionTransportActionsHandler {
     private final Map<String, DiscoveryExtensionNode> extensionIdMap;
     private final TransportService transportService;
     private final NodeClient client;
-    private final DynamicActionRegistry<? extends ActionRequest, ? extends ActionResponse> dynamicActionRegistry;
+    private final DynamicActionRegistry dynamicActionRegistry;
 
     public ExtensionTransportActionsHandler(
         Map<String, DiscoveryExtensionNode> extensionIdMap,

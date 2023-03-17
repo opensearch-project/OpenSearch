@@ -976,8 +976,7 @@ public class ActionModule extends AbstractModule {
         return actionFilters;
     }
 
-    @SuppressWarnings("unchecked")
-    public DynamicActionRegistry<? extends ActionRequest, ? extends ActionResponse> getDynamicActionRegistry() {
+    public DynamicActionRegistry getDynamicActionRegistry() {
         return dynamicActionRegistry;
     }
 
@@ -992,7 +991,7 @@ public class ActionModule extends AbstractModule {
      *
      * @opensearch.internal
      */
-    public static class DynamicActionRegistry<Request extends ActionRequest, Response extends ActionResponse> {
+    public static class DynamicActionRegistry {
         // the immutable map of injected transport actions
         private Map<ActionType, TransportAction> actions = Collections.emptyMap();
         // the dynamic map which can be updated over time
@@ -1058,9 +1057,9 @@ public class ActionModule extends AbstractModule {
          * @return the corresponding {@link TransportAction} if it is registered, null otherwise.
          */
         @SuppressWarnings("unchecked")
-        public TransportAction<Request, Response> get(ActionType<?> action) {
+        public TransportAction<? extends ActionRequest, ? extends ActionResponse> get(ActionType<?> action) {
             if (action instanceof ExtensionAction) {
-                return (TransportAction<Request, Response>) registry.get((ExtensionAction) action);
+                return registry.get((ExtensionAction) action);
             }
             return actions.get(action);
         }

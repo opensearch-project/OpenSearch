@@ -146,8 +146,7 @@ public class NodeClient extends AbstractClient {
         if (actionRegistry == null) {
             throw new IllegalStateException("NodeClient has not been initialized");
         }
-        // Get from action map if it exists
-        TransportAction<Request, Response> transportAction = actionRegistry.get(action);
+        TransportAction<Request, Response> transportAction = (TransportAction<Request, Response>) actionRegistry.get(action);
         if (transportAction == null) {
             throw new IllegalStateException("failed to find action [" + action + "] to execute");
         }
