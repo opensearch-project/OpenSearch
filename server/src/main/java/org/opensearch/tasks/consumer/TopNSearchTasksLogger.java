@@ -39,6 +39,8 @@ public class TopNSearchTasksLogger implements Consumer<Task> {
     public static final Setting<Integer> LOG_TOP_QUERIES_SIZE_SETTING = Setting.intSetting(
         LOG_TOP_QUERIES_SIZE,
         10,
+        1,
+        25,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -46,6 +48,7 @@ public class TopNSearchTasksLogger implements Consumer<Task> {
     // frequency in which memory expensive search tasks are logged
     public static final Setting<TimeValue> LOG_TOP_QUERIES_FREQUENCY_SETTING = Setting.timeSetting(
         LOG_TOP_QUERIES_FREQUENCY,
+        TimeValue.timeValueSeconds(60L),
         TimeValue.timeValueSeconds(60L),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
