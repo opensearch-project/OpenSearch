@@ -471,7 +471,7 @@ public class IngestDocumentTests extends OpenSearchTestCase {
         @SuppressWarnings("unchecked")
         List<Object> list = (List<Object>) object;
         assertThat(list.size(), equalTo(3));
-        assertThat(list, equalTo(org.opensearch.common.collect.List.of("foo", "bar", "baz")));
+        assertThat(list, equalTo(List.of("foo", "bar", "baz")));
     }
 
     public void testListAppendFieldValueWithoutDuplicate() {
@@ -481,7 +481,7 @@ public class IngestDocumentTests extends OpenSearchTestCase {
         @SuppressWarnings("unchecked")
         List<Object> list = (List<Object>) object;
         assertThat(list.size(), equalTo(4));
-        assertThat(list, equalTo(org.opensearch.common.collect.List.of("foo", "bar", "baz", "foo2")));
+        assertThat(list, equalTo(List.of("foo", "bar", "baz", "foo2")));
     }
 
     public void testListAppendFieldValues() {
@@ -499,7 +499,7 @@ public class IngestDocumentTests extends OpenSearchTestCase {
     }
 
     public void testListAppendFieldValuesWithoutDuplicates() {
-        ingestDocument.appendFieldValue("list2", org.opensearch.common.collect.List.of("foo", "bar", "baz", "foo2"), false);
+        ingestDocument.appendFieldValue("list2", List.of("foo", "bar", "baz", "foo2"), false);
         Object object = ingestDocument.getSourceAndMetadata().get("list2");
         assertThat(object, instanceOf(List.class));
         @SuppressWarnings("unchecked")

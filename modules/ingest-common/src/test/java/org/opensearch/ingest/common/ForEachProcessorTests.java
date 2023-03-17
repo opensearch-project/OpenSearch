@@ -226,12 +226,8 @@ public class ForEachProcessorTests extends OpenSearchTestCase {
             "values",
             new CompoundProcessor(
                 false,
-                org.opensearch.common.collect.List.of(
-                    new UppercaseProcessor("_tag_upper", null, "_ingest._value", false, "_ingest._value")
-                ),
-                org.opensearch.common.collect.List.of(
-                    new AppendProcessor("_tag", null, template, (model) -> (Collections.singletonList("added")), true)
-                )
+                List.of(new UppercaseProcessor("_tag_upper", null, "_ingest._value", false, "_ingest._value")),
+                List.of(new AppendProcessor("_tag", null, template, (model) -> (Collections.singletonList("added")), true))
             ),
             false
         );

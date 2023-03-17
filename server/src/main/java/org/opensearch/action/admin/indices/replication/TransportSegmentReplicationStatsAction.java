@@ -8,7 +8,6 @@
 
 package org.opensearch.action.admin.indices.replication;
 
-import org.opensearch.OpenSearchStatusException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
@@ -22,22 +21,24 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.SegmentReplicationPerGroupStats;
+import org.opensearch.index.SegmentReplicationPressureService;
+import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
-import org.opensearch.rest.RestStatus;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.Arrays;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.stream.Collectors;
 
 /**
  * Transport action for shard segment replication operation. This transport action does not actually
@@ -48,11 +49,11 @@ import java.util.HashMap;
 public class TransportSegmentReplicationStatsAction extends TransportBroadcastByNodeAction<
     SegmentReplicationStatsRequest,
     SegmentReplicationStatsResponse,
-    SegmentReplicationState> {
+    SegmentReplicationShardStatsResponse> {
 
     private final SegmentReplicationTargetService targetService;
     private final IndicesService indicesService;
-    private String singleIndexWithSegmentReplicationDisabled = null;
+    private final SegmentReplicationPressureService pressureService;
 
     @Inject
     public TransportSegmentReplicationStatsAction(
@@ -61,7 +62,8 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
         IndicesService indicesService,
         SegmentReplicationTargetService targetService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        SegmentReplicationPressureService pressureService
     ) {
         super(
             SegmentReplicationStatsAction.NAME,
@@ -74,11 +76,12 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
         );
         this.indicesService = indicesService;
         this.targetService = targetService;
+        this.pressureService = pressureService;
     }
 
     @Override
-    protected SegmentReplicationState readShardResult(StreamInput in) throws IOException {
-        return new SegmentReplicationState(in);
+    protected SegmentReplicationShardStatsResponse readShardResult(StreamInput in) throws IOException {
+        return new SegmentReplicationShardStatsResponse(in);
     }
 
     @Override
@@ -87,41 +90,51 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
         int totalShards,
         int successfulShards,
         int failedShards,
-        List<SegmentReplicationState> responses,
+        List<SegmentReplicationShardStatsResponse> responses,
         List<DefaultShardOperationFailedException> shardFailures,
         ClusterState clusterState
     ) {
-        // throw exception if API call is made on single index with segment replication disabled.
-        if (singleIndexWithSegmentReplicationDisabled != null) {
-            String index = singleIndexWithSegmentReplicationDisabled;
-            singleIndexWithSegmentReplicationDisabled = null;
-            throw new OpenSearchStatusException("Segment Replication is not enabled on Index: " + index, RestStatus.BAD_REQUEST);
-        }
         String[] shards = request.shards();
-        Set<String> set = new HashSet<>();
-        if (shards.length > 0) {
-            for (String shard : shards) {
-                set.add(shard);
-            }
-        }
-        Map<String, List<SegmentReplicationState>> shardResponses = new HashMap<>();
-        for (SegmentReplicationState segmentReplicationState : responses) {
-            if (segmentReplicationState == null) {
-                continue;
-            }
+        final List<Integer> shardsToFetch = Arrays.stream(shards).map(Integer::valueOf).collect(Collectors.toList());
 
-            // Limit responses to only specific shard id's passed in query paramter shards.
-            int shardId = segmentReplicationState.getShardRouting().shardId().id();
-            if (shards.length > 0 && set.contains(Integer.toString(shardId)) == false) {
-                continue;
+        // organize replica responses by allocationId.
+        final Map<String, SegmentReplicationState> replicaStats = new HashMap<>();
+        // map of index name to list of replication group stats.
+        final Map<String, List<SegmentReplicationPerGroupStats>> primaryStats = new HashMap<>();
+        for (SegmentReplicationShardStatsResponse response : responses) {
+            if (response != null) {
+                if (response.getReplicaStats() != null) {
+                    final ShardRouting shardRouting = response.getReplicaStats().getShardRouting();
+                    if (shardsToFetch.isEmpty() || shardsToFetch.contains(shardRouting.shardId().getId())) {
+                        replicaStats.putIfAbsent(shardRouting.allocationId().getId(), response.getReplicaStats());
+                    }
+                }
+                if (response.getPrimaryStats() != null) {
+                    final ShardId shardId = response.getPrimaryStats().getShardId();
+                    if (shardsToFetch.isEmpty() || shardsToFetch.contains(shardId.getId())) {
+                        primaryStats.compute(shardId.getIndexName(), (k, v) -> {
+                            if (v == null) {
+                                final ArrayList<SegmentReplicationPerGroupStats> list = new ArrayList<>();
+                                list.add(response.getPrimaryStats());
+                                return list;
+                            } else {
+                                v.add(response.getPrimaryStats());
+                                return v;
+                            }
+                        });
+                    }
+                }
             }
-            String indexName = segmentReplicationState.getShardRouting().getIndexName();
-            if (!shardResponses.containsKey(indexName)) {
-                shardResponses.put(indexName, new ArrayList<>());
-            }
-            shardResponses.get(indexName).add(segmentReplicationState);
         }
-        return new SegmentReplicationStatsResponse(totalShards, successfulShards, failedShards, shardResponses, shardFailures);
+        // combine the replica stats to the shard stat entry in each group.
+        for (Map.Entry<String, List<SegmentReplicationPerGroupStats>> entry : primaryStats.entrySet()) {
+            for (SegmentReplicationPerGroupStats group : entry.getValue()) {
+                for (SegmentReplicationShardStats replicaStat : group.getReplicaStats()) {
+                    replicaStat.setCurrentReplicationState(replicaStats.getOrDefault(replicaStat.getAllocationId(), null));
+                }
+            }
+        }
+        return new SegmentReplicationStatsResponse(totalShards, successfulShards, failedShards, primaryStats, shardFailures);
     }
 
     @Override
@@ -130,30 +143,24 @@ public class TransportSegmentReplicationStatsAction extends TransportBroadcastBy
     }
 
     @Override
-    protected SegmentReplicationState shardOperation(SegmentReplicationStatsRequest request, ShardRouting shardRouting) {
+    protected SegmentReplicationShardStatsResponse shardOperation(SegmentReplicationStatsRequest request, ShardRouting shardRouting) {
         IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
         IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
         ShardId shardId = shardRouting.shardId();
 
-        // check if API call is made on single index with segment replication disabled.
-        if (request.indices().length == 1 && indexShard.indexSettings().isSegRepEnabled() == false) {
-            singleIndexWithSegmentReplicationDisabled = shardRouting.getIndexName();
+        if (indexShard.indexSettings().isSegRepEnabled() == false) {
             return null;
         }
-        if (indexShard.indexSettings().isSegRepEnabled() == false || shardRouting.primary()) {
-            return null;
+
+        if (shardRouting.primary()) {
+            return new SegmentReplicationShardStatsResponse(pressureService.getStatsForShard(indexShard));
         }
 
         // return information about only on-going segment replication events.
         if (request.activeOnly()) {
-            return targetService.getOngoingEventSegmentReplicationState(shardId);
+            return new SegmentReplicationShardStatsResponse(targetService.getOngoingEventSegmentReplicationState(shardId));
         }
-
-        // return information about only latest completed segment replication events.
-        if (request.completedOnly()) {
-            return targetService.getlatestCompletedEventSegmentReplicationState(shardId);
-        }
-        return targetService.getSegmentReplicationState(shardId);
+        return new SegmentReplicationShardStatsResponse(targetService.getSegmentReplicationState(shardId));
     }
 
     @Override

@@ -55,13 +55,7 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
         when(mockIndexService.getShard(testShardId.id())).thenReturn(mockIndexShard);
 
         // This mirrors the creation of the ReplicationCheckpoint inside CopyState
-        testCheckpoint = new ReplicationCheckpoint(
-            testShardId,
-            mockIndexShard.getOperationPrimaryTerm(),
-            0L,
-            mockIndexShard.getProcessedLocalCheckpoint(),
-            0L
-        );
+        testCheckpoint = new ReplicationCheckpoint(testShardId, mockIndexShard.getOperationPrimaryTerm(), 0L, 0L);
         testThreadPool = new TestThreadPool("test", Settings.EMPTY);
         CapturingTransport transport = new CapturingTransport();
         localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);

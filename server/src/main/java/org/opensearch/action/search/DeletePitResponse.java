@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
-import static org.opensearch.rest.RestStatus.NOT_FOUND;
 import static org.opensearch.rest.RestStatus.OK;
 
 /**
@@ -57,7 +56,6 @@ public class DeletePitResponse extends ActionResponse implements StatusToXConten
      */
     @Override
     public RestStatus status() {
-        if (deletePitResults.isEmpty()) return NOT_FOUND;
         return OK;
     }
 

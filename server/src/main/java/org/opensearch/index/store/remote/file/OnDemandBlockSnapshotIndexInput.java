@@ -10,7 +10,6 @@ package org.opensearch.index.store.remote.file;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
@@ -18,7 +17,6 @@ import org.opensearch.index.store.remote.utils.BlobFetchRequest;
 import org.opensearch.index.store.remote.utils.TransferManager;
 
 import java.io.IOException;
-import java.util.concurrent.ExecutionException;
 
 /**
  * This is an implementation of {@link OnDemandBlockIndexInput} where this class provides the main IndexInput using shard snapshot files.
@@ -146,12 +144,7 @@ public class OnDemandBlockSnapshotIndexInput extends OnDemandBlockIndexInput {
             .directory(directory)
             .fileName(blockFileName)
             .build();
-        try {
-            return transferManager.asyncFetchBlob(blobFetchRequest).get();
-        } catch (InterruptedException | ExecutionException e) {
-            logger.error(() -> new ParameterizedMessage("unexpected failure while fetching [{}]", blobFetchRequest), e);
-            throw new IllegalStateException(e);
-        }
+        return transferManager.fetchBlob(blobFetchRequest);
     }
 
     @Override

@@ -11,9 +11,11 @@ package org.opensearch.index.engine;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
@@ -123,7 +125,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             // flush the primary engine - we don't need any segments, just force a new commit point.
             engine.flush(true, true);
             assertEquals(3, engine.getLatestSegmentInfos().getGeneration());
-            nrtEngine.updateSegments(engine.getLatestSegmentInfos(), engine.getProcessedLocalCheckpoint());
+            nrtEngine.updateSegments(engine.getLatestSegmentInfos());
             assertEquals(3, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
             assertEquals(3, nrtEngine.getLatestSegmentInfos().getGeneration());
         }
@@ -147,7 +149,7 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             // update the replica with segments_2 from the primary.
             final SegmentInfos primaryInfos = engine.getLatestSegmentInfos();
             assertEquals(2, primaryInfos.getGeneration());
-            nrtEngine.updateSegments(primaryInfos, engine.getProcessedLocalCheckpoint());
+            nrtEngine.updateSegments(primaryInfos);
             assertEquals(4, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
             assertEquals(4, nrtEngine.getLatestSegmentInfos().getGeneration());
             assertEquals(primaryInfos.getVersion(), nrtEngine.getLatestSegmentInfos().getVersion());
@@ -175,10 +177,32 @@ public class NRTReplicationEngineTests extends EngineTestCase {
             // update replica with the latest primary infos, it will be the same gen, segments_2, ensure it is also committed.
             final SegmentInfos primaryInfos = engine.getLatestSegmentInfos();
             assertEquals(2, primaryInfos.getGeneration());
-            nrtEngine.updateSegments(primaryInfos, engine.getProcessedLocalCheckpoint());
+            nrtEngine.updateSegments(primaryInfos);
             final SegmentInfos lastCommittedSegmentInfos = nrtEngine.getLastCommittedSegmentInfos();
             assertEquals(primaryInfos.getVersion(), nrtEngine.getLatestSegmentInfos().getVersion());
             assertEquals(primaryInfos.getVersion(), lastCommittedSegmentInfos.getVersion());
+        }
+    }
+
+    public void testRefreshOnNRTEngine() throws IOException {
+        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+
+        try (
+            final Store nrtEngineStore = createStore(INDEX_SETTINGS, newDirectory());
+            final NRTReplicationEngine nrtEngine = buildNrtReplicaEngine(globalCheckpoint, nrtEngineStore)
+        ) {
+            assertEquals(2, nrtEngine.getLastCommittedSegmentInfos().getGeneration());
+            assertEquals(2, nrtEngine.getLatestSegmentInfos().getGeneration());
+
+            ReferenceManager<OpenSearchDirectoryReader> referenceManager = nrtEngine.getReferenceManager(Engine.SearcherScope.EXTERNAL);
+            OpenSearchDirectoryReader readerBeforeRefresh = referenceManager.acquire();
+
+            nrtEngine.refresh("test refresh");
+            OpenSearchDirectoryReader readerAfterRefresh = referenceManager.acquire();
+
+            // Verify both readers before and after refresh are same and no change in segments
+            assertSame(readerBeforeRefresh, readerAfterRefresh);
+
         }
     }
 

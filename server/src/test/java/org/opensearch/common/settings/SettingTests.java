@@ -36,9 +36,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.collect.Triplet;
-import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.io.stream.BytesStreamInput;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.AbstractScopedSettings.SettingUpdater;
 import org.opensearch.common.settings.Setting.ByteSizeValueParser;
 import org.opensearch.common.settings.Setting.DoubleParser;
@@ -49,8 +50,7 @@ import org.opensearch.common.settings.Setting.MemorySizeValueParser;
 import org.opensearch.common.settings.Setting.MinMaxTimeValueParser;
 import org.opensearch.common.settings.Setting.MinTimeValueParser;
 import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.BytesStreamInput;
+import org.opensearch.common.settings.Setting.RegexValidator;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
@@ -70,6 +70,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -321,6 +322,48 @@ public class SettingTests extends OpenSearchTestCase {
         FOO_BAR_SETTING.get(settings);
         assertTrue(FooBarValidator.invokedInIsolation);
         assertTrue(FooBarValidator.invokedWithDependencies);
+    }
+
+    public void testRegexValidator() throws Exception {
+        // A regex that matches one or more digits
+        String expectedRegex = "\\d+";
+        Pattern expectedPattern = Pattern.compile(expectedRegex);
+        RegexValidator regexValidator = new RegexValidator(expectedRegex);
+
+        // Test that the pattern is correctly initialized
+        assertNotNull(expectedPattern);
+        assertNotNull(regexValidator.getPattern());
+        assertEquals(expectedPattern.pattern(), regexValidator.getPattern().pattern());
+
+        // Test that validate() throws an exception for invalid input
+        final RegexValidator finalValidator = new RegexValidator(expectedRegex);
+        assertThrows(IllegalArgumentException.class, () -> finalValidator.validate("foo"));
+
+        try {
+            regexValidator.validate("123");
+        } catch (IllegalArgumentException e) {
+            fail("Expected validate() to not throw an exception, but it threw " + e);
+        }
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            regexValidator.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                regexValidator = new RegexValidator(in);
+                assertEquals(expectedPattern.pattern(), regexValidator.getPattern().pattern());
+
+                // Test that validate() throws an exception for invalid input
+                final RegexValidator newFinalValidator = new RegexValidator(expectedRegex);
+                assertThrows(IllegalArgumentException.class, () -> newFinalValidator.validate("foo"));
+
+                // Test that validate() does not throw an exception for valid input
+                try {
+                    regexValidator.validate("123");
+                } catch (IllegalArgumentException e) {
+                    fail("Expected validate() to not throw an exception, but it threw " + e);
+                }
+            }
+        }
     }
 
     public void testValidatorForFilteredStringSetting() {
@@ -637,28 +680,6 @@ public class SettingTests extends OpenSearchTestCase {
         }
     }
 
-    // This test class is used to verify behavior of BalancedShardAllocator.WeightFunction and ensure set function is called
-    // whenever there is a change in any of the settings.
-    public static class TriSettingConsumer {
-
-        private Integer b;
-        private Integer a;
-
-        private Integer c;
-
-        public void set(Integer a, Integer b, Integer c) {
-            this.a = a;
-            this.b = b;
-            this.c = c;
-        }
-
-        public void validate(Integer a, Integer b, Integer c) {
-            if (Integer.signum(a) != Integer.signum(b) || Integer.signum(a) != Integer.signum(c)) {
-                throw new IllegalArgumentException("boom");
-            }
-        }
-    }
-
     public void testComposite() {
         Composite c = new Composite();
         Setting<Integer> a = Setting.intSetting("foo.int.bar.a", 1, Property.Dynamic, Property.NodeScope);
@@ -721,110 +742,6 @@ public class SettingTests extends OpenSearchTestCase {
         assertEquals(1, c.a.intValue());
         assertEquals(1, c.b.intValue());
 
-    }
-
-    public void testTriSettingConsumer() {
-        TriSettingConsumer consumer = new TriSettingConsumer();
-        Setting<Integer> a = Setting.intSetting("foo.int.bar.a", 1, Property.Dynamic, Property.NodeScope);
-        Setting<Integer> b = Setting.intSetting("foo.int.bar.b", 1, Property.Dynamic, Property.NodeScope);
-        Setting<Integer> c = Setting.intSetting("foo.int.bar.c", 1, Property.Dynamic, Property.NodeScope);
-        ClusterSettings.SettingUpdater<Triplet<Integer, Integer, Integer>> settingUpdater = Setting.compoundUpdater(
-            consumer::set,
-            consumer::validate,
-            a,
-            b,
-            c,
-            logger
-        );
-        assertFalse(settingUpdater.apply(Settings.EMPTY, Settings.EMPTY));
-        assertNull(consumer.a);
-        assertNull(consumer.b);
-        assertNull(consumer.c);
-
-        Settings build = Settings.builder().put("foo.int.bar.a", 2).build();
-        assertTrue(settingUpdater.apply(build, Settings.EMPTY));
-        assertEquals(2, consumer.a.intValue());
-        assertEquals(1, consumer.b.intValue());
-        assertEquals(1, consumer.c.intValue());
-
-        Integer aValue = consumer.a;
-        assertFalse(settingUpdater.apply(build, build));
-        assertSame(aValue, consumer.a);
-        Settings previous = build;
-        build = Settings.builder().put("foo.int.bar.a", 2).put("foo.int.bar.b", 5).build();
-        assertTrue(settingUpdater.apply(build, previous));
-        assertEquals(2, consumer.a.intValue());
-        assertEquals(5, consumer.b.intValue());
-
-        Integer bValue = consumer.b;
-        assertFalse(settingUpdater.apply(build, build));
-        assertSame(bValue, consumer.b);
-        previous = build;
-        build = Settings.builder().put("foo.int.bar.a", 2).put("foo.int.bar.b", 5).put("foo.int.bar.c", 10).build();
-        assertTrue(settingUpdater.apply(build, previous));
-        assertEquals(2, consumer.a.intValue());
-        assertEquals(5, consumer.b.intValue());
-        assertEquals(10, consumer.c.intValue());
-
-        // reset to default
-        assertTrue(settingUpdater.apply(Settings.EMPTY, build));
-        assertEquals(1, consumer.a.intValue());
-        assertEquals(1, consumer.b.intValue());
-        assertEquals(1, consumer.c.intValue());
-    }
-
-    public void testTriSettingConsumerValidator() {
-        TriSettingConsumer consumer = new TriSettingConsumer();
-        Setting<Integer> a = Setting.intSetting("foo.int.bar.a", 1, Property.Dynamic, Property.NodeScope);
-        Setting<Integer> b = Setting.intSetting("foo.int.bar.b", 1, Property.Dynamic, Property.NodeScope);
-        Setting<Integer> c = Setting.intSetting("foo.int.bar.c", 1, Property.Dynamic, Property.NodeScope);
-        ClusterSettings.SettingUpdater<Triplet<Integer, Integer, Integer>> settingUpdater = Setting.compoundUpdater(
-            consumer::set,
-            consumer::validate,
-            a,
-            b,
-            c,
-            logger
-        );
-        assertFalse(settingUpdater.apply(Settings.EMPTY, Settings.EMPTY));
-        assertNull(consumer.a);
-        assertNull(consumer.b);
-        assertNull(consumer.c);
-
-        Settings build = Settings.builder().put("foo.int.bar.a", 2).build();
-        assertTrue(settingUpdater.apply(build, Settings.EMPTY));
-        assertEquals(2, consumer.a.intValue());
-        assertEquals(1, consumer.b.intValue());
-        assertEquals(1, consumer.c.intValue());
-
-        Integer aValue = consumer.a;
-        assertFalse(settingUpdater.apply(build, build));
-        assertSame(aValue, consumer.a);
-        final Settings previous = build;
-        build = Settings.builder().put("foo.int.bar.a", 2).put("foo.int.bar.b", 5).build();
-        assertTrue(settingUpdater.apply(build, previous));
-        assertEquals(2, consumer.a.intValue());
-        assertEquals(5, consumer.b.intValue());
-
-        Integer bValue = consumer.b;
-        assertFalse(settingUpdater.apply(build, build));
-        assertSame(bValue, consumer.b);
-        final Settings previous2 = build;
-        build = Settings.builder().put("foo.int.bar.a", 2).put("foo.int.bar.b", 5).put("foo.int.bar.c", 10).build();
-        assertTrue(settingUpdater.apply(build, previous));
-        assertEquals(2, consumer.a.intValue());
-        assertEquals(5, consumer.b.intValue());
-        assertEquals(10, consumer.c.intValue());
-
-        Settings invalid = Settings.builder().put("foo.int.bar.a", -2).put("foo.int.bar.b", 5).build();
-        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> settingUpdater.apply(invalid, previous2));
-        assertThat(exc.getMessage(), equalTo("boom"));
-
-        // reset to default
-        assertTrue(settingUpdater.apply(Settings.EMPTY, build));
-        assertEquals(1, consumer.a.intValue());
-        assertEquals(1, consumer.b.intValue());
-        assertEquals(1, consumer.c.intValue());
     }
 
     public void testListSettingsDeprecated() {

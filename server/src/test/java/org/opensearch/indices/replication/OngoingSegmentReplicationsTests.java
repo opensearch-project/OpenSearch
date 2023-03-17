@@ -9,7 +9,6 @@
 package org.opensearch.indices.replication;
 
 import org.junit.Assert;
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -33,8 +32,7 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -76,13 +74,7 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
         ShardId testShardId = primary.shardId();
 
         // This mirrors the creation of the ReplicationCheckpoint inside CopyState
-        testCheckpoint = new ReplicationCheckpoint(
-            testShardId,
-            primary.getOperationPrimaryTerm(),
-            0L,
-            primary.getProcessedLocalCheckpoint(),
-            0L
-        );
+        testCheckpoint = new ReplicationCheckpoint(testShardId, primary.getOperationPrimaryTerm(), 0L, 0L);
         IndexService mockIndexService = mock(IndexService.class);
         when(mockIndicesService.indexService(testShardId.getIndex())).thenReturn(mockIndexService);
         when(mockIndexService.getShard(testShardId.id())).thenReturn(primary);
@@ -284,7 +276,8 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
             listener.onResponse(null);
         };
         replications.prepareForReplication(request, segmentSegmentFileChunkWriter);
-        assertThrows(OpenSearchException.class, () -> { replications.prepareForReplication(request, segmentSegmentFileChunkWriter); });
+        CopyState copyState = replications.prepareForReplication(request, segmentSegmentFileChunkWriter);
+        assertEquals(1, copyState.refCount());
     }
 
     public void testStartReplicationWithNoFilesToFetch() throws IOException {
@@ -360,6 +353,47 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
 
         // cancel the primary's ongoing replications.
         replications.cancel(primary, "Test");
+        assertEquals(0, copyState.refCount());
+        assertEquals(0, replications.size());
+        assertEquals(0, replications.cachedCopyStateSize());
+        closeShards(replica_2);
+    }
+
+    public void testCancelForMissingIds() throws IOException {
+        // This tests when primary has multiple ongoing replications.
+        IndexShard replica_2 = newShard(primary.shardId(), false);
+        recoverReplica(replica_2, primary, true);
+
+        OngoingSegmentReplications replications = new OngoingSegmentReplications(mockIndicesService, recoverySettings);
+        final String replicaAllocationId = replica.routingEntry().allocationId().getId();
+        final CheckpointInfoRequest request = new CheckpointInfoRequest(1L, replicaAllocationId, primaryDiscoveryNode, testCheckpoint);
+
+        final CopyState copyState = replications.prepareForReplication(request, mock(FileChunkWriter.class));
+        assertEquals(1, copyState.refCount());
+
+        final String replica_2AllocationId = replica_2.routingEntry().allocationId().getId();
+        final CheckpointInfoRequest secondRequest = new CheckpointInfoRequest(
+            1L,
+            replica_2AllocationId,
+            replicaDiscoveryNode,
+            testCheckpoint
+        );
+        replications.prepareForReplication(secondRequest, mock(FileChunkWriter.class));
+
+        assertEquals(2, copyState.refCount());
+        assertEquals(2, replications.size());
+        assertTrue(replications.getHandlers().containsKey(replicaAllocationId));
+        assertTrue(replications.getHandlers().containsKey(replica_2AllocationId));
+        assertEquals(1, replications.cachedCopyStateSize());
+
+        replications.clearOutOfSyncIds(primary.shardId(), Set.of(replica_2AllocationId));
+        assertEquals(1, copyState.refCount());
+        assertEquals(1, replications.size());
+        assertTrue(replications.getHandlers().containsKey(replica_2AllocationId));
+        assertEquals(1, replications.cachedCopyStateSize());
+
+        // cancel the primary's ongoing replications.
+        replications.clearOutOfSyncIds(primary.shardId(), Collections.emptySet());
         assertEquals(0, copyState.refCount());
         assertEquals(0, replications.size());
         assertEquals(0, replications.cachedCopyStateSize());

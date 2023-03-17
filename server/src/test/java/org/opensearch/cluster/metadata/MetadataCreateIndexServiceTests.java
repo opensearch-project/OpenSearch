@@ -946,13 +946,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         assertThat(
             expectThrows(
                 IllegalStateException.class,
-                () -> clusterStateCreateIndex(
-                    currentClusterState,
-                    org.opensearch.common.collect.Set.of(),
-                    newIndex,
-                    (state, reason) -> state,
-                    null
-                )
+                () -> clusterStateCreateIndex(currentClusterState, Set.of(), newIndex, (state, reason) -> state, null)
             ).getMessage(),
             startsWith("alias [alias1] has more than one write index [")
         );
@@ -977,7 +971,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
         ClusterState updatedClusterState = clusterStateCreateIndex(
             currentClusterState,
-            org.opensearch.common.collect.Set.of(INDEX_READ_ONLY_BLOCK),
+            Set.of(INDEX_READ_ONLY_BLOCK),
             newIndexMetadata,
             rerouteRoutingTable,
             null
@@ -1016,7 +1010,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
         ClusterState updatedClusterState = clusterStateCreateIndex(
             currentClusterState,
-            org.opensearch.common.collect.Set.of(INDEX_READ_ONLY_BLOCK),
+            Set.of(INDEX_READ_ONLY_BLOCK),
             newIndexMetadata,
             (clusterState, y) -> clusterState,
             metadataTransformer

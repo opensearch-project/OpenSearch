@@ -34,7 +34,6 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
-import org.opensearch.common.collect.List;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.termvectors.TermVectorsService;
@@ -44,6 +43,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;

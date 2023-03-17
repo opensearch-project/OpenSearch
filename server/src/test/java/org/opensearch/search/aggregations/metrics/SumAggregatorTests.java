@@ -385,7 +385,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
             builder,
             new MatchAllDocsQuery(),
             writer -> writer.addDocuments(docs),
-            internalSum -> verify.accept(finalSum, docs, internalSum),
+            internalSum -> verify.apply(finalSum, docs, internalSum),
             fieldType
         );
     }
@@ -418,7 +418,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected ScriptService getMockScriptService() {
-        final Map<String, Function<Map<String, Object>, Object>> scripts = org.opensearch.common.collect.Map.of(
+        final Map<String, Function<Map<String, Object>, Object>> scripts = Map.of(
             VALUE_SCRIPT_NAME,
             vars -> ((Number) vars.get("_value")).doubleValue() + 1,
             FIELD_SCRIPT_NAME,

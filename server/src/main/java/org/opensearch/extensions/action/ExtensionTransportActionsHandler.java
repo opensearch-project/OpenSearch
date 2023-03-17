@@ -93,7 +93,7 @@ public class ExtensionTransportActionsHandler {
         logger.debug("Register Transport Actions request recieved {}", transportActionsRequest);
         DiscoveryExtensionNode extension = extensionIdMap.get(transportActionsRequest.getUniqueId());
         try {
-            for (String action : transportActionsRequest.getTransportActions().keySet()) {
+            for (String action : transportActionsRequest.getTransportActions()) {
                 registerAction(action, extension);
             }
         } catch (Exception e) {

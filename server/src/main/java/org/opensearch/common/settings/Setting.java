@@ -39,8 +39,6 @@ import org.opensearch.Version;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
-import org.opensearch.common.TriConsumer;
-import org.opensearch.common.collect.Triplet;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -172,7 +170,7 @@ public class Setting<T> implements ToXContentObject {
     @Nullable
     protected final Setting<T> fallbackSetting;
     protected final Function<String, T> parser;
-    private final Validator<T> validator;
+    protected final Validator<T> validator;
     private final EnumSet<Property> properties;
 
     private static final EnumSet<Property> EMPTY_PROPERTIES = EnumSet.noneOf(Property.class);
@@ -727,60 +725,6 @@ public class Setting<T> implements ToXContentObject {
         };
     }
 
-    /**
-     * Updates settings that depend on each other.
-     *
-     * See {@link AbstractScopedSettings#addSettingsUpdateConsumer(Setting, Setting, Setting, TriConsumer)} and its usage for details.
-     */
-    static <A, B, C> AbstractScopedSettings.SettingUpdater<Triplet<A, B, C>> compoundUpdater(
-        final TriConsumer<A, B, C> consumer,
-        final TriConsumer<A, B, C> validator,
-        final Setting<A> aSetting,
-        final Setting<B> bSetting,
-        final Setting<C> cSetting,
-        Logger logger
-    ) {
-        final AbstractScopedSettings.SettingUpdater<A> aSettingUpdater = aSetting.newUpdater(null, logger);
-        final AbstractScopedSettings.SettingUpdater<B> bSettingUpdater = bSetting.newUpdater(null, logger);
-        final AbstractScopedSettings.SettingUpdater<C> cSettingUpdater = cSetting.newUpdater(null, logger);
-        return new AbstractScopedSettings.SettingUpdater<Triplet<A, B, C>>() {
-            @Override
-            public boolean hasChanged(Settings current, Settings previous) {
-                return aSettingUpdater.hasChanged(current, previous)
-                    || bSettingUpdater.hasChanged(current, previous)
-                    || cSettingUpdater.hasChanged(current, previous);
-            }
-
-            @Override
-            public Triplet<A, B, C> getValue(Settings current, Settings previous) {
-                A valueA = aSettingUpdater.getValue(current, previous);
-                B valueB = bSettingUpdater.getValue(current, previous);
-                C valueC = cSettingUpdater.getValue(current, previous);
-                validator.accept(valueA, valueB, valueC);
-                return new Triplet<>(valueA, valueB, valueC);
-            }
-
-            @Override
-            public void apply(Triplet<A, B, C> value, Settings current, Settings previous) {
-                if (aSettingUpdater.hasChanged(current, previous)) {
-                    logSettingUpdate(aSetting, current, previous, logger);
-                }
-                if (bSettingUpdater.hasChanged(current, previous)) {
-                    logSettingUpdate(bSetting, current, previous, logger);
-                }
-                if (cSettingUpdater.hasChanged(current, previous)) {
-                    logSettingUpdate(cSetting, current, previous, logger);
-                }
-                consumer.accept(value.v1(), value.v2(), value.v3());
-            }
-
-            @Override
-            public String toString() {
-                return "CompoundUpdater for: " + aSettingUpdater + " and " + bSettingUpdater + " and " + cSettingUpdater;
-            }
-        };
-    }
-
     static AbstractScopedSettings.SettingUpdater<Settings> groupedSettingsUpdater(
         Consumer<Settings> consumer,
         final List<? extends Setting<?>> configuredSettings
@@ -1304,6 +1248,40 @@ public class Setting<T> implements ToXContentObject {
 
     private static boolean isFiltered(Property[] properties) {
         return properties != null && Arrays.asList(properties).contains(Property.Filtered);
+    }
+
+    /**
+     * A writeable validator able to check the value of string type custom setting by using regular expression
+     */
+    public static class RegexValidator implements Writeable, Validator<String> {
+        private Pattern pattern;
+
+        /**
+         * @param regex A regular expression containing the only valid input for this setting.
+         */
+        public RegexValidator(String regex) {
+            this.pattern = Pattern.compile(regex);
+        }
+
+        public RegexValidator(StreamInput in) throws IOException {
+            this.pattern = Pattern.compile(in.readString());
+        }
+
+        Pattern getPattern() {
+            return pattern;
+        }
+
+        @Override
+        public void validate(String value) {
+            if (!pattern.matcher(value).matches()) {
+                throw new IllegalArgumentException("Setting [" + value + "] does not match regex [" + pattern.pattern() + "]");
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(pattern.pattern());
+        }
     }
 
     // Float

@@ -43,7 +43,7 @@ public interface StatsCounter<K> {
      * Records the explicit removal of an entry from the cache. This should only been called when an entry is
      * removed as a result of manual
      * {@link RefCountedCache#remove(Object)}
-     * {@link RefCountedCache#computeIfPresent(Object, BiFunction)}
+     * {@link RefCountedCache#compute(Object, BiFunction)}
      *
      * @param weight the weight of the removed entry
      */
@@ -53,7 +53,7 @@ public interface StatsCounter<K> {
      * Records the replacement of an entry from the cache. This should only been called when an entry is
      * replaced as a result of manual
      * {@link RefCountedCache#put(Object, Object)}
-     * {@link RefCountedCache#computeIfPresent(Object, BiFunction)}
+     * {@link RefCountedCache#compute(Object, BiFunction)}
      */
     void recordReplacement();
 

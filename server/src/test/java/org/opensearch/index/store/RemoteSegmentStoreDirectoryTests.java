@@ -21,7 +21,6 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.junit.Before;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.Set;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
@@ -34,6 +33,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
@@ -162,7 +162,7 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
      * Prepares metadata file bytes with header and footer
      * @param segmentFilesMap: actual metadata content
      * @return ByteArrayIndexInput: metadata file bytes with header and footer
-     * @throws IOException
+     * @throws IOException IOException
      */
     private ByteArrayIndexInput createMetadataFileBytes(Map<String, String> segmentFilesMap) throws IOException {
         BytesStreamOutput output = new BytesStreamOutput();

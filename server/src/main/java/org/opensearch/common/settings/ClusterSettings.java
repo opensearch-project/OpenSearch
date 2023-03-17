@@ -35,9 +35,11 @@ import org.apache.logging.log4j.LogManager;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.action.search.CreatePitController;
 import org.opensearch.cluster.routing.allocation.decider.NodeLoadAwareAllocationDecider;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressure;
+import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.ShardIndexingPressureMemoryManager;
 import org.opensearch.index.ShardIndexingPressureSettings;
 import org.opensearch.index.ShardIndexingPressureStore;
@@ -152,6 +154,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -230,7 +233,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 AwarenessReplicaBalance.CLUSTER_ROUTING_ALLOCATION_AWARENESS_BALANCE_SETTING,
                 BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING,
                 BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING,
-                BalancedShardsAllocator.PRIMARY_SHARD_BALANCE_FACTOR_SETTING,
+                BalancedShardsAllocator.PREFER_PRIMARY_SHARD_BALANCE,
                 BalancedShardsAllocator.SHARD_MOVE_PRIMARY_FIRST_SETTING,
                 BalancedShardsAllocator.THRESHOLD_SETTING,
                 BreakerSettings.CIRCUIT_BREAKER_LIMIT_SETTING,
@@ -623,11 +626,25 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SearchShardTaskSettings.SETTING_TOTAL_HEAP_PERCENT_THRESHOLD,
                 SearchBackpressureSettings.SETTING_CANCELLATION_RATIO,  // deprecated
                 SearchBackpressureSettings.SETTING_CANCELLATION_RATE,   // deprecated
-                SearchBackpressureSettings.SETTING_CANCELLATION_BURST   // deprecated
+                SearchBackpressureSettings.SETTING_CANCELLATION_BURST,   // deprecated
+                SegmentReplicationPressureService.SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED,
+                SegmentReplicationPressureService.MAX_INDEXING_CHECKPOINTS,
+                SegmentReplicationPressureService.MAX_REPLICATION_TIME_SETTING,
+                SegmentReplicationPressureService.MAX_ALLOWED_STALE_SHARDS
             )
         )
     );
 
     public static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
+
+    /**
+     * Map of feature flag name to feature-flagged cluster settings. Once each feature
+     * is ready for production release, the feature flag can be removed, and the
+     * setting should be moved to {@link #BUILT_IN_CLUSTER_SETTINGS}.
+     */
+    public static final Map<String, List<Setting>> FEATURE_FLAGGED_CLUSTER_SETTINGS = Map.of(
+        FeatureFlags.SEARCHABLE_SNAPSHOT,
+        List.of(Node.NODE_SEARCH_CACHE_SIZE_SETTING)
+    );
 
 }

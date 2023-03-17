@@ -8,7 +8,6 @@
 
 package org.opensearch.index.shard;
 
-import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.junit.Assert;
 import org.opensearch.ExceptionsHelper;
@@ -155,7 +154,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
     private void assertReplicationCheckpoint(IndexShard shard, SegmentInfos segmentInfos, ReplicationCheckpoint checkpoint)
         throws IOException {
         assertNotNull(segmentInfos);
-        assertEquals(checkpoint.getSeqNo(), shard.getEngine().getMaxSeqNoFromSegmentInfos(segmentInfos));
         assertEquals(checkpoint.getSegmentInfosVersion(), segmentInfos.getVersion());
         assertEquals(checkpoint.getSegmentsGen(), segmentInfos.getGeneration());
     }
@@ -259,7 +257,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         refreshListener.afterRefresh(true);
 
         // verify checkpoint is published
-        verify(mock, times(1)).publish(any());
+        verify(mock, times(1)).publish(any(), any());
         closeShards(shard);
     }
 
@@ -281,7 +279,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         refreshListener.afterRefresh(true);
 
         // verify checkpoint is not published
-        verify(mock, times(0)).publish(any());
+        verify(mock, times(0)).publish(any(), any());
         closeShards(shard);
     }
 
@@ -308,7 +306,7 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         assertEquals(false, primaryShard.getReplicationTracker().isPrimaryMode());
         assertEquals(true, primaryShard.routingEntry().primary());
 
-        spy.onNewCheckpoint(new ReplicationCheckpoint(primaryShard.shardId(), 0L, 0L, 0L, 0L), spyShard);
+        spy.onNewCheckpoint(new ReplicationCheckpoint(primaryShard.shardId(), 0L, 0L, 0L), spyShard);
 
         // Verify that checkpoint is not processed as shard routing is primary.
         verify(spy, times(0)).startReplication(any(), any(), any());
@@ -570,21 +568,15 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
             numDocs = randomIntBetween(numDocs + 1, numDocs + 10);
             shards.indexDocs(numDocs);
             flushShard(primary, false);
-            assertLatestCommitGen(4, primary);
             replicateSegments(primary, List.of(replica_1));
 
             assertEqualCommittedSegments(primary, replica_1);
-            assertLatestCommitGen(4, primary);
-            assertLatestCommitGen(5, replica_1);
-            assertLatestCommitGen(3, replica_2);
 
             shards.promoteReplicaToPrimary(replica_2).get();
             primary.close("demoted", false);
             primary.store().close();
             IndexShard oldPrimary = shards.addReplicaWithExistingPath(primary.shardPath(), primary.routingEntry().currentNodeId());
             shards.recoverReplica(oldPrimary);
-            assertLatestCommitGen(5, oldPrimary);
-            assertLatestCommitGen(5, replica_2);
 
             numDocs = randomIntBetween(numDocs + 1, numDocs + 10);
             shards.indexDocs(numDocs);
@@ -1024,8 +1016,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         // assigned seqNos start at 0, so assert max & local seqNos are 1 less than our persisted doc count.
         assertEquals(expectedPersistedDocCount - 1, indexShard.seqNoStats().getMaxSeqNo());
         assertEquals(expectedPersistedDocCount - 1, indexShard.seqNoStats().getLocalCheckpoint());
-        // processed cp should be 1 less than our searchable doc count.
-        assertEquals(expectedSearchableDocCount - 1, indexShard.getProcessedLocalCheckpoint());
     }
 
     private void resolveCheckpointInfoResponseListener(ActionListener<CheckpointInfoResponse> listener, IndexShard primary) {
@@ -1079,14 +1069,6 @@ public class SegmentReplicationIndexShardTests extends OpenSearchIndexLevelRepli
         primary = shards.addReplicaWithExistingPath(primary.shardPath(), primary.routingEntry().currentNodeId());
         shards.recoverReplica(primary);
         return newPrimary;
-    }
-
-    private void assertLatestCommitGen(long expected, IndexShard... shards) throws IOException {
-        for (IndexShard indexShard : shards) {
-            try (final GatedCloseable<IndexCommit> commit = indexShard.acquireLastIndexCommit(false)) {
-                assertEquals(expected, commit.get().getGeneration());
-            }
-        }
     }
 
     private void assertEqualCommittedSegments(IndexShard primary, IndexShard... replicas) throws IOException {
