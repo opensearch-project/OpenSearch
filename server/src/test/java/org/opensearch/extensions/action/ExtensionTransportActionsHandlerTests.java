@@ -20,7 +20,6 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.AcknowledgedResponse;
-import org.opensearch.extensions.RegisterTransportActionsRequest;
 import org.opensearch.extensions.rest.RestSendToExtensionActionTests;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.OpenSearchTestCase;

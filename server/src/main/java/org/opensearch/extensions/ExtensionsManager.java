@@ -30,6 +30,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
+import org.opensearch.action.ActionModule;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
@@ -47,6 +48,7 @@ import org.opensearch.extensions.ExtensionsSettings.Extension;
 import org.opensearch.extensions.action.ExtensionActionRequest;
 import org.opensearch.extensions.action.ExtensionActionResponse;
 import org.opensearch.extensions.action.ExtensionTransportActionsHandler;
+import org.opensearch.extensions.action.RegisterTransportActionsRequest;
 import org.opensearch.extensions.action.TransportActionRequestFromExtension;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.rest.RestActionsRequestHandler;
@@ -58,7 +60,6 @@ import org.opensearch.index.IndicesModuleRequest;
 import org.opensearch.index.IndicesModuleResponse;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
-import org.opensearch.rest.RestController;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.TransportException;
@@ -168,20 +169,21 @@ public class ExtensionsManager {
      *
      * @param restController  The RestController on which to register Rest Actions.
      * @param settingsModule The module that binds the provided settings to interface.
+     * @param actionsModule The module that binds transport actions.
      * @param transportService  The Node's transport service.
      * @param clusterService  The Node's cluster service.
      * @param initialEnvironmentSettings The finalized view of settings for the Environment
      * @param client The client used to make transport requests
      */
     public void initializeServicesAndRestHandler(
-        RestController restController,
+        ActionModule actionModule,
         SettingsModule settingsModule,
         TransportService transportService,
         ClusterService clusterService,
         Settings initialEnvironmentSettings,
         NodeClient client
     ) {
-        this.restActionsRequestHandler = new RestActionsRequestHandler(restController, extensionIdMap, transportService);
+        this.restActionsRequestHandler = new RestActionsRequestHandler(actionModule.getRestController(), extensionIdMap, transportService);
         this.customSettingsRequestHandler = new CustomSettingsRequestHandler(settingsModule);
         this.transportService = transportService;
         this.clusterService = clusterService;
@@ -192,7 +194,12 @@ public class ExtensionsManager {
             REQUEST_EXTENSION_UPDATE_SETTINGS
         );
         this.client = client;
-        this.extensionTransportActionsHandler = new ExtensionTransportActionsHandler(extensionIdMap, transportService, client);
+        this.extensionTransportActionsHandler = new ExtensionTransportActionsHandler(
+            extensionIdMap,
+            transportService,
+            client,
+            actionModule.getExtensionActions()
+        );
         registerRequestHandler();
     }
 

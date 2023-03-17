@@ -842,7 +842,7 @@ public class Node implements Closeable {
             );
             if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
                 this.extensionsManager.initializeServicesAndRestHandler(
-                    restController,
+                    actionModule,
                     settingsModule,
                     transportService,
                     clusterService,
@@ -1112,8 +1112,18 @@ public class Node implements Closeable {
             resourcesToClose.addAll(pluginLifecycleComponents);
             resourcesToClose.add(injector.getInstance(PeerRecoverySourceService.class));
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
-            client.initialize(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {
-            }), () -> clusterService.localNode().getId(), transportService.getRemoteClusterService(), namedWriteableRegistry);
+            if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
+                client.initialize(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {
+                }),
+                    actionModule.getExtensionActions(),
+                    () -> clusterService.localNode().getId(),
+                    transportService.getRemoteClusterService(),
+                    namedWriteableRegistry
+                );
+            } else {
+                client.initialize(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {
+                }), () -> clusterService.localNode().getId(), transportService.getRemoteClusterService(), namedWriteableRegistry);
+            }
             this.namedWriteableRegistry = namedWriteableRegistry;
 
             logger.debug("initializing HTTP handlers ...");

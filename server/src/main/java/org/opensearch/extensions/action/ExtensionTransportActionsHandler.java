@@ -11,12 +11,13 @@ package org.opensearch.extensions.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.AcknowledgedResponse;
 import org.opensearch.extensions.ExtensionsManager;
-import org.opensearch.extensions.RegisterTransportActionsRequest;
+import org.opensearch.plugins.ActionPlugin.ActionHandler;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ActionNotFoundTransportException;
 import org.opensearch.transport.TransportException;
@@ -44,16 +45,19 @@ public class ExtensionTransportActionsHandler {
     private final Map<String, DiscoveryExtensionNode> extensionIdMap;
     private final TransportService transportService;
     private final NodeClient client;
+    private DynamicActionRegistry dynamicActionRegistry;
 
     public ExtensionTransportActionsHandler(
         Map<String, DiscoveryExtensionNode> extensionIdMap,
         TransportService transportService,
-        NodeClient client
+        NodeClient client,
+        DynamicActionRegistry dynamicActionRegistry
     ) {
         this.actionsMap = new HashMap<>();
         this.extensionIdMap = extensionIdMap;
         this.transportService = transportService;
         this.client = client;
+        this.dynamicActionRegistry = dynamicActionRegistry;
     }
 
     /**
@@ -64,10 +68,14 @@ public class ExtensionTransportActionsHandler {
      * @throws IllegalArgumentException when action being registered already is registered.
      */
     void registerAction(String action, DiscoveryExtensionNode extension) throws IllegalArgumentException {
-        if (actionsMap.containsKey(action)) {
-            throw new IllegalArgumentException("The " + action + " you are trying to register is already registered");
+        // Register the action in this handler so it knows which extension owns it
+        if (actionsMap.putIfAbsent(action, extension) != null) {
+            throw new IllegalArgumentException("The action [" + action + "] you are trying to register is already registered");
         }
-        actionsMap.putIfAbsent(action, extension);
+        // Register the action in the action module's extension actions map
+        dynamicActionRegistry.registerExtensionAction(
+            new ActionHandler<>(new ExtensionAction(action, extension.getId()), ExtensionTransportAction.class)
+        );
     }
 
     /**
@@ -111,10 +119,26 @@ public class ExtensionTransportActionsHandler {
      * @throws InterruptedException when message transport fails.
      */
     public TransportResponse handleTransportActionRequestFromExtension(TransportActionRequestFromExtension request) throws Exception {
-        DiscoveryExtensionNode extension = extensionIdMap.get(request.getUniqueId());
-        final CompletableFuture<ExtensionActionResponse> inProgressFuture = new CompletableFuture<>();
+        String actionName = request.getAction();
+        String uniqueId = request.getUniqueId();
         final TransportActionResponseToExtension response = new TransportActionResponseToExtension(new byte[0]);
+        // Validate that this action has been registered
+        ActionHandler<?, ?> handler = dynamicActionRegistry.get(actionName);
+        if (handler == null) {
+            byte[] responseBytes = ("Request failed: action [" + actionName + "] is not registered for extension [" + uniqueId + "].")
+                .getBytes(StandardCharsets.UTF_8);
+            response.setResponseBytes(responseBytes);
+            return response;
+        }
+        DiscoveryExtensionNode extension = extensionIdMap.get(uniqueId);
+        if (extension == null) {
+            byte[] responseBytes = ("Request failed: extension [" + uniqueId + "] can not be reached.").getBytes(StandardCharsets.UTF_8);
+            response.setResponseBytes(responseBytes);
+            return response;
+        }
+        final CompletableFuture<ExtensionActionResponse> inProgressFuture = new CompletableFuture<>();
         client.execute(
+            // TODO change this to the registered action type
             ExtensionProxyAction.INSTANCE,
             new ExtensionActionRequest(request.getAction(), request.getRequestBytes()),
             new ActionListener<ExtensionActionResponse>() {
