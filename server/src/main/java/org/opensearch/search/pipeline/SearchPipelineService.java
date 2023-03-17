@@ -35,6 +35,7 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -329,7 +330,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             if (pipeline == null) {
                 throw new IllegalArgumentException("Pipeline " + pipelineId + " is not defined");
             }
-            if (pipeline.pipeline.getSearchRequestProcessors().size() > 0) {
+            if (CollectionUtils.isEmpty(pipeline.pipeline.getSearchRequestProcessors()) == false) {
                 try {
                     // Save the original request by deep cloning the existing request.
                     BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
