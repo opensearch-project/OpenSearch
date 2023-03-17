@@ -144,6 +144,9 @@ class Pipeline {
     }
 
     SearchRequest transformRequest(SearchRequest originalRequest) throws SearchPipelineProcessingException {
+        if (searchRequestProcessors.size() == 0) {
+            return originalRequest;
+        }
         try {
             // Save the original request by deep cloning the existing request.
             BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();

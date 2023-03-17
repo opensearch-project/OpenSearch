@@ -58,3 +58,11 @@ teardown:
         body: { }
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "2" }
+
+  # Should also work with no search body specified
+  - do:
+      search:
+        index: test
+        search_pipeline: "my_pipeline"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "2" }
