@@ -58,6 +58,9 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
+import org.opensearch.action.ActionModule.DynamicActionRegistry;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
 import org.opensearch.action.search.SearchExecutionStatsCollector;
@@ -1112,13 +1115,16 @@ public class Node implements Closeable {
             resourcesToClose.addAll(pluginLifecycleComponents);
             resourcesToClose.add(injector.getInstance(PeerRecoverySourceService.class));
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
-            if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-                client.initialize(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {
-                }), actionModule, transportService, extensionsManager, () -> clusterService.localNode().getId(), namedWriteableRegistry);
-            } else {
-                client.initialize(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {
-                }), () -> clusterService.localNode().getId(), transportService.getRemoteClusterService(), namedWriteableRegistry);
-            }
+            DynamicActionRegistry<? extends ActionRequest, ? extends ActionResponse> dynamicActionRegistry = actionModule
+                .getDynamicActionRegistry();
+            dynamicActionRegistry.initialize(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {
+            }), actionModule.getActionFilters(), transportService, extensionsManager);
+            client.initialize(
+                dynamicActionRegistry,
+                () -> clusterService.localNode().getId(),
+                transportService.getRemoteClusterService(),
+                namedWriteableRegistry
+            );
             this.namedWriteableRegistry = namedWriteableRegistry;
 
             logger.debug("initializing HTTP handlers ...");

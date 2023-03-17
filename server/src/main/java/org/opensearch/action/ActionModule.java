@@ -282,6 +282,7 @@ import org.opensearch.common.inject.AbstractModule;
 import org.opensearch.common.inject.TypeLiteral;
 import org.opensearch.common.inject.multibindings.MapBinder;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.action.ExtensionAction;
 import org.opensearch.extensions.action.ExtensionProxyAction;
 import org.opensearch.extensions.action.ExtensionTransportAction;
@@ -442,6 +443,7 @@ import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.rest.action.search.RestSearchScrollAction;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
 import org.opensearch.usage.UsageService;
 
 import java.util.ArrayList;
@@ -476,8 +478,8 @@ public class ActionModule extends AbstractModule {
     private final List<ActionPlugin> actionPlugins;
     // An unmodifiable map containing OpenSearch and Plugin actions
     private final Map<String, ActionHandler<?, ?>> actions;
-    // A dynamic map containing Extension actions
-    private final DynamicActionRegistry extensionActions;
+    // A dynamic map combining the above immutable actions with dynamic Extension actions
+    private final DynamicActionRegistry dynamicActionRegistry;
     private final ActionFilters actionFilters;
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
@@ -507,8 +509,8 @@ public class ActionModule extends AbstractModule {
         this.actionPlugins = actionPlugins;
         this.threadPool = threadPool;
         actions = setupActions(actionPlugins);
-        extensionActions = FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS) ? new DynamicActionRegistry() : null;
         actionFilters = setupActionFilters(actionPlugins);
+        dynamicActionRegistry = new DynamicActionRegistry();
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<RestHeaderDefinition> headers = Stream.concat(
@@ -729,13 +731,6 @@ public class ActionModule extends AbstractModule {
         actions.register(DeleteDecommissionStateAction.INSTANCE, TransportDeleteDecommissionStateAction.class);
 
         return unmodifiableMap(actions.getRegistry());
-    }
-
-    public DynamicActionRegistry getExtensionActions() {
-        if (!FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-            throw new UnsupportedOperationException("This method requires enabling the feature flag [" + FeatureFlags.EXTENSIONS + "].");
-        }
-        return extensionActions;
     }
 
     private ActionFilters setupActionFilters(List<ActionPlugin> actionPlugins) {
@@ -973,7 +968,7 @@ public class ActionModule extends AbstractModule {
 
         // register dynamic ActionType -> transportAction Map used by NodeClient
         if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-            bind(DynamicActionRegistry.class).toInstance(extensionActions);
+            bind(DynamicActionRegistry.class).toInstance(dynamicActionRegistry);
         }
     }
 
@@ -981,32 +976,93 @@ public class ActionModule extends AbstractModule {
         return actionFilters;
     }
 
+    @SuppressWarnings("unchecked")
+    public DynamicActionRegistry<? extends ActionRequest, ? extends ActionResponse> getDynamicActionRegistry() {
+        return dynamicActionRegistry;
+    }
+
     public RestController getRestController() {
         return restController;
     }
 
-    public static class DynamicActionRegistry {
-        private final Map<String, ExtensionAction> registry = new ConcurrentHashMap<>();
+    /**
+     * The DynamicActionRegistry maintains a registry mapping {@link ExtensionAction} instances to {@link TransportAction} instances.
+     * <p>
+     * This class is modeled after {@link NamedRegistry} but provides both register and unregister capabilities.
+     *
+     * @opensearch.internal
+     */
+    public static class DynamicActionRegistry<Request extends ActionRequest, Response extends ActionResponse> {
+        // the immutable map of injected transport actions
+        private Map<ActionType, TransportAction> actions = Collections.emptyMap();
+        // the dynamic map which can be updated over time
+        private final Map<ExtensionAction, ExtensionTransportAction> registry = new ConcurrentHashMap<>();
 
+        private ActionFilters actionFilters;
+        private ExtensionsManager extensionsManager;
+        private TransportService transportService;
+
+        /**
+         * Initialize the immutable actions in the registry.
+         *
+         * @param actions The injected map of {@link ActionType} to {@link TransportAction}
+         * @param actionFilters The action filters
+         * @param transportService The node's {@link TransportService}
+         * @param extensionsManager The instance of the {@link ExtensionsManager}
+         */
+        public void initialize(
+            Map<ActionType, TransportAction> actions,
+            ActionFilters actionFilters,
+            TransportService transportService,
+            ExtensionsManager extensionsManager
+        ) {
+            this.actions = actions;
+            this.actionFilters = actionFilters;
+            this.transportService = transportService;
+            this.extensionsManager = extensionsManager;
+        }
+
+        /**
+         * Add an {@link ExtensionAction} to the registry.
+         *
+         * @param extensionAction The action to add
+         */
         public void registerExtensionAction(ExtensionAction extensionAction) {
             requireNonNull(extensionAction, "extension action is required");
             String name = extensionAction.name();
-            requireNonNull(name, "name is required");
-            if (registry.putIfAbsent(name, extensionAction) != null) {
-                throw new IllegalArgumentException("extension action for name [" + name + "] already registered");
+            String uniqueId = extensionAction.uniqueId();
+            if (registry.containsKey(extensionAction)) {
+                throw new IllegalArgumentException("extension [" + uniqueId + "] action for [" + name + "] already registered");
+            }
+            registry.put(extensionAction, new ExtensionTransportAction(name, actionFilters, transportService, extensionsManager));
+        }
+
+        /**
+         * Remove an {@link ExtensionAction} from the registry.
+         *
+         * @param extensionAction The action to remove
+         */
+        public void unregisterExtensionAction(ExtensionAction extensionAction) {
+            requireNonNull(extensionAction, "extension action is required");
+            String name = extensionAction.name();
+            String uniqueId = extensionAction.uniqueId();
+            if (registry.remove(extensionAction) == null) {
+                throw new IllegalArgumentException("extension [" + uniqueId + "] action for [" + name + "]  was not registered");
             }
         }
 
-        public void unregisterExtensionAction(String name) {
-            requireNonNull(name, "name is required");
-            if (registry.remove(name) == null) {
-                throw new IllegalArgumentException("extension action for name [" + name + "] was not registered");
+        /**
+         * Gets the {@link TransportAction} instance corresponding to the {@link ActionType} instance.
+         *
+         * @param action The {@link ActionType}. May be an {@link ExtensionAction}.
+         * @return the corresponding {@link TransportAction} if it is registered, null otherwise.
+         */
+        @SuppressWarnings("unchecked")
+        public TransportAction<Request, Response> get(ActionType<?> action) {
+            if (action instanceof ExtensionAction) {
+                return (TransportAction<Request, Response>) registry.get((ExtensionAction) action);
             }
-        }
-
-        public ExtensionAction get(String name) {
-            requireNonNull(name, "name is required");
-            return registry.get(name);
+            return actions.get(action);
         }
     }
 }

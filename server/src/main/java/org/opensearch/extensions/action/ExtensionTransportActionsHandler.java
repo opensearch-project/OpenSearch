@@ -13,6 +13,8 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.extensions.DiscoveryExtensionNode;
@@ -45,7 +47,7 @@ public class ExtensionTransportActionsHandler {
     private final Map<String, DiscoveryExtensionNode> extensionIdMap;
     private final TransportService transportService;
     private final NodeClient client;
-    private final DynamicActionRegistry dynamicActionRegistry;
+    private final DynamicActionRegistry<? extends ActionRequest, ? extends ActionResponse> dynamicActionRegistry;
 
     public ExtensionTransportActionsHandler(
         Map<String, DiscoveryExtensionNode> extensionIdMap,
@@ -56,7 +58,7 @@ public class ExtensionTransportActionsHandler {
         this.extensionIdMap = extensionIdMap;
         this.transportService = transportService;
         this.client = client;
-        this.dynamicActionRegistry = actionModule.getExtensionActions();
+        this.dynamicActionRegistry = actionModule.getDynamicActionRegistry();
     }
 
     /**
@@ -115,10 +117,10 @@ public class ExtensionTransportActionsHandler {
     public TransportResponse handleTransportActionRequestFromExtension(TransportActionRequestFromExtension request) throws Exception {
         String actionName = request.getAction();
         String uniqueId = request.getUniqueId();
+        ExtensionAction extensionAction = new ExtensionAction(actionName, uniqueId);
         final TransportActionResponseToExtension response = new TransportActionResponseToExtension(new byte[0]);
         // Validate that this action has been registered
-        ExtensionAction extensionAction = dynamicActionRegistry.get(actionName);
-        if (extensionAction == null) {
+        if (dynamicActionRegistry.get(extensionAction) == null) {
             byte[] responseBytes = ("Request failed: action [" + actionName + "] is not registered for extension [" + uniqueId + "].")
                 .getBytes(StandardCharsets.UTF_8);
             response.setResponseBytes(responseBytes);

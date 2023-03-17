@@ -26,8 +26,8 @@ public class ExtensionTransportAction extends TransportAction<ExtensionActionReq
 
     public ExtensionTransportAction(
         String actionName,
-        TransportService transportService,
         ActionFilters actionFilters,
+        TransportService transportService,
         ExtensionsManager extensionsManager
     ) {
         super(actionName, actionFilters, transportService.getTaskManager());
