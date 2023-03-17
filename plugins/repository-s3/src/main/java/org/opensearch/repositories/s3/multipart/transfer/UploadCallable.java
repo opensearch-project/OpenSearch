@@ -47,7 +47,6 @@ import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.TransferManagerConfiguration;
 import com.amazonaws.services.s3.transfer.TransferProgress;
 import com.amazonaws.services.s3.transfer.internal.S3ProgressPublisher;
-import com.amazonaws.services.s3.transfer.internal.UploadPartCallable;
 import com.amazonaws.services.s3.transfer.model.UploadResult;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -303,8 +302,7 @@ public class UploadCallable implements Callable<UploadResult> {
                 continue;
             }
 
-            futures.add(threadPool.submit(SocketAccess.doPrivileged(()->new
-                UploadPartCallable(s3, request, shouldCalculatePartMd5()))));
+            futures.add(threadPool.submit(new UploadPartCallable(s3, request, shouldCalculatePartMd5())));
         }
     }
 

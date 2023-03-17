@@ -102,11 +102,13 @@ public class RemoteTransferContainer implements Closeable {
         this.numberOfParts = (int) ((contentLength % partSize) == 0 ? contentLength / partSize
             : (contentLength / partSize) + 1);
 
+        log.info("Creating streams of total size {}, partSize {}, lastPartSize {}. numberOfParts {}, for file {}",
+            contentLength, partSize, lastPartSize, numberOfParts, fileName);
         InputStream[] streams = new InputStream[numberOfParts];
         List<Supplier<Stream>> streamSuppliers = new ArrayList<>();
         for (int partNo = 0; partNo < numberOfParts; partNo++) {
             long position = partSize * partNo;
-            long size = partNo == numberOfParts - 1 ? lastPartSize : partSize;
+            long size = partNo == numberOfParts - 1 ? lastPartSize : partSize;;
             streams[partNo] = localFile != null
                 ? getMultiPartStreamSupplierForFile().apply(size, position)
                 : getMultiPartStreamSupplierForIndexInput().apply(size, position);
