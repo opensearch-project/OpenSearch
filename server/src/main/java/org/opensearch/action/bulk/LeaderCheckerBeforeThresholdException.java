@@ -16,7 +16,7 @@ import java.io.IOException;
 
 /**
  * (Applicable for remote translog backed indexes) Thrown when there has been no successful leader checker call since
- * certain threshold. This exception is returned to the client.
+ * certain threshold during indexing. This exception is returned to the client.
  * TODO - This will also be used to fail the remote-backed index shards when the successful leader checker call happened too long ago.
  *
  * @opensearch.internal
