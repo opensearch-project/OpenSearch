@@ -32,7 +32,23 @@
 
 package org.opensearch.rest.action.admin.indices;
 
+import static java.util.Arrays.asList;
+import static java.util.Collections.unmodifiableList;
+import static org.opensearch.rest.RestRequest.Method.GET;
+import static org.opensearch.rest.RestRequest.Method.HEAD;
+
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.concurrent.TimeUnit;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.opensearch.action.support.IndicesOptions;
@@ -59,6 +75,23 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
+import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
+import io.opentelemetry.context.propagation.ContextPropagators;
+import io.opentelemetry.exporter.otlp.metrics.OtlpGrpcMetricExporter;
+import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.metrics.SdkMeterProvider;
+import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
+import io.opentelemetry.sdk.resources.Resource;
+import io.opentelemetry.sdk.trace.SdkTracerProvider;
+import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
+import io.opentelemetry.semconv.resource.attributes.ResourceAttributes;
+import io.opentelemetry.context.Scope;
+
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.rest.RestRequest.Method.GET;
@@ -68,6 +101,9 @@ import static org.opensearch.rest.RestRequest.Method.HEAD;
  * The REST handler for get alias and head alias APIs.
  */
 public class RestGetAliasesAction extends BaseRestHandler {
+
+    private static final Logger logger = LogManager.getLogger(RestGetAliasesAction.class);
+
 
     @Override
     public List<Route> routes() {
@@ -189,6 +225,39 @@ public class RestGetAliasesAction extends BaseRestHandler {
         // We can't remove this logic yet to support mixed clusters. We should be able to remove this logic here
         // in when 8.0 becomes the new version in the master branch.
 
+        logger.info("mm7->>");
+
+        /*Resource resource = Resource.getDefault()
+            .merge(Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, "logical-service-name")));
+
+        SdkTracerProvider sdkTracerProvider = SdkTracerProvider.builder()
+            .addSpanProcessor(BatchSpanProcessor.builder(OtlpGrpcSpanExporter.builder()
+                .setTimeout(2, TimeUnit.SECONDS).build()).build())
+            .setResource(resource)
+            .build();
+
+        SdkMeterProvider sdkMeterProvider = SdkMeterProvider.builder()
+            .registerMetricReader(PeriodicMetricReader.builder(OtlpGrpcMetricExporter.builder().build()).build())
+            .setResource(resource)
+            .build();
+
+        OpenTelemetry openTelemetry = OpenTelemetrySdk.builder()
+            .setTracerProvider(sdkTracerProvider)
+            .setMeterProvider(sdkMeterProvider)
+            .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
+            .buildAndRegisterGlobal();
+*/
+        Tracer tracer =
+            openTelemetry.getTracer("instrumentation-library-name", "1.0.0");
+        Span span = tracer.spanBuilder("my span").startSpan();
+
+// Make the span the current span
+        try (Scope ss = span.makeCurrent()) {
+            span.setAttribute("http.method", "GET");
+            span.setAttribute("http.url", "mm55");
+        } finally {
+            span.end();
+        }
         final boolean namesProvided = request.hasParam("name");
         final String[] aliases = request.paramAsStringArrayOrEmptyIfAll("name");
         final GetAliasesRequest getAliasesRequest = new GetAliasesRequest(aliases);
@@ -205,6 +274,32 @@ public class RestGetAliasesAction extends BaseRestHandler {
                 return buildRestResponse(namesProvided, aliases, response.getAliases(), builder);
             }
         });
+    }
+
+    public static final OpenTelemetry openTelemetry;
+
+    static {
+        Resource resource = Resource.getDefault()
+            .merge(Resource.create(Attributes.of(ResourceAttributes.SERVICE_NAME, "OpenSearch-Search")));
+
+        SdkTracerProvider sdkTracerProvider = SdkTracerProvider.builder()
+            .addSpanProcessor(BatchSpanProcessor.builder(OtlpGrpcSpanExporter.builder()
+                .setTimeout(2, TimeUnit.SECONDS).build()).build())
+//            .addSpanProcessor(SimpleSpanProcessor.create(OtlpGrpcSpanExporter.builder()
+//                .setTimeout(2, TimeUnit.SECONDS).build()))
+            .setResource(resource)
+            .build();
+
+        SdkMeterProvider sdkMeterProvider = SdkMeterProvider.builder()
+            .registerMetricReader(PeriodicMetricReader.builder(OtlpGrpcMetricExporter.builder().build()).build())
+            .setResource(resource)
+            .build();
+
+        openTelemetry = OpenTelemetrySdk.builder()
+            .setTracerProvider(sdkTracerProvider)
+//            .setMeterProvider(sdkMeterProvider)
+            .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
+            .buildAndRegisterGlobal();
     }
 
 }

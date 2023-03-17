@@ -138,6 +138,11 @@ public interface SearchOperationListener {
 
         CompositeListener(List<SearchOperationListener> listeners, Logger logger) {
             this.listeners = listeners;
+            if (listeners != null) {
+                System.out.println("adding listener");
+                listeners.add(new SearchOperationListenerTracerImpl());
+            }
+            // skumrik
             this.logger = logger;
         }
 

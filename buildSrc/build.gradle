@@ -117,6 +117,11 @@ dependencies {
   api 'org.apache.maven:maven-model:3.6.2'
   api 'com.networknt:json-schema-validator:1.0.68'
   api "com.fasterxml.jackson.core:jackson-databind:${props.getProperty('jackson_databind')}"
+  implementation 'io.opentelemetry:opentelemetry-api:1.23.1'
+  implementation 'io.opentelemetry:opentelemetry-context:1.23.1'
+  implementation 'io.opentelemetry:opentelemetry-sdk:1.23.1'
+  implementation 'io.opentelemetry:opentelemetry-exporter-otlp:1.23.1'
+  implementation 'io.opentelemetry:opentelemetry-semconv:1.23.1-alpha'
 
   testFixturesApi "junit:junit:${props.getProperty('junit')}"
   testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"

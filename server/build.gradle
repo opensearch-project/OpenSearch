@@ -122,6 +122,21 @@ dependencies {
   api 'com.tdunning:t-digest:3.2'
   // precentil ranks aggregation
   api 'org.hdrhistogram:HdrHistogram:2.1.9'
+  api 'io.opentelemetry:opentelemetry-api:1.23.1'
+  api 'io.opentelemetry:opentelemetry-context:1.23.1'
+  api 'io.opentelemetry:opentelemetry-sdk:1.23.1'
+  api 'io.opentelemetry:opentelemetry-sdk-common:1.23.1'
+  api 'io.opentelemetry:opentelemetry-sdk-metrics:1.23.1'
+  api 'io.opentelemetry:opentelemetry-sdk-trace:1.23.1'
+  api 'io.opentelemetry:opentelemetry-exporter-otlp:1.23.1'
+  api 'io.opentelemetry:opentelemetry-exporter-common:1.23.1'
+  api 'io.opentelemetry:opentelemetry-exporter-otlp-common:1.23.1'
+  api 'io.opentelemetry:opentelemetry-semconv:1.23.1-alpha'
+  api 'com.squareup.okhttp3:okhttp:4.10.0'
+  api 'org.jetbrains.kotlin:kotlin-stdlib:1.6.20'
+  api 'com.squareup.okio:okio-jvm:3.0.0'
+  api 'io.opentelemetry:opentelemetry-sdk-logs:1.23.1-alpha'
+  api 'io.opentelemetry:opentelemetry-api-logs:1.23.1-alpha'
 
   // lucene spatial
   api "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional
