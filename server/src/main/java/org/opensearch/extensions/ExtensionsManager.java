@@ -195,10 +195,11 @@ public class ExtensionsManager {
         );
         this.client = client;
         this.extensionTransportActionsHandler = new ExtensionTransportActionsHandler(
+            this,
             extensionIdMap,
             transportService,
             client,
-            actionModule.getExtensionActions()
+            actionModule
         );
         registerRequestHandler();
     }

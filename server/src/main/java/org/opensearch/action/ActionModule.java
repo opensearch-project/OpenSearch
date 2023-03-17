@@ -282,6 +282,7 @@ import org.opensearch.common.inject.AbstractModule;
 import org.opensearch.common.inject.TypeLiteral;
 import org.opensearch.common.inject.multibindings.MapBinder;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.extensions.action.ExtensionAction;
 import org.opensearch.extensions.action.ExtensionProxyAction;
 import org.opensearch.extensions.action.ExtensionTransportAction;
 import org.opensearch.common.settings.IndexScopedSettings;
@@ -715,6 +716,8 @@ public class ActionModule extends AbstractModule {
         // Remote Store
         actions.register(RestoreRemoteStoreAction.INSTANCE, TransportRestoreRemoteStoreAction.class);
 
+        // TODO: Remove this and its tests, it is no longer used
+        // Need to migrate its NAME prefix to the dynamic action name
         if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
             // ExtensionProxyAction
             actions.register(ExtensionProxyAction.INSTANCE, ExtensionTransportAction.class);
@@ -983,25 +986,25 @@ public class ActionModule extends AbstractModule {
     }
 
     public static class DynamicActionRegistry {
-        private final Map<String, ActionHandler<?, ?>> registry = new ConcurrentHashMap<>();
+        private final Map<String, ExtensionAction> registry = new ConcurrentHashMap<>();
 
-        public void registerExtensionAction(ActionHandler<?, ?> handler) {
-            requireNonNull(handler, "action handler is required");
-            String name = handler.getAction().name();
+        public void registerExtensionAction(ExtensionAction extensionAction) {
+            requireNonNull(extensionAction, "extension action is required");
+            String name = extensionAction.name();
             requireNonNull(name, "name is required");
-            if (registry.putIfAbsent(name, handler) != null) {
-                throw new IllegalArgumentException("action handler for name [" + name + "] already registered");
+            if (registry.putIfAbsent(name, extensionAction) != null) {
+                throw new IllegalArgumentException("extension action for name [" + name + "] already registered");
             }
         }
 
         public void unregisterExtensionAction(String name) {
             requireNonNull(name, "name is required");
             if (registry.remove(name) == null) {
-                throw new IllegalArgumentException("action handler for name [" + name + "] was not registered");
+                throw new IllegalArgumentException("extension action for name [" + name + "] was not registered");
             }
         }
 
-        public ActionHandler<?, ?> get(String name) {
+        public ExtensionAction get(String name) {
             requireNonNull(name, "name is required");
             return registry.get(name);
         }

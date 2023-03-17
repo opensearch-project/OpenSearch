@@ -1114,12 +1114,7 @@ public class Node implements Closeable {
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
             if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
                 client.initialize(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {
-                }),
-                    actionModule.getExtensionActions(),
-                    () -> clusterService.localNode().getId(),
-                    transportService.getRemoteClusterService(),
-                    namedWriteableRegistry
-                );
+                }), actionModule, transportService, extensionsManager, () -> clusterService.localNode().getId(), namedWriteableRegistry);
             } else {
                 client.initialize(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {
                 }), () -> clusterService.localNode().getId(), transportService.getRemoteClusterService(), namedWriteableRegistry);

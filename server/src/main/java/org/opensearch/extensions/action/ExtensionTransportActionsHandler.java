@@ -11,13 +11,13 @@ package org.opensearch.extensions.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.AcknowledgedResponse;
 import org.opensearch.extensions.ExtensionsManager;
-import org.opensearch.plugins.ActionPlugin.ActionHandler;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ActionNotFoundTransportException;
 import org.opensearch.transport.TransportException;
@@ -27,10 +27,10 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -41,23 +41,22 @@ import java.util.concurrent.TimeoutException;
  */
 public class ExtensionTransportActionsHandler {
     private static final Logger logger = LogManager.getLogger(ExtensionTransportActionsHandler.class);
-    private Map<String, DiscoveryExtensionNode> actionsMap;
+    private final Map<String, DiscoveryExtensionNode> actionsMap = new ConcurrentHashMap<>();
     private final Map<String, DiscoveryExtensionNode> extensionIdMap;
     private final TransportService transportService;
     private final NodeClient client;
-    private DynamicActionRegistry dynamicActionRegistry;
+    private final DynamicActionRegistry dynamicActionRegistry;
 
     public ExtensionTransportActionsHandler(
         Map<String, DiscoveryExtensionNode> extensionIdMap,
         TransportService transportService,
         NodeClient client,
-        DynamicActionRegistry dynamicActionRegistry
+        ActionModule actionModule
     ) {
-        this.actionsMap = new HashMap<>();
         this.extensionIdMap = extensionIdMap;
         this.transportService = transportService;
         this.client = client;
-        this.dynamicActionRegistry = dynamicActionRegistry;
+        this.dynamicActionRegistry = actionModule.getExtensionActions();
     }
 
     /**
@@ -73,9 +72,7 @@ public class ExtensionTransportActionsHandler {
             throw new IllegalArgumentException("The action [" + action + "] you are trying to register is already registered");
         }
         // Register the action in the action module's extension actions map
-        dynamicActionRegistry.registerExtensionAction(
-            new ActionHandler<>(new ExtensionAction(action, extension.getId()), ExtensionTransportAction.class)
-        );
+        dynamicActionRegistry.registerExtensionAction(new ExtensionAction(action, extension.getId()));
     }
 
     /**
@@ -95,9 +92,6 @@ public class ExtensionTransportActionsHandler {
      * @return  A {@link AcknowledgedResponse} indicating success.
      */
     public TransportResponse handleRegisterTransportActionsRequest(RegisterTransportActionsRequest transportActionsRequest) {
-        /*
-         * We are proxying the transport Actions through ExtensionProxyAction, so we really dont need to register dynamic actions for now.
-         */
         logger.debug("Register Transport Actions request recieved {}", transportActionsRequest);
         DiscoveryExtensionNode extension = extensionIdMap.get(transportActionsRequest.getUniqueId());
         try {
@@ -123,8 +117,8 @@ public class ExtensionTransportActionsHandler {
         String uniqueId = request.getUniqueId();
         final TransportActionResponseToExtension response = new TransportActionResponseToExtension(new byte[0]);
         // Validate that this action has been registered
-        ActionHandler<?, ?> handler = dynamicActionRegistry.get(actionName);
-        if (handler == null) {
+        ExtensionAction extensionAction = dynamicActionRegistry.get(actionName);
+        if (extensionAction == null) {
             byte[] responseBytes = ("Request failed: action [" + actionName + "] is not registered for extension [" + uniqueId + "].")
                 .getBytes(StandardCharsets.UTF_8);
             response.setResponseBytes(responseBytes);
@@ -138,8 +132,7 @@ public class ExtensionTransportActionsHandler {
         }
         final CompletableFuture<ExtensionActionResponse> inProgressFuture = new CompletableFuture<>();
         client.execute(
-            // TODO change this to the registered action type
-            ExtensionProxyAction.INSTANCE,
+            extensionAction,
             new ExtensionActionRequest(request.getAction(), request.getRequestBytes()),
             new ActionListener<ExtensionActionResponse>() {
                 @Override
