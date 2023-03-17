@@ -34,6 +34,7 @@ package org.opensearch.rest.action.admin.indices;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
+import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportAction;
@@ -96,7 +97,9 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
         final Map<ActionType, TransportAction> actions = new HashMap<>();
         actions.put(ValidateQueryAction.INSTANCE, transportAction);
 
-        client.initialize(actions, () -> "local", null, new NamedWriteableRegistry(Collections.emptyList()));
+        DynamicActionRegistry dynamicActionRegistry = new DynamicActionRegistry();
+        dynamicActionRegistry.initialize(actions, null, null, null);
+        client.initialize(dynamicActionRegistry, () -> "local", null, new NamedWriteableRegistry(Collections.emptyList()));
         controller.registerHandler(action);
     }
 

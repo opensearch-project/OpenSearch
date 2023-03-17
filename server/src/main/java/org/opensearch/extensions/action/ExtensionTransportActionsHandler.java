@@ -13,8 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
-import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.extensions.DiscoveryExtensionNode;
@@ -43,7 +41,9 @@ import java.util.concurrent.TimeoutException;
  */
 public class ExtensionTransportActionsHandler {
     private static final Logger logger = LogManager.getLogger(ExtensionTransportActionsHandler.class);
-    private final Map<String, DiscoveryExtensionNode> actionsMap = new ConcurrentHashMap<>();
+    // Map of action name to Extension unique ID, populated locally
+    private final Map<String, String> actionToIdMap = new ConcurrentHashMap<>();
+    // Map of Extension unique ID to Extension Node, populated in Extensions Manager
     private final Map<String, DiscoveryExtensionNode> extensionIdMap;
     private final TransportService transportService;
     private final NodeClient client;
@@ -65,16 +65,16 @@ public class ExtensionTransportActionsHandler {
      * Method to register actions for extensions.
      *
      * @param action to be registered.
-     * @param extension for which action is being registered.
+     * @param uniqueId id of extension for which action is being registered.
      * @throws IllegalArgumentException when action being registered already is registered.
      */
-    void registerAction(String action, DiscoveryExtensionNode extension) throws IllegalArgumentException {
+    void registerAction(String action, String uniqueId) throws IllegalArgumentException {
         // Register the action in this handler so it knows which extension owns it
-        if (actionsMap.putIfAbsent(action, extension) != null) {
+        if (actionToIdMap.putIfAbsent(action, uniqueId) != null) {
             throw new IllegalArgumentException("The action [" + action + "] you are trying to register is already registered");
         }
         // Register the action in the action module's extension actions map
-        dynamicActionRegistry.registerExtensionAction(new ExtensionAction(action, extension.getId()));
+        dynamicActionRegistry.registerExtensionAction(new ExtensionAction(action, uniqueId));
     }
 
     /**
@@ -84,7 +84,7 @@ public class ExtensionTransportActionsHandler {
      * @return the extension.
      */
     public DiscoveryExtensionNode getExtension(String action) {
-        return actionsMap.get(action);
+        return extensionIdMap.get(actionToIdMap.get(action));
     }
 
     /**
@@ -95,10 +95,9 @@ public class ExtensionTransportActionsHandler {
      */
     public TransportResponse handleRegisterTransportActionsRequest(RegisterTransportActionsRequest transportActionsRequest) {
         logger.debug("Register Transport Actions request recieved {}", transportActionsRequest);
-        DiscoveryExtensionNode extension = extensionIdMap.get(transportActionsRequest.getUniqueId());
         try {
             for (String action : transportActionsRequest.getTransportActions()) {
-                registerAction(action, extension);
+                registerAction(action, transportActionsRequest.getUniqueId());
             }
         } catch (Exception e) {
             logger.error("Could not register Transport Action " + e);
@@ -116,7 +115,7 @@ public class ExtensionTransportActionsHandler {
      */
     public TransportResponse handleTransportActionRequestFromExtension(TransportActionRequestFromExtension request) throws Exception {
         String actionName = request.getAction();
-        String uniqueId = request.getUniqueId();
+        String uniqueId = actionToIdMap.get(actionName);
         ExtensionAction extensionAction = new ExtensionAction(actionName, uniqueId);
         final TransportActionResponseToExtension response = new TransportActionResponseToExtension(new byte[0]);
         // Validate that this action has been registered
@@ -177,7 +176,7 @@ public class ExtensionTransportActionsHandler {
      * @throws InterruptedException when message transport fails.
      */
     public ExtensionActionResponse sendTransportRequestToExtension(ExtensionActionRequest request) throws Exception {
-        DiscoveryExtensionNode extension = actionsMap.get(request.getAction());
+        DiscoveryExtensionNode extension = getExtension(request.getAction());
         if (extension == null) {
             throw new ActionNotFoundTransportException(request.getAction());
         }

@@ -167,9 +167,8 @@ public class ExtensionsManager {
      * Initializes the {@link RestActionsRequestHandler}, {@link TransportService}, {@link ClusterService} and environment settings. This is called during Node bootstrap.
      * Lists/maps of extensions have already been initialized but not yet populated.
      *
-     * @param restController  The RestController on which to register Rest Actions.
+     * @param actionModule The ActionModule with the RestController and DynamicActionModule
      * @param settingsModule The module that binds the provided settings to interface.
-     * @param actionsModule The module that binds transport actions.
      * @param transportService  The Node's transport service.
      * @param clusterService  The Node's cluster service.
      * @param initialEnvironmentSettings The finalized view of settings for the Environment

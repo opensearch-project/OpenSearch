@@ -11,6 +11,8 @@ package org.opensearch.extensions.action;
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.Version;
+import org.opensearch.action.ActionModule;
+import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
@@ -39,6 +41,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -89,10 +94,14 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
             Collections.emptyList()
         );
         client = new NoOpNodeClient(this.getTestName());
+        ActionModule mockActionModule = mock(ActionModule.class);
+        DynamicActionRegistry dynamicActionRegistry = new DynamicActionRegistry();
+        when(mockActionModule.getDynamicActionRegistry()).thenReturn(dynamicActionRegistry);
         extensionTransportActionsHandler = new ExtensionTransportActionsHandler(
             Map.of("uniqueid1", discoveryExtensionNode),
             transportService,
-            client
+            client,
+            mockActionModule
         );
     }
 
@@ -107,11 +116,14 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
 
     public void testRegisterAction() {
         String action = "test-action";
-        extensionTransportActionsHandler.registerAction(action, discoveryExtensionNode);
+        extensionTransportActionsHandler.registerAction(action, discoveryExtensionNode.getId());
         assertEquals(discoveryExtensionNode, extensionTransportActionsHandler.getExtension(action));
 
         // Test duplicate action registration
-        expectThrows(IllegalArgumentException.class, () -> extensionTransportActionsHandler.registerAction(action, discoveryExtensionNode));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> extensionTransportActionsHandler.registerAction(action, discoveryExtensionNode.getId())
+        );
         assertEquals(discoveryExtensionNode, extensionTransportActionsHandler.getExtension(action));
     }
 
