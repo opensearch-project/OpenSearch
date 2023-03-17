@@ -1647,7 +1647,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
         LEADER_CHECKER_BEFORE_THRESHOLD_EXCEPTION(
             LeaderCheckerBeforeThresholdException.class,
             LeaderCheckerBeforeThresholdException::new,
-            169,
+            170,
             V_2_7_0
         ),
         INDEX_CREATE_BLOCK_EXCEPTION(
