@@ -2088,6 +2088,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             scriptService,
                             new AnalysisModule(environment, Collections.emptyList()).getAnalysisRegistry(),
                             namedXContentRegistry,
+                            namedWriteableRegistry,
                             List.of(),
                             client
                         )

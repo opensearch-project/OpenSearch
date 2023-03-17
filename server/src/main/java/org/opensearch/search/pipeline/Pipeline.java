@@ -12,7 +12,6 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.ingest.ConfigurationUtils;
 
 import java.util.ArrayList;
@@ -143,22 +142,11 @@ class Pipeline {
         return searchResponseProcessors;
     }
 
-    SearchRequest transformRequest(SearchRequest originalRequest) throws SearchPipelineProcessingException {
-        if (searchRequestProcessors.size() == 0) {
-            return originalRequest;
+    SearchRequest transformRequest(SearchRequest request) throws Exception {
+        for (SearchRequestProcessor searchRequestProcessor : searchRequestProcessors) {
+            request = searchRequestProcessor.processRequest(request);
         }
-        try {
-            // Save the original request by deep cloning the existing request.
-            BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
-            originalRequest.writeTo(bytesStreamOutput);
-            SearchRequest request = new SearchRequest(bytesStreamOutput.bytes().streamInput());
-            for (SearchRequestProcessor searchRequestProcessor : searchRequestProcessors) {
-                request = searchRequestProcessor.processRequest(request);
-            }
-            return request;
-        } catch (Exception e) {
-            throw new SearchPipelineProcessingException(e);
-        }
+        return request;
     }
 
     SearchResponse transformResponse(SearchRequest request, SearchResponse response) throws SearchPipelineProcessingException {

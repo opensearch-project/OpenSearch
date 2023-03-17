@@ -28,11 +28,15 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
+import org.opensearch.search.SearchModule;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
@@ -77,6 +81,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             null,
             null,
             this.xContentRegistry(),
+            this.writableRegistry(),
             List.of(DUMMY_PLUGIN),
             client
         );
@@ -96,6 +101,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                 null,
                 null,
                 this.xContentRegistry(),
+                this.writableRegistry(),
                 List.of(DUMMY_PLUGIN, DUMMY_PLUGIN),
                 client
             )
@@ -112,6 +118,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             null,
             null,
             this.xContentRegistry(),
+            this.writableRegistry(),
             List.of(DUMMY_PLUGIN),
             client
         );
@@ -180,7 +187,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         }
     }
 
-    private static SearchPipelineService createWithProcessors() {
+    private SearchPipelineService createWithProcessors() {
         Map<String, Processor.Factory> processors = new HashMap<>();
         processors.put("scale_request_size", (processorFactories, tag, description, config) -> {
             float scale = ((Number) config.remove("scale")).floatValue();
@@ -198,7 +205,13 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         return createWithProcessors(processors);
     }
 
-    private static SearchPipelineService createWithProcessors(Map<String, Processor.Factory> processors) {
+    @Override
+    protected NamedWriteableRegistry writableRegistry() {
+        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
+        return new NamedWriteableRegistry(searchModule.getNamedWriteables());
+    }
+
+    private SearchPipelineService createWithProcessors(Map<String, Processor.Factory> processors) {
         Client client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         ExecutorService executorService = OpenSearchExecutors.newDirectExecutorService();
@@ -211,6 +224,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             null,
             null,
             null,
+            this.writableRegistry(),
             Collections.singletonList(new SearchPipelinePlugin() {
                 @Override
                 public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {
@@ -421,7 +435,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         searchPipelineService.applyClusterState(new ClusterChangedEvent("", clusterState, previousState));
 
         int size = 10;
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(size);
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(new TermQueryBuilder("foo", "bar")).size(size);
         SearchRequest request = new SearchRequest("_index").source(sourceBuilder).pipeline("p1");
 
         SearchRequest transformedRequest = searchPipelineService.transformRequest(request);

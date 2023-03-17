@@ -960,6 +960,7 @@ public class Node implements Closeable {
                 scriptService,
                 analysisModule.getAnalysisRegistry(),
                 xContentRegistry,
+                namedWriteableRegistry,
                 pluginsService.filterPlugins(SearchPipelinePlugin.class),
                 client
             );

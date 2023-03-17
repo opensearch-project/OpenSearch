@@ -32,7 +32,7 @@ teardown:
         index: test
         id: 1
         body: {
-          "field" : "foo"
+          "field": "foo"
         }
   - do:
       index:
@@ -64,5 +64,20 @@ teardown:
       search:
         index: test
         search_pipeline: "my_pipeline"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "2" }
+
+  # Should also work with existing query
+  - do:
+      search:
+        index: test
+        search_pipeline: "my_pipeline"
+        body: {
+          "query": {
+            "term": {
+              "field": "value"
+            }
+          }
+        }
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "2" }

@@ -29,6 +29,10 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -69,6 +73,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
     private final List<Consumer<ClusterState>> searchPipelineClusterStateListeners = new CopyOnWriteArrayList<>();
     private final ClusterManagerTaskThrottler.ThrottlingKey putPipelineTaskKey;
     private final ClusterManagerTaskThrottler.ThrottlingKey deletePipelineTaskKey;
+    private final NamedWriteableRegistry namedWriteableRegistry;
     private volatile ClusterState state;
 
     public SearchPipelineService(
@@ -78,12 +83,14 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         ScriptService scriptService,
         AnalysisRegistry analysisRegistry,
         NamedXContentRegistry namedXContentRegistry,
+        NamedWriteableRegistry namedWriteableRegistry,
         List<SearchPipelinePlugin> searchPipelinePlugins,
         Client client
     ) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
         this.threadPool = threadPool;
+        this.namedWriteableRegistry = namedWriteableRegistry;
         this.processorFactories = processorFactories(
             searchPipelinePlugins,
             new Processor.Parameters(
@@ -315,16 +322,27 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         return newState.build();
     }
 
-    public SearchRequest transformRequest(SearchRequest searchRequest) {
-        String pipelineId = searchRequest.pipeline();
+    public SearchRequest transformRequest(SearchRequest originalRequest) {
+        String pipelineId = originalRequest.pipeline();
         if (pipelineId != null) {
             PipelineHolder pipeline = pipelines.get(pipelineId);
             if (pipeline == null) {
                 throw new IllegalArgumentException("Pipeline " + pipelineId + " is not defined");
             }
-            return pipeline.pipeline.transformRequest(searchRequest);
+            if (pipeline.pipeline.getSearchRequestProcessors().size() > 0) {
+                try {
+                    // Save the original request by deep cloning the existing request.
+                    BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
+                    originalRequest.writeTo(bytesStreamOutput);
+                    StreamInput input = new NamedWriteableAwareStreamInput(bytesStreamOutput.bytes().streamInput(), namedWriteableRegistry);
+                    SearchRequest request = new SearchRequest(input);
+                    return pipeline.pipeline.transformRequest(request);
+                } catch (Exception e) {
+                    throw new SearchPipelineProcessingException(e);
+                }
+            }
         }
-        return searchRequest;
+        return originalRequest;
     }
 
     public SearchResponse transformResponse(SearchRequest request, SearchResponse searchResponse) {
