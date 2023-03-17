@@ -87,13 +87,14 @@ public class UploadCallable implements Callable<UploadResult> {
     private final List<PartETag> eTagsToSkip = new ArrayList<PartETag>();
 
     private PersistableUpload persistableUpload;
+    private String fileName;
 
     public UploadCallable(TransferManager transferManager,
                           ExecutorService threadPool, UploadImpl upload,
                           PutObjectRequest origReq,
                           ProgressListenerChain progressListenerChain, String uploadId,
                           TransferProgress transferProgress,
-                          long multiStreamsContentLength, Stream[] inputStreams) {
+                          long multiStreamsContentLength, Stream[] inputStreams, String fileName) {
         this.s3 = transferManager.getAmazonS3Client();
         this.configuration = transferManager.getConfiguration();
 
@@ -105,6 +106,7 @@ public class UploadCallable implements Callable<UploadResult> {
         this.inputStreams = inputStreams;
         this.transferProgress = transferProgress;
         this.multipartUploadId = uploadId;
+        this.fileName = fileName;
     }
 
     List<Future<PartETag>> getFutures() {
@@ -302,7 +304,7 @@ public class UploadCallable implements Callable<UploadResult> {
                 continue;
             }
 
-            futures.add(threadPool.submit(new UploadPartCallable(s3, request, shouldCalculatePartMd5())));
+            futures.add(threadPool.submit(new UploadPartCallable(s3, request, shouldCalculatePartMd5(), fileName)));
         }
     }
 

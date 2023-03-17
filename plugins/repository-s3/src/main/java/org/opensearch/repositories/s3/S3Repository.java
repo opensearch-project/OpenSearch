@@ -104,11 +104,7 @@ class S3Repository extends MeteredBlobStoreRepository {
     );
 
     private static final ByteSizeValue DEFAULT_MULTIPART_UPLOAD_MINIMUM_PART_SIZE = new ByteSizeValue(
-        Math.max(
-            ByteSizeUnit.MB.toBytes(5), // minimum value
-            Math.min(ByteSizeUnit.MB.toBytes(100), JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / 20)
-        ),
-        ByteSizeUnit.BYTES
+        ByteSizeUnit.MB.toBytes(5), ByteSizeUnit.BYTES
     );
 
     static final Setting<String> BUCKET_SETTING = Setting.simpleString("bucket");

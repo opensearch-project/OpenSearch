@@ -36,18 +36,6 @@ public class Stream {
     }
 
     /**
-     * Construct a new stream. Sets <code>offset</code> to 0
-     *
-     * @param inputStream
-     * @param contentLength
-     */
-    public Stream(InputStream inputStream, long contentLength) {
-        this.inputStream = inputStream;
-        this.contentLength = contentLength;
-        this.offset = 0;
-    }
-
-    /**
      * Return the input stream
      *
      * @return

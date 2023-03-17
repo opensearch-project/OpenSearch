@@ -26,6 +26,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -105,21 +106,17 @@ public class RemoteTransferContainer implements Closeable {
         log.info("Creating streams of total size {}, partSize {}, lastPartSize {}. numberOfParts {}, for file {}",
             contentLength, partSize, lastPartSize, numberOfParts, fileName);
         InputStream[] streams = new InputStream[numberOfParts];
+        inputStreams.set(streams);
         List<Supplier<Stream>> streamSuppliers = new ArrayList<>();
         for (int partNo = 0; partNo < numberOfParts; partNo++) {
             long position = partSize * partNo;
-            long size = partNo == numberOfParts - 1 ? lastPartSize : partSize;;
-            streams[partNo] = localFile != null
-                ? getMultiPartStreamSupplierForFile().apply(size, position)
-                : getMultiPartStreamSupplierForIndexInput().apply(size, position);
-            if (streams[partNo] == null) {
-                throw new IOException("Error creating multipart stream during opening streams for read");
+            long size = partNo == numberOfParts - 1 ? lastPartSize : partSize;
+            if (localFile != null) {
+                streamSuppliers.add(getMultiPartStreamSupplierForFile(partNo, size, position));
+            } else {
+                streamSuppliers.add(getMultiPartStreamSupplierForIndexInput(partNo, size, position));
             }
-
-            final int finalPartNo = partNo;
-            streamSuppliers.add(() -> new Stream(streams[finalPartNo], size, position));
         }
-        this.inputStreams.set(streams);
 
         return new StreamContext(
             streamSuppliers,
@@ -127,29 +124,33 @@ public class RemoteTransferContainer implements Closeable {
         );
     }
 
-    private BiFunction<Long, Long, InputStream> getMultiPartStreamSupplierForFile() {
-        return (size, position) -> {
+    private Supplier<Stream> getMultiPartStreamSupplierForFile(final int partNo, final long size,
+                                                               final long position) {
+        return () -> {
             OffsetRangeFileInputStream offsetRangeInputStream;
             try {
                 offsetRangeInputStream = new OffsetRangeFileInputStream(localFile, fileName, size, position);
+                Objects.requireNonNull(inputStreams.get())[partNo] = offsetRangeInputStream;
             } catch (IOException e) {
                 log.error("Failed to create input stream", e);
                 return null;
             }
-            return offsetRangeInputStream;
+            return new Stream(offsetRangeInputStream, size, position);
         };
     }
 
-    private BiFunction<Long, Long, InputStream> getMultiPartStreamSupplierForIndexInput() {
-        return (size, position) -> {
+    private Supplier<Stream> getMultiPartStreamSupplierForIndexInput(final int partNo, final long size,
+                                                                     final long position) {
+        return () -> {
             OffsetRangeIndexInputStream offsetRangeInputStream;
             try {
                 offsetRangeInputStream = new OffsetRangeIndexInputStream(indexInput, fileName, size, position);
+                Objects.requireNonNull(inputStreams.get())[partNo] = offsetRangeInputStream;
             } catch (IOException e) {
                 log.error("Failed to create input stream", e);
                 return null;
             }
-            return offsetRangeInputStream;
+            return new Stream(offsetRangeInputStream, size, position);
         };
     }
 
@@ -163,12 +164,16 @@ public class RemoteTransferContainer implements Closeable {
 
     @Override
     public void close() throws IOException {
-        assert inputStreams.get() != null : "Input streams are not yet set for multi stream upload";
+        if (inputStreams.get() == null) {
+            return;
+        }
 
         boolean closeStreamException = false;
         for (InputStream is : inputStreams.get()) {
             try {
-                is.close();
+                if (is != null) {
+                    is.close();
+                }
             } catch (IOException ex) {
                 closeStreamException = true;
                 // Attempting to close all streams first before throwing exception.

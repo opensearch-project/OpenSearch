@@ -111,7 +111,7 @@ public class MultipartTransferManager extends TransferManager implements Closeab
             remoteUploadExecutor;
         UploadCallable uploadCallable = new UploadCallable(this, executorService,
             upload, putObjectRequest, listenerChain, null, transferProgress,
-            streamContext.getTotalContentLength(), uploadStreams);
+            streamContext.getTotalContentLength(), uploadStreams, blobName);
         UploadMonitor watcher = UploadMonitor.create(this, upload, executorService,
             uploadCallable, putObjectRequest, listenerChain);
         upload.setMonitor(watcher);

@@ -59,15 +59,13 @@ public class UploadPartCallable implements Callable<PartETag> {
     private final AmazonS3 s3;
     private final UploadPartRequest request;
     private final boolean calculateMd5;
+    private final String fileName;
 
-    public UploadPartCallable(AmazonS3 s3, UploadPartRequest request) {
-        this(s3, request, false);
-    }
-
-    public UploadPartCallable(AmazonS3 s3, UploadPartRequest request, boolean calculateMd5) {
+    public UploadPartCallable(AmazonS3 s3, UploadPartRequest request, boolean calculateMd5, String fileName) {
         this.s3 = s3;
         this.request = request;
         this.calculateMd5 = calculateMd5;
+        this.fileName = fileName;
     }
 
     public PartETag call() throws Exception {
@@ -80,7 +78,7 @@ public class UploadPartCallable implements Callable<PartETag> {
             return partETag;
         } catch (Exception e) {
             log.error("Failed UploadPartCallable for file {}, part number {}, part size {}",
-                request.getFile().getName(), request.getPartNumber(), request.getPartSize());
+                fileName, request.getPartNumber(), request.getPartSize());
             throw e;
         }
     }
