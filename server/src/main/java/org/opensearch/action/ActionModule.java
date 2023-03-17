@@ -284,7 +284,6 @@ import org.opensearch.common.inject.multibindings.MapBinder;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.action.ExtensionAction;
-import org.opensearch.extensions.action.ExtensionProxyAction;
 import org.opensearch.extensions.action.ExtensionTransportAction;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
@@ -718,13 +717,6 @@ public class ActionModule extends AbstractModule {
         // Remote Store
         actions.register(RestoreRemoteStoreAction.INSTANCE, TransportRestoreRemoteStoreAction.class);
 
-        // TODO: Remove this and its tests, it is no longer used
-        // Need to migrate its NAME prefix to the dynamic action name
-        if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-            // ExtensionProxyAction
-            actions.register(ExtensionProxyAction.INSTANCE, ExtensionTransportAction.class);
-        }
-
         // Decommission actions
         actions.register(DecommissionAction.INSTANCE, TransportDecommissionAction.class);
         actions.register(GetDecommissionStateAction.INSTANCE, TransportGetDecommissionStateAction.class);
@@ -992,9 +984,9 @@ public class ActionModule extends AbstractModule {
      * @opensearch.internal
      */
     public static class DynamicActionRegistry {
-        // the immutable map of injected transport actions
+        // will be initialized with the immutable map of injected transport actions
         private Map<ActionType, TransportAction> actions = Collections.emptyMap();
-        // the dynamic map which can be updated over time
+        // the dynamic map which can be updated over time after initialization
         private final Map<ExtensionAction, ExtensionTransportAction> registry = new ConcurrentHashMap<>();
 
         private ActionFilters actionFilters;
@@ -1002,7 +994,7 @@ public class ActionModule extends AbstractModule {
         private TransportService transportService;
 
         /**
-         * Initialize the immutable actions in the registry.
+         * Initialize the immutable actions in the registry and provide parameters needed for dynamic actions.
          *
          * @param actions The injected map of {@link ActionType} to {@link TransportAction}
          * @param actionFilters The action filters
