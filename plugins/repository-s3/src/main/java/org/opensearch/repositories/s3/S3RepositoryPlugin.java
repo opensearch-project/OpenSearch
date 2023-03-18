@@ -110,9 +110,9 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final int availableProcessors = OpenSearchExecutors.allocatedProcessors(settings);
         List<ExecutorBuilder<?>> executorBuilders = new ArrayList<>();
 
-        executorBuilders.add(new ScalingExecutorBuilder(PRIORITY_REMOTE_UPLOAD, 1, 10,
-            TimeValue.timeValueMinutes(5)));
-        executorBuilders.add(new ScalingExecutorBuilder(REMOTE_UPLOAD, 1, 10,
+        executorBuilders.add(new ScalingExecutorBuilder(PRIORITY_REMOTE_UPLOAD, availableProcessors,
+            availableProcessors * 2, TimeValue.timeValueMinutes(5)));
+        executorBuilders.add(new ScalingExecutorBuilder(REMOTE_UPLOAD, 2, 4,
             TimeValue.timeValueMinutes(5)));
         return executorBuilders;
     }

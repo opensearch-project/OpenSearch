@@ -9,7 +9,6 @@ import java.nio.file.StandardOpenOption;
 
 public class OffsetRangeFileInputStream extends InputStream {
     private final InputStream inputStream;
-    private final String fileName;
     private final FileChannel fileChannel;
 
     private final long actualSizeToRead;
@@ -22,14 +21,13 @@ public class OffsetRangeFileInputStream extends InputStream {
     private long markPointer;
     private long markCounter;
 
-    public OffsetRangeFileInputStream(Path path, String fileName, long size, long position) throws IOException {
+    public OffsetRangeFileInputStream(Path path, long size, long position) throws IOException {
         fileChannel = FileChannel.open(path, StandardOpenOption.READ);
         fileChannel.position(position);
         inputStream = Channels.newInputStream(fileChannel);
         long totalLength = fileChannel.size();
         this.counter = 0;
         this.limit = size;
-        this.fileName = fileName;
         if ((totalLength - position) > limit) {
             actualSizeToRead = limit;
         } else {
@@ -91,13 +89,8 @@ public class OffsetRangeFileInputStream extends InputStream {
         counter = markCounter;
     }
 
-    public FileChannel getFileChannel() {
-        return fileChannel;
-    }
-
     @Override
     public void close() throws IOException {
         inputStream.close();
-        super.close();
     }
 }

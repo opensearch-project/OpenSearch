@@ -317,11 +317,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
 
         String checksum = getChecksumOfLocalFile(from, src);
         if (remoteDataDirectory.getBlobContainer().isMultiStreamUploadSupported()) {
-            try (RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
-                from.openInput(src, context),
-                remoteFilename,
-                false,
-                WritePriority.NORMAL
+            try (RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(from, context,
+                src, remoteFilename, false, WritePriority.NORMAL
             )) {
                 remoteDataDirectory.getBlobContainer().writeStreams(remoteTransferContainer.createWriteContext());
             }

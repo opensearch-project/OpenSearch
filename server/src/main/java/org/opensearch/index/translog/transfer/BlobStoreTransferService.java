@@ -86,6 +86,7 @@ public class BlobStoreTransferService implements TransferService {
             try (RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
                 fileSnapshot.getPath(),
                 fileSnapshot.getName(),
+                fileSnapshot.getName(),
                 true,
                 writePriority
             )) {
