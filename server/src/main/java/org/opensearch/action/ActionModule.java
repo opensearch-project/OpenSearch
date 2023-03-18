@@ -959,9 +959,7 @@ public class ActionModule extends AbstractModule {
         }
 
         // register dynamic ActionType -> transportAction Map used by NodeClient
-        if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-            bind(DynamicActionRegistry.class).toInstance(dynamicActionRegistry);
-        }
+        bind(DynamicActionRegistry.class).toInstance(dynamicActionRegistry);
     }
 
     public ActionFilters getActionFilters() {
