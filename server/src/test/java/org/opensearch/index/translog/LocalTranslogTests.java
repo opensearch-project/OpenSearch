@@ -2904,7 +2904,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             void deleteReaderFiles(TranslogReader reader) {
                 if (fail.fail()) {
                     // simulate going OOM and dying just at the wrong moment.
-                    throw new RuntimeException("simulated");
+                    RuntimeException e = new RuntimeException("simulated");
+                    tragedy.setTragicException(e);
+                    throw e;
                 } else {
                     super.deleteReaderFiles(reader);
                 }
