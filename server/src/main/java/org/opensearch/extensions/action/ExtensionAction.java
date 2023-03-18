@@ -27,7 +27,7 @@ public class ExtensionAction extends ActionType<ExtensionActionResponse> {
      * @param uniqueId The uniqueId of the extension which will run this action.
      * @param name The fully qualified class name of the extension's action to execute.
      */
-    ExtensionAction(String uniqueId, String name) {
+    public ExtensionAction(String uniqueId, String name) {
         super(name, ExtensionActionResponse::new);
         this.uniqueId = uniqueId;
     }

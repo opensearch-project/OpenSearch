@@ -32,6 +32,7 @@
 
 package org.opensearch.action;
 
+import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.main.MainAction;
 import org.opensearch.action.main.TransportMainAction;
 import org.opensearch.action.support.ActionFilters;
@@ -39,12 +40,16 @@ import org.opensearch.action.support.TransportAction;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.Writeable.Reader;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.extensions.action.ExtensionAction;
+import org.opensearch.extensions.action.ExtensionTransportAction;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ActionPlugin.ActionHandler;
 
@@ -59,16 +64,21 @@ import org.opensearch.tasks.TaskManager;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
 import org.opensearch.usage.UsageService;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ActionModuleTests extends OpenSearchTestCase {
     public void testSetupActionsContainsKnownBuiltin() {
@@ -261,5 +271,78 @@ public class ActionModuleTests extends OpenSearchTestCase {
         } finally {
             threadPool.shutdown();
         }
+    }
+
+    public void testDynamicActionRegistry() {
+        Map<ActionType, TransportAction> testMap = Map.of(
+            TestAction.INSTANCE,
+            new TestTransportAction("test-action", new ActionFilters(Collections.emptySet()), null)
+        );
+        TransportService mockTransportService = mock(TransportService.class);
+        TaskManager mockTaskManager = mock(TaskManager.class);
+        when(mockTransportService.getTaskManager()).thenReturn(mockTaskManager);
+
+        DynamicActionRegistry dynamicActionRegistry = new DynamicActionRegistry();
+        dynamicActionRegistry.initialize(testMap, new ActionFilters(Collections.emptySet()), mockTransportService, null);
+
+        // Should contain the immutable map entry
+        assertTrue(dynamicActionRegistry.get(TestAction.INSTANCE) instanceof TestTransportAction);
+        // Should not contain anything not added
+        assertNull(dynamicActionRegistry.get(MainAction.INSTANCE));
+
+        // ExtensionsAction not yet registered
+        ExtensionAction testExtensionAction = new ExtensionAction("actionName", "extensionId");
+        assertNull(dynamicActionRegistry.get(testExtensionAction));
+
+        // Register an extension action
+        // Should insert without problem
+        try {
+            dynamicActionRegistry.registerExtensionAction(testExtensionAction);
+        } catch (Exception e) {
+            fail("Should not have thrown exception registering action: " + e);
+        }
+        // Should have a value
+        assertTrue(dynamicActionRegistry.get(testExtensionAction) instanceof ExtensionTransportAction);
+
+        // Should fail inserting twice
+        IllegalArgumentException ex = assertThrows(
+            IllegalArgumentException.class,
+            () -> dynamicActionRegistry.registerExtensionAction(testExtensionAction)
+        );
+        assertEquals("extension [actionName] action for [extensionId] already registered", ex.getMessage());
+        // Should remove without problem
+        try {
+            dynamicActionRegistry.unregisterExtensionAction(testExtensionAction);
+        } catch (Exception e) {
+            fail("Should not have thrown exception unregistering action: " + e);
+        }
+        // Should have been removed
+        assertNull(dynamicActionRegistry.get(testExtensionAction));
+
+        // Should fail removing twice
+        ex = assertThrows(IllegalArgumentException.class, () -> dynamicActionRegistry.unregisterExtensionAction(testExtensionAction));
+        assertEquals("extension [actionName] action for [extensionId] was not registered", ex.getMessage());
+    }
+
+    private static final class TestAction extends ActionType<ActionResponse> {
+        public static final TestAction INSTANCE = new TestAction();
+
+        private TestAction() {
+            super("test-action", new Reader<ActionResponse>() {
+                @Override
+                public ActionResponse read(StreamInput in) throws IOException {
+                    return null;
+                }
+            });
+        }
+    };
+
+    private static final class TestTransportAction extends TransportAction<ActionRequest, ActionResponse> {
+        protected TestTransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
+            super(actionName, actionFilters, taskManager);
+        }
+
+        @Override
+        protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {}
     }
 }

@@ -1036,7 +1036,7 @@ public class ActionModule extends AbstractModule {
             String name = extensionAction.name();
             String uniqueId = extensionAction.uniqueId();
             if (registry.remove(extensionAction) == null) {
-                throw new IllegalArgumentException("extension [" + uniqueId + "] action for [" + name + "]  was not registered");
+                throw new IllegalArgumentException("extension [" + uniqueId + "] action for [" + name + "] was not registered");
             }
         }
 
