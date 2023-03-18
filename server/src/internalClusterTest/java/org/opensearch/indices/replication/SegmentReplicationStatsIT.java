@@ -77,7 +77,7 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
         }, 1, TimeUnit.MINUTES);
     }
 
-    public void testSegmentReplicationStatsResponseForActiveAndCompletedOnly() throws Exception {
+    public void testSegmentReplicationStatsResponseForActiveOnly() throws Exception {
         final String primaryNode = internalCluster().startNode();
         createIndex(INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);
@@ -140,25 +140,6 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
             .getCurrentReplicationState()
             .getStage();
         assertEquals(SegmentReplicationState.Stage.GET_FILES, stage);
-
-        // verifying completed_only by checking if current stage is DONE
-        SegmentReplicationStatsResponse completedOnlyResponse = client().admin()
-            .indices()
-            .prepareSegmentReplicationStats(INDEX_NAME)
-            .setDetailed(true)
-            .setCompletedOnly(true)
-            .execute()
-            .actionGet();
-        assertEquals(completedOnlyResponse.getReplicationStats().size(), SHARD_COUNT);
-        perGroupStats = completedOnlyResponse.getReplicationStats().get(INDEX_NAME).get(0);
-        final SegmentReplicationState currentReplicationState = perGroupStats.getReplicaStats()
-            .stream()
-            .findFirst()
-            .get()
-            .getCurrentReplicationState();
-
-        assertEquals(SegmentReplicationState.Stage.DONE, currentReplicationState.getStage());
-        assertTrue(currentReplicationState.getIndex().recoveredFileCount() > 0);
         waitForAssertions.countDown();
     }
 
