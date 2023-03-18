@@ -114,7 +114,8 @@ public class ExtensionTransportActionsHandler {
      * @return {@link TransportResponse} which is sent back to the transport action invoker.
      * @throws InterruptedException when message transport fails.
      */
-    public TransportResponse handleTransportActionRequestFromExtension(TransportActionRequestFromExtension request) throws Exception {
+    public TransportActionResponseToExtension handleTransportActionRequestFromExtension(TransportActionRequestFromExtension request)
+        throws Exception {
         String actionName = request.getAction();
         String uniqueId = actionToIdMap.get(actionName);
         ExtensionAction extensionAction = new ExtensionAction(actionName, uniqueId);
