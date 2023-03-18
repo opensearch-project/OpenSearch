@@ -534,7 +534,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
             .prepareSegmentReplicationStats(INDEX_NAME)
             .execute()
             .actionGet();
-        assertFalse(segmentReplicationStatsResponse.hasSegmentReplicationStats());
+        assertTrue(segmentReplicationStatsResponse.getReplicationStats().get(INDEX_NAME).get(0).getReplicaStats().isEmpty());
 
         // Relocate primary to new primary. When new primary starts it does perform a flush.
         logger.info("--> relocate the shard from primary to newPrimary");

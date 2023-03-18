@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class SegmentReplicationStatsTracker {
 
     private final IndicesService indicesService;
-    private Map<ShardId, AtomicInteger> rejectionCount;
+    private final Map<ShardId, AtomicInteger> rejectionCount;
 
     public SegmentReplicationStatsTracker(IndicesService indicesService) {
         this.indicesService = indicesService;
@@ -38,13 +38,7 @@ public class SegmentReplicationStatsTracker {
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
                 if (indexShard.indexSettings().isSegRepEnabled() && indexShard.routingEntry().primary()) {
-                    stats.putIfAbsent(
-                        indexShard.shardId(),
-                        new SegmentReplicationPerGroupStats(
-                            indexShard.getReplicationStats(),
-                            Optional.ofNullable(rejectionCount.get(indexShard.shardId())).map(AtomicInteger::get).orElse(0)
-                        )
-                    );
+                    stats.putIfAbsent(indexShard.shardId(), getStatsForShard(indexShard));
                 }
             }
         }
@@ -60,5 +54,13 @@ public class SegmentReplicationStatsTracker {
                 return v;
             }
         });
+    }
+
+    public SegmentReplicationPerGroupStats getStatsForShard(IndexShard indexShard) {
+        return new SegmentReplicationPerGroupStats(
+            indexShard.shardId(),
+            indexShard.getReplicationStats(),
+            Optional.ofNullable(rejectionCount.get(indexShard.shardId())).map(AtomicInteger::get).orElse(0)
+        );
     }
 }
