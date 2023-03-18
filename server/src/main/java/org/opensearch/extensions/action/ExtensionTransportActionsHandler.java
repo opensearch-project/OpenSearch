@@ -84,7 +84,8 @@ public class ExtensionTransportActionsHandler {
      * @return the extension.
      */
     public DiscoveryExtensionNode getExtension(String action) {
-        return extensionIdMap.get(actionToIdMap.get(action));
+        String uniqueId = actionToIdMap.get(action);
+        return uniqueId == null ? null : extensionIdMap.get(uniqueId);
     }
 
     /**
