@@ -143,12 +143,13 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
         assertFalse(response.getStatus());
     }
 
-    public void testTransportActionRequestFromExtension() throws InterruptedException {
+    public void testTransportActionRequestFromExtension() throws Exception {
         String action = "test-action";
         byte[] requestBytes = "requestBytes".getBytes(StandardCharsets.UTF_8);
         TransportActionRequestFromExtension request = new TransportActionRequestFromExtension(action, requestBytes, "uniqueid1");
-        // NoOpNodeClient returns null as response
-        expectThrows(NullPointerException.class, () -> extensionTransportActionsHandler.handleTransportActionRequestFromExtension(request));
+        TransportActionResponseToExtension response = extensionTransportActionsHandler.handleTransportActionRequestFromExtension(request);
+        String responseString = new String(response.getResponseBytes(), StandardCharsets.UTF_8);
+        assertEquals("Request failed: action [test-action] is not registered for any extension.", responseString);
     }
 
     public void testSendTransportRequestToExtension() throws InterruptedException {
