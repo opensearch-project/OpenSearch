@@ -26,7 +26,6 @@ import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -114,31 +113,26 @@ public class ExtensionTransportActionsHandler {
      * @return {@link TransportResponse} which is sent back to the transport action invoker.
      * @throws InterruptedException when message transport fails.
      */
-    public TransportActionResponseToExtension handleTransportActionRequestFromExtension(TransportActionRequestFromExtension request)
-        throws Exception {
+    public ExtensionActionResponse handleTransportActionRequestFromExtension(TransportActionRequestFromExtension request) throws Exception {
         String actionName = request.getAction();
         String uniqueId = actionToIdMap.get(actionName);
-        final TransportActionResponseToExtension response = new TransportActionResponseToExtension(new byte[0]);
+        final ExtensionActionResponse response = new ExtensionActionResponse(false, new byte[0]);
         // Fail fast if uniqueId is null
         if (uniqueId == null) {
-            byte[] responseBytes = ("Request failed: action [" + actionName + "] is not registered for any extension.").getBytes(
-                StandardCharsets.UTF_8
-            );
-            response.setResponseBytes(responseBytes);
+            response.setResponseBytesAsString("Request failed: action [" + actionName + "] is not registered for any extension.");
             return response;
         }
         ExtensionAction extensionAction = new ExtensionAction(uniqueId, actionName);
         // Validate that this action has been registered
         if (dynamicActionRegistry.get(extensionAction) == null) {
-            byte[] responseBytes = ("Request failed: action [" + actionName + "] is not registered for extension [" + uniqueId + "].")
-                .getBytes(StandardCharsets.UTF_8);
-            response.setResponseBytes(responseBytes);
+            response.setResponseBytesAsString(
+                "Request failed: action [" + actionName + "] is not registered for extension [" + uniqueId + "]."
+            );
             return response;
         }
         DiscoveryExtensionNode extension = extensionIdMap.get(uniqueId);
         if (extension == null) {
-            byte[] responseBytes = ("Request failed: extension [" + uniqueId + "] can not be reached.").getBytes(StandardCharsets.UTF_8);
-            response.setResponseBytes(responseBytes);
+            response.setResponseBytesAsString("Request failed: extension [" + uniqueId + "] can not be reached.");
             return response;
         }
         final CompletableFuture<ExtensionActionResponse> inProgressFuture = new CompletableFuture<>();
@@ -148,6 +142,7 @@ public class ExtensionTransportActionsHandler {
             new ActionListener<ExtensionActionResponse>() {
                 @Override
                 public void onResponse(ExtensionActionResponse actionResponse) {
+                    response.setSuccess(actionResponse.isSuccess());
                     response.setResponseBytes(actionResponse.getResponseBytes());
                     inProgressFuture.complete(actionResponse);
                 }
@@ -155,8 +150,7 @@ public class ExtensionTransportActionsHandler {
                 @Override
                 public void onFailure(Exception exp) {
                     logger.debug("Transport request failed", exp);
-                    byte[] responseBytes = ("Request failed: " + exp.getMessage()).getBytes(StandardCharsets.UTF_8);
-                    response.setResponseBytes(responseBytes);
+                    response.setResponseBytesAsString("Request failed: " + exp.getMessage());
                     inProgressFuture.completeExceptionally(exp);
                 }
             }
@@ -191,7 +185,7 @@ public class ExtensionTransportActionsHandler {
             throw new ActionNotFoundTransportException(request.getAction());
         }
         final CompletableFuture<ExtensionActionResponse> inProgressFuture = new CompletableFuture<>();
-        final ExtensionActionResponse extensionActionResponse = new ExtensionActionResponse(new byte[0]);
+        final ExtensionActionResponse extensionActionResponse = new ExtensionActionResponse(false, new byte[0]);
         final TransportResponseHandler<ExtensionActionResponse> extensionActionResponseTransportResponseHandler =
             new TransportResponseHandler<ExtensionActionResponse>() {
 
@@ -202,6 +196,7 @@ public class ExtensionTransportActionsHandler {
 
                 @Override
                 public void handleResponse(ExtensionActionResponse response) {
+                    extensionActionResponse.setSuccess(true);
                     extensionActionResponse.setResponseBytes(response.getResponseBytes());
                     inProgressFuture.complete(response);
                 }
@@ -209,8 +204,7 @@ public class ExtensionTransportActionsHandler {
                 @Override
                 public void handleException(TransportException exp) {
                     logger.debug("Transport request failed", exp);
-                    byte[] responseBytes = ("Request failed: " + exp.getMessage()).getBytes(StandardCharsets.UTF_8);
-                    extensionActionResponse.setResponseBytes(responseBytes);
+                    extensionActionResponse.setResponseBytesAsString("Request failed: " + exp.getMessage());
                     inProgressFuture.completeExceptionally(exp);
                 }
 

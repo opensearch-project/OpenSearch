@@ -147,8 +147,9 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
         String action = "test-action";
         byte[] requestBytes = "requestBytes".getBytes(StandardCharsets.UTF_8);
         TransportActionRequestFromExtension request = new TransportActionRequestFromExtension(action, requestBytes, "uniqueid1");
-        TransportActionResponseToExtension response = extensionTransportActionsHandler.handleTransportActionRequestFromExtension(request);
-        String responseString = new String(response.getResponseBytes(), StandardCharsets.UTF_8);
+        ExtensionActionResponse response = extensionTransportActionsHandler.handleTransportActionRequestFromExtension(request);
+        assertFalse(response.isSuccess());
+        String responseString = response.getResponseBytesAsString();
         assertEquals("Request failed: action [test-action] is not registered for any extension.", responseString);
     }
 
