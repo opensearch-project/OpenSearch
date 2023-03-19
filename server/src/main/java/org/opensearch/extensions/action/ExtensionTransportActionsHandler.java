@@ -118,8 +118,16 @@ public class ExtensionTransportActionsHandler {
         throws Exception {
         String actionName = request.getAction();
         String uniqueId = actionToIdMap.get(actionName);
-        ExtensionAction extensionAction = new ExtensionAction(actionName, uniqueId);
         final TransportActionResponseToExtension response = new TransportActionResponseToExtension(new byte[0]);
+        // Fail fast if uniqueId is null
+        if (uniqueId == null) {
+            byte[] responseBytes = ("Request failed: action [" + actionName + "] is not registered for any extension.").getBytes(
+                StandardCharsets.UTF_8
+            );
+            response.setResponseBytes(responseBytes);
+            return response;
+        }
+        ExtensionAction extensionAction = new ExtensionAction(uniqueId, actionName);
         // Validate that this action has been registered
         if (dynamicActionRegistry.get(extensionAction) == null) {
             byte[] responseBytes = ("Request failed: action [" + actionName + "] is not registered for extension [" + uniqueId + "].")
