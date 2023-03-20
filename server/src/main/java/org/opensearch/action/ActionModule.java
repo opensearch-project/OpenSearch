@@ -475,9 +475,16 @@ public class ActionModule extends AbstractModule {
     private final ClusterSettings clusterSettings;
     private final SettingsFilter settingsFilter;
     private final List<ActionPlugin> actionPlugins;
-    // An unmodifiable map containing OpenSearch and Plugin actions
+    // The unmodifiable map containing OpenSearch and Plugin actions
+    // This is initialized at node bootstrap and contains same-JVM actions
+    // It will be wrapped in the Dynamic Action Registry but otherwise
+    // remains unchanged from its prior purpose, and registered actions
+    // will remain accessible.
     private final Map<String, ActionHandler<?, ?>> actions;
-    // A dynamic map combining the above immutable actions with dynamic Extension actions
+    // A dynamic action registry which includes the above immutable actions
+    // and also registers dynamic ExtensionActions / ExtensionTransportActions
+    // associated with remote action execution on extensions, usually in
+    // a different JVM and possibly on a different server.
     private final DynamicActionRegistry dynamicActionRegistry;
     private final ActionFilters actionFilters;
     private final AutoCreateIndex autoCreateIndex;
@@ -982,9 +989,13 @@ public class ActionModule extends AbstractModule {
      * @opensearch.internal
      */
     public static class DynamicActionRegistry {
-        // will be initialized with the immutable map of injected transport actions
+        // This is the immutable actions map created during node bootstrap, which
+        // will continue to link ActionType and TransportAction pairs from core and plugin
+        // action handler registration.
         private Map<ActionType, TransportAction> actions = Collections.emptyMap();
-        // the dynamic map which can be updated over time after initialization
+        // A dynamic registry to add or remove ExtensionAction / ExtensionTransportAction
+        // pairs. These classes extend ActionType and TransportAction, respectively, with
+        // additional fields identifying the remote extension they are associated with.
         private final Map<ExtensionAction, ExtensionTransportAction> registry = new ConcurrentHashMap<>();
 
         private ActionFilters actionFilters;
@@ -1042,6 +1053,8 @@ public class ActionModule extends AbstractModule {
 
         /**
          * Gets the {@link TransportAction} instance corresponding to the {@link ActionType} instance.
+         * <p>
+         * If the action is an {@link ExtensionAction} it is returned from the dynamic registry; otherwise it comes from the ActionModule's immutable actions map.
          *
          * @param action The {@link ActionType}. May be an {@link ExtensionAction}.
          * @return the corresponding {@link TransportAction} if it is registered, null otherwise.
