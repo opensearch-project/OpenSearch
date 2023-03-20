@@ -47,7 +47,9 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActionTestUtils;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
+import org.opensearch.action.support.WriteResponse;
 import org.opensearch.action.support.replication.ReplicationMode;
+import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.action.support.replication.ReplicationTask;
 import org.opensearch.action.support.replication.TransportReplicationAction.ReplicaResponse;
 import org.opensearch.action.support.replication.TransportWriteAction.WritePrimaryResult;
@@ -57,6 +59,9 @@ import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.block.ClusterBlockException;
+import org.opensearch.cluster.coordination.Coordinator;
+import org.opensearch.cluster.coordination.FollowersChecker;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -64,6 +69,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.index.Index;
@@ -87,6 +93,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.rest.RestStatus;
+import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
@@ -1198,6 +1205,136 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         final IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.isRemoteTranslogEnabled()).thenReturn(false);
         assertEquals(ReplicationMode.FULL_REPLICATION, action.getReplicationMode(indexShard));
+    }
+
+    public void testAsyncAfterWriteActionSuccessWithSyncDurability() throws Exception {
+        try (FeatureFlagSetter f = FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE)) {
+            CountDownLatch successLatch = new CountDownLatch(1);
+            Settings settings = Settings.builder()
+                .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), "5")
+                .put(FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), "1s")
+                .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "10s")
+                .build();
+            Coordinator coordinator = mock(Coordinator.class);
+            when(coordinator.getLatestSuccessfulFollowersCheckerTime()).thenReturn(System.nanoTime());
+            TransportShardBulkAction action = new TransportShardBulkAction(
+                settings,
+                mock(TransportService.class),
+                mockClusterService(),
+                mockIndicesService("test-allocation-id", 1L),
+                threadPool,
+                mock(ShardStateAction.class),
+                mock(MappingUpdatedAction.class),
+                null,
+                mock(ActionFilters.class),
+                mock(IndexingPressureService.class),
+                mock(SegmentReplicationPressureService.class),
+                mock(SystemIndices.class),
+                coordinator
+            );
+            BulkShardRequest request = mock(BulkShardRequest.class);
+            IndexShard primary = newShard(true);
+            // IndexShard primary = mock(IndexShard.class);
+            // when(primary.getTranslogDurability()).thenReturn(Translog.Durability.REQUEST);
+            when(request.getRefreshPolicy()).thenReturn(RefreshPolicy.NONE);
+            WritePrimaryResult result = new WritePrimaryResult(
+                request,
+                new TestResponse(),
+                mock(Translog.Location.class),
+                null,
+                primary,
+                null,
+                action
+            );
+            result.runPostReplicationActions(new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
+                    successLatch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+
+                }
+            });
+            assertBusy(() -> assertEquals(0, successLatch.getCount()));
+            closeShards(primary);
+        }
+    }
+
+    public void testAsyncAfterWriteActionFailureWithSyncDurability() throws Exception {
+        try (FeatureFlagSetter f = FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE)) {
+            CountDownLatch failureLatch = new CountDownLatch(1);
+            Settings settings = Settings.builder()
+                .put(FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.getKey(), "5")
+                .put(FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING.getKey(), "1s")
+                .put(FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.getKey(), "10s")
+                .build();
+            Coordinator coordinator = mock(Coordinator.class);
+            // With the above settings, the computed threshold is 110s. Return last successful follower time as current time minus 2m
+            when(coordinator.getLatestSuccessfulFollowersCheckerTime()).thenReturn(System.nanoTime() - 120 * 1_000_000_000L);
+            TransportShardBulkAction action = new TransportShardBulkAction(
+                settings,
+                mock(TransportService.class),
+                mockClusterService(),
+                mockIndicesService("test-allocation-id", 1L),
+                threadPool,
+                mock(ShardStateAction.class),
+                mock(MappingUpdatedAction.class),
+                null,
+                mock(ActionFilters.class),
+                mock(IndexingPressureService.class),
+                mock(SegmentReplicationPressureService.class),
+                mock(SystemIndices.class),
+                coordinator
+            );
+            BulkShardRequest request = mock(BulkShardRequest.class);
+            Settings indexSettings = Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY, "seg-test")
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "txlog-test")
+                .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.REQUEST)
+                .build();
+            IndexShard primary = newShard(true, indexSettings);
+            when(request.getRefreshPolicy()).thenReturn(RefreshPolicy.NONE);
+            WritePrimaryResult result = new WritePrimaryResult(
+                request,
+                new TestResponse(),
+                mock(Translog.Location.class),
+                null,
+                primary,
+                null,
+                action
+            );
+            result.runPostReplicationActions(new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void unused) {
+
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    failureLatch.countDown();
+                    assertTrue(e instanceof ClusterBlockException);
+                    assertEquals("blocked by: [SERVICE_UNAVAILABLE/2/no cluster-manager];", e.getMessage());
+                }
+            });
+            assertBusy(() -> assertEquals(0, failureLatch.getCount()));
+            closeShards(primary);
+        }
+    }
+
+    private static class TestResponse extends ReplicationResponse implements WriteResponse {
+        boolean forcedRefresh;
+
+        @Override
+        public void setForcedRefresh(boolean forcedRefresh) {
+            this.forcedRefresh = forcedRefresh;
+        }
     }
 
     private TransportShardBulkAction createAction() {
