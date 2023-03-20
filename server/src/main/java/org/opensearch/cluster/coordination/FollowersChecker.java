@@ -125,6 +125,8 @@ public class FollowersChecker {
     private final NodeHealthService nodeHealthService;
     private volatile FastResponseState fastResponseState;
 
+    private long latestSuccessfulTimeInNS = -1;
+
     public FollowersChecker(
         Settings settings,
         TransportService transportService,
@@ -213,6 +215,7 @@ public class FollowersChecker {
         if (responder.mode == Mode.FOLLOWER && responder.term == request.term) {
             logger.trace("responding to {} on fast path", request);
             transportChannel.sendResponse(Empty.INSTANCE);
+            updateLatestSuccessfulTime();
             return;
         }
 
@@ -231,6 +234,7 @@ public class FollowersChecker {
                     return;
                 }
                 transportChannel.sendResponse(Empty.INSTANCE);
+                updateLatestSuccessfulTime();
             }
 
             @Override
@@ -243,6 +247,11 @@ public class FollowersChecker {
                 return "slow path response to " + request;
             }
         });
+    }
+
+    private void updateLatestSuccessfulTime() {
+        latestSuccessfulTimeInNS = System.nanoTime();
+        logger.trace("Updated latestSuccessfulTimeInNS with value={}", latestSuccessfulTimeInNS);
     }
 
     /**
@@ -292,6 +301,10 @@ public class FollowersChecker {
             logger.info(() -> new ParameterizedMessage("{} disconnected", followerChecker));
             followerChecker.failNode("disconnected");
         }
+    }
+
+    public long getLatestSuccessfulTimeInNS() {
+        return latestSuccessfulTimeInNS;
     }
 
     /**

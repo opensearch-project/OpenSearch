@@ -62,7 +62,10 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.action.index.MappingUpdatedAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
+import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.coordination.Coordinator;
+import org.opensearch.cluster.coordination.FollowersChecker;
+import org.opensearch.cluster.coordination.NoClusterManagerBlockService;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -77,7 +80,6 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
@@ -112,6 +114,7 @@ import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -138,16 +141,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }
     };
 
-    /**
-     * This setting is used as threshold for failing requests if latest successful leader check happened before a threshold
-     */
-    public static final Setting<TimeValue> REMOTE_STORE_INDEX_LEADER_CHECK_TIME_THRESHOLD = Setting.timeSetting(
-        "index.remote_store.action.bulk.leader_check.time.threshold",
-        TimeValue.timeValueMinutes(5),
-        TimeValue.timeValueMinutes(5),
-        Setting.Property.NodeScope
-    );
-
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
     private final SegmentReplicationPressureService segmentReplicationPressureService;
@@ -161,9 +154,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
      */
     private final String transportPrimaryTermValidationAction;
 
-    private final LongSupplier latestSuccessfulLeaderCheckerTimeSupplier;
+    private final LongSupplier latestSuccessfulFollowersCheckerTimeSupplier;
 
-    private final TimeValue latestLeaderCheckThreshold;
+    private final TimeValue latestFollowersCheckerThreshold;
 
     @Inject
     public TransportShardBulkAction(
@@ -202,8 +195,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         this.segmentReplicationPressureService = segmentReplicationPressureService;
 
         if (FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE)) {
-            this.latestSuccessfulLeaderCheckerTimeSupplier = () -> ((Coordinator) discovery).getLatestSuccessfulLeaderCheckerTime();
-            this.latestLeaderCheckThreshold = REMOTE_STORE_INDEX_LEADER_CHECK_TIME_THRESHOLD.get(settings);
+            // Last standing shard failover for remote translog backed indexes
+            this.latestSuccessfulFollowersCheckerTimeSupplier = () -> ((Coordinator) discovery).getLatestSuccessfulFollowersCheckerTime();
+            this.latestFollowersCheckerThreshold = getLatestFollowersCheckThreshold(settings);
+
+            // Primary term validation for remote translog backed indexes
             this.transportPrimaryTermValidationAction = ACTION_NAME + "[validate_primary_term]";
             transportService.registerRequestHandler(
                 transportPrimaryTermValidationAction,
@@ -214,10 +210,18 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 this::handlePrimaryTermValidationRequest
             );
         } else {
-            this.latestSuccessfulLeaderCheckerTimeSupplier = null;
+            this.latestSuccessfulFollowersCheckerTimeSupplier = null;
             this.transportPrimaryTermValidationAction = null;
-            this.latestLeaderCheckThreshold = null;
+            this.latestFollowersCheckerThreshold = null;
         }
+    }
+
+    private TimeValue getLatestFollowersCheckThreshold(Settings settings) {
+        long followerCheckInterval = FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING.get(settings).millis();
+        long followerCheckTimeout = FollowersChecker.FOLLOWER_CHECK_TIMEOUT_SETTING.get(settings).millis();
+        int followerCheckRetryCount = FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings);
+        long minimumThreshold = (followerCheckTimeout + followerCheckInterval) * followerCheckRetryCount;
+        return TimeValue.timeValueMillis(2 * minimumThreshold);
     }
 
     protected void handlePrimaryTermValidationRequest(
@@ -388,16 +392,16 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             location,
             respond,
             logger,
-            latestSuccessfulLeaderCheckerTimeSupplier,
-            latestLeaderCheckThreshold
+            latestSuccessfulFollowersCheckerTimeSupplier,
+            latestFollowersCheckerThreshold
         );
     }
 
     private static class AsyncAfterShardBulkAction extends AsyncAfterWriteAction {
 
         private final IndexShard indexShard;
-        private final LongSupplier latestSuccessfulLeaderCheckerTimeSupplier;
-        private final TimeValue leaderCheckerTimeThreshold;
+        private final LongSupplier latestSuccessfulFollowersCheckerTimeSupplier;
+        private final TimeValue followersCheckerTimeThreshold;
 
         public AsyncAfterShardBulkAction(
             final IndexShard indexShard,
@@ -405,24 +409,20 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             @Nullable final Translog.Location location,
             final RespondingWriteResult respond,
             final Logger logger,
-            final LongSupplier latestSuccessfulLeaderCheckerTimeSupplier,
-            final TimeValue leaderCheckerTimeThreshold
+            final LongSupplier latestSuccessfulFollowersCheckerTimeSupplier,
+            final TimeValue followersCheckerTimeThreshold
         ) {
             super(indexShard, request, location, respond, logger);
             this.indexShard = indexShard;
-            this.latestSuccessfulLeaderCheckerTimeSupplier = latestSuccessfulLeaderCheckerTimeSupplier;
-            this.leaderCheckerTimeThreshold = leaderCheckerTimeThreshold;
+            this.latestSuccessfulFollowersCheckerTimeSupplier = latestSuccessfulFollowersCheckerTimeSupplier;
+            this.followersCheckerTimeThreshold = followersCheckerTimeThreshold;
         }
 
         @Override
         protected void finishOnNoPendingOps() {
             if (indexShard.isRemoteTranslogEnabled() && elapsedTimeSinceLatestSuccessfulLeaderCheckBeforeThreshold()) {
                 respond.onFailure(
-                    new LeaderCheckerBeforeThresholdException(
-                        "Latest successful leader checker epoch time is {} while threshold is {}",
-                        latestSuccessfulLeaderCheckerTimeSupplier.getAsLong(),
-                        leaderCheckerTimeThreshold
-                    )
+                    new ClusterBlockException(Collections.singleton(NoClusterManagerBlockService.NO_CLUSTER_MANAGER_BLOCK_WRITES))
                 );
             } else {
                 super.finishOnNoPendingOps();
@@ -430,8 +430,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }
 
         private boolean elapsedTimeSinceLatestSuccessfulLeaderCheckBeforeThreshold() {
-            return System.currentTimeMillis() - latestSuccessfulLeaderCheckerTimeSupplier.getAsLong() >= leaderCheckerTimeThreshold
-                .getMillis();
+            return System.nanoTime() - latestSuccessfulFollowersCheckerTimeSupplier.getAsLong() >= followersCheckerTimeThreshold.getNanos();
         }
     }
 

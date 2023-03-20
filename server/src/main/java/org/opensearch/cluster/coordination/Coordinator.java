@@ -288,8 +288,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
         this.localNodeCommissioned = true;
     }
 
-    public long getLatestSuccessfulLeaderCheckerTime() {
-        return this.leaderChecker.getLatestSuccessfulTimeInMS();
+    public long getLatestSuccessfulFollowersCheckerTime() {
+        return this.followersChecker.getLatestSuccessfulTimeInNS();
     }
 
     private ClusterFormationState getClusterFormationState() {

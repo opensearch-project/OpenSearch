@@ -40,7 +40,6 @@ import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.TimestampParsingException;
-import org.opensearch.action.bulk.LeaderCheckerBeforeThresholdException;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.action.support.replication.ReplicationOperation;
@@ -879,7 +878,6 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(167, UnsupportedWeightedRoutingStateException.class);
         ids.put(168, PreferenceBasedSearchNotAllowedException.class);
         ids.put(169, NodeWeighedAwayException.class);
-        ids.put(170, LeaderCheckerBeforeThresholdException.class);
         ids.put(10001, IndexCreateBlockException.class);
 
         Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();

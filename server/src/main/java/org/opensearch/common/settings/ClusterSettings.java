@@ -52,7 +52,6 @@ import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
-import org.opensearch.action.bulk.TransportShardBulkAction;
 import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.DestructiveOperations;
@@ -631,10 +630,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SegmentReplicationPressureService.SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED,
                 SegmentReplicationPressureService.MAX_INDEXING_CHECKPOINTS,
                 SegmentReplicationPressureService.MAX_REPLICATION_TIME_SETTING,
-                SegmentReplicationPressureService.MAX_ALLOWED_STALE_SHARDS,
-
-                // For remote-backed indexes, fail request/shard if no successful leader check in last threshold time
-                TransportShardBulkAction.REMOTE_STORE_INDEX_LEADER_CHECK_TIME_THRESHOLD
+                SegmentReplicationPressureService.MAX_ALLOWED_STALE_SHARDS
             )
         )
     );

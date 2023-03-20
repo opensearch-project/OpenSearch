@@ -119,8 +119,6 @@ public class LeaderChecker {
 
     private AtomicReference<CheckScheduler> currentChecker = new AtomicReference<>();
 
-    private long latestSuccessfulTimeInMS = -1;
-
     private volatile DiscoveryNodes discoveryNodes;
 
     LeaderChecker(
@@ -235,10 +233,6 @@ public class LeaderChecker {
         }
     }
 
-    public long getLatestSuccessfulTimeInMS() {
-        return latestSuccessfulTimeInMS;
-    }
-
     /**
      * A check scheduler.
      *
@@ -270,7 +264,7 @@ public class LeaderChecker {
             }
 
             logger.trace("checking {} with [{}] = {}", leader, LEADER_CHECK_TIMEOUT_SETTING.getKey(), leaderCheckTimeout);
-            long leaderCheckRequestStartTime = System.currentTimeMillis();
+            long leaderCheckRequestStartTime = System.nanoTime();
 
             transportService.sendRequest(
                 leader,
@@ -292,7 +286,6 @@ public class LeaderChecker {
                             return;
                         }
 
-                        latestSuccessfulTimeInMS = leaderCheckRequestStartTime;
                         failureCountSinceLastSuccess.set(0);
                         scheduleNextWakeUp(); // logs trace message indicating success
                     }
