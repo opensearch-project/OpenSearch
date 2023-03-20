@@ -133,7 +133,11 @@ public class TranslogTransferManager {
         }
     }
 
-    public boolean downloadTranslog(String primaryTerm, String generation, Path location, boolean override) throws IOException {
+    public boolean downloadTranslog(String primaryTerm, String generation, Path location) throws IOException {
+        return downloadTranslog(primaryTerm, generation, location, false);
+    }
+
+    boolean downloadTranslog(String primaryTerm, String generation, Path location, boolean override) throws IOException {
         logger.info(
             "Downloading translog files with: Primary Term = {}, Generation = {}, Location = {}",
             primaryTerm,

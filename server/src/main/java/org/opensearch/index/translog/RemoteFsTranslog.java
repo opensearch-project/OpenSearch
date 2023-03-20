@@ -30,14 +30,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 
 /**
  * A Translog implementation which syncs local FS with a remote store
@@ -130,7 +128,7 @@ public class RemoteFsTranslog extends Translog {
             Map<String, String> generationToPrimaryTermMapper = translogMetadata.getGenerationToPrimaryTermMapper();
             for (long i = translogMetadata.getGeneration(); i >= translogMetadata.getMinTranslogGeneration(); i--) {
                 String generation = Long.toString(i);
-                translogTransferManager.downloadTranslog(generationToPrimaryTermMapper.get(generation), generation, location, false);
+                translogTransferManager.downloadTranslog(generationToPrimaryTermMapper.get(generation), generation, location);
             }
             if (Files.exists(location.resolve(Translog.CHECKPOINT_FILE_NAME))) {
                 Files.delete(location.resolve(Translog.CHECKPOINT_FILE_NAME));
@@ -146,23 +144,21 @@ public class RemoteFsTranslog extends Translog {
 
     private static void deleteTranslogFilesNotUploaded(Path location, long uploadedGeneration) throws IOException {
         // Delete translog files with generation > translogMetadata.getGeneration()
-        List<Long> generationsNotUploaded = Arrays.stream(FileSystemUtils.files(location))
+        Arrays.stream(FileSystemUtils.files(location))
             .map(filePath -> filePath.getFileName().toString())
             .filter(filename -> filename.endsWith(TRANSLOG_FILE_SUFFIX))
-            .map(filename -> {
-                long generation = Long.parseLong(
+            .map(
+                filename -> Long.parseLong(
                     filename.substring(TRANSLOG_FILE_PREFIX.length(), filename.length() - TRANSLOG_FILE_SUFFIX.length())
-                );
-                return generation > uploadedGeneration ? generation : -1;
-            })
-            .filter(generation -> generation > -1)
-            .collect(Collectors.toList());
-        for (Long generation : generationsNotUploaded) {
-            Path checkpointFileName = location.resolve(Translog.getCommitCheckpointFileName(generation));
-            Path translogFileName = location.resolve(Translog.getFilename(generation));
-            Files.deleteIfExists(checkpointFileName);
-            Files.deleteIfExists(translogFileName);
-        }
+                )
+            )
+            .filter(generation -> generation > uploadedGeneration)
+            .forEach(
+                generation -> IOUtils.deleteFilesIgnoringExceptions(
+                    location.resolve(Translog.getCommitCheckpointFileName(generation)),
+                    location.resolve(Translog.getFilename(generation))
+                )
+            );
     }
 
     public static TranslogTransferManager buildTranslogTransferManager(
