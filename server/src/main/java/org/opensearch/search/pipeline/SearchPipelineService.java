@@ -120,7 +120,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             Map<String, Processor.Factory> newProcessors = searchPipelinePlugin.getProcessors(parameters);
             for (Map.Entry<String, Processor.Factory> entry : newProcessors.entrySet()) {
                 if (processorFactories.put(entry.getKey(), entry.getValue()) != null) {
-                    throw new IllegalArgumentException("Ingest processor [" + entry.getKey() + "] is already registered");
+                    throw new IllegalArgumentException("Search processor [" + entry.getKey() + "] is already registered");
                 }
             }
         }
