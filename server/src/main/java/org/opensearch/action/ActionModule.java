@@ -1021,7 +1021,7 @@ public class ActionModule extends AbstractModule {
             String name = extensionAction.name();
             String uniqueId = extensionAction.uniqueId();
             if (registry.containsKey(extensionAction)) {
-                throw new IllegalArgumentException("extension [" + uniqueId + "] action for [" + name + "] already registered");
+                throw new IllegalArgumentException("extension [" + uniqueId + "] action [" + name + "] already registered");
             }
             registry.put(extensionAction, new ExtensionTransportAction(name, actionFilters, transportService, extensionsManager));
         }
@@ -1036,7 +1036,7 @@ public class ActionModule extends AbstractModule {
             String name = extensionAction.name();
             String uniqueId = extensionAction.uniqueId();
             if (registry.remove(extensionAction) == null) {
-                throw new IllegalArgumentException("extension [" + uniqueId + "] action for [" + name + "] was not registered");
+                throw new IllegalArgumentException("extension [" + uniqueId + "] action [" + name + "] was not registered");
             }
         }
 

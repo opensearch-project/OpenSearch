@@ -309,7 +309,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
             IllegalArgumentException.class,
             () -> dynamicActionRegistry.registerExtensionAction(testExtensionAction)
         );
-        assertEquals("extension [actionName] action for [extensionId] already registered", ex.getMessage());
+        assertEquals("extension [extensionId] action [actionName] already registered", ex.getMessage());
         // Should remove without problem
         try {
             dynamicActionRegistry.unregisterExtensionAction(testExtensionAction);
@@ -321,7 +321,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
 
         // Should fail removing twice
         ex = assertThrows(IllegalArgumentException.class, () -> dynamicActionRegistry.unregisterExtensionAction(testExtensionAction));
-        assertEquals("extension [actionName] action for [extensionId] was not registered", ex.getMessage());
+        assertEquals("extension [extensionId] action [actionName] was not registered", ex.getMessage());
     }
 
     private static final class TestAction extends ActionType<ActionResponse> {
