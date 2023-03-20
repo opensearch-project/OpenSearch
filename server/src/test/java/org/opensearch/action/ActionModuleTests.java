@@ -291,7 +291,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
         assertNull(dynamicActionRegistry.get(MainAction.INSTANCE));
 
         // ExtensionsAction not yet registered
-        ExtensionAction testExtensionAction = new ExtensionAction("actionName", "extensionId");
+        ExtensionAction testExtensionAction = new ExtensionAction("extensionId", "actionName");
         assertNull(dynamicActionRegistry.get(testExtensionAction));
 
         // Register an extension action

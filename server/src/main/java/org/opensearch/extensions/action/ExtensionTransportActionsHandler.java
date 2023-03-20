@@ -73,7 +73,7 @@ public class ExtensionTransportActionsHandler {
             throw new IllegalArgumentException("The action [" + action + "] you are trying to register is already registered");
         }
         // Register the action in the action module's extension actions map
-        dynamicActionRegistry.registerExtensionAction(new ExtensionAction(action, uniqueId));
+        dynamicActionRegistry.registerExtensionAction(new ExtensionAction(uniqueId, action));
     }
 
     /**
