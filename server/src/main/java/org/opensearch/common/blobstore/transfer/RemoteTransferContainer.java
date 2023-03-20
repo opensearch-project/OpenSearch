@@ -35,7 +35,6 @@ import java.util.zip.CheckedInputStream;
 
 public class RemoteTransferContainer implements Closeable {
 
-
     private Path localFile;
     private Directory directory;
     private IOContext ioContext;
@@ -216,6 +215,7 @@ public class RemoteTransferContainer implements Closeable {
     @Override
     public void close() throws IOException {
         if (inputStreams.get() == null) {
+            log.warn("Input streams cannot be closed since they are not yet set for multi stream upload");
             return;
         }
 
