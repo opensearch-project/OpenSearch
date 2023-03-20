@@ -1525,6 +1525,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         if (this.routingEntry().primary()) {
             logger.warn("Shard routing is marked primary thus cannot perform segment replication as replica");
+            return false;
         }
         if (state().equals(IndexShardState.STARTED) == false
             && (state() == IndexShardState.POST_RECOVERY && shardRouting.state() == ShardRoutingState.INITIALIZING) == false) {
