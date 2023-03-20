@@ -124,8 +124,7 @@ public class TranslogTransferManager {
                 throw ex;
             }
             if (exceptionList.isEmpty()) {
-                transferService.uploadBlob(prepareMetadata(transferSnapshot), remoteMetadataTransferPath,
-                    WritePriority.HIGH);
+                transferService.uploadBlob(prepareMetadata(transferSnapshot), remoteMetadataTransferPath, WritePriority.HIGH);
                 translogTransferListener.onUploadComplete(transferSnapshot);
                 return true;
             } else {

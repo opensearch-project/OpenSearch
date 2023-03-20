@@ -12,14 +12,13 @@ public class ChecksumUtils {
 
     private static final int GF2_DIM = 32;
 
-    public static long combine(long crc1, long crc2, long len2){
+    public static long combine(long crc1, long crc2, long len2) {
         long row;
         long[] even = new long[GF2_DIM];
         long[] odd = new long[GF2_DIM];
 
         // degenerate case (also disallow negative lengths)
-        if (len2 <= 0)
-            return crc1;
+        if (len2 <= 0) return crc1;
 
         // put operator for one zero bit in odd
         odd[0] = 0xedb88320L;          // CRC-32 polynomial
@@ -40,18 +39,15 @@ public class ChecksumUtils {
         do {
             // apply zeros operator for this bit of len2
             gf2_matrix_square(even, odd);
-            if ((len2 & 1)!=0)
-                crc1 = gf2_matrix_times(even, crc1);
+            if ((len2 & 1) != 0) crc1 = gf2_matrix_times(even, crc1);
             len2 >>= 1;
 
             // if no more bits set, then done
-            if (len2 == 0)
-                break;
+            if (len2 == 0) break;
 
             // another iteration of the loop with odd and even swapped
             gf2_matrix_square(odd, even);
-            if ((len2 & 1)!=0)
-                crc1 = gf2_matrix_times(odd, crc1);
+            if ((len2 & 1) != 0) crc1 = gf2_matrix_times(odd, crc1);
             len2 >>= 1;
 
             // if no more bits set, then done
@@ -62,12 +58,11 @@ public class ChecksumUtils {
         return crc1;
     }
 
-    private static long gf2_matrix_times(long[] mat, long vec){
+    private static long gf2_matrix_times(long[] mat, long vec) {
         long sum = 0;
         int index = 0;
-        while (vec!=0) {
-            if ((vec & 1)!=0)
-                sum ^= mat[index];
+        while (vec != 0) {
+            if ((vec & 1) != 0) sum ^= mat[index];
             vec >>= 1;
             index++;
         }

@@ -22,11 +22,7 @@ public class TransferManagerUtilsTests extends OpenSearchTestCase {
         TransferManagerConfiguration transferManagerConfiguration = new TransferManagerConfiguration();
         transferManagerConfiguration.setMinimumUploadPartSize(configurationPartSizeSetting);
 
-        long optimalPartSize = TransferManagerUtils.getOptimalPartSize(
-            contentLength,
-            transferManagerConfiguration,
-            minimumPartSizeSetting
-        );
+        long optimalPartSize = TransferManagerUtils.getOptimalPartSize(contentLength, transferManagerConfiguration, minimumPartSizeSetting);
 
         assertEquals(configurationPartSizeSetting, optimalPartSize);
     }
@@ -39,11 +35,7 @@ public class TransferManagerUtilsTests extends OpenSearchTestCase {
         TransferManagerConfiguration transferManagerConfiguration = new TransferManagerConfiguration();
         transferManagerConfiguration.setMinimumUploadPartSize(configurationPartSizeSetting);
 
-        long optimalPartSize = TransferManagerUtils.getOptimalPartSize(
-            contentLength,
-            transferManagerConfiguration,
-            minimumPartSizeSetting
-        );
+        long optimalPartSize = TransferManagerUtils.getOptimalPartSize(contentLength, transferManagerConfiguration, minimumPartSizeSetting);
 
         assertEquals(minimumPartSizeSetting, optimalPartSize);
     }
@@ -57,11 +49,7 @@ public class TransferManagerUtilsTests extends OpenSearchTestCase {
         transferManagerConfiguration.setMinimumUploadPartSize(configurationPartSizeSetting);
         transferManagerConfiguration.setMultipartUploadThreshold(ByteSizeUnit.MB.toBytes(16));
 
-        long optimalPartSize = TransferManagerUtils.getOptimalPartSize(
-            contentLength,
-            transferManagerConfiguration,
-            minimumPartSizeSetting
-        );
+        long optimalPartSize = TransferManagerUtils.getOptimalPartSize(contentLength, transferManagerConfiguration, minimumPartSizeSetting);
 
         assertEquals(contentLength, optimalPartSize);
     }

@@ -23,7 +23,6 @@
 
 package org.opensearch.repositories.s3.multipart.transfer;
 
-
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.event.ProgressListenerChain;
@@ -41,8 +40,12 @@ import java.util.concurrent.Future;
 
 public class UploadImpl extends AbstractTransfer implements Upload {
 
-    public UploadImpl(String description, TransferProgress transferProgressInternalState,
-                      ProgressListenerChain progressListenerChain, TransferStateChangeListener listener) {
+    public UploadImpl(
+        String description,
+        TransferProgress transferProgressInternalState,
+        ProgressListenerChain progressListenerChain,
+        TransferStateChangeListener listener
+    ) {
         super(description, transferProgressInternalState, progressListenerChain, listener);
     }
 
@@ -64,13 +67,12 @@ public class UploadImpl extends AbstractTransfer implements Upload {
      *             If this thread is interrupted while waiting for the upload to
      *             complete.
      */
-    public UploadResult waitForUploadResult()
-        throws AmazonClientException, AmazonServiceException, InterruptedException {
+    public UploadResult waitForUploadResult() throws AmazonClientException, AmazonServiceException, InterruptedException {
         try {
             UploadResult result = null;
             while (!monitor.isDone() || result == null) {
                 Future<?> f = monitor.getFuture();
-                result = (UploadResult)f.get();
+                result = (UploadResult) f.get();
             }
             return result;
         } catch (ExecutionException e) {
@@ -97,8 +99,7 @@ public class UploadImpl extends AbstractTransfer implements Upload {
      * Tries to pause and return the information required to resume the upload
      * operation.
      */
-    private PauseResult<PersistableUpload> pause(
-        final boolean forceCancelTransfers) throws AmazonClientException {
+    private PauseResult<PersistableUpload> pause(final boolean forceCancelTransfers) throws AmazonClientException {
         UploadMonitor uploadMonitor = (UploadMonitor) monitor;
         return uploadMonitor.pause(forceCancelTransfers);
     }

@@ -68,8 +68,7 @@ public class UploadPartRequestFactory {
 
     // Note: Do not copy object metadata from PutObjectRequest to the UploadPartRequest
     // as headers "like x-amz-server-side-encryption" are valid in PutObject but not in UploadPart API
-    public UploadPartRequestFactory(PutObjectRequest origReq, String uploadId,
-                                    Stream[] inputStreams, long multiStreamsContentLength) {
+    public UploadPartRequestFactory(PutObjectRequest origReq, String uploadId, Stream[] inputStreams, long multiStreamsContentLength) {
         this.origReq = origReq;
         this.uploadId = uploadId;
         this.bucketName = origReq.getBucketName();
@@ -85,35 +84,37 @@ public class UploadPartRequestFactory {
     }
 
     public Stream getStreamContainer(int partNumber) {
-        return inputStreams[partNumber-1];
+        return inputStreams[partNumber - 1];
     }
 
     public synchronized UploadPartRequest getNextUploadPartRequest() {
         long partSize = inputStreams[multiStreamUploadIndex.get()].getContentLength();
-        int partNumber = multiStreamUploadIndex.get()+1;
+        int partNumber = multiStreamUploadIndex.get() + 1;
 
-        UploadPartRequest req = addCredentialsToRequest(new UploadPartRequest()
-            .withBucketName(bucketName)
-            .withKey(key)
-            .withUploadId(uploadId)
-            .withInputStream(getStreamContainer(partNumber).getInputStream())
-            .withPartNumber(partNumber)
-            .withPartSize(partSize));
-
+        UploadPartRequest req = addCredentialsToRequest(
+            new UploadPartRequest().withBucketName(bucketName)
+                .withKey(key)
+                .withUploadId(uploadId)
+                .withInputStream(getStreamContainer(partNumber).getInputStream())
+                .withPartNumber(partNumber)
+                .withPartSize(partSize)
+        );
 
         multiStreamUploadIndex.incrementAndGet();
 
         // Copying the SSE-C metadata if it's using SSE-C, which is required for each UploadPart Request.
         // See https://docs.aws.amazon.com/AmazonS3/latest/API/mpUploadUploadPart.html, https://github.com/aws/aws-sdk-java/issues/1840
         ObjectMetadata origReqMetadata = origReq.getMetadata();
-        if (origReqMetadata != null &&
-            origReqMetadata.getRawMetadataValue(SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY) != null &&
-            origReqMetadata.getSSECustomerAlgorithm() != null &&
-            origReqMetadata.getSSECustomerKeyMd5() != null) {
+        if (origReqMetadata != null
+            && origReqMetadata.getRawMetadataValue(SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY) != null
+            && origReqMetadata.getSSECustomerAlgorithm() != null
+            && origReqMetadata.getSSECustomerKeyMd5() != null) {
 
             ObjectMetadata metadata = new ObjectMetadata();
-            metadata.setHeader(SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY,
-                origReqMetadata.getRawMetadataValue(SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY));
+            metadata.setHeader(
+                SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY,
+                origReqMetadata.getRawMetadataValue(SERVER_SIDE_ENCRYPTION_CUSTOMER_KEY)
+            );
             metadata.setSSECustomerAlgorithm(origReqMetadata.getSSECustomerAlgorithm());
             metadata.setSSECustomerKeyMd5(origReqMetadata.getSSECustomerKeyMd5());
 
@@ -130,8 +131,7 @@ public class UploadPartRequestFactory {
         req.setLastPart(TransferManagerUtils.isLastPart(multiStreamUploadIndex.get(), inputStreams));
 
         req.withGeneralProgressListener(origReq.getGeneralProgressListener())
-            .withRequestMetricCollector(origReq.getRequestMetricCollector())
-        ;
+            .withRequestMetricCollector(origReq.getRequestMetricCollector());
         req.getRequestClientOptions().setReadLimit(origReq.getReadLimit());
         return req;
     }

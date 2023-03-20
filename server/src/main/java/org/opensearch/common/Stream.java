@@ -11,7 +11,6 @@ package org.opensearch.common;
 import java.io.InputStream;
 import java.util.function.Supplier;
 
-
 /**
  * ABCDE
  *

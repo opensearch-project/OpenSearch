@@ -79,12 +79,15 @@ public class UploadPartCallable implements Callable<PartETag> {
             PartETag partETag = SocketAccess.doPrivileged(() -> s3.uploadPart(request).getPartETag());
             return partETag;
         } catch (Exception e) {
-            log.error("Failed UploadPartCallable for file {}, part number {}, part size {}",
-                fileName, request.getPartNumber(), request.getPartSize());
+            log.error(
+                "Failed UploadPartCallable for file {}, part number {}, part size {}",
+                fileName,
+                request.getPartNumber(),
+                request.getPartSize()
+            );
             throw e;
         }
     }
-
 
     private String computedMd5() {
         FileInputStream fileStream = null;
@@ -98,8 +101,7 @@ public class UploadPartCallable implements Callable<PartETag> {
             if (fileStream != null) {
                 try {
                     fileStream.close();
-                } catch (IOException ignored) {
-                }
+                } catch (IOException ignored) {}
             }
         }
     }
@@ -123,8 +125,9 @@ public class UploadPartCallable implements Callable<PartETag> {
             skippedSoFar += fs.skip(n - skippedSoFar);
         }
         if (skippedSoFar != n) {
-            throw new SdkClientException(String.format("Unable to skip to offset %d in file %s after %d attempts",
-                n, request.getFile().getAbsolutePath(), MAX_SKIPS));
+            throw new SdkClientException(
+                String.format("Unable to skip to offset %d in file %s after %d attempts", n, request.getFile().getAbsolutePath(), MAX_SKIPS)
+            );
         }
     }
 }

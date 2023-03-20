@@ -84,11 +84,13 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
                     assertEquals(transferFileSnapshot.getName(), fileSnapshot.getName());
                 }
 
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError("Failed to perform uploadBlobAsync", e);
-            }
-        }, latch), WritePriority.HIGH);
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError("Failed to perform uploadBlobAsync", e);
+                }
+            }, latch),
+            WritePriority.HIGH
+        );
         assertTrue(latch.await(1000, TimeUnit.MILLISECONDS));
         assertTrue(succeeded.get());
     }

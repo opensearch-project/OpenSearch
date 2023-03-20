@@ -61,24 +61,33 @@ public class MultipartTransferManager extends TransferManager implements Closeab
     private final ExecutorService priorityRemoteUploadExecutor;
     private final ExecutorService remoteUploadExecutor;
 
-    public MultipartTransferManager(TransferManagerBuilder builder, ExecutorService priorityRemoteUploadExecutor,
-        ExecutorService remoteUploadExecutor) {
+    public MultipartTransferManager(
+        TransferManagerBuilder builder,
+        ExecutorService priorityRemoteUploadExecutor,
+        ExecutorService remoteUploadExecutor
+    ) {
         super(builder);
         this.priorityRemoteUploadExecutor = priorityRemoteUploadExecutor;
         this.remoteUploadExecutor = remoteUploadExecutor;
         this.s3 = builder.getS3Client();
     }
 
-    public Upload upload(final String bucketName, final String blobName, final TransferStateChangeListener stateListener,
-                         final S3ProgressListener progressListener, StreamContext streamContext, ObjectTagging tagging,
-                         final WritePriority writePriority)
-        throws AmazonClientException, IOException {
+    public Upload upload(
+        final String bucketName,
+        final String blobName,
+        final TransferStateChangeListener stateListener,
+        final S3ProgressListener progressListener,
+        StreamContext streamContext,
+        ObjectTagging tagging,
+        final WritePriority writePriority
+    ) throws AmazonClientException, IOException {
 
         ObjectMetadata objectMetadata = new ObjectMetadata();
         objectMetadata.setContentLength(streamContext.getTotalContentLength());
         objectMetadata.setContentType(Mimetypes.getInstance().getMimetype(blobName));
-        PutObjectRequest putObjectRequest = new PutObjectRequest(bucketName, blobName, null, objectMetadata)
-            .withCannedAcl(CannedAccessControlList.BucketOwnerFullControl);
+        PutObjectRequest putObjectRequest = new PutObjectRequest(bucketName, blobName, null, objectMetadata).withCannedAcl(
+            CannedAccessControlList.BucketOwnerFullControl
+        );
 
         if (putObjectRequest.getMetadata() == null) {
             putObjectRequest.setMetadata(new ObjectMetadata());
@@ -87,14 +96,15 @@ public class MultipartTransferManager extends TransferManager implements Closeab
         putObjectRequest.getRequestClientOptions().setReadLimit((int) ByteSizeUnit.KB.toBytes(10));
         putObjectRequest.setTagging(tagging);
 
-        String description = "Uploading to " + putObjectRequest.getBucketName()
-            + "/" + putObjectRequest.getKey();
+        String description = "Uploading to " + putObjectRequest.getBucketName() + "/" + putObjectRequest.getKey();
         TransferProgress transferProgress = new TransferProgress();
         transferProgress.setTotalBytesToTransfer(streamContext.getTotalContentLength());
 
         S3ProgressListenerChain listenerChain = new S3ProgressListenerChain(
             new TransferProgressUpdatingListener(transferProgress),
-            putObjectRequest.getGeneralProgressListener(), progressListener);
+            putObjectRequest.getGeneralProgressListener(),
+            progressListener
+        );
 
         putObjectRequest.setGeneralProgressListener(listenerChain);
 
@@ -106,14 +116,21 @@ public class MultipartTransferManager extends TransferManager implements Closeab
          * multiple parallel uploads submitted. This may result in a delay for
          * processing the complete multi part upload request.
          */
-        Stream[] uploadStreams = null;
-        ExecutorService executorService = WritePriority.HIGH == writePriority ? priorityRemoteUploadExecutor :
-            remoteUploadExecutor;
-        UploadCallable uploadCallable = new UploadCallable(this, executorService,
-            upload, putObjectRequest, listenerChain, null, transferProgress,
-            streamContext.getTotalContentLength(), uploadStreams, blobName);
-        UploadMonitor watcher = UploadMonitor.create(this, upload, executorService,
-            uploadCallable, putObjectRequest, listenerChain);
+        Stream[] uploadStreams = streamContext.getStreamSuppliers().stream().map(Supplier::get).toArray(Stream[]::new);
+        ExecutorService executorService = WritePriority.HIGH == writePriority ? priorityRemoteUploadExecutor : remoteUploadExecutor;
+        UploadCallable uploadCallable = new UploadCallable(
+            this,
+            executorService,
+            upload,
+            putObjectRequest,
+            listenerChain,
+            null,
+            transferProgress,
+            streamContext.getTotalContentLength(),
+            uploadStreams,
+            blobName
+        );
+        UploadMonitor watcher = UploadMonitor.create(this, upload, executorService, uploadCallable, putObjectRequest, listenerChain);
         upload.setMonitor(watcher);
 
         return upload;

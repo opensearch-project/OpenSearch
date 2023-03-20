@@ -61,8 +61,7 @@ public interface TransferService {
      * @param writePriority Priority by which content needs to be written.
      * @throws IOException the exception while transferring the data
      */
-    void uploadBlob(final TransferFileSnapshot fileSnapshot, Iterable<String> remotePath, WritePriority writePriority)
-        throws IOException;
+    void uploadBlob(final TransferFileSnapshot fileSnapshot, Iterable<String> remotePath, WritePriority writePriority) throws IOException;
 
     void deleteBlobs(Iterable<String> path, List<String> fileNames) throws IOException;
 

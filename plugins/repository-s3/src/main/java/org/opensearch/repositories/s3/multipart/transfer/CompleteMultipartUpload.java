@@ -23,8 +23,6 @@
 
 package org.opensearch.repositories.s3.multipart.transfer;
 
-
-
 import com.amazonaws.SdkClientException;
 import com.amazonaws.event.ProgressEventType;
 import com.amazonaws.event.ProgressListenerChain;
@@ -78,10 +76,15 @@ public class CompleteMultipartUpload implements Callable<UploadResult> {
     /** The listener where progress of the upload needs to be published. */
     private final ProgressListenerChain listener;
 
-    public CompleteMultipartUpload(String uploadId, AmazonS3 s3,
-                                   PutObjectRequest putObjectRequest, List<Future<PartETag>> futures,
-                                   List<PartETag> eTagsBeforeResume, ProgressListenerChain progressListenerChain,
-                                   UploadMonitor monitor) {
+    public CompleteMultipartUpload(
+        String uploadId,
+        AmazonS3 s3,
+        PutObjectRequest putObjectRequest,
+        List<Future<PartETag>> futures,
+        List<PartETag> eTagsBeforeResume,
+        ProgressListenerChain progressListenerChain,
+        UploadMonitor monitor
+    ) {
         this.uploadId = uploadId;
         this.s3 = s3;
         this.origReq = putObjectRequest;
@@ -97,9 +100,11 @@ public class CompleteMultipartUpload implements Callable<UploadResult> {
 
         try {
             CompleteMultipartUploadRequest req = new CompleteMultipartUploadRequest(
-                origReq.getBucketName(), origReq.getKey(), uploadId,
-                collectPartETags())
-                .withRequesterPays(origReq.isRequesterPays())
+                origReq.getBucketName(),
+                origReq.getKey(),
+                uploadId,
+                collectPartETags()
+            ).withRequesterPays(origReq.isRequesterPays())
                 .withGeneralProgressListener(origReq.getGeneralProgressListener())
                 .withRequestMetricCollector(origReq.getRequestMetricCollector())
                 .withRequestCredentialsProvider(origReq.getRequestCredentialsProvider());
@@ -114,8 +119,7 @@ public class CompleteMultipartUpload implements Callable<UploadResult> {
         }
 
         UploadResult uploadResult = new UploadResult();
-        uploadResult.setBucketName(origReq
-            .getBucketName());
+        uploadResult.setBucketName(origReq.getBucketName());
         uploadResult.setKey(origReq.getKey());
         uploadResult.setETag(res.getETag());
         uploadResult.setVersionId(res.getVersionId());
@@ -139,8 +143,9 @@ public class CompleteMultipartUpload implements Callable<UploadResult> {
                 partETags.add(future.get());
             } catch (Exception e) {
                 throw new SdkClientException(
-                    "Unable to complete multi-part upload. Individual part upload failed : "
-                        + e.getCause().getMessage(), e.getCause());
+                    "Unable to complete multi-part upload. Individual part upload failed : " + e.getCause().getMessage(),
+                    e.getCause()
+                );
 
             }
         }

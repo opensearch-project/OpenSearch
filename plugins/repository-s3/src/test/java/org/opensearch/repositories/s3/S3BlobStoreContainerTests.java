@@ -187,15 +187,17 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final MultipartTransferManager multipartTransferManager = mock(MultipartTransferManager.class);
         when(multipartTransferManager.getConfiguration()).thenReturn(new TransferManagerConfiguration());
-        when(multipartTransferManager.upload(
-            anyString(),
-            anyString(),
-            isNull(),
-            isNull(),
-            any(StreamContext.class),
-            isNull(),
-            any(WritePriority.class)
-        )).thenReturn(upload);
+        when(
+            multipartTransferManager.upload(
+                anyString(),
+                anyString(),
+                isNull(),
+                isNull(),
+                any(StreamContext.class),
+                isNull(),
+                any(WritePriority.class)
+            )
+        ).thenReturn(upload);
         when(blobStore.getMultipartTransferManager()).thenReturn(multipartTransferManager);
 
         final StreamContext streamContext = mock(StreamContext.class);
@@ -205,14 +207,9 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final UploadFinalizer uploadFinalizer = mock(UploadFinalizer.class);
         doNothing().when(uploadFinalizer).accept(anyBoolean());
 
-        blobContainer.writeStreams(new WriteContext(
-            blobName,
-            streamContextSupplier,
-            blobSize,
-            true,
-            WritePriority.NORMAL,
-            uploadFinalizer
-        ));
+        blobContainer.writeStreams(
+            new WriteContext(blobName, streamContextSupplier, blobSize, true, WritePriority.NORMAL, uploadFinalizer)
+        );
 
         verify(uploadFinalizer, times(1)).accept(true);
     }
@@ -240,15 +237,17 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final MultipartTransferManager multipartTransferManager = mock(MultipartTransferManager.class);
         when(multipartTransferManager.getConfiguration()).thenReturn(new TransferManagerConfiguration());
-        when(multipartTransferManager.upload(
-            anyString(),
-            anyString(),
-            isNull(),
-            isNull(),
-            any(StreamContext.class),
-            isNull(),
-            any(WritePriority.class)
-        )).thenThrow(new IOException());
+        when(
+            multipartTransferManager.upload(
+                anyString(),
+                anyString(),
+                isNull(),
+                isNull(),
+                any(StreamContext.class),
+                isNull(),
+                any(WritePriority.class)
+            )
+        ).thenThrow(new IOException());
         when(blobStore.getMultipartTransferManager()).thenReturn(multipartTransferManager);
 
         final StreamContext streamContext = mock(StreamContext.class);
@@ -258,14 +257,12 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final UploadFinalizer uploadFinalizer = mock(UploadFinalizer.class);
         doNothing().when(uploadFinalizer).accept(anyBoolean());
 
-        assertThrows(IOException.class, () -> blobContainer.writeStreams(new WriteContext(
-            blobName,
-            streamContextSupplier,
-            blobSize,
-            true,
-            WritePriority.NORMAL,
-            uploadFinalizer
-        )));
+        assertThrows(
+            IOException.class,
+            () -> blobContainer.writeStreams(
+                new WriteContext(blobName, streamContextSupplier, blobSize, true, WritePriority.NORMAL, uploadFinalizer)
+            )
+        );
 
         verify(uploadFinalizer, times(1)).accept(false);
     }
@@ -293,15 +290,17 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final MultipartTransferManager multipartTransferManager = mock(MultipartTransferManager.class);
         when(multipartTransferManager.getConfiguration()).thenReturn(new TransferManagerConfiguration());
-        when(multipartTransferManager.upload(
-            anyString(),
-            anyString(),
-            isNull(),
-            isNull(),
-            any(StreamContext.class),
-            isNull(),
-            any(WritePriority.class)
-        )).thenReturn(upload);
+        when(
+            multipartTransferManager.upload(
+                anyString(),
+                anyString(),
+                isNull(),
+                isNull(),
+                any(StreamContext.class),
+                isNull(),
+                any(WritePriority.class)
+            )
+        ).thenReturn(upload);
         when(blobStore.getMultipartTransferManager()).thenReturn(multipartTransferManager);
 
         final StreamContext streamContext = mock(StreamContext.class);
@@ -311,14 +310,12 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final UploadFinalizer uploadFinalizer = mock(UploadFinalizer.class);
         doNothing().when(uploadFinalizer).accept(anyBoolean());
 
-        assertThrows(IOException.class, () -> blobContainer.writeStreams(new WriteContext(
-            blobName,
-            streamContextSupplier,
-            blobSize,
-            true,
-            WritePriority.NORMAL,
-            uploadFinalizer
-        )));
+        assertThrows(
+            IOException.class,
+            () -> blobContainer.writeStreams(
+                new WriteContext(blobName, streamContextSupplier, blobSize, true, WritePriority.NORMAL, uploadFinalizer)
+            )
+        );
 
         verify(uploadFinalizer, times(1)).accept(false);
     }

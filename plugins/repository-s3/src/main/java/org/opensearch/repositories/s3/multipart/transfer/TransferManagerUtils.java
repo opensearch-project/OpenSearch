@@ -22,8 +22,6 @@
 
 package org.opensearch.repositories.s3.multipart.transfer;
 
-
-
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.transfer.PauseStatus;
 import com.amazonaws.services.s3.transfer.Transfer.TransferState;
@@ -36,7 +34,6 @@ import org.opensearch.common.SuppressForbidden;
 import java.io.File;
 
 import static com.amazonaws.services.s3.internal.Constants.MAXIMUM_UPLOAD_PARTS;
-import static com.amazonaws.services.s3.internal.Constants.MB;
 
 /**
  * Internal utilities for multipart uploads with TransferManager.
@@ -55,8 +52,7 @@ public class TransferManagerUtils {
      * @return True if this request can use parallel part uploads for faster
      * uploads.
      */
-    public static boolean isUploadParallelizable(final PutObjectRequest putObjectRequest,
-                                                 Stream[] inputStreams) {
+    public static boolean isUploadParallelizable(final PutObjectRequest putObjectRequest, Stream[] inputStreams) {
         // Each uploaded part in an encrypted upload depends on the encryption context
         // from the previous upload, so we cannot parallelize encrypted upload parts.
 
@@ -74,8 +70,7 @@ public class TransferManagerUtils {
      * @return True if the the specified request should be processed as a
      * multipart upload.
      */
-    public static boolean shouldUseMultipartUpload(long contentLength, TransferManagerConfiguration configuration,
-                                                   long partSize) {
+    public static boolean shouldUseMultipartUpload(long contentLength, TransferManagerConfiguration configuration, long partSize) {
         return contentLength != partSize;
     }
 
@@ -90,8 +85,7 @@ public class TransferManagerUtils {
     /**
      * Determines the pause status based on the current state of transfer.
      */
-    public static PauseStatus determinePauseStatus(TransferState transferState,
-                                                   boolean forceCancel) {
+    public static PauseStatus determinePauseStatus(TransferState transferState, boolean forceCancel) {
 
         if (forceCancel) {
             if (transferState == TransferState.Waiting) {
@@ -117,9 +111,7 @@ public class TransferManagerUtils {
     /**
      * Computes and returns the optimal part size for the upload.
      */
-    public static long getOptimalPartSize(long contentLength,
-                                          TransferManagerConfiguration configuration,
-                                          long minimumPartSizeSetting) {
+    public static long getOptimalPartSize(long contentLength, TransferManagerConfiguration configuration, long minimumPartSizeSetting) {
         if (contentLength <= configuration.getMultipartUploadThreshold()) {
             return contentLength;
         }

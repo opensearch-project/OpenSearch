@@ -23,7 +23,6 @@
 
 package org.opensearch.repositories.s3.multipart.transfer;
 
-
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.event.ProgressEventType;
@@ -67,8 +66,12 @@ public abstract class AbstractTransfer implements Transfer {
         this(description, transferProgress, progressListenerChain, null);
     }
 
-    AbstractTransfer(String description, TransferProgress transferProgress,
-                     ProgressListenerChain progressListenerChain, TransferStateChangeListener stateChangeListener) {
+    AbstractTransfer(
+        String description,
+        TransferProgress transferProgress,
+        ProgressListenerChain progressListenerChain,
+        TransferStateChangeListener stateChangeListener
+    ) {
         this.description = description;
         this.listenerChain = progressListenerChain;
         this.transferProgress = transferProgress;
@@ -83,9 +86,7 @@ public abstract class AbstractTransfer implements Transfer {
      *         failed, or was canceled).  Returns <code>false</code> if otherwise.
      */
     public final synchronized boolean isDone() {
-        return (state == TransferState.Failed ||
-            state == TransferState.Completed ||
-            state == TransferState.Canceled);
+        return (state == TransferState.Failed || state == TransferState.Completed || state == TransferState.Canceled);
     }
 
     /**
@@ -102,8 +103,7 @@ public abstract class AbstractTransfer implements Transfer {
      *             If this thread is interrupted while waiting for the transfer
      *             to complete.
      */
-    public void waitForCompletion()
-        throws AmazonClientException, AmazonServiceException, InterruptedException {
+    public void waitForCompletion() throws AmazonClientException, AmazonServiceException, InterruptedException {
         try {
             Object result = null;
             while (!monitor.isDone() || result == null) {
@@ -172,7 +172,7 @@ public abstract class AbstractTransfer implements Transfer {
         synchronized (this) {
             this.state = state;
         }
-        for ( TransferStateChangeListener listener : stateChangeListeners ) {
+        for (TransferStateChangeListener listener : stateChangeListeners) {
             listener.transferStateChanged(this, state);
         }
     }
@@ -181,7 +181,7 @@ public abstract class AbstractTransfer implements Transfer {
      * Notifies all the registered state change listeners of the state update.
      */
     public void notifyStateChangeListeners(TransferState state) {
-        for ( TransferStateChangeListener listener : stateChangeListeners ) {
+        for (TransferStateChangeListener listener : stateChangeListeners) {
             listener.transferStateChanged(this, state);
         }
     }
@@ -228,16 +228,14 @@ public abstract class AbstractTransfer implements Transfer {
      * Adds the given state change listener to the collection of listeners.
      */
     public synchronized void addStateChangeListener(TransferStateChangeListener listener) {
-        if ( listener != null )
-            stateChangeListeners.add(listener);
+        if (listener != null) stateChangeListeners.add(listener);
     }
 
     /**
      * Removes the given state change listener from the collection of listeners.
      */
     public synchronized void removeStateChangeListener(TransferStateChangeListener listener) {
-        if ( listener != null )
-            stateChangeListeners.remove(listener);
+        if (listener != null) stateChangeListeners.remove(listener);
     }
 
     /**

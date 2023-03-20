@@ -24,8 +24,7 @@ public class ExecutorContainer {
      * @param threadExecutor Function reference of an executor to delegate thread creation
      * @param executorShutdownSignal Signalling function for shutdown of an executor.
      */
-    public ExecutorContainer(BiFunction<Callable<?>, String, Future<?>> threadExecutor,
-                             Function<String, Boolean> executorShutdownSignal) {
+    public ExecutorContainer(BiFunction<Callable<?>, String, Future<?>> threadExecutor, Function<String, Boolean> executorShutdownSignal) {
         this.threadExecutor = threadExecutor;
         this.executorShutdownSignal = executorShutdownSignal;
     }
