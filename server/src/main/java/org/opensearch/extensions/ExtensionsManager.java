@@ -36,12 +36,14 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.transport.TransportAddress;
 
+import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.discovery.InitializeExtensionRequest;
 import org.opensearch.discovery.InitializeExtensionResponse;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
@@ -575,7 +577,7 @@ public class ExtensionsManager {
         }
     }
 
-    private ExtensionsSettings readFromExtensionsYml(Path filePath) throws IOException {
+    private ExtensionsSettings readFromExtensionsYml(Path filePath) throws IOException, ParsingException {
         Yaml yaml = new Yaml();
         try (InputStream inputStream = Files.newInputStream(filePath)) {
             Map<String, Object> obj = yaml.load(inputStream);
@@ -586,34 +588,57 @@ public class ExtensionsManager {
             List<HashMap<String, ?>> unreadExtensions = new ArrayList<>((Collection<HashMap<String, ?>>) obj.get("extensions"));
             List<Extension> readExtensions = new ArrayList<Extension>();
             for (HashMap<String, ?> extensionMap : unreadExtensions) {
-                // Parse extension dependencies
-                List<ExtensionDependency> extensionDependencyList = new ArrayList<ExtensionDependency>();
-                if (extensionMap.get("dependencies") != null) {
-                    List<HashMap<String, ?>> extensionDependencies = new ArrayList<>(
-                        (Collection<HashMap<String, ?>>) extensionMap.get("dependencies")
-                    );
-                    for (HashMap<String, ?> dependency : extensionDependencies) {
-                        extensionDependencyList.add(
-                            new ExtensionDependency(
-                                dependency.get("uniqueId").toString(),
-                                Version.fromString(dependency.get("version").toString())
-                            )
-                        );
+                try {
+                    // iterating the map to see whether any required field is missing
+                    String[] requiredFields = {
+                        "name",
+                        "uniqueId",
+                        "hostAddress",
+                        "port",
+                        "version",
+                        "opensearchVersion",
+                        "minimumCompatibleVersion" };
+                    for (String requireField : requiredFields) {
+                        if (!extensionMap.containsKey(requireField)) {
+                            throw new ParsingException(
+                                new XContentLocation(584, 10),
+                                "Extension : " + extensionMap.get("name") + " is missing this required field : " + requireField
+                            );
+                        }
                     }
+
+                    // Parse extension dependencies
+                    List<ExtensionDependency> extensionDependencyList = new ArrayList<ExtensionDependency>();
+                    if (extensionMap.get("dependencies") != null) {
+                        List<HashMap<String, ?>> extensionDependencies = new ArrayList<>(
+                            (Collection<HashMap<String, ?>>) extensionMap.get("dependencies")
+                        );
+                        for (HashMap<String, ?> dependency : extensionDependencies) {
+                            extensionDependencyList.add(
+                                new ExtensionDependency(
+                                    dependency.get("uniqueId").toString(),
+                                    Version.fromString(dependency.get("version").toString())
+                                )
+                            );
+                        }
+                    }
+
+                    // Create extension read from yml config
+                    readExtensions.add(
+                        new Extension(
+                            extensionMap.get("name").toString(),
+                            extensionMap.get("uniqueId").toString(),
+                            extensionMap.get("hostAddress").toString(),
+                            extensionMap.get("port").toString(),
+                            extensionMap.get("version").toString(),
+                            extensionMap.get("opensearchVersion").toString(),
+                            extensionMap.get("minimumCompatibleVersion").toString(),
+                            extensionDependencyList
+                        )
+                    );
+                } catch (ParsingException e) {
+                    logger.warn("Parsing extension has been failed because of following exception : " + e.getDetailedMessage());
                 }
-                // Create extension read from yml config
-                readExtensions.add(
-                    new Extension(
-                        extensionMap.get("name").toString(),
-                        extensionMap.get("uniqueId").toString(),
-                        extensionMap.get("hostAddress").toString(),
-                        extensionMap.get("port").toString(),
-                        extensionMap.get("version").toString(),
-                        extensionMap.get("opensearchVersion").toString(),
-                        extensionMap.get("minimumCompatibleVersion").toString(),
-                        extensionDependencyList
-                    )
-                );
             }
             inputStream.close();
             return new ExtensionsSettings(readExtensions);
