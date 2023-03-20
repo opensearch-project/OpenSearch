@@ -529,14 +529,9 @@ public class NodeJoinTests extends OpenSearchTestCase {
             )
         );
 
-        assertTrue(
-            MasterServiceTests.discoveryState(clusterManagerService)
-                .getVotingConfigExclusions()
-                .stream()
-                .anyMatch(
-                    exclusion -> { return "knownNodeName".equals(exclusion.getNodeName()) && "newNodeId".equals(exclusion.getNodeId()); }
-                )
-        );
+        assertTrue(MasterServiceTests.discoveryState(clusterManagerService).getVotingConfigExclusions().stream().anyMatch(exclusion -> {
+            return "knownNodeName".equals(exclusion.getNodeName()) && "newNodeId".equals(exclusion.getNodeId());
+        }));
     }
 
     private ClusterState buildStateWithVotingConfigExclusion(

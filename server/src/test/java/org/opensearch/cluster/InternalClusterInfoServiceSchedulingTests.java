@@ -94,7 +94,9 @@ public class InternalClusterInfoServiceSchedulingTests extends OpenSearchTestCas
             "test",
             "clusterManagerService",
             threadPool,
-            r -> { fail("cluster-manager service should not run any tasks"); }
+            r -> {
+                fail("cluster-manager service should not run any tasks");
+            }
         );
 
         final ClusterService clusterService = new ClusterService(settings, clusterSettings, clusterManagerService, clusterApplierService);

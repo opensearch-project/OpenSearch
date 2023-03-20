@@ -555,13 +555,8 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
 
         // Verify if all docs are present in replica after relocation, if new relocated primary doesn't flush after relocation the below
         // assert will fail.
-        assertBusy(
-            () -> {
-                assertHitCount(
-                    client(replicaNode).prepareSearch(INDEX_NAME).setPreference("_only_local").setSize(0).get(),
-                    initialDocCount
-                );
-            }
-        );
+        assertBusy(() -> {
+            assertHitCount(client(replicaNode).prepareSearch(INDEX_NAME).setPreference("_only_local").setSize(0).get(), initialDocCount);
+        });
     }
 }

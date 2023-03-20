@@ -91,11 +91,9 @@ public class RatedDocumentTests extends OpenSearchTestCase {
     }
 
     public void testEqualsAndHash() throws IOException {
-        checkEqualsAndHashCode(
-            createRatedDocument(),
-            original -> { return new RatedDocument(original.getIndex(), original.getDocID(), original.getRating()); },
-            RatedDocumentTests::mutateTestItem
-        );
+        checkEqualsAndHashCode(createRatedDocument(), original -> {
+            return new RatedDocument(original.getIndex(), original.getDocID(), original.getRating());
+        }, RatedDocumentTests::mutateTestItem);
     }
 
     private static RatedDocument mutateTestItem(RatedDocument original) {
