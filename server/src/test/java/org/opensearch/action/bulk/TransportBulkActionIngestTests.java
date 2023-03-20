@@ -302,11 +302,9 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
     public void testSingleItemBulkActionIngestSkipped() throws Exception {
         IndexRequest indexRequest = new IndexRequest("index").id("id");
         indexRequest.source(emptyMap());
-        singleItemBulkWriteAction.execute(
-            null,
-            indexRequest,
-            ActionListener.wrap(response -> {}, exception -> { throw new AssertionError(exception); })
-        );
+        singleItemBulkWriteAction.execute(null, indexRequest, ActionListener.wrap(response -> {}, exception -> {
+            throw new AssertionError(exception);
+        }));
         assertTrue(action.isExecuted);
         verifyNoInteractions(ingestService);
     }

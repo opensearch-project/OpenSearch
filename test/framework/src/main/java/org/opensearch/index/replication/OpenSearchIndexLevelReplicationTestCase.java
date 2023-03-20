@@ -237,7 +237,9 @@ public abstract class OpenSearchIndexLevelReplicationTestCase extends IndexShard
             (shardId, primaryAllocationId, primaryTerm, retentionLeases) -> syncRetentionLeases(
                 shardId,
                 retentionLeases,
-                ActionListener.wrap(r -> {}, e -> { throw new AssertionError("failed to background sync retention lease", e); })
+                ActionListener.wrap(r -> {}, e -> {
+                    throw new AssertionError("failed to background sync retention lease", e);
+                })
             )
         );
 

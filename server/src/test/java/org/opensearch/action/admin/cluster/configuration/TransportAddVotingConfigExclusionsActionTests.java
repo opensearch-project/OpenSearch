@@ -386,7 +386,9 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
                 Strings.EMPTY_ARRAY,
                 TimeValue.timeValueSeconds(30)
             ),
-            expectSuccess(e -> { countDownLatch.countDown(); })
+            expectSuccess(e -> {
+                countDownLatch.countDown();
+            })
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
@@ -430,7 +432,9 @@ public class TransportAddVotingConfigExclusionsActionTests extends OpenSearchTes
             localNode,
             AddVotingConfigExclusionsAction.NAME,
             new AddVotingConfigExclusionsRequest("absent_node"),
-            expectSuccess(e -> { countDownLatch.countDown(); })
+            expectSuccess(e -> {
+                countDownLatch.countDown();
+            })
         );
 
         assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));

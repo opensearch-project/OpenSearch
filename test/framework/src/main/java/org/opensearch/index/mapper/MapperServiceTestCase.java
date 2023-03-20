@@ -155,7 +155,9 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
             xContentRegistry(),
             similarityService,
             mapperRegistry,
-            () -> { throw new UnsupportedOperationException(); },
+            () -> {
+                throw new UnsupportedOperationException();
+            },
             () -> true,
             scriptService
         );
@@ -249,9 +251,9 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
             inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
         );
         when(queryShardContext.allowExpensiveQueries()).thenReturn(true);
-        when(queryShardContext.lookup()).thenReturn(
-            new SearchLookup(mapperService, (ft, s) -> { throw new UnsupportedOperationException("search lookup not available"); })
-        );
+        when(queryShardContext.lookup()).thenReturn(new SearchLookup(mapperService, (ft, s) -> {
+            throw new UnsupportedOperationException("search lookup not available");
+        }));
         return queryShardContext;
     }
 }

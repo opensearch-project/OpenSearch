@@ -98,7 +98,9 @@ public class TranslogListenerTests extends OpenSearchTestCase {
         TranslogEventListener throwingListener = (TranslogEventListener) Proxy.newProxyInstance(
             TranslogEventListener.class.getClassLoader(),
             new Class[] { TranslogEventListener.class },
-            (a, b, c) -> { throw new RuntimeException(); }
+            (a, b, c) -> {
+                throw new RuntimeException();
+            }
         );
 
         final List<TranslogEventListener> translogEventListeners = new LinkedList<>(Arrays.asList(listener, throwingListener, listener));
