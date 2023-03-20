@@ -266,10 +266,9 @@ public class ActionListenerTests extends OpenSearchTestCase {
         assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
         assertNull(exReference.get());
 
-        assertionError = expectThrows(
-            AssertionError.class,
-            () -> ActionListener.completeWith(listener, () -> { throw new IllegalArgumentException(); })
-        );
+        assertionError = expectThrows(AssertionError.class, () -> ActionListener.completeWith(listener, () -> {
+            throw new IllegalArgumentException();
+        }));
         assertThat(assertionError.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(exReference.get(), instanceOf(IllegalArgumentException.class));
     }

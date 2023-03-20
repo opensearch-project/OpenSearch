@@ -118,11 +118,9 @@ public class RestControllerTests extends OpenSearchTestCase {
                 new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
             )
         );
-        restController.registerHandler(
-            RestRequest.Method.GET,
-            "/error",
-            (request, channel, client) -> { throw new IllegalArgumentException("test error"); }
-        );
+        restController.registerHandler(RestRequest.Method.GET, "/error", (request, channel, client) -> {
+            throw new IllegalArgumentException("test error");
+        });
 
         httpServerTransport.start();
     }

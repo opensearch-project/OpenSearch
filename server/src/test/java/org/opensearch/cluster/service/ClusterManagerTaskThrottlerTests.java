@@ -69,12 +69,9 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
 
     public void testDefaults() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(
-            Settings.EMPTY,
-            clusterSettings,
-            () -> { return clusterService.getMasterService().getMinNodeVersion(); },
-            new ClusterManagerThrottlingStats()
-        );
+        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(Settings.EMPTY, clusterSettings, () -> {
+            return clusterService.getMasterService().getMinNodeVersion();
+        }, new ClusterManagerThrottlingStats());
         throttler.registerClusterManagerTask("put-mapping", true);
         throttler.registerClusterManagerTask("create-index", true);
         for (String key : throttler.THROTTLING_TASK_KEYS.keySet()) {
@@ -91,12 +88,9 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
         );
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(
-            Settings.EMPTY,
-            clusterSettings,
-            () -> { return clusterService.getMasterService().getMinNodeVersion(); },
-            new ClusterManagerThrottlingStats()
-        );
+        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(Settings.EMPTY, clusterSettings, () -> {
+            return clusterService.getMasterService().getMinNodeVersion();
+        }, new ClusterManagerThrottlingStats());
         throttler.registerClusterManagerTask("put-mapping", true);
 
         // set some limit for update snapshot tasks
@@ -124,12 +118,9 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
         );
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(
-            Settings.EMPTY,
-            clusterSettings,
-            () -> { return clusterService.getMasterService().getMinNodeVersion(); },
-            new ClusterManagerThrottlingStats()
-        );
+        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(Settings.EMPTY, clusterSettings, () -> {
+            return clusterService.getMasterService().getMinNodeVersion();
+        }, new ClusterManagerThrottlingStats());
         throttler.registerClusterManagerTask("put-mapping", false);
 
         // set some limit for update snapshot tasks
@@ -148,12 +139,9 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
         );
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(
-            Settings.EMPTY,
-            clusterSettings,
-            () -> { return clusterService.getMasterService().getMinNodeVersion(); },
-            new ClusterManagerThrottlingStats()
-        );
+        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(Settings.EMPTY, clusterSettings, () -> {
+            return clusterService.getMasterService().getMinNodeVersion();
+        }, new ClusterManagerThrottlingStats());
         throttler.registerClusterManagerTask("put-mapping", true);
 
         // set some limit for put-mapping tasks
@@ -181,12 +169,9 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
         Settings initialSettings = Settings.builder()
             .put("cluster_manager.throttling.thresholds.put-mapping.value", put_mapping_threshold_value)
             .build();
-        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(
-            initialSettings,
-            clusterSettings,
-            () -> { return clusterService.getMasterService().getMinNodeVersion(); },
-            new ClusterManagerThrottlingStats()
-        );
+        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(initialSettings, clusterSettings, () -> {
+            return clusterService.getMasterService().getMinNodeVersion();
+        }, new ClusterManagerThrottlingStats());
         throttler.registerClusterManagerTask("put-mapping", true);
 
         // assert that limit is applied on throttler
@@ -202,12 +187,9 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
         );
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(
-            Settings.EMPTY,
-            clusterSettings,
-            () -> { return clusterService.getMasterService().getMinNodeVersion(); },
-            new ClusterManagerThrottlingStats()
-        );
+        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(Settings.EMPTY, clusterSettings, () -> {
+            return clusterService.getMasterService().getMinNodeVersion();
+        }, new ClusterManagerThrottlingStats());
 
         // set some limit for update snapshot tasks
         int newLimit = randomIntBetween(1, 10);
@@ -224,12 +206,9 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
         );
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(
-            Settings.EMPTY,
-            clusterSettings,
-            () -> { return clusterService.getMasterService().getMinNodeVersion(); },
-            new ClusterManagerThrottlingStats()
-        );
+        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(Settings.EMPTY, clusterSettings, () -> {
+            return clusterService.getMasterService().getMinNodeVersion();
+        }, new ClusterManagerThrottlingStats());
         throttler.registerClusterManagerTask("put-mapping", true);
 
         // set some limit for update snapshot tasks
@@ -254,12 +233,9 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
         );
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(
-            Settings.EMPTY,
-            clusterSettings,
-            () -> { return clusterService.getMasterService().getMinNodeVersion(); },
-            new ClusterManagerThrottlingStats()
-        );
+        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(Settings.EMPTY, clusterSettings, () -> {
+            return clusterService.getMasterService().getMinNodeVersion();
+        }, new ClusterManagerThrottlingStats());
         throttler.registerClusterManagerTask("put-mapping", true);
 
         Settings newSettings = Settings.builder().put("cluster_manager.throttling.thresholds.put-mapping.values", -5).build();
@@ -268,12 +244,9 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
 
     public void testUpdateLimit() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(
-            Settings.EMPTY,
-            clusterSettings,
-            () -> { return clusterService.getMasterService().getMinNodeVersion(); },
-            new ClusterManagerThrottlingStats()
-        );
+        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(Settings.EMPTY, clusterSettings, () -> {
+            return clusterService.getMasterService().getMinNodeVersion();
+        }, new ClusterManagerThrottlingStats());
         throttler.registerClusterManagerTask("put-mapping", true);
 
         throttler.updateLimit("test", 5);
@@ -306,12 +279,9 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
         ClusterManagerThrottlingStats throttlingStats = new ClusterManagerThrottlingStats();
         String taskKey = "test";
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(
-            Settings.EMPTY,
-            clusterSettings,
-            () -> { return clusterService.getMasterService().getMinNodeVersion(); },
-            throttlingStats
-        );
+        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(Settings.EMPTY, clusterSettings, () -> {
+            return clusterService.getMasterService().getMinNodeVersion();
+        }, throttlingStats);
         ClusterManagerTaskThrottler.ThrottlingKey throttlingKey = throttler.registerClusterManagerTask(taskKey, false);
 
         // adding limit directly in thresholds
@@ -339,12 +309,9 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
         Settings initialSettings = Settings.builder()
             .put("cluster_manager.throttling.thresholds.put-mapping.value", put_mapping_threshold_value)
             .build();
-        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(
-            initialSettings,
-            clusterSettings,
-            () -> { return clusterService.getMasterService().getMinNodeVersion(); },
-            throttlingStats
-        );
+        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(initialSettings, clusterSettings, () -> {
+            return clusterService.getMasterService().getMinNodeVersion();
+        }, throttlingStats);
         ClusterManagerTaskThrottler.ThrottlingKey throttlingKey = throttler.registerClusterManagerTask("put-mapping", true);
 
         // verifying adding more tasks then threshold passes
@@ -370,12 +337,9 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
         ClusterManagerThrottlingStats throttlingStats = new ClusterManagerThrottlingStats();
         String taskKey = "test";
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(
-            Settings.EMPTY,
-            clusterSettings,
-            () -> { return clusterService.getMasterService().getMinNodeVersion(); },
-            throttlingStats
-        );
+        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(Settings.EMPTY, clusterSettings, () -> {
+            return clusterService.getMasterService().getMinNodeVersion();
+        }, throttlingStats);
         ClusterManagerTaskThrottler.ThrottlingKey throttlingKey = throttler.registerClusterManagerTask(taskKey, true);
 
         throttler.updateLimit(taskKey, 5);

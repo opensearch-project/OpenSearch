@@ -68,10 +68,10 @@ public class IndexShardConstraintDeciderOverlapTests extends OpenSearchAllocatio
         final ImmutableOpenMap<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace = new ImmutableOpenMap.Builder<
             ClusterInfo.NodeAndPath,
             ClusterInfo.ReservedSpace>().fPut(getNodeAndDevNullPath("node_0"), getReservedSpace())
-                .fPut(getNodeAndDevNullPath("node_1"), getReservedSpace())
-                .fPut(getNodeAndDevNullPath("node_2"), getReservedSpace())
-                .fPut(getNodeAndDevNullPath("high_watermark_node_0"), getReservedSpace())
-                .build();
+            .fPut(getNodeAndDevNullPath("node_1"), getReservedSpace())
+            .fPut(getNodeAndDevNullPath("node_2"), getReservedSpace())
+            .fPut(getNodeAndDevNullPath("high_watermark_node_0"), getReservedSpace())
+            .build();
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes, reservedSpace);
         ClusterInfoService cis = () -> clusterInfo;
         allocation = createAllocationService(settings, cis);

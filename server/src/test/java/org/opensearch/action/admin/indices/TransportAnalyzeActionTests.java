@@ -380,10 +380,9 @@ public class TransportAnalyzeActionTests extends OpenSearchTestCase {
 
     public void testGetFieldAnalyzerWithoutIndexAnalyzers() {
         AnalyzeAction.Request req = new AnalyzeAction.Request().field("field").text("text");
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { TransportAnalyzeAction.analyze(req, registry, null, maxTokenCount); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            TransportAnalyzeAction.analyze(req, registry, null, maxTokenCount);
+        });
         assertEquals(e.getMessage(), "analysis based on a specific field requires an index");
     }
 
