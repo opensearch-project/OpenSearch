@@ -12,9 +12,7 @@ import java.io.InputStream;
 import java.util.function.Supplier;
 
 /**
- * ABCDE
- *
- * @opensearch.internal
+ * Model composed of an input stream, the total content length and offset
  */
 public class Stream {
 
@@ -24,11 +22,11 @@ public class Stream {
     private final Supplier<Long> checksumProvider;
 
     /**
-     * Construct a new stream
+     * Construct a new stream object
      *
-     * @param inputStream
-     * @param contentLength
-     * @param offset
+     * @param inputStream The input stream that is to be encapsulated
+     * @param contentLength The total content length that is to be read from the stream
+     * @param offset The offset pointer that this stream reads from in the file
      */
     public Stream(InputStream inputStream, long contentLength, long offset, Supplier<Long> checksumProvider) {
         this.inputStream = inputStream;
@@ -38,23 +36,22 @@ public class Stream {
     }
 
     /**
-     * Return the input stream
-     *
-     * @return
+     * @return The input stream this object is reading from
      */
     public InputStream getInputStream() {
         return inputStream;
     }
 
     /**
-     * ABCDE
-     *
-     * @return
+     * @return The total length of the content that has to be read from this stream
      */
     public long getContentLength() {
         return contentLength;
     }
 
+    /**
+     * @return The offset pointer in the file that this stream is reading from
+     */
     public long getOffset() {
         return offset;
     }

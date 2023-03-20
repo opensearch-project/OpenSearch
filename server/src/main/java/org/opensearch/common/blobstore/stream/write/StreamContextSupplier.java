@@ -11,17 +11,13 @@ package org.opensearch.common.blobstore.stream.write;
 import org.opensearch.common.blobstore.stream.StreamContext;
 
 /**
- * ABCDE
- *
- * @opensearch.internal
+ * Will return the <code>StreamContext</code> to the caller given the part size
  */
 public interface StreamContextSupplier {
 
     /**
-     * ABCDE
-     *
-     * @param partSize
-     * @return
+     * @param partSize The size of a single part to be uploaded
+     * @return The <code>StreamContext</code> based on the part size provided
      */
     StreamContext supplyStreamContext(long partSize);
 }

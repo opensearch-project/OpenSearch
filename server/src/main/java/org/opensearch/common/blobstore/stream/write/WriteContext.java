@@ -14,9 +14,7 @@ import org.opensearch.common.blobstore.transfer.UploadFinalizer;
 import java.util.function.Consumer;
 
 /**
- * ABCDE
- *
- * @opensearch.internal
+ * WriteContext is used to encapsulate all data needed by <code>BlobContainer#writeStreams</code>
  */
 public class WriteContext {
 
@@ -29,12 +27,14 @@ public class WriteContext {
     private final long checksum;
 
     /**
-     * ABCDE
+     * Construct a new WriteContext object
      *
-     * @param fileName
-     * @param streamContextSupplier
-     * @param fileSize
-     * @param failIfAlreadyExists
+     * @param fileName The name of the file being uploaded
+     * @param streamContextSupplier A supplier that will provide StreamContext to the plugin
+     * @param fileSize The total size of the file being uploaded
+     * @param failIfAlreadyExists A boolean to fail the upload is the file exists
+     * @param writePriority The <code>WritePriority</code> of this upload
+     * @param uploadFinalizer Needs to implement a method that will be called once the upload is complete
      */
     public WriteContext(String fileName, StreamContextSupplier streamContextSupplier, long fileSize,
                         boolean failIfAlreadyExists, WritePriority writePriority, UploadFinalizer uploadFinalizer,
@@ -49,46 +49,44 @@ public class WriteContext {
     }
 
     /**
-     * ABCDE
-     *
-     * @return
+     * @return The file name
      */
     public String getFileName() {
         return fileName;
     }
 
     /**
-     * ABCDE
-     *
-     * @return
+     * @return The boolean representing whether to fail the file upload if it exists
      */
     public boolean isFailIfAlreadyExists() {
         return failIfAlreadyExists;
     }
 
     /**
-     * ABCDE
-     *
-     * @param partSize
-     * @return
+     * @param partSize The size of a single part to be uploaded
+     * @return The stream context which will be used by the plugin to initialize streams from the file
      */
     public StreamContext getStreamContext(long partSize) {
         return streamContextSupplier.supplyStreamContext(partSize);
     }
 
     /**
-     * ABCDE
-     *
-     * @return
+     * @return The total size of the file
      */
     public long getFileSize() {
         return fileSize;
     }
 
+    /**
+     * @return The <code>WritePriority</code> of the upload
+     */
     public WritePriority getWritePriority() {
         return writePriority;
     }
 
+    /**
+     * @return The upload finalizer for the upload
+     */
     public UploadFinalizer getUploadFinalizer() {
         return uploadFinalizer;
     }
