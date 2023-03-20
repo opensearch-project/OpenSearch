@@ -39,6 +39,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.networknt:json-schema-validator` from 1.0.76 to 1.0.78
 - Bump `com.netflix.nebula:gradle-info-plugin` from 12.0.0 to 12.0.1
 - Bump `com.diffplug.spotless` from 6.15.0 to 6.17.0
+- Bump `org.apache.zookeeper:zookeeper` from 3.8.0 to 3.8.1
 
 ### Changed
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
