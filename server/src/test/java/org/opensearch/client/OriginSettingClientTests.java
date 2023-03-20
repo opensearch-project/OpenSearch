@@ -77,9 +77,8 @@ public class OriginSettingClientTests extends OpenSearchTestCase {
     }
 
     private <T> ActionListener<T> listenerThatAssertsOriginNotSet(ThreadContext threadContext) {
-        return ActionListener.wrap(
-            r -> { assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME)); },
-            e -> { fail("didn't expect to fail but: " + e); }
-        );
+        return ActionListener.wrap(r -> { assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME)); }, e -> {
+            fail("didn't expect to fail but: " + e);
+        });
     }
 }

@@ -245,16 +245,13 @@ public class SegmentFileTransferHandlerTests extends IndexShardTestCase {
         );
 
         doNothing().when(shard).failShard(anyString(), any());
-        assertThrows(
-            CorruptIndexException.class,
-            () -> {
-                handler.handleErrorOnSendFiles(
-                    shard.store(),
-                    new CorruptIndexException("test", "test"),
-                    new StoreFileMetadata[] { SEGMENTS_FILE }
-                );
-            }
-        );
+        assertThrows(CorruptIndexException.class, () -> {
+            handler.handleErrorOnSendFiles(
+                shard.store(),
+                new CorruptIndexException("test", "test"),
+                new StoreFileMetadata[] { SEGMENTS_FILE }
+            );
+        });
 
         verify(shard, times(1)).failShard(any(), any());
     }

@@ -124,15 +124,9 @@ public class AnalysisTests extends OpenSearchTestCase {
             writer.write('\n');
         }
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
-        RuntimeException ex = expectThrows(
-            RuntimeException.class,
-            () -> Analysis.parseWordList(
-                env,
-                nodeSettings,
-                "foo.bar",
-                s -> { throw new RuntimeException("Error while parsing rule = " + s); }
-            )
-        );
+        RuntimeException ex = expectThrows(RuntimeException.class, () -> Analysis.parseWordList(env, nodeSettings, "foo.bar", s -> {
+            throw new RuntimeException("Error while parsing rule = " + s);
+        }));
         assertEquals("Line [1]: Error while parsing rule = abcd", ex.getMessage());
     }
 
@@ -146,15 +140,9 @@ public class AnalysisTests extends OpenSearchTestCase {
         }
         Settings nodeSettings = Settings.builder().put("foo.bar_path", dict).put(Environment.PATH_HOME_SETTING.getKey(), home).build();
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
-        RuntimeException ex = expectThrows(
-            RuntimeException.class,
-            () -> Analysis.parseWordList(
-                env,
-                nodeSettings,
-                "foo.bar",
-                s -> { throw new RuntimeException("Error while parsing rule = " + s); }
-            )
-        );
+        RuntimeException ex = expectThrows(RuntimeException.class, () -> Analysis.parseWordList(env, nodeSettings, "foo.bar", s -> {
+            throw new RuntimeException("Error while parsing rule = " + s);
+        }));
         assertEquals("Line [1]: Invalid rule", ex.getMessage());
     }
 }

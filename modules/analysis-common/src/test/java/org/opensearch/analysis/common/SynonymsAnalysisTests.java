@@ -240,10 +240,9 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
 
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> { indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisModulePlugin()).indexAnalyzers; }
-        );
+        expectThrows(IllegalArgumentException.class, () -> {
+            indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisModulePlugin()).indexAnalyzers;
+        });
 
     }
 
@@ -301,7 +300,9 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
                 IllegalArgumentException e = expectThrows(
                     IllegalArgumentException.class,
                     "Expected exception for factory " + tf.getName(),
-                    () -> { tf.get(idxSettings, null, tf.getName(), settings).getSynonymFilter(); }
+                    () -> {
+                        tf.get(idxSettings, null, tf.getName(), settings).getSynonymFilter();
+                    }
                 );
                 assertEquals(tf.getName(), "Token filter [" + tf.getName() + "] cannot be used to parse synonyms", e.getMessage());
             } else {
