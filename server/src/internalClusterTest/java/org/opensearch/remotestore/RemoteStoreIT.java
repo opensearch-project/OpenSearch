@@ -213,13 +213,17 @@ public class RemoteStoreIT extends OpenSearchIntegTestCase {
         testRestoreFlow(true, randomIntBetween(2, 5), true);
     }
 
-    public void testPeerRecoveryWithRemoteStoreNoRemoteTranslog() throws Exception {
+    private void testPeerRecovery(boolean remoteTranslog, int numberOfIterations, boolean invokeFlush) throws Exception {
         internalCluster().startDataOnlyNodes(3);
-        createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
+        if (remoteTranslog) {
+            createIndex(INDEX_NAME, remoteTranslogIndexSettings(0));
+        } else {
+            createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
+        }
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
 
-        Map<String, Long> indexStats = indexData(randomIntBetween(2, 5), true);
+        Map<String, Long> indexStats = indexData(numberOfIterations, invokeFlush);
 
         client().admin()
             .indices()
@@ -229,6 +233,7 @@ public class RemoteStoreIT extends OpenSearchIntegTestCase {
         ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
 
+        refresh(INDEX_NAME);
         String replicaNodeName = replicaNodeName(INDEX_NAME);
         assertBusy(
             () -> assertHitCount(client(replicaNodeName).prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(TOTAL_OPERATIONS)),
@@ -244,11 +249,56 @@ public class RemoteStoreIT extends OpenSearchIntegTestCase {
             .filter(rs -> rs.getRecoverySource().getType() == RecoverySource.Type.PEER)
             .findFirst();
         assertFalse(recoverySource.isEmpty());
-        assertEquals(0, recoverySource.get().getIndex().recoveredFileCount());
+        if (numberOfIterations == 1 && invokeFlush) {
+            // segments_N file is copied to new replica
+            assertEquals(1, recoverySource.get().getIndex().recoveredFileCount());
+        } else {
+            assertEquals(0, recoverySource.get().getIndex().recoveredFileCount());
+        }
 
         IndexResponse response = indexSingleDoc();
         assertEquals(indexStats.get(MAX_SEQ_NO_TOTAL) + 1, response.getSeqNo());
         refresh(INDEX_NAME);
-        assertHitCount(client(replicaNodeName).prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(TOTAL_OPERATIONS) + 1);
+        assertBusy(
+            () -> assertHitCount(client(replicaNodeName).prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(TOTAL_OPERATIONS) + 1),
+            30,
+            TimeUnit.SECONDS
+        );
+    }
+
+    public void testPeerRecoveryWithRemoteStoreNoRemoteTranslogNoDataFlush() throws Exception {
+        testPeerRecovery(false, 1, true);
+    }
+
+    public void testPeerRecoveryWithRemoteStoreNoRemoteTranslogFlush() throws Exception {
+        testPeerRecovery(false, randomIntBetween(2, 5), true);
+    }
+
+    public void testPeerRecoveryWithRemoteStoreNoRemoteTranslogNoDataRefresh() throws Exception {
+        testPeerRecovery(false, 1, false);
+    }
+
+    public void testPeerRecoveryWithRemoteStoreNoRemoteTranslogRefresh() throws Exception {
+        testPeerRecovery(false, randomIntBetween(2, 5), false);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6193")
+    public void testPeerRecoveryWithRemoteStoreAndRemoteTranslogNoDataFlush() throws Exception {
+        testPeerRecovery(true, 1, true);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6193")
+    public void testPeerRecoveryWithRemoteStoreAndRemoteTranslogFlush() throws Exception {
+        testPeerRecovery(true, randomIntBetween(2, 5), true);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6193")
+    public void testPeerRecoveryWithRemoteStoreAndRemoteTranslogNoDataRefresh() throws Exception {
+        testPeerRecovery(true, 1, false);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6193")
+    public void testPeerRecoveryWithRemoteStoreAndRemoteTranslogRefresh() throws Exception {
+        testPeerRecovery(true, randomIntBetween(2, 5), false);
     }
 }
