@@ -36,6 +36,7 @@ import com.amazonaws.services.s3.transfer.Transfer.TransferState;
 import com.amazonaws.services.s3.transfer.TransferManager;
 import com.amazonaws.services.s3.transfer.internal.TransferMonitor;
 import com.amazonaws.services.s3.transfer.model.UploadResult;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.repositories.s3.SocketAccess;
 
 import java.util.ArrayList;
@@ -56,6 +57,7 @@ import static com.amazonaws.event.SDKProgressPublisher.publishProgress;
  * Future object, clients must call {@link UploadMonitor#isDone()} and
  * {@link UploadMonitor#getFuture()}
  */
+@SuppressForbidden(reason = "AWS S3 SDK")
 public class UploadMonitor implements Callable<UploadResult>, TransferMonitor {
 
 

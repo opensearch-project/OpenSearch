@@ -34,6 +34,7 @@ import com.amazonaws.services.s3.model.CompleteMultipartUploadResult;
 import com.amazonaws.services.s3.model.PartETag;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.transfer.model.UploadResult;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.repositories.s3.SocketAccess;
 
 import java.util.ArrayList;
@@ -47,6 +48,7 @@ import static com.amazonaws.event.SDKProgressPublisher.publishProgress;
  * Initiates a complete multi-part upload request for a
  * TransferManager multi-part parallel upload.
  */
+@SuppressForbidden(reason = "AWS S3 SDK")
 public class CompleteMultipartUpload implements Callable<UploadResult> {
 
     /** The upload id associated with the multi-part upload. */

@@ -51,6 +51,7 @@ import com.amazonaws.services.s3.transfer.model.UploadResult;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.opensearch.common.Stream;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.repositories.s3.SocketAccess;
 
 import java.io.InputStream;
@@ -65,6 +66,7 @@ import java.util.concurrent.Future;
 
 import static com.amazonaws.event.SDKProgressPublisher.publishProgress;
 
+@SuppressForbidden(reason = "AWS S3 SDK")
 public class UploadCallable implements Callable<UploadResult> {
     private final AmazonS3 s3;
     private final ExecutorService threadPool;

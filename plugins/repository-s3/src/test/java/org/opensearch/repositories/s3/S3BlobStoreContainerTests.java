@@ -47,12 +47,20 @@ import com.amazonaws.services.s3.model.PutObjectResult;
 import com.amazonaws.services.s3.model.StorageClass;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.model.UploadPartResult;
+import com.amazonaws.services.s3.transfer.TransferManagerConfiguration;
+import com.amazonaws.services.s3.transfer.Upload;
+import org.mockito.ArgumentCaptor;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStoreException;
+import org.opensearch.common.blobstore.stream.StreamContext;
+import org.opensearch.common.blobstore.stream.write.StreamContextSupplier;
+import org.opensearch.common.blobstore.stream.write.WriteContext;
+import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.common.blobstore.transfer.UploadFinalizer;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.repositories.s3.multipart.transfer.MultipartTransferManager;
 import org.opensearch.test.OpenSearchTestCase;
-import org.mockito.ArgumentCaptor;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -64,13 +72,18 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.mockito.Mockito.doAnswer;
 
 public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
@@ -149,6 +162,165 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         if (serverSideEncryption) {
             assertEquals(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION, request.getMetadata().getSSEAlgorithm());
         }
+    }
+
+    public void testWriteStreams() throws IOException, InterruptedException {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+
+        final BlobPath blobPath = new BlobPath();
+        if (randomBoolean()) {
+            IntStream.of(randomIntBetween(1, 5)).forEach(value -> blobPath.add("path_" + value));
+        }
+
+        final int bufferSize = randomIntBetween(1024, 2048);
+        final int blobSize = randomIntBetween(0, bufferSize);
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        final Upload upload = mock(Upload.class);
+        doNothing().when(upload).waitForCompletion();
+
+        final MultipartTransferManager multipartTransferManager = mock(MultipartTransferManager.class);
+        when(multipartTransferManager.getConfiguration()).thenReturn(new TransferManagerConfiguration());
+        when(multipartTransferManager.upload(
+            anyString(),
+            anyString(),
+            isNull(),
+            isNull(),
+            any(StreamContext.class),
+            isNull(),
+            any(WritePriority.class)
+        )).thenReturn(upload);
+        when(blobStore.getMultipartTransferManager()).thenReturn(multipartTransferManager);
+
+        final StreamContext streamContext = mock(StreamContext.class);
+        final StreamContextSupplier streamContextSupplier = mock(StreamContextSupplier.class);
+        when(streamContextSupplier.supplyStreamContext(anyLong())).thenReturn(streamContext);
+
+        final UploadFinalizer uploadFinalizer = mock(UploadFinalizer.class);
+        doNothing().when(uploadFinalizer).accept(anyBoolean());
+
+        blobContainer.writeStreams(new WriteContext(
+            blobName,
+            streamContextSupplier,
+            blobSize,
+            true,
+            WritePriority.NORMAL,
+            uploadFinalizer
+        ));
+
+        verify(uploadFinalizer, times(1)).accept(true);
+    }
+
+    public void testWriteStreamsIOException() throws IOException, InterruptedException {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+
+        final BlobPath blobPath = new BlobPath();
+        if (randomBoolean()) {
+            IntStream.of(randomIntBetween(1, 5)).forEach(value -> blobPath.add("path_" + value));
+        }
+
+        final int bufferSize = randomIntBetween(1024, 2048);
+        final int blobSize = randomIntBetween(0, bufferSize);
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        final Upload upload = mock(Upload.class);
+        doNothing().when(upload).waitForCompletion();
+
+        final MultipartTransferManager multipartTransferManager = mock(MultipartTransferManager.class);
+        when(multipartTransferManager.getConfiguration()).thenReturn(new TransferManagerConfiguration());
+        when(multipartTransferManager.upload(
+            anyString(),
+            anyString(),
+            isNull(),
+            isNull(),
+            any(StreamContext.class),
+            isNull(),
+            any(WritePriority.class)
+        )).thenThrow(new IOException());
+        when(blobStore.getMultipartTransferManager()).thenReturn(multipartTransferManager);
+
+        final StreamContext streamContext = mock(StreamContext.class);
+        final StreamContextSupplier streamContextSupplier = mock(StreamContextSupplier.class);
+        when(streamContextSupplier.supplyStreamContext(anyLong())).thenReturn(streamContext);
+
+        final UploadFinalizer uploadFinalizer = mock(UploadFinalizer.class);
+        doNothing().when(uploadFinalizer).accept(anyBoolean());
+
+        assertThrows(IOException.class, () -> blobContainer.writeStreams(new WriteContext(
+            blobName,
+            streamContextSupplier,
+            blobSize,
+            true,
+            WritePriority.NORMAL,
+            uploadFinalizer
+        )));
+
+        verify(uploadFinalizer, times(1)).accept(false);
+    }
+
+    public void testWriteStreamsInterruptedException() throws IOException, InterruptedException {
+        final String bucketName = randomAlphaOfLengthBetween(1, 10);
+        final String blobName = randomAlphaOfLengthBetween(1, 10);
+
+        final BlobPath blobPath = new BlobPath();
+        if (randomBoolean()) {
+            IntStream.of(randomIntBetween(1, 5)).forEach(value -> blobPath.add("path_" + value));
+        }
+
+        final int bufferSize = randomIntBetween(1024, 2048);
+        final int blobSize = randomIntBetween(0, bufferSize);
+
+        final S3BlobStore blobStore = mock(S3BlobStore.class);
+        when(blobStore.bucket()).thenReturn(bucketName);
+        when(blobStore.bufferSizeInBytes()).thenReturn((long) bufferSize);
+
+        final S3BlobContainer blobContainer = new S3BlobContainer(blobPath, blobStore);
+
+        final Upload upload = mock(Upload.class);
+        doThrow(new InterruptedException()).when(upload).waitForCompletion();
+
+        final MultipartTransferManager multipartTransferManager = mock(MultipartTransferManager.class);
+        when(multipartTransferManager.getConfiguration()).thenReturn(new TransferManagerConfiguration());
+        when(multipartTransferManager.upload(
+            anyString(),
+            anyString(),
+            isNull(),
+            isNull(),
+            any(StreamContext.class),
+            isNull(),
+            any(WritePriority.class)
+        )).thenReturn(upload);
+        when(blobStore.getMultipartTransferManager()).thenReturn(multipartTransferManager);
+
+        final StreamContext streamContext = mock(StreamContext.class);
+        final StreamContextSupplier streamContextSupplier = mock(StreamContextSupplier.class);
+        when(streamContextSupplier.supplyStreamContext(anyLong())).thenReturn(streamContext);
+
+        final UploadFinalizer uploadFinalizer = mock(UploadFinalizer.class);
+        doNothing().when(uploadFinalizer).accept(anyBoolean());
+
+        assertThrows(IOException.class, () -> blobContainer.writeStreams(new WriteContext(
+            blobName,
+            streamContextSupplier,
+            blobSize,
+            true,
+            WritePriority.NORMAL,
+            uploadFinalizer
+        )));
+
+        verify(uploadFinalizer, times(1)).accept(false);
     }
 
     public void testExecuteMultipartUploadBlobSizeTooLarge() {

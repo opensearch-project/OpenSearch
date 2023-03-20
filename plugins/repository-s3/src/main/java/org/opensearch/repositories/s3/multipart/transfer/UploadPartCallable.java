@@ -38,8 +38,10 @@ import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.util.BinaryUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.repositories.s3.SocketAccess;
 
+@SuppressForbidden(reason = "AWS S3 SDK")
 public class UploadPartCallable implements Callable<PartETag> {
     private static final int MAX_SKIPS = 100;
     private static final ThreadLocal<MessageDigest> MD5_DIGEST;
