@@ -41,8 +41,6 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
-import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
@@ -54,8 +52,8 @@ import java.util.concurrent.TimeUnit;
 
 @State(Scope.Thread)
 @Fork(1)
-@Warmup(iterations = 10, time = 1, timeUnit = TimeUnit.SECONDS)
-@Measurement(iterations = 100, time = 1, timeUnit = TimeUnit.SECONDS)
+@Warmup(iterations = 1, time = 1, timeUnit = TimeUnit.SECONDS)
+@Measurement(iterations = 1, time = 1, timeUnit = TimeUnit.SECONDS)
 
 public class FlatObjectMappingBenchmark {
 
@@ -87,7 +85,7 @@ public class FlatObjectMappingBenchmark {
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    public void CreateDynamicIndex(MyState state) throws IOException, URISyntaxException {
+    public void CreateDynamicIndex(MyState state) throws IOException {
         GetDynamicIndex(state, "demo-dynamic-test");
         DeleteIndex(state, "demo-dynamic-test");
     }
@@ -99,7 +97,7 @@ public class FlatObjectMappingBenchmark {
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    public void CreateFlatObjectIndex(MyState state) throws IOException, URISyntaxException {
+    public void CreateFlatObjectIndex(MyState state) throws IOException {
         GetFlatObjectIndex(state, "demo-flat-object-test", "host");
         DeleteIndex(state, "demo-flat-object-test");
     }
@@ -112,10 +110,10 @@ public class FlatObjectMappingBenchmark {
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
     @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    public void indexDynamicMapping(MyState state) throws IOException, URISyntaxException {
+    public void indexDynamicMapping(MyState state) throws IOException {
         GetDynamicIndex(state, "demo-dynamic-test1");
         String doc =
-            "{ \"message\": \"[5592:1:0309/123054.737712:ERROR:child_process_sandbox_support_impl_linux.cc(79)] FontService unique font name matching request did not receive a response.\", \"fileset\": { \"name\": \"syslog\" }, \"process\": { \"name\": \"org.gnome.Shell.desktop\", \"pid\": 3383 }, \"@timestamp\": \"2020-03-09T18:00:54.000+05:30\", \"host\": { \"hostname\": \"bionic\", \"name\": \"bionic\" } }";
+            "{ \"message\": \"[1234:1:0309/123054.737712:ERROR: request did not receive a response.\", \"fileset\": { \"name\": \"syslog\" }, \"process\": { \"name\": \"org.gnome.Shell.desktop\", \"pid\": 1234 }, \"@timestamp\": \"2020-03-09T18:00:54.000+05:30\", \"host\": { \"hostname\": \"bionic\", \"name\": \"bionic\" } }";
         UploadDoc(state, "demo-dynamic-test1", doc);
         DeleteIndex(state, "demo-dynamic-test1");
     }
@@ -130,7 +128,7 @@ public class FlatObjectMappingBenchmark {
     public void indexFlatObjectMapping(MyState state) throws IOException, URISyntaxException {
         GetFlatObjectIndex(state, "demo-flat-object-test1", "host");
         String doc =
-            "{ \"message\": \"[5592:1:0309/123054.737712:ERROR:child_process_sandbox_support_impl_linux.cc(79)] FontService unique font name matching request did not receive a response.\", \"fileset\": { \"name\": \"syslog\" }, \"process\": { \"name\": \"org.gnome.Shell.desktop\", \"pid\": 3383 }, \"@timestamp\": \"2020-03-09T18:00:54.000+05:30\", \"host\": { \"hostname\": \"bionic\", \"name\": \"bionic\" } }";
+            "{ \"message\": \"[1234:1:0309/123054.737712:ERROR: request did not receive a response.\", \"fileset\": { \"name\": \"syslog\" }, \"process\": { \"name\": \"org.gnome.Shell.desktop\", \"pid\": 1234 }, \"@timestamp\": \"2020-03-09T18:00:54.000+05:30\", \"host\": { \"hostname\": \"bionic\", \"name\": \"bionic\" } }";
         UploadDoc(state, "demo-flat-object-test1", doc);
         DeleteIndex(state, "demo-flat-object-test1");
     }
@@ -146,7 +144,7 @@ public class FlatObjectMappingBenchmark {
         String indexName = "demo-dynamic-test2";
         GetDynamicIndex(state, indexName);
         String doc =
-            "{ \"message\": \"[5592:1:0309/123054.737712:ERROR:child_process_sandbox_support_impl_linux.cc(79)] FontService unique font name matching request did not receive a response.\", \"fileset\": { \"name\": \"syslog\" }, \"process\": { \"name\": \"org.gnome.Shell.desktop\", \"pid\": 3383 }, \"@timestamp\": \"2020-03-09T18:00:54.000+05:30\", \"host\": { \"hostname\": \"bionic\", \"name\": \"bionic\" } }";
+            "{ \"message\": \"[1234:1:0309/123054.737712:ERROR: request did not receive a response.\", \"fileset\": { \"name\": \"syslog\" }, \"process\": { \"name\": \"org.gnome.Shell.desktop\", \"pid\": 1234 }, \"@timestamp\": \"2020-03-09T18:00:54.000+05:30\", \"host\": { \"hostname\": \"bionic\", \"name\": \"bionic\" } }";
         UploadDoc(state, indexName, doc);
         SearchDoc(state, indexName, "host.hostname", "bionic", "@timestamp", "message");
         DeleteIndex(state, indexName);
@@ -162,9 +160,9 @@ public class FlatObjectMappingBenchmark {
     public void searchFlatObjectMapping(MyState state) throws IOException {
         GetFlatObjectIndex(state, "demo-flat-object-test2", "host");
         String doc =
-            "{ \"message\": \"[5592:1:0309/123054.737712:ERROR:child_process_sandbox_support_impl_linux.cc(79)] FontService unique font name matching request did not receive a response.\", \"fileset\": { \"name\": \"syslog\" }, \"process\": { \"name\": \"org.gnome.Shell.desktop\", \"pid\": 3383 }, \"@timestamp\": \"2020-03-09T18:00:54.000+05:30\", \"host\": { \"hostname\": \"bionic\", \"name\": \"bionic\" } }";
+            "{ \"message\": \"[1234:1:0309/123054.737712:ERROR: request did not receive a response.\", \"fileset\": { \"name\": \"syslog\" }, \"process\": { \"name\": \"org.gnome.Shell.desktop\", \"pid\": 1234 }, \"@timestamp\": \"2020-03-09T18:00:54.000+05:30\", \"host\": { \"hostname\": \"bionic\", \"name\": \"bionic\" } }";
         UploadDoc(state, "demo-flat-object-test2", doc);
-        SearchDoc(state, "demo-flat-object-test2", "host", "name", "@timestamp", "message");
+        SearchDoc(state, "demo-flat-object-test2", "host.hostname", "name", "@timestamp", "message");
         DeleteIndex(state, "demo-flat-object-test2");
     }
 
@@ -174,27 +172,23 @@ public class FlatObjectMappingBenchmark {
      * search for document and delete index
      * Caught exceptions with the number of fields over 1000
      */
-    // @Benchmark
-    // @BenchmarkMode(Mode.AverageTime)
-    // @OutputTimeUnit(TimeUnit.MILLISECONDS)
-    // public void searchDynamicMappingWithOneHundredNestedJSON(MyState state) throws IOException {
-    //
-    // String indexName = "demo-dynamic-test3";
-    // GetDynamicIndex(state, indexName);
-    // String doc = GenerateRandomJson();
-    // Map<String, String> searchValueAndPath = findNestedValueAndPath(doc,99, "field0");
-    // String searchValue = searchValueAndPath.get("value");
-    // String searchFieldName = searchValueAndPath.get("path");
-    // UploadDoc(state, indexName, doc);
-    // SearchDoc(state,indexName,searchFieldName,searchValue,searchValue ,searchFieldName );
-    // DeleteIndex(state, indexName);
-    // }
+    @Benchmark
+    @BenchmarkMode(Mode.AverageTime)
+    @OutputTimeUnit(TimeUnit.MILLISECONDS)
+    public void searchDynamicMappingWithOneHundredNestedJSON(MyState state) throws IOException {
+        String indexName = "demo-dynamic-test3";
+        GetDynamicIndex(state, indexName);
+        String doc = GenerateRandomJson(10, "nested");
+        Map<String, String> searchValueAndPath = findNestedValueAndPath(doc, 26, "");
+        String searchValue = searchValueAndPath.get("value");
+        String searchFieldName = searchValueAndPath.get("path");
+        UploadDoc(state, indexName, doc);
+        SearchDoc(state, indexName, searchFieldName, searchValue, searchFieldName, searchFieldName);
+        DeleteIndex(state, indexName);
+    }
 
     /**
-     * FlatObjectIndex:
-     * create index, upload a nested document in 100 levels, and each level with 10 fields,
-     * search for document and delete index
-     * works fine and able to return document
+     * debug search in dotpath
      */
     @Benchmark
     @BenchmarkMode(Mode.AverageTime)
@@ -202,10 +196,10 @@ public class FlatObjectMappingBenchmark {
     public void searchFlatObjectMappingInValueWithOneHundredNestedJSON(MyState state) throws IOException {
         String indexName = "demo-flat-object-test4";
         GetFlatObjectIndex(state, indexName, "nested0");
-        String doc = GenerateRandomJson(100, "nested");
-        Map<String, String> searchValueAndPath = findNestedValueAndPath(doc, 6, "nested0");
+        String doc = GenerateRandomJson(10, "nested");
+        Map<String, String> searchValueAndPath = findNestedValueAndPath(doc, 26, "");
         String SearchRandomWord = searchValueAndPath.get("value");
-        String SearchRandomPath = "nested0._value";
+        String SearchRandomPath = searchValueAndPath.get("path");
         String searchFieldName = "nested0";
         UploadDoc(state, indexName, doc);
         SearchDoc(state, indexName, SearchRandomPath, SearchRandomWord, searchFieldName, searchFieldName);
@@ -277,20 +271,15 @@ public class FlatObjectMappingBenchmark {
         sourceBuilder.query(QueryBuilders.matchQuery(searchFieldName, searchText));
         sourceBuilder.from(0);
         sourceBuilder.size(10);
-        sourceBuilder.sort(sortFieldName, SortOrder.DESC);
-        sourceBuilder.highlighter(new HighlightBuilder().field(highlightFieldName));
         SearchRequest searchRequest = new SearchRequest(indexName);
         searchRequest.source(sourceBuilder);
         SearchResponse SearchResponse = state.client.search(searchRequest, RequestOptions.DEFAULT);
         if (!SearchResponse.status().toString().equals("OK")) {
-            System.out.println("the number of hit is: " + SearchResponse.getHits().getTotalHits().value);
-            System.out.println("SearchResponse: " + SearchResponse.toString());
-        }
-
-        SearchHits hits = SearchResponse.getHits();
-        long totalHits = hits.getTotalHits().value;
-        if (totalHits == 0) {
-            throw new IOException("No hit is found");
+            SearchHits hits = SearchResponse.getHits();
+            long totalHits = hits.getTotalHits().value;
+            if (totalHits == 0) {
+                throw new IOException("No hit is found");
+            }
         }
     }
 
@@ -298,14 +287,14 @@ public class FlatObjectMappingBenchmark {
         JSONObject json = new JSONObject();
         Random random = new Random();
 
-        // Create 100 nested levels
+        // Create nested levels
 
         for (int i = 0; i < numberOfNestedLevel; i++) {
             JSONObject nestedObject = new JSONObject();
 
             // Add 10 fields to each nested level
             for (int j = 0; j < 10; j++) {
-                String field = "field" + j;
+                String field = "field" + i + j;
                 String value = generateRandomString(random);
                 nestedObject.put(field, value);
             }
@@ -337,31 +326,37 @@ public class FlatObjectMappingBenchmark {
         String targetKey = "field" + levelNumber;
         Map<String, String> result = new HashMap<>();
         Iterator<String> keys = jsonObject.keys();
-        StringBuilder path = new StringBuilder();
         while (keys.hasNext()) {
             String key = keys.next();
-            if (path.length() == 0) {
-                path.append(currentPath);
-            }
-
             Object value = jsonObject.get(key);
             if (key.equals(targetKey)) {
                 result.put("value", value.toString());
-                result.put("path", key);
-                System.out.println("value is " + value.toString());
-                System.out.println("path is " + path.toString());
-                break;
+                if (currentPath.length() == 0) {
+                    currentPath = key;
+                }
+                result.put("path", currentPath + "." + key);
+                return result;
             }
+
             if (value instanceof JSONObject) {
+                if (currentPath.length() == 0) {
+                    currentPath = key;
+                } else {
+                    if (currentPath.contains(".") && currentPath.split("\\.").length > 1) {
+                        int pathLength = currentPath.split("\\.").length;
+                        currentPath = "nested0." + key;
+                    } else {
+                        currentPath = currentPath + "." + key;
+                    }
 
-                path.append("." + key);
-
-                Map<String, String> nestedResult = findNestedValueAndPath(value.toString(), levelNumber, path.toString());
+                }
+                Map<String, String> nestedResult = findNestedValueAndPath(value.toString(), levelNumber, currentPath);
                 if (!nestedResult.isEmpty()) {
                     return nestedResult;
                 }
             }
         }
+
         return result;
     }
 

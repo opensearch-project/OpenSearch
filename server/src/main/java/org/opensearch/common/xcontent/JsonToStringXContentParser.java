@@ -38,11 +38,10 @@ import org.opensearch.index.mapper.ParseContext;
 import java.io.IOException;
 import java.nio.CharBuffer;
 import java.util.ArrayList;
-import java.util.logging.Logger;
 
 /**
  * JsonToStringParser is the main parser class to transform JSON into stringFields in a XContentParser
- * returns XContentParser with 3 string fields
+ * returns XContentParser with one parent field and subfields
  * fieldName, fieldName._value, fieldName._valueAndPath
  * @opensearch.internal
  */
@@ -60,12 +59,11 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
     private NamedXContentRegistry xContentRegistry;
 
     private DeprecationHandler deprecationHandler;
-    /**
-     * logging function
-     * To removed after draft PR
-     */
 
-    private static final Logger logger = Logger.getLogger((JsonToStringXContentParser.class.getName()));
+    private static final String VALUE_AND_PATH_SUFFIX = "._valueAndPath";
+    private static final String VALUE_SUFFIX = "._value";
+    private static final String DOT_SYMBOL = ".";
+    private static final String EQUAL_SYMBOL = "=";
 
     public JsonToStringXContentParser(
         NamedXContentRegistry xContentRegistry,
@@ -85,11 +83,10 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
         builder.startObject();
         parseToken();
         builder.field(this.fieldTypeName, keyList);
-        builder.field(this.fieldTypeName + "._value", valueList);
-        builder.field(this.fieldTypeName + "._valueAndPath", valueAndPathList);
+        builder.field(this.fieldTypeName + VALUE_SUFFIX, valueList);
+        builder.field(this.fieldTypeName + VALUE_AND_PATH_SUFFIX, valueAndPathList);
         builder.endObject();
         String jString = XContentHelper.convertToJson(BytesReference.bytes(builder), false, XContentType.JSON);
-        logger.info("Before createParser, jString: " + jString + "\n");
         return JsonXContent.jsonXContent.createParser(this.xContentRegistry, this.deprecationHandler, String.valueOf(jString));
     }
 
@@ -98,60 +95,38 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
         while (this.parser.nextToken() != Token.END_OBJECT) {
 
             currentFieldName = this.parser.currentName();
-
-            logger.info("currentFieldName: " + currentFieldName + "\n");
             StringBuilder parsedFields = new StringBuilder();
             StringBuilder path = new StringBuilder(fieldTypeName);
             if (this.parser.nextToken() == Token.START_OBJECT) {
-                /**
-                 * for nested Json, make a copy of parser, then parse the entire Json as string.
-                 * for example:
-                 * {"grandpa": {
-                 *     "dad": {
-                 *     "son": "me"
-                 * } }
-                 * the JSON object would be read as three string fields for "grandpa" would be
-                 * grandpa: {"dad","son"} -- the parent string field contains the keys only.
-                 * grandpa._value: { "{dad: {son: me}}} ,"{son: me}","me"} -- the _value sub string field contains the values only.
-                 * grandpa._pathAndValue: {  "grandpa={"dad: {son: me}}}","grandpa.dad={son: me}}", "grandpa.dad.son=me"}
-                 * -- the _pathAndValue sub string field contains the "path=Value" format.
-                 */
                 // TODO: to convert the entire JsonObject as string without changing the tokenizer position.
-                path.append("." + currentFieldName);
+                path.append(DOT_SYMBOL + currentFieldName);
                 parsedFields.append(this.parser.toString());
                 this.keyList.add(currentFieldName);
                 this.valueList.add(parsedFields.toString());
-                this.valueAndPathList.add(path + "=" + parsedFields.toString());
+                this.valueAndPathList.add(path + EQUAL_SYMBOL + parsedFields.toString());
                 parseToken();
             } else {
-                path.append("." + currentFieldName);
+                path.append(DOT_SYMBOL + currentFieldName);
                 parseValue(currentFieldName, parsedFields);
                 this.keyList.add(currentFieldName);
                 this.valueList.add(parsedFields.toString());
-                this.valueAndPathList.add(path + "=" + parsedFields.toString());
+                this.valueAndPathList.add(path + EQUAL_SYMBOL + parsedFields.toString());
             }
 
         }
     }
 
     private void parseValue(String currentFieldName, StringBuilder parsedFields) throws IOException {
-        logger.info("this.parser.currentToken(): " + this.parser.currentToken() + "\n");
         switch (this.parser.currentToken()) {
             case VALUE_STRING:
                 parsedFields.append(this.parser.textOrNull());
-                logger.info("currentFieldName and parsedFields :" + currentFieldName + " " + parsedFields.toString() + "\n");
                 break;
             // Handle other token types as needed
-            // ToDo, what do we do, if encountered these fields?
-            // should never get to START_OBJECT
             case START_OBJECT:
                 throw new IOException("Unsupported token type");
             case FIELD_NAME:
-                // should never get to FIELD_NAME
-                logger.info("token is FIELD_NAME: " + this.parser.currentName() + "\n");
                 break;
             case VALUE_EMBEDDED_OBJECT:
-                logger.info("token is VALUE_EMBEDDED_OBJECT: " + this.parser.objectText() + "\n");
                 break;
             default:
                 throw new IOException("Unsupported token type [" + parser.currentToken() + "]");
