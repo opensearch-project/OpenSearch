@@ -138,7 +138,9 @@ public class SearchOperationListenerTests extends OpenSearchTestCase {
         SearchOperationListener throwingListener = (SearchOperationListener) Proxy.newProxyInstance(
             SearchOperationListener.class.getClassLoader(),
             new Class[] { SearchOperationListener.class },
-            (a, b, c) -> { throw new RuntimeException(); }
+            (a, b, c) -> {
+                throw new RuntimeException();
+            }
         );
         int throwingListeners = 0;
         final List<SearchOperationListener> indexingOperationListeners = new ArrayList<>(Arrays.asList(listener, listener));

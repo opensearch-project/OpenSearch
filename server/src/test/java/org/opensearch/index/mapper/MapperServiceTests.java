@@ -340,10 +340,9 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             )
         );
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { mapperService.merge("type", mappingUpdate, updateOrPreflight()); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            mapperService.merge("type", mappingUpdate, updateOrPreflight());
+        });
 
         assertEquals("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters", e.getMessage());
     }
@@ -371,10 +370,9 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             )
         );
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { mapperService.merge("type", mapping, updateOrPreflight()); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            mapperService.merge("type", mapping, updateOrPreflight());
+        });
 
         assertEquals("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters", e.getMessage());
     }
@@ -406,10 +404,9 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             )
         );
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { mapperService.merge("type", mapping, updateOrPreflight()); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            mapperService.merge("type", mapping, updateOrPreflight());
+        });
 
         assertEquals("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters", e.getMessage());
     }

@@ -226,18 +226,12 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
 
     public void testBlockIfClosed() {
         permits.close();
-        expectThrows(
-            IndexShardClosedException.class,
-            () -> permits.blockOperations(randomInt(10), TimeUnit.MINUTES, () -> { throw new IllegalArgumentException("fake error"); })
-        );
-        expectThrows(
-            IndexShardClosedException.class,
-            () -> permits.asyncBlockOperations(
-                wrap(() -> { throw new IllegalArgumentException("fake error"); }),
-                randomInt(10),
-                TimeUnit.MINUTES
-            )
-        );
+        expectThrows(IndexShardClosedException.class, () -> permits.blockOperations(randomInt(10), TimeUnit.MINUTES, () -> {
+            throw new IllegalArgumentException("fake error");
+        }));
+        expectThrows(IndexShardClosedException.class, () -> permits.asyncBlockOperations(wrap(() -> {
+            throw new IllegalArgumentException("fake error");
+        }), randomInt(10), TimeUnit.MINUTES));
     }
 
     public void testOperationsDelayedIfBlock() throws ExecutionException, InterruptedException, TimeoutException {

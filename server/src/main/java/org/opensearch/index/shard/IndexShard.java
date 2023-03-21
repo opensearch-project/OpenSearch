@@ -1425,7 +1425,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    private Optional<NRTReplicationEngine> getReplicationEngine() {
+    public Optional<NRTReplicationEngine> getReplicationEngine() {
         if (getEngine() instanceof NRTReplicationEngine) {
             return Optional.of((NRTReplicationEngine) getEngine());
         } else {
@@ -1523,16 +1523,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.warn("Shard is in primary mode and cannot perform segment replication as a replica.");
             return false;
         }
-        if (this.routingEntry().primary() && this.routingEntry().isRelocationTarget() == false) {
-            logger.warn("Shard is marked as primary but not relocating, so cannot perform segment replication");
+        if (this.routingEntry().primary()) {
+            logger.warn("Shard routing is marked primary thus cannot perform segment replication as replica");
             return false;
         }
         if (state().equals(IndexShardState.STARTED) == false
-            && ((state() == IndexShardState.RECOVERING || state() == IndexShardState.POST_RECOVERY)
-                && shardRouting.state() == ShardRoutingState.INITIALIZING) == false) {
+            && (state() == IndexShardState.POST_RECOVERY && shardRouting.state() == ShardRoutingState.INITIALIZING) == false) {
             logger.warn(
                 () -> new ParameterizedMessage(
-                    "Shard is not started or recovering {} {} and cannot perform segment replication",
+                    "Shard is not started or recovering {} {} and cannot perform segment replication as a replica",
                     state(),
                     shardRouting.state()
                 )
@@ -2725,9 +2724,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param visibleCheckpoint the visible checkpoint
      */
     public void updateVisibleCheckpointForShard(final String allocationId, final ReplicationCheckpoint visibleCheckpoint) {
-        assert assertPrimaryMode();
-        verifyNotClosed();
-        replicationTracker.updateVisibleCheckpointForShard(allocationId, visibleCheckpoint);
+        // Update target replication checkpoint only when in active primary mode
+        if (shardRouting.primary() && replicationTracker.isPrimaryMode()) {
+            verifyNotClosed();
+            replicationTracker.updateVisibleCheckpointForShard(allocationId, visibleCheckpoint);
+        }
     }
 
     /**

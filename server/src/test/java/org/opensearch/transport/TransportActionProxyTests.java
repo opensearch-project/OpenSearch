@@ -168,12 +168,9 @@ public class TransportActionProxyTests extends OpenSearchTestCase {
         });
         TransportActionProxy.registerProxyAction(serviceB, "internal:test", SimpleTestResponse::new);
         serviceB.connectToNode(nodeC);
-        serviceC.registerRequestHandler(
-            "internal:test",
-            ThreadPool.Names.SAME,
-            SimpleTestRequest::new,
-            (request, channel, task) -> { throw new OpenSearchException("greetings from TS_C"); }
-        );
+        serviceC.registerRequestHandler("internal:test", ThreadPool.Names.SAME, SimpleTestRequest::new, (request, channel, task) -> {
+            throw new OpenSearchException("greetings from TS_C");
+        });
         TransportActionProxy.registerProxyAction(serviceC, "internal:test", SimpleTestResponse::new);
 
         CountDownLatch latch = new CountDownLatch(1);
