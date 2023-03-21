@@ -40,6 +40,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.netflix.nebula:gradle-info-plugin` from 12.0.0 to 12.0.1
 - Bump `org.apache.zookeeper:zookeeper` from 3.8.0 to 3.8.1
 - Bump `net.minidev:json-smart` from 2.4.8 to 2.4.10
+- Bump `org.apache.maven:maven-model` from 3.8.6 to 3.9.1
 
 ### Changed
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
