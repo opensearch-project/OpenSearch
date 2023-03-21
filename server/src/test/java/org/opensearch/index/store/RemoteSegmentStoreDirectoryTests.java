@@ -24,6 +24,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
+import org.opensearch.index.store.lockmanager.RemoteStoreMDShardLockManager;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -49,6 +50,7 @@ import static org.mockito.Mockito.when;
 public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
     private RemoteDirectory remoteDataDirectory;
     private RemoteDirectory remoteMetadataDirectory;
+    private RemoteStoreMDShardLockManager mdLockManager;
 
     private RemoteSegmentStoreDirectory remoteSegmentStoreDirectory;
 
@@ -56,8 +58,9 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
     public void setup() throws IOException {
         remoteDataDirectory = mock(RemoteDirectory.class);
         remoteMetadataDirectory = mock(RemoteDirectory.class);
+        mdLockManager = mock(RemoteStoreMDShardLockManager.class);
 
-        remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(remoteDataDirectory, remoteMetadataDirectory);
+        remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(remoteDataDirectory, remoteMetadataDirectory, mdLockManager);
     }
 
     public void testUploadedSegmentMetadataToString() {

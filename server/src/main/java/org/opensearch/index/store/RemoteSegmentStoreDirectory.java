@@ -20,7 +20,9 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
+import org.opensearch.index.store.lockmanager.RemoteStoreMDShardLockManager;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.util.Collection;
@@ -56,6 +58,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
     public static final MetadataFilenameUtils.MetadataFilenameComparator METADATA_FILENAME_COMPARATOR =
         new MetadataFilenameUtils.MetadataFilenameComparator();
 
+    public static final String METADATA_FILENAME_PREFIX = MetadataFilenameUtils.METADATA_PREFIX;
+
     /**
      * remoteDataDirectory is used to store segment files at path: cluster_UUID/index_UUID/shardId/segments/data
      */
@@ -64,6 +68,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      * remoteMetadataDirectory is used to store metadata files at path: cluster_UUID/index_UUID/shardId/segments/metadata
      */
     private final RemoteDirectory remoteMetadataDirectory;
+
+    private final RemoteStoreMDShardLockManager mdLockManager;
 
     /**
      * To prevent explosion of refresh metadata files, we replace refresh files for the given primary term and generation
@@ -86,10 +92,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
 
     private static final Logger logger = LogManager.getLogger(RemoteSegmentStoreDirectory.class);
 
-    public RemoteSegmentStoreDirectory(RemoteDirectory remoteDataDirectory, RemoteDirectory remoteMetadataDirectory) throws IOException {
+    public RemoteSegmentStoreDirectory(RemoteDirectory remoteDataDirectory, RemoteDirectory remoteMetadataDirectory,
+                                       RemoteStoreMDShardLockManager mdLockManager) throws IOException {
         super(remoteDataDirectory);
         this.remoteDataDirectory = remoteDataDirectory;
         this.remoteMetadataDirectory = remoteMetadataDirectory;
+        this.mdLockManager = mdLockManager;
         init();
     }
 
@@ -305,7 +313,28 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
         }
     }
 
-    public void copyFrom(Directory from, String src, String dest, IOContext context, boolean useCommonSuffix) throws IOException {
+    public String getMetadataFileAndAcquireLock(long primaryTerm, long generation, String resourceID) throws IOException {
+        Collection<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefix(
+            MetadataFilenameUtils.METADATA_PREFIX);
+
+        Optional<String> metadataFile = metadataFiles.stream().filter(
+            file -> (
+                MetadataFilenameUtils.getPrimaryTerm(
+                    file.split(MetadataFilenameUtils.SEPARATOR)) == primaryTerm
+                && MetadataFilenameUtils.getGeneration(
+                    file.split(MetadataFilenameUtils.SEPARATOR)) == generation)).findAny();
+
+        if (metadataFile.isEmpty()) {
+            String errorString = "Metadata file is not present for given primary term "
+                + primaryTerm + " and generation " + generation;
+            throw new FileNotFoundException(errorString);
+        }
+        mdLockManager.acquireLock(metadataFile.get(), resourceID);
+        return metadataFile.get();
+    }
+
+    public void copyFrom(Directory from, String src, String dest, IOContext context, boolean useCommonSuffix,
+                         String checksum) throws IOException {
         String remoteFilename;
         if (useCommonSuffix) {
             remoteFilename = dest + SEGMENT_NAME_UUID_SEPARATOR + this.commonFilenameSuffix;
@@ -313,9 +342,18 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
             remoteFilename = getNewRemoteSegmentFilename(dest);
         }
         remoteDataDirectory.copyFrom(from, src, remoteFilename, context);
-        String checksum = getChecksumOfLocalFile(from, src);
+        if (checksum == null) {
+            checksum = getChecksumOfLocalFile(from, src);
+        }
         UploadedSegmentMetadata segmentMetadata = new UploadedSegmentMetadata(src, remoteFilename, checksum);
         segmentsUploadedToRemoteStore.put(src, segmentMetadata);
+    }
+    public void copyFrom(Directory from, String src, String dest, IOContext context, boolean useCommonSuffix) throws IOException {
+        copyFrom(from, src, dest, context, useCommonSuffix, null);
+    }
+
+    public static long getCommitGenerationFromMdFile(String mdFile) {
+        return MetadataFilenameUtils.getGeneration(mdFile.split(MetadataFilenameUtils.SEPARATOR));
     }
 
     /**
@@ -394,6 +432,13 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
     // Visible for testing
     public Map<String, UploadedSegmentMetadata> getSegmentsUploadedToRemoteStore() {
         return Collections.unmodifiableMap(this.segmentsUploadedToRemoteStore);
+    }
+
+    public Map<String, UploadedSegmentMetadata> getSegmentsUploadedToRemoteStore(String mdFileName) throws IOException {
+
+        Map<String, UploadedSegmentMetadata> segmentsUploadedToRemoteStore = new ConcurrentHashMap<>(
+            readMetadataFile(mdFileName));
+        return Collections.unmodifiableMap(segmentsUploadedToRemoteStore);
     }
 
     /**
