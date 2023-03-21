@@ -109,3 +109,8 @@ ${path.logs}
 #opensearch.experimental.feature.searchable_snapshot.enabled: false
 #
 #
+# Gates the functionality of enabling extensions to work with OpenSearch.
+# This feature enables applications to extend features of OpenSearch outside of
+# the core.
+#
+#opensearch.experimental.feature.extensions.enabled: false

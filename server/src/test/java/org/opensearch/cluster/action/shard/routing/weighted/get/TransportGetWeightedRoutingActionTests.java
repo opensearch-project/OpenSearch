@@ -41,6 +41,7 @@ import org.opensearch.transport.TransportService;
 
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -129,7 +130,7 @@ public class TransportGetWeightedRoutingActionTests extends OpenSearchTestCase {
 
     private ClusterState addDataNodeForAZone(ClusterState clusterState, String zone, String... nodeIds) {
         DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder(clusterState.nodes());
-        org.opensearch.common.collect.List.of(nodeIds)
+        List.of(nodeIds)
             .forEach(
                 nodeId -> nodeBuilder.add(
                     new DiscoveryNode(
@@ -148,7 +149,7 @@ public class TransportGetWeightedRoutingActionTests extends OpenSearchTestCase {
     private ClusterState addClusterManagerNodeForAZone(ClusterState clusterState, String zone, String... nodeIds) {
 
         DiscoveryNodes.Builder nodeBuilder = DiscoveryNodes.builder(clusterState.nodes());
-        org.opensearch.common.collect.List.of(nodeIds)
+        List.of(nodeIds)
             .forEach(
                 nodeId -> nodeBuilder.add(
                     new DiscoveryNode(

@@ -96,11 +96,9 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends OpenSear
         bulkRequest.add(new IndexRequest("can't"));
         bulkRequest.add(new DeleteRequest("do").version(0).versionType(VersionType.EXTERNAL));
         bulkRequest.add(new UpdateRequest("nothin", randomAlphaOfLength(5)));
-        indicesThatCannotBeCreatedTestCase(
-            new HashSet<>(Arrays.asList("no", "can't", "do", "nothin")),
-            bulkRequest,
-            index -> { throw new IndexNotFoundException("Can't make it because I say so"); }
-        );
+        indicesThatCannotBeCreatedTestCase(new HashSet<>(Arrays.asList("no", "can't", "do", "nothin")), bulkRequest, index -> {
+            throw new IndexNotFoundException("Can't make it because I say so");
+        });
     }
 
     public void testSomeFail() {

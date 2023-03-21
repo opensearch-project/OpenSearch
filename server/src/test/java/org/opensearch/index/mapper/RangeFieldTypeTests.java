@@ -538,20 +538,14 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
         MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true, Version.V_EMPTY).build(context)
             .fieldType();
-        Map<String, Object> longRange = org.opensearch.common.collect.Map.of("gte", 3.14, "lt", "42.9");
-        assertEquals(
-            Collections.singletonList(org.opensearch.common.collect.Map.of("gte", 3L, "lt", 42L)),
-            fetchSourceValue(longMapper, longRange)
-        );
+        Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
+        assertEquals(Collections.singletonList(Map.of("gte", 3L, "lt", 42L)), fetchSourceValue(longMapper, longRange));
 
         MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true, Version.V_EMPTY).format(
             "yyyy/MM/dd||epoch_millis"
         ).build(context).fieldType();
-        Map<String, Object> dateRange = org.opensearch.common.collect.Map.of("lt", "1990/12/29", "gte", 597429487111L);
-        assertEquals(
-            Collections.singletonList(org.opensearch.common.collect.Map.of("lt", "1990/12/29", "gte", "1988/12/06")),
-            fetchSourceValue(dateMapper, dateRange)
-        );
+        Map<String, Object> dateRange = Map.of("lt", "1990/12/29", "gte", 597429487111L);
+        assertEquals(Collections.singletonList(Map.of("lt", "1990/12/29", "gte", "1988/12/06")), fetchSourceValue(dateMapper, dateRange));
     }
 
     public void testParseSourceValueWithFormat() throws IOException {
@@ -560,23 +554,14 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
         MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true, Version.V_EMPTY).build(context)
             .fieldType();
-        Map<String, Object> longRange = org.opensearch.common.collect.Map.of("gte", 3.14, "lt", "42.9");
-        assertEquals(
-            Collections.singletonList(org.opensearch.common.collect.Map.of("gte", 3L, "lt", 42L)),
-            fetchSourceValue(longMapper, longRange)
-        );
+        Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
+        assertEquals(Collections.singletonList(Map.of("gte", 3L, "lt", 42L)), fetchSourceValue(longMapper, longRange));
 
         MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true, Version.V_EMPTY).format("strict_date_time")
             .build(context)
             .fieldType();
-        Map<String, Object> dateRange = org.opensearch.common.collect.Map.of("lt", "1990-12-29T00:00:00.000Z");
-        assertEquals(
-            Collections.singletonList(org.opensearch.common.collect.Map.of("lt", "1990/12/29")),
-            fetchSourceValue(dateMapper, dateRange, "yyy/MM/dd")
-        );
-        assertEquals(
-            Collections.singletonList(org.opensearch.common.collect.Map.of("lt", "662428800000")),
-            fetchSourceValue(dateMapper, dateRange, "epoch_millis")
-        );
+        Map<String, Object> dateRange = Map.of("lt", "1990-12-29T00:00:00.000Z");
+        assertEquals(Collections.singletonList(Map.of("lt", "1990/12/29")), fetchSourceValue(dateMapper, dateRange, "yyy/MM/dd"));
+        assertEquals(Collections.singletonList(Map.of("lt", "662428800000")), fetchSourceValue(dateMapper, dateRange, "epoch_millis"));
     }
 }

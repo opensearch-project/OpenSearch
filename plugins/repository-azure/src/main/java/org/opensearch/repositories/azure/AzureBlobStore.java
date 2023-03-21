@@ -442,7 +442,7 @@ public class AzureBlobStore implements BlobStore {
         private final AtomicLong putBlockListOperations = new AtomicLong();
 
         private Map<String, Long> toMap() {
-            return org.opensearch.common.collect.Map.of(
+            return Map.of(
                 "GetBlob",
                 getOperations.get(),
                 "ListBlobs",

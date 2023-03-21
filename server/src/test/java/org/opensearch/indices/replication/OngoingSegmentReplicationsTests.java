@@ -9,7 +9,6 @@
 package org.opensearch.indices.replication;
 
 import org.junit.Assert;
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -277,7 +276,8 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
             listener.onResponse(null);
         };
         replications.prepareForReplication(request, segmentSegmentFileChunkWriter);
-        assertThrows(OpenSearchException.class, () -> { replications.prepareForReplication(request, segmentSegmentFileChunkWriter); });
+        CopyState copyState = replications.prepareForReplication(request, segmentSegmentFileChunkWriter);
+        assertEquals(1, copyState.refCount());
     }
 
     public void testStartReplicationWithNoFilesToFetch() throws IOException {

@@ -13,12 +13,12 @@ import org.opensearch.action.admin.indices.datastream.DataStreamsStatsAction.Dat
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.cluster.metadata.DataStream;
-import org.opensearch.common.collect.List;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestStatus;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 

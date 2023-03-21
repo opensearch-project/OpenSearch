@@ -20,7 +20,6 @@ import org.opensearch.cluster.EmptyClusterInfoService;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RoutingNodes;
@@ -35,18 +34,13 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 
-import java.net.Inet4Address;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -66,6 +60,7 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
         DiscoveryNodeRole.DATA_ROLE,
         DiscoveryNodeRole.SEARCH_ROLE
     );
+    protected static final Set<DiscoveryNodeRole> SEARCH_ONLY_ROLE = Set.of(DiscoveryNodeRole.SEARCH_ROLE);
 
     protected static final int PRIMARIES = 5;
     protected static final int REPLICAS = 1;
@@ -116,52 +111,11 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
         );
     }
 
-    private Map<String, String> createNodeAttributes(String nodeId) {
-        Map<String, String> attr = new HashMap<>();
-        attr.put("name", nodeId);
-        attr.put("node_id", nodeId);
-        return attr;
+    public ClusterState createInitialCluster(int localOnlyNodes, int remoteNodes, int localIndices, int remoteIndices) {
+        return createInitialCluster(localOnlyNodes, remoteNodes, false, localIndices, remoteIndices);
     }
 
-    public ClusterState addNodes(ClusterState clusterState, int nodeCount, boolean isRemote) {
-        DiscoveryNodes.Builder nb = DiscoveryNodes.builder(clusterState.nodes());
-        for (int i = 0; i < nodeCount; i++) {
-            String id = getNodeId(i, isRemote, "new");
-            nb.add(newNode(id, id, isRemote ? SEARCH_DATA_ROLES : MANAGER_DATA_ROLES));
-        }
-        return ClusterState.builder(clusterState).nodes(nb.build()).build();
-    }
-
-    public ClusterState addNodeWithIP(ClusterState clusterState, int nodeId, boolean isRemote, String IP) throws UnknownHostException {
-        TransportAddress ipAddress = new TransportAddress(Inet4Address.getByName(IP), 9200);
-        DiscoveryNodes.Builder nb = DiscoveryNodes.builder(clusterState.nodes());
-        String id = getNodeId(nodeId, isRemote, "new");
-        nb.add(
-            new DiscoveryNode(
-                id,
-                id,
-                ipAddress,
-                createNodeAttributes(id),
-                isRemote ? SEARCH_DATA_ROLES : MANAGER_DATA_ROLES,
-                Version.CURRENT
-            )
-        );
-        return ClusterState.builder(clusterState).nodes(nb.build()).build();
-    }
-
-    public ClusterState terminateNodes(ClusterState clusterState, AllocationService service, List<String> nodesToTerminate) {
-        if (nodesToTerminate.isEmpty()) {
-            return clusterState;
-        }
-        logger.info("Terminating following nodes from cluster: [{}]", nodesToTerminate);
-        DiscoveryNodes.Builder nb = DiscoveryNodes.builder(clusterState.nodes());
-        nodesToTerminate.forEach(nb::remove);
-        clusterState = ClusterState.builder(clusterState).nodes(nb.build()).build();
-        clusterState = service.disassociateDeadNodes(clusterState, false, "nodes-terminated");
-        return clusterState;
-    }
-
-    public ClusterState createInitialCluster(int localOnlyNodes, int remoteCapableNodes, int localIndices, int remoteIndices) {
+    public ClusterState createInitialCluster(int localOnlyNodes, int remoteNodes, boolean remoteOnly, int localIndices, int remoteIndices) {
         Metadata.Builder mb = Metadata.builder();
         for (int i = 0; i < localIndices; i++) {
             mb.put(
@@ -199,9 +153,16 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
             String name = getNodeId(i, false);
             nb.add(newNode(name, name, MANAGER_DATA_ROLES));
         }
-        for (int i = 0; i < remoteCapableNodes; i++) {
-            String name = getNodeId(i, true);
-            nb.add(newNode(name, name, SEARCH_DATA_ROLES));
+        if (remoteOnly) {
+            for (int i = 0; i < remoteNodes; i++) {
+                String name = getNodeId(i, true);
+                nb.add(newNode(name, name, SEARCH_ONLY_ROLE));
+            }
+        } else {
+            for (int i = 0; i < remoteNodes; i++) {
+                String name = getNodeId(i, true);
+                nb.add(newNode(name, name, SEARCH_DATA_ROLES));
+            }
         }
         DiscoveryNodes nodes = nb.build();
         return ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).nodes(nodes).build();

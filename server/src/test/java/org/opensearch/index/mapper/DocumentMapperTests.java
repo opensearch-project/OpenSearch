@@ -266,12 +266,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        Map<String, Object> expected = org.opensearch.common.collect.Map.of(
-            "field",
-            "value",
-            "object",
-            org.opensearch.common.collect.Map.of("field1", "value1", "field2", "value2")
-        );
+        Map<String, Object> expected = Map.of("field", "value", "object", Map.of("field1", "value1", "field2", "value2"));
         assertThat(initMapper.meta(), equalTo(expected));
 
         DocumentMapper updatedMapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text")));
@@ -293,12 +288,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         }));
         mergedMapper = mergedMapper.merge(updatedMapper.mapping(), MergeReason.INDEX_TEMPLATE);
 
-        expected = org.opensearch.common.collect.Map.of(
-            "field",
-            "value",
-            "object",
-            org.opensearch.common.collect.Map.of("field1", "value1", "field2", "new_value", "field3", "value3")
-        );
+        expected = Map.of("field", "value", "object", Map.of("field1", "value1", "field2", "new_value", "field3", "value3"));
         assertThat(mergedMapper.meta(), equalTo(expected));
     }
 }
