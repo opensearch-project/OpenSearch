@@ -45,7 +45,9 @@ import org.opensearch.common.component.LifecycleListener;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
+import org.opensearch.index.snapshots.blobstore.BlobStoreRemStoreBasedIndexShardSnapshot;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.lockmanager.RemoteStoreMDLockManagerFactory;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
@@ -98,6 +100,7 @@ public class FilterRepository implements Repository {
     public void finalizeSnapshot(
         ShardGenerations shardGenerations,
         long repositoryStateId,
+        RemoteStoreMDLockManagerFactory remoteStoreMDLockManagerFactory,
         Metadata clusterMetadata,
         SnapshotInfo snapshotInfo,
         Version repositoryMetaVersion,
@@ -107,6 +110,7 @@ public class FilterRepository implements Repository {
         in.finalizeSnapshot(
             shardGenerations,
             repositoryStateId,
+            remoteStoreMDLockManagerFactory,
             clusterMetadata,
             snapshotInfo,
             repositoryMetaVersion,
@@ -166,6 +170,7 @@ public class FilterRepository implements Repository {
         IndexShardSnapshotStatus snapshotStatus,
         Version repositoryMetaVersion,
         Map<String, Object> userMetadata,
+        String remoteStoreMDFile,
         ActionListener<String> listener
     ) {
         in.snapshotShard(
@@ -178,6 +183,7 @@ public class FilterRepository implements Repository {
             snapshotStatus,
             repositoryMetaVersion,
             userMetadata,
+            remoteStoreMDFile,
             listener
         );
     }
@@ -192,6 +198,11 @@ public class FilterRepository implements Repository {
         ActionListener<Void> listener
     ) {
         in.restoreShard(store, snapshotId, indexId, snapshotShardId, recoveryState, listener);
+    }
+
+    @Override
+    public BlobStoreRemStoreBasedIndexShardSnapshot getRemoteStoreInteropShardMetadata(SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId) {
+        return in.getRemoteStoreInteropShardMetadata(snapshotId, indexId, snapshotShardId);
     }
 
     @Override

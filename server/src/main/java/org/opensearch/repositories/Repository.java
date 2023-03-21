@@ -46,7 +46,9 @@ import org.opensearch.common.component.LifecycleComponent;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
+import org.opensearch.index.snapshots.blobstore.BlobStoreRemStoreBasedIndexShardSnapshot;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.lockmanager.RemoteStoreMDLockManagerFactory;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
@@ -145,6 +147,7 @@ public interface Repository extends LifecycleComponent {
     void finalizeSnapshot(
         ShardGenerations shardGenerations,
         long repositoryStateId,
+        RemoteStoreMDLockManagerFactory remoteStoreMDLockManagerFactory,
         Metadata clusterMetadata,
         SnapshotInfo snapshotInfo,
         Version repositoryMetaVersion,
@@ -224,18 +227,19 @@ public interface Repository extends LifecycleComponent {
      * <p>
      * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
      * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
-     * @param store                 store to be snapshotted
-     * @param mapperService         the shards mapper service
-     * @param snapshotId            snapshot id
-     * @param indexId               id for the index being snapshotted
-     * @param snapshotIndexCommit   commit point
-     * @param shardStateIdentifier  a unique identifier of the state of the shard that is stored with the shard's snapshot and used
-     *                              to detect if the shard has changed between snapshots. If {@code null} is passed as the identifier
-     *                              snapshotting will be done by inspecting the physical files referenced by {@code snapshotIndexCommit}
-     * @param snapshotStatus        snapshot status
-     * @param repositoryMetaVersion version of the updated repository metadata to write
-     * @param userMetadata          user metadata of the snapshot found in {@link SnapshotsInProgress.Entry#userMetadata()}
-     * @param listener              listener invoked on completion
+     * @param store                    store to be snapshotted
+     * @param mapperService            the shards mapper service
+     * @param snapshotId               snapshot id
+     * @param indexId                  id for the index being snapshotted
+     * @param snapshotIndexCommit      commit point
+     * @param shardStateIdentifier     a unique identifier of the state of the shard that is stored with the shard's snapshot and used
+     *                                 to detect if the shard has changed between snapshots. If {@code null} is passed as the identifier
+     *                                 snapshotting will be done by inspecting the physical files referenced by {@code snapshotIndexCommit}
+     * @param snapshotStatus           snapshot status
+     * @param repositoryMetaVersion    version of the updated repository metadata to write
+     * @param userMetadata             user metadata of the snapshot found in {@link SnapshotsInProgress.Entry#userMetadata()}
+     * @param remoteStoreMetadataFile md file that would have created in remote store.
+     * @param listener                 listener invoked on completion
      */
     void snapshotShard(
         Store store,
@@ -247,6 +251,7 @@ public interface Repository extends LifecycleComponent {
         IndexShardSnapshotStatus snapshotStatus,
         Version repositoryMetaVersion,
         Map<String, Object> userMetadata,
+        String remoteStoreMetadataFile,
         ActionListener<String> listener
     );
 
@@ -268,6 +273,20 @@ public interface Repository extends LifecycleComponent {
         ShardId snapshotShardId,
         RecoveryState recoveryState,
         ActionListener<Void> listener
+    );
+
+    /**
+     * Returns Snapshot Shard Metadata for remote store interop enabled snapshot.
+     * <p>
+     * The index can be renamed on restore, hence different {@code shardId} and {@code snapshotShardId} are supplied.
+     * @param snapshotId      snapshot id
+     * @param indexId         id of the index in the repository from which the restore is occurring
+     * @param snapshotShardId shard id (in the snapshot)
+     */
+    public BlobStoreRemStoreBasedIndexShardSnapshot getRemoteStoreInteropShardMetadata(
+        SnapshotId snapshotId,
+        IndexId indexId,
+        ShardId snapshotShardId
     );
 
     /**

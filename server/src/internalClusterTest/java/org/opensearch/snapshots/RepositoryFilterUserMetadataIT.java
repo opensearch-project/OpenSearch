@@ -44,6 +44,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.lockmanager.RemoteStoreMDLockManagerFactory;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.RepositoryPlugin;
@@ -124,6 +125,7 @@ public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {
                     public void finalizeSnapshot(
                         ShardGenerations shardGenerations,
                         long repositoryStateId,
+                        RemoteStoreMDLockManagerFactory remoteStoreMDLockManagerFactory,
                         Metadata clusterMetadata,
                         SnapshotInfo snapshotInfo,
                         Version repositoryMetaVersion,
@@ -133,6 +135,7 @@ public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {
                         super.finalizeSnapshot(
                             shardGenerations,
                             repositoryStateId,
+                            remoteStoreMDLockManagerFactory,
                             clusterMetadata,
                             snapshotInfo,
                             repositoryMetaVersion,
@@ -152,6 +155,7 @@ public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {
                         IndexShardSnapshotStatus snapshotStatus,
                         Version repositoryMetaVersion,
                         Map<String, Object> userMetadata,
+                        String remoteStoreMDFile,
                         ActionListener<String> listener
                     ) {
                         assertThat(userMetadata, is(Collections.singletonMap(MOCK_FILTERED_META, initialMetaValue)));
@@ -165,6 +169,7 @@ public class RepositoryFilterUserMetadataIT extends OpenSearchIntegTestCase {
                             snapshotStatus,
                             repositoryMetaVersion,
                             userMetadata,
+                            null,
                             listener
                         );
                     }

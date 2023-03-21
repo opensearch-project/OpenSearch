@@ -518,12 +518,14 @@ public abstract class AbstractSnapshotIntegTestCase extends OpenSearchIntegTestC
             0,
             Collections.emptyList(),
             randomBoolean(),
+            false,
             metadata
         );
         PlainActionFuture.<RepositoryData, Exception>get(
             f -> repo.finalizeSnapshot(
                 ShardGenerations.EMPTY,
                 getRepositoryData(repoName).getGenId(),
+                null,
                 state.metadata(),
                 snapshotInfo,
                 Version.V_2_0_0,

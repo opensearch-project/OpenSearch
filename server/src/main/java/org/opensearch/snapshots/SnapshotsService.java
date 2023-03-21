@@ -93,6 +93,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.store.lockmanager.RemoteStoreMDLockManagerFactory;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -340,6 +341,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 newEntry = SnapshotsInProgress.startedEntry(
                     new Snapshot(repositoryName, snapshotId),
                     request.includeGlobalState(),
+                    true, // TODO: need to pull the remote store interop feature value from create snapshot request
                     request.partial(),
                     indexIds,
                     dataStreams,
@@ -1402,6 +1404,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 entry.partial() ? shardGenerations.totalShards() : entry.shards().size(),
                 shardFailures,
                 entry.includeGlobalState(),
+                entry.isRemoteStoreInteropEnabled(),
                 entry.userMetadata()
             );
             final StepListener<Metadata> metadataListener = new StepListener<>();
@@ -1417,10 +1420,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             } else {
                 metadataListener.onResponse(metadata);
             }
+            RemoteStoreMDLockManagerFactory remoteStoreMDLockManagerFactory = new RemoteStoreMDLockManagerFactory(() -> repositoriesService);
             metadataListener.whenComplete(
                 meta -> repo.finalizeSnapshot(
                     shardGenerations,
                     repositoryData.getGenId(),
+                    remoteStoreMDLockManagerFactory,
                     metadataForSnapshot(entry, meta),
                     snapshotInfo,
                     entry.version(),

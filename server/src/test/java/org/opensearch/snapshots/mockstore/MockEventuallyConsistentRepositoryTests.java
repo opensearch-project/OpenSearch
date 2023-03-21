@@ -221,6 +221,7 @@ public class MockEventuallyConsistentRepositoryTests extends OpenSearchTestCase 
             repository.finalizeSnapshot(
                 ShardGenerations.EMPTY,
                 RepositoryData.EMPTY_REPO_GEN,
+                null,
                 Metadata.EMPTY_METADATA,
                 new SnapshotInfo(
                     snapshotId,
@@ -232,6 +233,7 @@ public class MockEventuallyConsistentRepositoryTests extends OpenSearchTestCase 
                     5,
                     Collections.emptyList(),
                     true,
+                    false,
                     Collections.emptyMap()
                 ),
                 Version.CURRENT,
@@ -246,6 +248,7 @@ public class MockEventuallyConsistentRepositoryTests extends OpenSearchTestCase 
                     f -> repository.finalizeSnapshot(
                         ShardGenerations.EMPTY,
                         0L,
+                        null,
                         Metadata.EMPTY_METADATA,
                         new SnapshotInfo(
                             snapshotId,
@@ -257,6 +260,7 @@ public class MockEventuallyConsistentRepositoryTests extends OpenSearchTestCase 
                             6,
                             Collections.emptyList(),
                             true,
+                            false,
                             Collections.emptyMap()
                         ),
                         Version.CURRENT,
@@ -273,6 +277,7 @@ public class MockEventuallyConsistentRepositoryTests extends OpenSearchTestCase 
                 f -> repository.finalizeSnapshot(
                     ShardGenerations.EMPTY,
                     0L,
+                    null,
                     Metadata.EMPTY_METADATA,
                     new SnapshotInfo(
                         snapshotId,
@@ -284,6 +289,7 @@ public class MockEventuallyConsistentRepositoryTests extends OpenSearchTestCase 
                         5,
                         Collections.emptyList(),
                         true,
+                        false,
                         Collections.emptyMap()
                     ),
                     Version.CURRENT,

@@ -201,6 +201,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                 f -> repository.finalizeSnapshot(
                     shardGenerations,
                     RepositoryData.EMPTY_REPO_GEN,
+                    null,
                     Metadata.builder().put(shard.indexSettings().getIndexMetadata(), false).build(),
                     new SnapshotInfo(
                         snapshot.getSnapshotId(),
@@ -212,6 +213,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                         6,
                         Collections.emptyList(),
                         true,
+                        false,
                         Collections.emptyMap()
                     ),
                     Version.CURRENT,

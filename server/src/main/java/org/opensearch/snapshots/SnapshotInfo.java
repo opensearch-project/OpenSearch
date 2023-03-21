@@ -94,6 +94,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private static final String TOTAL_SHARDS = "total_shards";
     private static final String SUCCESSFUL_SHARDS = "successful_shards";
     private static final String INCLUDE_GLOBAL_STATE = "include_global_state";
+
+    private static final String IS_REMOTE_STORE_INTEROP_ENABLED = "is_remote_store_interop_enabled";
     private static final String USER_METADATA = "metadata";
 
     private static final Comparator<SnapshotInfo> COMPARATOR = Comparator.comparing(SnapshotInfo::startTime)
@@ -115,6 +117,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         private long endTime = 0L;
         private ShardStatsBuilder shardStatsBuilder = null;
         private Boolean includeGlobalState = null;
+
+        private Boolean isRemoteStoreInteropEnabled = false;
         private Map<String, Object> userMetadata = null;
         private int version = -1;
         private List<SnapshotShardFailure> shardFailures = null;
@@ -153,6 +157,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
         private void setShardStatsBuilder(ShardStatsBuilder shardStatsBuilder) {
             this.shardStatsBuilder = shardStatsBuilder;
+        }
+
+        private void setIsRemoteStoreInteropEnabled(Boolean isRemoteStoreInteropEnabled) {
+            this.isRemoteStoreInteropEnabled = isRemoteStoreInteropEnabled;
         }
 
         private void setIncludeGlobalState(Boolean includeGlobalState) {
@@ -205,6 +213,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
                 successfulShards,
                 shardFailures,
                 includeGlobalState,
+                isRemoteStoreInteropEnabled,
                 userMetadata
             );
         }
@@ -254,6 +263,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         SNAPSHOT_INFO_PARSER.declareLong(SnapshotInfoBuilder::setEndTime, new ParseField(END_TIME_IN_MILLIS));
         SNAPSHOT_INFO_PARSER.declareObject(SnapshotInfoBuilder::setShardStatsBuilder, SHARD_STATS_PARSER, new ParseField(SHARDS));
         SNAPSHOT_INFO_PARSER.declareBoolean(SnapshotInfoBuilder::setIncludeGlobalState, new ParseField(INCLUDE_GLOBAL_STATE));
+        SNAPSHOT_INFO_PARSER.declareBoolean(SnapshotInfoBuilder::setIsRemoteStoreInteropEnabled, new ParseField(IS_REMOTE_STORE_INTEROP_ENABLED));
         SNAPSHOT_INFO_PARSER.declareObject(SnapshotInfoBuilder::setUserMetadata, (p, c) -> p.map(), new ParseField(USER_METADATA));
         SNAPSHOT_INFO_PARSER.declareInt(SnapshotInfoBuilder::setVersion, new ParseField(VERSION_ID));
         SNAPSHOT_INFO_PARSER.declareObjectArray(
@@ -290,6 +300,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private Boolean includeGlobalState;
 
     @Nullable
+    private Boolean isRemoteStoreInteropEnabled;
+
+    @Nullable
     private final Map<String, Object> userMetadata;
 
     @Nullable
@@ -298,11 +311,11 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private final List<SnapshotShardFailure> shardFailures;
 
     public SnapshotInfo(SnapshotId snapshotId, List<String> indices, List<String> dataStreams, SnapshotState state) {
-        this(snapshotId, indices, dataStreams, state, null, null, 0L, 0L, 0, 0, Collections.emptyList(), null, null);
+        this(snapshotId, indices, dataStreams, state, null, null, 0L, 0L, 0, 0, Collections.emptyList(), null, null, null);
     }
 
     public SnapshotInfo(SnapshotId snapshotId, List<String> indices, List<String> dataStreams, SnapshotState state, Version version) {
-        this(snapshotId, indices, dataStreams, state, null, version, 0L, 0L, 0, 0, Collections.emptyList(), null, null);
+        this(snapshotId, indices, dataStreams, state, null, version, 0L, 0L, 0, 0, Collections.emptyList(), null, null, null);
     }
 
     public SnapshotInfo(SnapshotsInProgress.Entry entry) {
@@ -319,6 +332,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             0,
             Collections.emptyList(),
             entry.includeGlobalState(),
+            entry.isRemoteStoreInteropEnabled(),
             entry.userMetadata()
         );
     }
@@ -333,6 +347,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         int totalShards,
         List<SnapshotShardFailure> shardFailures,
         Boolean includeGlobalState,
+        Boolean isRemoteStoreInteropEnabled,
         Map<String, Object> userMetadata
     ) {
         this(
@@ -348,6 +363,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             totalShards - shardFailures.size(),
             shardFailures,
             includeGlobalState,
+            isRemoteStoreInteropEnabled,
             userMetadata
         );
     }
@@ -365,6 +381,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         int successfulShards,
         List<SnapshotShardFailure> shardFailures,
         Boolean includeGlobalState,
+        Boolean isRemoteStoreInteropEnabled,
         Map<String, Object> userMetadata
     ) {
         this.snapshotId = Objects.requireNonNull(snapshotId);
@@ -379,6 +396,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         this.successfulShards = successfulShards;
         this.shardFailures = Objects.requireNonNull(shardFailures);
         this.includeGlobalState = includeGlobalState;
+        this.isRemoteStoreInteropEnabled = isRemoteStoreInteropEnabled;
         this.userMetadata = userMetadata;
     }
 
@@ -397,6 +415,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         shardFailures = Collections.unmodifiableList(in.readList(SnapshotShardFailure::new));
         version = in.readBoolean() ? Version.readVersion(in) : null;
         includeGlobalState = in.readOptionalBoolean();
+        isRemoteStoreInteropEnabled = in.readOptionalBoolean();
         userMetadata = in.readMap();
         dataStreams = in.readStringList();
     }
@@ -508,6 +527,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         return includeGlobalState;
     }
 
+    public Boolean isRemoteStoreInteropEnabled() {
+        return isRemoteStoreInteropEnabled;
+    }
+
     /**
      * Returns shard failures; an empty list will be returned if there were no shard
      * failures, or if {@link #state()} returns {@code null}.
@@ -569,6 +592,8 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             + successfulShards
             + ", includeGlobalState="
             + includeGlobalState
+            + ", isRemoteStoreInteropEnabled="
+            + isRemoteStoreInteropEnabled
             + ", version="
             + version
             + ", shardFailures="
@@ -617,6 +642,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         builder.endArray();
         if (includeGlobalState != null) {
             builder.field(INCLUDE_GLOBAL_STATE, includeGlobalState);
+        }
+        if (isRemoteStoreInteropEnabled != null) {
+            builder.field(IS_REMOTE_STORE_INTEROP_ENABLED, isRemoteStoreInteropEnabled);
         }
         if (userMetadata != null) {
             builder.field(USER_METADATA, userMetadata);
@@ -677,6 +705,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         if (includeGlobalState != null) {
             builder.field(INCLUDE_GLOBAL_STATE, includeGlobalState);
         }
+        if (isRemoteStoreInteropEnabled != null) {
+            builder.field(IS_REMOTE_STORE_INTEROP_ENABLED, isRemoteStoreInteropEnabled);
+        }
         builder.field(USER_METADATA, userMetadata);
         builder.field(START_TIME, startTime);
         builder.field(END_TIME, endTime);
@@ -709,6 +740,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         int totalShards = 0;
         int successfulShards = 0;
         Boolean includeGlobalState = null;
+        Boolean isRemoteStoreInteropEnabled = null;
         Map<String, Object> userMetadata = null;
         List<SnapshotShardFailure> shardFailures = Collections.emptyList();
         if (parser.currentToken() == null) { // fresh parser? move to the first token
@@ -746,6 +778,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
                             version = Version.fromId(parser.intValue());
                         } else if (INCLUDE_GLOBAL_STATE.equals(currentFieldName)) {
                             includeGlobalState = parser.booleanValue();
+                        }
+                        else if (IS_REMOTE_STORE_INTEROP_ENABLED.equals(currentFieldName)) {
+                            isRemoteStoreInteropEnabled = parser.booleanValue();
                         }
                     } else if (token == XContentParser.Token.START_ARRAY) {
                         if (DATA_STREAMS.equals(currentFieldName)) {
@@ -797,6 +832,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             successfulShards,
             shardFailures,
             includeGlobalState,
+            isRemoteStoreInteropEnabled,
             userMetadata
         );
     }
@@ -824,6 +860,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             out.writeBoolean(false);
         }
         out.writeOptionalBoolean(includeGlobalState);
+        out.writeOptionalBoolean(isRemoteStoreInteropEnabled);
         out.writeMap(userMetadata);
         out.writeStringCollection(dataStreams);
     }
@@ -855,6 +892,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             && Objects.equals(indices, that.indices)
             && Objects.equals(dataStreams, that.dataStreams)
             && Objects.equals(includeGlobalState, that.includeGlobalState)
+            && Objects.equals(isRemoteStoreInteropEnabled, that.isRemoteStoreInteropEnabled)
             && Objects.equals(version, that.version)
             && Objects.equals(shardFailures, that.shardFailures)
             && Objects.equals(userMetadata, that.userMetadata);
@@ -874,6 +912,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             totalShards,
             successfulShards,
             includeGlobalState,
+            isRemoteStoreInteropEnabled,
             version,
             shardFailures,
             userMetadata

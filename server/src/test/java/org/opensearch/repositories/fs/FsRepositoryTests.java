@@ -138,6 +138,7 @@ public class FsRepositoryTests extends OpenSearchTestCase {
                     snapshotStatus,
                     Version.CURRENT,
                     Collections.emptyMap(),
+                    null,
                     future1
                 );
                 future1.actionGet();
@@ -180,6 +181,7 @@ public class FsRepositoryTests extends OpenSearchTestCase {
                     snapshotStatus,
                     Version.CURRENT,
                     Collections.emptyMap(),
+                    null,
                     future2
                 );
                 future2.actionGet();

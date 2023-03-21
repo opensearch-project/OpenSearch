@@ -1231,6 +1231,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 snapshotStatus,
                 Version.CURRENT,
                 Collections.emptyMap(),
+                null,
                 future
             );
             shardGen = future.actionGet();

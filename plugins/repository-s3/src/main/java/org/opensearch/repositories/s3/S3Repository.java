@@ -51,6 +51,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.index.store.lockmanager.RemoteStoreMDLockManagerFactory;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.repositories.RepositoryData;
@@ -291,6 +292,7 @@ class S3Repository extends MeteredBlobStoreRepository {
     public void finalizeSnapshot(
         ShardGenerations shardGenerations,
         long repositoryStateId,
+        RemoteStoreMDLockManagerFactory remoteStoreMDLockManagerFactory,
         Metadata clusterMetadata,
         SnapshotInfo snapshotInfo,
         Version repositoryMetaVersion,
@@ -300,6 +302,7 @@ class S3Repository extends MeteredBlobStoreRepository {
         super.finalizeSnapshot(
             shardGenerations,
             repositoryStateId,
+            null,
             clusterMetadata,
             snapshotInfo,
             repositoryMetaVersion,

@@ -44,6 +44,7 @@ import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.lockmanager.RemoteStoreMDLockManagerFactory;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.IndexMetaDataGenerations;
 import org.opensearch.repositories.Repository;
@@ -119,6 +120,7 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     public void finalizeSnapshot(
         ShardGenerations shardGenerations,
         long repositoryStateId,
+        RemoteStoreMDLockManagerFactory remoteStoreMDLockManagerFactory,
         Metadata clusterMetadata,
         SnapshotInfo snapshotInfo,
         Version repositoryMetaVersion,
@@ -172,6 +174,7 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
         IndexShardSnapshotStatus snapshotStatus,
         Version repositoryMetaVersion,
         Map<String, Object> userMetadata,
+        String remoteStoreMDFile,
         ActionListener<String> listener
     ) {}
 

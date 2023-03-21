@@ -59,6 +59,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.lockmanager.RemoteStoreMDLockManagerFactory;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
@@ -250,6 +251,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         public void finalizeSnapshot(
             ShardGenerations shardGenerations,
             long repositoryStateId,
+            RemoteStoreMDLockManagerFactory remoteStoreMDLockManagerFactory,
             Metadata clusterMetadata,
             SnapshotInfo snapshotInfo,
             Version repositoryMetaVersion,
@@ -310,6 +312,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
             IndexShardSnapshotStatus snapshotStatus,
             Version repositoryMetaVersion,
             Map<String, Object> userMetadata,
+            String remoteStoreMDFile,
             ActionListener<String> listener
         ) {
 

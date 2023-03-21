@@ -109,6 +109,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     public static Entry startedEntry(
         Snapshot snapshot,
         boolean includeGlobalState,
+        boolean isRemoteStoreInteropEnabled,
         boolean partial,
         List<IndexId> indices,
         List<String> dataStreams,
@@ -121,6 +122,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return new SnapshotsInProgress.Entry(
             snapshot,
             includeGlobalState,
+            isRemoteStoreInteropEnabled,
             partial,
             completed(shards.values()) ? State.SUCCESS : State.STARTED,
             indices,
@@ -156,6 +158,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         return new SnapshotsInProgress.Entry(
             snapshot,
             true,
+            false, // TODO: need to pull this value from the original snapshot, use whatever we set during snapshot create.
             false,
             State.STARTED,
             indices,
@@ -180,6 +183,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private final State state;
         private final Snapshot snapshot;
         private final boolean includeGlobalState;
+        private final boolean isRemoteStoreInteropEnabled;
         private final boolean partial;
         /**
          * Map of {@link ShardId} to {@link ShardSnapshotStatus} tracking the state of each shard snapshot operation.
@@ -213,6 +217,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public Entry(
             Snapshot snapshot,
             boolean includeGlobalState,
+            boolean isRemoteStoreInteropEnabled,
             boolean partial,
             State state,
             List<IndexId> indices,
@@ -227,6 +232,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this(
                 snapshot,
                 includeGlobalState,
+                isRemoteStoreInteropEnabled,
                 partial,
                 state,
                 indices,
@@ -245,6 +251,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private Entry(
             Snapshot snapshot,
             boolean includeGlobalState,
+            boolean isRemoteStoreInteropEnabled,
             boolean partial,
             State state,
             List<IndexId> indices,
@@ -261,6 +268,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this.state = state;
             this.snapshot = snapshot;
             this.includeGlobalState = includeGlobalState;
+            this.isRemoteStoreInteropEnabled = isRemoteStoreInteropEnabled;
             this.partial = partial;
             this.indices = indices;
             this.dataStreams = dataStreams;
@@ -283,6 +291,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         private Entry(StreamInput in) throws IOException {
             snapshot = new Snapshot(in);
             includeGlobalState = in.readBoolean();
+            isRemoteStoreInteropEnabled = in.readBoolean();
             partial = in.readBoolean();
             state = State.fromValue(in.readByte());
             indices = in.readList(IndexId::new);
@@ -341,6 +350,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public Entry(
             Snapshot snapshot,
             boolean includeGlobalState,
+            boolean isRemoteStoreInteropEnabled,
             boolean partial,
             State state,
             List<IndexId> indices,
@@ -354,6 +364,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this(
                 snapshot,
                 includeGlobalState,
+                isRemoteStoreInteropEnabled,
                 partial,
                 state,
                 indices,
@@ -379,6 +390,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             this(
                 entry.snapshot,
                 entry.includeGlobalState,
+                entry.isRemoteStoreInteropEnabled,
                 entry.partial,
                 state,
                 indices,
@@ -401,6 +413,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return new Entry(
                 snapshot,
                 includeGlobalState,
+                isRemoteStoreInteropEnabled,
                 partial,
                 state,
                 indices,
@@ -423,6 +436,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return new Entry(
                 snapshot,
                 includeGlobalState,
+                isRemoteStoreInteropEnabled,
                 partial,
                 completed(updatedClones.values()) ? (hasFailures(updatedClones) ? State.FAILED : State.SUCCESS) : state,
                 indices,
@@ -478,6 +492,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return new Entry(
                 snapshot,
                 includeGlobalState,
+                isRemoteStoreInteropEnabled,
                 partial,
                 state,
                 indices,
@@ -506,6 +521,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 return new Entry(
                     snapshot,
                     includeGlobalState,
+                    isRemoteStoreInteropEnabled,
                     partial,
                     State.SUCCESS,
                     indices,
@@ -529,6 +545,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             final SnapshotsInProgress.Entry updated = new Entry(
                 snapshot,
                 includeGlobalState,
+                isRemoteStoreInteropEnabled,
                 partial,
                 state,
                 indices,
@@ -568,6 +585,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
 
         public boolean includeGlobalState() {
             return includeGlobalState;
+        }
+
+        public boolean isRemoteStoreInteropEnabled() {
+            return isRemoteStoreInteropEnabled;
         }
 
         public Map<String, Object> userMetadata() {
@@ -623,6 +644,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             Entry entry = (Entry) o;
 
             if (includeGlobalState != entry.includeGlobalState) return false;
+            if (isRemoteStoreInteropEnabled != entry.isRemoteStoreInteropEnabled) return false;
             if (partial != entry.partial) return false;
             if (startTime != entry.startTime) return false;
             if (!indices.equals(entry.indices)) return false;
@@ -642,6 +664,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             int result = state.hashCode();
             result = 31 * result + snapshot.hashCode();
             result = 31 * result + (includeGlobalState ? 1 : 0);
+            result = 31 * result + (isRemoteStoreInteropEnabled ? 1 : 0);
             result = 31 * result + (partial ? 1 : 0);
             result = 31 * result + shards.hashCode();
             result = 31 * result + indices.hashCode();
@@ -665,6 +688,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             builder.field(SNAPSHOT, snapshot.getSnapshotId().getName());
             builder.field(UUID, snapshot.getSnapshotId().getUUID());
             builder.field(INCLUDE_GLOBAL_STATE, includeGlobalState());
+            builder.field(IS_REMOTE_STORE_INTEROP_ENABLED, isRemoteStoreInteropEnabled());
             builder.field(PARTIAL, partial);
             builder.field(STATE, state);
             builder.startArray(INDICES);
@@ -701,6 +725,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
         public void writeTo(StreamOutput out) throws IOException {
             snapshot.writeTo(out);
             out.writeBoolean(includeGlobalState);
+            out.writeBoolean(isRemoteStoreInteropEnabled);
             out.writeBoolean(partial);
             out.writeByte(state.value());
             out.writeList(indices);
@@ -998,6 +1023,8 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
     private static final String SNAPSHOT = "snapshot";
     private static final String UUID = "uuid";
     private static final String INCLUDE_GLOBAL_STATE = "include_global_state";
+
+    private static final String IS_REMOTE_STORE_INTEROP_ENABLED = "is_remote_store_interop_enabled";
     private static final String PARTIAL = "partial";
     private static final String STATE = "state";
     private static final String INDICES = "indices";
