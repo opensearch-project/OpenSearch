@@ -1310,9 +1310,11 @@ public class MetadataCreateIndexService {
             );
         }
 
-        // ensure index is read-only
+        // ensure write operations on the source index is blocked
         if (state.blocks().indexBlocked(ClusterBlockLevel.WRITE, sourceIndex) == false) {
-            throw new IllegalStateException("index " + sourceIndex + " must be read-only to resize index. use \"index.blocks.write=true\"");
+            throw new IllegalStateException(
+                "index " + sourceIndex + " must block write operations to resize index. use \"index.blocks.write=true\""
+            );
         }
 
         if (IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {

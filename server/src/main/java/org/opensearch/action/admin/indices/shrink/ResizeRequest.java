@@ -125,6 +125,29 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         if (maxShardSize != null && maxShardSize.getBytes() <= 0) {
             validationException = addValidationError("max_shard_size must be greater than 0", validationException);
         }
+        // Check target index's settings, if `index.blocks.read_only` is `true`, the target index's metadata writes will be disabled
+        // and then cause the new shards to be unassigned.
+        if (IndexMetadata.INDEX_READ_ONLY_SETTING.get(targetIndexRequest.settings()) == true) {
+            validationException = addValidationError(
+                "target index ["
+                    + targetIndexRequest.index()
+                    + "] will be blocked by [index.blocks.read_only=true], this will disable metadata writes and cause the shards to be unassigned,"
+                    + " please set \"index.blocks.read_only=false\" or \"index.blocks.read_only=null\"",
+                validationException
+            );
+        }
+
+        // Check target index's settings, if `index.blocks.metadata` is `true`, the target index's metadata writes will be disabled
+        // and then cause the new shards to be unassigned.
+        if (IndexMetadata.INDEX_BLOCKS_METADATA_SETTING.get(targetIndexRequest.settings()) == true) {
+            validationException = addValidationError(
+                "target index ["
+                    + targetIndexRequest.index()
+                    + "] will be blocked by [index.blocks.metadata=true], this will disable metadata writes and cause the shards to be unassigned,"
+                    + " please set \"index.blocks.metadata=false\" or \"index.blocks.metadata=null\"",
+                validationException
+            );
+        }
         assert copySettings == null || copySettings;
         return validationException;
     }
