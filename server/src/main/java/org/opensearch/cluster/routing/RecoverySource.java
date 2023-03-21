@@ -259,8 +259,10 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         private final Version version;
         private final boolean isSearchableSnapshot;
 
+        private boolean isSnapshotRemStoreInteropEnabled = false;
+
         public SnapshotRecoverySource(String restoreUUID, Snapshot snapshot, Version version, IndexId indexId) {
-            this(restoreUUID, snapshot, version, indexId, false);
+            this(restoreUUID, snapshot, version, indexId, false, false);
         }
 
         public SnapshotRecoverySource(
@@ -268,13 +270,15 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             Snapshot snapshot,
             Version version,
             IndexId indexId,
-            boolean isSearchableSnapshot
+            boolean isSearchableSnapshot,
+            boolean isSnapshotRemStoreInteropEnabled
         ) {
             this.restoreUUID = restoreUUID;
             this.snapshot = Objects.requireNonNull(snapshot);
             this.version = Objects.requireNonNull(version);
             this.index = Objects.requireNonNull(indexId);
             this.isSearchableSnapshot = isSearchableSnapshot;
+            this.isSnapshotRemStoreInteropEnabled = isSnapshotRemStoreInteropEnabled;
         }
 
         SnapshotRecoverySource(StreamInput in) throws IOException {
@@ -287,6 +291,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             } else {
                 isSearchableSnapshot = false;
             }
+            isSnapshotRemStoreInteropEnabled = in.readBoolean();
         }
 
         public String restoreUUID() {
@@ -315,6 +320,9 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             return isSearchableSnapshot;
         }
 
+        public boolean isSnapshotRemStoreInteropEnabled() {
+            return isSnapshotRemStoreInteropEnabled;
+        }
         @Override
         protected void writeAdditionalFields(StreamOutput out) throws IOException {
             out.writeString(restoreUUID);
@@ -324,6 +332,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT) && out.getVersion().onOrAfter(Version.V_2_4_0)) {
                 out.writeBoolean(isSearchableSnapshot);
             }
+            out.writeBoolean(isSnapshotRemStoreInteropEnabled);
         }
 
         @Override
@@ -338,7 +347,8 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
                 .field("version", version.toString())
                 .field("index", index.getName())
                 .field("restoreUUID", restoreUUID)
-                .field("isSearchableSnapshot", isSearchableSnapshot);
+                .field("isSearchableSnapshot", isSearchableSnapshot)
+                .field("isSnapshotRemStoreInteropEnabled", isSnapshotRemStoreInteropEnabled);
         }
 
         @Override
@@ -360,12 +370,14 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
                 && snapshot.equals(that.snapshot)
                 && index.equals(that.index)
                 && version.equals(that.version)
-                && isSearchableSnapshot == that.isSearchableSnapshot;
+                && isSearchableSnapshot == that.isSearchableSnapshot
+                && isSnapshotRemStoreInteropEnabled == that.isSnapshotRemStoreInteropEnabled;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(restoreUUID, snapshot, index, version, isSearchableSnapshot);
+            return Objects.hash(restoreUUID, snapshot, index, version, isSearchableSnapshot,
+                isSnapshotRemStoreInteropEnabled);
         }
 
     }

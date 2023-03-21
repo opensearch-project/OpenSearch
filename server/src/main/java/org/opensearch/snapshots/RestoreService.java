@@ -458,7 +458,10 @@ public class RestoreService implements ClusterStateApplier {
                                     snapshot,
                                     snapshotInfo.version(),
                                     repositoryData.resolveIndexId(index),
-                                    isSearchableSnapshot
+                                    isSearchableSnapshot,
+                                    snapshotInfo.isRemoteStoreInteropEnabled()
+                                        && metadata.index(index).getSettings()
+                                        .getAsBoolean(SETTING_REMOTE_STORE_ENABLED, false)
                                 );
                                 final Version minIndexCompatibilityVersion;
                                 if (isSearchableSnapshot && isSearchableSnapshotsExtendedCompatibilityEnabled()) {
