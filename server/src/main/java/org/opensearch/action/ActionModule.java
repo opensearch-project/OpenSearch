@@ -282,7 +282,6 @@ import org.opensearch.common.inject.AbstractModule;
 import org.opensearch.common.inject.TypeLiteral;
 import org.opensearch.common.inject.multibindings.MapBinder;
 import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.extensions.action.ExtensionAction;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
@@ -979,7 +978,7 @@ public class ActionModule extends AbstractModule {
     }
 
     /**
-     * The DynamicActionRegistry maintains a registry mapping {@link ExtensionAction} instances to {@link TransportAction} instances.
+     * The DynamicActionRegistry maintains a registry mapping {@link ActionType} instances to {@link TransportAction} instances.
      * <p>
      * This class is modeled after {@link NamedRegistry} but provides both register and unregister capabilities.
      *
@@ -1023,7 +1022,7 @@ public class ActionModule extends AbstractModule {
          *
          * @param action The action to remove
          */
-        public void unregisterExtensionAction(ActionType action) {
+        public void unregisterDynamicAction(ActionType action) {
             requireNonNull(action, "action is required");
             if (registry.remove(action) == null) {
                 throw new IllegalArgumentException("action [" + action.name() + "] was not registered");

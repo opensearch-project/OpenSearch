@@ -315,7 +315,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
         assertEquals("action [actionName] already registered", ex.getMessage());
         // Should remove without problem
         try {
-            dynamicActionRegistry.unregisterExtensionAction(testExtensionAction);
+            dynamicActionRegistry.unregisterDynamicAction(testExtensionAction);
         } catch (Exception e) {
             fail("Should not have thrown exception unregistering action: " + e);
         }
@@ -323,7 +323,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
         assertNull(dynamicActionRegistry.get(testExtensionAction));
 
         // Should fail removing twice
-        ex = assertThrows(IllegalArgumentException.class, () -> dynamicActionRegistry.unregisterExtensionAction(testExtensionAction));
+        ex = assertThrows(IllegalArgumentException.class, () -> dynamicActionRegistry.unregisterDynamicAction(testExtensionAction));
         assertEquals("action [actionName] was not registered", ex.getMessage());
     }
 

@@ -106,7 +106,7 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
             transportService,
             client,
             mockActionModule,
-            null // need to mock er for the testregisteraction
+            null
         );
     }
 
