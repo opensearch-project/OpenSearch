@@ -85,7 +85,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     public static void stubValidateQueryAction() {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
 
-        final TransportAction transportAction = new TransportAction(
+        final TransportAction<?, ?> transportAction = new TransportAction<>(
             ValidateQueryAction.NAME,
             new ActionFilters(Collections.emptySet()),
             taskManager
@@ -94,7 +94,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
             protected void doExecute(Task task, ActionRequest request, ActionListener listener) {}
         };
 
-        final Map<ActionType, TransportAction> actions = new HashMap<>();
+        final Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
         actions.put(ValidateQueryAction.INSTANCE, transportAction);
 
         DynamicActionRegistry dynamicActionRegistry = new DynamicActionRegistry();

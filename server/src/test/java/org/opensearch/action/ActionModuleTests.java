@@ -275,7 +275,10 @@ public class ActionModuleTests extends OpenSearchTestCase {
 
     public void testDynamicActionRegistry() {
         ActionFilters emptyFilters = new ActionFilters(Collections.emptySet());
-        Map<ActionType, TransportAction> testMap = Map.of(TestAction.INSTANCE, new TestTransportAction("test-action", emptyFilters, null));
+        Map<ActionType<?>, TransportAction<?, ?>> testMap = Map.of(
+            TestAction.INSTANCE,
+            new TestTransportAction("test-action", emptyFilters, null)
+        );
         TransportService mockTransportService = mock(TransportService.class);
         TaskManager mockTaskManager = mock(TaskManager.class);
         when(mockTransportService.getTaskManager()).thenReturn(mockTaskManager);

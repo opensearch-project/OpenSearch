@@ -988,17 +988,17 @@ public class ActionModule extends AbstractModule {
         // This is the unmodifiable actions map created during node bootstrap, which
         // will continue to link ActionType and TransportAction pairs from core and plugin
         // action handler registration.
-        private Map<ActionType, TransportAction> actions = Collections.emptyMap();
+        private Map<ActionType<?>, TransportAction<?, ?>> actions = Collections.emptyMap();
         // A dynamic registry to add or remove ActionType / TransportAction pairs
         // at times other than node bootstrap.
-        private final Map<ActionType, TransportAction> registry = new ConcurrentHashMap<>();
+        private final Map<ActionType<?>, TransportAction<?, ?>> registry = new ConcurrentHashMap<>();
 
         /**
          * Register the immutable actions in the registry.
          *
          * @param actions The injected map of {@link ActionType} to {@link TransportAction}
          */
-        public void registerUnmodifiableActionMap(Map<ActionType, TransportAction> actions) {
+        public void registerUnmodifiableActionMap(Map<ActionType<?>, TransportAction<?, ?>> actions) {
             this.actions = actions;
         }
 
@@ -1008,7 +1008,7 @@ public class ActionModule extends AbstractModule {
          * @param action The action instance to add
          * @param transportAction The corresponding instance of transportAction to execute
          */
-        public void registerDynamicAction(ActionType action, TransportAction transportAction) {
+        public void registerDynamicAction(ActionType<?> action, TransportAction<?, ?> transportAction) {
             requireNonNull(action, "action is required");
             requireNonNull(transportAction, "transportAction is required");
             if (actions.containsKey(action) || registry.putIfAbsent(action, transportAction) != null) {
@@ -1021,7 +1021,7 @@ public class ActionModule extends AbstractModule {
          *
          * @param action The action to remove
          */
-        public void unregisterDynamicAction(ActionType action) {
+        public void unregisterDynamicAction(ActionType<?> action) {
             requireNonNull(action, "action is required");
             if (registry.remove(action) == null) {
                 throw new IllegalArgumentException("action [" + action.name() + "] was not registered");

@@ -1114,7 +1114,7 @@ public class Node implements Closeable {
             resourcesToClose.add(injector.getInstance(PeerRecoverySourceService.class));
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
             DynamicActionRegistry dynamicActionRegistry = actionModule.getDynamicActionRegistry();
-            dynamicActionRegistry.registerUnmodifiableActionMap(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {
+            dynamicActionRegistry.registerUnmodifiableActionMap(injector.getInstance(new Key<Map<ActionType<?>, TransportAction<?, ?>>>() {
             }));
             client.initialize(
                 dynamicActionRegistry,
