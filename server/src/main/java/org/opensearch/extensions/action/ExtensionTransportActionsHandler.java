@@ -46,18 +46,23 @@ public class ExtensionTransportActionsHandler {
     private final Map<String, DiscoveryExtensionNode> extensionIdMap;
     private final TransportService transportService;
     private final NodeClient client;
+    private ActionModule actionModule;
     private final DynamicActionRegistry dynamicActionRegistry;
+    private ExtensionsManager extensionsManager;
 
     public ExtensionTransportActionsHandler(
         Map<String, DiscoveryExtensionNode> extensionIdMap,
         TransportService transportService,
         NodeClient client,
-        ActionModule actionModule
+        ActionModule actionModule,
+        ExtensionsManager extensionsManager
     ) {
         this.extensionIdMap = extensionIdMap;
         this.transportService = transportService;
         this.client = client;
+        this.actionModule = actionModule;
         this.dynamicActionRegistry = actionModule.getDynamicActionRegistry();
+        this.extensionsManager = extensionsManager;
     }
 
     /**
@@ -72,8 +77,11 @@ public class ExtensionTransportActionsHandler {
         if (actionToIdMap.putIfAbsent(action, uniqueId) != null) {
             throw new IllegalArgumentException("The action [" + action + "] you are trying to register is already registered");
         }
-        // Register the action in the action module's extension actions map
-        dynamicActionRegistry.registerExtensionAction(new ExtensionAction(uniqueId, action));
+        // Register the action in the action module's dynamic actions map
+        dynamicActionRegistry.registerDynamicAction(
+            new ExtensionAction(uniqueId, action),
+            new ExtensionTransportAction(action, actionModule.getActionFilters(), transportService, extensionsManager)
+        );
     }
 
     /**

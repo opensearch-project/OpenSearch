@@ -59,7 +59,7 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
         Actions actions = new Actions(settings, threadPool, testedActions);
         NodeClient client = new NodeClient(settings, threadPool);
         DynamicActionRegistry dynamicActionRegistry = new DynamicActionRegistry();
-        dynamicActionRegistry.initialize(actions, EMPTY_FILTERS, null, null);
+        dynamicActionRegistry.initialize(actions);
         client.initialize(dynamicActionRegistry, () -> "test", null, new NamedWriteableRegistry(Collections.emptyList()));
         return client;
     }

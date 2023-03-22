@@ -282,9 +282,7 @@ import org.opensearch.common.inject.AbstractModule;
 import org.opensearch.common.inject.TypeLiteral;
 import org.opensearch.common.inject.multibindings.MapBinder;
 import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.action.ExtensionAction;
-import org.opensearch.extensions.action.ExtensionTransportAction;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
@@ -442,7 +440,6 @@ import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.rest.action.search.RestSearchScrollAction;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.TransportService;
 import org.opensearch.usage.UsageService;
 
 import java.util.ArrayList;
@@ -482,8 +479,8 @@ public class ActionModule extends AbstractModule {
     // will remain accessible.
     private final Map<String, ActionHandler<?, ?>> actions;
     // A dynamic action registry which includes the above immutable actions
-    // and also registers dynamic ExtensionActions / ExtensionTransportActions
-    // associated with remote action execution on extensions, usually in
+    // and also registers dynamic actions which may be unregistered. Usually
+    // associated with remote action execution on extensions, possibly in
     // a different JVM and possibly on a different server.
     private final DynamicActionRegistry dynamicActionRegistry;
     private final ActionFilters actionFilters;
@@ -993,78 +990,58 @@ public class ActionModule extends AbstractModule {
         // will continue to link ActionType and TransportAction pairs from core and plugin
         // action handler registration.
         private Map<ActionType, TransportAction> actions = Collections.emptyMap();
-        // A dynamic registry to add or remove ExtensionAction / ExtensionTransportAction
-        // pairs. These classes extend ActionType and TransportAction, respectively, with
-        // additional fields identifying the remote extension they are associated with.
-        private final Map<ExtensionAction, ExtensionTransportAction> registry = new ConcurrentHashMap<>();
-
-        private ActionFilters actionFilters;
-        private ExtensionsManager extensionsManager;
-        private TransportService transportService;
+        // A dynamic registry to add or remove ActionType / TransportAction pairs
+        // at times other than node bootstrap.
+        private final Map<ActionType, TransportAction> registry = new ConcurrentHashMap<>();
 
         /**
          * Initialize the immutable actions in the registry and provide parameters needed for dynamic actions.
          *
          * @param actions The injected map of {@link ActionType} to {@link TransportAction}
-         * @param actionFilters The action filters
-         * @param transportService The node's {@link TransportService}
-         * @param extensionsManager The instance of the {@link ExtensionsManager}
          */
-        public void initialize(
-            Map<ActionType, TransportAction> actions,
-            ActionFilters actionFilters,
-            TransportService transportService,
-            ExtensionsManager extensionsManager
-        ) {
+        public void initialize(Map<ActionType, TransportAction> actions) {
             this.actions = actions;
-            this.actionFilters = actionFilters;
-            this.transportService = transportService;
-            this.extensionsManager = extensionsManager;
         }
 
         /**
-         * Add an {@link ExtensionAction} to the registry.
+         * Add a dynamic action to the registry.
          *
-         * @param extensionAction The action to add
+         * @param action The action instance to add
+         * @param transportAction The corresponding instance of transportAction to execute
          */
-        public void registerExtensionAction(ExtensionAction extensionAction) {
-            requireNonNull(extensionAction, "extension action is required");
-            String name = extensionAction.name();
-            String uniqueId = extensionAction.uniqueId();
-            if (registry.containsKey(extensionAction)) {
-                throw new IllegalArgumentException("extension [" + uniqueId + "] action [" + name + "] already registered");
+        public void registerDynamicAction(ActionType action, TransportAction transportAction) {
+            requireNonNull(action, "action is required");
+            requireNonNull(transportAction, "transportAction is required");
+            if (registry.containsKey(action) || actions.containsKey(action)) {
+                throw new IllegalArgumentException("action [" + action.name() + "] already registered");
             }
-            registry.put(extensionAction, new ExtensionTransportAction(name, actionFilters, transportService, extensionsManager));
+            registry.put(action, transportAction);
         }
 
         /**
-         * Remove an {@link ExtensionAction} from the registry.
+         * Remove a dynamic action from the registry.
          *
-         * @param extensionAction The action to remove
+         * @param action The action to remove
          */
-        public void unregisterExtensionAction(ExtensionAction extensionAction) {
-            requireNonNull(extensionAction, "extension action is required");
-            String name = extensionAction.name();
-            String uniqueId = extensionAction.uniqueId();
-            if (registry.remove(extensionAction) == null) {
-                throw new IllegalArgumentException("extension [" + uniqueId + "] action [" + name + "] was not registered");
+        public void unregisterExtensionAction(ActionType action) {
+            requireNonNull(action, "action is required");
+            if (registry.remove(action) == null) {
+                throw new IllegalArgumentException("action [" + action.name() + "] was not registered");
             }
         }
 
         /**
          * Gets the {@link TransportAction} instance corresponding to the {@link ActionType} instance.
-         * <p>
-         * If the action is an {@link ExtensionAction} it is returned from the dynamic registry; otherwise it comes from the ActionModule's immutable actions map.
          *
-         * @param action The {@link ActionType}. May be an {@link ExtensionAction}.
+         * @param action The {@link ActionType}.
          * @return the corresponding {@link TransportAction} if it is registered, null otherwise.
          */
         @SuppressWarnings("unchecked")
         public TransportAction<? extends ActionRequest, ? extends ActionResponse> get(ActionType<?> action) {
-            if (action instanceof ExtensionAction) {
-                return registry.get((ExtensionAction) action);
+            if (actions.containsKey(action)) {
+                return actions.get(action);
             }
-            return actions.get(action);
+            return registry.get(action);
         }
     }
 }

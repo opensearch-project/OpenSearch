@@ -50,6 +50,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
 public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
+    private static final ActionFilters EMPTY_FILTERS = new ActionFilters(Collections.emptySet());
     private TransportService transportService;
     private MockNioTransport transport;
     private DiscoveryExtensionNode discoveryExtensionNode;
@@ -97,13 +98,15 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
         client = new NoOpNodeClient(this.getTestName());
         ActionModule mockActionModule = mock(ActionModule.class);
         DynamicActionRegistry dynamicActionRegistry = new DynamicActionRegistry();
-        dynamicActionRegistry.initialize(Collections.emptyMap(), new ActionFilters(Collections.emptySet()), transportService, null);
+        dynamicActionRegistry.initialize(Collections.emptyMap());
         when(mockActionModule.getDynamicActionRegistry()).thenReturn(dynamicActionRegistry);
+        when(mockActionModule.getActionFilters()).thenReturn(EMPTY_FILTERS);
         extensionTransportActionsHandler = new ExtensionTransportActionsHandler(
             Map.of("uniqueid1", discoveryExtensionNode),
             transportService,
             client,
-            mockActionModule
+            mockActionModule,
+            null // need to mock er for the testregisteraction
         );
     }
 

@@ -1115,7 +1115,7 @@ public class Node implements Closeable {
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
             DynamicActionRegistry dynamicActionRegistry = actionModule.getDynamicActionRegistry();
             dynamicActionRegistry.initialize(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {
-            }), actionModule.getActionFilters(), transportService, extensionsManager);
+            }));
             client.initialize(
                 dynamicActionRegistry,
                 () -> clusterService.localNode().getId(),

@@ -98,7 +98,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
         actions.put(ValidateQueryAction.INSTANCE, transportAction);
 
         DynamicActionRegistry dynamicActionRegistry = new DynamicActionRegistry();
-        dynamicActionRegistry.initialize(actions, null, null, null);
+        dynamicActionRegistry.initialize(actions);
         client.initialize(dynamicActionRegistry, () -> "local", null, new NamedWriteableRegistry(Collections.emptyList()));
         controller.registerHandler(action);
     }

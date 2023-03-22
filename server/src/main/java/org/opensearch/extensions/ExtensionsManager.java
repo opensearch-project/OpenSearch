@@ -197,7 +197,8 @@ public class ExtensionsManager {
             extensionIdMap,
             transportService,
             client,
-            actionModule
+            actionModule,
+            this
         );
         registerRequestHandler();
     }

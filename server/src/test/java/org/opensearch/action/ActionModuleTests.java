@@ -274,42 +274,45 @@ public class ActionModuleTests extends OpenSearchTestCase {
     }
 
     public void testDynamicActionRegistry() {
-        Map<ActionType, TransportAction> testMap = Map.of(
-            TestAction.INSTANCE,
-            new TestTransportAction("test-action", new ActionFilters(Collections.emptySet()), null)
-        );
+        ActionFilters emptyFilters = new ActionFilters(Collections.emptySet());
+        Map<ActionType, TransportAction> testMap = Map.of(TestAction.INSTANCE, new TestTransportAction("test-action", emptyFilters, null));
         TransportService mockTransportService = mock(TransportService.class);
         TaskManager mockTaskManager = mock(TaskManager.class);
         when(mockTransportService.getTaskManager()).thenReturn(mockTaskManager);
 
         DynamicActionRegistry dynamicActionRegistry = new DynamicActionRegistry();
-        dynamicActionRegistry.initialize(testMap, new ActionFilters(Collections.emptySet()), mockTransportService, null);
+        dynamicActionRegistry.initialize(testMap);
 
         // Should contain the immutable map entry
-        assertTrue(dynamicActionRegistry.get(TestAction.INSTANCE) instanceof TestTransportAction);
+        assertNotNull(dynamicActionRegistry.get(TestAction.INSTANCE));
         // Should not contain anything not added
         assertNull(dynamicActionRegistry.get(MainAction.INSTANCE));
 
         // ExtensionsAction not yet registered
         ExtensionAction testExtensionAction = new ExtensionAction("extensionId", "actionName");
+        ExtensionTransportAction testExtensionTransportAction = new ExtensionTransportAction(
+            "transportActionName",
+            emptyFilters,
+            mockTransportService,
+            null
+        );
         assertNull(dynamicActionRegistry.get(testExtensionAction));
 
         // Register an extension action
         // Should insert without problem
         try {
-            dynamicActionRegistry.registerExtensionAction(testExtensionAction);
+            dynamicActionRegistry.registerDynamicAction(testExtensionAction, testExtensionTransportAction);
         } catch (Exception e) {
             fail("Should not have thrown exception registering action: " + e);
         }
-        // Should have a value
-        assertTrue(dynamicActionRegistry.get(testExtensionAction) instanceof ExtensionTransportAction);
+        assertEquals(testExtensionTransportAction, dynamicActionRegistry.get(testExtensionAction));
 
         // Should fail inserting twice
         IllegalArgumentException ex = assertThrows(
             IllegalArgumentException.class,
-            () -> dynamicActionRegistry.registerExtensionAction(testExtensionAction)
+            () -> dynamicActionRegistry.registerDynamicAction(testExtensionAction, testExtensionTransportAction)
         );
-        assertEquals("extension [extensionId] action [actionName] already registered", ex.getMessage());
+        assertEquals("action [actionName] already registered", ex.getMessage());
         // Should remove without problem
         try {
             dynamicActionRegistry.unregisterExtensionAction(testExtensionAction);
@@ -321,7 +324,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
 
         // Should fail removing twice
         ex = assertThrows(IllegalArgumentException.class, () -> dynamicActionRegistry.unregisterExtensionAction(testExtensionAction));
-        assertEquals("extension [extensionId] action [actionName] was not registered", ex.getMessage());
+        assertEquals("action [actionName] was not registered", ex.getMessage());
     }
 
     private static final class TestAction extends ActionType<ActionResponse> {
