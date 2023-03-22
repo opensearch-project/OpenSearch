@@ -750,7 +750,14 @@ public final class IndexSettings {
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
-        replicationType = ReplicationType.parseString(settings.get(IndexMetadata.SETTING_REPLICATION_TYPE));
+        if (FeatureFlags.isEnabled(FeatureFlags.REPLICATION_TYPE)
+            && indexMetadata.isSystem() == false
+            && settings.get(IndexMetadata.SETTING_REPLICATION_TYPE) == null
+            && IndexMetadata.DEFAULT_REPLICATION_TYPE_SETTING_SEGMENT.get(nodeSettings)) {
+            replicationType = ReplicationType.SEGMENT;
+        } else {
+            replicationType = ReplicationType.parseString(settings.get(IndexMetadata.SETTING_REPLICATION_TYPE));
+        }
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
         isRemoteTranslogStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false);
         remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);

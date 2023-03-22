@@ -32,6 +32,7 @@
 package org.opensearch.common.settings;
 
 import org.apache.logging.log4j.LogManager;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.action.search.CreatePitController;
 import org.opensearch.cluster.routing.allocation.decider.NodeLoadAwareAllocationDecider;
@@ -644,7 +645,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
      */
     public static final Map<String, List<Setting>> FEATURE_FLAGGED_CLUSTER_SETTINGS = Map.of(
         FeatureFlags.SEARCHABLE_SNAPSHOT,
-        List.of(Node.NODE_SEARCH_CACHE_SIZE_SETTING)
+        List.of(Node.NODE_SEARCH_CACHE_SIZE_SETTING),
+        FeatureFlags.REPLICATION_TYPE,
+        List.of(IndexMetadata.DEFAULT_REPLICATION_TYPE_SETTING_SEGMENT)
     );
 
 }
