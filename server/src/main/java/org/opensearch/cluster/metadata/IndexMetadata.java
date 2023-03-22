@@ -96,6 +96,7 @@ import static org.opensearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.opensearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.opensearch.common.settings.Settings.readSettingsFromStream;
 import static org.opensearch.common.settings.Settings.writeSettingsToStream;
+import static org.opensearch.indices.IndicesService.CLUSTER_DEFAULT_REPLICATION_TYPE_SETTING;
 
 /**
  * Index metadata information
@@ -283,16 +284,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     );
 
     /**
-     * Used to specify SEGMENT replication type as default for all indices. By default, this is false.
-     */
-    public static final Setting<Boolean> DEFAULT_REPLICATION_TYPE_SETTING_SEGMENT = Setting.boolSetting(
-        "opensearch.index.default.replication.type.segment",
-        false,
-        Property.NodeScope,
-        Property.Final
-    );
-
-    /**
      * Used to specify the replication type for the index. By default, document replication is used.
      */
     public static final String SETTING_REPLICATION_TYPE = "index.replication.type";
@@ -327,9 +318,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             @Override
             public void validate(final Boolean value, final Map<Setting<?>, Object> settings) {
-                final Object isDefaultReplicationTypeEnabled = settings.get(DEFAULT_REPLICATION_TYPE_SETTING_SEGMENT);
+                final Object defaultClusterSettingReplicationType = settings.get(CLUSTER_DEFAULT_REPLICATION_TYPE_SETTING);
                 final Object replicationType = settings.get(INDEX_REPLICATION_TYPE_SETTING);
-                if (replicationType != ReplicationType.SEGMENT && isDefaultReplicationTypeEnabled == Boolean.FALSE && value == true) {
+                if (replicationType != ReplicationType.SEGMENT
+                    && defaultClusterSettingReplicationType != ReplicationType.SEGMENT
+                    && value == true) {
                     throw new IllegalArgumentException(
                         "To enable "
                             + INDEX_REMOTE_STORE_ENABLED_SETTING.getKey()
@@ -338,7 +331,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                             + " should be set to "
                             + ReplicationType.SEGMENT
                             + " or "
-                            + DEFAULT_REPLICATION_TYPE_SETTING_SEGMENT.getKey()
+                            + CLUSTER_DEFAULT_REPLICATION_TYPE_SETTING.getKey()
                             + " should be set to "
                             + Boolean.TRUE
                     );
@@ -347,7 +340,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             @Override
             public Iterator<Setting<?>> settings() {
-                final List<Setting<?>> settings = List.of(INDEX_REPLICATION_TYPE_SETTING, DEFAULT_REPLICATION_TYPE_SETTING_SEGMENT);
+                final List<Setting<?>> settings = List.of(INDEX_REPLICATION_TYPE_SETTING, CLUSTER_DEFAULT_REPLICATION_TYPE_SETTING);
                 return settings.iterator();
             }
         },

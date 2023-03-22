@@ -145,6 +145,7 @@ import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.extensions.ExtensionsManager;
@@ -228,6 +229,19 @@ public class IndicesService extends AbstractLifecycleComponent
         "gateway.write_dangling_indices_info",
         true,
         Setting.Property.NodeScope
+    );
+
+    /**
+     * Used to specify SEGMENT replication type as the default replication strategy for all indices in a cluster. By default, this is false.
+     */
+    public static final String CLUSTER_SETTING_REPLICATION_TYPE = "indices.replication.strategy";
+
+    public static final Setting<ReplicationType> CLUSTER_DEFAULT_REPLICATION_TYPE_SETTING = new Setting<>(
+        CLUSTER_SETTING_REPLICATION_TYPE,
+        ReplicationType.DOCUMENT.toString(),
+        ReplicationType::parseString,
+        Property.NodeScope,
+        Property.Final
     );
 
     /**

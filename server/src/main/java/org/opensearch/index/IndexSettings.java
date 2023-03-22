@@ -47,6 +47,7 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.node.Node;
@@ -752,9 +753,8 @@ public final class IndexSettings {
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
         if (FeatureFlags.isEnabled(FeatureFlags.REPLICATION_TYPE)
             && indexMetadata.isSystem() == false
-            && settings.get(IndexMetadata.SETTING_REPLICATION_TYPE) == null
-            && IndexMetadata.DEFAULT_REPLICATION_TYPE_SETTING_SEGMENT.get(nodeSettings)) {
-            replicationType = ReplicationType.SEGMENT;
+            && settings.get(IndexMetadata.SETTING_REPLICATION_TYPE) == null) {
+            replicationType = ReplicationType.parseString(settings.get(IndicesService.CLUSTER_SETTING_REPLICATION_TYPE));
         } else {
             replicationType = ReplicationType.parseString(settings.get(IndexMetadata.SETTING_REPLICATION_TYPE));
         }
