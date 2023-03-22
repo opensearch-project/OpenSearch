@@ -296,7 +296,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                     "Required field is missing in extensions.yml",
                     "org.opensearch.extensions.ExtensionsManager",
                     Level.WARN,
-                    "Parsing extension has been failed because of following exception : org.opensearch.common.ParsingException: Extension : secondExtension is missing this required field : minimumCompatibleVersion"
+                    "loading extension has been failed because of exception : Extension is missing these required fields : [minimumCompatibleVersion]"
                 )
             );
 

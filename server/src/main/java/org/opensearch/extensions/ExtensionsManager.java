@@ -24,6 +24,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
+import java.util.Arrays;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -36,14 +37,12 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.ParsingException;
 import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.transport.TransportAddress;
 
-import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.discovery.InitializeExtensionRequest;
 import org.opensearch.discovery.InitializeExtensionResponse;
 import org.opensearch.extensions.ExtensionsSettings.Extension;
@@ -577,7 +576,7 @@ public class ExtensionsManager {
         }
     }
 
-    private ExtensionsSettings readFromExtensionsYml(Path filePath) throws IOException, ParsingException {
+    private ExtensionsSettings readFromExtensionsYml(Path filePath) throws IOException {
         Yaml yaml = new Yaml();
         try (InputStream inputStream = Files.newInputStream(filePath)) {
             Map<String, Object> obj = yaml.load(inputStream);
@@ -589,7 +588,7 @@ public class ExtensionsManager {
             List<Extension> readExtensions = new ArrayList<Extension>();
             for (HashMap<String, ?> extensionMap : unreadExtensions) {
                 try {
-                    // iterating the map to see whether any required field is missing
+                    // checking to see whether any required fields are missing from extension.yml file or not
                     String[] requiredFields = {
                         "name",
                         "uniqueId",
@@ -598,13 +597,11 @@ public class ExtensionsManager {
                         "version",
                         "opensearchVersion",
                         "minimumCompatibleVersion" };
-                    for (String requireField : requiredFields) {
-                        if (!extensionMap.containsKey(requireField)) {
-                            throw new ParsingException(
-                                new XContentLocation(584, 10),
-                                "Extension : " + extensionMap.get("name") + " is missing this required field : " + requireField
-                            );
-                        }
+                    List<String> missingFields = Arrays.stream(requiredFields)
+                        .filter(field -> !extensionMap.containsKey(field))
+                        .collect(Collectors.toList());
+                    if (!missingFields.isEmpty()) {
+                        throw new IOException("Extension is missing these required fields : " + missingFields);
                     }
 
                     // Parse extension dependencies
@@ -636,8 +633,8 @@ public class ExtensionsManager {
                             extensionDependencyList
                         )
                     );
-                } catch (ParsingException e) {
-                    logger.warn("Parsing extension has been failed because of following exception : " + e.getDetailedMessage());
+                } catch (IOException e) {
+                    logger.warn("loading extension has been failed because of exception : " + e.getMessage());
                 }
             }
             inputStream.close();
