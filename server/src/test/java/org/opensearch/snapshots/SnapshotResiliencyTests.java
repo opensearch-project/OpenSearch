@@ -1938,7 +1938,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     RetentionLeaseSyncer.EMPTY,
                     SegmentReplicationCheckpointPublisher.EMPTY
                 );
-                Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
+                Map<ActionType, TransportAction> actions = new HashMap<>();
                 final SystemIndices systemIndices = new SystemIndices(emptyMap());
                 final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService, systemIndices);
                 final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(

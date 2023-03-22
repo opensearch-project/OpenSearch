@@ -272,10 +272,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
 
     public void testDynamicActionRegistry() {
         ActionFilters emptyFilters = new ActionFilters(Collections.emptySet());
-        Map<ActionType<?>, TransportAction<?, ?>> testMap = Map.of(
-            TestAction.INSTANCE,
-            new TestTransportAction("test-action", emptyFilters, null)
-        );
+        Map<ActionType, TransportAction> testMap = Map.of(TestAction.INSTANCE, new TestTransportAction("test-action", emptyFilters, null));
 
         DynamicActionRegistry dynamicActionRegistry = new DynamicActionRegistry();
         dynamicActionRegistry.registerUnmodifiableActionMap(testMap);

@@ -94,7 +94,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
             protected void doExecute(Task task, ActionRequest request, ActionListener listener) {}
         };
 
-        final Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
+        final Map<ActionType, TransportAction> actions = new HashMap<>();
         actions.put(ValidateQueryAction.INSTANCE, transportAction);
 
         DynamicActionRegistry dynamicActionRegistry = new DynamicActionRegistry();
