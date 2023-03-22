@@ -19,6 +19,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.extensions.DiscoveryExtensionNode;
@@ -101,11 +102,15 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
         dynamicActionRegistry.registerUnmodifiableActionMap(Collections.emptyMap());
         when(mockActionModule.getDynamicActionRegistry()).thenReturn(dynamicActionRegistry);
         when(mockActionModule.getActionFilters()).thenReturn(EMPTY_FILTERS);
+        SettingsModule mockSettingsModule = mock(SettingsModule.class);
+        when(mockSettingsModule.getSettings()).thenReturn(Settings.EMPTY);
         extensionTransportActionsHandler = new ExtensionTransportActionsHandler(
             Map.of("uniqueid1", discoveryExtensionNode),
             transportService,
+            null,
             client,
             mockActionModule,
+            mockSettingsModule,
             null
         );
     }
@@ -150,7 +155,7 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
         String action = "test-action";
         byte[] requestBytes = "requestBytes".getBytes(StandardCharsets.UTF_8);
         TransportActionRequestFromExtension request = new TransportActionRequestFromExtension(action, requestBytes, "uniqueid1");
-        ExtensionActionResponse response = extensionTransportActionsHandler.handleTransportActionRequestFromExtension(request);
+        RemoteExtensionActionResponse response = extensionTransportActionsHandler.handleTransportActionRequestFromExtension(request);
         assertFalse(response.isSuccess());
         String responseString = response.getResponseBytesAsString();
         assertEquals("Request failed: action [test-action] is not registered for any extension.", responseString);

@@ -49,6 +49,7 @@ import org.opensearch.extensions.action.ExtensionActionRequest;
 import org.opensearch.extensions.action.ExtensionActionResponse;
 import org.opensearch.extensions.action.ExtensionTransportActionsHandler;
 import org.opensearch.extensions.action.RegisterTransportActionsRequest;
+import org.opensearch.extensions.action.RemoteExtensionActionResponse;
 import org.opensearch.extensions.action.TransportActionRequestFromExtension;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.rest.RestActionsRequestHandler;
@@ -90,6 +91,7 @@ public class ExtensionsManager {
     public static final String REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE = "internal:discovery/parsenamedwriteable";
     public static final String REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION = "internal:extensions/restexecuteonextensiontaction";
     public static final String REQUEST_EXTENSION_HANDLE_TRANSPORT_ACTION = "internal:extensions/handle-transportaction";
+    public static final String REQUEST_EXTENSION_HANDLE_REMOTE_TRANSPORT_ACTION = "internal:extensions/handle-remote-transportaction";
     public static final String TRANSPORT_ACTION_REQUEST_FROM_EXTENSION = "internal:extensions/request-transportaction-from-extension";
     public static final int EXTENSION_REQUEST_WAIT_TIMEOUT = 10;
 
@@ -196,8 +198,10 @@ public class ExtensionsManager {
         this.extensionTransportActionsHandler = new ExtensionTransportActionsHandler(
             extensionIdMap,
             transportService,
+            clusterService,
             client,
             actionModule,
+            settingsModule,
             this
         );
         registerRequestHandler();
@@ -205,6 +209,15 @@ public class ExtensionsManager {
 
     /**
      * Handles Transport Request from {@link org.opensearch.extensions.action.ExtensionTransportAction} which was invoked by an extension via {@link ExtensionTransportActionsHandler}.
+     *
+     * @param request which was sent by an extension.
+     */
+    public RemoteExtensionActionResponse handleRemoteTransportRequest(ExtensionActionRequest request) throws Exception {
+        return extensionTransportActionsHandler.sendRemoteTransportRequestToExtension(request);
+    }
+
+    /**
+     * Handles Transport Request from {@link org.opensearch.extensions.action.ExtensionTransportAction} which was invoked by OpenSearch or a plugin
      *
      * @param request which was sent by an extension.
      */

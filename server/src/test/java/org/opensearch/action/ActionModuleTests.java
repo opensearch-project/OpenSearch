@@ -288,7 +288,8 @@ public class ActionModuleTests extends OpenSearchTestCase {
         // ExtensionsAction not yet registered
         ExtensionAction testExtensionAction = new ExtensionAction("extensionId", "actionName");
         ExtensionTransportAction testExtensionTransportAction = new ExtensionTransportAction(
-            "transportActionName",
+            Settings.EMPTY,
+            null,
             emptyFilters,
             null,
             null
