@@ -69,6 +69,15 @@ public class ExtensionActionResponse extends ActionResponse {
     }
 
     /**
+     * Gets the Response bytes as a {@link StreamInput}
+     *
+     * @return A StreamInput representation of the response bytes
+     */
+    public StreamInput getResponseBytesAsStream() {
+        return StreamInput.wrap(this.responseBytes);
+    }
+
+    /**
      * Gets the Response bytes as a UTF-8 string
      *
      * @return A string representation of the response bytes
