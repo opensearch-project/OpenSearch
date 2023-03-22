@@ -281,7 +281,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
         when(mockTransportService.getTaskManager()).thenReturn(mockTaskManager);
 
         DynamicActionRegistry dynamicActionRegistry = new DynamicActionRegistry();
-        dynamicActionRegistry.initialize(testMap);
+        dynamicActionRegistry.registerUnmodifiableActionMap(testMap);
 
         // Should contain the immutable map entry
         assertNotNull(dynamicActionRegistry.get(TestAction.INSTANCE));

@@ -985,7 +985,7 @@ public class ActionModule extends AbstractModule {
      * @opensearch.internal
      */
     public static class DynamicActionRegistry {
-        // This is the immutable actions map created during node bootstrap, which
+        // This is the unmodifiable actions map created during node bootstrap, which
         // will continue to link ActionType and TransportAction pairs from core and plugin
         // action handler registration.
         private Map<ActionType, TransportAction> actions = Collections.emptyMap();
@@ -994,11 +994,11 @@ public class ActionModule extends AbstractModule {
         private final Map<ActionType, TransportAction> registry = new ConcurrentHashMap<>();
 
         /**
-         * Initialize the immutable actions in the registry and provide parameters needed for dynamic actions.
+         * Register the immutable actions in the registry.
          *
          * @param actions The injected map of {@link ActionType} to {@link TransportAction}
          */
-        public void initialize(Map<ActionType, TransportAction> actions) {
+        public void registerUnmodifiableActionMap(Map<ActionType, TransportAction> actions) {
             this.actions = actions;
         }
 
@@ -1011,10 +1011,9 @@ public class ActionModule extends AbstractModule {
         public void registerDynamicAction(ActionType action, TransportAction transportAction) {
             requireNonNull(action, "action is required");
             requireNonNull(transportAction, "transportAction is required");
-            if (registry.containsKey(action) || actions.containsKey(action)) {
+            if (actions.containsKey(action) || registry.putIfAbsent(action, transportAction) != null) {
                 throw new IllegalArgumentException("action [" + action.name() + "] already registered");
             }
-            registry.put(action, transportAction);
         }
 
         /**

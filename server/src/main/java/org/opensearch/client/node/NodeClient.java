@@ -37,19 +37,16 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
-import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.client.Client;
 import org.opensearch.client.support.AbstractClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskListener;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterService;
-import org.opensearch.transport.TransportService;
 
 import java.util.function.Supplier;
 
@@ -61,15 +58,12 @@ import java.util.function.Supplier;
 public class NodeClient extends AbstractClient {
 
     private DynamicActionRegistry actionRegistry;
-    private ActionFilters actionFilters;
     /**
      * The id of the local {@link DiscoveryNode}. Useful for generating task ids from tasks returned by
      * {@link #executeLocally(ActionType, ActionRequest, TaskListener)}.
      */
     private Supplier<String> localNodeId;
     private RemoteClusterService remoteClusterService;
-    private TransportService transportService;
-    private ExtensionsManager extensionsManager;
     private NamedWriteableRegistry namedWriteableRegistry;
 
     public NodeClient(Settings settings, ThreadPool threadPool) {

@@ -2193,7 +2193,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     )
                 );
                 DynamicActionRegistry dynamicActionRegistry = new DynamicActionRegistry();
-                dynamicActionRegistry.initialize(actions);
+                dynamicActionRegistry.registerUnmodifiableActionMap(actions);
                 client.initialize(
                     dynamicActionRegistry,
                     () -> clusterService.localNode().getId(),

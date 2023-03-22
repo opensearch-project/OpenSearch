@@ -98,7 +98,7 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
         client = new NoOpNodeClient(this.getTestName());
         ActionModule mockActionModule = mock(ActionModule.class);
         DynamicActionRegistry dynamicActionRegistry = new DynamicActionRegistry();
-        dynamicActionRegistry.initialize(Collections.emptyMap());
+        dynamicActionRegistry.registerUnmodifiableActionMap(Collections.emptyMap());
         when(mockActionModule.getDynamicActionRegistry()).thenReturn(dynamicActionRegistry);
         when(mockActionModule.getActionFilters()).thenReturn(EMPTY_FILTERS);
         extensionTransportActionsHandler = new ExtensionTransportActionsHandler(
