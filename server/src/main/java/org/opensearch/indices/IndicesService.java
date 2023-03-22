@@ -234,7 +234,7 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Used to specify SEGMENT replication type as the default replication strategy for all indices in a cluster. By default, this is false.
      */
-    public static final String CLUSTER_SETTING_REPLICATION_TYPE = "indices.replication.strategy";
+    public static final String CLUSTER_SETTING_REPLICATION_TYPE = "cluster.indices.replication.strategy";
 
     public static final Setting<ReplicationType> CLUSTER_DEFAULT_REPLICATION_TYPE_SETTING = new Setting<>(
         CLUSTER_SETTING_REPLICATION_TYPE,
