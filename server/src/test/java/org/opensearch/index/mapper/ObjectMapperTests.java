@@ -443,10 +443,9 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
         );
 
         // Empty name not allowed in index created after 5.0
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { createIndex("test").mapperService().documentMapperParser().parse("", new CompressedXContent(mapping)); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            createIndex("test").mapperService().documentMapperParser().parse("", new CompressedXContent(mapping));
+        });
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }
 

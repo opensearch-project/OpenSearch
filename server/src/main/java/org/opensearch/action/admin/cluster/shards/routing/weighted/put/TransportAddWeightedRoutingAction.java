@@ -81,12 +81,9 @@ public class TransportAddWeightedRoutingAction extends TransportClusterManagerNo
         }
         weightedRoutingService.registerWeightedRoutingMetadata(
             request,
-            ActionListener.delegateFailure(
-                listener,
-                (delegatedListener, response) -> {
-                    delegatedListener.onResponse(new ClusterPutWeightedRoutingResponse(response.isAcknowledged()));
-                }
-            )
+            ActionListener.delegateFailure(listener, (delegatedListener, response) -> {
+                delegatedListener.onResponse(new ClusterPutWeightedRoutingResponse(response.isAcknowledged()));
+            })
         );
     }
 

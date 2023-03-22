@@ -157,21 +157,13 @@ public class DefBootstrapTests extends OpenSearchTestCase {
         map.put("a", "b");
         assertEquals(2, (int) handle.invokeExact((Object) map));
 
-        final IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
-            () -> { Integer.toString((int) handle.invokeExact(new Object())); }
-        );
+        final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> {
+            Integer.toString((int) handle.invokeExact(new Object()));
+        });
         assertEquals("dynamic method [java.lang.Object, size/0] not found", iae.getMessage());
-        assertTrue(
-            "Does not fail inside ClassValue.computeValue()",
-            Arrays.stream(iae.getStackTrace())
-                .anyMatch(
-                    e -> {
-                        return e.getMethodName().equals("computeValue")
-                            && e.getClassName().startsWith("org.opensearch.painless.DefBootstrap$PIC$");
-                    }
-                )
-        );
+        assertTrue("Does not fail inside ClassValue.computeValue()", Arrays.stream(iae.getStackTrace()).anyMatch(e -> {
+            return e.getMethodName().equals("computeValue") && e.getClassName().startsWith("org.opensearch.painless.DefBootstrap$PIC$");
+        }));
     }
 
     // test operators with null guards

@@ -605,19 +605,17 @@ public class SettingsTests extends OpenSearchTestCase {
 
     public void testIndentation() throws Exception {
         String yaml = "/org/opensearch/common/settings/loader/indentation-settings.yml";
-        OpenSearchParseException e = expectThrows(
-            OpenSearchParseException.class,
-            () -> { Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false); }
-        );
+        OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> {
+            Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false);
+        });
         assertTrue(e.getMessage(), e.getMessage().contains("malformed"));
     }
 
     public void testIndentationWithExplicitDocumentStart() throws Exception {
         String yaml = "/org/opensearch/common/settings/loader/indentation-with-explicit-document-start-settings.yml";
-        OpenSearchParseException e = expectThrows(
-            OpenSearchParseException.class,
-            () -> { Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false); }
-        );
+        OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> {
+            Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false);
+        });
         assertTrue(e.getMessage(), e.getMessage().contains("malformed"));
     }
 

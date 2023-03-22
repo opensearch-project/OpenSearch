@@ -86,14 +86,9 @@ public abstract class TaskBatcher {
         try {
             // convert to an identity map to check for dups based on task identity
             final Map<Object, BatchedTask> tasksIdentity = tasks.stream()
-                .collect(
-                    Collectors.toMap(
-                        BatchedTask::getTask,
-                        Function.identity(),
-                        (a, b) -> { throw new IllegalStateException("cannot add duplicate task: " + a); },
-                        IdentityHashMap::new
-                    )
-                );
+                .collect(Collectors.toMap(BatchedTask::getTask, Function.identity(), (a, b) -> {
+                    throw new IllegalStateException("cannot add duplicate task: " + a);
+                }, IdentityHashMap::new));
             LinkedHashSet<BatchedTask> newTasks = new LinkedHashSet<>(tasks);
             tasksPerBatchingKey.merge(firstTask.batchingKey, newTasks, (existingTasks, updatedTasks) -> {
                 for (BatchedTask existing : existingTasks) {
