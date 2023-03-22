@@ -522,7 +522,6 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         return stats.getUsed().getBytes() == 0L && stats.getActive().getBytes() == 0L;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6738")
     public void testPruneFileCacheOnIndexDeletion() throws Exception {
         final String snapshotName = "test-snap";
         final String repoName = "test-repo";
@@ -531,7 +530,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         final Client client = client();
         final int numNodes = 2;
 
-        internalCluster().ensureAtLeastNumSearchNodes(numNodes);
+        internalCluster().ensureAtLeastNumSearchAndDataNodes(numNodes);
         createIndexWithDocsAndEnsureGreen(1, 100, indexName1);
 
         createRepositoryWithSettings(null, repoName);
