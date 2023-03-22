@@ -68,7 +68,7 @@ public class FlatObjectMappingBenchmark {
                 throw new IllegalArgumentException("opensearch.uri system property not set");
             }
 
-            this.client = new RestHighLevelClient(RestClient.builder(HttpHost.create(httpUri)));
+            this.client = new RestHighLevelClient(RestClient.builder(String.valueOf(HttpHost.create(httpUri))));
 
         }
 
