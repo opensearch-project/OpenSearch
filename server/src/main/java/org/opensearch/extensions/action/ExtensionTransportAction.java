@@ -13,7 +13,7 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportAction;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.tasks.Task;
-import org.opensearch.transport.TransportService;
+import org.opensearch.tasks.TaskManager;
 
 /**
  * A transport action used to proxy a transport request from extension to another extension
@@ -27,10 +27,10 @@ public class ExtensionTransportAction extends TransportAction<ExtensionActionReq
     public ExtensionTransportAction(
         String actionName,
         ActionFilters actionFilters,
-        TransportService transportService,
+        TaskManager taskManager,
         ExtensionsManager extensionsManager
     ) {
-        super(actionName, actionFilters, transportService.getTaskManager());
+        super(actionName, actionFilters, taskManager);
         this.extensionsManager = extensionsManager;
     }
 

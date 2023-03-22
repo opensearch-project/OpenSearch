@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
+import org.opensearch.action.support.ActionFilters;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.extensions.DiscoveryExtensionNode;
@@ -46,9 +47,9 @@ public class ExtensionTransportActionsHandler {
     private final Map<String, DiscoveryExtensionNode> extensionIdMap;
     private final TransportService transportService;
     private final NodeClient client;
-    private ActionModule actionModule;
+    private final ActionFilters actionFilters;
     private final DynamicActionRegistry dynamicActionRegistry;
-    private ExtensionsManager extensionsManager;
+    private final ExtensionsManager extensionsManager;
 
     public ExtensionTransportActionsHandler(
         Map<String, DiscoveryExtensionNode> extensionIdMap,
@@ -60,7 +61,7 @@ public class ExtensionTransportActionsHandler {
         this.extensionIdMap = extensionIdMap;
         this.transportService = transportService;
         this.client = client;
-        this.actionModule = actionModule;
+        this.actionFilters = actionModule.getActionFilters();
         this.dynamicActionRegistry = actionModule.getDynamicActionRegistry();
         this.extensionsManager = extensionsManager;
     }
@@ -80,7 +81,7 @@ public class ExtensionTransportActionsHandler {
         // Register the action in the action module's dynamic actions map
         dynamicActionRegistry.registerDynamicAction(
             new ExtensionAction(uniqueId, action),
-            new ExtensionTransportAction(action, actionModule.getActionFilters(), transportService, extensionsManager)
+            new ExtensionTransportAction(action, actionFilters, transportService.getTaskManager(), extensionsManager)
         );
     }
 

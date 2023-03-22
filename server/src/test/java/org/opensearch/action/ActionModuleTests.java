@@ -64,7 +64,6 @@ import org.opensearch.tasks.TaskManager;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.TransportService;
 import org.opensearch.usage.UsageService;
 
 import java.io.IOException;
@@ -77,8 +76,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ActionModuleTests extends OpenSearchTestCase {
     public void testSetupActionsContainsKnownBuiltin() {
@@ -279,9 +276,6 @@ public class ActionModuleTests extends OpenSearchTestCase {
             TestAction.INSTANCE,
             new TestTransportAction("test-action", emptyFilters, null)
         );
-        TransportService mockTransportService = mock(TransportService.class);
-        TaskManager mockTaskManager = mock(TaskManager.class);
-        when(mockTransportService.getTaskManager()).thenReturn(mockTaskManager);
 
         DynamicActionRegistry dynamicActionRegistry = new DynamicActionRegistry();
         dynamicActionRegistry.registerUnmodifiableActionMap(testMap);
@@ -296,7 +290,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
         ExtensionTransportAction testExtensionTransportAction = new ExtensionTransportAction(
             "transportActionName",
             emptyFilters,
-            mockTransportService,
+            null,
             null
         );
         assertNull(dynamicActionRegistry.get(testExtensionAction));
