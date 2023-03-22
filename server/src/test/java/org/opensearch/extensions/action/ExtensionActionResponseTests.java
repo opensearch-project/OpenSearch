@@ -19,36 +19,14 @@ public class ExtensionActionResponseTests extends OpenSearchTestCase {
 
     public void testExtensionActionResponse() throws Exception {
         byte[] expectedResponseBytes = "response-bytes".getBytes(StandardCharsets.UTF_8);
-        ExtensionActionResponse response = new ExtensionActionResponse(true, expectedResponseBytes);
+        ExtensionActionResponse response = new ExtensionActionResponse(expectedResponseBytes);
 
-        assertTrue(response.isSuccess());
         assertEquals(expectedResponseBytes, response.getResponseBytes());
 
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()));
         response = new ExtensionActionResponse(in);
-
-        assertTrue(response.isSuccess());
         assertArrayEquals(expectedResponseBytes, response.getResponseBytes());
-    }
-
-    public void testSetters() {
-        String expectedResponse = "response-bytes";
-        byte[] expectedResponseBytes = expectedResponse.getBytes(StandardCharsets.UTF_8);
-        byte[] expectedEmptyBytes = new byte[0];
-        ExtensionActionResponse response = new ExtensionActionResponse(false, expectedEmptyBytes);
-        assertArrayEquals(expectedEmptyBytes, response.getResponseBytes());
-        assertFalse(response.isSuccess());
-
-        response.setResponseBytesAsString(expectedResponse);
-        assertArrayEquals(expectedResponseBytes, response.getResponseBytes());
-
-        response.setResponseBytes(expectedResponseBytes);
-        assertArrayEquals(expectedResponseBytes, response.getResponseBytes());
-        assertEquals(expectedResponse, response.getResponseBytesAsString());
-
-        response.setSuccess(true);
-        assertTrue(response.isSuccess());
     }
 }

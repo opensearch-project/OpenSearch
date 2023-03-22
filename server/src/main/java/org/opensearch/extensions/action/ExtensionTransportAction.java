@@ -10,27 +10,32 @@ package org.opensearch.extensions.action;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.TransportAction;
+import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.inject.Inject;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskManager;
+import org.opensearch.transport.TransportService;
 
 /**
- * A transport action used to proxy a transport request from extension to another extension
+ * A proxy transport action used to proxy a transport request from OpenSearch or a plugin to execute on an extension
  *
  * @opensearch.internal
  */
-public class ExtensionTransportAction extends TransportAction<ExtensionActionRequest, ExtensionActionResponse> {
+public class ExtensionTransportAction extends HandledTransportAction<ExtensionActionRequest, ExtensionActionResponse> {
 
     private final ExtensionsManager extensionsManager;
 
+    @Inject
     public ExtensionTransportAction(
-        String actionName,
+        Settings settings,
+        TransportService transportService,
         ActionFilters actionFilters,
-        TaskManager taskManager,
+        ClusterService clusterService,
         ExtensionsManager extensionsManager
     ) {
-        super(actionName, actionFilters, taskManager);
+        super(ExtensionProxyAction.NAME, transportService, actionFilters, ExtensionActionRequest::new);
         this.extensionsManager = extensionsManager;
     }
 
