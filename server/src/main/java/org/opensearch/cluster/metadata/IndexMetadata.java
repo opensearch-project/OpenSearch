@@ -337,7 +337,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                             + INDEX_REPLICATION_TYPE_SETTING.getKey()
                             + " should be set to "
                             + ReplicationType.SEGMENT
-                            + "or "
+                            + " or "
                             + DEFAULT_REPLICATION_TYPE_SETTING_SEGMENT.getKey()
                             + " should be set to "
                             + Boolean.TRUE

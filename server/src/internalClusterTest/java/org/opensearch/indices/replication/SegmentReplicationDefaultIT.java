@@ -31,7 +31,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 public class SegmentReplicationDefaultIT extends OpenSearchIntegTestCase {
 
     protected static final String INDEX_NAME = "test-idx-1";
-    protected static final String SYSTEM_INDEX_NAME = ".test-cluster-info-system-index";
+    protected static final String SYSTEM_INDEX_NAME = ".test-system-index";
     protected static final int SHARD_COUNT = 1;
     protected static final int REPLICA_COUNT = 1;
 
