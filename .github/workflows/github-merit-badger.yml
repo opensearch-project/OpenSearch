@@ -1,0 +1,20 @@
+name: github-merit-badger
+on:
+  pull_request_target:
+    types:
+     - opened
+
+jobs:
+  call-action:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: aws-github-ops/github-merit-badger@v0.0.98
+        id: merit-badger
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          badges: '[first-time-contributor,repeat-contributor,valued-contributor,seasoned-contributor,all-star-contributor,distinguished-contributor]'
+          thresholds: '[0,3,6,13,25,50]'
+          badge-type: 'achievement'
+          ignore-usernames: '[opensearch-ci-bot, dependabot, opensearch-trigger-bot]'

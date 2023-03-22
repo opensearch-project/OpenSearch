@@ -131,6 +131,10 @@ public class SegmentReplicationPressureService {
         return tracker.getStats();
     }
 
+    public SegmentReplicationPerGroupStats getStatsForShard(IndexShard indexShard) {
+        return tracker.getStatsForShard(indexShard);
+    }
+
     public boolean isSegmentReplicationBackpressureEnabled() {
         return isSegmentReplicationBackpressureEnabled;
     }
@@ -150,5 +154,4 @@ public class SegmentReplicationPressureService {
     public void setMaxReplicationTime(TimeValue maxReplicationTime) {
         this.maxReplicationTime = maxReplicationTime;
     }
-
 }

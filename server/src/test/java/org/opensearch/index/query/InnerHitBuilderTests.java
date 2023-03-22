@@ -237,12 +237,9 @@ public class InnerHitBuilderTests extends OpenSearchTestCase {
         });
         modifiers.add(() -> {
             if (randomBoolean()) {
-                copy.setScriptFields(
-                    randomValueOtherThan(
-                        copy.getScriptFields(),
-                        () -> { return new HashSet<>(randomListStuff(16, InnerHitBuilderTests::randomScript)); }
-                    )
-                );
+                copy.setScriptFields(randomValueOtherThan(copy.getScriptFields(), () -> {
+                    return new HashSet<>(randomListStuff(16, InnerHitBuilderTests::randomScript));
+                }));
             } else {
                 SearchSourceBuilder.ScriptField script = randomScript();
                 copy.addScriptField(script.fieldName(), script.script());

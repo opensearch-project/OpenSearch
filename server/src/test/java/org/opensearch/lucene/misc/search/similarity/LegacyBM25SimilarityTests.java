@@ -36,10 +36,9 @@ import org.apache.lucene.search.similarities.Similarity;
 public class LegacyBM25SimilarityTests extends BaseSimilarityTestCase {
 
     public void testIllegalK1() {
-        IllegalArgumentException expected = expectThrows(
-            IllegalArgumentException.class,
-            () -> { new LegacyBM25Similarity(Float.POSITIVE_INFINITY, 0.75f); }
-        );
+        IllegalArgumentException expected = expectThrows(IllegalArgumentException.class, () -> {
+            new LegacyBM25Similarity(Float.POSITIVE_INFINITY, 0.75f);
+        });
         assertTrue(expected.getMessage().contains("illegal k1 value"));
 
         expected = expectThrows(IllegalArgumentException.class, () -> { new LegacyBM25Similarity(-1, 0.75f); });

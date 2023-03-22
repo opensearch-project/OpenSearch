@@ -100,7 +100,9 @@ public class MetadataCreateDataStreamService {
                     new String[] { firstBackingIndexName },
                     ActiveShardCount.DEFAULT,
                     request.masterNodeTimeout(),
-                    shardsAcked -> { finalListener.onResponse(new AcknowledgedResponse(true)); },
+                    shardsAcked -> {
+                        finalListener.onResponse(new AcknowledgedResponse(true));
+                    },
                     finalListener::onFailure
                 );
             } else {
