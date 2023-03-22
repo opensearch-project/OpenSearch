@@ -186,7 +186,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
 
     protected void ensureRefCount() {
         if (refCount() <= 0) {
-            throw new ReplicationFailedException(
+            throw new IllegalStateException(
                 "ReplicationTarget is used but it's refcount is 0. Probably a mismatch between incRef/decRef calls"
             );
         }
