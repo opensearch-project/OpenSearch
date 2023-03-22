@@ -75,9 +75,9 @@ public class HaHdfsFailoverTestSuiteIT extends OpenSearchRestTestCase {
         String nn2Port = "10002";
         if (ports.length() > 0) {
             final Path path = PathUtils.get(ports);
-            final List<String> lines = AccessController.doPrivileged(
-                (PrivilegedExceptionAction<List<String>>) () -> { return Files.readAllLines(path); }
-            );
+            final List<String> lines = AccessController.doPrivileged((PrivilegedExceptionAction<List<String>>) () -> {
+                return Files.readAllLines(path);
+            });
             nn1Port = lines.get(0);
             nn2Port = lines.get(1);
         }

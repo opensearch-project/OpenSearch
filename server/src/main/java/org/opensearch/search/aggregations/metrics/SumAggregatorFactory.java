@@ -44,6 +44,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -67,7 +68,7 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             SumAggregationBuilder.REGISTRY_KEY,
-            org.opensearch.common.collect.List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
+            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             SumAggregator::new,
             true
         );

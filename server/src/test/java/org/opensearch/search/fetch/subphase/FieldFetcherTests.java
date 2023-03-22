@@ -49,6 +49,7 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -66,10 +67,7 @@ public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject();
 
-        List<FieldAndFormat> fieldAndFormats = org.opensearch.common.collect.List.of(
-            new FieldAndFormat("field", null),
-            new FieldAndFormat("object.field", null)
-        );
+        List<FieldAndFormat> fieldAndFormats = List.of(new FieldAndFormat("field", null), new FieldAndFormat("object.field", null));
         Map<String, DocumentField> fields = fetchFields(mapperService, source, fieldAndFormats);
         assertThat(fields.size(), equalTo(2));
 
@@ -100,7 +98,7 @@ public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
         DocumentField rangeField = fields.get("float_range");
         assertNotNull(rangeField);
         assertThat(rangeField.getValues().size(), equalTo(1));
-        assertThat(rangeField.getValue(), equalTo(org.opensearch.common.collect.Map.of("gte", 0.0f, "lte", 2.718f)));
+        assertThat(rangeField.getValue(), equalTo(Map.of("gte", 0.0f, "lte", 2.718f)));
     }
 
     public void testNonExistentField() throws IOException {
@@ -255,7 +253,7 @@ public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
         Map<String, DocumentField> fields = fetchFields(
             mapperService,
             source,
-            org.opensearch.common.collect.List.of(new FieldAndFormat("field", null), new FieldAndFormat("date_field", "yyyy/MM/dd"))
+            List.of(new FieldAndFormat("field", null), new FieldAndFormat("date_field", "yyyy/MM/dd"))
         );
         assertThat(fields.size(), equalTo(2));
 
@@ -440,7 +438,7 @@ public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
     private static Map<String, DocumentField> fetchFields(MapperService mapperService, XContentBuilder source, String fieldPattern)
         throws IOException {
 
-        List<FieldAndFormat> fields = org.opensearch.common.collect.List.of(new FieldAndFormat(fieldPattern, null));
+        List<FieldAndFormat> fields = List.of(new FieldAndFormat(fieldPattern, null));
         return fetchFields(mapperService, source, fields);
     }
 
@@ -451,7 +449,7 @@ public class FieldFetcherTests extends OpenSearchSingleNodeTestCase {
         sourceLookup.setSource(BytesReference.bytes(source));
 
         FieldFetcher fieldFetcher = FieldFetcher.create(createQueryShardContext(mapperService), null, fields);
-        return fieldFetcher.fetch(sourceLookup, org.opensearch.common.collect.Set.of());
+        return fieldFetcher.fetch(sourceLookup, Set.of());
     }
 
     public MapperService createMapperService() throws IOException {

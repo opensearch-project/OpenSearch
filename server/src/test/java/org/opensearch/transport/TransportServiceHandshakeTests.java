@@ -218,10 +218,9 @@ public class TransportServiceHandshakeTests extends OpenSearchTestCase {
             emptySet(),
             handleB.discoveryNode.getVersion()
         );
-        ConnectTransportException ex = expectThrows(
-            ConnectTransportException.class,
-            () -> { handleA.transportService.connectToNode(discoveryNode, TestProfiles.LIGHT_PROFILE); }
-        );
+        ConnectTransportException ex = expectThrows(ConnectTransportException.class, () -> {
+            handleA.transportService.connectToNode(discoveryNode, TestProfiles.LIGHT_PROFILE);
+        });
         assertThat(ex.getMessage(), containsString("unexpected remote node"));
         assertFalse(handleA.transportService.nodeConnected(discoveryNode));
     }

@@ -8,18 +8,14 @@
 
 package org.opensearch.extensions;
 
-import org.opensearch.action.ActionRequest;
-import org.opensearch.action.ActionResponse;
-import org.opensearch.action.support.TransportAction;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.HashSet;
 import java.util.Objects;
-import java.util.Map.Entry;
+import java.util.Set;
 
 /**
  * Request to register extension Transport actions
@@ -27,41 +23,27 @@ import java.util.Map.Entry;
  * @opensearch.internal
  */
 public class RegisterTransportActionsRequest extends TransportRequest {
+    // The uniqueId defining the extension which runs this action
     private String uniqueId;
-    private Map<String, Class<? extends TransportAction<? extends ActionRequest, ? extends ActionResponse>>> transportActions;
+    // The action names to register
+    private Set<String> transportActions;
 
-    public RegisterTransportActionsRequest(
-        String uniqueId,
-        Map<String, Class<? extends TransportAction<? extends ActionRequest, ? extends ActionResponse>>> transportActions
-    ) {
+    public RegisterTransportActionsRequest(String uniqueId, Set<String> transportActions) {
         this.uniqueId = uniqueId;
-        this.transportActions = new HashMap<>(transportActions);
+        this.transportActions = transportActions;
     }
 
     public RegisterTransportActionsRequest(StreamInput in) throws IOException {
         super(in);
         this.uniqueId = in.readString();
-        Map<String, Class<? extends TransportAction<? extends ActionRequest, ? extends ActionResponse>>> actions = new HashMap<>();
-        int actionCount = in.readVInt();
-        for (int i = 0; i < actionCount; i++) {
-            try {
-                String actionName = in.readString();
-                @SuppressWarnings("unchecked")
-                Class<? extends TransportAction<? extends ActionRequest, ? extends ActionResponse>> transportAction = (Class<
-                    ? extends TransportAction<? extends ActionRequest, ? extends ActionResponse>>) Class.forName(in.readString());
-                actions.put(actionName, transportAction);
-            } catch (ClassNotFoundException e) {
-                throw new IllegalArgumentException("Could not read transport action");
-            }
-        }
-        this.transportActions = actions;
+        this.transportActions = new HashSet<>(in.readStringList());
     }
 
     public String getUniqueId() {
         return uniqueId;
     }
 
-    public Map<String, Class<? extends TransportAction<? extends ActionRequest, ? extends ActionResponse>>> getTransportActions() {
+    public Set<String> getTransportActions() {
         return transportActions;
     }
 
@@ -69,12 +51,7 @@ public class RegisterTransportActionsRequest extends TransportRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(uniqueId);
-        out.writeVInt(this.transportActions.size());
-        for (Entry<String, Class<? extends TransportAction<? extends ActionRequest, ? extends ActionResponse>>> action : transportActions
-            .entrySet()) {
-            out.writeString(action.getKey());
-            out.writeString(action.getValue().getName());
-        }
+        out.writeStringCollection(transportActions);
     }
 
     @Override

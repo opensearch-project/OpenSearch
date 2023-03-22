@@ -33,7 +33,6 @@
 package org.opensearch.search.aggregations.bucket.histogram;
 
 import org.opensearch.common.Rounding;
-import org.opensearch.common.collect.List;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -47,6 +46,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**

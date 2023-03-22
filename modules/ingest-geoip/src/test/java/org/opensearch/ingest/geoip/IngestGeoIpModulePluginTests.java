@@ -65,11 +65,9 @@ public class IngestGeoIpModulePluginTests extends OpenSearchTestCase {
         GeoIpCache cache = new GeoIpCache(1);
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> cache.putIfAbsent(
-                InetAddresses.forString("127.0.0.1"),
-                AbstractResponse.class,
-                ip -> { throw new IllegalArgumentException("bad"); }
-            )
+            () -> cache.putIfAbsent(InetAddresses.forString("127.0.0.1"), AbstractResponse.class, ip -> {
+                throw new IllegalArgumentException("bad");
+            })
         );
         assertEquals("bad", ex.getMessage());
     }

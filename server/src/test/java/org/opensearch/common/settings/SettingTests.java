@@ -36,8 +36,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.io.stream.BytesStreamInput;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.AbstractScopedSettings.SettingUpdater;
 import org.opensearch.common.settings.Setting.ByteSizeValueParser;
 import org.opensearch.common.settings.Setting.DoubleParser;
@@ -48,8 +50,7 @@ import org.opensearch.common.settings.Setting.MemorySizeValueParser;
 import org.opensearch.common.settings.Setting.MinMaxTimeValueParser;
 import org.opensearch.common.settings.Setting.MinTimeValueParser;
 import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.BytesStreamInput;
+import org.opensearch.common.settings.Setting.RegexValidator;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
@@ -69,6 +70,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -322,14 +324,52 @@ public class SettingTests extends OpenSearchTestCase {
         assertTrue(FooBarValidator.invokedWithDependencies);
     }
 
+    public void testRegexValidator() throws Exception {
+        // A regex that matches one or more digits
+        String expectedRegex = "\\d+";
+        Pattern expectedPattern = Pattern.compile(expectedRegex);
+        RegexValidator regexValidator = new RegexValidator(expectedRegex);
+
+        // Test that the pattern is correctly initialized
+        assertNotNull(expectedPattern);
+        assertNotNull(regexValidator.getPattern());
+        assertEquals(expectedPattern.pattern(), regexValidator.getPattern().pattern());
+
+        // Test that validate() throws an exception for invalid input
+        final RegexValidator finalValidator = new RegexValidator(expectedRegex);
+        assertThrows(IllegalArgumentException.class, () -> finalValidator.validate("foo"));
+
+        try {
+            regexValidator.validate("123");
+        } catch (IllegalArgumentException e) {
+            fail("Expected validate() to not throw an exception, but it threw " + e);
+        }
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            regexValidator.writeTo(out);
+            out.flush();
+            try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
+                regexValidator = new RegexValidator(in);
+                assertEquals(expectedPattern.pattern(), regexValidator.getPattern().pattern());
+
+                // Test that validate() throws an exception for invalid input
+                final RegexValidator newFinalValidator = new RegexValidator(expectedRegex);
+                assertThrows(IllegalArgumentException.class, () -> newFinalValidator.validate("foo"));
+
+                // Test that validate() does not throw an exception for valid input
+                try {
+                    regexValidator.validate("123");
+                } catch (IllegalArgumentException e) {
+                    fail("Expected validate() to not throw an exception, but it threw " + e);
+                }
+            }
+        }
+    }
+
     public void testValidatorForFilteredStringSetting() {
-        final Setting<String> filteredStringSetting = new Setting<>(
-            "foo.bar",
-            "foobar",
-            Function.identity(),
-            value -> { throw new SettingsException("validate always fails"); },
-            Property.Filtered
-        );
+        final Setting<String> filteredStringSetting = new Setting<>("foo.bar", "foobar", Function.identity(), value -> {
+            throw new SettingsException("validate always fails");
+        }, Property.Filtered);
 
         final Settings settings = Settings.builder().put(filteredStringSetting.getKey(), filteredStringSetting.getKey() + " value").build();
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> filteredStringSetting.get(settings));
@@ -1584,16 +1624,14 @@ public class SettingTests extends OpenSearchTestCase {
             validator
         );
 
-        IllegalArgumentException illegal = expectThrows(
-            IllegalArgumentException.class,
-            () -> { updater.getValue(Settings.builder().put("prefix.foo.suffix", 5).put("abc", 2).build(), Settings.EMPTY); }
-        );
+        IllegalArgumentException illegal = expectThrows(IllegalArgumentException.class, () -> {
+            updater.getValue(Settings.builder().put("prefix.foo.suffix", 5).put("abc", 2).build(), Settings.EMPTY);
+        });
         assertEquals("foo and 2 can't go together", illegal.getMessage());
 
-        illegal = expectThrows(
-            IllegalArgumentException.class,
-            () -> { updater.getValue(Settings.builder().put("prefix.bar.suffix", 6).put("abc", 3).build(), Settings.EMPTY); }
-        );
+        illegal = expectThrows(IllegalArgumentException.class, () -> {
+            updater.getValue(Settings.builder().put("prefix.bar.suffix", 6).put("abc", 3).build(), Settings.EMPTY);
+        });
         assertEquals("no bar", illegal.getMessage());
 
         Settings s = updater.getValue(

@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingPool;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -35,7 +36,7 @@ public class TargetPoolAllocationDecider extends AllocationDecider {
         if (RoutingPool.REMOTE_CAPABLE.equals(shardPool) && RoutingPool.LOCAL_ONLY.equals(targetNodePool)) {
             logger.debug(
                 "Shard: [{}] has target pool: [{}]. Cannot allocate on node: [{}] with target pool: [{}]",
-                shardRouting.shortSummary(),
+                shardRouting,
                 shardPool,
                 node.node(),
                 targetNodePool
@@ -47,7 +48,25 @@ public class TargetPoolAllocationDecider extends AllocationDecider {
                 shardPool,
                 targetNodePool
             );
-        }
+        } else if (RoutingPool.LOCAL_ONLY.equals(shardPool)
+            && RoutingPool.REMOTE_CAPABLE.equals(targetNodePool)
+            && !node.node().getRoles().contains(DiscoveryNodeRole.DATA_ROLE)) {
+                logger.debug(
+                    "Shard: [{}] has target pool: [{}]. Cannot allocate on node: [{}] without the [{}] node role",
+                    shardRouting,
+                    shardPool,
+                    node.node(),
+                    DiscoveryNodeRole.DATA_ROLE
+                );
+                return allocation.decision(
+                    Decision.NO,
+                    NAME,
+                    "Routing pools are incompatible. Shard pool: [{}], Node Pool: [{}] without [{}] role",
+                    shardPool,
+                    targetNodePool,
+                    DiscoveryNodeRole.DATA_ROLE
+                );
+            }
         return allocation.decision(
             Decision.YES,
             NAME,
@@ -91,7 +110,25 @@ public class TargetPoolAllocationDecider extends AllocationDecider {
                 indexPool,
                 targetNodePool
             );
-        }
+        } else if (RoutingPool.LOCAL_ONLY.equals(indexPool)
+            && RoutingPool.REMOTE_CAPABLE.equals(targetNodePool)
+            && !node.getRoles().contains(DiscoveryNodeRole.DATA_ROLE)) {
+                logger.debug(
+                    "Index: [{}] has target pool: [{}]. Cannot allocate on node: [{}] without the [{}] node role",
+                    indexMetadata.getIndex().getName(),
+                    indexPool,
+                    node,
+                    DiscoveryNodeRole.DATA_ROLE
+                );
+                return allocation.decision(
+                    Decision.NO,
+                    NAME,
+                    "Routing pools are incompatible. Index pool: [{}], Node Pool: [{}] without [{}] role",
+                    indexPool,
+                    targetNodePool,
+                    DiscoveryNodeRole.DATA_ROLE
+                );
+            }
         return allocation.decision(
             Decision.YES,
             NAME,

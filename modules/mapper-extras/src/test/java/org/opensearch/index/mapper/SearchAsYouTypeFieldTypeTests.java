@@ -49,6 +49,7 @@ import org.opensearch.index.mapper.SearchAsYouTypeFieldMapper.ShingleFieldType;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 
 import static java.util.Arrays.asList;
 import static org.apache.lucene.search.MultiTermQuery.CONSTANT_SCORE_REWRITE;
@@ -154,9 +155,9 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
         SearchAsYouTypeFieldType fieldType = createFieldType();
         fieldType.setIndexAnalyzer(Lucene.STANDARD_ANALYZER);
 
-        assertEquals(org.opensearch.common.collect.List.of("value"), fetchSourceValue(fieldType, "value"));
-        assertEquals(org.opensearch.common.collect.List.of("42"), fetchSourceValue(fieldType, 42L));
-        assertEquals(org.opensearch.common.collect.List.of("true"), fetchSourceValue(fieldType, true));
+        assertEquals(List.of("value"), fetchSourceValue(fieldType, "value"));
+        assertEquals(List.of("42"), fetchSourceValue(fieldType, 42L));
+        assertEquals(List.of("true"), fetchSourceValue(fieldType, true));
 
         SearchAsYouTypeFieldMapper.PrefixFieldType prefixFieldType = new SearchAsYouTypeFieldMapper.PrefixFieldType(
             fieldType.name(),
@@ -164,17 +165,17 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
             2,
             10
         );
-        assertEquals(org.opensearch.common.collect.List.of("value"), fetchSourceValue(prefixFieldType, "value"));
-        assertEquals(org.opensearch.common.collect.List.of("42"), fetchSourceValue(prefixFieldType, 42L));
-        assertEquals(org.opensearch.common.collect.List.of("true"), fetchSourceValue(prefixFieldType, true));
+        assertEquals(List.of("value"), fetchSourceValue(prefixFieldType, "value"));
+        assertEquals(List.of("42"), fetchSourceValue(prefixFieldType, 42L));
+        assertEquals(List.of("true"), fetchSourceValue(prefixFieldType, true));
 
         SearchAsYouTypeFieldMapper.ShingleFieldType shingleFieldType = new SearchAsYouTypeFieldMapper.ShingleFieldType(
             fieldType.name(),
             5,
             fieldType.getTextSearchInfo()
         );
-        assertEquals(org.opensearch.common.collect.List.of("value"), fetchSourceValue(shingleFieldType, "value"));
-        assertEquals(org.opensearch.common.collect.List.of("42"), fetchSourceValue(shingleFieldType, 42L));
-        assertEquals(org.opensearch.common.collect.List.of("true"), fetchSourceValue(shingleFieldType, true));
+        assertEquals(List.of("value"), fetchSourceValue(shingleFieldType, "value"));
+        assertEquals(List.of("42"), fetchSourceValue(shingleFieldType, 42L));
+        assertEquals(List.of("true"), fetchSourceValue(shingleFieldType, true));
     }
 }

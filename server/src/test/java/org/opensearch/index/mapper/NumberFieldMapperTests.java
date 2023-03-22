@@ -55,12 +55,12 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     @Override
     protected Set<String> types() {
-        return org.opensearch.common.collect.Set.of("byte", "short", "integer", "long", "float", "double", "half_float");
+        return Set.of("byte", "short", "integer", "long", "float", "double", "half_float");
     }
 
     @Override
     protected Set<String> wholeTypes() {
-        return org.opensearch.common.collect.Set.of("byte", "short", "integer", "long");
+        return Set.of("byte", "short", "integer", "long");
     }
 
     @Override

@@ -106,6 +106,7 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.cache.bitset.ShardBitsetFilterCache;
@@ -566,6 +567,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     : "a primary relocation is completed by the cluster-managerr, but primary mode is not active " + currentRouting;
 
                 changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
+
+                // Flush here after relocation of primary, so that replica get all changes from new primary rather than waiting for more
+                // docs to get indexed.
+                if (indexSettings.isSegRepEnabled()) {
+                    flush(new FlushRequest().waitIfOngoing(true).force(true));
+                }
             } else if (currentRouting.primary()
                 && currentRouting.relocating()
                 && replicationTracker.isRelocated()
@@ -1418,7 +1425,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    private Optional<NRTReplicationEngine> getReplicationEngine() {
+    public Optional<NRTReplicationEngine> getReplicationEngine() {
         if (getEngine() instanceof NRTReplicationEngine) {
             return Optional.of((NRTReplicationEngine) getEngine());
         } else {
@@ -1426,9 +1433,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    public void finalizeReplication(SegmentInfos infos, long seqNo) throws IOException {
+    public void finalizeReplication(SegmentInfos infos) throws IOException {
         if (getReplicationEngine().isPresent()) {
-            getReplicationEngine().get().updateSegments(infos, seqNo);
+            getReplicationEngine().get().updateSegments(infos);
         }
     }
 
@@ -1489,8 +1496,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         this.shardId,
                         getOperationPrimaryTerm(),
                         segmentInfos.getGeneration(),
-                        shardRouting.primary() ? getEngine().getMaxSeqNoFromSegmentInfos(segmentInfos) : getProcessedLocalCheckpoint(),
-                        segmentInfos.getVersion()
+                        segmentInfos.getVersion(),
+                        // TODO: Update replicas to compute length from SegmentInfos. Replicas do not yet incref segments with
+                        // getSegmentInfosSnapshot, so computing length from SegmentInfos can cause issues.
+                        shardRouting.primary()
+                            ? store.getSegmentMetadataMap(segmentInfos).values().stream().mapToLong(StoreFileMetadata::length).sum()
+                            : store.stats(StoreStats.UNKNOWN_RESERVED_BYTES).getSizeInBytes()
                     )
                 );
             } catch (IOException e) {
@@ -1513,7 +1524,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return false;
         }
         if (this.routingEntry().primary()) {
-            logger.warn("Shard is marked as primary and cannot perform segment replication as a replica");
+            logger.warn("Shard routing is marked primary thus cannot perform segment replication as replica");
             return false;
         }
         if (state().equals(IndexShardState.STARTED) == false
@@ -1735,6 +1746,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void resetToWriteableEngine() throws IOException, InterruptedException, TimeoutException {
         indexShardOperationPermits.blockOperations(30, TimeUnit.MINUTES, () -> { resetEngineToGlobalCheckpoint(); });
+    }
+
+    public void onCheckpointPublished(ReplicationCheckpoint checkpoint) {
+        replicationTracker.setLatestReplicationCheckpoint(checkpoint);
     }
 
     /**
@@ -2700,6 +2715,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert assertPrimaryMode();
         verifyNotClosed();
         replicationTracker.updateGlobalCheckpointForShard(allocationId, globalCheckpoint);
+    }
+
+    /**
+     * Update the local knowledge of the visible global checkpoint for the specified allocation ID.
+     *
+     * @param allocationId     the allocation ID to update the global checkpoint for
+     * @param visibleCheckpoint the visible checkpoint
+     */
+    public void updateVisibleCheckpointForShard(final String allocationId, final ReplicationCheckpoint visibleCheckpoint) {
+        // Update target replication checkpoint only when in active primary mode
+        if (shardRouting.primary() && replicationTracker.isPrimaryMode()) {
+            verifyNotClosed();
+            replicationTracker.updateVisibleCheckpointForShard(allocationId, visibleCheckpoint);
+        }
+    }
+
+    /**
+     * Fetch stats on segment replication.
+     * @return {@link Tuple} V1 - TimeValue in ms - mean replication lag for this primary to its entire group,
+     * V2 - Set of {@link SegmentReplicationShardStats} per shard in this primary's replication group.
+     */
+    public Set<SegmentReplicationShardStats> getReplicationStats() {
+        return replicationTracker.getSegmentReplicationStats();
     }
 
     /**

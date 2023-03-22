@@ -63,20 +63,13 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
      */
     protected final boolean isClone;
 
-    // Variables needed for block calculation and fetching logic
     /**
-     * Block size shift (default value is 13 = 8KB)
+     * Variables used for block calculation and fetching. blockSize must be a
+     * power of two, and is defined as 2^blockShiftSize. blockMask is defined
+     * as blockSize - 1 and is used to calculate the offset within a block.
      */
     protected final int blockSizeShift;
-
-    /**
-     * Fixed block size
-     */
     protected final int blockSize;
-
-    /**
-     * Block mask
-     */
     protected final int blockMask;
 
     /**
@@ -380,8 +373,8 @@ abstract class OnDemandBlockIndexInput extends IndexInput implements RandomAcces
     }
 
     public static class Builder {
-        // Block size shift (default value is 13 = 8KB)
-        public static final int DEFAULT_BLOCK_SIZE_SHIFT = 13;
+        // Block size shift (default value is 23 == 2^23 == 8MiB)
+        public static final int DEFAULT_BLOCK_SIZE_SHIFT = 23;
         public static final int DEFAULT_BLOCK_SIZE = 1 << DEFAULT_BLOCK_SIZE_SHIFT;;
 
         private String resourceDescription;

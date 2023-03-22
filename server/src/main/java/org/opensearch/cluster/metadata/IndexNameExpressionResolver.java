@@ -87,10 +87,7 @@ public class IndexNameExpressionResolver {
 
     private final DateMathExpressionResolver dateMathExpressionResolver = new DateMathExpressionResolver();
     private final WildcardExpressionResolver wildcardExpressionResolver = new WildcardExpressionResolver();
-    private final List<ExpressionResolver> expressionResolvers = org.opensearch.common.collect.List.of(
-        dateMathExpressionResolver,
-        wildcardExpressionResolver
-    );
+    private final List<ExpressionResolver> expressionResolvers = List.of(dateMathExpressionResolver, wildcardExpressionResolver);
 
     private final ThreadContext threadContext;
 
@@ -174,7 +171,7 @@ public class IndexNameExpressionResolver {
         }
 
         List<String> dataStreams = wildcardExpressionResolver.resolve(context, Arrays.asList(indexExpressions));
-        return ((dataStreams == null) ? org.opensearch.common.collect.List.<String>of() : dataStreams).stream()
+        return ((dataStreams == null) ? List.<String>of() : dataStreams).stream()
             .map(x -> state.metadata().getIndicesLookup().get(x))
             .filter(Objects::nonNull)
             .filter(ia -> ia.getType() == IndexAbstraction.Type.DATA_STREAM)

@@ -410,7 +410,7 @@ public final class NodeEnvironment implements Closeable {
      * If the user doesn't configure the cache size, it fails if the node is a data + search node.
      * Else it configures the size to 80% of available capacity for a dedicated search node, if not explicitly defined.
      */
-    private void initializeFileCache(Settings settings) {
+    private void initializeFileCache(Settings settings) throws IOException {
         if (DiscoveryNode.isSearchNode(settings)) {
             long capacity = NODE_SEARCH_CACHE_SIZE_SETTING.get(settings).getBytes();
             FsInfo.Path info = ExceptionsHelper.catchAsRuntimeException(() -> FsProbe.getFSInfo(this.fileCacheNodePath));
@@ -435,6 +435,8 @@ public final class NodeEnvironment implements Closeable {
             capacity = Math.min(capacity, availableCapacity);
             fileCacheNodePath.fileCacheReservedSize = new ByteSizeValue(capacity, ByteSizeUnit.BYTES);
             this.fileCache = FileCacheFactory.createConcurrentLRUFileCache(capacity);
+            List<Path> fileCacheDataPaths = collectFileCacheDataPath(this.fileCacheNodePath);
+            this.fileCache.restoreFromDirectory(fileCacheDataPaths);
         }
     }
 
@@ -1305,7 +1307,9 @@ public final class NodeEnvironment implements Closeable {
                             for (Path indexPath : indexStream) {
                                 if (Files.isDirectory(indexPath)) {
                                     try (Stream<Path> shardStream = Files.list(indexPath)) {
-                                        shardStream.map(Path::toAbsolutePath).forEach(indexSubPaths::add);
+                                        shardStream.filter(NodeEnvironment::isShardPath)
+                                            .map(Path::toAbsolutePath)
+                                            .forEach(indexSubPaths::add);
                                     }
                                 }
                             }
@@ -1344,6 +1348,18 @@ public final class NodeEnvironment implements Closeable {
 
     private static Path resolveIndexCustomLocation(String customDataPath, String indexUUID, Path sharedDataPath, int nodeLockId) {
         return resolveBaseCustomLocation(customDataPath, sharedDataPath, nodeLockId).resolve(indexUUID);
+    }
+
+    /**
+     * Resolve the file cache path for remote shards.
+     *
+     * @param fileCachePath the file cache path
+     * @param shardId shard to resolve the path to
+     */
+    public Path resolveFileCacheLocation(final Path fileCachePath, final ShardId shardId) {
+        return fileCachePath.resolve(Integer.toString(nodeLockId))
+            .resolve(shardId.getIndex().getUUID())
+            .resolve(Integer.toString(shardId.id()));
     }
 
     /**
