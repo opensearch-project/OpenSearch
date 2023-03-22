@@ -79,14 +79,11 @@ public class MultipartTransferManagerTests extends OpenSearchTestCase {
 
     private Supplier<Stream> createStreamSupplier(Path testFile, long offset, long partSize) throws IOException {
         InputStream inputStream = openInputStreamToFile(testFile, offset, partSize);
-        return () -> new Stream(
-            inputStream,
-            partSize,
-            offset
-        );
+        return () -> new Stream(inputStream, partSize, offset);
     }
 
-    private List<Supplier<Stream>> getStreamSuppliers(final Path testFile, final long partSize, final long totalContentLength) throws IOException {
+    private List<Supplier<Stream>> getStreamSuppliers(final Path testFile, final long partSize, final long totalContentLength)
+        throws IOException {
         List<Supplier<Stream>> streamSuppliers = new ArrayList<>();
         long offset = 0;
         int nParts = 0;
@@ -117,7 +114,10 @@ public class MultipartTransferManagerTests extends OpenSearchTestCase {
 
         int testFileSizeInBytes = 128;
         Path testFile = setupFile(testFileSizeInBytes);
-        StreamContext streamContext = new StreamContext(getStreamSuppliers(testFile, testFileSizeInBytes, testFileSizeInBytes), testFileSizeInBytes);
+        StreamContext streamContext = new StreamContext(
+            getStreamSuppliers(testFile, testFileSizeInBytes, testFileSizeInBytes),
+            testFileSizeInBytes
+        );
 
         Upload upload = multipartTransferManager.upload(
             "sample_bucket",

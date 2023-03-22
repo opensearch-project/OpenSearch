@@ -58,11 +58,7 @@ public class BlobStoreTransferServiceMultiStreamSupportEnabledTests extends Open
         when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
 
         TransferService transferService = new BlobStoreTransferService(blobStore, threadPool);
-        transferService.uploadBlob(
-            transferFileSnapshot,
-            new BlobPath().add("sample_path"),
-            WritePriority.HIGH
-        );
+        transferService.uploadBlob(transferFileSnapshot, new BlobPath().add("sample_path"), WritePriority.HIGH);
 
         verify(blobContainer).writeStreams(any(WriteContext.class));
     }
@@ -78,11 +74,10 @@ public class BlobStoreTransferServiceMultiStreamSupportEnabledTests extends Open
         when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
 
         TransferService transferService = new BlobStoreTransferService(blobStore, threadPool);
-        assertThrows(IOException.class, () -> transferService.uploadBlob(
-            transferFileSnapshot,
-            new BlobPath().add("sample_path"),
-            WritePriority.HIGH
-        ));
+        assertThrows(
+            IOException.class,
+            () -> transferService.uploadBlob(transferFileSnapshot, new BlobPath().add("sample_path"), WritePriority.HIGH)
+        );
 
         verify(blobContainer).writeStreams(any(WriteContext.class));
     }
