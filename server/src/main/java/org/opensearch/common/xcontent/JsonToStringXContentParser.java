@@ -33,7 +33,7 @@ package org.opensearch.common.xcontent;
 
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.common.xcontent.support.AbstractXContentParser;
+import org.opensearch.core.xcontent.*;
 import org.opensearch.index.mapper.ParseContext;
 import java.io.IOException;
 import java.nio.CharBuffer;
