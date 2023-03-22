@@ -54,24 +54,21 @@ import java.util.function.Supplier;
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
- * A field mapper for flat-objects. This mapper accepts JSON object and treat as string fields in one index.
+ * A field mapper for flat_objects. This mapper accepts JSON object and treat as string fields in one index.
+ * A flat_object field contains one parent field itself and two substring fields:
+ * field._valueAndPath and field._value
  * @opensearch.internal
  */
 public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
-    /**
-     * A flat-object mapping contains one parent field itself and two substring fields,
-     * field._valueAndPath and field._value
-     */
-
-    public static final String CONTENT_TYPE = "flat-object";
+    public static final String CONTENT_TYPE = "flat_object";
     private static final String VALUE_AND_PATH_SUFFIX = "._valueAndPath";
     private static final String VALUE_SUFFIX = "._value";
     private static final String DOT_SYMBOL = ".";
     private static final String EQUAL_SYMBOL = "=";
 
     /**
-     * In flat-object field mapper, field type is similar to keyword field type
+     * In flat_object field mapper, field type is similar to keyword field type
      * Cannot be tokenized, can OmitNorms, and can setIndexOption.
      * @opensearch.internal
      */
@@ -108,8 +105,8 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     }
 
     /**
-     * The builder for the flat-object field mapper using default parameters as
-     * indexed: flat-object field mapper is default to be indexed.
+     * The builder for the flat_object field mapper using default parameters as
+     * indexed: flat_object field mapper is default to be indexed.
      * hasDocValues: to store index and support efficient access to individual field values.
      * stored: the original value of the field is not stored in the index.
      * nullValue: not accept null value
@@ -199,7 +196,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     }
 
     /**
-     * flat-object fields type contains its own fieldType, one valueFieldType and one valueAndPathFieldType
+     * flat_object fields type contains its own fieldType, one valueFieldType and one valueAndPathFieldType
      * @opensearch.internal
      */
     public static final class FlatObjectFieldType extends StringFieldType {
@@ -313,7 +310,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             if (value == null) {
                 return null;
             }
-            // flat-objects are internally stored as utf8 bytes
+            // flat_objects are internally stored as utf8 bytes
             BytesRef binaryValue = (BytesRef) value;
             return binaryValue.utf8ToString();
         }
@@ -321,7 +318,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         @Override
         protected BytesRef indexedValueForSearch(Object value) {
             if (getTextSearchInfo().getSearchAnalyzer() == Lucene.KEYWORD_ANALYZER) {
-                // flat-object analyzer with the default attribute source which encodes terms using UTF8
+                // flat_object analyzer with the default attribute source which encodes terms using UTF8
                 // in that case we skip normalization, which may be slow if there many terms need to
                 // parse (eg. large terms query) since Analyzer.normalize involves things like creating
                 // attributes through reflection
@@ -339,7 +336,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
 
         /**
-         * redirect term query with rewrite value to rewriteSearchValue and directSubFieldName
+         * redirect queries with rewrite value to rewriteSearchValue and directSubFieldName
          */
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
@@ -473,15 +470,11 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             boolean caseInsensitve,
             QueryShardContext context
         ) {
-            // flat-object field types are always normalized, so ignore case sensitivity and force normalize the wildcard
+            // flat_object field types are always normalized, so ignore case sensitivity and force normalize the wildcard
             // query text
             throw new QueryShardException(
                 context,
-                "Can only use wildcard queries on keyword and text fields - not on ["
-                    + name()
-                    + "] which is of type ["
-                    + "flat-object"
-                    + "]"
+                "Can only use wildcard queries on keyword and text fields - not on [" + name() + "] which is of type [" + typeName() + "]"
             );
         }
 
@@ -542,6 +535,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             );
             /**
              * JsonToStringParser is the main parser class to transform JSON into stringFields in a XContentParser
+             * It reads the JSON object and parsed to a list of string
              */
             XContentParser parser = JsonToStringParser.parseObject();
 
@@ -580,6 +574,15 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         return concat;
     }
 
+    /**
+     * parseValueAddFields method will store data to Lucene.
+     * the JsonToStringXContentParser returns XContentParser with 3 string fields
+     * fieldName, fieldName._value, fieldName._valueAndPath.
+     * parseValueAddFields recognized string by the stringfield name,
+     * fieldName will be store through the parent FlatObjectFieldMapper,which contains all the keys
+     * fieldName._value will be store through the valueFieldMapper, which contains the values of the Json Object
+     * fieldName._valueAndPath will be store through the valueAndPathFieldMapper, which contains the "path=values" format
+     */
     private void parseValueAddFields(ParseContext context, String value, String fieldName) throws IOException {
 
         NamedAnalyzer normalizer = fieldType().normalizer();
@@ -590,11 +593,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         String[] valueTypeList = fieldName.split("\\._");
         String valueType = "._" + valueTypeList[valueTypeList.length - 1];
 
-        /**
-         * the JsonToStringXContentParser returns XContentParser with 3 string fields
-         * fieldName, fieldName._value, fieldName._valueAndPath
-         */
-
         if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             // convert to utf8 only once before feeding postings/dv/stored fields
 
@@ -604,13 +602,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
                 createFieldNamesField(context);
             }
-            /**
-             * Indentified by the stringfield name,
-             * fieldName will be store through the parent FlatFieldMapper,which contains all the keys
-             * fieldName._value will be store through the valueFieldMapper, which contains the values of the Json Object
-             * fieldName._valueAndPath will be store through the valueAndPathFieldMapper, which contains the values of
-             * the Json Object.
-             */
             if (fieldName.equals(fieldType().name())) {
                 context.doc().add(field);
             }

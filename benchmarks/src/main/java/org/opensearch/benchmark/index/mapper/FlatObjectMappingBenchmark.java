@@ -220,7 +220,7 @@ public class FlatObjectMappingBenchmark {
                 .startObject()
                 .startObject("properties")
                 .startObject(flatObjectFieldName)
-                .field("type", "flat-object")
+                .field("type", "flat_object")
                 .endObject()
                 .endObject()
                 .endObject()

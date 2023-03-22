@@ -25,11 +25,11 @@ import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
 
 public class FlatObjectFieldMapperTests extends MapperServiceTestCase {
-    private static final String FIELD_TYPE = "flat-object";
+    private static final String FIELD_TYPE = "flat_object";
 
     // @Override
     public FlatObjectFieldMapper.Builder newBuilder() {
-        return new FlatObjectFieldMapper.Builder("flat-object");
+        return new FlatObjectFieldMapper.Builder(FIELD_TYPE);
     }
 
     public final void testExistsQueryDocValuesDisabledWithNorms() throws IOException {
