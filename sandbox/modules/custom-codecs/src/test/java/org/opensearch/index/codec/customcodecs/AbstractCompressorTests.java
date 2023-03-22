@@ -26,7 +26,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Random;
 
 /**
- * Test cases for compressors (based on {@link org.opensearch.common.compress.DeflateCompressTests}).
+ * Test cases for compressors (based on {@See org.opensearch.common.compress.DeflateCompressTests}).
  */
 public abstract class AbstractCompressorTests extends OpenSearchTestCase {
 
