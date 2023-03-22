@@ -51,7 +51,7 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
         ShardId testShardId = mockIndexShard.shardId();
         IndicesService mockIndicesService = mock(IndicesService.class);
         IndexService mockIndexService = mock(IndexService.class);
-        when(mockIndicesService.indexService(testShardId.getIndex())).thenReturn(mockIndexService);
+        when(mockIndicesService.indexServiceSafe(testShardId.getIndex())).thenReturn(mockIndexService);
         when(mockIndexService.getShard(testShardId.id())).thenReturn(mockIndexShard);
 
         // This mirrors the creation of the ReplicationCheckpoint inside CopyState

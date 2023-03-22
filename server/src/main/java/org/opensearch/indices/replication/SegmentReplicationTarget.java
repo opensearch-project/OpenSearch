@@ -18,6 +18,7 @@ import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.common.UUIDs;
@@ -251,7 +252,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                 );
                 fail(rfe, true);
                 throw rfe;
-            } catch (IllegalStateException ex) {
+            } catch (OpenSearchException ex) {
                 /*
                  Ignore closed replication target as it can happen due to index shard closed event in a separate thread.
                  In such scenario, ignore the exception
