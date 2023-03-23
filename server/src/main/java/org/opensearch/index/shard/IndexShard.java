@@ -4388,6 +4388,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws IOException if exception occurs while reading segments from remote store
      */
     public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal, boolean refreshLevelSegmentSync) throws IOException {
+        if (recoveryState.getStage() != RecoveryState.Stage.INDEX) {
+            return;
+        }
         assert indexSettings.isRemoteStoreEnabled();
         logger.info("Downloading segments from remote segment store");
         assert remoteStore.directory() instanceof FilterDirectory : "Store.directory is not an instance of FilterDirectory";
@@ -4416,6 +4419,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (localSegmentFiles.contains(file)) {
                         storeDirectory.deleteFile(file);
                     }
+                    recoveryState.getIndex().addFileDetail(file, uploadedSegments.get(file).getLength(), false);
                     storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
                     downloadedSegments.add(file);
                     if (file.startsWith(SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX)) {
@@ -4423,6 +4427,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         segmentInfosSnapshotFilename = file;
                     }
                 } else {
+                    recoveryState.getIndex().addFileDetail(file, uploadedSegments.get(file).getLength(), true);
                     skippedSegments.add(file);
                 }
             }

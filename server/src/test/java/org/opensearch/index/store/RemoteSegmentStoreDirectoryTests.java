@@ -64,16 +64,17 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
         RemoteSegmentStoreDirectory.UploadedSegmentMetadata metadata = new RemoteSegmentStoreDirectory.UploadedSegmentMetadata(
             "abc",
             "pqr",
-            "123456"
+            "123456",
+            1234
         );
-        assertEquals("abc::pqr::123456", metadata.toString());
+        assertEquals("abc::pqr::123456::1234", metadata.toString());
     }
 
     public void testUploadedSegmentMetadataFromString() {
         RemoteSegmentStoreDirectory.UploadedSegmentMetadata metadata = RemoteSegmentStoreDirectory.UploadedSegmentMetadata.fromString(
-            "_0.cfe::_0.cfe__uuidxyz::4567"
+            "_0.cfe::_0.cfe__uuidxyz::4567::372000"
         );
-        assertEquals("_0.cfe::_0.cfe__uuidxyz::4567", metadata.toString());
+        assertEquals("_0.cfe::_0.cfe__uuidxyz::4567::372000", metadata.toString());
     }
 
     public void testGetMetadataFilename() {
@@ -141,9 +142,42 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
     private Map<String, String> getDummyMetadata(String prefix, int commitGeneration) {
         Map<String, String> metadata = new HashMap<>();
 
-        metadata.put(prefix + ".cfe", prefix + ".cfe::" + prefix + ".cfe__" + UUIDs.base64UUID() + "::" + randomIntBetween(1000, 5000));
-        metadata.put(prefix + ".cfs", prefix + ".cfs::" + prefix + ".cfs__" + UUIDs.base64UUID() + "::" + randomIntBetween(1000, 5000));
-        metadata.put(prefix + ".si", prefix + ".si::" + prefix + ".si__" + UUIDs.base64UUID() + "::" + randomIntBetween(1000, 5000));
+        metadata.put(
+            prefix + ".cfe",
+            prefix
+                + ".cfe::"
+                + prefix
+                + ".cfe__"
+                + UUIDs.base64UUID()
+                + "::"
+                + randomIntBetween(1000, 5000)
+                + "::"
+                + randomIntBetween(512000, 1024000)
+        );
+        metadata.put(
+            prefix + ".cfs",
+            prefix
+                + ".cfs::"
+                + prefix
+                + ".cfs__"
+                + UUIDs.base64UUID()
+                + "::"
+                + randomIntBetween(1000, 5000)
+                + "::"
+                + randomIntBetween(512000, 1024000)
+        );
+        metadata.put(
+            prefix + ".si",
+            prefix
+                + ".si::"
+                + prefix
+                + ".si__"
+                + UUIDs.base64UUID()
+                + "::"
+                + randomIntBetween(1000, 5000)
+                + "::"
+                + randomIntBetween(512000, 1024000)
+        );
         metadata.put(
             "segments_" + commitGeneration,
             "segments_"
@@ -154,6 +188,8 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
                 + UUIDs.base64UUID()
                 + "::"
                 + randomIntBetween(1000, 5000)
+                + "::"
+                + randomIntBetween(1024, 5120)
         );
         return metadata;
     }
@@ -376,8 +412,8 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
         );
 
         Map<String, String> metadata = new HashMap<>();
-        metadata.put("_0.cfe", "_0.cfe::_0.cfe__" + UUIDs.base64UUID() + "::1234");
-        metadata.put("_0.cfs", "_0.cfs::_0.cfs__" + UUIDs.base64UUID() + "::2345");
+        metadata.put("_0.cfe", "_0.cfe::_0.cfe__" + UUIDs.base64UUID() + "::1234::512");
+        metadata.put("_0.cfs", "_0.cfs::_0.cfs__" + UUIDs.base64UUID() + "::2345::1024");
 
         when(remoteMetadataDirectory.openInput("metadata__1__5__abc", IOContext.DEFAULT)).thenReturn(createMetadataFileBytes(metadata));
 
@@ -390,7 +426,7 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
             UnsupportedOperationException.class,
             () -> uploadedSegmentMetadataMap.put(
                 "_100.si",
-                new RemoteSegmentStoreDirectory.UploadedSegmentMetadata("_100.si", "_100.si__uuid1", "1234")
+                new RemoteSegmentStoreDirectory.UploadedSegmentMetadata("_100.si", "_100.si__uuid1", "1234", 500)
             )
         );
 
@@ -531,8 +567,8 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
         );
 
         Map<String, String> metadata = new HashMap<>();
-        metadata.put("_0.cfe", "_0.cfe::_0.cfe__" + UUIDs.base64UUID() + "::1234");
-        metadata.put("_0.cfs", "_0.cfs::_0.cfs__" + UUIDs.base64UUID() + "::2345");
+        metadata.put("_0.cfe", "_0.cfe::_0.cfe__" + UUIDs.base64UUID() + "::1234::512");
+        metadata.put("_0.cfs", "_0.cfs::_0.cfs__" + UUIDs.base64UUID() + "::2345::1024");
 
         BytesStreamOutput output = new BytesStreamOutput();
         IndexOutput indexOutput = new OutputStreamIndexOutput("segment metadata", "metadata output stream", output, 4096);
