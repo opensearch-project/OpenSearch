@@ -387,7 +387,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * Verify the given plugin is compatible with the current OpenSearch installation.
      */
     static void verifyCompatibility(PluginInfo info) {
-        if (info.getOpenSearchVersion().equals(Version.CURRENT) == false) {
+        if (!isPluginVersionCompatibile(info.getOpenSearchVersion(), Version.CURRENT)) {
             throw new IllegalArgumentException(
                 "Plugin ["
                     + info.getName()
@@ -399,6 +399,16 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             );
         }
         JarHell.checkJavaVersion(info.getName(), info.getJavaVersion());
+    }
+
+    /**
+     * This method checks if plugin was built with a version that is compatible with core's version.
+     * @param pluginVersion OS version plugin was built with
+     * @param coreVersion Core version
+     * @return true if plugin's version is compatible with core, false otherwise
+     */
+    static boolean isPluginVersionCompatibile(final Version pluginVersion, final Version coreVersion) {
+        return pluginVersion.major == coreVersion.major && pluginVersion.minor == coreVersion.minor;
     }
 
     static void checkForFailedPluginRemovals(final Path pluginsDirectory) throws IOException {

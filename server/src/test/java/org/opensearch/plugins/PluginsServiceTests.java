@@ -47,6 +47,7 @@ import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexModule;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -715,6 +716,19 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsService.verifyCompatibility(info));
         assertThat(e.getMessage(), containsString("was built for OpenSearch version 6.0.0"));
+    }
+
+    public void testPluginDifferingWithCoreForPatchVersion() throws Exception {
+        // Get a version for plugin to use that is just before the core's version.
+        // We will use the plugin version for test only if it differs in patch version
+        Version pluginVersion = VersionUtils.getPreviousVersion(Version.CURRENT);
+        if (pluginVersion.major != Version.CURRENT.major || pluginVersion.minor != Version.CURRENT.minor) {
+            // Cannot fail the test as there is no version that differs with core's patch version
+            // but has the same major and minor version as core. Not a valid test in that case.
+            return;
+        }
+        PluginInfo info = new PluginInfo("my_plugin", "desc", "1.0", pluginVersion, "1.8", "FakePlugin", Collections.emptyList(), false);
+        PluginsService.verifyCompatibility(info);
     }
 
     public void testIncompatibleJavaVersion() throws Exception {
