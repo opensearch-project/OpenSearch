@@ -15,9 +15,7 @@ import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.extensions.AcknowledgedResponse;
 import org.opensearch.extensions.ExtensionsManager;
@@ -48,29 +46,23 @@ public class ExtensionTransportActionsHandler {
     // Map of Extension unique ID to Extension Node, populated in Extensions Manager
     private final Map<String, DiscoveryExtensionNode> extensionIdMap;
     private final TransportService transportService;
-    private final ClusterService clusterService;
     private final NodeClient client;
     private final ActionFilters actionFilters;
     private final DynamicActionRegistry dynamicActionRegistry;
-    private final SettingsModule settingsModule;
     private final ExtensionsManager extensionsManager;
 
     public ExtensionTransportActionsHandler(
         Map<String, DiscoveryExtensionNode> extensionIdMap,
         TransportService transportService,
-        ClusterService clusterService,
         NodeClient client,
         ActionModule actionModule,
-        SettingsModule settingsModule,
         ExtensionsManager extensionsManager
     ) {
         this.extensionIdMap = extensionIdMap;
         this.transportService = transportService;
-        this.clusterService = clusterService;
         this.client = client;
         this.actionFilters = actionModule.getActionFilters();
         this.dynamicActionRegistry = actionModule.getDynamicActionRegistry();
-        this.settingsModule = settingsModule;
         this.extensionsManager = extensionsManager;
     }
 
@@ -89,7 +81,7 @@ public class ExtensionTransportActionsHandler {
         // Register the action in the action module's dynamic actions map
         dynamicActionRegistry.registerDynamicAction(
             new ExtensionAction(uniqueId, action),
-            new ExtensionTransportAction(settingsModule.getSettings(), transportService, actionFilters, clusterService, extensionsManager)
+            new ExtensionTransportAction(action, actionFilters, transportService.getTaskManager(), extensionsManager)
         );
     }
 
@@ -104,6 +96,7 @@ public class ExtensionTransportActionsHandler {
         if (uniqueId == null) {
             throw new ActionNotFoundTransportException(action);
         }
+        logger.info("Got extension: " + extensionIdMap.get(uniqueId));
         return extensionIdMap.get(uniqueId);
     }
 
@@ -117,10 +110,11 @@ public class ExtensionTransportActionsHandler {
         logger.debug("Register Transport Actions request recieved {}", transportActionsRequest);
         try {
             for (String action : transportActionsRequest.getTransportActions()) {
+                logger.info("Registering action " + action + " with id " + transportActionsRequest.getUniqueId());
                 registerAction(action, transportActionsRequest.getUniqueId());
             }
         } catch (Exception e) {
-            logger.error("Could not register Transport Action " + e);
+            logger.error("Could not register Transport Action: " + e.getMessage());
             return new AcknowledgedResponse(false);
         }
         return new AcknowledgedResponse(true);
@@ -160,10 +154,12 @@ public class ExtensionTransportActionsHandler {
         client.execute(
             extensionAction,
             new ExtensionActionRequest(request.getAction(), request.getRequestBytes()),
-            new ActionListener<ExtensionActionResponse>() {
+            new ActionListener<RemoteExtensionActionResponse>() {
                 @Override
-                public void onResponse(ExtensionActionResponse actionResponse) {
-                    inProgressFuture.complete(new RemoteExtensionActionResponse(actionResponse));
+                public void onResponse(RemoteExtensionActionResponse actionResponse) {
+                    response.setSuccess(actionResponse.isSuccess());
+                    response.setResponseBytes(actionResponse.getResponseBytes());
+                    inProgressFuture.complete(actionResponse);
                 }
 
                 @Override
@@ -274,7 +270,7 @@ public class ExtensionTransportActionsHandler {
 
                 @Override
                 public void handleResponse(RemoteExtensionActionResponse response) {
-                    extensionActionResponse.setSuccess(true);
+                    extensionActionResponse.setSuccess(response.isSuccess());
                     extensionActionResponse.setResponseBytes(response.getResponseBytes());
                     inProgressFuture.complete(response);
                 }
@@ -294,7 +290,7 @@ public class ExtensionTransportActionsHandler {
         try {
             transportService.sendRequest(
                 extension,
-                ExtensionsManager.REQUEST_EXTENSION_HANDLE_TRANSPORT_ACTION,
+                ExtensionsManager.REQUEST_EXTENSION_HANDLE_REMOTE_TRANSPORT_ACTION,
                 new ExtensionHandleTransportRequest(request.getAction(), request.getRequestBytes()),
                 extensionActionResponseTransportResponseHandler
             );

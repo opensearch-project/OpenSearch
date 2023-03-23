@@ -287,7 +287,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.extensions.action.ExtensionProxyAction;
-import org.opensearch.extensions.action.ExtensionTransportAction;
+import org.opensearch.extensions.action.ExtensionProxyTransportAction;
 import org.opensearch.index.seqno.RetentionLeaseActions;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.breaker.CircuitBreakerService;
@@ -724,7 +724,7 @@ public class ActionModule extends AbstractModule {
 
         if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
             // ExtensionProxyAction
-            actions.register(ExtensionProxyAction.INSTANCE, ExtensionTransportAction.class);
+            actions.register(ExtensionProxyAction.INSTANCE, ExtensionProxyTransportAction.class);
         }
 
         // Decommission actions

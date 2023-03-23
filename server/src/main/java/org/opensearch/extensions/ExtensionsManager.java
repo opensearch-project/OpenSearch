@@ -198,10 +198,8 @@ public class ExtensionsManager {
         this.extensionTransportActionsHandler = new ExtensionTransportActionsHandler(
             extensionIdMap,
             transportService,
-            clusterService,
             client,
             actionModule,
-            settingsModule,
             this
         );
         registerRequestHandler();

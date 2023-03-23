@@ -17,7 +17,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class ExtensionAction extends ActionType<ExtensionActionResponse> {
+public class ExtensionAction extends ActionType<RemoteExtensionActionResponse> {
 
     private final String uniqueId;
 
@@ -28,7 +28,7 @@ public class ExtensionAction extends ActionType<ExtensionActionResponse> {
      * @param name The fully qualified class name of the extension's action to execute.
      */
     public ExtensionAction(String uniqueId, String name) {
-        super(name, ExtensionActionResponse::new);
+        super(name, RemoteExtensionActionResponse::new);
         this.uniqueId = uniqueId;
     }
 

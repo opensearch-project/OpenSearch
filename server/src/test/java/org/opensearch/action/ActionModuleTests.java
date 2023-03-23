@@ -284,13 +284,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
 
         // ExtensionsAction not yet registered
         ExtensionAction testExtensionAction = new ExtensionAction("extensionId", "actionName");
-        ExtensionTransportAction testExtensionTransportAction = new ExtensionTransportAction(
-            Settings.EMPTY,
-            null,
-            emptyFilters,
-            null,
-            null
-        );
+        ExtensionTransportAction testExtensionTransportAction = new ExtensionTransportAction("test-action", emptyFilters, null, null);
         assertNull(dynamicActionRegistry.get(testExtensionAction));
 
         // Register an extension action

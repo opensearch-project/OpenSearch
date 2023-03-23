@@ -10,34 +10,39 @@ package org.opensearch.extensions.action;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.TransportAction;
+import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.inject.Inject;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskManager;
+import org.opensearch.transport.TransportService;
 
 /**
  * A proxy transport action used to proxy a transport request from OpenSearch or a plugin to execute on an extension
  *
  * @opensearch.internal
  */
-public class ExtensionTransportAction extends TransportAction<ExtensionActionRequest, RemoteExtensionActionResponse> {
+public class ExtensionProxyTransportAction extends HandledTransportAction<ExtensionActionRequest, ExtensionActionResponse> {
 
     private final ExtensionsManager extensionsManager;
 
-    public ExtensionTransportAction(
-        String actionName,
+    @Inject
+    public ExtensionProxyTransportAction(
+        Settings settings,
+        TransportService transportService,
         ActionFilters actionFilters,
-        TaskManager taskManager,
+        ClusterService clusterService,
         ExtensionsManager extensionsManager
     ) {
-        super(actionName, actionFilters, taskManager);
+        super(ExtensionProxyAction.NAME, transportService, actionFilters, ExtensionActionRequest::new);
         this.extensionsManager = extensionsManager;
     }
 
     @Override
-    protected void doExecute(Task task, ExtensionActionRequest request, ActionListener<RemoteExtensionActionResponse> listener) {
+    protected void doExecute(Task task, ExtensionActionRequest request, ActionListener<ExtensionActionResponse> listener) {
         try {
-            listener.onResponse(extensionsManager.handleRemoteTransportRequest(request));
+            listener.onResponse(extensionsManager.handleTransportRequest(request));
         } catch (Exception e) {
             listener.onFailure(e);
         }
