@@ -869,7 +869,10 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             IllegalArgumentException.class,
             () -> IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings)
         );
-        assertEquals("To enable index.remote_store.enabled, index.replication.type should be set to SEGMENT", iae.getMessage());
+        assertEquals(
+            "To enable index.remote_store.enabled, index.replication.type should be set to SEGMENT or cluster.indices.replication.strategy should be set to true",
+            iae.getMessage()
+        );
     }
 
     public void testEnablingRemoteStoreFailsWhenReplicationTypeIsDefault() {
@@ -878,7 +881,10 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             IllegalArgumentException.class,
             () -> IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings)
         );
-        assertEquals("To enable index.remote_store.enabled, index.replication.type should be set to SEGMENT", iae.getMessage());
+        assertEquals(
+            "To enable index.remote_store.enabled, index.replication.type should be set to SEGMENT or cluster.indices.replication.strategy should be set to true",
+            iae.getMessage()
+        );
     }
 
     public void testRemoteRepositoryDefaultSetting() {
