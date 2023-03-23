@@ -109,11 +109,6 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
         return new RecoveryTarget(indexShard, sourceNode, listener);
     }
 
-    public IndexShard indexShard() {
-        ensureRefCount();
-        return indexShard;
-    }
-
     public String source() {
         return sourceNode.toString();
     }

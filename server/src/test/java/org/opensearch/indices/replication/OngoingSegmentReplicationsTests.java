@@ -76,7 +76,7 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
         // This mirrors the creation of the ReplicationCheckpoint inside CopyState
         testCheckpoint = new ReplicationCheckpoint(testShardId, primary.getOperationPrimaryTerm(), 0L, 0L);
         IndexService mockIndexService = mock(IndexService.class);
-        when(mockIndicesService.indexService(testShardId.getIndex())).thenReturn(mockIndexService);
+        when(mockIndicesService.indexServiceSafe(testShardId.getIndex())).thenReturn(mockIndexService);
         when(mockIndexService.getShard(testShardId.id())).thenReturn(primary);
 
         TransportService transportService = mock(TransportService.class);
