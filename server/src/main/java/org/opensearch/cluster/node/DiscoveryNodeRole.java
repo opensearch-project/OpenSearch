@@ -273,6 +273,10 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
             }
         }
 
+        @Override
+        public boolean isEnabledByDefault(final Settings settings) {
+            return settings.getAsBoolean("node.master", true);
+        }
     };
 
     public static final DiscoveryNodeRole REMOTE_CLUSTER_CLIENT_ROLE = new DiscoveryNodeRole("remote_cluster_client", "r") {
