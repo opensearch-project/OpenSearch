@@ -8,7 +8,6 @@
 
 package org.opensearch.snapshots;
 
-import org.junit.BeforeClass;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
