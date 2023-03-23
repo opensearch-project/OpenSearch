@@ -48,6 +48,7 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.node.Node;
@@ -750,7 +751,13 @@ public final class IndexSettings {
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
-        replicationType = ReplicationType.parseString(settings.get(IndexMetadata.SETTING_REPLICATION_TYPE));
+        if (FeatureFlags.isEnabled(FeatureFlags.REPLICATION_TYPE)
+            && indexMetadata.isSystem() == false
+            && settings.get(IndexMetadata.SETTING_REPLICATION_TYPE) == null) {
+            replicationType = IndicesService.CLUSTER_REPLICATION_TYPE_SETTING.get(settings);
+        } else {
+            replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
+        }
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
         isRemoteTranslogStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false);
         remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
