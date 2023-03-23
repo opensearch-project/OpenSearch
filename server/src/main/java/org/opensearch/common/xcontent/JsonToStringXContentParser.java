@@ -86,7 +86,8 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
 
     public XContentParser parseObject() throws IOException {
         builder.startObject();
-        parseToken();
+        StringBuilder path = new StringBuilder(fieldTypeName);
+        parseToken(path);
         builder.field(this.fieldTypeName, keyList);
         builder.field(this.fieldTypeName + VALUE_SUFFIX, valueList);
         builder.field(this.fieldTypeName + VALUE_AND_PATH_SUFFIX, valueAndPathList);
@@ -95,27 +96,26 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
         return JsonXContent.jsonXContent.createParser(this.xContentRegistry, this.deprecationHandler, String.valueOf(jString));
     }
 
-    private void parseToken() throws IOException {
+    private void parseToken(StringBuilder path) throws IOException {
         String currentFieldName;
         while (this.parser.nextToken() != Token.END_OBJECT) {
-
             currentFieldName = this.parser.currentName();
             StringBuilder parsedFields = new StringBuilder();
-            StringBuilder path = new StringBuilder(fieldTypeName);
             if (this.parser.nextToken() == Token.START_OBJECT) {
-                // TODO: to convert the entire JsonObject as string without changing the tokenizer position.
+                // TODO: consider to store the entire JsonObject at StartObject as string without changing the tokenizer position.
                 path.append(DOT_SYMBOL + currentFieldName);
-                parsedFields.append(this.parser.toString());
                 this.keyList.add(currentFieldName);
-                this.valueList.add(parsedFields.toString());
-                this.valueAndPathList.add(path + EQUAL_SYMBOL + parsedFields.toString());
-                parseToken();
+                parseToken(path);
             } else {
                 path.append(DOT_SYMBOL + currentFieldName);
                 parseValue(currentFieldName, parsedFields);
                 this.keyList.add(currentFieldName);
                 this.valueList.add(parsedFields.toString());
-                this.valueAndPathList.add(path + EQUAL_SYMBOL + parsedFields.toString());
+                this.valueAndPathList.add(path + EQUAL_SYMBOL + parsedFields);
+                int dotIndex = path.lastIndexOf(DOT_SYMBOL);
+                if (dotIndex != -1) {
+                    path.delete(dotIndex, path.length());
+                }
             }
 
         }

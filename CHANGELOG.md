@@ -99,7 +99,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Changed
 - Require MediaType in Strings.toString API ([#6009](https://github.com/opensearch-project/OpenSearch/pull/6009))
 - [Refactor] XContent base classes from xcontent to core library ([#5902](https://github.com/opensearch-project/OpenSearch/pull/5902))
-- Introduce a new field type: flat_object ([#6507](https://github.com/opensearch-project/OpenSearch/pull/6507))
+- Added a new field type: flat_object ([#6507](https://github.com/opensearch-project/OpenSearch/pull/6507))
 
 ### Deprecated
 - Map, List, and Set in org.opensearch.common.collect ([#6609](https://github.com/opensearch-project/OpenSearch/pull/6609))

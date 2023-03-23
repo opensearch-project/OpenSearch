@@ -1,0 +1,231 @@
+---
+# Create flat_object mapping
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              ISBN13:
+                type : "keyword"
+              catalog:
+                type : "flat-object"
+
+# Delete Index when connection is teardown
+---
+teardown:
+  - do:
+      indices.delete:
+        index: test
+
+# Upload a sample document to index
+---
+"Flat object test":
+  - do:
+      index:
+        index: test
+        id:    1
+        body:  {
+          "ISBN13": "V9781933988177",
+          "catalog": {
+            "title": "Lucene in Action",
+            "author":
+              {
+                "surname": "McCandless",
+                "given": "Mike"
+              },
+            "catalogId":"c-0002"
+          }
+        }
+
+  # Do index refresh
+  - do:
+      indices.refresh:
+        index: test
+
+  # Verify that mapping under the catalog field did not expand.
+  # Verify that there are no dynamic fields created.
+  # https://github.com/opensearch-project/OpenSearch/tree/main/rest-api-spec/src/main/resources/rest-api-spec/test#length
+  - do:
+      indices.get_mapping:
+        index: test
+  - is_true: test.mappings
+  - match: { test.mappings.properties.ISBN13.type:  keyword     }
+  - match: { test.mappings.properties.catalog.type: flat-object }
+  - length: { test.mappings.properties: 2 }
+  - length: { test.mappings.properties.catalog: 1 }
+
+  # Verify Document Count
+  - do:
+      search:
+        body: {
+          query: {
+            match_all: {}
+          }
+        }
+
+  - length:   { hits.hits: 1  }
+
+  # Match Query with dot path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            match: { catalog.title: "Lucene in Action"}
+          }
+        }
+
+  - length:   { hits.hits: 1  }
+  - match: { hits.hits.0._source.catalog.title: "Lucene in Action" }
+
+  # Match Query without dot path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            match: { catalog: "Lucene in Action"}
+          }
+        }
+
+  - length:   { hits.hits: 1  }
+  - match: { hits.hits.0._source.catalog.title: "Lucene in Action" }
+
+  # Term Query with dot path
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            term: { catalog.title: "Lucene in Action"}
+          }
+        }
+
+  - length:   { hits.hits: 1  }
+  - match: { hits.hits.0._source.catalog.title: "Lucene in Action" }
+
+  # Term Query with dot path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            term: { catalog.author.given: "Mike" }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.catalog.author.given: "Mike" }
+
+  # Term Query without dot path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            term: { catalog: "Mike" }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.catalog.author.given: "Mike" }
+
+  # Prefix Query with dot path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            "prefix": {
+              "catalog.author.given": {
+                "value": "Mi"
+              }
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.catalog.author.given: "Mike" }
+
+  # Prefix Query without dot path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            "prefix": {
+              "catalog": {
+                "value": "Mi"
+              }
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.catalog.author.given: "Mike" }
+
+  # Range Query with dot path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            "range": {
+              "catalog.catalogId": {
+                "gte": "c-0000",
+                "lte": "c-0006"
+              }
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.catalog.catalogId: "c-0002" }
+
+  # Range Query without dot path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            "range": {
+              "catalog": {
+                "gte": "c-0000",
+                "lte": "c-0006"
+              }
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.catalog.catalogId: "c-0002" }
+
+  # Exists Query with dot path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            "exists": {
+              "field": catalog.catalogId
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+
+  # Exists Query without dot path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            "exists": {
+              "field": catalog
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
