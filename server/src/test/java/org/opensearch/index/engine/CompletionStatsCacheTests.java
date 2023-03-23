@@ -59,9 +59,9 @@ public class CompletionStatsCacheTests extends OpenSearchTestCase {
 
     public void testExceptionsAreNotCached() {
         final AtomicInteger openCount = new AtomicInteger();
-        final CompletionStatsCache completionStatsCache = new CompletionStatsCache(
-            () -> { throw new OpenSearchException("simulated " + openCount.incrementAndGet()); }
-        );
+        final CompletionStatsCache completionStatsCache = new CompletionStatsCache(() -> {
+            throw new OpenSearchException("simulated " + openCount.incrementAndGet());
+        });
 
         assertThat(expectThrows(OpenSearchException.class, completionStatsCache::get).getMessage(), equalTo("simulated 1"));
         assertThat(expectThrows(OpenSearchException.class, completionStatsCache::get).getMessage(), equalTo("simulated 2"));

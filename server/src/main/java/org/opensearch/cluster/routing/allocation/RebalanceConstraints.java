@@ -13,9 +13,9 @@ import org.opensearch.cluster.routing.allocation.allocator.ShardsBalancer;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Predicate;
 
-import static org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.PREFER_PER_INDEX_PRIMARY_SHARD_BALANCE;
+import static org.opensearch.cluster.routing.allocation.ConstraintTypes.INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID;
+import static org.opensearch.cluster.routing.allocation.ConstraintTypes.isPerIndexPrimaryShardsPerNodeBreached;
 
 /**
  * Constraints applied during rebalancing round; specify conditions which, if breached, reduce the
@@ -24,15 +24,12 @@ import static org.opensearch.cluster.routing.allocation.allocator.BalancedShards
  * @opensearch.internal
  */
 public class RebalanceConstraints {
-    public final static String PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_ID = PREFER_PER_INDEX_PRIMARY_SHARD_BALANCE.getKey();
+
     private Map<String, Constraint> constraints;
 
     public RebalanceConstraints() {
         this.constraints = new HashMap<>();
-        this.constraints.putIfAbsent(
-            PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_ID,
-            new Constraint(PREFER_PRIMARY_SHARD_BALANCE_NODE_BREACH_ID, isPrimaryShardsPerIndexPerNodeBreached())
-        );
+        this.constraints.putIfAbsent(INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID, new Constraint(isPerIndexPrimaryShardsPerNodeBreached()));
     }
 
     public void updateRebalanceConstraint(String constraint, boolean enable) {
@@ -42,17 +39,5 @@ public class RebalanceConstraints {
     public long weight(ShardsBalancer balancer, BalancedShardsAllocator.ModelNode node, String index) {
         Constraint.ConstraintParams params = new Constraint.ConstraintParams(balancer, node, index);
         return params.weight(constraints);
-    }
-
-    /**
-     * When primary balance is preferred, add node constraint of average primary shards per node to give the node a
-     * higher weight resulting in lesser chances of being target of unassigned shard allocation or rebalancing target node
-     */
-    public static Predicate<Constraint.ConstraintParams> isPrimaryShardsPerIndexPerNodeBreached() {
-        return (params) -> {
-            int currPrimaryShardsOnNode = params.getNode().numPrimaryShards(params.getIndex());
-            int allowedPrimaryShardsPerNode = (int) Math.ceil(params.getBalancer().avgPrimaryShardsPerNode(params.getIndex()));
-            return currPrimaryShardsOnNode > allowedPrimaryShardsPerNode;
-        };
     }
 }

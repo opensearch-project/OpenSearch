@@ -32,19 +32,22 @@ public class SegmentReplicationCheckpointPublisher {
         this.publishAction = Objects.requireNonNull(publishAction);
     }
 
-    public void publish(IndexShard indexShard) {
-        publishAction.publish(indexShard);
+    public void publish(IndexShard indexShard, ReplicationCheckpoint checkpoint) {
+        publishAction.publish(indexShard, checkpoint);
+        indexShard.onCheckpointPublished(checkpoint);
     }
 
     /**
      * Represents an action that is invoked to publish segment replication checkpoint to replica shard
      */
     public interface PublishAction {
-        void publish(IndexShard indexShard);
+        void publish(IndexShard indexShard, ReplicationCheckpoint checkpoint);
     }
 
     /**
      * NoOp Checkpoint publisher
      */
-    public static final SegmentReplicationCheckpointPublisher EMPTY = new SegmentReplicationCheckpointPublisher(indexShard -> {});
+    public static final SegmentReplicationCheckpointPublisher EMPTY = new SegmentReplicationCheckpointPublisher(
+        (indexShard, checkpoint) -> {}
+    );
 }

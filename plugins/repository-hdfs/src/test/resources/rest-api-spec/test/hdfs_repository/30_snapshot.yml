@@ -36,7 +36,7 @@
   - match: { snapshot.shards.failed : 0 }
 
   # Remove our snapshot
-  - do: 
+  - do:
       snapshot.delete:
         repository: test_snapshot_repository
         snapshot: test_snapshot

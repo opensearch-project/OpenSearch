@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.replication;
 
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -16,11 +17,13 @@ import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.SegmentReplicationPerGroupStats;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
@@ -29,12 +32,14 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.TransportService;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -134,6 +139,24 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
         waitForSearchableDocs(docCount, Arrays.stream(nodes).collect(Collectors.toList()));
     }
 
+    protected void waitForSegmentReplication(String node) throws Exception {
+        assertBusy(() -> {
+            SegmentReplicationStatsResponse segmentReplicationStatsResponse = client(node).admin()
+                .indices()
+                .prepareSegmentReplicationStats(INDEX_NAME)
+                .setDetailed(true)
+                .execute()
+                .actionGet();
+            final SegmentReplicationPerGroupStats perGroupStats = segmentReplicationStatsResponse.getReplicationStats()
+                .get(INDEX_NAME)
+                .get(0);
+            assertEquals(
+                perGroupStats.getReplicaStats().stream().findFirst().get().getCurrentReplicationState().getStage(),
+                SegmentReplicationState.Stage.DONE
+            );
+        }, 1, TimeUnit.MINUTES);
+    }
+
     protected void verifyStoreContent() throws Exception {
         assertBusy(() -> {
             final ClusterState clusterState = getClusterState();
@@ -180,6 +203,33 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
         IndexService indexService = indicesService.indexServiceSafe(index);
         final Optional<Integer> shardId = indexService.shardIds().stream().findFirst();
         return indexService.getShard(shardId.get());
+    }
+
+    protected Releasable blockReplication(List<String> nodes, CountDownLatch latch) {
+        CountDownLatch pauseReplicationLatch = new CountDownLatch(nodes.size());
+        for (String node : nodes) {
+
+            MockTransportService mockTargetTransportService = ((MockTransportService) internalCluster().getInstance(
+                TransportService.class,
+                node
+            ));
+            mockTargetTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (action.equals(SegmentReplicationSourceService.Actions.GET_SEGMENT_FILES)) {
+                    try {
+                        latch.countDown();
+                        pauseReplicationLatch.await();
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+        }
+        return () -> {
+            while (pauseReplicationLatch.getCount() > 0) {
+                pauseReplicationLatch.countDown();
+            }
+        };
     }
 
 }

@@ -59,7 +59,7 @@
   - match: { snapshots.0.snapshot : test_snapshot_get }
 
   # Remove our snapshot
-  - do: 
+  - do:
       snapshot.delete:
         repository: test_snapshot_get_repository
         snapshot: test_snapshot_get

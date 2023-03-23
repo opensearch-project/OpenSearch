@@ -225,14 +225,8 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         assertNull(XContentMapValues.extractValue("object1.missing", map, "NULL"));
 
         assertEquals("NULL", XContentMapValues.extractValue("other_field", map, "NULL"));
-        assertEquals(
-            org.opensearch.common.collect.List.of("value1", "NULL", "value2"),
-            XContentMapValues.extractValue("array", map, "NULL")
-        );
-        assertEquals(
-            org.opensearch.common.collect.List.of("NULL", "value"),
-            XContentMapValues.extractValue("object_array.field", map, "NULL")
-        );
+        assertEquals(List.of("value1", "NULL", "value2"), XContentMapValues.extractValue("array", map, "NULL"));
+        assertEquals(List.of("NULL", "value"), XContentMapValues.extractValue("object_array.field", map, "NULL"));
         assertEquals("NULL", XContentMapValues.extractValue("object1.object2.field", map, "NULL"));
     }
 

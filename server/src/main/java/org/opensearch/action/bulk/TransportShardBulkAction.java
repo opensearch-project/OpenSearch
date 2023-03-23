@@ -81,6 +81,7 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexingPressureService;
+import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.VersionConflictEngineException;
 import org.opensearch.index.get.GetResult;
@@ -133,6 +134,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
+    private final SegmentReplicationPressureService segmentReplicationPressureService;
 
     /**
      * This action is used for performing primary term validation. With remote translog enabled, the translogs would
@@ -155,6 +157,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         UpdateHelper updateHelper,
         ActionFilters actionFilters,
         IndexingPressureService indexingPressureService,
+        SegmentReplicationPressureService segmentReplicationPressureService,
         SystemIndices systemIndices
     ) {
         super(
@@ -175,6 +178,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         );
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
+        this.segmentReplicationPressureService = segmentReplicationPressureService;
 
         this.transportPrimaryTermValidationAction = ACTION_NAME + "[validate_primary_term]";
 
@@ -520,6 +524,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 );
             }
         }.run();
+    }
+
+    @Override
+    protected Releasable checkPrimaryLimits(BulkShardRequest request, boolean rerouteWasLocal, boolean localRerouteInitiatedByNodeClient) {
+        if (force(request) == false && segmentReplicationPressureService.isSegmentReplicationBackpressureEnabled()) {
+            segmentReplicationPressureService.isSegrepLimitBreached(request.shardId());
+        }
+        return super.checkPrimaryLimits(request, rerouteWasLocal, localRerouteInitiatedByNodeClient);
     }
 
     /**

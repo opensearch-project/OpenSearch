@@ -134,7 +134,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
         return new IndexAnalyzers(
             singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-            org.opensearch.common.collect.Map.of(
+            Map.of(
                 "lowercase",
                 new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()),
                 "other_lowercase",

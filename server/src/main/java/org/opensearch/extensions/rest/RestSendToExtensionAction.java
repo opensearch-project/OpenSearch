@@ -198,10 +198,9 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             restExecuteOnExtensionResponse.getContent()
         );
         // No constructor that includes headers so we roll our own
-        restExecuteOnExtensionResponse.getHeaders()
-            .entrySet()
-            .stream()
-            .forEach(e -> { e.getValue().stream().forEach(v -> restResponse.addHeader(e.getKey(), v)); });
+        restExecuteOnExtensionResponse.getHeaders().entrySet().stream().forEach(e -> {
+            e.getValue().stream().forEach(v -> restResponse.addHeader(e.getKey(), v));
+        });
 
         return channel -> channel.sendResponse(restResponse);
     }
