@@ -8,7 +8,6 @@
 
 package org.opensearch.snapshots;
 
-import org.junit.BeforeClass;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequestBuilder;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -45,9 +44,9 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
     private static final String REPOSITORY_NAME = "test-segrep-repo";
     private static final String SNAPSHOT_NAME = "test-segrep-snapshot";
 
-    @BeforeClass
-    public static void assumeFeatureFlag() {
-        assumeTrue("Segment replication Feature flag is enabled", Boolean.parseBoolean(System.getProperty(FeatureFlags.REPLICATION_TYPE)));
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REPLICATION_TYPE, "true").build();
     }
 
     public Settings segRepEnableIndexSettings() {
