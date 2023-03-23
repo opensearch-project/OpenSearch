@@ -200,9 +200,9 @@ public class AllocationConstraintsTests extends OpenSearchAllocationTestCase {
         when(node.numShards(indexName)).thenReturn(shardCount);
         when(node.getNodeId()).thenReturn("test-node");
 
-        long expectedWeight = (shardCount >= avgPerIndexShardsPerNode) ? CONSTRAINT_WEIGHT : 0;
-        expectedWeight += perIndexPrimaryShardCount > avgPerIndexPrimaryShardsPerNode ? CONSTRAINT_WEIGHT : 0;
-        expectedWeight += primaryShardsPerNode >= avgPrimaryShardsPerNode ? CONSTRAINT_WEIGHT : 0;
+        long expectedWeight = (shardCount >= (int) Math.ceil(avgPerIndexShardsPerNode)) ? CONSTRAINT_WEIGHT : 0;
+        expectedWeight += perIndexPrimaryShardCount > (int) Math.ceil(avgPerIndexPrimaryShardsPerNode) ? CONSTRAINT_WEIGHT : 0;
+        expectedWeight += primaryShardsPerNode >= (int) Math.ceil(avgPrimaryShardsPerNode) ? CONSTRAINT_WEIGHT : 0;
         assertEquals(expectedWeight, constraints.weight(balancer, node, indexName));
     }
 
