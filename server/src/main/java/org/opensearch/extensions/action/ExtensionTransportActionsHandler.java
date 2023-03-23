@@ -96,7 +96,6 @@ public class ExtensionTransportActionsHandler {
         if (uniqueId == null) {
             throw new ActionNotFoundTransportException(action);
         }
-        logger.info("Got extension: " + extensionIdMap.get(uniqueId));
         return extensionIdMap.get(uniqueId);
     }
 
@@ -107,10 +106,8 @@ public class ExtensionTransportActionsHandler {
      * @return  A {@link AcknowledgedResponse} indicating success.
      */
     public TransportResponse handleRegisterTransportActionsRequest(RegisterTransportActionsRequest transportActionsRequest) {
-        logger.debug("Register Transport Actions request recieved {}", transportActionsRequest);
         try {
             for (String action : transportActionsRequest.getTransportActions()) {
-                logger.info("Registering action " + action + " with id " + transportActionsRequest.getUniqueId());
                 registerAction(action, transportActionsRequest.getUniqueId());
             }
         } catch (Exception e) {

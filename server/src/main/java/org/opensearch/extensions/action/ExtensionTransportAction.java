@@ -16,7 +16,7 @@ import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
 
 /**
- * A proxy transport action used to proxy a transport request from OpenSearch or a plugin to execute on an extension
+ * A proxy transport action used to proxy a transport request from an extension to execute on another extension
  *
  * @opensearch.internal
  */
