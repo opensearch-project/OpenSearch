@@ -754,9 +754,9 @@ public final class IndexSettings {
         if (FeatureFlags.isEnabled(FeatureFlags.REPLICATION_TYPE)
             && indexMetadata.isSystem() == false
             && settings.get(IndexMetadata.SETTING_REPLICATION_TYPE) == null) {
-            replicationType = ReplicationType.parseString(settings.get(IndicesService.CLUSTER_SETTING_REPLICATION_TYPE));
+            replicationType = IndicesService.CLUSTER_REPLICATION_TYPE_SETTING.get(settings);
         } else {
-            replicationType = ReplicationType.parseString(settings.get(IndexMetadata.SETTING_REPLICATION_TYPE));
+            replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
         }
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
         isRemoteTranslogStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false);
