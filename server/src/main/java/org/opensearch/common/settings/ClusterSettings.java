@@ -646,7 +646,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         FeatureFlags.SEARCHABLE_SNAPSHOT,
         List.of(Node.NODE_SEARCH_CACHE_SIZE_SETTING),
         FeatureFlags.REPLICATION_TYPE,
-        List.of(IndicesService.CLUSTER_DEFAULT_REPLICATION_TYPE_SETTING)
+        List.of(IndicesService.CLUSTER_REPLICATION_TYPE_SETTING)
     );
 
 }

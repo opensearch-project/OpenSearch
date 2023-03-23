@@ -236,7 +236,7 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public static final String CLUSTER_SETTING_REPLICATION_TYPE = "cluster.indices.replication.strategy";
 
-    public static final Setting<ReplicationType> CLUSTER_DEFAULT_REPLICATION_TYPE_SETTING = new Setting<>(
+    public static final Setting<ReplicationType> CLUSTER_REPLICATION_TYPE_SETTING = new Setting<>(
         CLUSTER_SETTING_REPLICATION_TYPE,
         ReplicationType.DOCUMENT.toString(),
         ReplicationType::parseString,

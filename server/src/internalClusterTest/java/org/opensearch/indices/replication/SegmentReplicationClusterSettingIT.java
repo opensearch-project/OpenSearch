@@ -28,7 +28,7 @@ import static org.opensearch.indices.IndicesService.CLUSTER_SETTING_REPLICATION_
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class SegmentReplicationDefaultClusterSettingIT extends OpenSearchIntegTestCase {
+public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase {
 
     protected static final String INDEX_NAME = "test-idx-1";
     private static final String SYSTEM_INDEX_NAME = ".test-system-index";
@@ -74,10 +74,10 @@ public class SegmentReplicationDefaultClusterSettingIT extends OpenSearchIntegTe
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(SegmentReplicationDefaultClusterSettingIT.TestPlugin.class, MockTransportService.TestPlugin.class);
+        return Arrays.asList(SegmentReplicationClusterSettingIT.TestPlugin.class, MockTransportService.TestPlugin.class);
     }
 
-    public void testReplicationWithDefaultSegmentReplicationSetting() throws Exception {
+    public void testReplicationWithSegmentReplicationClusterSetting() throws Exception {
 
         boolean isSystemIndex = randomBoolean();
         String indexName = isSystemIndex ? SYSTEM_INDEX_NAME : INDEX_NAME;
@@ -113,7 +113,7 @@ public class SegmentReplicationDefaultClusterSettingIT extends OpenSearchIntegTe
         }
     }
 
-    public void testIndexReplicationSettingsOverridesClusterSettings() throws Exception {
+    public void testIndexReplicationSettingOverridesClusterSetting() throws Exception {
         // Starting two nodes with primary and replica shards respectively.
         final String primaryNode = internalCluster().startNode();
         prepareCreate(
