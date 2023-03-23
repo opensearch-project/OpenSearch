@@ -6,5 +6,5 @@
  * compatible open source license.
  */
 
-/** ABCDE */
+/** Abstractions for stream based file writes */
 package org.opensearch.common.blobstore.stream.write;
