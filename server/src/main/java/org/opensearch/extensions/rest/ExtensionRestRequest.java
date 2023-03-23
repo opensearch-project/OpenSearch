@@ -39,6 +39,7 @@ public class ExtensionRestRequest extends TransportRequest {
     private Method method;
     private String path;
     private Map<String, String> params;
+    private Map<String, List<String>> headers;
     private XContentType xContentType = null;
     private BytesReference content;
     // The owner of this request object
@@ -63,6 +64,7 @@ public class ExtensionRestRequest extends TransportRequest {
         Method method,
         String path,
         Map<String, String> params,
+        Map<String, List<String>> headers,
         XContentType xContentType,
         BytesReference content,
         String principalIdentifier
@@ -70,6 +72,7 @@ public class ExtensionRestRequest extends TransportRequest {
         this.method = method;
         this.path = path;
         this.params = params;
+        this.headers = headers;
         this.xContentType = xContentType;
         this.content = content;
         this.principalIdentifierToken = principalIdentifier;
@@ -86,6 +89,7 @@ public class ExtensionRestRequest extends TransportRequest {
         method = in.readEnum(RestRequest.Method.class);
         path = in.readString();
         params = in.readMap(StreamInput::readString, StreamInput::readString);
+        headers = in.readMap(StreamInput::readString, StreamInput::readStringList);
         if (in.readBoolean()) {
             xContentType = in.readEnum(XContentType.class);
         }
@@ -99,6 +103,7 @@ public class ExtensionRestRequest extends TransportRequest {
         out.writeEnum(method);
         out.writeString(path);
         out.writeMap(params, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeStringCollection);
         out.writeBoolean(xContentType != null);
         if (xContentType != null) {
             out.writeEnum(xContentType);
@@ -195,6 +200,8 @@ public class ExtensionRestRequest extends TransportRequest {
     public List<String> consumedParams() {
         return new ArrayList<>(consumedParams);
     }
+
+    public Map<String, List<String>> headers() { return headers; }
 
     /**
      * Gets the content type, if any.

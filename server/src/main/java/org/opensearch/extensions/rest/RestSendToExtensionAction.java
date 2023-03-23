@@ -108,6 +108,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         Method method = request.method();
         String path = request.path();
         Map<String, String> params = request.params();
+        Map<String, List<String>> headers = request.getHeaders();
         XContentType contentType = request.getXContentType();
         BytesReference content = request.content();
 
@@ -170,7 +171,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 ExtensionsManager.REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION,
                 // HERE BE DRAGONS - DO NOT INCLUDE HEADERS
                 // SEE https://github.com/opensearch-project/OpenSearch/issues/4429
-                new ExtensionRestRequest(method, path, params, contentType, content, requestIssuerIdentity),
+                new ExtensionRestRequest(method, path, params, headers, contentType, content, requestIssuerIdentity),
                 restExecuteOnExtensionResponseHandler
             );
             inProgressFuture.orTimeout(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
