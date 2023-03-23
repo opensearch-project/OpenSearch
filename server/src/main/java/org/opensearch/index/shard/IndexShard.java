@@ -4405,7 +4405,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         ((RemoteSegmentStoreDirectory) remoteDirectory).init();
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = ((RemoteSegmentStoreDirectory) remoteDirectory)
             .getSegmentsUploadedToRemoteStore();
-        final Directory storeDirectory = store.directory();
+        final Directory storeDirectory = new StoreRecovery.StatsDirectoryWrapper(store.directory(), recoveryState.getIndex());
         store.incRef();
         remoteStore.incRef();
         List<String> downloadedSegments = new ArrayList<>();
@@ -4419,7 +4419,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (localSegmentFiles.contains(file)) {
                         storeDirectory.deleteFile(file);
                     }
-                    recoveryState.getIndex().addFileDetail(file, uploadedSegments.get(file).getLength(), false);
                     storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
                     downloadedSegments.add(file);
                     if (file.startsWith(SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX)) {
@@ -4427,7 +4426,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         segmentInfosSnapshotFilename = file;
                     }
                 } else {
-                    recoveryState.getIndex().addFileDetail(file, uploadedSegments.get(file).getLength(), true);
                     skippedSegments.add(file);
                 }
             }
