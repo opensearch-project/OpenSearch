@@ -18,6 +18,7 @@ import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.common.UUIDs;
@@ -213,9 +214,10 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         ActionListener.completeWith(listener, () -> {
             cancellableThreads.checkForCancel();
             state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);
+            Store store = null;
             try {
                 multiFileWriter.renameAllTempFiles();
-                final Store store = store();
+                store = store();
                 store.incRef();
                 // Deserialize the new SegmentInfos object sent from the primary.
                 final ReplicationCheckpoint responseCheckpoint = checkpointInfoResponse.getCheckpoint();
@@ -250,6 +252,13 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                 );
                 fail(rfe, true);
                 throw rfe;
+            } catch (OpenSearchException ex) {
+                /*
+                 Ignore closed replication target as it can happen due to index shard closed event in a separate thread.
+                 In such scenario, ignore the exception
+                 */
+                assert cancellableThreads.isCancelled() : "Replication target closed but segment replication not cancelled";
+                logger.info("Replication target closed", ex);
             } catch (Exception ex) {
                 ReplicationFailedException rfe = new ReplicationFailedException(
                     indexShard.shardId(),
@@ -259,7 +268,9 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                 fail(rfe, true);
                 throw rfe;
             } finally {
-                store.decRef();
+                if (store != null) {
+                    store.decRef();
+                }
             }
             return null;
         });

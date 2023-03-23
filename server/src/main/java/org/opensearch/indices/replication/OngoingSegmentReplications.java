@@ -80,7 +80,7 @@ class OngoingSegmentReplications {
         } else {
             // From the checkpoint's shard ID, fetch the IndexShard
             ShardId shardId = checkpoint.getShardId();
-            final IndexService indexService = indicesService.indexService(shardId.getIndex());
+            final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
             final IndexShard indexShard = indexService.getShard(shardId.id());
             // build the CopyState object and cache it before returning
             final CopyState copyState = new CopyState(checkpoint, indexShard);

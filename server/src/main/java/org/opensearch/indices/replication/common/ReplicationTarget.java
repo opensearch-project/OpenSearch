@@ -11,6 +11,7 @@ package org.opensearch.indices.replication.common;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.common.CheckedFunction;
@@ -186,7 +187,7 @@ public abstract class ReplicationTarget extends AbstractRefCounted {
 
     protected void ensureRefCount() {
         if (refCount() <= 0) {
-            throw new ReplicationFailedException(
+            throw new OpenSearchException(
                 "ReplicationTarget is used but it's refcount is 0. Probably a mismatch between incRef/decRef calls"
             );
         }
