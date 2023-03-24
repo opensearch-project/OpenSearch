@@ -61,10 +61,6 @@ public class RestSendToExtensionAction extends BaseRestHandler {
     private final DiscoveryExtensionNode discoveryExtensionNode;
     private final TransportService transportService;
 
-    // Lists for filter headers
-    private List<String> allowList;
-    private List<String> denyList;
-
     /**
      * Instantiates this object using a {@link RegisterRestActionsRequest} to populate the routes.
      *
@@ -171,13 +167,13 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             final String extensionTokenProcessor = "placeholder_token_processor";
             final String requestIssuerIdentity = "placeholder_request_issuer_identity";
 
-            this.allowList = List.of("Content-Type");
-            this.denyList = List.of("Authorization", "Proxy-Authorization");
+            final Set<String> allowList = Set.of("Content-Type");
+            final Set<String> denyList = Set.of("Authorization", "Proxy-Authorization");
 
             Map<String, List<String>> filteredHeaders = headers.entrySet()
                 .stream()
                 .filter(e -> !denyList.contains(e.getKey()))
-                .filter(e -> allowList.contains("*") || allowlist.contains(e.getKey()))
+                .filter(e -> allowlist.contains(e.getKey()))
                 .collect(Collectors.toMap());
 
             transportService.sendRequest(
