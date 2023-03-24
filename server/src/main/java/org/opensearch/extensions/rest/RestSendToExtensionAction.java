@@ -61,6 +61,10 @@ public class RestSendToExtensionAction extends BaseRestHandler {
     private final DiscoveryExtensionNode discoveryExtensionNode;
     private final TransportService transportService;
 
+    // Lists for filter headers
+    private List<String> allowList;
+    private List<String> denyList;
+
     /**
      * Instantiates this object using a {@link RegisterRestActionsRequest} to populate the routes.
      *
@@ -108,6 +112,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         Method method = request.method();
         String path = request.path();
         Map<String, String> params = request.params();
+        Map<String, List<String>> headers = request.getHeaders();
         XContentType contentType = request.getXContentType();
         BytesReference content = request.content();
 
@@ -160,6 +165,15 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 return ThreadPool.Names.GENERIC;
             }
         };
+
+        this.allowList = List.of("Content-Type");
+        this.denyList = List.of("Authorization", "Proxy-Authorization");
+
+        Map<String, List<String>> filteredHeaders = headers.entrySet().stream()
+            .filter(e -> !denyList.contains(e.getKey()))
+            .filter(e -> allowList.contains("*") || allowlist.contains(e.getKey()))
+            .collect(Collectors.toMap());
+        
         try {
             // Will be replaced with ExtensionTokenProcessor and PrincipalIdentifierToken classes from feature/identity
             final String extensionTokenProcessor = "placeholder_token_processor";
@@ -170,7 +184,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 ExtensionsManager.REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION,
                 // HERE BE DRAGONS - DO NOT INCLUDE HEADERS
                 // SEE https://github.com/opensearch-project/OpenSearch/issues/4429
-                new ExtensionRestRequest(method, path, params, contentType, content, requestIssuerIdentity),
+                new ExtensionRestRequest(method, path, params, filteredHeaders, contentType, content, requestIssuerIdentity),
                 restExecuteOnExtensionResponseHandler
             );
             inProgressFuture.orTimeout(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
