@@ -114,10 +114,9 @@ public class IdFieldMapperTests extends OpenSearchSingleNodeTestCase {
             .setTransientSettings(Settings.builder().put(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey(), false))
             .get();
         try {
-            IllegalArgumentException exc = expectThrows(
-                IllegalArgumentException.class,
-                () -> ft.fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); }).build(null, null)
-            );
+            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> ft.fielddataBuilder("test", () -> {
+                throw new UnsupportedOperationException();
+            }).build(null, null));
             assertThat(exc.getMessage(), containsString(IndicesService.INDICES_ID_FIELD_DATA_ENABLED_SETTING.getKey()));
             assertFalse(ft.isAggregatable());
         } finally {

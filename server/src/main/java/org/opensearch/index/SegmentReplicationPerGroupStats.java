@@ -13,6 +13,7 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Set;
@@ -24,15 +25,18 @@ import java.util.Set;
  */
 public class SegmentReplicationPerGroupStats implements Writeable, ToXContentFragment {
 
+    private final ShardId shardId;
     private final Set<SegmentReplicationShardStats> replicaStats;
     private final long rejectedRequestCount;
 
-    public SegmentReplicationPerGroupStats(Set<SegmentReplicationShardStats> replicaStats, long rejectedRequestCount) {
+    public SegmentReplicationPerGroupStats(ShardId shardId, Set<SegmentReplicationShardStats> replicaStats, long rejectedRequestCount) {
+        this.shardId = shardId;
         this.replicaStats = replicaStats;
         this.rejectedRequestCount = rejectedRequestCount;
     }
 
     public SegmentReplicationPerGroupStats(StreamInput in) throws IOException {
+        this.shardId = new ShardId(in);
         this.replicaStats = in.readSet(SegmentReplicationShardStats::new);
         this.rejectedRequestCount = in.readVLong();
     }
@@ -43,6 +47,10 @@ public class SegmentReplicationPerGroupStats implements Writeable, ToXContentFra
 
     public long getRejectedRequestCount() {
         return rejectedRequestCount;
+    }
+
+    public ShardId getShardId() {
+        return shardId;
     }
 
     @Override
@@ -58,6 +66,7 @@ public class SegmentReplicationPerGroupStats implements Writeable, ToXContentFra
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        shardId.writeTo(out);
         out.writeCollection(replicaStats);
         out.writeVLong(rejectedRequestCount);
     }

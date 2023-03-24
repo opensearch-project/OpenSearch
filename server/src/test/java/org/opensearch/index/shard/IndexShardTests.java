@@ -2174,11 +2174,9 @@ public class IndexShardTests extends IndexShardTestCase {
         IndexShardTestCase.updateRoutingEntry(shard, routing);
         ReplicationFailedException segRepException = expectThrows(
             ReplicationFailedException.class,
-            () -> shard.relocated(
-                routing.getTargetRelocatingShard().allocationId().getId(),
-                primaryContext -> {},
-                () -> { throw new ReplicationFailedException("Segment replication failed"); }
-            )
+            () -> shard.relocated(routing.getTargetRelocatingShard().allocationId().getId(), primaryContext -> {}, () -> {
+                throw new ReplicationFailedException("Segment replication failed");
+            })
         );
         assertTrue(segRepException.getMessage().equals("Segment replication failed"));
         closeShards(shard);
@@ -2961,11 +2959,9 @@ public class IndexShardTests extends IndexShardTestCase {
             new NoneCircuitBreakerService(),
             shard.mapperService()
         );
-        IndexFieldData.Global ifd = indexFieldDataService.getForField(
-            foo,
-            "test",
-            () -> { throw new UnsupportedOperationException("search lookup not available"); }
-        );
+        IndexFieldData.Global ifd = indexFieldDataService.getForField(foo, "test", () -> {
+            throw new UnsupportedOperationException("search lookup not available");
+        });
         FieldDataStats before = shard.fieldData().stats("foo");
         assertThat(before.getMemorySizeInBytes(), equalTo(0L));
         FieldDataStats after = null;

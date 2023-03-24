@@ -305,7 +305,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             int n = 0;
             for (long d = start; d < end; d += anHour) {
                 docs.add(
-                    org.opensearch.common.collect.List.of(
+                    List.of(
                         new SortedNumericDocValuesField(AGGREGABLE_DATE, d),
                         new SortedSetDocValuesField("k1", aBytes),
                         new SortedSetDocValuesField("k1", d < useC ? bBytes : cBytes),
@@ -373,12 +373,7 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             List<List<IndexableField>> docs = new ArrayList<>();
             int n = 0;
             for (long d = start; d < end; d += anHour) {
-                docs.add(
-                    org.opensearch.common.collect.List.of(
-                        new SortedNumericDocValuesField(AGGREGABLE_DATE, d),
-                        new SortedNumericDocValuesField("n", n % 100)
-                    )
-                );
+                docs.add(List.of(new SortedNumericDocValuesField(AGGREGABLE_DATE, d), new SortedNumericDocValuesField("n", n % 100)));
                 n++;
             }
             /*

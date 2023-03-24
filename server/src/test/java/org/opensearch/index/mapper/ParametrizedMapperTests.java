@@ -68,7 +68,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
     public static class TestPlugin extends Plugin implements MapperPlugin {
         @Override
         public Map<String, Mapper.TypeParser> getMappers() {
-            return org.opensearch.common.collect.Map.of("test_mapper", new TypeParser());
+            return Map.of("test_mapper", new TypeParser());
         }
     }
 
@@ -218,7 +218,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
     private static TestMapper fromMapping(String mapping, Version version) {
         MapperService mapperService = mock(MapperService.class);
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
-            org.opensearch.common.collect.Map.of(
+            Map.of(
                 "_standard",
                 Lucene.STANDARD_ANALYZER,
                 "_keyword",

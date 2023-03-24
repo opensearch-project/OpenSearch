@@ -71,15 +71,7 @@ public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializ
 
     public void testPutGlobalTemplatesCannotHaveHiddenIndexSetting() {
         Template template = new Template(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build(), null, null);
-        ComposableIndexTemplate globalTemplate = new ComposableIndexTemplate(
-            org.opensearch.common.collect.List.of("*"),
-            template,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
+        ComposableIndexTemplate globalTemplate = new ComposableIndexTemplate(List.of("*"), template, null, null, null, null, null);
 
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("test");
         request.indexTemplate(globalTemplate);

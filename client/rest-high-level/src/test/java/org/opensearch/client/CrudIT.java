@@ -628,10 +628,9 @@ public class CrudIT extends OpenSearchRestHighLevelClientTestCase {
             assertEquals("index", indexResponse.getIndex());
             assertEquals("with_create_op_type", indexResponse.getId());
 
-            OpenSearchStatusException exception = expectThrows(
-                OpenSearchStatusException.class,
-                () -> { execute(indexRequest, highLevelClient()::index, highLevelClient()::indexAsync); }
-            );
+            OpenSearchStatusException exception = expectThrows(OpenSearchStatusException.class, () -> {
+                execute(indexRequest, highLevelClient()::index, highLevelClient()::indexAsync);
+            });
 
             assertEquals(RestStatus.CONFLICT, exception.status());
             assertEquals(

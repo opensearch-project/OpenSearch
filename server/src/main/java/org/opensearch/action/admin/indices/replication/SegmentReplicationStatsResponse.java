@@ -15,7 +15,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.indices.replication.SegmentReplicationState;
+import org.opensearch.index.SegmentReplicationPerGroupStats;
 
 import java.io.IOException;
 import java.util.List;
@@ -27,54 +27,50 @@ import java.util.Map;
  * @opensearch.internal
  */
 public class SegmentReplicationStatsResponse extends BroadcastResponse {
-    private final Map<String, List<SegmentReplicationState>> shardSegmentReplicationStates;
+    private final Map<String, List<SegmentReplicationPerGroupStats>> replicationStats;
 
     public SegmentReplicationStatsResponse(StreamInput in) throws IOException {
         super(in);
-        shardSegmentReplicationStates = in.readMapOfLists(StreamInput::readString, SegmentReplicationState::new);
+        replicationStats = in.readMapOfLists(StreamInput::readString, SegmentReplicationPerGroupStats::new);
     }
 
     /**
      * Constructs segment replication stats information for a collection of indices and associated shards. Keeps track of how many total shards
      * were seen, and out of those how many were successfully processed and how many failed.
      *
-     * @param totalShards       Total count of shards seen
-     * @param successfulShards  Count of shards successfully processed
-     * @param failedShards      Count of shards which failed to process
-     * @param shardSegmentReplicationStates    Map of indices to shard replication information
-     * @param shardFailures     List of failures processing shards
+     * @param totalShards             Total count of shards seen
+     * @param successfulShards        Count of shards successfully processed
+     * @param failedShards            Count of shards which failed to process
+     * @param replicationStats Map of indices to a list of {@link SegmentReplicationPerGroupStats}
+     * @param shardFailures           List of failures processing shards
      */
     public SegmentReplicationStatsResponse(
         int totalShards,
         int successfulShards,
         int failedShards,
-        Map<String, List<SegmentReplicationState>> shardSegmentReplicationStates,
+        Map<String, List<SegmentReplicationPerGroupStats>> replicationStats,
         List<DefaultShardOperationFailedException> shardFailures
     ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
-        this.shardSegmentReplicationStates = shardSegmentReplicationStates;
+        this.replicationStats = replicationStats;
     }
 
-    public boolean hasSegmentReplicationStats() {
-        return shardSegmentReplicationStates.size() > 0;
-    }
-
-    public Map<String, List<SegmentReplicationState>> shardSegmentReplicationStates() {
-        return shardSegmentReplicationStates;
+    public Map<String, List<SegmentReplicationPerGroupStats>> getReplicationStats() {
+        return replicationStats;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (hasSegmentReplicationStats()) {
-            for (String index : shardSegmentReplicationStates.keySet()) {
-                List<SegmentReplicationState> segmentReplicationStates = shardSegmentReplicationStates.get(index);
+        if (replicationStats.size() > 0) {
+            for (String index : replicationStats.keySet()) {
+                List<SegmentReplicationPerGroupStats> segmentReplicationStates = replicationStats.get(index);
                 if (segmentReplicationStates == null || segmentReplicationStates.size() == 0) {
                     continue;
                 }
                 builder.startObject(index);
-                builder.startArray("shards");
-                for (SegmentReplicationState segmentReplicationState : segmentReplicationStates) {
+                builder.startArray("primary_stats");
+                for (SegmentReplicationPerGroupStats segmentReplicationState : segmentReplicationStates) {
                     builder.startObject();
                     segmentReplicationState.toXContent(builder, params);
                     builder.endObject();
@@ -90,7 +86,7 @@ public class SegmentReplicationStatsResponse extends BroadcastResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMapOfLists(shardSegmentReplicationStates, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeMapOfLists(replicationStats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
     }
 
     @Override

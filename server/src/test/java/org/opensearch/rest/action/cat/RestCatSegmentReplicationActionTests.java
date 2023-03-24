@@ -11,43 +11,56 @@ package org.opensearch.rest.action.cat;
 import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.AllocationId;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.Table;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.Index;
+import org.opensearch.index.SegmentReplicationPerGroupStats;
+import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.indices.replication.common.ReplicationTimer;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
+import static java.util.Arrays.asList;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class RestCatSegmentReplicationActionTests extends OpenSearchTestCase {
-    public void testSegmentReplicationAction() {
+    public void testSegmentReplicationAction() throws IOException {
         final RestCatSegmentReplicationAction action = new RestCatSegmentReplicationAction();
         final int totalShards = randomIntBetween(1, 32);
         final int successfulShards = Math.max(0, totalShards - randomIntBetween(1, 2));
         final int failedShards = totalShards - successfulShards;
-        final Map<String, List<SegmentReplicationState>> shardSegmentReplicationStates = new HashMap<>();
-        final List<SegmentReplicationState> segmentReplicationStates = new ArrayList<>();
+        final Map<String, List<SegmentReplicationPerGroupStats>> shardSegmentReplicationStates = new HashMap<>();
+        final List<SegmentReplicationPerGroupStats> groupStats = new ArrayList<>();
+        final long rejectedRequestCount = 5L;
 
         for (int i = 0; i < successfulShards; i++) {
+            final ShardId shardId = new ShardId(new Index("index", "_na_"), i);
             final SegmentReplicationState state = mock(SegmentReplicationState.class);
             final ShardRouting shardRouting = mock(ShardRouting.class);
             when(state.getShardRouting()).thenReturn(shardRouting);
-            when(shardRouting.shardId()).thenReturn(new ShardId(new Index("index", "_na_"), i));
+
+            when(shardRouting.shardId()).thenReturn(shardId);
+            final AllocationId aId = mock(AllocationId.class);
+            when(aId.getId()).thenReturn(UUID.randomUUID().toString());
+            when(shardRouting.allocationId()).thenReturn(aId);
             when(state.getReplicationId()).thenReturn(randomLongBetween(0, 1000));
             final ReplicationTimer timer = mock(ReplicationTimer.class);
             final long startTime = randomLongBetween(0, new Date().getTime());
@@ -60,19 +73,30 @@ public class RestCatSegmentReplicationActionTests extends OpenSearchTestCase {
             when(state.getSourceDescription()).thenReturn("Source");
             final DiscoveryNode targetNode = mock(DiscoveryNode.class);
             when(targetNode.getHostName()).thenReturn(randomAlphaOfLength(8));
+            when(targetNode.getName()).thenReturn(UUID.randomUUID().toString());
             when(state.getTargetNode()).thenReturn(targetNode);
 
             ReplicationLuceneIndex index = createTestIndex();
             when(state.getIndex()).thenReturn(index);
 
-            //
-
-            segmentReplicationStates.add(state);
+            final SegmentReplicationShardStats segmentReplicationShardStats = new SegmentReplicationShardStats(
+                state.getShardRouting().allocationId().getId(),
+                0L,
+                0L,
+                0L,
+                0L
+            );
+            segmentReplicationShardStats.setCurrentReplicationState(state);
+            final SegmentReplicationPerGroupStats perGroupStats = new SegmentReplicationPerGroupStats(
+                shardId,
+                Set.of(segmentReplicationShardStats),
+                rejectedRequestCount
+            );
+            groupStats.add(perGroupStats);
         }
 
-        final List<SegmentReplicationState> shuffle = new ArrayList<>(segmentReplicationStates);
-        Randomness.shuffle(shuffle);
-        shardSegmentReplicationStates.put("index", shuffle);
+        Randomness.shuffle(groupStats);
+        shardSegmentReplicationStates.put("index", groupStats);
 
         final List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
         final SegmentReplicationStatsResponse response = new SegmentReplicationStatsResponse(
@@ -88,18 +112,15 @@ public class RestCatSegmentReplicationActionTests extends OpenSearchTestCase {
 
         List<Table.Cell> headers = table.getHeaders();
 
-        final List<String> expectedHeaders = Arrays.asList(
-            "index",
+        final List<String> expectedHeaders = asList(
             "shardId",
-            "time",
-            "stage",
-            "source_description",
-            "target_host",
             "target_node",
-            "files_fetched",
-            "files_percent",
-            "bytes_fetched",
-            "bytes_percent"
+            "target_host",
+            "checkpoints_behind",
+            "bytes_behind",
+            "current_lag",
+            "last_completed_lag",
+            "rejected_requests"
         );
 
         for (int i = 0; i < expectedHeaders.size(); i++) {
@@ -109,19 +130,20 @@ public class RestCatSegmentReplicationActionTests extends OpenSearchTestCase {
         assertThat(table.getRows().size(), equalTo(successfulShards));
 
         for (int i = 0; i < successfulShards; i++) {
-            final SegmentReplicationState state = segmentReplicationStates.get(i);
-            final List<Object> expectedValues = Arrays.asList(
-                "index",
-                i,
-                new TimeValue(state.getTimer().time()),
-                state.getStage().name().toLowerCase(Locale.ROOT),
-                state.getSourceDescription(),
-                state.getTargetNode().getHostName(),
-                state.getTargetNode().getName(),
-                state.getIndex().recoveredFileCount(),
-                percent(state.getIndex().recoveredFilesPercent()),
-                state.getIndex().recoveredBytes(),
-                percent(state.getIndex().recoveredBytesPercent())
+            final SegmentReplicationPerGroupStats perGroupStats = groupStats.get(i);
+            final Set<SegmentReplicationShardStats> replicaStats = perGroupStats.getReplicaStats();
+            assertEquals(1, replicaStats.size());
+            final SegmentReplicationShardStats shardStats = replicaStats.stream().findFirst().get();
+            final SegmentReplicationState currentReplicationState = shardStats.getCurrentReplicationState();
+            final List<Object> expectedValues = asList(
+                perGroupStats.getShardId(),
+                currentReplicationState.getTargetNode().getName(),
+                currentReplicationState.getTargetNode().getHostName(),
+                shardStats.getCheckpointsBehindCount(),
+                new ByteSizeValue(shardStats.getBytesBehindCount()),
+                new TimeValue(shardStats.getCurrentReplicationTimeMillis()),
+                new TimeValue(shardStats.getLastCompletedReplicationTimeMillis()),
+                rejectedRequestCount
             );
 
             final List<Table.Cell> cells = table.getRows().get(i);

@@ -56,7 +56,7 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
 
     @Override
     protected Set<String> unsupportedProperties() {
-        return org.opensearch.common.collect.Set.of("analyzer", "similarity", "doc_values");
+        return Set.of("analyzer", "similarity", "doc_values");
     }
 
     @Override

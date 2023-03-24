@@ -74,7 +74,7 @@ import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findV
  */
 public class MetadataRolloverService {
     private static final Pattern INDEX_NAME_PATTERN = Pattern.compile("^.*-\\d+$");
-    private static final List<IndexAbstraction.Type> VALID_ROLLOVER_TARGETS = org.opensearch.common.collect.List.of(ALIAS, DATA_STREAM);
+    private static final List<IndexAbstraction.Type> VALID_ROLLOVER_TARGETS = List.of(ALIAS, DATA_STREAM);
 
     private final ThreadPool threadPool;
     private final MetadataCreateIndexService createIndexService;
