@@ -4416,6 +4416,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             for (String file : uploadedSegments.keySet()) {
                 long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
                 if (overrideLocal || localDirectoryContains(storeDirectory, file, checksum) == false) {
+                    recoveryState.getIndex().addFileDetail(file, uploadedSegments.get(file).getLength(), false);
+                } else {
+                    recoveryState.getIndex().addFileDetail(file, uploadedSegments.get(file).getLength(), true);
+                }
+            }
+            for (String file : uploadedSegments.keySet()) {
+                long checksum = Long.parseLong(uploadedSegments.get(file).getChecksum());
+                if (overrideLocal || localDirectoryContains(storeDirectory, file, checksum) == false) {
                     if (localSegmentFiles.contains(file)) {
                         storeDirectory.deleteFile(file);
                     }
