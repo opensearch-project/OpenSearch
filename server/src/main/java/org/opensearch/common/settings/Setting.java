@@ -1256,18 +1256,18 @@ public class Setting<T> implements ToXContentObject {
     public static class RegexValidator implements Writeable, Validator<String> {
         private Pattern pattern;
 
-        private boolean isMatching = true;
+        private boolean isMatching;
 
         /**
          * @param regex A regular expression containing the only valid input for this setting.
          */
         public RegexValidator(String regex) {
-            this.pattern = Pattern.compile(regex);
+            this(regex,true);
         }
 
         /**
-         * @param regex A regular expression containing the only valid input for this setting.
-         * @param isMatching this is a boolean switching between "fail, if it matches" or "fail, if it doesn't match".
+         * @param regex constructs a validator based on a regular expression.
+         * @param isMatching If true, the setting must match the given regex. If false, the setting must not match the given regex..
          */
         public RegexValidator(String regex, boolean isMatching) {
             this.pattern = Pattern.compile(regex);
@@ -1276,6 +1276,7 @@ public class Setting<T> implements ToXContentObject {
 
         public RegexValidator(StreamInput in) throws IOException {
             this.pattern = Pattern.compile(in.readString());
+            this.isMatching = in.readBoolean();
         }
 
         Pattern getPattern() {
@@ -1286,11 +1287,11 @@ public class Setting<T> implements ToXContentObject {
         public void validate(String value) {
             if (isMatching){
                 if (!pattern.matcher(value).matches()) {
-                    throw new IllegalArgumentException("Setting must not contain [" + pattern.pattern() + "]");
+                    throw new IllegalArgumentException("Setting [" + value + "] does not match regex [" + pattern.pattern() + "]");
                 }
             }else {
                 if (pattern.matcher(value).matches()) {
-                    throw new IllegalArgumentException("Setting must not contain [" + pattern.pattern() + "]");
+                    throw new IllegalArgumentException("Setting [" + value + "] must match regex [" + pattern.pattern() + "]");
                 }
             }
         }
@@ -1298,6 +1299,7 @@ public class Setting<T> implements ToXContentObject {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(pattern.pattern());
+            out.writeBoolean(isMatching);
         }
     }
 

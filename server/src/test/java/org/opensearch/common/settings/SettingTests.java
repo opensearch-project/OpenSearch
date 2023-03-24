@@ -329,11 +329,17 @@ public class SettingTests extends OpenSearchTestCase {
         String expectedRegex = "\\d+";
         Pattern expectedPattern = Pattern.compile(expectedRegex);
         RegexValidator regexValidator = new RegexValidator(expectedRegex);
+        RegexValidator regexValidatorMatcher = new RegexValidator(expectedRegex,false);
 
         // Test that the pattern is correctly initialized
         assertNotNull(expectedPattern);
         assertNotNull(regexValidator.getPattern());
         assertEquals(expectedPattern.pattern(), regexValidator.getPattern().pattern());
+
+        // Test that checks the pattern and isMatching parameter are working correctly during initialization
+        assertNotNull(regexValidatorMatcher);
+        assertNotNull(regexValidatorMatcher.getPattern());
+        assertEquals(expectedPattern.pattern(), regexValidatorMatcher.getPattern().pattern());
 
         // Test that validate() throws an exception for invalid input
         final RegexValidator finalValidator = new RegexValidator(expectedRegex);
