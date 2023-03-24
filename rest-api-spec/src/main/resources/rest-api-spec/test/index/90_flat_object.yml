@@ -23,8 +23,8 @@ teardown:
 ---
 "Flat object test":
   - skip:
-      version: " 2.7.0 - "
-      reason: "flat-object is introduced in 2.7.0"
+      version: " - 2.99.99"
+      reason: "flat_object is introduced in 3.0.0 in main branch"
   - do:
       index:
         index: test
