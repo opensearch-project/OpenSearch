@@ -166,25 +166,24 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             }
         };
 
-        this.allowList = List.of("Content-Type");
-        this.denyList = List.of("Authorization", "Proxy-Authorization");
-
-        Map<String, List<String>> filteredHeaders = headers.entrySet()
-            .stream()
-            .filter(e -> !denyList.contains(e.getKey()))
-            .filter(e -> allowList.contains("*") || allowlist.contains(e.getKey()))
-            .collect(Collectors.toMap());
-
         try {
             // Will be replaced with ExtensionTokenProcessor and PrincipalIdentifierToken classes from feature/identity
             final String extensionTokenProcessor = "placeholder_token_processor";
             final String requestIssuerIdentity = "placeholder_request_issuer_identity";
 
+            this.allowList = List.of("Content-Type");
+            this.denyList = List.of("Authorization", "Proxy-Authorization");
+
+            Map<String, List<String>> filteredHeaders = headers.entrySet()
+                .stream()
+                .filter(e -> !denyList.contains(e.getKey()))
+                .filter(e -> allowList.contains("*") || allowlist.contains(e.getKey()))
+                .collect(Collectors.toMap());
+
             transportService.sendRequest(
                 discoveryExtensionNode,
                 ExtensionsManager.REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION,
-                // HERE BE DRAGONS - DO NOT INCLUDE HEADERS
-                // SEE https://github.com/opensearch-project/OpenSearch/issues/4429
+                // TODO: impelement configuration of denyList and allowList of headers
                 new ExtensionRestRequest(method, path, params, filteredHeaders, contentType, content, requestIssuerIdentity),
                 restExecuteOnExtensionResponseHandler
             );
