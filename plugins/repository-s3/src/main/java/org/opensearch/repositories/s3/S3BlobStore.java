@@ -48,6 +48,8 @@ import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.BlobStoreException;
 import org.opensearch.common.blobstore.transfer.RemoteStoreSettings;
 import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.repositories.s3.async.AsyncUploadUtils;
+import org.opensearch.repositories.s3.async.TransferNIOGroup;
 import org.opensearch.repositories.s3.multipart.transfer.MultipartTransferManager;
 
 import java.io.IOException;
@@ -62,6 +64,8 @@ class S3BlobStore implements BlobStore {
     private static final Logger logger = LogManager.getLogger(S3BlobStore.class);
 
     private final S3Service service;
+
+    private final S3AsyncService s3AsyncService;
 
     private final String bucket;
 
@@ -87,9 +91,11 @@ class S3BlobStore implements BlobStore {
     final RequestMetricCollector multiPartUploadMetricCollector;
     private final ExecutorService priorityRemoteUploadExecutor;
     private final ExecutorService remoteUploadExecutor;
+    private final AsyncUploadUtils asyncUploadUtils;
 
     S3BlobStore(
         S3Service service,
+        S3AsyncService s3AsyncService,
         String bucket,
         boolean serverSideEncryption,
         ByteSizeValue bufferSize,
@@ -97,9 +103,11 @@ class S3BlobStore implements BlobStore {
         String storageClass,
         RepositoryMetadata repositoryMetadata,
         ExecutorService priorityRemoteUploadExecutor,
-        ExecutorService remoteUploadExecutor
+        ExecutorService remoteUploadExecutor,
+        AsyncUploadUtils asyncUploadUtils
     ) {
         this.service = service;
+        this.s3AsyncService = s3AsyncService;
         this.bucket = bucket;
         this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
@@ -110,6 +118,7 @@ class S3BlobStore implements BlobStore {
         this.repositoryMetadata = repositoryMetadata;
         this.priorityRemoteUploadExecutor = priorityRemoteUploadExecutor;
         this.remoteUploadExecutor = remoteUploadExecutor;
+        this.asyncUploadUtils = asyncUploadUtils;
         this.getMetricCollector = new RequestMetricCollector() {
             @Override
             public void collectMetrics(Request<?> request, Response<?> response) {
@@ -160,6 +169,10 @@ class S3BlobStore implements BlobStore {
 
     public AmazonS3Reference clientReference() {
         return service.client(repositoryMetadata);
+    }
+
+    public AmazonAsyncS3Reference asyncClientReference() {
+        return s3AsyncService.client(repositoryMetadata);
     }
 
     int getMaxRetries() {
@@ -242,6 +255,10 @@ class S3BlobStore implements BlobStore {
 
     public MultipartTransferManager getMultipartTransferManager() {
         return multipartTransferManager;
+    }
+
+    public AsyncUploadUtils getAsyncUploadUtils() {
+        return asyncUploadUtils;
     }
 
     static class Stats {

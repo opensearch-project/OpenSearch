@@ -99,15 +99,19 @@ public class TranslogTransferManager {
                 }),
                 latch
             );
+            Map<Long, BlobPath> blobPathMap = new HashMap<>();
             toUpload.forEach(
-                fileSnapshot -> transferService.uploadBlobAsync(
-                    ThreadPool.Names.TRANSLOG_TRANSFER,
-                    fileSnapshot,
-                    remoteBaseTransferPath.add(String.valueOf(fileSnapshot.getPrimaryTerm())),
-                    latchedActionListener,
-                    WritePriority.HIGH
-                )
+                fileSnapshot -> blobPathMap.put(fileSnapshot.getPrimaryTerm(),
+                    remoteBaseTransferPath.add(String.valueOf(fileSnapshot.getPrimaryTerm())))
             );
+
+            transferService.uploadBlobs(
+                toUpload,
+                blobPathMap,
+                latchedActionListener,
+                WritePriority.HIGH
+            );
+
             try {
                 if (latch.await(TRANSFER_TIMEOUT_IN_MILLIS, TimeUnit.MILLISECONDS) == false) {
                     Exception ex = new TimeoutException("Timed out waiting for transfer of snapshot " + transferSnapshot + " to complete");

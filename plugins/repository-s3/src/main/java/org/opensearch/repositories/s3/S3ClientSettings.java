@@ -270,6 +270,18 @@ final class S3ClientSettings {
     /** The max number of connections for the s3 client */
     final int maxConnections;
 
+//    /** The connection timeout for the s3 async client */
+//    final int connectionV2TimeoutMillis;
+//
+//    /** The max number of requests pending to acquire connection for the s3 async client */
+//    final int maxPendingAcquireConnections;
+//
+//    /** The max number of connections for the s3 async client */
+//    final int maxV2Connections;
+//
+//    /** The connnection acquisition timeout for the s3 async client */
+//    final int connectionAcquisitionTimeout;
+
     /** The number of retries to use for the s3 client. */
     final int maxRetries;
 

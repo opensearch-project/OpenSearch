@@ -32,6 +32,7 @@
 
 package org.opensearch.common.blobstore;
 
+import org.opensearch.common.blobstore.stream.write.UploadResponse;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 
 import java.io.IOException;
@@ -40,6 +41,7 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * An interface for managing a repository of blob entries, where each blob entry is just a named group of bytes.
@@ -130,7 +132,7 @@ public interface BlobContainer {
         return false;
     }
 
-    default void writeStreams(WriteContext writeContext) throws IOException {
+    default CompletableFuture<UploadResponse> writeBlobByStreams(WriteContext writeContext) throws IOException {
         throw new UnsupportedOperationException();
     }
 

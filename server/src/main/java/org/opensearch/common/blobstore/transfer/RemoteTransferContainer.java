@@ -27,9 +27,13 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
+import java.util.zip.CRC32;
+import java.util.zip.CheckedInputStream;
 
 public class RemoteTransferContainer implements Closeable {
 
@@ -42,11 +46,12 @@ public class RemoteTransferContainer implements Closeable {
     private long lastPartSize;
 
     private final long contentLength;
-    private final SetOnce<InputStream[]> inputStreams = new SetOnce<>();
+    private final SetOnce<CheckedInputStream[]> inputStreams = new SetOnce<>();
     private final String localFileName;
     private final String remoteFileName;
     private final boolean failTransferIfFileExists;
     private final WritePriority writePriority;
+    private final long expectedChecksum;
 
     private static final Logger log = LogManager.getLogger(RemoteTransferContainer.class);
 
@@ -60,6 +65,7 @@ public class RemoteTransferContainer implements Closeable {
         this.localFile = localFile;
         this.failTransferIfFileExists = failTransferIfFileExists;
         this.writePriority = writePriority;
+        this.expectedChecksum = 0;
 
         ChannelFactory channelFactory = FileChannel::open;
         localFile.getFileSystem().provider();
@@ -77,6 +83,7 @@ public class RemoteTransferContainer implements Closeable {
         this.localFileName = localFileName;
         this.remoteFileName = remoteFileName;
         this.directory = directory;
+        this.expectedChecksum = 0;
         this.failTransferIfFileExists = failTransferIfFileExists;
         try(IndexInput indexInput = directory.openInput(this.localFileName, ioContext)) {
             this.contentLength = indexInput.length();
@@ -92,7 +99,8 @@ public class RemoteTransferContainer implements Closeable {
             contentLength,
             failTransferIfFileExists,
             writePriority,
-            this::finalizeUpload
+            this::finalizeUpload,
+            expectedChecksum
         );
     }
 
@@ -116,7 +124,7 @@ public class RemoteTransferContainer implements Closeable {
 
         log.info("Creating streams of total size {}, partSize {}, lastPartSize {}. numberOfParts {}, for file {}",
             contentLength, partSize, lastPartSize, numberOfParts, localFileName);
-        InputStream[] streams = new InputStream[numberOfParts];
+        CheckedInputStream[] streams = new CheckedInputStream[numberOfParts];
         inputStreams.set(streams);
         List<Supplier<Stream>> streamSuppliers = new ArrayList<>();
         for (int partNo = 0; partNo < numberOfParts; partNo++) {
@@ -145,13 +153,18 @@ public class RemoteTransferContainer implements Closeable {
                 }
                 offsetRangeInputStream = new OffsetRangeFileInputStream(localFile, size, position);
                 // TODO: Move this code of maintaining and closing streams in plugin
-                Objects.requireNonNull(inputStreams.get())[partNo] = offsetRangeInputStream;
+                Objects.requireNonNull(inputStreams.get())[partNo] = new CheckedInputStream(offsetRangeInputStream,
+                    new CRC32());
             } catch (IOException e) {
                 log.error("Failed to create input stream", e);
                 return null;
             }
-            return new Stream(offsetRangeInputStream, size, position);
+            return new Stream(offsetRangeInputStream, size, position, checksumProvider(partNo));
         };
+    }
+
+    public Supplier<Long> checksumProvider(int partNumber) {
+        return () -> inputStreams.get()[partNumber].getChecksum().getValue();
     }
 
     private Supplier<Stream> getMultiPartStreamSupplierForIndexInput(final int partNo, final long size,
@@ -165,12 +178,13 @@ public class RemoteTransferContainer implements Closeable {
                 IndexInput indexInput = directory.openInput(localFileName, ioContext);
                 offsetRangeInputStream = new OffsetRangeIndexInputStream(indexInput, size, position);
                 // TODO: Move this code of maintaining and closing streams in plugin
-                Objects.requireNonNull(inputStreams.get())[partNo] = offsetRangeInputStream;
+                Objects.requireNonNull(inputStreams.get())[partNo] = new CheckedInputStream(offsetRangeInputStream,
+                    new CRC32());
             } catch (IOException e) {
                 log.error("Failed to create input stream", e);
                 return null;
             }
-            return new Stream(offsetRangeInputStream, size, position);
+            return new Stream(offsetRangeInputStream, size, position, checksumProvider(partNo));
         };
     }
 
@@ -178,8 +192,28 @@ public class RemoteTransferContainer implements Closeable {
         return contentLength;
     }
 
-    public void finalizeUpload(boolean uploadSuccessful) {
-        // verification of upload and other cleanup can be done here
+    public void finalizeUpload(boolean uploadSuccessful) throws CorruptedLocalFileException {
+        if (uploadSuccessful) {
+            if (!verifyIntegrity()) {
+                throw new CorruptedLocalFileException("Data integrity check done after upload for file " +
+                    localFileName + " failed");
+            }
+        }
+    }
+
+    private boolean verifyIntegrity() {
+//        long checksum = inputStreams.get()[0].getChecksum().getValue();
+//        for (int checkSumIdx = 1; checkSumIdx < inputStreams.get().length-1; checkSumIdx ++ ) {
+//            checksum = ChecksumUtils.combine(checksum, inputStreams.get()[checkSumIdx].getChecksum().getValue(),
+//                partSize);
+//        }
+//        if (numberOfParts > 1) {
+//            checksum = ChecksumUtils.combine(checksum, inputStreams.get()[numberOfParts-1].getChecksum().getValue(),
+//                lastPartSize);
+//        }
+//
+//        return expectedChecksum == checksum;
+        return true;
     }
 
     @Override

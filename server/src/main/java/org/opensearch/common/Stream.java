@@ -9,6 +9,7 @@
 package org.opensearch.common;
 
 import java.io.InputStream;
+import java.util.function.Supplier;
 
 
 /**
@@ -21,6 +22,7 @@ public class Stream {
     private final InputStream inputStream;
     private final long contentLength;
     private final long offset;
+    private final Supplier<Long> checksumProvider;
 
     /**
      * Construct a new stream
@@ -29,10 +31,11 @@ public class Stream {
      * @param contentLength
      * @param offset
      */
-    public Stream(InputStream inputStream, long contentLength, long offset) {
+    public Stream(InputStream inputStream, long contentLength, long offset, Supplier<Long> checksumProvider) {
         this.inputStream = inputStream;
         this.contentLength = contentLength;
         this.offset = offset;
+        this.checksumProvider = checksumProvider;
     }
 
     /**
@@ -55,5 +58,9 @@ public class Stream {
 
     public long getOffset() {
         return offset;
+    }
+
+    public Supplier<Long> getChecksumProvider() {
+        return checksumProvider;
     }
 }

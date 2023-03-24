@@ -59,6 +59,47 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
   api "joda-time:joda-time:${versions.joda}"
+  api 'org.reactivestreams:reactive-streams:1.0.4'
+  api "commons-logging:commons-logging:${versions.commonslogging}"
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
+
+  // aws sdk v2 stack
+  api "software.amazon.awssdk:sdk-core:${versions.aws_v2}"
+  api "software.amazon.awssdk:annotations:${versions.aws_v2}"
+  api "software.amazon.awssdk:aws-core:${versions.aws_v2}"
+  api "software.amazon.awssdk:auth:${versions.aws_v2}"
+  api "software.amazon.awssdk:endpoints-spi:${versions.aws_v2}"
+  api "software.amazon.awssdk:http-client-spi:${versions.aws_v2}"
+  api "software.amazon.awssdk:metrics-spi:${versions.aws_v2}"
+  api "software.amazon.awssdk:profiles:${versions.aws_v2}"
+  api "software.amazon.awssdk:regions:${versions.aws_v2}"
+  api "software.amazon.awssdk:utils:${versions.aws_v2}"
+  api "software.amazon.awssdk:aws-json-protocol:${versions.aws_v2}"
+  api "software.amazon.awssdk:protocol-core:${versions.aws_v2}"
+  api "software.amazon.awssdk:json-utils:${versions.aws_v2}"
+  api "software.amazon.awssdk:third-party-jackson-core:${versions.aws_v2}"
+  api "software.amazon.awssdk:s3:${versions.aws_v2}"
+  api "software.amazon.awssdk:signer:${versions.aws_v2}"
+  api "software.amazon.awssdk:aws-xml-protocol:${versions.aws_v2}"
+  api "software.amazon.awssdk:aws-json-protocol:${versions.aws_v2}"
+  api "software.amazon.awssdk:aws-query-protocol:${versions.aws_v2}"
+  api "software.amazon.awssdk:netty-nio-client:${versions.aws_v2}"
+
+  // network stack
+  api "io.netty:netty-buffer:${versions.netty}"
+  api "io.netty:netty-codec:${versions.netty}"
+  api "io.netty:netty-codec-http:${versions.netty}"
+  api "io.netty:netty-codec-http2:${versions.netty}"
+  api "io.netty:netty-common:${versions.netty}"
+  api "io.netty:netty-handler:${versions.netty}"
+  api "io.netty:netty-resolver:${versions.netty}"
+  api "io.netty:netty-transport:${versions.netty}"
+  api "io.netty:netty-transport-native-unix-common:${versions.netty}"
+  api "io.netty:netty-transport-classes-epoll:${versions.netty}"
+
+  //openssl
+//  api "io.netty:netty-tcnative:2.0.54.Final"
+//  api "io.netty:netty-tcnative-boringssl-static:2.0.54.Final"
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
   // and allowlist this hack in JarHell
@@ -75,6 +116,7 @@ restResources {
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
+  mapping from: /software.amazon.awssdk-.*/, to: 'software.amazon.awssdk'
   mapping from: /jmespath-java.*/, to: 'aws-java-sdk'
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /jaxb-.*/, to: 'jaxb'

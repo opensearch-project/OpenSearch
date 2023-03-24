@@ -41,6 +41,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -52,6 +53,7 @@ import org.opensearch.plugins.ReloadablePlugin;
 import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.s3.async.AsyncUploadUtils;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.ScalingExecutorBuilder;
@@ -96,13 +98,14 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
     }
 
     protected final S3Service service;
+    private final S3AsyncService s3AsyncService;
+
     private final Path configPath;
 
     private ExecutorService priorityRemoteUpload;
     private ExecutorService remoteUpload;
-
     public S3RepositoryPlugin(final Settings settings, final Path configPath) {
-        this(settings, configPath, new S3Service(configPath));
+        this(settings, configPath, new S3Service(configPath), new S3AsyncService(configPath));
     }
 
     @Override
@@ -110,19 +113,22 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final int availableProcessors = OpenSearchExecutors.allocatedProcessors(settings);
         List<ExecutorBuilder<?>> executorBuilders = new ArrayList<>();
 
-        executorBuilders.add(new ScalingExecutorBuilder(PRIORITY_REMOTE_UPLOAD, availableProcessors,
-            availableProcessors * 2, TimeValue.timeValueMinutes(5)));
-        executorBuilders.add(new ScalingExecutorBuilder(REMOTE_UPLOAD, 2, 4,
+        executorBuilders.add(new ScalingExecutorBuilder(PRIORITY_REMOTE_UPLOAD, 4,
+            availableProcessors, TimeValue.timeValueMinutes(5)));
+        executorBuilders.add(new ScalingExecutorBuilder(REMOTE_UPLOAD, 4, 4,
             TimeValue.timeValueMinutes(5)));
         return executorBuilders;
     }
 
-    S3RepositoryPlugin(final Settings settings, final Path configPath, final S3Service service) {
+    S3RepositoryPlugin(final Settings settings, final Path configPath, final S3Service service,
+                       final S3AsyncService s3AsyncService) {
         this.service = Objects.requireNonNull(service, "S3 service must not be null");
         this.configPath = configPath;
         // eagerly load client settings so that secure settings are read
-        final Map<String, S3ClientSettings> clientsSettings = S3ClientSettings.load(settings, configPath);
+        Map<String, S3ClientSettings> clientsSettings = S3ClientSettings.load(settings, configPath);
+        this.s3AsyncService = Objects.requireNonNull(s3AsyncService, "S3 aasync service must not be null");
         this.service.refreshAndClearCache(clientsSettings);
+        this.s3AsyncService.refreshAndClearCache(clientsSettings);
     }
 
     @Override
@@ -156,8 +162,10 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final ClusterService clusterService,
         final RecoverySettings recoverySettings
     ) {
+        AsyncUploadUtils asyncUploadUtils = new AsyncUploadUtils(ByteSizeUnit.MB.toBytes(16),
+            remoteUpload, priorityRemoteUpload);
         return new S3Repository(metadata, registry, service, clusterService, recoverySettings, priorityRemoteUpload,
-            remoteUpload);
+            remoteUpload, asyncUploadUtils, s3AsyncService);
     }
 
     @Override
@@ -205,10 +213,12 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         // secure settings should be readable
         final Map<String, S3ClientSettings> clientsSettings = S3ClientSettings.load(settings, configPath);
         service.refreshAndClearCache(clientsSettings);
+        s3AsyncService.refreshAndClearCache(clientsSettings);
     }
 
     @Override
     public void close() throws IOException {
         service.close();
+        s3AsyncService.close();
     }
 }

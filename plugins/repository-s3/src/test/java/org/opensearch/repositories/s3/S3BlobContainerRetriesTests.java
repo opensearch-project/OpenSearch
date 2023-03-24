@@ -152,12 +152,13 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             BlobPath.cleanPath(),
             new S3BlobStore(
                 service,
+                null,
                 "bucket",
                 S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getDefault(Settings.EMPTY),
                 bufferSize == null ? S3Repository.BUFFER_SIZE_SETTING.getDefault(Settings.EMPTY) : bufferSize,
                 S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
                 S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
-                repositoryMetadata, null, null
+                repositoryMetadata, null, null, null
             )
         ) {
             @Override

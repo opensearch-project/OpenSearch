@@ -9,12 +9,14 @@
 package org.opensearch.index.translog.transfer;
 
 import org.opensearch.action.ActionListener;
+import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -31,13 +33,26 @@ public interface TransferService {
      * @param remotePath the remote path where upload should be made
      * @param listener the callback to be invoked once upload completes successfully/fails
      */
-    void uploadBlobAsync(
+    void uploadBlobByThreadpool(
         String threadpoolName,
         final TransferFileSnapshot fileSnapshot,
         Iterable<String> remotePath,
         ActionListener<TransferFileSnapshot> listener,
         WritePriority writePriority
     );
+
+    /**
+     * Uploads multiple {@link TransferFileSnapshot}, once the upload is complete the callback is invoked
+     * @param fileSnapshots the file snapshots to upload
+     * @param blobPaths Primary term to {@link BlobPath} map
+     * @param listener the callback to be invoked once uploads complete successfully/fail
+     */
+    void uploadBlobs(
+        Set<TransferFileSnapshot> fileSnapshots,
+        final Map<Long, BlobPath> blobPaths,
+        ActionListener<TransferFileSnapshot> listener,
+        WritePriority writePriority
+    ) throws Exception;
 
     /**
      * Uploads the {@link TransferFileSnapshot} blob

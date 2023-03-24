@@ -15,6 +15,8 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.blobstore.stream.write.UploadResponse;
+import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
@@ -22,8 +24,11 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Service that handles remote transfer of translog and checkpoint files
@@ -43,7 +48,7 @@ public class BlobStoreTransferService implements TransferService {
     }
 
     @Override
-    public void uploadBlobAsync(
+    public void uploadBlobByThreadpool(
         String threadpoolName,
         final TransferFileSnapshot fileSnapshot,
         Iterable<String> remoteTransferPath,
@@ -53,8 +58,8 @@ public class BlobStoreTransferService implements TransferService {
         assert remoteTransferPath instanceof BlobPath;
         BlobPath blobPath = (BlobPath) remoteTransferPath;
         threadPool.executor(threadpoolName).execute(ActionRunnable.wrap(listener, l -> {
-            try (InputStream inputStream = fileSnapshot.inputStream()) {
-                performUpload(fileSnapshot, blobPath, inputStream, writePriority);
+            try {
+                uploadBlob(fileSnapshot, blobPath, writePriority);
                 l.onResponse(fileSnapshot);
             } catch (Exception e) {
                 logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", fileSnapshot.getName()), e);
@@ -66,33 +71,81 @@ public class BlobStoreTransferService implements TransferService {
     @Override
     public void uploadBlob(final TransferFileSnapshot fileSnapshot, Iterable<String> remoteTransferPath,
                            WritePriority writePriority) throws IOException {
-        assert remoteTransferPath instanceof BlobPath;
         BlobPath blobPath = (BlobPath) remoteTransferPath;
         try (InputStream inputStream = fileSnapshot.inputStream()) {
-            performUpload(fileSnapshot, blobPath, inputStream, writePriority);
+            blobStore.blobContainer(blobPath).writeBlobAtomic(fileSnapshot.getName(), inputStream,
+                fileSnapshot.getContentLength(), true);
         } catch (Exception ex) {
             throw ex;
         }
     }
 
-    private void performUpload(TransferFileSnapshot fileSnapshot,
-                               BlobPath blobPath,
-                               InputStream inputStream,
-                               WritePriority writePriority) throws IOException {
-        // path in fileSnapshot will be null in case of metadata upload
-        if (!blobStore.blobContainer(blobPath).isMultiStreamUploadSupported() || fileSnapshot.getPath() == null) {
-            blobStore.blobContainer(blobPath).writeBlobAtomic(fileSnapshot.getName(), inputStream, fileSnapshot.getContentLength(), true);
-        } else {
-            try (RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
-                fileSnapshot.getPath(),
-                fileSnapshot.getName(),
-                fileSnapshot.getName(),
-                true,
-                writePriority
-            )) {
-                blobStore.blobContainer(blobPath).writeStreams(remoteTransferContainer.createWriteContext());
+    @Override
+    public void uploadBlobs(Set<TransferFileSnapshot> fileSnapshots, final Map<Long, BlobPath> blobPaths,
+        ActionListener<TransferFileSnapshot> listener, WritePriority writePriority) throws Exception {
+        List<CompletableFuture<UploadResponse>> resultFutures = new ArrayList<>();
+        fileSnapshots.forEach(fileSnapshot -> {
+            BlobPath blobPath = blobPaths.get(fileSnapshot.getPrimaryTerm());
+            if (!blobStore.blobContainer(blobPath).isMultiStreamUploadSupported()) {
+                uploadBlobByThreadpool(
+                    ThreadPool.Names.TRANSLOG_TRANSFER,
+                    fileSnapshot,
+                    blobPath,
+                    listener,
+                    writePriority
+                    );
+            } else {
+                CompletableFuture<UploadResponse> resultFuture = createUploadFuture(fileSnapshot, listener,
+                    blobPath, writePriority);
+                if (resultFuture != null) {
+                    resultFutures.add(resultFuture);
+                }
+            }
+        });
+
+        if (resultFutures.isEmpty() == false) {
+            CompletableFuture<Void> resultFuture = CompletableFuture.allOf(resultFutures.toArray(new CompletableFuture[0]));
+            try {
+                resultFuture.get();
+            } catch (Exception e) {
+                logger.warn("Failed to upload blobs", e);
+                throw e;
             }
         }
+    }
+
+    private CompletableFuture<UploadResponse> createUploadFuture(
+        TransferFileSnapshot fileSnapshot, ActionListener<TransferFileSnapshot> listener,
+        BlobPath blobPath, WritePriority writePriority) {
+
+        CompletableFuture<UploadResponse> resultFuture = null;
+        try {
+            RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(fileSnapshot.getPath(),
+                fileSnapshot.getName(), fileSnapshot.getName(), true, writePriority);
+            WriteContext writeContext = remoteTransferContainer.createWriteContext();
+            CompletableFuture<UploadResponse> uploadFuture = blobStore.blobContainer(blobPath)
+                .writeBlobByStreams(writeContext);
+            resultFuture = uploadFuture.whenComplete((resp, throwable)-> {
+                try {
+                    remoteTransferContainer.close();
+                } catch (Exception e) {
+                    logger.warn("Error occurred while closing streams", e);
+                }
+                if (throwable != null) {
+                    logger.error(() -> new ParameterizedMessage("Failed to upload blob {}",
+                        fileSnapshot.getName()), throwable);
+                    listener.onFailure(new FileTransferException(fileSnapshot, throwable));
+                } else {
+                    listener.onResponse(fileSnapshot);
+                }
+            });
+        } catch (Exception e) {
+            logger.error(() -> new ParameterizedMessage("Failed to upload blob {}",
+                fileSnapshot.getName()), e);
+            listener.onFailure(new FileTransferException(fileSnapshot, e));
+        }
+
+        return resultFuture;
     }
 
     @Override

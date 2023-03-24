@@ -16,7 +16,6 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.Translog;
@@ -90,7 +89,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             ActionListener<TransferFileSnapshot> listener = (ActionListener<TransferFileSnapshot>) invocationOnMock.getArguments()[3];
             listener.onResponse((TransferFileSnapshot) invocationOnMock.getArguments()[1]);
             return null;
-        }).when(transferService).uploadBlobAsync(anyString(), any(TransferFileSnapshot.class), any(BlobPath.class),
+        }).when(transferService).uploadBlobByThreadpool(anyString(), any(TransferFileSnapshot.class), any(BlobPath.class),
             any(ActionListener.class), any(WritePriority.class));
 
         FileTransferTracker fileTransferTracker = new FileTransferTracker(new ShardId("index", "indexUUid", 0)) {

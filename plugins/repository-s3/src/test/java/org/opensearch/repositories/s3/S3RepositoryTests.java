@@ -147,7 +147,7 @@ public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathS
             new DummyS3Service(configPath()),
             BlobStoreTestUtil.mockClusterService(),
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-            null
+            null, null, null, null
         ) {
             @Override
             protected void assertSnapshotOrGenericThread() {

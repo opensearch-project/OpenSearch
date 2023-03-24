@@ -50,8 +50,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.action.ActionListener;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.Stream;
 import org.opensearch.common.Strings;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
@@ -62,10 +64,15 @@ import org.opensearch.common.blobstore.stream.StreamContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.support.AbstractBlobContainer;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
+import org.opensearch.common.blobstore.transfer.CorruptedLocalFileException;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.repositories.s3.async.UploadRequest;
+import org.opensearch.common.blobstore.stream.write.UploadResponse;
 import org.opensearch.repositories.s3.multipart.transfer.TransferManagerUtils;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.utils.CompletableFutureUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -75,13 +82,14 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-import static org.opensearch.repositories.s3.S3Repository.MAX_FILE_SIZE;
-import static org.opensearch.repositories.s3.S3Repository.MAX_FILE_SIZE_USING_MULTIPART;
-import static org.opensearch.repositories.s3.S3Repository.MIN_PART_SIZE_USING_MULTIPART;
+import static org.opensearch.repositories.s3.S3Repository.*;
 
 class S3BlobContainer extends AbstractBlobContainer {
 
@@ -161,7 +169,35 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeStreams(WriteContext writeContext) throws IOException {
+    public CompletableFuture<UploadResponse> writeBlobByStreams(WriteContext writeContext) throws IOException {
+        UploadRequest uploadRequest = new UploadRequest(blobStore.bucket(),
+            buildKey(writeContext.getFileName()), writeContext.getFileSize(), writeContext.getChecksum(),
+            writeContext.getWritePriority());
+        try {
+            long partSize = blobStore.getAsyncUploadUtils().calculateOptimalPartSize(writeContext.getFileSize());
+            StreamContext streamContext = SocketAccess.doPrivileged(() -> writeContext.getStreamContext(partSize));
+            List<Stream> uploadStreams = streamContext.getStreamSuppliers().stream().map(Supplier::get)
+                .collect(Collectors.toList());
+            try(AmazonAsyncS3Reference amazonS3Reference = SocketAccess.doPrivileged(blobStore::asyncClientReference)){
+
+                S3AsyncClient s3AsyncClient = amazonS3Reference.get();
+                CompletableFuture<UploadResponse> returnFuture = new CompletableFuture<>();
+                CompletableFuture<UploadResponse> completableFuture = blobStore.getAsyncUploadUtils()
+                    .uploadObject(s3AsyncClient, uploadRequest, uploadStreams);
+
+                CompletableFutureUtils.forwardExceptionTo(returnFuture, completableFuture);
+                CompletableFutureUtils.forwardResultTo(completableFuture, returnFuture);
+                return completableFuture;
+            }
+        } catch (Exception e) {
+            logger.info("exception error from blob container for file {}", writeContext.getFileName());
+            writeContext.getUploadFinalizer().accept(false);
+            throw new IOException(e);
+        }
+    }
+
+    // Not used
+    public void writeStream(WriteContext writeContext) throws IOException {
         final long partSize = TransferManagerUtils.getOptimalPartSize(
             writeContext.getFileSize(),
             blobStore.getMultipartTransferManager().getConfiguration(),
