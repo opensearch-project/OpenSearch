@@ -22,6 +22,9 @@ teardown:
 # Upload a sample document to index
 ---
 "Flat object test":
+  - skip:
+      version: " 2.7.0 - "
+      reason: "flat-object is introduced in 2.7.0"
   - do:
       index:
         index: test
