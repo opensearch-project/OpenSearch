@@ -106,6 +106,10 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
                 path.append(DOT_SYMBOL + currentFieldName);
                 this.keyList.add(currentFieldName);
                 parseToken(path);
+                int dotIndex = path.lastIndexOf(DOT_SYMBOL);
+                if (dotIndex != -1) {
+                    path.delete(dotIndex, path.length());
+                }
             } else {
                 path.append(DOT_SYMBOL + currentFieldName);
                 parseValue(currentFieldName, parsedFields);

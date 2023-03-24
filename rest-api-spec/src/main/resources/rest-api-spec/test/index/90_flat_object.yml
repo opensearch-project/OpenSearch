@@ -10,7 +10,7 @@ setup:
               ISBN13:
                 type : "keyword"
               catalog:
-                type : "flat-object"
+                type : "flat_object"
 
 # Delete Index when connection is teardown
 ---
@@ -52,7 +52,7 @@ teardown:
         index: test
   - is_true: test.mappings
   - match: { test.mappings.properties.ISBN13.type:  keyword     }
-  - match: { test.mappings.properties.catalog.type: flat-object }
+  - match: { test.mappings.properties.catalog.type: flat_object }
   - length: { test.mappings.properties: 2 }
   - length: { test.mappings.properties.catalog: 1 }
 
@@ -73,7 +73,7 @@ teardown:
         body: {
           _source: true,
           query: {
-            match: { catalog.title: "Lucene in Action"}
+            match: { "catalog.title": "Lucene in Action"}
           }
         }
 
@@ -93,7 +93,7 @@ teardown:
   - length:   { hits.hits: 1  }
   - match: { hits.hits.0._source.catalog.title: "Lucene in Action" }
 
-  # Term Query with dot path
+  # Term Query1 with dot path
   - do:
       search:
         body: {
@@ -106,13 +106,13 @@ teardown:
   - length:   { hits.hits: 1  }
   - match: { hits.hits.0._source.catalog.title: "Lucene in Action" }
 
-  # Term Query with dot path.
+  # Term Query2 with dot path.
   - do:
       search:
         body: {
           _source: true,
           query: {
-            term: { catalog.author.given: "Mike" }
+            term: { "catalog.author.given": "Mike" }
           }
         }
 
