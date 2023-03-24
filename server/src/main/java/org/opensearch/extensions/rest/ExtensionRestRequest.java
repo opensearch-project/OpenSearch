@@ -202,13 +202,12 @@ public class ExtensionRestRequest extends TransportRequest {
         return new ArrayList<>(consumedParams);
     }
 
-
     /**
      * Gets the headers of request
      * @return a map of request headers
      */
-    public Map<String, List<String>> headers() { 
-        return headers; 
+    public Map<String, List<String>> headers() {
+        return headers;
     }
 
     /**

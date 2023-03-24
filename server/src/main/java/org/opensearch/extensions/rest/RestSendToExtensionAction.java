@@ -169,11 +169,12 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         this.allowList = List.of("Content-Type");
         this.denyList = List.of("Authorization", "Proxy-Authorization");
 
-        Map<String, List<String>> filteredHeaders = headers.entrySet().stream()
+        Map<String, List<String>> filteredHeaders = headers.entrySet()
+            .stream()
             .filter(e -> !denyList.contains(e.getKey()))
             .filter(e -> allowList.contains("*") || allowlist.contains(e.getKey()))
             .collect(Collectors.toMap());
-        
+
         try {
             // Will be replaced with ExtensionTokenProcessor and PrincipalIdentifierToken classes from feature/identity
             final String extensionTokenProcessor = "placeholder_token_processor";
