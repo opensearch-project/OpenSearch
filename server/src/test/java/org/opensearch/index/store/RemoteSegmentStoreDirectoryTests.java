@@ -286,7 +286,7 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
         assertThrows(IOException.class, () -> remoteSegmentStoreDirectory.deleteFile("_0.si"));
     }
 
-    public void testFileLenght() throws IOException {
+    public void testFileLength() throws IOException {
         populateMetadata();
         remoteSegmentStoreDirectory.init();
 
@@ -295,9 +295,7 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
 
         assertTrue(uploadedSegments.containsKey("_0.si"));
 
-        when(remoteDataDirectory.fileLength(startsWith("_0.si"))).thenReturn(1234L);
-
-        assertEquals(1234L, remoteSegmentStoreDirectory.fileLength("_0.si"));
+        assertEquals(uploadedSegments.get("_0.si").getLength(), remoteSegmentStoreDirectory.fileLength("_0.si"));
     }
 
     public void testFileLenghtNoSuchFile() throws IOException {
