@@ -285,14 +285,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             validateLegacySettings(settings, roleMap);
             return Collections.unmodifiableSet(new HashSet<>(NODE_ROLES_SETTING.get(settings)));
         } else {
-            return roleMap.values()
-                .stream()
-                .filter(
-                    s -> !s.roleName().equals(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName())
-                        && s.legacySetting() != null
-                        && s.legacySetting().get(settings)
-                )
-                .collect(Collectors.toSet());
+            return roleMap.values().stream().filter(s -> s.isEnabledByDefault(settings)).collect(Collectors.toSet());
         }
     }
 

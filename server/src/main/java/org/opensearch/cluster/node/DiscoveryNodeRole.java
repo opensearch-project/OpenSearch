@@ -34,6 +34,7 @@ package org.opensearch.cluster.node;
 
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
+import org.opensearch.common.Booleans;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -275,7 +276,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
         @Override
         public boolean isEnabledByDefault(final Settings settings) {
-            return settings.getAsBoolean("node.master", true);
+            return !Booleans.isBoolean(settings.get("node.master"));
         }
     };
 
