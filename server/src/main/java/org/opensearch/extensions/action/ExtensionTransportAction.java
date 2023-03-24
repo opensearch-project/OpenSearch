@@ -10,44 +10,34 @@ package org.opensearch.extensions.action;
 
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.action.support.HandledTransportAction;
-import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.inject.Inject;
-import org.opensearch.common.settings.Settings;
+import org.opensearch.action.support.TransportAction;
 import org.opensearch.extensions.ExtensionsManager;
-import org.opensearch.node.Node;
 import org.opensearch.tasks.Task;
-import org.opensearch.transport.TransportService;
+import org.opensearch.tasks.TaskManager;
 
 /**
- * The main proxy transport action used to proxy a transport request from extension to another extension
+ * A proxy transport action used to proxy a transport request from an extension to execute on another extension
  *
  * @opensearch.internal
  */
-public class ExtensionTransportAction extends HandledTransportAction<ExtensionActionRequest, ExtensionActionResponse> {
+public class ExtensionTransportAction extends TransportAction<ExtensionActionRequest, RemoteExtensionActionResponse> {
 
-    private final String nodeName;
-    private final ClusterService clusterService;
     private final ExtensionsManager extensionsManager;
 
-    @Inject
     public ExtensionTransportAction(
-        Settings settings,
-        TransportService transportService,
+        String actionName,
         ActionFilters actionFilters,
-        ClusterService clusterService,
+        TaskManager taskManager,
         ExtensionsManager extensionsManager
     ) {
-        super(ExtensionProxyAction.NAME, transportService, actionFilters, ExtensionActionRequest::new);
-        this.nodeName = Node.NODE_NAME_SETTING.get(settings);
-        this.clusterService = clusterService;
+        super(actionName, actionFilters, taskManager);
         this.extensionsManager = extensionsManager;
     }
 
     @Override
-    protected void doExecute(Task task, ExtensionActionRequest request, ActionListener<ExtensionActionResponse> listener) {
+    protected void doExecute(Task task, ExtensionActionRequest request, ActionListener<RemoteExtensionActionResponse> listener) {
         try {
-            listener.onResponse(extensionsManager.handleTransportRequest(request));
+            listener.onResponse(extensionsManager.handleRemoteTransportRequest(request));
         } catch (Exception e) {
             listener.onFailure(e);
         }
