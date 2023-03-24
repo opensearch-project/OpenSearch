@@ -183,7 +183,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             transportService.sendRequest(
                 discoveryExtensionNode,
                 ExtensionsManager.REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION,
-                // DO NOT INCLUDE HEADERS WITH SECURITY OR PRIVACY INFORMATION
+                // TODO: impelement configuration of denyList and allowList of headers
                 new ExtensionRestRequest(method, path, params, filteredHeaders, contentType, content, requestIssuerIdentity),
                 restExecuteOnExtensionResponseHandler
             );
