@@ -187,10 +187,11 @@ thirdPartyAudit {
     'io.micrometer.tracing.handler.PropagatingReceiverTracingObservationHandler',
     'io.micrometer.tracing.handler.PropagatingSenderTracingObservationHandler',
     'io.micrometer.tracing.propagation.Propagator',
-    'reactor.netty.channel.ChannelMeters',
-    'reactor.netty.channel.ChannelMeters$ChannelMetersTags',
-    'reactor.netty.internal.util.Metrics',
-    'reactor.netty.observability.ReactorNettyHandlerContext'
+    'io.micrometer.core.instrument.observation.MeterObservationHandler',
+    'io.micrometer.observation.ObservationHandler',
+    'io.micrometer.observation.ObservationRegistry',
+    'io.micrometer.observation.ObservationRegistry$ObservationConfig',
+    'io.micrometer.tracing.handler.DefaultTracingObservationHandler'
   )
 
   ignoreViolations(
