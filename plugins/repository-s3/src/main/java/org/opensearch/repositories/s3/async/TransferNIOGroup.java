@@ -18,19 +18,18 @@ import java.util.concurrent.TimeUnit;
 
 
 public class TransferNIOGroup implements Closeable {
-    private static final int MAX_EVENT_LOOP_THREADS = 8;
     private static final String THREAD_PREFIX = "aws-async-transfer-nio";
     private final Logger logger = LogManager.getLogger(TransferNIOGroup.class);
 
     private final EventLoopGroup eventLoopGroup;
 
-    public TransferNIOGroup() {
+    public TransferNIOGroup(int eventLoopThreads) {
         // Epoll event loop incurs less GC and provides better performance than Nio loop. Therefore,
         // using epoll wherever available is preferred.
         this.eventLoopGroup = SocketAccess.doPrivileged(()->Epoll.isAvailable() ?
-            new EpollEventLoopGroup(MAX_EVENT_LOOP_THREADS,
+            new EpollEventLoopGroup(eventLoopThreads,
                 new OpenSearchThreadFactory(THREAD_PREFIX)):
-                new NioEventLoopGroup(MAX_EVENT_LOOP_THREADS, new OpenSearchThreadFactory(THREAD_PREFIX)));
+                new NioEventLoopGroup(eventLoopThreads, new OpenSearchThreadFactory(THREAD_PREFIX)));
     }
 
     public EventLoopGroup getEventLoopGroup() {

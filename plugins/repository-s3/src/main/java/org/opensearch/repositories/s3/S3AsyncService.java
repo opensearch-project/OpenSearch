@@ -42,7 +42,6 @@ import com.amazonaws.http.IdleConnectionReaper;
 import com.amazonaws.services.s3.internal.Constants;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
-import io.netty.handler.ssl.SslProvider;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
@@ -51,6 +50,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.repositories.s3.S3ClientSettings.IrsaCredentials;
+import org.opensearch.repositories.s3.async.AsyncExecutorBuilder;
 import org.opensearch.repositories.s3.async.TransferNIOGroup;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
@@ -59,7 +59,8 @@ import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.auth.credentials.ContainerCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.InstanceProfileCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.http.Protocol;
+import software.amazon.awssdk.core.client.config.ClientAsyncConfiguration;
+import software.amazon.awssdk.core.client.config.SdkAdvancedAsyncClientOption;
 import software.amazon.awssdk.http.async.SdkAsyncHttpClient;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.http.nio.netty.ProxyConfiguration;
@@ -90,7 +91,6 @@ class S3AsyncService implements Closeable {
      * Client settings calculated from static configuration and settings in the keystore.
      */
     private volatile Map<String, S3ClientSettings> staticClientSettings;
-    private volatile TransferNIOGroup transferNIOGroup;
 
     /**
      * Client settings derived from those in {@link #staticClientSettings} by combining them with settings
@@ -124,7 +124,9 @@ class S3AsyncService implements Closeable {
      * Attempts to retrieve a client by its repository metadata and settings from the cache.
      * If the client does not exist it will be created.
      */
-    public AmazonAsyncS3Reference client(RepositoryMetadata repositoryMetadata) {
+    public AmazonAsyncS3Reference client(RepositoryMetadata repositoryMetadata,
+                                         AsyncExecutorBuilder priorityExecutorBuilder,
+                                         AsyncExecutorBuilder normalExecutorBuilder) {
         final S3ClientSettings clientSettings = settings(repositoryMetadata);
         {
             final AmazonAsyncS3Reference clientReference = clientsCache.get(clientSettings);
@@ -137,7 +139,8 @@ class S3AsyncService implements Closeable {
             if (existing != null && existing.tryIncRef()) {
                 return existing;
             }
-            final AmazonAsyncS3Reference clientReference = new AmazonAsyncS3Reference(buildClient(clientSettings));
+            final AmazonAsyncS3Reference clientReference = new AmazonAsyncS3Reference(buildClient(clientSettings,
+                priorityExecutorBuilder, normalExecutorBuilder));
             clientReference.incRef();
             clientsCache = MapBuilder.newMapBuilder(clientsCache).put(clientSettings, clientReference).immutableMap();
             return clientReference;
@@ -180,14 +183,13 @@ class S3AsyncService implements Closeable {
     }
 
     // proxy for testing
-    synchronized AmazonAsyncS3WithCredentials buildClient(final S3ClientSettings clientSettings) {
+    synchronized AmazonAsyncS3WithCredentials buildClient(final S3ClientSettings clientSettings,
+                                                          AsyncExecutorBuilder priorityExecutorBuilder,
+                                                          AsyncExecutorBuilder normalExecutorBuilder) {
         final S3AsyncClientBuilder builder = S3AsyncClient.builder();
         final AwsCredentialsProvider credentials = buildCredentials(logger, clientSettings);
         builder.credentialsProvider(credentials);
-        if (transferNIOGroup == null) {
-            transferNIOGroup = new TransferNIOGroup();
-        }
-        builder.httpClient(buildConfiguration(clientSettings, transferNIOGroup));
+
 
         String endpoint = Strings.hasLength(clientSettings.endpoint) ? clientSettings.endpoint : Constants.S3_HOSTNAME;
         if ((endpoint.startsWith("http://") || endpoint.startsWith("https://")) == false) {
@@ -211,8 +213,21 @@ class S3AsyncService implements Closeable {
             builder.forcePathStyle(true);
         }
 
+        builder.httpClient(buildConfiguration(clientSettings, priorityExecutorBuilder.getTransferNIOGroup()));
+        builder.asyncConfiguration(ClientAsyncConfiguration.builder()
+            .advancedOption(SdkAdvancedAsyncClientOption.FUTURE_COMPLETION_EXECUTOR,
+                priorityExecutorBuilder.getFutureCompletionExecutor())
+            .build());
+        final S3AsyncClient priorityClient = SocketAccess.doPrivileged(builder::build);
+
+        builder.httpClient(buildConfiguration(clientSettings, normalExecutorBuilder.getTransferNIOGroup()));
+        builder.asyncConfiguration(ClientAsyncConfiguration.builder()
+            .advancedOption(SdkAdvancedAsyncClientOption.FUTURE_COMPLETION_EXECUTOR,
+                normalExecutorBuilder.getFutureCompletionExecutor())
+            .build());
         final S3AsyncClient client = SocketAccess.doPrivileged(builder::build);
-        return AmazonAsyncS3WithCredentials.create(client, credentials);
+
+        return AmazonAsyncS3WithCredentials.create(client, priorityClient, credentials);
     }
 
     // pkg private for tests

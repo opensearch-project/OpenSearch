@@ -45,18 +45,13 @@ import java.io.IOException;
  * Handles the shutdown of the wrapped {@link AmazonS3Client} using reference
  * counting.
  */
-public class AmazonAsyncS3Reference extends RefCountedReleasable<S3AsyncClient> {
-    AmazonAsyncS3Reference(S3AsyncClient client) {
-        this(client, null);
-    }
+public class AmazonAsyncS3Reference extends RefCountedReleasable<AmazonAsyncS3WithCredentials> {
 
     AmazonAsyncS3Reference(AmazonAsyncS3WithCredentials client) {
-        this(client.client(), client.credentials());
-    }
-
-    AmazonAsyncS3Reference(S3AsyncClient client, @Nullable AwsCredentialsProvider credentials) {
         super("AWS_S3_CLIENT", client, () -> {
-            client.close();
+            client.client().close();
+            client.priorityClient().close();
+            AwsCredentialsProvider credentials = client.credentials();
             if (credentials instanceof Closeable) {
                 try {
                     ((Closeable) credentials).close();

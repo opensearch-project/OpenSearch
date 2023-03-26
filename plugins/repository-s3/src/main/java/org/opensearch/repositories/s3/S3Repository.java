@@ -56,15 +56,14 @@ import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
+import org.opensearch.repositories.s3.async.AsyncExecutorBuilder;
 import org.opensearch.repositories.s3.async.AsyncUploadUtils;
-import org.opensearch.repositories.s3.async.TransferNIOGroup;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
 import org.opensearch.threadpool.Scheduler;
 
 import java.util.Collection;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
@@ -212,10 +211,10 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     private final RepositoryMetadata repositoryMetadata;
 
-    private final ExecutorService priorityRemoteUploadExecutor;
-    private final ExecutorService remoteUploadExecutor;
     private final AsyncUploadUtils asyncUploadUtils;
     private final S3AsyncService s3AsyncService;
+    private final AsyncExecutorBuilder priorityExecutorBuilder;
+    private final AsyncExecutorBuilder normalExecutorBuilder;
     /**
      * Constructs an s3 backed repository
      */
@@ -225,9 +224,9 @@ class S3Repository extends MeteredBlobStoreRepository {
         final S3Service service,
         final ClusterService clusterService,
         final RecoverySettings recoverySettings,
-        final ExecutorService priorityRemoteUploadExecutor,
-        final ExecutorService remoteUploadExecutor,
         final AsyncUploadUtils asyncUploadUtils,
+        final AsyncExecutorBuilder priorityExecutorBuilder,
+        final AsyncExecutorBuilder normalExecutorBuilder,
         final S3AsyncService s3AsyncService
         ) {
         super(
@@ -242,9 +241,9 @@ class S3Repository extends MeteredBlobStoreRepository {
         this.s3AsyncService = s3AsyncService;
 
         this.repositoryMetadata = metadata;
-        this.priorityRemoteUploadExecutor = priorityRemoteUploadExecutor;
-        this.remoteUploadExecutor = remoteUploadExecutor;
         this.asyncUploadUtils = asyncUploadUtils;
+        this.priorityExecutorBuilder = priorityExecutorBuilder;
+        this.normalExecutorBuilder = normalExecutorBuilder;
 
         // Parse and validate the user's S3 Storage Class setting
         this.bucket = BUCKET_SETTING.get(metadata.settings());
@@ -351,7 +350,7 @@ class S3Repository extends MeteredBlobStoreRepository {
     @Override
     protected S3BlobStore createBlobStore() {
         return new S3BlobStore(service, s3AsyncService, bucket, serverSideEncryption, bufferSize, cannedACL, storageClass,
-            repositoryMetadata, priorityRemoteUploadExecutor, remoteUploadExecutor, asyncUploadUtils);
+            repositoryMetadata, asyncUploadUtils, priorityExecutorBuilder, normalExecutorBuilder);
     }
 
     // only use for testing

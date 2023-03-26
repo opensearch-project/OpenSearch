@@ -37,7 +37,6 @@ import com.amazonaws.Response;
 import com.amazonaws.metrics.RequestMetricCollector;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.StorageClass;
-import com.amazonaws.services.s3.transfer.TransferManagerBuilder;
 import com.amazonaws.util.AWSRequestMetrics;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -46,17 +45,15 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.blobstore.BlobStoreException;
-import org.opensearch.common.blobstore.transfer.RemoteStoreSettings;
 import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.repositories.s3.async.AsyncExecutorBuilder;
 import org.opensearch.repositories.s3.async.AsyncUploadUtils;
-import org.opensearch.repositories.s3.async.TransferNIOGroup;
 import org.opensearch.repositories.s3.multipart.transfer.MultipartTransferManager;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 
 class S3BlobStore implements BlobStore {
@@ -89,9 +86,9 @@ class S3BlobStore implements BlobStore {
     final RequestMetricCollector listMetricCollector;
     final RequestMetricCollector putMetricCollector;
     final RequestMetricCollector multiPartUploadMetricCollector;
-    private final ExecutorService priorityRemoteUploadExecutor;
-    private final ExecutorService remoteUploadExecutor;
     private final AsyncUploadUtils asyncUploadUtils;
+    private final AsyncExecutorBuilder priorityExecutorBuilder;
+    private final AsyncExecutorBuilder normalExecutorBuilder;
 
     S3BlobStore(
         S3Service service,
@@ -102,9 +99,9 @@ class S3BlobStore implements BlobStore {
         String cannedACL,
         String storageClass,
         RepositoryMetadata repositoryMetadata,
-        ExecutorService priorityRemoteUploadExecutor,
-        ExecutorService remoteUploadExecutor,
-        AsyncUploadUtils asyncUploadUtils
+        AsyncUploadUtils asyncUploadUtils,
+        AsyncExecutorBuilder priorityExecutorBuilder,
+        AsyncExecutorBuilder normalExecutorBuilder
     ) {
         this.service = service;
         this.s3AsyncService = s3AsyncService;
@@ -116,8 +113,6 @@ class S3BlobStore implements BlobStore {
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
         this.repositoryMetadata = repositoryMetadata;
-        this.priorityRemoteUploadExecutor = priorityRemoteUploadExecutor;
-        this.remoteUploadExecutor = remoteUploadExecutor;
         this.asyncUploadUtils = asyncUploadUtils;
         this.getMetricCollector = new RequestMetricCollector() {
             @Override
@@ -147,10 +142,9 @@ class S3BlobStore implements BlobStore {
                 stats.postCount.addAndGet(getRequestCount(request));
             }
         };
-        this.multipartTransferManager = new MultipartTransferManager(
-            TransferManagerBuilder.standard().withS3Client(this.clientReference().get()),
-            priorityRemoteUploadExecutor, remoteUploadExecutor
-        );
+        this.multipartTransferManager = null;
+        this.normalExecutorBuilder = normalExecutorBuilder;
+        this.priorityExecutorBuilder = priorityExecutorBuilder;
     }
 
     private long getRequestCount(Request<?> request) {
@@ -172,7 +166,7 @@ class S3BlobStore implements BlobStore {
     }
 
     public AmazonAsyncS3Reference asyncClientReference() {
-        return s3AsyncService.client(repositoryMetadata);
+        return s3AsyncService.client(repositoryMetadata, priorityExecutorBuilder, normalExecutorBuilder);
     }
 
     int getMaxRetries() {
@@ -202,8 +196,15 @@ class S3BlobStore implements BlobStore {
 
     @Override
     public void close() throws IOException {
-        this.service.close();
-        this.multipartTransferManager.close();
+        if (service != null) {
+            this.service.close();
+        }
+        if (s3AsyncService != null) {
+            this.s3AsyncService.close();
+        }
+        if (multipartTransferManager != null) {
+            this.multipartTransferManager.close();
+        }
     }
 
     @Override

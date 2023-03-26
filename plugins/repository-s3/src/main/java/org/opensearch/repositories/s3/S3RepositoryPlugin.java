@@ -53,9 +53,12 @@ import org.opensearch.plugins.ReloadablePlugin;
 import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
+import org.opensearch.repositories.s3.async.AsyncExecutorBuilder;
 import org.opensearch.repositories.s3.async.AsyncUploadUtils;
+import org.opensearch.repositories.s3.async.TransferNIOGroup;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ExecutorBuilder;
+import org.opensearch.threadpool.FixedExecutorBuilder;
 import org.opensearch.threadpool.ScalingExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -71,15 +74,16 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 
 /**
  * A plugin to add a repository type that writes to and from the AWS S3.
  */
 public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, ReloadablePlugin {
-    private static final String PRIORITY_REMOTE_UPLOAD = "priority_remote_upload";
-    private static final String REMOTE_UPLOAD = "remote_upload";
+    private static final String PRIORITY_FUTURE_COMPLETION = "priority_future_completion";
+    private static final String PRIORITY_STREAM_READER = "priority_stream_reader";
+    private static final String FUTURE_COMPLETION = "future_completion";
+    private static final String STREAM_READER = "stream_reader";
 
     static {
         SpecialPermission.check();
@@ -102,21 +106,23 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
 
     private final Path configPath;
 
-    private ExecutorService priorityRemoteUpload;
-    private ExecutorService remoteUpload;
+    private AsyncExecutorBuilder priorityExecutorBuilder;
+    private AsyncExecutorBuilder normalExecutorBuilder;
     public S3RepositoryPlugin(final Settings settings, final Path configPath) {
         this(settings, configPath, new S3Service(configPath), new S3AsyncService(configPath));
     }
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        final int availableProcessors = OpenSearchExecutors.allocatedProcessors(settings);
         List<ExecutorBuilder<?>> executorBuilders = new ArrayList<>();
-
-        executorBuilders.add(new ScalingExecutorBuilder(PRIORITY_REMOTE_UPLOAD, 4,
-            availableProcessors, TimeValue.timeValueMinutes(5)));
-        executorBuilders.add(new ScalingExecutorBuilder(REMOTE_UPLOAD, 4, 4,
-            TimeValue.timeValueMinutes(5)));
+        executorBuilders.add(new FixedExecutorBuilder(settings, PRIORITY_FUTURE_COMPLETION, 4, 10_000,
+            PRIORITY_FUTURE_COMPLETION));
+        executorBuilders.add(new FixedExecutorBuilder(settings, PRIORITY_STREAM_READER, 4, 10_000,
+            PRIORITY_STREAM_READER));
+        executorBuilders.add(new FixedExecutorBuilder(settings, FUTURE_COMPLETION, 1, 10_000,
+            FUTURE_COMPLETION));
+        executorBuilders.add(new FixedExecutorBuilder(settings, STREAM_READER, 1, 10_000,
+            STREAM_READER));
         return executorBuilders;
     }
 
@@ -145,9 +151,10 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final IndexNameExpressionResolver expressionResolver,
         final Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-
-        this.priorityRemoteUpload = threadPool.executor(PRIORITY_REMOTE_UPLOAD);
-        this.remoteUpload = threadPool.executor(REMOTE_UPLOAD);
+        this.priorityExecutorBuilder = new AsyncExecutorBuilder(threadPool.executor(PRIORITY_FUTURE_COMPLETION),
+            threadPool.executor(PRIORITY_STREAM_READER),  new TransferNIOGroup(4));
+        this.normalExecutorBuilder = new AsyncExecutorBuilder(threadPool.executor(FUTURE_COMPLETION),
+            threadPool.executor(STREAM_READER),  new TransferNIOGroup(1));
         return Collections.emptyList();
     }
 
@@ -163,9 +170,9 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final RecoverySettings recoverySettings
     ) {
         AsyncUploadUtils asyncUploadUtils = new AsyncUploadUtils(ByteSizeUnit.MB.toBytes(16),
-            remoteUpload, priorityRemoteUpload);
-        return new S3Repository(metadata, registry, service, clusterService, recoverySettings, priorityRemoteUpload,
-            remoteUpload, asyncUploadUtils, s3AsyncService);
+            normalExecutorBuilder.getStreamReader(), priorityExecutorBuilder.getStreamReader());
+        return new S3Repository(metadata, registry, service, clusterService, recoverySettings,
+            asyncUploadUtils, priorityExecutorBuilder, normalExecutorBuilder, s3AsyncService);
     }
 
     @Override

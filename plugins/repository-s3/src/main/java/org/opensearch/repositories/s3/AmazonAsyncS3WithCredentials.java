@@ -17,22 +17,30 @@ import software.amazon.awssdk.services.s3.S3AsyncClient;
  */
 final class AmazonAsyncS3WithCredentials {
     private final S3AsyncClient client;
+    private final S3AsyncClient priorityClient;
     private final AwsCredentialsProvider credentials;
 
-    private AmazonAsyncS3WithCredentials(final S3AsyncClient client, @Nullable final AwsCredentialsProvider credentials) {
+    private AmazonAsyncS3WithCredentials(final S3AsyncClient client, final S3AsyncClient priorityClient,
+                                         @Nullable final AwsCredentialsProvider credentials) {
         this.client = client;
         this.credentials = credentials;
+        this.priorityClient = priorityClient;
     }
 
     S3AsyncClient client() {
         return client;
     }
 
+    S3AsyncClient priorityClient() {
+        return priorityClient;
+    }
+
     AwsCredentialsProvider credentials() {
         return credentials;
     }
 
-    static AmazonAsyncS3WithCredentials create(final S3AsyncClient client, @Nullable final AwsCredentialsProvider credentials) {
-        return new AmazonAsyncS3WithCredentials(client, credentials);
+    static AmazonAsyncS3WithCredentials create(final S3AsyncClient client, final S3AsyncClient priorityClient,
+                                               @Nullable final AwsCredentialsProvider credentials) {
+        return new AmazonAsyncS3WithCredentials(client, priorityClient, credentials);
     }
 }
