@@ -329,17 +329,23 @@ public class SettingTests extends OpenSearchTestCase {
         String expectedRegex = "\\d+";
         Pattern expectedPattern = Pattern.compile(expectedRegex);
         RegexValidator regexValidator = new RegexValidator(expectedRegex);
-        RegexValidator regexValidatorMatcher = new RegexValidator(expectedRegex,false);
+        RegexValidator regexValidatorMatcherFalse = new RegexValidator(expectedRegex, false);
+        RegexValidator regexValidatorMatcherTrue = new RegexValidator(expectedRegex, true);
 
         // Test that the pattern is correctly initialized
         assertNotNull(expectedPattern);
         assertNotNull(regexValidator.getPattern());
         assertEquals(expectedPattern.pattern(), regexValidator.getPattern().pattern());
 
-        // Test that checks the pattern and isMatching parameter are working correctly during initialization
-        assertNotNull(regexValidatorMatcher);
-        assertNotNull(regexValidatorMatcher.getPattern());
-        assertEquals(expectedPattern.pattern(), regexValidatorMatcher.getPattern().pattern());
+        // Test that checks the pattern and isMatching with the set value false parameters are working correctly during initialization
+        assertNotNull(regexValidatorMatcherFalse);
+        assertNotNull(regexValidatorMatcherFalse.getPattern());
+        assertEquals(expectedPattern.pattern(), regexValidatorMatcherFalse.getPattern().pattern());
+
+        // Test that checks the pattern and isMatching with the set value true parameters are working correctly during initialization
+        assertNotNull(regexValidatorMatcherTrue);
+        assertNotNull(regexValidatorMatcherTrue);
+        assertEquals(expectedPattern.pattern(), regexValidatorMatcherTrue.getPattern().pattern());
 
         // Test that validate() throws an exception for invalid input
         final RegexValidator finalValidator = new RegexValidator(expectedRegex);

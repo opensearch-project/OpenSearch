@@ -1262,12 +1262,12 @@ public class Setting<T> implements ToXContentObject {
          * @param regex A regular expression containing the only valid input for this setting.
          */
         public RegexValidator(String regex) {
-            this(regex,true);
+            this(regex, true);
         }
 
         /**
          * @param regex constructs a validator based on a regular expression.
-         * @param isMatching If true, the setting must match the given regex. If false, the setting must not match the given regex..
+         * @param isMatching If true, the setting must match the given regex. If false, the setting must not match the given regex.
          */
         public RegexValidator(String regex, boolean isMatching) {
             this.pattern = Pattern.compile(regex);
@@ -1285,14 +1285,10 @@ public class Setting<T> implements ToXContentObject {
 
         @Override
         public void validate(String value) {
-            if (isMatching){
-                if (!pattern.matcher(value).matches()) {
-                    throw new IllegalArgumentException("Setting [" + value + "] does not match regex [" + pattern.pattern() + "]");
-                }
-            }else {
-                if (pattern.matcher(value).matches()) {
-                    throw new IllegalArgumentException("Setting [" + value + "] must match regex [" + pattern.pattern() + "]");
-                }
+            if (isMatching && !pattern.matcher(value).matches()) {
+                throw new IllegalArgumentException("Setting [" + value + "] does not match regex [" + pattern.pattern() + "]");
+            } else if (!isMatching && pattern.matcher(value).matches()) {
+                throw new IllegalArgumentException("Setting [" + value + "] must match regex [" + pattern.pattern() + "]");
             }
         }
 
