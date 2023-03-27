@@ -705,7 +705,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                 if (Objects.equals("boost", propName)) {
                     deprecationLogger.deprecate(
                         "boost_" + name,
-                        "Parameter [boost] on field [{}] is deprecated and will be removed in 8.0",
+                        "Parameter [boost] on field [{}] is deprecated and will be removed in 3.0",
                         name
                     );
                 }
