@@ -4382,16 +4382,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         TranslogFactory translogFactory = translogFactorySupplier.apply(indexSettings, shardRouting);
         assert translogFactory instanceof RemoteBlobStoreInternalTranslogFactory;
         Repository repository = ((RemoteBlobStoreInternalTranslogFactory) translogFactory).getRepository();
-        assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
-        BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-        FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId);
-        TranslogTransferManager translogTransferManager = RemoteFsTranslog.buildTranslogTransferManager(
-            blobStoreRepository,
-            getThreadPool(),
-            shardId,
-            fileTransferTracker
-        );
-        RemoteFsTranslog.download(translogTransferManager, shardPath().resolveTranslog());
+        RemoteFsTranslog.download(repository, shardId, getThreadPool(), shardPath().resolveTranslog());
     }
 
     /**

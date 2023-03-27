@@ -22,6 +22,7 @@ import org.opensearch.index.translog.transfer.TranslogCheckpointTransferSnapshot
 import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
+import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -47,7 +48,6 @@ import java.util.function.LongSupplier;
  */
 public class RemoteFsTranslog extends Translog {
 
-    private final BlobStoreRepository blobStoreRepository;
     private final TranslogTransferManager translogTransferManager;
     private final FileTransferTracker fileTransferTracker;
     private final BooleanSupplier primaryModeSupplier;
@@ -78,7 +78,6 @@ public class RemoteFsTranslog extends Translog {
         BooleanSupplier primaryModeSupplier
     ) throws IOException {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
-        this.blobStoreRepository = blobStoreRepository;
         this.primaryModeSupplier = primaryModeSupplier;
         fileTransferTracker = new FileTransferTracker(shardId);
         this.translogTransferManager = buildTranslogTransferManager(blobStoreRepository, threadPool, shardId, fileTransferTracker);
@@ -117,7 +116,21 @@ public class RemoteFsTranslog extends Translog {
         }
     }
 
-    public static void download(TranslogTransferManager translogTransferManager, Path location) throws IOException {
+    public static void download(Repository repository, ShardId shardId, ThreadPool threadPool, Path location) throws IOException {
+        assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
+        BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
+        FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId);
+        TranslogTransferManager translogTransferManager = buildTranslogTransferManager(
+            blobStoreRepository,
+            threadPool,
+            shardId,
+            fileTransferTracker
+        );
+        RemoteFsTranslog.download(translogTransferManager, location);
+    }
+
+
+    private static void download(TranslogTransferManager translogTransferManager, Path location) throws IOException {
         TranslogTransferMetadata translogMetadata = translogTransferManager.readMetadata();
         if (translogMetadata != null) {
             if (Files.notExists(location)) {
