@@ -615,7 +615,7 @@ public final class SearchPhaseController {
         final SortField[] newFields = new SortField[firstTopDocFields.length];
 
         for (int i = 0; i < firstTopDocFields.length; i++) {
-            if (isSortWideningRequired(topFieldDocs, i) && firstTopDocFields[i] instanceof SortedNumericSortField) {
+            if (firstTopDocFields[i] instanceof SortedNumericSortField && isSortWideningRequired(topFieldDocs, i)) {
                 final SortedNumericSortField delegate = (SortedNumericSortField) firstTopDocFields[i];
                 newFields[i] = new SortedWiderNumericSortField(
                     delegate.getField(),
