@@ -129,7 +129,6 @@ public class RemoteFsTranslog extends Translog {
         RemoteFsTranslog.download(translogTransferManager, location);
     }
 
-
     private static void download(TranslogTransferManager translogTransferManager, Path location) throws IOException {
         TranslogTransferMetadata translogMetadata = translogTransferManager.readMetadata();
         if (translogMetadata != null) {
