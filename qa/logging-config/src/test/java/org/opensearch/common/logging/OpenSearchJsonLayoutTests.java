@@ -32,10 +32,11 @@
 package org.opensearch.common.logging;
 
 
-import org.opensearch.test.OpenSearchTestCase;
-import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
+import org.opensearch.test.OpenSearchTestCase;
 
+import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 public class OpenSearchJsonLayoutTests extends OpenSearchTestCase {
     @BeforeClass
@@ -47,63 +48,27 @@ public class OpenSearchJsonLayoutTests extends OpenSearchTestCase {
         expectThrows(IllegalArgumentException.class, () -> OpenSearchJsonLayout.newBuilder().build());
     }
 
-    public void testLayout() {
+    public void testDefaultLayout() {
         OpenSearchJsonLayout server = OpenSearchJsonLayout.newBuilder()
                                           .setType("server")
                                           .build();
-        String conversionPattern = server.getPatternLayout().getConversionPattern();
+        String configuration = server.toString();
 
-        assertThat(conversionPattern, Matchers.equalTo(
-            "{" +
-                "\"type\": \"server\", " +
-                "\"timestamp\": \"%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}\", " +
-                "\"level\": \"%p\", " +
-                "\"component\": \"%c{1.}\", " +
-                "\"cluster.name\": \"${sys:opensearch.logs.cluster_name}\", " +
-                "\"node.name\": \"%node_name\", " +
-                "\"message\": \"%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}\"" +
-                "%notEmpty{, %node_and_cluster_id }" +
-                "%exceptionAsJson }" + System.lineSeparator()));
-    }
-
-    public void testWithMaxMessageLengthLayout() {
-        OpenSearchJsonLayout server = OpenSearchJsonLayout.newBuilder()
-            .setType("server")
-            .setMaxMessageLength(42)
-            .build();
-        String conversionPattern = server.getPatternLayout().getConversionPattern();
-
-        assertThat(conversionPattern, Matchers.equalTo(
-            "{" +
-                "\"type\": \"server\", " +
-                "\"timestamp\": \"%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}\", " +
-                "\"level\": \"%p\", " +
-                "\"component\": \"%c{1.}\", " +
-                "\"cluster.name\": \"${sys:opensearch.logs.cluster_name}\", " +
-                "\"node.name\": \"%node_name\", " +
-                "\"message\": \"%notEmpty{%enc{%marker}{JSON} }%enc{%.-42m}{JSON}\"" +
-                "%notEmpty{, %node_and_cluster_id }" +
-                "%exceptionAsJson }" + System.lineSeparator()));
-    }
-
-    public void testWithUnrestrictedMaxMessageLengthLayout() {
-        OpenSearchJsonLayout server = OpenSearchJsonLayout.newBuilder()
-            .setType("server")
-            .setMaxMessageLength(0)
-            .build();
-        String conversionPattern = server.getPatternLayout().getConversionPattern();
-
-        assertThat(conversionPattern, Matchers.equalTo(
-            "{" +
-                "\"type\": \"server\", " +
-                "\"timestamp\": \"%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}\", " +
-                "\"level\": \"%p\", " +
-                "\"component\": \"%c{1.}\", " +
-                "\"cluster.name\": \"${sys:opensearch.logs.cluster_name}\", " +
-                "\"node.name\": \"%node_name\", " +
-                "\"message\": \"%notEmpty{%enc{%marker}{JSON} }%enc{%m}{JSON}\"" +
-                "%notEmpty{, %node_and_cluster_id }" +
-                "%exceptionAsJson }" + System.lineSeparator()));
+        assertThat(configuration, containsString("type=server"));
+        assertThat(configuration, containsString("compact=false"));
+        assertThat(configuration, containsString("complete=false"));
+        assertThat(configuration, containsString("eol=\\r\\n"));
+        assertThat(configuration, containsString("headerPattern=[\\r\\n"));
+        assertThat(configuration, containsString("footerPattern=]\\r\\n"));
+        assertThat(configuration, containsString("stacktraceAsString=false"));
+        assertThat(configuration, containsString("timestamp=%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}"));
+        assertThat(configuration, containsString("level=%p"));
+        assertThat(configuration, containsString("component=%c{1.}"));
+        assertThat(configuration, containsString("cluster.name=${sys:opensearch.logs.cluster_name}"));
+        assertThat(configuration, containsString("node.name=%node_name"));
+        assertThat(configuration, containsString("message=%notEmpty{%marker{JSON} }%m{%.-10000m}{JSON}"));
+        assertThat(configuration, containsString("cluster.uuid=%node_and_cluster_id{cluster_uuid}"));
+        assertThat(configuration, containsString("node.id=%node_and_cluster_id{node_id}"));
     }
 
     public void testLayoutWithAdditionalFields() {
@@ -111,21 +76,11 @@ public class OpenSearchJsonLayoutTests extends OpenSearchTestCase {
                                           .setType("server")
                                           .setOpenSearchMessageFields("x-opaque-id,someOtherField")
                                           .build();
-        String conversionPattern = server.getPatternLayout().getConversionPattern();
 
-        assertThat(conversionPattern, Matchers.equalTo(
-            "{" +
-                "\"type\": \"server\", " +
-                "\"timestamp\": \"%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}\", " +
-                "\"level\": \"%p\", " +
-                "\"component\": \"%c{1.}\", " +
-                "\"cluster.name\": \"${sys:opensearch.logs.cluster_name}\", " +
-                "\"node.name\": \"%node_name\", " +
-                "\"message\": \"%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}\"" +
-                "%notEmpty{, \"x-opaque-id\": \"%OpenSearchMessageField{x-opaque-id}\"}" +
-                "%notEmpty{, \"someOtherField\": \"%OpenSearchMessageField{someOtherField}\"}" +
-                "%notEmpty{, %node_and_cluster_id }" +
-                "%exceptionAsJson }" + System.lineSeparator()));
+        String configuration = server.toString();
+
+        assertThat(configuration, containsString("x-opaque-id=%OpenSearchMessageField{x-opaque-id}"));
+        assertThat(configuration, containsString("someOtherField=%OpenSearchMessageField{someOtherField}"));
     }
 
     public void testLayoutWithAdditionalFieldOverride() {
@@ -133,18 +88,62 @@ public class OpenSearchJsonLayoutTests extends OpenSearchTestCase {
                                           .setType("server")
                                           .setOpenSearchMessageFields("message")
                                           .build();
-        String conversionPattern = server.getPatternLayout().getConversionPattern();
+        String configuration = server.toString();
 
-        assertThat(conversionPattern, Matchers.equalTo(
-            "{" +
-                "\"type\": \"server\", " +
-                "\"timestamp\": \"%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}\", " +
-                "\"level\": \"%p\", " +
-                "\"component\": \"%c{1.}\", " +
-                "\"cluster.name\": \"${sys:opensearch.logs.cluster_name}\", " +
-                "\"node.name\": \"%node_name\"" +
-                "%notEmpty{, \"message\": \"%OpenSearchMessageField{message}\"}" +
-                "%notEmpty{, %node_and_cluster_id }" +
-                "%exceptionAsJson }" + System.lineSeparator()));
+        assertThat(configuration, containsString("message=%OpenSearchMessageField{message}"));
     }
+
+    public void testLayoutWithRemovedField() {
+        OpenSearchJsonLayout server = OpenSearchJsonLayout.newBuilder()
+            .setType("server")
+            .setAdditionalFields("timestamp=,additionalLevel=%p")
+            .build();
+        String configuration = server.toString();
+
+        assertThat(configuration, not(containsString("timestamp=")));
+        assertThat(configuration, containsString("additionalLevel=%p"));
+    }
+
+    public void testLayoutNonDefaultSettings() {
+        OpenSearchJsonLayout server = OpenSearchJsonLayout.newBuilder()
+            .setType("server")
+            .setComplete(true)
+            .setCompact(true)
+            .setEventEol(true)
+            .setEndOfLine("\r\n\r\n")
+            .setStacktraceAsString(true)
+            .build();
+        String configuration = server.toString();
+
+        assertThat(configuration, containsString("complete=true"));
+        assertThat(configuration, containsString("compact=true"));
+        assertThat(configuration, containsString("stacktraceAsString=true"));
+        assertThat(configuration, containsString("eol=\\r\\n\\r\\n"));
+    }
+
+    public void testLayoutEolWithCompact() {
+        OpenSearchJsonLayout server = OpenSearchJsonLayout.newBuilder()
+            .setType("server")
+            .setCompact(true)
+            .setEventEol(false)
+            .build();
+        String configuration = server.toString();
+
+        assertThat(configuration, containsString("compact=true"));
+        assertThat(configuration, containsString("eol=,"));
+    }
+
+    public void testLayoutCustomHeaderAndFooterPatterns() {
+        OpenSearchJsonLayout server = OpenSearchJsonLayout.newBuilder()
+            .setType("server")
+            .setHeaderPattern("var logs = [")
+            .setFooterPattern("];")
+            .build();
+        String configuration = server.toString();
+
+        assertThat(configuration, containsString("headerPattern=var logs = ["));
+        assertThat(configuration, containsString("footerPattern=];"));
+    }
+
+
 }

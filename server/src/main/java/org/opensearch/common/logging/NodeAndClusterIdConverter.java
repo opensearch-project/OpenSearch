@@ -39,10 +39,11 @@ import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
 import org.opensearch.common.SetOnce;
 
-import java.util.Locale;
+import java.util.Arrays;
 
 /**
- * Pattern converter to format the node_and_cluster_id variable into JSON fields <code>node.id</code> and <code>cluster.uuid</code>.
+ * Pattern converter to format the node_and_cluster_id{subfield} variable into fields. Possible subfields:
+ * <code>node_id</code> and <code>cluster_uuid</code>
  * Keeping those two fields together assures that they will be atomically set and become visible in logs at the same time.
  *
  * @opensearch.internal
@@ -50,17 +51,21 @@ import java.util.Locale;
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeAndClusterIdConverter")
 @ConverterKeys({ "node_and_cluster_id" })
 public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
-    private static final SetOnce<String> nodeAndClusterId = new SetOnce<>();
+    private static final SetOnce<String> nodeId = new SetOnce<>();
+    private static final SetOnce<String> clusterUuid = new SetOnce<>();
 
     /**
      * Called by log4j2 to initialize this converter.
      */
     public static NodeAndClusterIdConverter newInstance(@SuppressWarnings("unused") final String[] options) {
-        return new NodeAndClusterIdConverter();
+        return new NodeAndClusterIdConverter(options);
     }
 
-    public NodeAndClusterIdConverter() {
+    private final String[] options;
+
+    public NodeAndClusterIdConverter(String[] options) {
         super("NodeAndClusterId", "node_and_cluster_id");
+        this.options = options;
     }
 
     /**
@@ -71,7 +76,8 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
      * @param clusterUUID a clusterId received from cluster state update
      */
     public static void setNodeIdAndClusterId(String nodeId, String clusterUUID) {
-        nodeAndClusterId.set(formatIds(clusterUUID, nodeId));
+        NodeAndClusterIdConverter.nodeId.set(nodeId);
+        NodeAndClusterIdConverter.clusterUuid.set(clusterUUID);
     }
 
     /**
@@ -81,13 +87,14 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
      */
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-        if (nodeAndClusterId.get() != null) {
-            toAppendTo.append(nodeAndClusterId.get());
+        if (options == null || Arrays.stream(options).anyMatch(a -> "node_id".equals(a))) {
+            if (nodeId.get() != null) {
+                toAppendTo.append(nodeId.get());
+            }
+        } else {
+            if (clusterUuid.get() != null) {
+                toAppendTo.append(clusterUuid.get());
+            }
         }
-        // nodeId/clusterUuid not received yet, not appending
-    }
-
-    private static String formatIds(String clusterUUID, String nodeId) {
-        return String.format(Locale.ROOT, "\"cluster.uuid\": \"%s\", \"node.id\": \"%s\"", clusterUUID, nodeId);
     }
 }
