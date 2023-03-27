@@ -70,6 +70,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
     static final ParseField DEBUG = new ParseField("debug");
     static final ParseField NODE_TIME = new ParseField("time");
     static final ParseField NODE_TIME_RAW = new ParseField("time_in_nanos");
+    static final ParseField NODE_TIME_SECONDS = new ParseField("time_in_seconds");
     static final ParseField CHILDREN = new ParseField("children");
 
     private final String type;
@@ -170,6 +171,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
             builder.field(NODE_TIME.getPreferredName(), new TimeValue(getTime(), TimeUnit.NANOSECONDS).toString());
         }
         builder.field(NODE_TIME_RAW.getPreferredName(), getTime());
+        builder.field(NODE_TIME_SECONDS.getPreferredName(), (double) getTime() / 1_000_000_000);
         builder.field(BREAKDOWN.getPreferredName(), breakdown);
         if (false == debug.isEmpty()) {
             builder.field(DEBUG.getPreferredName(), debug);

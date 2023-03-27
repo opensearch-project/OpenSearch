@@ -71,6 +71,7 @@ public class CollectorResult implements ToXContentObject, Writeable {
     private static final ParseField REASON = new ParseField("reason");
     private static final ParseField TIME = new ParseField("time");
     private static final ParseField TIME_NANOS = new ParseField("time_in_nanos");
+    private static final ParseField NODE_TIME_SECONDS = new ParseField("time_in_seconds");
     private static final ParseField CHILDREN = new ParseField("children");
 
     /**
@@ -163,7 +164,7 @@ public class CollectorResult implements ToXContentObject, Writeable {
             builder.field(TIME.getPreferredName(), new TimeValue(getTime(), TimeUnit.NANOSECONDS).toString());
         }
         builder.field(TIME_NANOS.getPreferredName(), getTime());
-
+        builder.field(NODE_TIME_SECONDS.getPreferredName(), (double) getTime() / 1_000_000_000);
         if (!children.isEmpty()) {
             builder = builder.startArray(CHILDREN.getPreferredName());
             for (CollectorResult child : children) {
