@@ -85,7 +85,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
             }
             deprecationLogger.deprecate(
                 "resize_deprecated_parameter",
-                "parameter [copy_settings] is deprecated and will be removed in 8.0.0"
+                "parameter [copy_settings] is deprecated and will be removed in 3.0.0"
             );
         }
         resizeRequest.setCopySettings(copySettings);
