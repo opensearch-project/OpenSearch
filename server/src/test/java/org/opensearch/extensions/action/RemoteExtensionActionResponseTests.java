@@ -13,31 +13,42 @@ import org.opensearch.common.io.stream.BytesStreamInput;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-public class TransportActionResponseToExtensionTests extends OpenSearchTestCase {
-    public void testTransportActionRequestToExtension() throws IOException {
-        byte[] expectedResponseBytes = "response-bytes".getBytes(StandardCharsets.UTF_8);
-        TransportActionResponseToExtension response = new TransportActionResponseToExtension(expectedResponseBytes);
+public class RemoteExtensionActionResponseTests extends OpenSearchTestCase {
 
+    public void testExtensionActionResponse() throws Exception {
+        byte[] expectedResponseBytes = "response-bytes".getBytes(StandardCharsets.UTF_8);
+        RemoteExtensionActionResponse response = new RemoteExtensionActionResponse(true, expectedResponseBytes);
+
+        assertTrue(response.isSuccess());
         assertEquals(expectedResponseBytes, response.getResponseBytes());
 
         BytesStreamOutput out = new BytesStreamOutput();
         response.writeTo(out);
         BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()));
-        response = new TransportActionResponseToExtension(in);
+        response = new RemoteExtensionActionResponse(in);
 
+        assertTrue(response.isSuccess());
         assertArrayEquals(expectedResponseBytes, response.getResponseBytes());
     }
 
-    public void testSetBytes() {
-        byte[] expectedResponseBytes = "response-bytes".getBytes(StandardCharsets.UTF_8);
+    public void testSetters() {
+        String expectedResponse = "response-bytes";
+        byte[] expectedResponseBytes = expectedResponse.getBytes(StandardCharsets.UTF_8);
         byte[] expectedEmptyBytes = new byte[0];
-        TransportActionResponseToExtension response = new TransportActionResponseToExtension(expectedEmptyBytes);
+        RemoteExtensionActionResponse response = new RemoteExtensionActionResponse(false, expectedEmptyBytes);
         assertArrayEquals(expectedEmptyBytes, response.getResponseBytes());
+        assertFalse(response.isSuccess());
+
+        response.setResponseBytesAsString(expectedResponse);
+        assertArrayEquals(expectedResponseBytes, response.getResponseBytes());
 
         response.setResponseBytes(expectedResponseBytes);
         assertArrayEquals(expectedResponseBytes, response.getResponseBytes());
+        assertEquals(expectedResponse, response.getResponseBytesAsString());
+
+        response.setSuccess(true);
+        assertTrue(response.isSuccess());
     }
 }

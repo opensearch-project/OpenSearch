@@ -59,6 +59,10 @@
       "only_expunge_deletes":{
         "type":"boolean",
         "description":"Specify whether the operation should only expunge deleted documents"
+      },
+      "wait_for_completion": {
+        "type" : "boolean",
+        "description" : "If false, the request will return a task immediately and the operation will run in background. Defaults to true."
       }
     }
   }
