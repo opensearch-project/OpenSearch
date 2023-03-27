@@ -169,6 +169,7 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
      * Similar to testSingleIndexShardAllocation test but creates multiple indices, multiple node adding in and getting
      * removed. The test asserts post each such event that primary shard distribution is balanced across single index.
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6565")
     public void testAllocationWithDisruption() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         final int maxReplicaCount = 2;

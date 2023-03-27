@@ -243,9 +243,13 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     assert recoveryTarget.sourceNode() != null : "can not do a recovery without a source node";
                     logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                     indexShard.prepareForIndexRecovery();
+                    final boolean hasRemoteSegmentStore = indexShard.indexSettings().isRemoteStoreEnabled();
+                    if (hasRemoteSegmentStore) {
+                        indexShard.syncSegmentsFromRemoteSegmentStore(false, false);
+                    }
                     final boolean hasRemoteTranslog = recoveryTarget.state().getPrimary() == false && indexShard.isRemoteTranslogEnabled();
                     final boolean hasNoTranslog = indexShard.indexSettings().isRemoteSnapshot();
-                    final boolean verifyTranslog = (hasRemoteTranslog || hasNoTranslog) == false;
+                    final boolean verifyTranslog = (hasRemoteTranslog || hasNoTranslog || hasRemoteSegmentStore) == false;
                     final long startingSeqNo = indexShard.recoverLocallyAndFetchStartSeqNo(!hasRemoteTranslog);
                     assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
                         : "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
