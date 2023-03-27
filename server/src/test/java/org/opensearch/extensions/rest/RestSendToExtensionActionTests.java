@@ -32,6 +32,7 @@ import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.rest.RestHandler.Route;
 import org.opensearch.rest.RestRequest.Method;
+import org.opensearch.rest.extensions.RestSendToExtensionAction;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;

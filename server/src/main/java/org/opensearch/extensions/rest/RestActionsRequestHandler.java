@@ -12,6 +12,7 @@ import org.opensearch.extensions.AcknowledgedResponse;
 import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
+import org.opensearch.rest.extensions.RestSendToExtensionAction;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 

@@ -17,6 +17,8 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestRequest.Method;
+import org.opensearch.rest.extensions.ExtensionRestRequest;
+import org.opensearch.rest.extensions.ExtensionRestResponse;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.opensearch.rest.BytesRestResponse.TEXT_CONTENT_TYPE;
