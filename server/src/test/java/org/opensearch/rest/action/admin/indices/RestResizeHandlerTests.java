@@ -84,7 +84,7 @@ public class RestResizeHandlerTests extends OpenSearchTestCase {
             );
             assertThat(e, hasToString(containsString("parameter [copy_settings] can not be explicitly set to [false]")));
         } else {
-            String expectedWarning = "parameter [copy_settings] is deprecated and will be removed in 8.0.0";
+            String expectedWarning = "parameter [copy_settings] is deprecated and will be removed in 3.0.0";
             handler.prepareRequest(request, mock(NodeClient.class));
             if (("".equals(copySettings) || "true".equals(copySettings)) && !assertedWarnings.contains(expectedWarning)) {
                 assertWarnings(expectedWarning);
