@@ -67,4 +67,14 @@ public final class ResizeResponse extends CreateIndexResponse {
     public static ResizeResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        builder.append(getClass().getSimpleName()).append("[");
+        builder.append("acknowledged=").append(isAcknowledged()).append(',');
+        builder.append("shards_acknowledged=").append(isShardsAcknowledged()).append(',');
+        builder.append("index=").append(index());
+        return builder.append(']').toString();
+    }
 }
