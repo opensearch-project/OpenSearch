@@ -43,8 +43,10 @@ import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.common.xcontent.XContentBuilder;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.rest.action.admin.cluster.RestNodesUsageAction;
+import org.opensearch.tasks.Task;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -286,5 +288,19 @@ public abstract class BaseRestHandler implements RestHandler {
         public boolean allowSystemIndexAccessByDefault() {
             return delegate.allowSystemIndexAccessByDefault();
         }
+    }
+
+    /**
+     * Return a task immediately when executing some long-running operations asynchronously, like reindex, resize, open, force merge
+     */
+    public RestChannelConsumer sendTask(String nodeId, Task task) {
+        return channel -> {
+            try (XContentBuilder builder = channel.newBuilder()) {
+                builder.startObject();
+                builder.field("task", nodeId + ":" + task.getId());
+                builder.endObject();
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+            }
+        };
     }
 }

@@ -83,6 +83,8 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
     @Nullable
     private final String forceMergeUUID;
 
+    private boolean shouldStoreResult;
+
     /**
      * Constructs a merge request over one or more indices.
      *
@@ -161,6 +163,18 @@ public class ForceMergeRequest extends BroadcastRequest<ForceMergeRequest> {
     public ForceMergeRequest flush(boolean flush) {
         this.flush = flush;
         return this;
+    }
+
+    /**
+     * Should this task store its result after it has finished?
+     */
+    public void setShouldStoreResult(boolean shouldStoreResult) {
+        this.shouldStoreResult = shouldStoreResult;
+    }
+
+    @Override
+    public boolean getShouldStoreResult() {
+        return shouldStoreResult;
     }
 
     @Override

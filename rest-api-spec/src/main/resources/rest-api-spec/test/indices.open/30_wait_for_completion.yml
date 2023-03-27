@@ -1,0 +1,50 @@
+---
+"Open index with wait_for_completion":
+  # open index with wait_for_completion parameter, when the parameter is set to false, the API
+  # will return a task immediately and the open operation will run in background.
+
+  - skip:
+      version: " - 2.6.99"
+      reason: "only available in 2.7+"
+      features: allowed_warnings
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_replicas: 0
+            number_of_shards: 1
+
+  - do:
+      indices.close:
+        index: test_index
+  - is_true: acknowledged
+
+  - do:
+      indices.open:
+        index: test_index
+        wait_for_active_shards: all
+        cluster_manager_timeout: 10s
+        wait_for_completion: false
+        task_execution_timeout: 30s
+  - match: { task: /^.+$/ }
+  - set: { task: taskId }
+
+  - do:
+      tasks.get:
+        wait_for_completion: true
+        task_id: $taskId
+  - match: { task.action: "indices:admin/open" }
+  - match: { task.description: "open indices [test_index]" }
+
+  # .tasks index is created when the open index operation completes, so we should delete .tasks index finally,
+  # if not, the .tasks index may introduce unexpected warnings and then cause other test cases to fail.
+  # Delete the .tasks index directly will also introduce warning, but currently we don't have such APIs which can delete one
+  # specified task or clear all completed tasks, so we have to do so. Expect we can introduce more tasks related APIs in future
+  - do:
+      allowed_warnings:
+        - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"
+      indices.delete:
+        index: .tasks
+        ignore_unavailable: true

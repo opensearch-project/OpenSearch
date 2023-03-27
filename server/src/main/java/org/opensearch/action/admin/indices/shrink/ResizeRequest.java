@@ -89,6 +89,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
     private ResizeType type = ResizeType.SHRINK;
     private Boolean copySettings = true;
     private ByteSizeValue maxShardSize;
+    private boolean shouldStoreResult;
 
     public ResizeRequest(StreamInput in) throws IOException {
         super(in);
@@ -120,8 +121,28 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         if (targetIndexRequest.settings().getByPrefix("index.sort.").isEmpty() == false) {
             validationException = addValidationError("can't override index sort when resizing an index", validationException);
         }
+        if (IndexMetadata.INDEX_ROUTING_PARTITION_SIZE_SETTING.exists(targetIndexRequest.settings())) {
+            validationException = addValidationError(
+                "cannot provide a routing partition size value when resizing an index",
+                validationException
+            );
+        }
         if (type == ResizeType.SPLIT && IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexRequest.settings()) == false) {
             validationException = addValidationError("index.number_of_shards is required for split operations", validationException);
+        }
+
+        // max_shard_size is only supported for shrink
+        if (type != ResizeType.SHRINK && maxShardSize != null) {
+            validationException = addValidationError("Unsupported parameter [max_shard_size]", validationException);
+        }
+        // max_shard_size conflicts with the index.number_of_shards setting
+        if (type == ResizeType.SHRINK
+            && IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexRequest.settings())
+            && maxShardSize != null) {
+            validationException = addValidationError(
+                "Cannot set max_shard_size and index.number_of_shards at the same time!",
+                validationException
+            );
         }
         if (maxShardSize != null && maxShardSize.getBytes() <= 0) {
             validationException = addValidationError("max_shard_size must be greater than 0", validationException);
@@ -247,6 +268,18 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         return maxShardSize;
     }
 
+    /**
+     * Should this task store its result after it has finished?
+     */
+    public void setShouldStoreResult(boolean shouldStoreResult) {
+        this.shouldStoreResult = shouldStoreResult;
+    }
+
+    @Override
+    public boolean getShouldStoreResult() {
+        return shouldStoreResult;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -273,5 +306,28 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
 
     public void fromXContent(XContentParser parser) throws IOException {
         PARSER.parse(parser, this, null);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder b = new StringBuilder();
+        switch (getResizeType()) {
+            case SPLIT:
+                b.append("split from");
+                break;
+            case CLONE:
+                b.append("clone from");
+                break;
+            default:
+                b.append("shrink from");
+        }
+        b.append(" [").append(sourceIndex).append("]");
+        b.append(" to [").append(getTargetIndexRequest().index()).append(']');
+        return b.toString();
+    }
+
+    @Override
+    public String getDescription() {
+        return this.toString();
     }
 }

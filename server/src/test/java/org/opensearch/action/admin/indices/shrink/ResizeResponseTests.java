@@ -46,6 +46,12 @@ public class ResizeResponseTests extends AbstractSerializingTestCase<ResizeRespo
         assertEquals("{\"acknowledged\":true,\"shards_acknowledged\":false,\"index\":\"index_name\"}", output);
     }
 
+    public void testToString() {
+        ResizeResponse response = new ResizeResponse(true, false, "index_name");
+        String output = response.toString();
+        assertEquals("ResizeResponse[acknowledged=true,shards_acknowledged=false,index=index_name]", output);
+    }
+
     @Override
     protected ResizeResponse doParseInstance(XContentParser parser) {
         return ResizeResponse.fromXContent(parser);
