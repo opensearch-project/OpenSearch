@@ -173,9 +173,8 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
         internalCluster().startClusterManagerOnlyNode();
         final int maxReplicaCount = 2;
         final int maxShardCount = 2;
-        // Create maxReplicaCount+2 number of nodes. maxReplicaCount for replica shards & 1 node for primary shard
-        // allocation. One extra node to ensure post failover, primary shards do not remain stuck on one node due to
-        // SameShardAllocationDecider preventing re-balancing
+        // Create higher number of nodes than number of shards to reduce chances of SameShardAllocationDecider kicking-in
+        // and preventing primary relocations
         final int nodeCount = randomIntBetween(5, 10);
         final int numberOfIndices = randomIntBetween(1, 10);
 
