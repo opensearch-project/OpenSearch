@@ -32,7 +32,7 @@
 package org.opensearch.persistent;
 
 import org.opensearch.common.io.stream.NamedWriteable;
-import org.opensearch.common.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.ToXContentObject;
 
 /**
  * {@link PersistentTaskState} represents the state of the persistent tasks, as it

@@ -31,7 +31,7 @@
 
 package org.opensearch.test.rest.yaml.section;
 
-import org.opensearch.common.xcontent.XContentLocation;
+import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static java.util.Collections.emptyMap;

@@ -34,7 +34,7 @@ package org.opensearch.test.rest.yaml.section;
 
 import org.opensearch.client.NodeSelector;
 import org.opensearch.common.ParsingException;
-import org.opensearch.common.xcontent.XContentLocation;
+import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
 
 import java.util.ArrayList;

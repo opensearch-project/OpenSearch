@@ -32,6 +32,7 @@
 package org.opensearch.common;
 
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.core.ParseField;
 import org.opensearch.test.OpenSearchTestCase;
 
 import static org.hamcrest.CoreMatchers.is;

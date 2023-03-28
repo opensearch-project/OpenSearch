@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.cluster.settings;
 
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;

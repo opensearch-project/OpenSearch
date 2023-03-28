@@ -31,7 +31,7 @@
 
 package org.opensearch.action.admin.cluster.repositories.verify;
 
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractXContentTestCase;
 
 import java.util.ArrayList;

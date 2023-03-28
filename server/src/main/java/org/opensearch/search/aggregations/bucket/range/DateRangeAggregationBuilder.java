@@ -33,7 +33,7 @@
 package org.opensearch.search.aggregations.bucket.range;
 
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.AggregationBuilder;

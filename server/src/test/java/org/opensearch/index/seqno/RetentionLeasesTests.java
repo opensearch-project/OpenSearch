@@ -32,7 +32,7 @@
 
 package org.opensearch.index.seqno;
 
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

@@ -32,11 +32,11 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.util.PriorityQueue;
+import org.opensearch.core.ParseField;
 import org.opensearch.LegacyESVersion;
-import org.opensearch.common.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.Aggregations;

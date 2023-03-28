@@ -33,7 +33,7 @@
 package org.opensearch.client.indices;
 
 import org.opensearch.cluster.metadata.ComposableIndexTemplate;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

@@ -41,16 +41,17 @@ import org.opensearch.action.ValidateActions;
 import org.opensearch.action.get.MultiGetRequest;
 import org.opensearch.action.support.single.shard.SingleShardRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
@@ -302,7 +303,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
 
     /**
      * Sets an artificial document from which term vectors are requested for.
-     * @deprecated use {@link #doc(BytesReference, boolean, XContentType)} to avoid content auto detection
+     * @deprecated use {@link #doc(BytesReference, boolean, MediaType)} to avoid content auto detection
      */
     @Deprecated
     public TermVectorsRequest doc(BytesReference doc, boolean generateRandomId) {
@@ -312,13 +313,13 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     /**
      * Sets an artificial document from which term vectors are requested for.
      */
-    public TermVectorsRequest doc(BytesReference doc, boolean generateRandomId, XContentType xContentType) {
+    public TermVectorsRequest doc(BytesReference doc, boolean generateRandomId, MediaType xContentType) {
         // assign a random id to this artificial document, for routing
         if (generateRandomId) {
             this.id(String.valueOf(randomInt.getAndAdd(1)));
         }
         this.doc = doc;
-        this.xContentType = xContentType;
+        this.xContentType = XContentType.fromMediaType(xContentType);
         return this;
     }
 

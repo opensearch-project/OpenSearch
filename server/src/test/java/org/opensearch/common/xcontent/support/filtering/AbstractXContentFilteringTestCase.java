@@ -32,14 +32,15 @@
 
 package org.opensearch.common.xcontent.support.filtering;
 
+import org.junit.Assert;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.DeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.support.AbstractFilteringTestCase;
 
@@ -84,7 +85,7 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
     }
 
     static void assertXContentBuilderAsString(final XContentBuilder expected, final XContentBuilder actual) {
-        assertThat(Strings.toString(actual), is(Strings.toString(expected)));
+        Assert.assertThat(Strings.toString(actual), is(Strings.toString(expected)));
     }
 
     static void assertXContentBuilderAsBytes(final XContentBuilder expected, final XContentBuilder actual) {
@@ -105,25 +106,25 @@ public abstract class AbstractXContentFilteringTestCase extends AbstractFilterin
                 XContentParser.Token token1 = jsonParser.nextToken();
                 XContentParser.Token token2 = testParser.nextToken();
                 if (token1 == null) {
-                    assertThat(token2, nullValue());
+                    Assert.assertThat(token2, nullValue());
                     return;
                 }
-                assertThat(token1, equalTo(token2));
+                Assert.assertThat(token1, equalTo(token2));
                 switch (token1) {
                     case FIELD_NAME:
-                        assertThat(jsonParser.currentName(), equalTo(testParser.currentName()));
+                        Assert.assertThat(jsonParser.currentName(), equalTo(testParser.currentName()));
                         break;
                     case VALUE_STRING:
-                        assertThat(jsonParser.text(), equalTo(testParser.text()));
+                        Assert.assertThat(jsonParser.text(), equalTo(testParser.text()));
                         break;
                     case VALUE_NUMBER:
-                        assertThat(jsonParser.numberType(), equalTo(testParser.numberType()));
-                        assertThat(jsonParser.numberValue(), equalTo(testParser.numberValue()));
+                        Assert.assertThat(jsonParser.numberType(), equalTo(testParser.numberType()));
+                        Assert.assertThat(jsonParser.numberValue(), equalTo(testParser.numberValue()));
                         break;
                 }
             }
         } catch (Exception e) {
-            fail("Fail to verify the result of the XContentBuilder: " + e.getMessage());
+            Assert.fail("Fail to verify the result of the XContentBuilder: " + e.getMessage());
         }
     }
 }

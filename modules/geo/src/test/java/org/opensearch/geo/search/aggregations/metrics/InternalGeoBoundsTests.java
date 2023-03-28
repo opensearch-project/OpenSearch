@@ -32,9 +32,9 @@
 
 package org.opensearch.geo.search.aggregations.metrics;
 
-import org.opensearch.common.ParseField;
-import org.opensearch.common.xcontent.ContextParser;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ContextParser;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.geo.GeoModulePlugin;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.search.aggregations.Aggregation;

@@ -33,7 +33,7 @@
 package org.opensearch.client;
 
 import org.opensearch.cluster.metadata.AliasMetadata;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.test.AbstractXContentTestCase;

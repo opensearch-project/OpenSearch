@@ -36,7 +36,7 @@ import org.opensearch.LegacyESVersion;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.ingest.IngestDocument;
 import org.opensearch.test.AbstractXContentTestCase;
 import org.opensearch.test.VersionUtils;

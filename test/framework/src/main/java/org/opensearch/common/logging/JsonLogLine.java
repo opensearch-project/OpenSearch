@@ -32,8 +32,8 @@
 
 package org.opensearch.common.logging;
 
-import org.opensearch.common.ParseField;
-import org.opensearch.common.xcontent.ObjectParser;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ObjectParser;
 
 import java.util.List;
 
