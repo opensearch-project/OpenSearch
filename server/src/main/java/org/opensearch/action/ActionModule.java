@@ -282,12 +282,12 @@ import org.opensearch.common.inject.AbstractModule;
 import org.opensearch.common.inject.TypeLiteral;
 import org.opensearch.common.inject.multibindings.MapBinder;
 import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.extensions.action.ExtensionProxyAction;
-import org.opensearch.extensions.action.ExtensionTransportAction;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.extensions.action.ExtensionProxyAction;
+import org.opensearch.extensions.action.ExtensionProxyTransportAction;
 import org.opensearch.index.seqno.RetentionLeaseActions;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.indices.breaker.CircuitBreakerService;
@@ -448,6 +448,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -455,6 +456,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
+import static java.util.Objects.requireNonNull;
 
 /**
  * Builds and binds the generic action map, all {@link TransportAction}s, and {@link ActionFilters}.
@@ -471,7 +473,17 @@ public class ActionModule extends AbstractModule {
     private final ClusterSettings clusterSettings;
     private final SettingsFilter settingsFilter;
     private final List<ActionPlugin> actionPlugins;
+    // The unmodifiable map containing OpenSearch and Plugin actions
+    // This is initialized at node bootstrap and contains same-JVM actions
+    // It will be wrapped in the Dynamic Action Registry but otherwise
+    // remains unchanged from its prior purpose, and registered actions
+    // will remain accessible.
     private final Map<String, ActionHandler<?, ?>> actions;
+    // A dynamic action registry which includes the above immutable actions
+    // and also registers dynamic actions which may be unregistered. Usually
+    // associated with remote action execution on extensions, possibly in
+    // a different JVM and possibly on a different server.
+    private final DynamicActionRegistry dynamicActionRegistry;
     private final ActionFilters actionFilters;
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
@@ -502,6 +514,7 @@ public class ActionModule extends AbstractModule {
         this.threadPool = threadPool;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
+        dynamicActionRegistry = new DynamicActionRegistry();
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<RestHeaderDefinition> headers = Stream.concat(
@@ -711,7 +724,7 @@ public class ActionModule extends AbstractModule {
 
         if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
             // ExtensionProxyAction
-            actions.register(ExtensionProxyAction.INSTANCE, ExtensionTransportAction.class);
+            actions.register(ExtensionProxyAction.INSTANCE, ExtensionProxyTransportAction.class);
         }
 
         // Decommission actions
@@ -953,13 +966,86 @@ public class ActionModule extends AbstractModule {
                 bind(supportAction).asEagerSingleton();
             }
         }
+
+        // register dynamic ActionType -> transportAction Map used by NodeClient
+        bind(DynamicActionRegistry.class).toInstance(dynamicActionRegistry);
     }
 
     public ActionFilters getActionFilters() {
         return actionFilters;
     }
 
+    public DynamicActionRegistry getDynamicActionRegistry() {
+        return dynamicActionRegistry;
+    }
+
     public RestController getRestController() {
         return restController;
+    }
+
+    /**
+     * The DynamicActionRegistry maintains a registry mapping {@link ActionType} instances to {@link TransportAction} instances.
+     * <p>
+     * This class is modeled after {@link NamedRegistry} but provides both register and unregister capabilities.
+     *
+     * @opensearch.internal
+     */
+    public static class DynamicActionRegistry {
+        // This is the unmodifiable actions map created during node bootstrap, which
+        // will continue to link ActionType and TransportAction pairs from core and plugin
+        // action handler registration.
+        private Map<ActionType, TransportAction> actions = Collections.emptyMap();
+        // A dynamic registry to add or remove ActionType / TransportAction pairs
+        // at times other than node bootstrap.
+        private final Map<ActionType<?>, TransportAction<?, ?>> registry = new ConcurrentHashMap<>();
+
+        /**
+         * Register the immutable actions in the registry.
+         *
+         * @param actions The injected map of {@link ActionType} to {@link TransportAction}
+         */
+        public void registerUnmodifiableActionMap(Map<ActionType, TransportAction> actions) {
+            this.actions = actions;
+        }
+
+        /**
+         * Add a dynamic action to the registry.
+         *
+         * @param action The action instance to add
+         * @param transportAction The corresponding instance of transportAction to execute
+         */
+        public void registerDynamicAction(ActionType<?> action, TransportAction<?, ?> transportAction) {
+            requireNonNull(action, "action is required");
+            requireNonNull(transportAction, "transportAction is required");
+            if (actions.containsKey(action) || registry.putIfAbsent(action, transportAction) != null) {
+                throw new IllegalArgumentException("action [" + action.name() + "] already registered");
+            }
+        }
+
+        /**
+         * Remove a dynamic action from the registry.
+         *
+         * @param action The action to remove
+         */
+        public void unregisterDynamicAction(ActionType<?> action) {
+            requireNonNull(action, "action is required");
+            if (registry.remove(action) == null) {
+                throw new IllegalArgumentException("action [" + action.name() + "] was not registered");
+            }
+        }
+
+        /**
+         * Gets the {@link TransportAction} instance corresponding to the {@link ActionType} instance.
+         *
+         * @param action The {@link ActionType}.
+         * @return the corresponding {@link TransportAction} if it is registered, null otherwise.
+         */
+        @SuppressWarnings("unchecked")
+        public TransportAction<? extends ActionRequest, ? extends ActionResponse> get(ActionType<?> action) {
+            if (actions.containsKey(action)) {
+                return actions.get(action);
+            }
+            return registry.get(action);
+        }
     }
 }
