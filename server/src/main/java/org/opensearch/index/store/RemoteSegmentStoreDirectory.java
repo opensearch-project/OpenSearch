@@ -364,7 +364,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
                 try {
                     postUpload(from, src, remoteFileName);
                 } catch (Exception e) {
-                    logger.error("Exception in segment postUpload for file {}", src, e);
+                    logger.error(() -> new ParameterizedMessage("Exception in segment postUpload for file [{}]", src), e);
                     handleException(e, exceptionRef);
                 }
             }

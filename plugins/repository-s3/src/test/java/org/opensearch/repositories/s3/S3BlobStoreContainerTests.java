@@ -207,8 +207,8 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final UploadFinalizer uploadFinalizer = mock(UploadFinalizer.class);
         doNothing().when(uploadFinalizer).accept(anyBoolean());
 
-        blobContainer.writeStreams(
-            new WriteContext(blobName, streamContextSupplier, blobSize, true, WritePriority.NORMAL, uploadFinalizer)
+        blobContainer.writeBlobByStreams(
+            new WriteContext(blobName, streamContextSupplier, blobSize, true, WritePriority.NORMAL, uploadFinalizer, 0)
         );
 
         verify(uploadFinalizer, times(1)).accept(true);
@@ -259,8 +259,8 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         assertThrows(
             IOException.class,
-            () -> blobContainer.writeStreams(
-                new WriteContext(blobName, streamContextSupplier, blobSize, true, WritePriority.NORMAL, uploadFinalizer)
+            () -> blobContainer.writeBlobByStreams(
+                new WriteContext(blobName, streamContextSupplier, blobSize, true, WritePriority.NORMAL, uploadFinalizer, 0)
             )
         );
 
@@ -312,8 +312,8 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         assertThrows(
             IOException.class,
-            () -> blobContainer.writeStreams(
-                new WriteContext(blobName, streamContextSupplier, blobSize, true, WritePriority.NORMAL, uploadFinalizer)
+            () -> blobContainer.writeBlobByStreams(
+                new WriteContext(blobName, streamContextSupplier, blobSize, true, WritePriority.NORMAL, uploadFinalizer, 0)
             )
         );
 

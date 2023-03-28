@@ -54,13 +54,13 @@ public class BlobStoreTransferServiceMultiStreamSupportEnabledTests extends Open
 
         BlobContainer blobContainer = mock(BlobContainer.class);
         when(blobContainer.isMultiStreamUploadSupported()).thenReturn(true);
-        doNothing().when(blobContainer).writeStreams(any(WriteContext.class));
+        doNothing().when(blobContainer).writeBlobByStreams(any(WriteContext.class));
         when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
 
         TransferService transferService = new BlobStoreTransferService(blobStore, threadPool);
         transferService.uploadBlob(transferFileSnapshot, new BlobPath().add("sample_path"), WritePriority.HIGH);
 
-        verify(blobContainer).writeStreams(any(WriteContext.class));
+        verify(blobContainer).writeBlobByStreams(any(WriteContext.class));
     }
 
     public void testUploadBlobIOException() throws IOException {
@@ -70,7 +70,7 @@ public class BlobStoreTransferServiceMultiStreamSupportEnabledTests extends Open
 
         BlobContainer blobContainer = mock(BlobContainer.class);
         when(blobContainer.isMultiStreamUploadSupported()).thenReturn(true);
-        doThrow(new IOException()).when(blobContainer).writeStreams(any(WriteContext.class));
+        doThrow(new IOException()).when(blobContainer).writeBlobByStreams(any(WriteContext.class));
         when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
 
         TransferService transferService = new BlobStoreTransferService(blobStore, threadPool);
@@ -79,7 +79,7 @@ public class BlobStoreTransferServiceMultiStreamSupportEnabledTests extends Open
             () -> transferService.uploadBlob(transferFileSnapshot, new BlobPath().add("sample_path"), WritePriority.HIGH)
         );
 
-        verify(blobContainer).writeStreams(any(WriteContext.class));
+        verify(blobContainer).writeBlobByStreams(any(WriteContext.class));
     }
 
     public void testUploadBlobAsync() throws IOException, InterruptedException {
@@ -89,13 +89,13 @@ public class BlobStoreTransferServiceMultiStreamSupportEnabledTests extends Open
 
         BlobContainer blobContainer = mock(BlobContainer.class);
         when(blobContainer.isMultiStreamUploadSupported()).thenReturn(true);
-        doNothing().when(blobContainer).writeStreams(any(WriteContext.class));
+        doNothing().when(blobContainer).writeBlobByStreams(any(WriteContext.class));
         when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
 
         TransferService transferService = new BlobStoreTransferService(blobStore, threadPool);
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean succeeded = new AtomicBoolean(false);
-        transferService.uploadBlobAsync(
+        transferService.uploadBlobByThreadpool(
             ThreadPool.Names.TRANSLOG_TRANSFER,
             transferFileSnapshot,
             new BlobPath().add("sample_path"),
@@ -106,7 +106,7 @@ public class BlobStoreTransferServiceMultiStreamSupportEnabledTests extends Open
                     assertEquals(transferFileSnapshot.getPrimaryTerm(), fileSnapshot.getPrimaryTerm());
                     assertEquals(transferFileSnapshot.getName(), fileSnapshot.getName());
                     try {
-                        verify(blobContainer).writeStreams(any(WriteContext.class));
+                        verify(blobContainer).writeBlobByStreams(any(WriteContext.class));
                     } catch (IOException ex) {
                         fail();
                     }
@@ -131,12 +131,12 @@ public class BlobStoreTransferServiceMultiStreamSupportEnabledTests extends Open
 
         BlobContainer blobContainer = mock(BlobContainer.class);
         when(blobContainer.isMultiStreamUploadSupported()).thenReturn(true);
-        doThrow(new IOException()).when(blobContainer).writeStreams(any(WriteContext.class));
+        doThrow(new IOException()).when(blobContainer).writeBlobByStreams(any(WriteContext.class));
         when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
 
         TransferService transferService = new BlobStoreTransferService(blobStore, threadPool);
         CountDownLatch latch = new CountDownLatch(1);
-        transferService.uploadBlobAsync(
+        transferService.uploadBlobByThreadpool(
             ThreadPool.Names.TRANSLOG_TRANSFER,
             transferFileSnapshot,
             new BlobPath().add("sample_path"),
@@ -149,7 +149,7 @@ public class BlobStoreTransferServiceMultiStreamSupportEnabledTests extends Open
                 @Override
                 public void onFailure(Exception e) {
                     try {
-                        verify(blobContainer).writeStreams(any(WriteContext.class));
+                        verify(blobContainer).writeBlobByStreams(any(WriteContext.class));
                     } catch (IOException ex) {
                         fail();
                     }

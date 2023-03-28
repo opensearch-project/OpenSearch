@@ -354,7 +354,7 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
         BlobContainer blobContainer = mock(BlobContainer.class);
         when(remoteDataDirectory.getBlobContainer()).thenReturn(blobContainer);
         when(blobContainer.isMultiStreamUploadSupported()).thenReturn(true);
-        doNothing().when(blobContainer).writeStreams(any(WriteContext.class));
+        doNothing().when(blobContainer).writeBlobByStreams(any(WriteContext.class));
         remoteSegmentStoreDirectory.copyFrom(storeDirectory, filename, filename, IOContext.DEFAULT);
         assertTrue(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
 
@@ -421,7 +421,7 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
         BlobContainer blobContainer = mock(BlobContainer.class);
         when(remoteDataDirectory.getBlobContainer()).thenReturn(blobContainer);
         when(blobContainer.isMultiStreamUploadSupported()).thenReturn(true);
-        doNothing().when(blobContainer).writeStreams(any(WriteContext.class));
+        doNothing().when(blobContainer).writeBlobByStreams(any(WriteContext.class));
         remoteSegmentStoreDirectory.copyFrom(storeDirectory, filename, filename, IOContext.DEFAULT, true);
         RemoteSegmentStoreDirectory.UploadedSegmentMetadata uploadedSegmentMetadata = remoteSegmentStoreDirectory
             .getSegmentsUploadedToRemoteStore()

@@ -216,7 +216,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         } catch (Exception e) {
             uploadSuccess.set(false);
             // ToDO: Handle transient and permanent un-availability of the remote store (GitHub #3397)
-            logger.warn(() -> new ParameterizedMessage("Exception while uploading segment files", e));
+            logger.warn(() -> new ParameterizedMessage("Exception: [{}] while uploading segment files", e), e);
         }
         return uploadSuccess.get();
     }
