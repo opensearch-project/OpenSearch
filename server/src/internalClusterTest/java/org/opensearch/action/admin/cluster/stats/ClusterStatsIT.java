@@ -400,7 +400,6 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
 
         // can't start data-only node without assigning cluster-manager
         internalCluster().startClusterManagerOnlyNodes(1);
-        waitForNodes(1);
         internalCluster().startNodes(legacyDataNodeSettings);
         waitForNodes(total);
 
@@ -409,15 +408,11 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
         ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
         assertCounts(clusterStatsResponse.getNodesStats().getCounts(), total, expectedRoleCounts);
 
-        Set<String> expectedClusterManagerOnlyRoles = Set.of(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName());
-        assertEquals(expectedClusterManagerOnlyRoles, getNodeRoles(0));
-
-        Set<String> expectedDataOnlyNodeRoles = Set.of(
-            DiscoveryNodeRole.DATA_ROLE.roleName(),
-            DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName()
+        Set<Set<String>> expectedNodesRoles = Set.of(
+            Set.of(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE.roleName()),
+            Set.of(DiscoveryNodeRole.DATA_ROLE.roleName(), DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE.roleName())
         );
-        assertEquals(expectedDataOnlyNodeRoles, getNodeRoles(1));
-
+        assertEquals(expectedNodesRoles, Set.of(getNodeRoles(0), getNodeRoles(1)));
     }
 
     private Map<String, Integer> getExpectedCounts(
