@@ -16,5 +16,4 @@ import org.opensearch.action.search.SearchResponse;
  */
 public interface SearchResponseProcessor extends Processor {
     SearchResponse processResponse(SearchRequest request, SearchResponse response) throws Exception;
-
 }

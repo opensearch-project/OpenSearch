@@ -1654,9 +1654,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             org.opensearch.cluster.block.IndexCreateBlockException::new,
             CUSTOM_ELASTICSEARCH_EXCEPTIONS_BASE_ID + 1,
             V_3_0_0
-        ),
-
-        ;
+        );
 
         final Class<? extends OpenSearchException> exceptionClass;
         final CheckedFunction<StreamInput, ? extends OpenSearchException, IOException> constructor;

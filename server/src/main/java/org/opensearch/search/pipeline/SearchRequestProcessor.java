@@ -15,5 +15,4 @@ import org.opensearch.action.search.SearchRequest;
  */
 public interface SearchRequestProcessor extends Processor {
     SearchRequest processRequest(SearchRequest request) throws Exception;
-
 }
