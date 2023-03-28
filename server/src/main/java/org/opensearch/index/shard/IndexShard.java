@@ -1425,7 +1425,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    private Optional<NRTReplicationEngine> getReplicationEngine() {
+    public Optional<NRTReplicationEngine> getReplicationEngine() {
         if (getEngine() instanceof NRTReplicationEngine) {
             return Optional.of((NRTReplicationEngine) getEngine());
         } else {
@@ -1523,16 +1523,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.warn("Shard is in primary mode and cannot perform segment replication as a replica.");
             return false;
         }
-        if (this.routingEntry().primary() && this.routingEntry().isRelocationTarget() == false) {
-            logger.warn("Shard is marked as primary but not relocating, so cannot perform segment replication");
+        if (this.routingEntry().primary()) {
+            logger.warn("Shard routing is marked primary thus cannot perform segment replication as replica");
             return false;
         }
         if (state().equals(IndexShardState.STARTED) == false
-            && ((state() == IndexShardState.RECOVERING || state() == IndexShardState.POST_RECOVERY)
-                && shardRouting.state() == ShardRoutingState.INITIALIZING) == false) {
+            && (state() == IndexShardState.POST_RECOVERY && shardRouting.state() == ShardRoutingState.INITIALIZING) == false) {
             logger.warn(
                 () -> new ParameterizedMessage(
-                    "Shard is not started or recovering {} {} and cannot perform segment replication",
+                    "Shard is not started or recovering {} {} and cannot perform segment replication as a replica",
                     state(),
                     shardRouting.state()
                 )
@@ -2725,9 +2724,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @param visibleCheckpoint the visible checkpoint
      */
     public void updateVisibleCheckpointForShard(final String allocationId, final ReplicationCheckpoint visibleCheckpoint) {
-        assert assertPrimaryMode();
-        verifyNotClosed();
-        replicationTracker.updateVisibleCheckpointForShard(allocationId, visibleCheckpoint);
+        // Update target replication checkpoint only when in active primary mode
+        if (shardRouting.primary() && replicationTracker.isPrimaryMode()) {
+            verifyNotClosed();
+            replicationTracker.updateVisibleCheckpointForShard(allocationId, visibleCheckpoint);
+        }
     }
 
     /**
@@ -4371,11 +4372,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Downloads segments from remote segment store.
+     * Downloads segments from remote segment store. This method will download segments till
+     * last refresh checkpoint.
      * @param overrideLocal flag to override local segment files with those in remote store
      * @throws IOException if exception occurs while reading segments from remote store
      */
     public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal) throws IOException {
+        syncSegmentsFromRemoteSegmentStore(overrideLocal, true);
+    }
+
+    /**
+     * Downloads segments from remote segment store.
+     * @param overrideLocal flag to override local segment files with those in remote store
+     * @param refreshLevelSegmentSync last refresh checkpoint is used if true, commit checkpoint otherwise
+     * @throws IOException if exception occurs while reading segments from remote store
+     */
+    public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal, boolean refreshLevelSegmentSync) throws IOException {
         assert indexSettings.isRemoteStoreEnabled();
         logger.info("Downloading segments from remote segment store");
         assert remoteStore.directory() instanceof FilterDirectory : "Store.directory is not an instance of FilterDirectory";
@@ -4414,7 +4426,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     skippedSegments.add(file);
                 }
             }
-            if (segmentInfosSnapshotFilename != null) {
+            if (refreshLevelSegmentSync && segmentInfosSnapshotFilename != null) {
                 try (
                     ChecksumIndexInput indexInput = new BufferedChecksumIndexInput(
                         storeDirectory.openInput(segmentInfosSnapshotFilename, IOContext.DEFAULT)

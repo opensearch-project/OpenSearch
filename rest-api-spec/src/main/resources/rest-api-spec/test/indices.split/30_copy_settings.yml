@@ -48,7 +48,7 @@
             index.number_of_shards: 2
             index.merge.scheduler.max_thread_count: 2
       allowed_warnings:
-        - "parameter [copy_settings] is deprecated and will be removed in 8.0.0"
+        - "parameter [copy_settings] is deprecated and will be removed in 3.0.0"
         - "Parameter [master_timeout] is deprecated and will be removed in 3.0. To support inclusive language, please use [cluster_manager_timeout] instead."
 
   - do:

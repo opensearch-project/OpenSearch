@@ -385,13 +385,18 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         }
     }
 
+    /**
+     * Force sync transport handler forces round of segment replication. Caller should verify necessary checks before
+     * calling this handler.
+     */
     private class ForceSyncTransportRequestHandler implements TransportRequestHandler<ForceSyncRequest> {
         @Override
         public void messageReceived(final ForceSyncRequest request, TransportChannel channel, Task task) throws Exception {
             assert indicesService != null;
             final IndexShard indexShard = indicesService.getShardOrNull(request.getShardId());
             // Proceed with round of segment replication only when it is allowed
-            if (indexShard.isSegmentReplicationAllowed() == false) {
+            if (indexShard == null || indexShard.getReplicationEngine().isEmpty()) {
+                logger.info("Ignore force segment replication sync as it is not allowed");
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
                 return;
             }

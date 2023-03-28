@@ -42,6 +42,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
+import static java.lang.Math.min;
+
 /**
  * A response for force merge action.
  *
@@ -77,5 +79,16 @@ public class ForceMergeResponse extends BroadcastResponse {
 
     public static ForceMergeResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        builder.append(getClass().getSimpleName()).append("[");
+        builder.append("total_shards=").append(getTotalShards()).append(',');
+        builder.append("successful_shards=").append(getSuccessfulShards()).append(',');
+        builder.append("failed_shards=").append(getFailedShards()).append(',');
+        builder.append("failures=").append(Arrays.asList(getShardFailures()).subList(0, min(3, getShardFailures().length)));
+        return builder.append(']').toString();
     }
 }

@@ -148,7 +148,9 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                             r.content(),
                             r.lastChunk(),
                             r.totalTranslogOps(),
-                            ActionListener.wrap(ignored -> {}, e -> { throw new AssertionError(e); })
+                            ActionListener.wrap(ignored -> {}, e -> {
+                                throw new AssertionError(e);
+                            })
                         );
                     }
                 } catch (Exception e) {
