@@ -89,7 +89,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
             ActionListener<TransferFileSnapshot> listener = (ActionListener<TransferFileSnapshot>) invocationOnMock.getArguments()[3];
             listener.onResponse((TransferFileSnapshot) invocationOnMock.getArguments()[1]);
             return null;
-        }).when(transferService).uploadBlobByThreadpool(anyString(), any(TransferFileSnapshot.class), any(BlobPath.class),
+        }).when(transferService).uploadBlobByThreadPool(anyString(), any(TransferFileSnapshot.class), any(BlobPath.class),
             any(ActionListener.class), any(WritePriority.class));
 
         FileTransferTracker fileTransferTracker = new FileTransferTracker(new ShardId("index", "indexUUid", 0)) {

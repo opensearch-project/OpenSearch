@@ -28,13 +28,13 @@ public interface TransferService {
 
     /**
      * Uploads the {@link TransferFileSnapshot} async, once the upload is complete the callback is invoked
-     * @param threadpoolName threadpool type which will be used to upload blobs asynchronously
+     * @param threadPoolName threadpool type which will be used to upload blobs asynchronously
      * @param fileSnapshot the file snapshot to upload
      * @param remotePath the remote path where upload should be made
      * @param listener the callback to be invoked once upload completes successfully/fails
      */
-    void uploadBlobByThreadpool(
-        String threadpoolName,
+    void uploadBlobByThreadPool(
+        String threadPoolName,
         final TransferFileSnapshot fileSnapshot,
         Iterable<String> remotePath,
         ActionListener<TransferFileSnapshot> listener,

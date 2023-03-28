@@ -48,8 +48,8 @@ public class BlobStoreTransferService implements TransferService {
     }
 
     @Override
-    public void uploadBlobByThreadpool(
-        String threadpoolName,
+    public void uploadBlobByThreadPool(
+        String threadPoolName,
         final TransferFileSnapshot fileSnapshot,
         Iterable<String> remoteTransferPath,
         ActionListener<TransferFileSnapshot> listener,
@@ -57,7 +57,7 @@ public class BlobStoreTransferService implements TransferService {
     ) {
         assert remoteTransferPath instanceof BlobPath;
         BlobPath blobPath = (BlobPath) remoteTransferPath;
-        threadPool.executor(threadpoolName).execute(ActionRunnable.wrap(listener, l -> {
+        threadPool.executor(threadPoolName).execute(ActionRunnable.wrap(listener, l -> {
             try {
                 uploadBlob(fileSnapshot, blobPath, writePriority);
                 l.onResponse(fileSnapshot);
@@ -87,7 +87,7 @@ public class BlobStoreTransferService implements TransferService {
         fileSnapshots.forEach(fileSnapshot -> {
             BlobPath blobPath = blobPaths.get(fileSnapshot.getPrimaryTerm());
             if (!blobStore.blobContainer(blobPath).isMultiStreamUploadSupported()) {
-                uploadBlobByThreadpool(
+                uploadBlobByThreadPool(
                     ThreadPool.Names.TRANSLOG_TRANSFER,
                     fileSnapshot,
                     blobPath,
@@ -143,6 +143,12 @@ public class BlobStoreTransferService implements TransferService {
             logger.error(() -> new ParameterizedMessage("Failed to upload blob {}",
                 fileSnapshot.getName()), e);
             listener.onFailure(new FileTransferException(fileSnapshot, e));
+        } finally {
+            try {
+                fileSnapshot.close();
+            } catch (IOException e) {
+                logger.warn("Error while closing TransferFileSnapshot", e);
+            }
         }
 
         return resultFuture;

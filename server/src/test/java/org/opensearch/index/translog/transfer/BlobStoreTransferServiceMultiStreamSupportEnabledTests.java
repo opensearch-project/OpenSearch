@@ -13,6 +13,7 @@ import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.blobstore.stream.write.UploadResponse;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.test.OpenSearchTestCase;
@@ -20,14 +21,21 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -47,58 +55,26 @@ public class BlobStoreTransferServiceMultiStreamSupportEnabledTests extends Open
         threadPool = new TestThreadPool(getClass().getName());
     }
 
-    public void testUploadBlob() throws IOException {
+    public void testUploadBlobs() throws Exception {
         Path testFile = createTempFile();
         Files.write(testFile, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
         FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(testFile, randomNonNegativeLong());
 
         BlobContainer blobContainer = mock(BlobContainer.class);
         when(blobContainer.isMultiStreamUploadSupported()).thenReturn(true);
-        doNothing().when(blobContainer).writeBlobByStreams(any(WriteContext.class));
-        when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
-
-        TransferService transferService = new BlobStoreTransferService(blobStore, threadPool);
-        transferService.uploadBlob(transferFileSnapshot, new BlobPath().add("sample_path"), WritePriority.HIGH);
-
-        verify(blobContainer).writeBlobByStreams(any(WriteContext.class));
-    }
-
-    public void testUploadBlobIOException() throws IOException {
-        Path testFile = createTempFile();
-        Files.write(testFile, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
-        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(testFile, randomNonNegativeLong());
-
-        BlobContainer blobContainer = mock(BlobContainer.class);
-        when(blobContainer.isMultiStreamUploadSupported()).thenReturn(true);
-        doThrow(new IOException()).when(blobContainer).writeBlobByStreams(any(WriteContext.class));
-        when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
-
-        TransferService transferService = new BlobStoreTransferService(blobStore, threadPool);
-        assertThrows(
-            IOException.class,
-            () -> transferService.uploadBlob(transferFileSnapshot, new BlobPath().add("sample_path"), WritePriority.HIGH)
-        );
-
-        verify(blobContainer).writeBlobByStreams(any(WriteContext.class));
-    }
-
-    public void testUploadBlobAsync() throws IOException, InterruptedException {
-        Path testFile = createTempFile();
-        Files.write(testFile, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
-        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(testFile, randomNonNegativeLong());
-
-        BlobContainer blobContainer = mock(BlobContainer.class);
-        when(blobContainer.isMultiStreamUploadSupported()).thenReturn(true);
-        doNothing().when(blobContainer).writeBlobByStreams(any(WriteContext.class));
+        CompletableFuture<UploadResponse> uploadResponseCompletableFuture = new CompletableFuture<>();
+        uploadResponseCompletableFuture.complete(new UploadResponse(""));
+        when(blobContainer.writeBlobByStreams(any(WriteContext.class))).thenReturn(uploadResponseCompletableFuture);
         when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
 
         TransferService transferService = new BlobStoreTransferService(blobStore, threadPool);
         CountDownLatch latch = new CountDownLatch(1);
         AtomicBoolean succeeded = new AtomicBoolean(false);
-        transferService.uploadBlobByThreadpool(
-            ThreadPool.Names.TRANSLOG_TRANSFER,
-            transferFileSnapshot,
-            new BlobPath().add("sample_path"),
+        transferService.uploadBlobs(
+            Collections.singleton(transferFileSnapshot),
+            new HashMap<>() {{
+                put(transferFileSnapshot.getPrimaryTerm(), new BlobPath().add("sample_path"));
+            }},
             new LatchedActionListener<>(new ActionListener<>() {
                 @Override
                 public void onResponse(FileSnapshot.TransferFileSnapshot fileSnapshot) {
@@ -124,7 +100,8 @@ public class BlobStoreTransferServiceMultiStreamSupportEnabledTests extends Open
         assertTrue(succeeded.get());
     }
 
-    public void testUploadBlobAsyncIOException() throws IOException, InterruptedException {
+    // TODO file channel on TransferFileSnapshot is not being closed here due to IOException
+    public void testUploadBlobsIOException() throws Exception {
         Path testFile = createTempFile();
         Files.write(testFile, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
         FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(testFile, randomNonNegativeLong());
@@ -136,10 +113,11 @@ public class BlobStoreTransferServiceMultiStreamSupportEnabledTests extends Open
 
         TransferService transferService = new BlobStoreTransferService(blobStore, threadPool);
         CountDownLatch latch = new CountDownLatch(1);
-        transferService.uploadBlobByThreadpool(
-            ThreadPool.Names.TRANSLOG_TRANSFER,
-            transferFileSnapshot,
-            new BlobPath().add("sample_path"),
+        transferService.uploadBlobs(
+            Collections.singleton(transferFileSnapshot),
+            new HashMap<>() {{
+                put(transferFileSnapshot.getPrimaryTerm(), new BlobPath().add("sample_path"));
+            }},
             new LatchedActionListener<>(new ActionListener<>() {
                 @Override
                 public void onResponse(FileSnapshot.TransferFileSnapshot fileSnapshot) {
