@@ -202,37 +202,39 @@ public class SegmentReplicationPressureService implements Closeable {
 
         @Override
         protected void runInternal() {
-            final SegmentReplicationStats stats = tracker.getStats();
-            for (Map.Entry<ShardId, SegmentReplicationPerGroupStats> entry : stats.getShardStats().entrySet()) {
-                final Set<SegmentReplicationShardStats> staleReplicas = getStaleReplicas(entry.getValue().getReplicaStats());
-                final ShardId shardId = entry.getKey();
-                final IndexService indexService = indicesService.indexService(shardId.getIndex());
-                final IndexShard primaryShard = indexService.getShard(shardId.getId());
-                for (SegmentReplicationShardStats staleReplica : staleReplicas) {
-                    if (staleReplica.getCurrentReplicationTimeMillis() > 2 * maxReplicationTime.millis()) {
-                        shardStateAction.remoteShardFailed(
-                            shardId,
-                            staleReplica.getAllocationId(),
-                            primaryShard.getOperationPrimaryTerm(),
-                            true,
-                            "replica too far behind primary, marking as stale",
-                            null,
-                            new ActionListener<>() {
-                                @Override
-                                public void onResponse(Void unused) {
-                                    logger.trace(
-                                        "Successfully failed remote shardId [{}] allocation id [{}]",
-                                        shardId,
-                                        staleReplica.getAllocationId()
-                                    );
-                                }
+            if (isSegmentReplicationBackpressureEnabled) {
+                final SegmentReplicationStats stats = tracker.getStats();
+                for (Map.Entry<ShardId, SegmentReplicationPerGroupStats> entry : stats.getShardStats().entrySet()) {
+                    final Set<SegmentReplicationShardStats> staleReplicas = getStaleReplicas(entry.getValue().getReplicaStats());
+                    final ShardId shardId = entry.getKey();
+                    final IndexService indexService = indicesService.indexService(shardId.getIndex());
+                    final IndexShard primaryShard = indexService.getShard(shardId.getId());
+                    for (SegmentReplicationShardStats staleReplica : staleReplicas) {
+                        if (staleReplica.getCurrentReplicationTimeMillis() > 2 * maxReplicationTime.millis()) {
+                            shardStateAction.remoteShardFailed(
+                                shardId,
+                                staleReplica.getAllocationId(),
+                                primaryShard.getOperationPrimaryTerm(),
+                                true,
+                                "replica too far behind primary, marking as stale",
+                                null,
+                                new ActionListener<>() {
+                                    @Override
+                                    public void onResponse(Void unused) {
+                                        logger.trace(
+                                            "Successfully failed remote shardId [{}] allocation id [{}]",
+                                            shardId,
+                                            staleReplica.getAllocationId()
+                                        );
+                                    }
 
-                                @Override
-                                public void onFailure(Exception e) {
-                                    logger.error("Failed to send remote shard failure", e);
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        logger.error("Failed to send remote shard failure", e);
+                                    }
                                 }
-                            }
-                        );
+                            );
+                        }
                     }
                 }
             }
