@@ -127,12 +127,13 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
 
     private void parseValue(String currentFieldName, StringBuilder parsedFields) throws IOException {
         switch (this.parser.currentToken()) {
+            case VALUE_BOOLEAN:
+            case VALUE_NUMBER:
             case VALUE_STRING:
+            case VALUE_NULL:
                 parsedFields.append(this.parser.textOrNull());
                 break;
             // Handle other token types as needed
-            case START_OBJECT:
-                throw new IOException("Unsupported token type");
             case FIELD_NAME:
                 break;
             case VALUE_EMBEDDED_OBJECT:

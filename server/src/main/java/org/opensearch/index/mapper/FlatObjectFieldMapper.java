@@ -520,11 +520,10 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        String value = null;
         String fieldName = null;
 
         if (context.externalValueSet()) {
-            value = context.externalValue().toString();
+            String value = context.externalValue().toString();
             parseValueAddFields(context, value, fieldType().name());
         } else {
             JsonToStringXContentParser JsonToStringParser = new JsonToStringXContentParser(
@@ -546,7 +545,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                         fieldName = parser.currentName();
                         break;
                     case VALUE_STRING:
-                        value = parser.textOrNull();
+                        String value = parser.textOrNull();
                         parseValueAddFields(context, value, fieldName);
                         break;
                 }
@@ -627,30 +626,21 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     }
 
     private static String normalizeValue(NamedAnalyzer normalizer, String field, String value) throws IOException {
-
+        String normalizerErrorMessage = "The normalization token stream is "
+            + "expected to produce exactly 1 token, but got 0 for analyzer "
+            + normalizer
+            + " and input \""
+            + value
+            + "\"";
         try (TokenStream ts = normalizer.tokenStream(field, value)) {
             final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();
             if (ts.incrementToken() == false) {
-                throw new IllegalStateException(
-                    "The normalization token stream is "
-                        + "expected to produce exactly 1 token, but got 0 for analyzer "
-                        + normalizer
-                        + " and input \""
-                        + value
-                        + "\""
-                );
+                throw new IllegalStateException(normalizerErrorMessage);
             }
             final String newValue = termAtt.toString();
             if (ts.incrementToken()) {
-                throw new IllegalStateException(
-                    "The normalization token stream is "
-                        + "expected to produce exactly 1 token, but got 2+ for analyzer "
-                        + normalizer
-                        + " and input \""
-                        + value
-                        + "\""
-                );
+                throw new IllegalStateException(normalizerErrorMessage);
             }
             ts.end();
             return newValue;

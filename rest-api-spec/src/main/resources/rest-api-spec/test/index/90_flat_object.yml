@@ -11,6 +11,8 @@ setup:
                 type : "keyword"
               catalog:
                 type : "flat_object"
+              required_matches:
+                type : "long"
 
 # Delete Index when connection is teardown
 ---
@@ -39,7 +41,25 @@ teardown:
                 "given": "Mike"
               },
             "catalogId":"c-0002"
-          }
+          },
+          "required_matches": 1
+        }
+  - do:
+      index:
+        index: test
+        id: 2
+        body: {
+          "ISBN13": "V12154942129175",
+          "catalog": {
+            "title": "Mock in Action",
+            "author":
+              {
+                "surname": "Doe",
+                "given": "John"
+              },
+            "catalogId": "c-0050"
+          },
+          "required_matches": 1
         }
 
   # Do index refresh
@@ -56,7 +76,8 @@ teardown:
   - is_true: test.mappings
   - match: { test.mappings.properties.ISBN13.type:  keyword     }
   - match: { test.mappings.properties.catalog.type: flat_object }
-  - length: { test.mappings.properties: 2 }
+  - match: { test.mappings.properties.required_matches.type: long }
+  - length: { test.mappings.properties: 3 }
   - length: { test.mappings.properties.catalog: 1 }
 
   # Verify Document Count
@@ -68,7 +89,7 @@ teardown:
           }
         }
 
-  - length:   { hits.hits: 1  }
+  - length:   { hits.hits: 2  }
 
   # Match Query with dot path.
   - do:
@@ -95,6 +116,39 @@ teardown:
 
   - length:   { hits.hits: 1  }
   - match: { hits.hits.0._source.catalog.title: "Lucene in Action" }
+
+
+  # Multi Match Query without dot path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            multi_match: {
+              "query":    "Mike",
+              "fields": [ "ISBN13", "catalog" ]
+            }
+          }
+        }
+
+  - length:   { hits.hits: 1  }
+  - match: { hits.hits.0._source.catalog.author.given: "Mike" }
+
+  # Multi Match Query with dot path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            multi_match: {
+              "query": "Mike",
+              "fields": [ "ISBN13", "catalog.author.given" ]
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.catalog.author.given: "Mike" }
 
   # Term Query1 with dot path
   - do:
@@ -133,6 +187,64 @@ teardown:
         }
 
   - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.catalog.author.given: "Mike" }
+
+  # Terms Query without dot path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            terms: { catalog: ["John","Mike"] }
+          }
+        }
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._source.catalog.author.given: "Mike" }
+
+  # Terms Query with dot path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            terms: { catalog.author.given: ["John","Mike"] }
+          }
+        }
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._source.catalog.author.given: "Mike" }
+
+  # Termset Query without dot path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            "terms_set": {
+              "catalog": {
+                "terms": [  "John","Mike" ],
+                "minimum_should_match_field": "required_matches"}
+            }
+          }
+        }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._source.catalog.author.given: "Mike" }
+
+  # Termset Query with dot path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            "terms_set": {
+              "catalog.author.given": {
+                "terms": [  "John","Mike" ],
+                "minimum_should_match_field": "required_matches"}
+            }
+          }
+        }
+  - length: { hits.hits: 2 }
   - match: { hits.hits.0._source.catalog.author.given: "Mike" }
 
   # Prefix Query with dot path.
@@ -217,7 +329,7 @@ teardown:
           }
         }
 
-  - length: { hits.hits: 1 }
+  - length: { hits.hits: 2 }
 
   # Exists Query without dot path.
   - do:
@@ -231,4 +343,69 @@ teardown:
           }
         }
 
+  - length: { hits.hits: 2 }
+
+  # Query_string Query without dot path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            "query_string": {
+              "fields": [ "catalog", "ISBN13" ],
+              "query": "John OR Mike"
+            }
+          }
+        }
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._source.catalog.author.given: "Mike" }
+
+  # Query_string Query with dot path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            "query_string": {
+              "fields": [ "catalog.author.given", "ISBN13" ],
+              "query": "John OR Mike"
+            }
+          }
+        }
+
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._source.catalog.author.given: "Mike" }
+
+  # Simple_query_string Query without dot path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            "simple_query_string" : {
+              "query": "Doe",
+              "fields": ["catalog", "ISBN13"]
+            }
+          }
+        }
+
   - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.catalog.author.surname: "Doe" }
+
+
+  # Simple_query_string Query with dot path.
+  - do:
+      search:
+        body: {
+          _source: true,
+          query: {
+            "simple_query_string": {
+              "query": "Doe",
+              "fields": [ "catalog.author.surname", "ISBN13" ]
+            }
+          }
+        }
+
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.catalog.author.surname: "Doe" }

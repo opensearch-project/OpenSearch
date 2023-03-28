@@ -27,17 +27,12 @@ import static org.hamcrest.core.StringContains.containsString;
 public class FlatObjectFieldMapperTests extends MapperServiceTestCase {
     private static final String FIELD_TYPE = "flat_object";
 
-    // @Override
-    public FlatObjectFieldMapper.Builder newBuilder() {
-        return new FlatObjectFieldMapper.Builder(FIELD_TYPE);
-    }
-
     public final void testExistsQueryDocValuesDisabledWithNorms() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> { minimalMapping(b); }));
         assertParseMinimalWarnings();
     }
 
-    public void minimalMapping(XContentBuilder b) throws IOException {
+    private void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", FIELD_TYPE);
     }
 
