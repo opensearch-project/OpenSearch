@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.rest.extensions;
+package org.opensearch.extensions.rest;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.bytes.BytesReference;

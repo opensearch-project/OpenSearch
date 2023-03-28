@@ -6,13 +6,12 @@
  * compatible open source license.
  */
 
-package org.opensearch.rest.extensions;
+package org.opensearch.extensions.rest;
 
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestStatus;
-import org.opensearch.rest.extensions.ExtensionRestRequest;
 
 import java.util.List;
 

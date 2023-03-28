@@ -21,7 +21,6 @@ import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest.Method;
-import org.opensearch.rest.extensions.ExtensionRestRequest;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.charset.StandardCharsets;
