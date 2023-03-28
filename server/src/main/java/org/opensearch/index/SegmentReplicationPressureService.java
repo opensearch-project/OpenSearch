@@ -118,7 +118,7 @@ public class SegmentReplicationPressureService implements Closeable {
         this.maxAllowedStaleReplicas = MAX_ALLOWED_STALE_SHARDS.get(settings);
         clusterSettings.addSettingsUpdateConsumer(MAX_ALLOWED_STALE_SHARDS, this::setMaxAllowedStaleReplicas);
 
-        this.failStaleReplicaTask = new AsyncFailStaleReplicaTask(TimeValue.timeValueMillis(1));
+        this.failStaleReplicaTask = new AsyncFailStaleReplicaTask(TimeValue.timeValueSeconds(30));
     }
 
     public void isSegrepLimitBreached(ShardId shardId) {
