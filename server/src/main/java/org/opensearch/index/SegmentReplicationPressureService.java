@@ -10,18 +10,25 @@ package org.opensearch.index;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.action.ActionListener;
+import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.Set;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -29,7 +36,7 @@ import java.util.stream.Collectors;
  *
  * @opensearch.internal
  */
-public class SegmentReplicationPressureService {
+public class SegmentReplicationPressureService implements Closeable {
 
     private volatile boolean isSegmentReplicationBackpressureEnabled;
     private volatile int maxCheckpointsBehind;
@@ -70,12 +77,30 @@ public class SegmentReplicationPressureService {
     );
 
     private final IndicesService indicesService;
+
+    private final ThreadPool threadPool;
     private final SegmentReplicationStatsTracker tracker;
 
+    private final ShardStateAction shardStateAction;
+
+    public AsyncFailStaleReplicaTask getFailStaleReplicaTask() {
+        return failStaleReplicaTask;
+    }
+
+    private volatile AsyncFailStaleReplicaTask failStaleReplicaTask;
+
     @Inject
-    public SegmentReplicationPressureService(Settings settings, ClusterService clusterService, IndicesService indicesService) {
+    public SegmentReplicationPressureService(
+        Settings settings,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        ShardStateAction shardStateAction,
+        ThreadPool threadPool
+    ) {
         this.indicesService = indicesService;
         this.tracker = new SegmentReplicationStatsTracker(this.indicesService);
+        this.shardStateAction = shardStateAction;
+        this.threadPool = threadPool;
 
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         this.isSegmentReplicationBackpressureEnabled = SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED.get(settings);
@@ -92,6 +117,8 @@ public class SegmentReplicationPressureService {
 
         this.maxAllowedStaleReplicas = MAX_ALLOWED_STALE_SHARDS.get(settings);
         clusterSettings.addSettingsUpdateConsumer(MAX_ALLOWED_STALE_SHARDS, this::setMaxAllowedStaleReplicas);
+
+        this.failStaleReplicaTask = new AsyncFailStaleReplicaTask(TimeValue.timeValueMillis(1));
     }
 
     public void isSegrepLimitBreached(ShardId shardId) {
@@ -154,4 +181,68 @@ public class SegmentReplicationPressureService {
     public void setMaxReplicationTime(TimeValue maxReplicationTime) {
         this.maxReplicationTime = maxReplicationTime;
     }
+
+    @Override
+    public void close() throws IOException {
+        failStaleReplicaTask.close();
+    }
+
+    // Background Task to fail replica shards if they are too far behind primary shard.
+    final class AsyncFailStaleReplicaTask extends AbstractAsyncTask {
+
+        AsyncFailStaleReplicaTask(TimeValue interval) {
+            super(logger, threadPool, interval, true);
+            rescheduleIfNecessary();
+        }
+
+        @Override
+        protected boolean mustReschedule() {
+            return true;
+        }
+
+        @Override
+        protected void runInternal() {
+            final SegmentReplicationStats stats = tracker.getStats();
+            for (Map.Entry<ShardId, SegmentReplicationPerGroupStats> entry : stats.getShardStats().entrySet()) {
+                final Set<SegmentReplicationShardStats> staleReplicas = getStaleReplicas(entry.getValue().getReplicaStats());
+                final ShardId shardId = entry.getKey();
+                final IndexService indexService = indicesService.indexService(shardId.getIndex());
+                final IndexShard primaryShard = indexService.getShard(shardId.getId());
+                for (SegmentReplicationShardStats staleReplica : staleReplicas) {
+                    if (staleReplica.getCurrentReplicationTimeMillis() > 2 * maxReplicationTime.millis()) {
+                        shardStateAction.remoteShardFailed(
+                            shardId,
+                            staleReplica.getAllocationId(),
+                            primaryShard.getOperationPrimaryTerm(),
+                            true,
+                            "replica too far behind primary, marking as stale",
+                            null,
+                            new ActionListener<>() {
+                                @Override
+                                public void onResponse(Void unused) {
+                                    logger.trace(
+                                        "Successfully failed remote shardId [{}] allocation id [{}]",
+                                        shardId,
+                                        staleReplica.getAllocationId()
+                                    );
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    logger.error("Failed to send remote shard failure", e);
+                                }
+                            }
+                        );
+                    }
+                }
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "fail_stale_replica";
+        }
+
+    }
+
 }

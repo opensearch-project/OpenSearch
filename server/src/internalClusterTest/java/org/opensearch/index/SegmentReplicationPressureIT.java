@@ -16,6 +16,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.indices.replication.SegmentReplicationBaseIT;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestStatus;
@@ -28,6 +29,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Arrays.asList;
@@ -177,6 +179,46 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
         refresh(INDEX_NAME);
         waitForSearchableDocs(totalDocs.incrementAndGet(), replicaNodes.toArray(new String[] {}));
         verifyStoreContent();
+    }
+
+    public void testFailStaleReplica() throws Exception {
+
+        // Starts a primary and replica node.
+        final String primaryNode = internalCluster().startNode(
+            Settings.builder().put(MAX_REPLICATION_TIME_SETTING.getKey(), TimeValue.timeValueMillis(500)).build()
+        );
+        createIndex(INDEX_NAME);
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        final String replicaNode = internalCluster().startNode(
+            Settings.builder().put(MAX_REPLICATION_TIME_SETTING.getKey(), TimeValue.timeValueMillis(500)).build()
+        );
+        ensureGreen(INDEX_NAME);
+
+        final IndexShard primaryShard = getIndexShard(primaryNode, INDEX_NAME);
+        final List<String> replicaNodes = asList(replicaNode);
+        assertEqualSegmentInfosVersion(replicaNodes, primaryShard);
+        IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicInteger totalDocs = new AtomicInteger(0);
+        try (final Releasable ignored = blockReplication(replicaNodes, latch)) {
+            // Index docs until we replicas are staled.
+            Thread indexingThread = new Thread(() -> { totalDocs.getAndSet(indexUntilCheckpointCount()); });
+            indexingThread.start();
+            indexingThread.join();
+            latch.await();
+            // index again while we are stale.
+            indexDoc();
+            totalDocs.incrementAndGet();
+
+            // Verify that replica shard is closed.
+            assertBusy(() -> { assertTrue(replicaShard.state().equals(IndexShardState.CLOSED)); }, 1, TimeUnit.MINUTES);
+        }
+        ensureGreen(INDEX_NAME);
+        final IndexShard replicaAfterFailure = getIndexShard(replicaNode, INDEX_NAME);
+
+        // Verify that new replica shard after failure is different from old replica shard.
+        assertNotEquals(replicaAfterFailure.routingEntry().allocationId().getId(), replicaShard.routingEntry().allocationId().getId());
     }
 
     public void testBulkWritesRejected() throws Exception {
