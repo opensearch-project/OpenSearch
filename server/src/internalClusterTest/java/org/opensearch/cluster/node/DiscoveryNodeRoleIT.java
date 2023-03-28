@@ -46,7 +46,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.startsWith;
 import static org.opensearch.test.NodeRoles.addRoles;
+import static org.opensearch.test.NodeRoles.onlyRole;
 import static org.opensearch.test.NodeRoles.removeRoles;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -126,4 +128,18 @@ public class DiscoveryNodeRoleIT extends OpenSearchIntegTestCase {
         assertThat(response.getNodes().get(0).getNode().getRoles(), matcher);
     }
 
+    public void testStartNodeWithClusterManagerRoleAndMasterSetting() {
+        final Settings settings = Settings.builder()
+            .put("node.master", randomBoolean())
+            .put(onlyRole(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE))
+            .build();
+
+        final IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> DiscoveryNode.getRolesFromSettings(settings)
+        );
+        assertThat(e1.getMessage(), startsWith("can not explicitly configure node roles and use legacy role setting"));
+        final IllegalArgumentException e2 = expectThrows(IllegalArgumentException.class, () -> internalCluster().startNodes(settings));
+        assertThat(e2.getMessage(), startsWith("can not explicitly configure node roles and use legacy role setting"));
+    }
 }
