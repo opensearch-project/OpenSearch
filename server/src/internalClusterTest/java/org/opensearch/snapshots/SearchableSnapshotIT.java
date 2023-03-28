@@ -35,14 +35,10 @@ import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.repositories.fs.FsRepository;
 
-import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -559,22 +555,15 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         // The local cache files should be closed by deleting the restored index
         deleteIndicesAndEnsureGreen(client, restoredIndexName);
 
-        logger.info("--> validate all the cache files are closed");
+        logger.info("--> validate cache file path is deleted");
         // Get path of cache files
         final NodeEnvironment nodeEnv = internalCluster().getInstance(NodeEnvironment.class);
         Path fileCachePath = nodeEnv.fileCacheNodePath().fileCachePath;
-        // Find all the files in the path
-        try (Stream<Path> paths = Files.walk(fileCachePath)) {
-            paths.filter(Files::isRegularFile).forEach(path -> {
-                // Testing moving the file to check the file is closed or not.
-                try {
-                    Files.move(path, path, StandardCopyOption.REPLACE_EXISTING);
-                } catch (IOException e) {
-                    fail("No exception is expected. The file can't be moved, so it may not be closed.");
-                }
-            });
-        } catch (NoSuchFileException e) {
-            logger.debug("--> the path for the cache files doesn't exist");
+
+        if (Files.exists(fileCachePath)) {
+            fail("Cache file path isn't deleted.");
+        } else {
+            logger.info("--> validated that the cache file path doesn't exist");
         }
     }
 }
