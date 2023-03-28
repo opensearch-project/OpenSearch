@@ -48,7 +48,6 @@ import org.opensearch.common.blobstore.BlobStoreException;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.repositories.s3.async.AsyncExecutorBuilder;
 import org.opensearch.repositories.s3.async.AsyncUploadUtils;
-import org.opensearch.repositories.s3.multipart.transfer.MultipartTransferManager;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -79,8 +78,6 @@ class S3BlobStore implements BlobStore {
     private final RepositoryMetadata repositoryMetadata;
 
     private final Stats stats = new Stats();
-
-    private final MultipartTransferManager multipartTransferManager;
 
     final RequestMetricCollector getMetricCollector;
     final RequestMetricCollector listMetricCollector;
@@ -142,7 +139,6 @@ class S3BlobStore implements BlobStore {
                 stats.postCount.addAndGet(getRequestCount(request));
             }
         };
-        this.multipartTransferManager = null;
         this.normalExecutorBuilder = normalExecutorBuilder;
         this.priorityExecutorBuilder = priorityExecutorBuilder;
     }
@@ -202,9 +198,6 @@ class S3BlobStore implements BlobStore {
         if (s3AsyncService != null) {
             this.s3AsyncService.close();
         }
-        if (multipartTransferManager != null) {
-            this.multipartTransferManager.close();
-        }
     }
 
     @Override
@@ -252,10 +245,6 @@ class S3BlobStore implements BlobStore {
         }
 
         throw new BlobStoreException("cannedACL is not valid: [" + cannedACL + "]");
-    }
-
-    public MultipartTransferManager getMultipartTransferManager() {
-        return multipartTransferManager;
     }
 
     public AsyncUploadUtils getAsyncUploadUtils() {
