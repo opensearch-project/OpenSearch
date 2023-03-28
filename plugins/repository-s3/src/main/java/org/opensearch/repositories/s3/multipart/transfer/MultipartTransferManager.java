@@ -106,7 +106,7 @@ public class MultipartTransferManager extends TransferManager implements Closeab
          * multiple parallel uploads submitted. This may result in a delay for
          * processing the complete multi part upload request.
          */
-        Stream[] uploadStreams = streamContext.getStreamSuppliers().stream().map(Supplier::get).toArray(Stream[]::new);
+        Stream[] uploadStreams = null;
         ExecutorService executorService = WritePriority.HIGH == writePriority ? priorityRemoteUploadExecutor :
             remoteUploadExecutor;
         UploadCallable uploadCallable = new UploadCallable(this, executorService,

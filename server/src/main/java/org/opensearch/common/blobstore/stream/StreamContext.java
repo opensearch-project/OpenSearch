@@ -8,10 +8,7 @@
 
 package org.opensearch.common.blobstore.stream;
 
-import org.opensearch.common.Stream;
-
-import java.util.List;
-import java.util.function.Supplier;
+import org.opensearch.common.StreamIterable;
 
 /**
  * ABCDE
@@ -20,18 +17,20 @@ import java.util.function.Supplier;
  */
 public class StreamContext {
 
-    private final List<Supplier<Stream>> streamSuppliers;
+    private final StreamIterable streamIterable;
     private final long totalContentLength;
+    private final int numberOfParts;
 
     /**
      * ABCDE
      *
-     * @param streamSuppliers
+     * @param streamIterable
      * @param totalContentLength
      */
-    public StreamContext(List<Supplier<Stream>> streamSuppliers, long totalContentLength) {
-        this.streamSuppliers = streamSuppliers;
+    public StreamContext(StreamIterable streamIterable, long totalContentLength, int numberOfParts) {
+        this.streamIterable = streamIterable;
         this.totalContentLength = totalContentLength;
+        this.numberOfParts = numberOfParts;
     }
 
     /**
@@ -39,8 +38,8 @@ public class StreamContext {
      *
      * @return
      */
-    public List<Supplier<Stream>> getStreamSuppliers() {
-        return streamSuppliers;
+    public StreamIterable getStreamIterable() {
+        return streamIterable;
     }
 
     /**
@@ -50,5 +49,9 @@ public class StreamContext {
      */
     public long getTotalContentLength() {
         return totalContentLength;
+    }
+
+    public int getNumberOfParts() {
+        return numberOfParts;
     }
 }

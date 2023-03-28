@@ -15,6 +15,8 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.Stream;
+import org.opensearch.common.StreamIterable;
+import org.opensearch.common.TransferPartStreamSupplier;
 import org.opensearch.common.blobstore.stream.StreamContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
@@ -26,11 +28,7 @@ import java.io.InputStream;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
-import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
@@ -126,24 +124,25 @@ public class RemoteTransferContainer implements Closeable {
             contentLength, partSize, lastPartSize, numberOfParts, localFileName);
         CheckedInputStream[] streams = new CheckedInputStream[numberOfParts];
         inputStreams.set(streams);
-        List<Supplier<Stream>> streamSuppliers = new ArrayList<>();
-        for (int partNo = 0; partNo < numberOfParts; partNo++) {
-            long position = partSize * partNo;
-            long size = partNo == numberOfParts - 1 ? lastPartSize : partSize;
-            if (localFile != null) {
-                streamSuppliers.add(getMultiPartStreamSupplierForFile(partNo, size, position));
-            } else {
-                streamSuppliers.add(getMultiPartStreamSupplierForIndexInput(partNo, size, position));
-            }
-        }
 
         return new StreamContext(
-            streamSuppliers,
-            contentLength
+            new StreamIterable(getTransferPartStreamSupplier(), partSize, lastPartSize, numberOfParts),
+            contentLength,
+            numberOfParts
         );
     }
 
-    private Supplier<Stream> getMultiPartStreamSupplierForFile(final int partNo, final long size,
+    private TransferPartStreamSupplier getTransferPartStreamSupplier() {
+        return ((partNo, size, position) -> {
+            if (localFile != null) {
+                return getMultiPartStreamSupplierForFile(partNo, size, position).get();
+            } else {
+                return getMultiPartStreamSupplierForIndexInput(partNo, size, position).get();
+            }
+        });
+    }
+
+    private Supplier<Stream> getMultiPartStreamSupplierForFile(final int streamIdx, final long size,
                                                                final long position) {
         return () -> {
             OffsetRangeFileInputStream offsetRangeInputStream;
@@ -152,22 +151,21 @@ public class RemoteTransferContainer implements Closeable {
                     throw new IllegalArgumentException("InputStream parts not yet defined.");
                 }
                 offsetRangeInputStream = new OffsetRangeFileInputStream(localFile, size, position);
-                // TODO: Move this code of maintaining and closing streams in plugin
-                Objects.requireNonNull(inputStreams.get())[partNo] = new CheckedInputStream(offsetRangeInputStream,
+                Objects.requireNonNull(inputStreams.get())[streamIdx] = new CheckedInputStream(offsetRangeInputStream,
                     new CRC32());
             } catch (IOException e) {
                 log.error("Failed to create input stream", e);
                 return null;
             }
-            return new Stream(offsetRangeInputStream, size, position, checksumProvider(partNo));
+            return new Stream(offsetRangeInputStream, size, position, checksumProvider(streamIdx));
         };
     }
 
-    public Supplier<Long> checksumProvider(int partNumber) {
-        return () -> inputStreams.get()[partNumber].getChecksum().getValue();
+    public Supplier<Long> checksumProvider(int streamIdx) {
+        return () -> Objects.requireNonNull(inputStreams.get())[streamIdx].getChecksum().getValue();
     }
 
-    private Supplier<Stream> getMultiPartStreamSupplierForIndexInput(final int partNo, final long size,
+    private Supplier<Stream> getMultiPartStreamSupplierForIndexInput(final int streamIdx, final long size,
                                                                      final long position) {
         return () -> {
             OffsetRangeIndexInputStream offsetRangeInputStream;
@@ -177,14 +175,13 @@ public class RemoteTransferContainer implements Closeable {
                 }
                 IndexInput indexInput = directory.openInput(localFileName, ioContext);
                 offsetRangeInputStream = new OffsetRangeIndexInputStream(indexInput, size, position);
-                // TODO: Move this code of maintaining and closing streams in plugin
-                Objects.requireNonNull(inputStreams.get())[partNo] = new CheckedInputStream(offsetRangeInputStream,
+                Objects.requireNonNull(inputStreams.get())[streamIdx] = new CheckedInputStream(offsetRangeInputStream,
                     new CRC32());
             } catch (IOException e) {
                 log.error("Failed to create input stream", e);
                 return null;
             }
-            return new Stream(offsetRangeInputStream, size, position, checksumProvider(partNo));
+            return new Stream(offsetRangeInputStream, size, position, checksumProvider(streamIdx));
         };
     }
 
@@ -223,7 +220,7 @@ public class RemoteTransferContainer implements Closeable {
         }
 
         boolean closeStreamException = false;
-        for (InputStream is : inputStreams.get()) {
+        for (InputStream is : Objects.requireNonNull(inputStreams.get())) {
             try {
                 if (is != null) {
                     is.close();

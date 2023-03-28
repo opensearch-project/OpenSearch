@@ -80,6 +80,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -177,15 +178,14 @@ class S3BlobContainer extends AbstractBlobContainer {
         try {
             long partSize = blobStore.getAsyncUploadUtils().calculateOptimalPartSize(writeContext.getFileSize());
             StreamContext streamContext = SocketAccess.doPrivileged(() -> writeContext.getStreamContext(partSize));
-            List<Stream> uploadStreams = streamContext.getStreamSuppliers().stream().map(Supplier::get)
-                .collect(Collectors.toList());
+            Iterator<Stream> streamIterator = streamContext.getStreamIterable().iterator();
             try(AmazonAsyncS3Reference amazonS3Reference = SocketAccess.doPrivileged(blobStore::asyncClientReference)){
 
                 S3AsyncClient s3AsyncClient = writeContext.getWritePriority() == WritePriority.HIGH ?
                     amazonS3Reference.get().priorityClient() : amazonS3Reference.get().client();
                 CompletableFuture<UploadResponse> returnFuture = new CompletableFuture<>();
                 CompletableFuture<UploadResponse> completableFuture = blobStore.getAsyncUploadUtils()
-                    .uploadObject(s3AsyncClient, uploadRequest, uploadStreams);
+                    .uploadObject(s3AsyncClient, uploadRequest, streamContext);
 
                 CompletableFutureUtils.forwardExceptionTo(returnFuture, completableFuture);
                 CompletableFutureUtils.forwardResultTo(completableFuture, returnFuture);
@@ -225,11 +225,11 @@ class S3BlobContainer extends AbstractBlobContainer {
         boolean uploadSuccess = false;
         try {
             StreamContext streamContext = SocketAccess.doPrivileged(() -> writeContext.getStreamContext(partSize));
-            if (streamContext.getStreamSuppliers().size() != nbParts) {
-                logger.warn("For {} parts {} stream suppliers were supplied in s3 upload. " +
-                        "For efficient/successful upload, both should be equal",
-                    nbParts, streamContext.getStreamSuppliers().size());
-            }
+//            if (streamContext.getStreamSuppliers().size() != nbParts) {
+//                logger.warn("For {} parts {} stream suppliers were supplied in s3 upload. " +
+//                        "For efficient/successful upload, both should be equal",
+//                    nbParts, streamContext.getStreamSuppliers().size());
+//            }
 
             Upload upload = blobStore.getMultipartTransferManager().upload(
                 blobStore.bucket(),
