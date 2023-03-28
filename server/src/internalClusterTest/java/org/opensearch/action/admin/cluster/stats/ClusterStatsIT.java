@@ -400,6 +400,7 @@ public class ClusterStatsIT extends OpenSearchIntegTestCase {
 
         // can't start data-only node without assigning cluster-manager
         internalCluster().startClusterManagerOnlyNodes(1);
+        waitForNodes(1);
         internalCluster().startNodes(legacyDataNodeSettings);
         waitForNodes(total);
 
