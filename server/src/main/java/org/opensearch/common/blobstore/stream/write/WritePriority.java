@@ -8,6 +8,9 @@
 
 package org.opensearch.common.blobstore.stream.write;
 
+/**
+ * WritePriority for upload
+ */
 public enum WritePriority {
     NORMAL,
     HIGH

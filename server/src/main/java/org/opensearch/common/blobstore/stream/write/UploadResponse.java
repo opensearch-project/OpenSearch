@@ -8,14 +8,25 @@
 
 package org.opensearch.common.blobstore.stream.write;
 
+/**
+ * Response object for uploads using <code>BlobContainer#writeBlobByStreams</code>
+ */
 public class UploadResponse {
 
     private final String checksum;
 
+    /**
+     * Construct a new UploadResponse object
+     *
+     * @param checksum Checksum of uploaded object
+     */
     public UploadResponse(String checksum) {
         this.checksum = checksum;
     }
 
+    /**
+     * @return Checksum of UploadResponse object
+     */
     public String getChecksum() {
         return checksum;
     }

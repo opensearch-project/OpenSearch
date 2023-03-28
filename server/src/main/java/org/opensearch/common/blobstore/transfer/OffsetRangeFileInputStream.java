@@ -15,6 +15,9 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 
+/**
+ * OffsetRangeFileInputStream extends InputStream to read from a specified offset using FileChannel
+ */
 public class OffsetRangeFileInputStream extends InputStream {
     private final InputStream inputStream;
     private final FileChannel fileChannel;
@@ -29,6 +32,14 @@ public class OffsetRangeFileInputStream extends InputStream {
     private long markPointer;
     private long markCounter;
 
+    /**
+     * Construct a new OffsetRangeFileInputStream object
+     *
+     * @param path Path to the file
+     * @param size Number of bytes that need to be read from specified <code>position</code>
+     * @param position Position from where the read needs to start
+     * @throws IOException When <code>FileChannel#position</code> operation fails
+     */
     public OffsetRangeFileInputStream(Path path, long size, long position) throws IOException {
         fileChannel = FileChannel.open(path, StandardOpenOption.READ);
         fileChannel.position(position);

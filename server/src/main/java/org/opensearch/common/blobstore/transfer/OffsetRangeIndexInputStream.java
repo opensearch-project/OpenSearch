@@ -14,11 +14,22 @@ import org.opensearch.common.lucene.store.InputStreamIndexInput;
 import java.io.IOException;
 import java.io.InputStream;
 
+/**
+ * OffsetRangeIndexInputStream extends InputStream to read from a specified offset using IndexInput
+ */
 public class OffsetRangeIndexInputStream extends InputStream {
 
     private final InputStreamIndexInput inputStreamIndexInput;
     private final IndexInput indexInput;
 
+    /**
+     * Construct a new OffsetRangeIndexInputStream object
+     *
+     * @param indexInput IndexInput opened on the file to read from
+     * @param maxLen The maximum length to read from specified <code>position</code>
+     * @param position Position from where read needs to start
+     * @throws IOException When <code>IndexInput#seek</code> operation fails
+     */
     public OffsetRangeIndexInputStream(IndexInput indexInput, long maxLen, long position) throws IOException {
         indexInput.seek(position);
         this.indexInput = indexInput;
