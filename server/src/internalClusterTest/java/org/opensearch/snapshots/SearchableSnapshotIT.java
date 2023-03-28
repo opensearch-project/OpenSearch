@@ -559,28 +559,13 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         // The local cache files should be closed by deleting the restored index
         deleteIndicesAndEnsureGreen(client, restoredIndexName);
 
-        logger.info("--> validate all the cache files are closed or cache file path is deleted");
+        logger.info("--> validate cache file path is deleted");
         // Get path of cache files
         final NodeEnvironment nodeEnv = internalCluster().getInstance(NodeEnvironment.class);
         Path fileCachePath = nodeEnv.fileCacheNodePath().fileCachePath;
 
         if (Files.exists(fileCachePath)) {
-            logger.info("--> cache file path exists");
-            logger.info("--> validate all the cache files are closed");
-            // Find all the files in the path
-            try (Stream<Path> paths = Files.walk(fileCachePath)) {
-                paths.filter(Files::isRegularFile).forEach(path -> {
-                    logger.info("path " + path);
-                    // Testing moving the file to check the file is closed or not.
-                    try {
-                        Files.move(path, path, StandardCopyOption.REPLACE_EXISTING);
-                    } catch (IOException e) {
-                        fail("No exception is expected. The file can't be moved, so it may not be closed.");
-                    }
-                });
-            } catch (NoSuchFileException e) {
-                logger.debug("--> the path for the cache files doesn't exist");
-            }
+            fail("Cache file path isn't deleted.");
         } else {
             logger.info("--> validated that the cache file path doesn't exist");
         }
