@@ -91,10 +91,9 @@ public class MultiTermsAggregationBuilderTests extends BaseAggregationTestCase<M
     }
 
     public void testInvalidTermsParams() {
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> { new MultiTermsAggregationBuilder("_name").terms(Collections.singletonList(randomFieldConfig())); }
-        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> {
+            new MultiTermsAggregationBuilder("_name").terms(Collections.singletonList(randomFieldConfig()));
+        });
         assertEquals(
             "multi term aggregation must has at least 2 terms. Found [1] in [_name] Use terms aggregation for single term aggregation",
             exception.getMessage()

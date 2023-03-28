@@ -86,7 +86,9 @@ public class JoinHelperTests extends OpenSearchTestCase {
             transportService,
             () -> 0L,
             () -> null,
-            (joinRequest, joinCallback) -> { throw new AssertionError(); },
+            (joinRequest, joinCallback) -> {
+                throw new AssertionError();
+            },
             startJoinRequest -> { throw new AssertionError(); },
             Collections.emptyList(),
             (s, p, r) -> {},
@@ -220,20 +222,11 @@ public class JoinHelperTests extends OpenSearchTestCase {
             null,
             Collections.emptySet()
         );
-        new JoinHelper(
-            Settings.EMPTY,
-            null,
-            null,
-            transportService,
-            () -> 0L,
-            () -> localClusterState,
-            (joinRequest, joinCallback) -> { throw new AssertionError(); },
-            startJoinRequest -> { throw new AssertionError(); },
-            Collections.emptyList(),
-            (s, p, r) -> {},
-            null,
-            nodeCommissioned -> {}
-        ); // registers request handler
+        new JoinHelper(Settings.EMPTY, null, null, transportService, () -> 0L, () -> localClusterState, (joinRequest, joinCallback) -> {
+            throw new AssertionError();
+        }, startJoinRequest -> { throw new AssertionError(); }, Collections.emptyList(), (s, p, r) -> {}, null, nodeCommissioned -> {}); // registers
+                                                                                                                                         // request
+                                                                                                                                         // handler
         transportService.start();
         transportService.acceptIncomingRequests();
 
@@ -282,7 +275,9 @@ public class JoinHelperTests extends OpenSearchTestCase {
             transportService,
             () -> 0L,
             () -> null,
-            (joinRequest, joinCallback) -> { throw new AssertionError(); },
+            (joinRequest, joinCallback) -> {
+                throw new AssertionError();
+            },
             startJoinRequest -> { throw new AssertionError(); },
             Collections.emptyList(),
             (s, p, r) -> {},

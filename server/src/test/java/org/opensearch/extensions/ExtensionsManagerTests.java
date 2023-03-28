@@ -15,6 +15,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.mock;
@@ -40,6 +41,7 @@ import org.apache.logging.log4j.LogManager;
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.Version;
+import org.opensearch.action.ActionModule;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
@@ -94,6 +96,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
     private FeatureFlagSetter featureFlagSetter;
     private TransportService transportService;
+    private ActionModule actionModule;
     private RestController restController;
     private SettingsModule settingsModule;
     private ClusterService clusterService;
@@ -157,6 +160,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             null,
             Collections.emptySet()
         );
+        actionModule = mock(ActionModule.class);
         restController = new RestController(
             emptySet(),
             null,
@@ -164,6 +168,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             new NoneCircuitBreakerService(),
             new UsageService()
         );
+        when(actionModule.getRestController()).thenReturn(restController);
         settingsModule = new SettingsModule(Settings.EMPTY, emptyList(), emptyList(), emptySet());
         clusterService = createClusterService(threadPool);
 
@@ -732,7 +737,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             )
         );
         extensionsManager.initializeServicesAndRestHandler(
-            restController,
+            actionModule,
             settingsModule,
             mockTransportService,
             clusterService,
@@ -812,7 +817,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
         extensionsManager.initializeServicesAndRestHandler(
-            restController,
+            actionModule,
             settingsModule,
             transportService,
             clusterService,

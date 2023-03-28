@@ -89,7 +89,9 @@ public class CompositeAggregatorTests extends BaseCompositeAggregatorTestCase {
             Arrays.asList(new MatchAllDocsQuery(), new DocValuesFieldExistsQuery("keyword")),
             dataset,
             () -> new CompositeAggregationBuilder("name", Arrays.asList(new TermsValuesSourceBuilder("unmapped").field("unmapped"))),
-            (result) -> { assertEquals(0, result.getBuckets().size()); }
+            (result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         testSearchCase(
@@ -114,7 +116,9 @@ public class CompositeAggregatorTests extends BaseCompositeAggregatorTestCase {
                 "name",
                 Arrays.asList(new TermsValuesSourceBuilder("unmapped").field("unmapped").missingBucket(true))
             ).aggregateAfter(Collections.singletonMap("unmapped", null)),
-            (result) -> { assertEquals(0, result.getBuckets().size()); }
+            (result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         testSearchCase(
@@ -127,7 +131,9 @@ public class CompositeAggregatorTests extends BaseCompositeAggregatorTestCase {
                     new TermsValuesSourceBuilder("unmapped").field("unmapped")
                 )
             ),
-            (result) -> { assertEquals(0, result.getBuckets().size()); }
+            (result) -> {
+                assertEquals(0, result.getBuckets().size());
+            }
         );
 
         testSearchCase(

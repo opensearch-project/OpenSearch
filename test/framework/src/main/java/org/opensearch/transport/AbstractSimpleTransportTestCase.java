@@ -2108,7 +2108,9 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             "internal:action1",
             randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
             TestRequest::new,
-            (request, message, task) -> { throw new AssertionError("boom"); }
+            (request, message, task) -> {
+                throw new AssertionError("boom");
+            }
         );
         expectThrows(
             IllegalArgumentException.class,
@@ -2116,7 +2118,9 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 "internal:action1",
                 randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
                 TestRequest::new,
-                (request, message, task) -> { throw new AssertionError("boom"); }
+                (request, message, task) -> {
+                    throw new AssertionError("boom");
+                }
             )
         );
 
@@ -2124,7 +2128,9 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             "internal:action1",
             randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
             TestRequest::new,
-            (request, message, task) -> { throw new AssertionError("boom"); }
+            (request, message, task) -> {
+                throw new AssertionError("boom");
+            }
         );
     }
 

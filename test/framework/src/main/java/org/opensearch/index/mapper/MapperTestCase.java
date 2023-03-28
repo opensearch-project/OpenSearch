@@ -274,7 +274,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }));
         String type = typeName();
         String[] warnings = new String[] {
-            "Parameter [boost] on field [field] is deprecated and will be removed in 8.0",
+            "Parameter [boost] on field [field] is deprecated and will be removed in 3.0",
             "Parameter [boost] has no effect on type [" + type + "] and will be removed in future" };
         allowedWarnings(warnings);
     }
@@ -286,22 +286,22 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         throws IOException {
 
         BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup = (mft, lookupSource) -> mft
-            .fielddataBuilder("test", () -> { throw new UnsupportedOperationException(); })
+            .fielddataBuilder("test", () -> {
+                throw new UnsupportedOperationException();
+            })
             .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
         SetOnce<List<?>> result = new SetOnce<>();
-        withLuceneIndex(
-            mapperService,
-            iw -> { iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc()); },
-            iw -> {
-                SearchLookup lookup = new SearchLookup(mapperService, fieldDataLookup);
-                ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.doc().getForField(ft));
-                IndexSearcher searcher = newSearcher(iw);
-                LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
-                lookup.source().setSegmentAndDocument(context, 0);
-                valueFetcher.setNextReader(context);
-                result.set(valueFetcher.fetchValues(lookup.source()));
-            }
-        );
+        withLuceneIndex(mapperService, iw -> {
+            iw.addDocument(mapperService.documentMapper().parse(source(b -> b.field(ft.name(), sourceValue))).rootDoc());
+        }, iw -> {
+            SearchLookup lookup = new SearchLookup(mapperService, fieldDataLookup);
+            ValueFetcher valueFetcher = new DocValueFetcher(format, lookup.doc().getForField(ft));
+            IndexSearcher searcher = newSearcher(iw);
+            LeafReaderContext context = searcher.getIndexReader().leaves().get(0);
+            lookup.source().setSegmentAndDocument(context, 0);
+            valueFetcher.setNextReader(context);
+            result.set(valueFetcher.fetchValues(lookup.source()));
+        });
         return result.get();
     }
 

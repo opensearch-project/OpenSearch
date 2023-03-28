@@ -510,14 +510,12 @@ public class TasksIT extends OpenSearchIntegTestCase {
             if (index != null) {
                 index.join();
             }
-            assertBusy(
-                () -> {
-                    assertEquals(
-                        emptyList(),
-                        client().admin().cluster().prepareListTasks().setActions("indices:data/write/index*").get().getTasks()
-                    );
-                }
-            );
+            assertBusy(() -> {
+                assertEquals(
+                    emptyList(),
+                    client().admin().cluster().prepareListTasks().setActions("indices:data/write/index*").get().getTasks()
+                );
+            });
         }
     }
 

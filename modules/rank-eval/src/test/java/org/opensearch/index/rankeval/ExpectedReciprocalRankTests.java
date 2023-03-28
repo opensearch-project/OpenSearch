@@ -213,11 +213,9 @@ public class ExpectedReciprocalRankTests extends OpenSearchTestCase {
     }
 
     public void testEqualsAndHash() throws IOException {
-        checkEqualsAndHashCode(
-            createTestItem(),
-            original -> { return new ExpectedReciprocalRank(original.getMaxRelevance(), original.getUnknownDocRating(), original.getK()); },
-            ExpectedReciprocalRankTests::mutateTestItem
-        );
+        checkEqualsAndHashCode(createTestItem(), original -> {
+            return new ExpectedReciprocalRank(original.getMaxRelevance(), original.getUnknownDocRating(), original.getK());
+        }, ExpectedReciprocalRankTests::mutateTestItem);
     }
 
     private static ExpectedReciprocalRank mutateTestItem(ExpectedReciprocalRank original) {
