@@ -276,7 +276,7 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
         @Override
         public boolean isEnabledByDefault(final Settings settings) {
-            return !Booleans.isBoolean(settings.get("node.master"));
+            return Booleans.isBoolean(settings.get("node.master")) == false;
         }
     };
 
