@@ -37,6 +37,7 @@ import com.fasterxml.jackson.dataformat.smile.SmileConstants;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayInputStream;

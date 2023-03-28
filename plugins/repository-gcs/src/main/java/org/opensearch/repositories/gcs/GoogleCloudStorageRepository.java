@@ -41,7 +41,7 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;

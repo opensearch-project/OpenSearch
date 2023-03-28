@@ -32,12 +32,12 @@
 
 package org.opensearch.search.aggregations;
 
-import org.opensearch.common.xcontent.AbstractObjectParser;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParser.Token;
+import org.opensearch.core.xcontent.AbstractObjectParser;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.Collections;

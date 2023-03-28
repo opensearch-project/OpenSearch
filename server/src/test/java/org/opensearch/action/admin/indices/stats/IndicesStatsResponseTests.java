@@ -36,7 +36,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;

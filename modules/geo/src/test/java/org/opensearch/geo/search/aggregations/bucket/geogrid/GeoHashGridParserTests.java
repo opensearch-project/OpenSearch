@@ -37,8 +37,8 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 import org.opensearch.common.unit.DistanceUnit;
-import org.opensearch.common.xcontent.XContentParseException;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParseException;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.geo.GeometryTestUtils;
 import org.opensearch.geometry.Rectangle;

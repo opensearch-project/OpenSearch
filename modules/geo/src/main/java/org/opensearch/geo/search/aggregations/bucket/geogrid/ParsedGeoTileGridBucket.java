@@ -33,7 +33,7 @@
 package org.opensearch.geo.search.aggregations.bucket.geogrid;
 
 import org.opensearch.common.geo.GeoPoint;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.aggregations.bucket.GeoTileUtils;
 
 import java.io.IOException;

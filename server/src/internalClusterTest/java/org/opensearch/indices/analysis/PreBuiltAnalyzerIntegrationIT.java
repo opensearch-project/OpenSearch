@@ -36,7 +36,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.opensearch.Version;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;

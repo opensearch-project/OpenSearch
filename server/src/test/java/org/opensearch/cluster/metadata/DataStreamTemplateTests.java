@@ -13,7 +13,7 @@ import org.opensearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplat
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
 import org.opensearch.test.VersionUtils;
 

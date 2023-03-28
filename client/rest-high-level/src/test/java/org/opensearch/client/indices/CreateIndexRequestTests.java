@@ -33,7 +33,7 @@
 package org.opensearch.client.indices;
 
 import org.opensearch.action.admin.indices.alias.Alias;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;

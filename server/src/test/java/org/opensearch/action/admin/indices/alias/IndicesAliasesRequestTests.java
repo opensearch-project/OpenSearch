@@ -34,8 +34,8 @@ package org.opensearch.action.admin.indices.alias;
 
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 

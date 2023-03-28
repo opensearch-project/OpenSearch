@@ -37,7 +37,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.index.mapper.ObjectMapper;
 import org.opensearch.search.aggregations.Aggregator;

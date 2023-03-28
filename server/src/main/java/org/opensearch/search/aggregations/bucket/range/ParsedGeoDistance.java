@@ -32,8 +32,8 @@
 
 package org.opensearch.search.aggregations.bucket.range;
 
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 

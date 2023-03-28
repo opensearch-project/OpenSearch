@@ -42,6 +42,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.RandomCreateIndexGenerator;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
@@ -51,7 +52,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
-import static org.opensearch.common.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.opensearch.core.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasToString;
 

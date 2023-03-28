@@ -32,7 +32,7 @@
 package org.opensearch.client.tasks;
 
 import org.opensearch.client.AbstractResponseTestCase;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;

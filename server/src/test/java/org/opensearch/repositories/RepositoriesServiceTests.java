@@ -54,7 +54,7 @@ import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.component.Lifecycle;
 import org.opensearch.common.component.LifecycleListener;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;

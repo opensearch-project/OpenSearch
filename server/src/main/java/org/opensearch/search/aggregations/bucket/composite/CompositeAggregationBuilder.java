@@ -32,12 +32,12 @@
 
 package org.opensearch.search.aggregations.bucket.composite;
 
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.plugins.SearchPlugin;
 import org.opensearch.search.aggregations.AbstractAggregationBuilder;
@@ -58,7 +58,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static org.opensearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * Aggregation Builder for composite agg

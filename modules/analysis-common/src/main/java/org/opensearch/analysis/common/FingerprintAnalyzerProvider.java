@@ -34,7 +34,7 @@ package org.opensearch.analysis.common;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;

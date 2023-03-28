@@ -41,7 +41,7 @@ import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.tasks.Task;

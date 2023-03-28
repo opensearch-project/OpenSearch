@@ -40,7 +40,7 @@ import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.DistanceUnit;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.geometry.utils.Geohash;
 import org.opensearch.index.fielddata.ScriptDocValues;

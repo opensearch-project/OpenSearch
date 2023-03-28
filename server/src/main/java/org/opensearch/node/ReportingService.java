@@ -33,7 +33,7 @@
 package org.opensearch.node;
 
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContent;
 
 /**
  * Node reporting service

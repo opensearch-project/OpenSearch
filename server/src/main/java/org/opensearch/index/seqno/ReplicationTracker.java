@@ -50,7 +50,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.WriteStateException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.SegmentReplicationShardStats;

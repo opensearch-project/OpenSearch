@@ -32,7 +32,7 @@
 
 package org.opensearch.common.geo.builders;
 
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.geo.GeoShapeType;
 import org.opensearch.common.geo.parsers.ShapeParser;
 import org.locationtech.spatial4j.shape.Circle;
@@ -42,7 +42,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.DistanceUnit;
 import org.opensearch.common.unit.DistanceUnit.Distance;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;

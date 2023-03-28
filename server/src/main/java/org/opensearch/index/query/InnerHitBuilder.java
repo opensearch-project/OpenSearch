@@ -33,17 +33,17 @@ package org.opensearch.index.query;
 
 import org.opensearch.LegacyESVersion;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.script.Script;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder.ScriptField;
@@ -63,7 +63,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.opensearch.common.xcontent.XContentParser.Token.END_OBJECT;
+import static org.opensearch.core.xcontent.XContentParser.Token.END_OBJECT;
 
 /**
  * Query builder for inner hits

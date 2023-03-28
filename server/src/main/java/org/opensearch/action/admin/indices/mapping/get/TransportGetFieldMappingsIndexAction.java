@@ -47,7 +47,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.regex.Regex;
-import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexService;

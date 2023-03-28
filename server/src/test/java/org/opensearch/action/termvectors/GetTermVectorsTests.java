@@ -48,7 +48,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.analysis.PreConfiguredTokenizer;
 import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.indices.analysis.AnalysisModule;

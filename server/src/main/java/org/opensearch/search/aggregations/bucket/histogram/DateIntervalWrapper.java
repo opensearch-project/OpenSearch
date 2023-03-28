@@ -32,8 +32,8 @@
 
 package org.opensearch.search.aggregations.bucket.histogram;
 
+import org.opensearch.core.ParseField;
 import org.opensearch.LegacyESVersion;
-import org.opensearch.common.ParseField;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.Rounding.DateTimeUnit;
 import org.opensearch.common.Strings;
@@ -42,10 +42,10 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneId;

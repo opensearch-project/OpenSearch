@@ -36,7 +36,7 @@ import org.opensearch.LegacyESVersion;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.util.CollectionUtils;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptedMetricAggContexts;
 import org.opensearch.search.aggregations.InternalAggregation;

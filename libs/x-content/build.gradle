@@ -48,6 +48,7 @@ dependencies {
   testImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'opensearch-x-content'
   }
+  testImplementation(project(":libs:opensearch-core"))
 
 }
 

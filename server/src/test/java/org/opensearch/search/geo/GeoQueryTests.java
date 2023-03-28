@@ -42,7 +42,7 @@ import org.opensearch.common.geo.builders.EnvelopeBuilder;
 import org.opensearch.common.geo.builders.GeometryCollectionBuilder;
 import org.opensearch.common.geo.builders.MultiPolygonBuilder;
 import org.opensearch.common.geo.builders.PolygonBuilder;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.geometry.Geometry;

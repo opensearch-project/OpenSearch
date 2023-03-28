@@ -35,11 +35,11 @@ import org.opensearch.cluster.DiffableUtils;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.DeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.AbstractSerializingTestCase;
 
@@ -130,11 +130,13 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
             .endObject()
             .endObject()
             .endObject();
-        builder.storeScript("source_template", StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), sourceBuilder.contentType()));
+        XContentType xContentType = XContentType.fromMediaType(sourceBuilder.contentType());
+        builder.storeScript("source_template", StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), xContentType));
 
         sourceBuilder = XContentFactory.jsonBuilder();
+        xContentType = XContentType.fromMediaType(sourceBuilder.contentType());
         sourceBuilder.startObject().startObject("script").field("lang", "_lang").field("source", "_source").endObject().endObject();
-        builder.storeScript("script", StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), sourceBuilder.contentType()));
+        builder.storeScript("script", StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), xContentType));
 
         ScriptMetadata scriptMetadata = builder.build();
         assertEquals("_source", scriptMetadata.getStoredScript("script").getSource());
@@ -301,7 +303,7 @@ public class ScriptMetadataTests extends AbstractSerializingTestCase<ScriptMetad
                 .endObject();
             builder.storeScript(
                 randomAlphaOfLength(i + 1),
-                StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), sourceBuilder.contentType())
+                StoredScriptSource.parse(BytesReference.bytes(sourceBuilder), XContentType.fromMediaType(sourceBuilder.contentType()))
             );
         }
         return builder.build();
