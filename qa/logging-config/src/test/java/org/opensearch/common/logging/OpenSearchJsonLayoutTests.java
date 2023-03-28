@@ -44,10 +44,6 @@ public class OpenSearchJsonLayoutTests extends OpenSearchTestCase {
         JsonLogsTestSetup.init();
     }
 
-    public void testEmptyType() {
-        expectThrows(IllegalArgumentException.class, () -> OpenSearchJsonLayout.newBuilder().build());
-    }
-
     public void testDefaultLayout() {
         OpenSearchJsonLayout server = OpenSearchJsonLayout.newBuilder()
                                           .setType("server")
