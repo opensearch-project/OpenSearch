@@ -96,6 +96,7 @@ import org.opensearch.env.ShardLock;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.gateway.MetaStateService;
 import org.opensearch.gateway.MetadataStateFormat;
+import org.opensearch.identity.IdentityService;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
@@ -290,6 +291,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Settings settings;
     private final PluginsService pluginsService;
     private final ExtensionsManager extensionsManager;
+    private final IdentityService identityService;
     private final NodeEnvironment nodeEnv;
     private final NamedXContentRegistry xContentRegistry;
     private final TimeValue shardsClosedTimeout;
@@ -368,6 +370,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
         this.extensionsManager = null;
+        this.identityService = null;
         this.nodeEnv = nodeEnv;
         this.xContentRegistry = xContentRegistry;
         this.valuesSourceRegistry = valuesSourceRegistry;
@@ -459,6 +462,7 @@ public class IndicesService extends AbstractLifecycleComponent
         Settings settings,
         PluginsService pluginsService,
         ExtensionsManager extensionsManager,
+        IdentityService identityService,
         NodeEnvironment nodeEnv,
         NamedXContentRegistry xContentRegistry,
         AnalysisRegistry analysisRegistry,
@@ -485,6 +489,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
         this.extensionsManager = extensionsManager;
+        this.identityService = identityService;
         this.nodeEnv = nodeEnv;
         this.xContentRegistry = xContentRegistry;
         this.valuesSourceRegistry = valuesSourceRegistry;
