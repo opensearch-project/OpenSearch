@@ -1926,7 +1926,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
-    public void decrefFileDeleter(Collection<String> files) {
+    public void decRefFileDeleter(Collection<String> files) {
         if (this.indexSettings.isSegRepEnabled()) {
             this.replicaFileTracker.decRef(files);
         }
