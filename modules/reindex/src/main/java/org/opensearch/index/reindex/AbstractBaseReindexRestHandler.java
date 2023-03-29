@@ -37,7 +37,6 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.tasks.LoggingTaskListener;
