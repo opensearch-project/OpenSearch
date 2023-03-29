@@ -165,7 +165,7 @@ public class TransportService extends AbstractLifecycleComponent
      * Build the service.
      *
      * @param clusterSettings if non null, the {@linkplain TransportService} will register with the {@link ClusterSettings} for settings
-    *   *    updates for {@link TransportSettings#TRACE_LOG_EXCLUDE_SETTING} and {@link TransportSettings#TRACE_LOG_INCLUDE_SETTING}.
+     *   *    updates for {@link TransportSettings#TRACE_LOG_EXCLUDE_SETTING} and {@link TransportSettings#TRACE_LOG_INCLUDE_SETTING}.
      */
     public TransportService(
         Settings settings,
@@ -397,7 +397,6 @@ public class TransportService extends AbstractLifecycleComponent
         connectToNode(node, (ConnectionProfile) null);
     }
 
-
     /**
      * Connect to the specified node as an extension with the default connection profile
      *
@@ -430,7 +429,9 @@ public class TransportService extends AbstractLifecycleComponent
      * @param extensionUniqueIq the id of the extension
      */
     public void connectToNodeAsExtension(final DiscoveryNode node, ConnectionProfile connectionProfile, String extensionUniqueIq) {
-        PlainActionFuture.get(fut -> connectToNodeAsExtension(node, connectionProfile, extensionUniqueIq, ActionListener.map(fut, x -> null)));
+        PlainActionFuture.get(
+            fut -> connectToNodeAsExtension(node, connectionProfile, extensionUniqueIq, ActionListener.map(fut, x -> null))
+        );
     }
 
     public void connectToExtensionNode(final DiscoveryNode node, ConnectionProfile connectionProfile) {
@@ -477,7 +478,12 @@ public class TransportService extends AbstractLifecycleComponent
      * @param extensionUniqueId the id of the extension
      * @param listener the action listener to notify
      */
-    public void connectToNodeAsExtension(final DiscoveryNode node, ConnectionProfile connectionProfile, String extensionUniqueId, ActionListener<Void> listener) {
+    public void connectToNodeAsExtension(
+        final DiscoveryNode node,
+        ConnectionProfile connectionProfile,
+        String extensionUniqueId,
+        ActionListener<Void> listener
+    ) {
         if (isLocalNode(node)) {
             listener.onResponse(null);
             return;
