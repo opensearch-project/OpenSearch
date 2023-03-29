@@ -409,3 +409,30 @@ teardown:
 
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._source.catalog.author.surname: "Doe" }
+
+
+  # Wildcard Query with dot path.
+  - do:
+      catch: bad_request
+      search:
+        body: {
+          _source: true,
+          query: {
+            "wildcard": {
+              "catalog.title": "Mock*"
+            }
+          }
+        }
+
+  # Wildcard Query without dot path.
+  - do:
+      catch: bad_request
+      search:
+        body: {
+          _source: true,
+          query: {
+            "wildcard": {
+              "catalog": "Mock*"
+            }
+          }
+        }

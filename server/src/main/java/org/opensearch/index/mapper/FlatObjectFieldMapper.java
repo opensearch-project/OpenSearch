@@ -169,7 +169,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                 fft,
                 buildValueFieldMapper(context, fieldtype, fft),
                 buildValueAndPathFieldMapper(context, fieldtype, fft),
-                MultiFields.empty(),
                 CopyTo.empty(),
                 this
             );
@@ -476,6 +475,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                 context,
                 "Can only use wildcard queries on keyword and text fields - not on [" + name() + "] which is of type [" + typeName() + "]"
             );
+
         }
 
     }
@@ -490,7 +490,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         FlatObjectFieldType mappedFieldType,
         ValueFieldMapper valueFieldMapper,
         ValueAndPathFieldMapper valueAndPathFieldMapper,
-        MultiFields multiFields,
         CopyTo copyTo,
         Builder builder
     ) {
