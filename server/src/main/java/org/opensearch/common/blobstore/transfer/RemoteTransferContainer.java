@@ -21,6 +21,7 @@ import org.opensearch.common.blobstore.stream.StreamContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.index.translog.ChannelFactory;
+import org.opensearch.index.translog.checked.TranslogCheckedContainer;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -30,8 +31,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Objects;
 import java.util.function.Supplier;
-import java.util.zip.CRC32;
-import java.util.zip.CheckedInputStream;
 
 public class RemoteTransferContainer implements Closeable {
 
@@ -43,7 +42,7 @@ public class RemoteTransferContainer implements Closeable {
     private long lastPartSize;
 
     private final long contentLength;
-    private final SetOnce<CheckedInputStream[]> inputStreams = new SetOnce<>();
+    private final SetOnce<InputStream[]> inputStreams = new SetOnce<>();
     private final String localFileName;
     private final String remoteFileName;
     private final boolean failTransferIfFileExists;
@@ -52,6 +51,7 @@ public class RemoteTransferContainer implements Closeable {
 
     private static final Logger log = LogManager.getLogger(RemoteTransferContainer.class);
 
+    // calculates file checksum internally
     public RemoteTransferContainer(Path localFile,
                                    String localFileName,
                                    String remoteFileName,
@@ -62,12 +62,13 @@ public class RemoteTransferContainer implements Closeable {
         this.localFile = localFile;
         this.failTransferIfFileExists = failTransferIfFileExists;
         this.writePriority = writePriority;
-        this.expectedChecksum = 0;
 
         ChannelFactory channelFactory = FileChannel::open;
         localFile.getFileSystem().provider();
         try (FileChannel channel = channelFactory.open(localFile, StandardOpenOption.READ)) {
             this.contentLength = channel.size();
+            TranslogCheckedContainer translogCheckedContainer = new TranslogCheckedContainer(channel, 0, (int) contentLength, localFileName);
+            this.expectedChecksum = translogCheckedContainer.getChecksum();
         }
     }
 
@@ -76,11 +77,12 @@ public class RemoteTransferContainer implements Closeable {
                                    String localFileName,
                                    String remoteFileName,
                                    boolean failTransferIfFileExists,
-                                   WritePriority writePriority) throws IOException {
+                                   WritePriority writePriority,
+                                   long expectedChecksum) throws IOException {
         this.localFileName = localFileName;
         this.remoteFileName = remoteFileName;
         this.directory = directory;
-        this.expectedChecksum = 0;
+        this.expectedChecksum = expectedChecksum;
         this.failTransferIfFileExists = failTransferIfFileExists;
         try(IndexInput indexInput = directory.openInput(this.localFileName, ioContext)) {
             this.contentLength = indexInput.length();
@@ -96,7 +98,6 @@ public class RemoteTransferContainer implements Closeable {
             contentLength,
             failTransferIfFileExists,
             writePriority,
-            this::finalizeUpload,
             expectedChecksum
         );
     }
@@ -121,7 +122,7 @@ public class RemoteTransferContainer implements Closeable {
 
         log.info("Creating streams of total size {}, partSize {}, lastPartSize {}. numberOfParts {}, for file {}",
             contentLength, partSize, lastPartSize, numberOfParts, localFileName);
-        CheckedInputStream[] streams = new CheckedInputStream[numberOfParts];
+        InputStream[] streams = new InputStream[numberOfParts];
         inputStreams.set(streams);
 
         return new StreamContext(
@@ -150,18 +151,13 @@ public class RemoteTransferContainer implements Closeable {
                     throw new IllegalArgumentException("InputStream parts not yet defined.");
                 }
                 offsetRangeInputStream = new OffsetRangeFileInputStream(localFile, size, position);
-                Objects.requireNonNull(inputStreams.get())[streamIdx] = new CheckedInputStream(offsetRangeInputStream,
-                    new CRC32());
+                Objects.requireNonNull(inputStreams.get())[streamIdx] = offsetRangeInputStream;
             } catch (IOException e) {
                 log.error("Failed to create input stream", e);
                 return null;
             }
-            return new Stream(offsetRangeInputStream, size, position, checksumProvider(streamIdx));
+            return new Stream(offsetRangeInputStream, size, position);
         };
-    }
-
-    public Supplier<Long> checksumProvider(int streamIdx) {
-        return () -> Objects.requireNonNull(inputStreams.get())[streamIdx].getChecksum().getValue();
     }
 
     private Supplier<Stream> getMultiPartStreamSupplierForIndexInput(final int streamIdx, final long size,
@@ -174,42 +170,17 @@ public class RemoteTransferContainer implements Closeable {
                 }
                 IndexInput indexInput = directory.openInput(localFileName, ioContext);
                 offsetRangeInputStream = new OffsetRangeIndexInputStream(indexInput, size, position);
-                Objects.requireNonNull(inputStreams.get())[streamIdx] = new CheckedInputStream(offsetRangeInputStream,
-                    new CRC32());
+                Objects.requireNonNull(inputStreams.get())[streamIdx] = offsetRangeInputStream;
             } catch (IOException e) {
                 log.error("Failed to create input stream", e);
                 return null;
             }
-            return new Stream(offsetRangeInputStream, size, position, checksumProvider(streamIdx));
+            return new Stream(offsetRangeInputStream, size, position);
         };
     }
 
     public long getContentLength() {
         return contentLength;
-    }
-
-    public void finalizeUpload(boolean uploadSuccessful) throws CorruptedLocalFileException {
-        if (uploadSuccessful) {
-            if (!verifyIntegrity()) {
-                throw new CorruptedLocalFileException("Data integrity check done after upload for file " +
-                    localFileName + " failed");
-            }
-        }
-    }
-
-    private boolean verifyIntegrity() {
-//        long checksum = inputStreams.get()[0].getChecksum().getValue();
-//        for (int checkSumIdx = 1; checkSumIdx < inputStreams.get().length-1; checkSumIdx ++ ) {
-//            checksum = ChecksumUtils.combine(checksum, inputStreams.get()[checkSumIdx].getChecksum().getValue(),
-//                partSize);
-//        }
-//        if (numberOfParts > 1) {
-//            checksum = ChecksumUtils.combine(checksum, inputStreams.get()[numberOfParts-1].getChecksum().getValue(),
-//                lastPartSize);
-//        }
-//
-//        return expectedChecksum == checksum;
-        return true;
     }
 
     @Override

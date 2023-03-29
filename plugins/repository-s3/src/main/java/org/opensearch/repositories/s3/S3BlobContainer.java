@@ -189,7 +189,6 @@ class S3BlobContainer extends AbstractBlobContainer {
             }
         } catch (Exception e) {
             logger.info("exception error from blob container for file {}", writeContext.getFileName());
-            writeContext.getUploadFinalizer().accept(false);
             throw new IOException(e);
         }
     }

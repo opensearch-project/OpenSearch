@@ -8,12 +8,14 @@ import org.opensearch.common.blobstore.stream.StreamContext;
 import org.opensearch.common.blobstore.stream.write.UploadResponse;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.util.ByteUtils;
 import org.opensearch.repositories.s3.SocketAccess;
 import software.amazon.awssdk.core.async.AsyncRequestBody;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.endpoints.internal.Value;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.ChecksumAlgorithm;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadResponse;
 import software.amazon.awssdk.services.s3.model.CompletedMultipartUpload;
@@ -26,6 +28,8 @@ import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.utils.CompletableFutureUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -85,7 +89,7 @@ public final class AsyncUploadUtils {
         CreateMultipartUploadRequest request = CreateMultipartUploadRequest.builder()
             .bucket(uploadRequest.getBucket())
             .key(uploadRequest.getKey())
-//            .checksumAlgorithm(ChecksumAlgorithm.CRC32)
+            .checksumAlgorithm(ChecksumAlgorithm.CRC32)
             .build();
         CompletableFuture<CreateMultipartUploadResponse> createMultipartUploadFuture =
             SocketAccess.doPrivileged(()-> s3AsyncClient.createMultipartUpload(request));
@@ -108,7 +112,8 @@ public final class AsyncUploadUtils {
         return (int) Math.ceil(contentLength / (double) partSize);
     }
 
-    private void doUploadInParts(S3AsyncClient s3AsyncClient, UploadRequest uploadRequest,
+    private void doUploadInParts(S3AsyncClient s3AsyncClient,
+                                 UploadRequest uploadRequest,
                                  StreamContext streamContext,
                                  CompletableFuture<UploadResponse> returnFuture,
                                  String uploadId) {
@@ -162,6 +167,8 @@ public final class AsyncUploadUtils {
                 .bucket(uploadRequest.getBucket())
                 .key(uploadRequest.getKey())
                 .uploadId(uploadId)
+                .checksumCRC32(Base64.getEncoder().encodeToString(Arrays.copyOfRange(
+                    ByteUtils.toByteArrayBE(uploadRequest.getChecksum()), 4, 8)))
                 .multipartUpload(CompletedMultipartUpload.builder()
                     .parts(parts)
                     .build())
@@ -218,7 +225,7 @@ public final class AsyncUploadUtils {
                 .key(uploadRequest.getKey())
                 .uploadId(uploadId)
                 .contentLength(stream.getContentLength())
-//                .checksumAlgorithm(ChecksumAlgorithm.CRC32)
+                .checksumAlgorithm(ChecksumAlgorithm.CRC32)
                 .build();
             sendIndividualUploadPart(s3AsyncClient, completedParts, futures, uploadPartRequest, stream, uploadRequest);
         }
@@ -254,7 +261,7 @@ public final class AsyncUploadUtils {
 
 //        long checksum = stream.getChecksumProvider().get();
 //        String encodedChecksum = Base64.getEncoder().encodeToString(Arrays.copyOfRange(
-//            toByteArray(checksum), 4, 8));
+//            toByteArrayBE(checksum), 4, 8));
 //        if (!encodedChecksum.equals(partResponse.checksumCRC32())) {
 //            throw new IllegalStateException("Calculated part checksum did not match with the uploaded part.");
 //        }
@@ -265,15 +272,6 @@ public final class AsyncUploadUtils {
             .build();
         completedParts.set(partNumber - 1, completedPart);
         return completedPart;
-    }
-
-    public static byte[] toByteArray(long value) {
-        byte[] result = new byte[8];
-        for (int i = 7; i >= 0; i--) {
-            result[i] = (byte) (value & 0xffL);
-            value >>= 8;
-        }
-        return result;
     }
 
     /**
@@ -294,9 +292,9 @@ public final class AsyncUploadUtils {
             .bucket(uploadRequest.getBucket())
             .key(uploadRequest.getKey())
             .contentLength(uploadRequest.getContentLength())
-//            .checksumAlgorithm(ChecksumAlgorithm.CRC32)
-//            .checksumCRC32(Base64.getEncoder().encodeToString(Arrays.copyOfRange(
-//                toByteArray(uploadRequest.getChecksum()), 4, 8)))
+            .checksumAlgorithm(ChecksumAlgorithm.CRC32)
+            .checksumCRC32(Base64.getEncoder().encodeToString(Arrays.copyOfRange(
+                ByteUtils.toByteArrayBE(uploadRequest.getChecksum()), 4, 8)))
             .build();
         ExecutorService streamReadExecutor = uploadRequest.getWritePriority() == WritePriority.HIGH ?
             priorityExecutorService : executorService;

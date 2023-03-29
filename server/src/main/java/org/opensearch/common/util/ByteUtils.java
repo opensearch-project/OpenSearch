@@ -32,6 +32,8 @@
 
 package org.opensearch.common.util;
 
+import java.util.Arrays;
+
 /**
  * Utility methods to do byte-level encoding. These methods are biased towards little-endian byte order because it is the most
  * common byte order and reading several bytes at once may be optimizable in the future with the help of sun.mist.Unsafe.
@@ -59,6 +61,16 @@ public final class ByteUtils {
             l >>>= 8;
         }
         assert l == 0;
+    }
+
+    /** Convert long to a byte array in big-endian format */
+    public static byte[] toByteArrayBE(long l) {
+        byte[] result = new byte[8];
+        for (int i = 7; i >= 0; i--) {
+            result[i] = (byte) (l & 0xffL);
+            l >>= 8;
+        }
+        return result;
     }
 
     /** Write a long in little-endian format. */

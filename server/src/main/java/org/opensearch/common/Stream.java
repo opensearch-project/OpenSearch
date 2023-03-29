@@ -19,7 +19,6 @@ public class Stream {
     private final InputStream inputStream;
     private final long contentLength;
     private final long offset;
-    private final Supplier<Long> checksumProvider;
 
     /**
      * Construct a new stream object
@@ -28,11 +27,10 @@ public class Stream {
      * @param contentLength The total content length that is to be read from the stream
      * @param offset The offset pointer that this stream reads from in the file
      */
-    public Stream(InputStream inputStream, long contentLength, long offset, Supplier<Long> checksumProvider) {
+    public Stream(InputStream inputStream, long contentLength, long offset) {
         this.inputStream = inputStream;
         this.contentLength = contentLength;
         this.offset = offset;
-        this.checksumProvider = checksumProvider;
     }
 
     /**
@@ -54,9 +52,5 @@ public class Stream {
      */
     public long getOffset() {
         return offset;
-    }
-
-    public Supplier<Long> getChecksumProvider() {
-        return checksumProvider;
     }
 }

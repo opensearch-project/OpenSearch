@@ -23,7 +23,6 @@ public class WriteContext {
     private final long fileSize;
     private final boolean failIfAlreadyExists;
     private final WritePriority writePriority;
-    private final UploadFinalizer uploadFinalizer;
     private final long checksum;
 
     /**
@@ -34,17 +33,14 @@ public class WriteContext {
      * @param fileSize The total size of the file being uploaded
      * @param failIfAlreadyExists A boolean to fail the upload is the file exists
      * @param writePriority The <code>WritePriority</code> of this upload
-     * @param uploadFinalizer Needs to implement a method that will be called once the upload is complete
      */
     public WriteContext(String fileName, StreamContextSupplier streamContextSupplier, long fileSize,
-                        boolean failIfAlreadyExists, WritePriority writePriority, UploadFinalizer uploadFinalizer,
-                        long checksum) {
+                        boolean failIfAlreadyExists, WritePriority writePriority, long checksum) {
         this.fileName = fileName;
         this.streamContextSupplier = streamContextSupplier;
         this.fileSize = fileSize;
         this.failIfAlreadyExists = failIfAlreadyExists;
         this.writePriority = writePriority;
-        this.uploadFinalizer = uploadFinalizer;
         this.checksum = checksum;
     }
 
@@ -85,12 +81,8 @@ public class WriteContext {
     }
 
     /**
-     * @return The upload finalizer for the upload
+     * @return The local checksum of the file being uploaded
      */
-    public UploadFinalizer getUploadFinalizer() {
-        return uploadFinalizer;
-    }
-
     public long getChecksum() {
         return checksum;
     }
