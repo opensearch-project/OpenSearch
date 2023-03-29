@@ -204,15 +204,12 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
 
     public void testFailStaleReplica() throws Exception {
 
+        Settings settings = Settings.builder().put(MAX_REPLICATION_TIME_SETTING.getKey(), TimeValue.timeValueMillis(500)).build();
         // Starts a primary and replica node.
-        final String primaryNode = internalCluster().startNode(
-            Settings.builder().put(MAX_REPLICATION_TIME_SETTING.getKey(), TimeValue.timeValueMillis(500)).build()
-        );
+        final String primaryNode = internalCluster().startNode(settings);
         createIndex(INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);
-        final String replicaNode = internalCluster().startNode(
-            Settings.builder().put(MAX_REPLICATION_TIME_SETTING.getKey(), TimeValue.timeValueMillis(500)).build()
-        );
+        final String replicaNode = internalCluster().startNode(settings);
         ensureGreen(INDEX_NAME);
 
         final IndexShard primaryShard = getIndexShard(primaryNode, INDEX_NAME);
