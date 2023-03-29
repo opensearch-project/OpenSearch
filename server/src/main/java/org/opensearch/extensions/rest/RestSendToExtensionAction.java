@@ -106,7 +106,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         return this.routes;
     }
 
-    public Map<String, List<String>> filterHeaders(Map<String, List<String>>  headers, Set allowList, Set denyList) {
+    public Map<String, List<String>> filterHeaders(Map<String, List<String>> headers, Set allowList, Set denyList) {
         Map<String, List<String>> filteredHeaders = headers.entrySet()
             .stream()
             .filter(e -> !denyList.contains(e.getKey()))

@@ -123,6 +123,32 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         assertTrue(expectedMethods.containsAll(methods));
     }
 
+    public void testRestSendToExtensionActionFilterHeaders() throws Exception {
+        RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
+            "uniqueid1",
+            List.of("GET /foo", "PUT /bar", "POST /baz")
+        );
+        RestSendToExtensionAction restSendToExtensionAction = new RestSendToExtensionAction(
+            registerRestActionRequest,
+            discoveryExtensionNode,
+            transportService
+        );
+
+        Map<String, List<String>> headers = new HashMap<>();
+        headers.put("Content-Type", Arrays.asList("application/json"));
+        headers.put("Authorization", Arrays.asList("Bearer token"));
+        headers.put("Proxy-Authorization", Arrays.asList("Basic credentials"));
+
+        Set<String> allowList = Set.of("Content-Type"); // allowed headers
+        Set<String> denyList = Set.of("Authorization", "Proxy-Authorization"); // denied headers
+
+        Map<String, List<String>> filteredHeaders = restSendToExtensionAction.filterHeaders(headers, allowList, denyList);
+
+        assertTrue(filteredHeaders.containsKey("Content-Type"));
+        assertFalse(filteredHeaders.containsKey("Authorization"));
+        assertFalse(filteredHeaders.containsKey("Proxy-Authorization"));
+    }
+
     public void testRestSendToExtensionActionBadMethod() throws Exception {
         RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
             "uniqueid1",
