@@ -108,10 +108,6 @@ public final class AsyncUploadUtils {
         });
     }
 
-    private int determinePartCount(long contentLength, long partSize) {
-        return (int) Math.ceil(contentLength / (double) partSize);
-    }
-
     private void doUploadInParts(S3AsyncClient s3AsyncClient,
                                  UploadRequest uploadRequest,
                                  StreamContext streamContext,
@@ -278,7 +274,7 @@ public final class AsyncUploadUtils {
      * Calculates the optimal part size of each part request if the upload operation is carried out as multipart upload.
      */
     public long calculateOptimalPartSize(long contentLengthOfSource) {
-        if (contentLengthOfSource > ByteSizeUnit.MB.toBytes(100)) {
+        if (contentLengthOfSource < ByteSizeUnit.MB.toBytes(100)) {
             return contentLengthOfSource;
         }
         double optimalPartSize = contentLengthOfSource / (double) MAX_UPLOAD_PARTS;
