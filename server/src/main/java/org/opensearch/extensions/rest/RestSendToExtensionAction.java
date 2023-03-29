@@ -106,6 +106,15 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         return this.routes;
     }
 
+    public Map<String, List<String>> filterHeaders(Map<String, List<String>>  headers, Set allowList, Set denyList) {
+        Map<String, List<String>> filteredHeaders = headers.entrySet()
+            .stream()
+            .filter(e -> !denyList.contains(e.getKey()))
+            .filter(e -> allowlist.contains(e.getKey()))
+            .collect(Collectors.toMap());
+        return filteredHeaders;
+    }
+
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         Method method = request.method();
@@ -173,16 +182,13 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             this.allowList = Set.of("Content-Type");
             this.denyList = Set.of("Authorization", "Proxy-Authorization");
 
-            Map<String, List<String>> filteredHeaders = headers.entrySet()
-                .stream()
-                .filter(e -> !denyList.contains(e.getKey()))
-                .filter(e -> allowlist.contains(e.getKey()))
-                .collect(Collectors.toMap());
+            filterHeaders(headers, allowList, denyList);
 
             transportService.sendRequest(
                 discoveryExtensionNode,
                 ExtensionsManager.REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION,
                 // DO NOT INCLUDE HEADERS WITH SECURITY OR PRIVACY INFORMATION
+                // SEE https://github.com/opensearch-project/OpenSearch/issues/4429
                 new ExtensionRestRequest(method, path, params, filteredHeaders, contentType, content, requestIssuerIdentity),
                 restExecuteOnExtensionResponseHandler
             );
