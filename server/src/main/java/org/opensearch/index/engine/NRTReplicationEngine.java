@@ -126,7 +126,7 @@ public class NRTReplicationEngine extends Engine {
             (files) -> {
                 store.decRefFileDeleter(files);
                 try {
-                    store.cleanupAndPreserveLatestCommitPoint("On reader closed", getLatestSegmentInfos());
+                    store.cleanupAndPreserveLatestCommitPoint("On reader closed", getLatestSegmentInfos(), getLastCommittedSegmentInfos());
                 } catch (IOException e) {
                     // Log but do not rethrow - we can try cleaning up again after next replication cycle.
                     // If that were to fail, the shard will as well.

@@ -798,12 +798,17 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @throws IllegalStateException if the latest snapshot in this store differs from the given one after the cleanup.
      */
     public void cleanupAndPreserveLatestCommitPoint(String reason, SegmentInfos infos) throws IOException {
+        this.cleanupAndPreserveLatestCommitPoint(reason, infos, readLastCommittedSegmentsInfo());
+    }
+
+    public void cleanupAndPreserveLatestCommitPoint(String reason, SegmentInfos infos, SegmentInfos lastCommittedSegmentInfos)
+        throws IOException {
         assert indexSettings.isSegRepEnabled();
         // fetch a snapshot from the latest on disk Segments_N file. This can be behind
         // the passed in local in memory snapshot, so we want to ensure files it references are not removed.
         metadataLock.writeLock().lock();
         try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-            cleanupFiles(reason, getMetadata(readLastCommittedSegmentsInfo()), infos.files(true));
+            cleanupFiles(reason, getMetadata(lastCommittedSegmentInfos), infos.files(true));
         } finally {
             metadataLock.writeLock().unlock();
         }
