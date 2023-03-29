@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.common.util.concurrent;
+package org.opensearch.core.concurrency;
 
 import java.util.concurrent.RejectedExecutionException;
 

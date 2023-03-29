@@ -52,7 +52,7 @@ import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.watcher.ResourceWatcherService;
-import org.opensearch.Assertions;
+import org.opensearch.core.Assertions;
 import org.opensearch.Build;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchTimeoutException;

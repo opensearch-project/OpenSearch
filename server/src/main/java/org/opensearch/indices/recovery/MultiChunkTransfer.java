@@ -34,7 +34,7 @@ package org.opensearch.indices.recovery;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.Assertions;
+import org.opensearch.core.Assertions;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.util.concurrent.AsyncIOProcessor;
