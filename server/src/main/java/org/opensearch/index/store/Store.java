@@ -124,6 +124,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 import static org.opensearch.index.store.Store.MetadataSnapshot.loadMetadata;
+import static org.opensearch.indices.replication.SegmentReplicationTarget.REPLICATION_PREFIX;
 
 /**
  * A Store provides plain access to files written by an opensearch index shard. Each shard
@@ -182,6 +183,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private final ShardLock shardLock;
     private final OnClose onClose;
 
+    // used to ref count files when a new Reader is opened for PIT/Scroll queries
+    // prevents segment files deletion until the PIT/Scroll expires or is discarded
     private final ReplicaFileTracker replicaFileTracker;
 
     private final AbstractRefCounted refCounter = new AbstractRefCounted("store") {
@@ -204,11 +207,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         this.directory = new StoreDirectory(sizeCachingDir, Loggers.getLogger("index.store.deletes", shardId));
         this.shardLock = shardLock;
         this.onClose = onClose;
-        if (indexSettings.isSegRepEnabled()) {
-            this.replicaFileTracker = new ReplicaFileTracker();
-        } else {
-            this.replicaFileTracker = null;
-        }
+        this.replicaFileTracker = indexSettings.isSegRepEnabled() ? new ReplicaFileTracker() : null;
 
         assert onClose != null;
         assert shardLock != null;
@@ -818,7 +817,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 || localSnapshot.contains(existingFile)
                 || (additionalFiles != null && additionalFiles.contains(existingFile))
                 // also ensure we are not deleting a file referenced by an active reader.
-                || replicaFileTracker != null && replicaFileTracker.canDelete(existingFile) == false) {
+                || replicaFileTracker != null && replicaFileTracker.canDelete(existingFile) == false
+                // prevent temporary file deletion which is cleaned up post file copy
+                || existingFile.startsWith(REPLICATION_PREFIX)) {
                 // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete
                 // checksum)
                 continue;

@@ -124,7 +124,7 @@ public class NRTReplicationEngine extends Engine {
             OpenSearchDirectoryReader.wrap(getDirectoryReader(), shardId),
             store::incRefFileDeleter,
             (files) -> {
-                store.decrefFileDeleter(files);
+                store.decRefFileDeleter(files);
                 try {
                     store.cleanupAndPreserveLatestCommitPoint("On reader closed", getLatestSegmentInfos());
                 } catch (IOException e) {
