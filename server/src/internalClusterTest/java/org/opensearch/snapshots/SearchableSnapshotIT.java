@@ -537,6 +537,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertAllNodesFileCacheEmpty();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6888")
     public void testCacheFilesAreClosedAfterUse() throws Exception {
         final int numReplicasIndex = randomIntBetween(1, 4);
         final String indexName = "test-idx";
