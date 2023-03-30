@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCachedIndexInput;
 
@@ -20,8 +21,11 @@ import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 
 /**
  * This acts as entry point to fetch {@link BlobFetchRequest} and return actual {@link IndexInput}. Utilizes the BlobContainer interface to
@@ -58,15 +62,17 @@ public class TransferManager {
                 }
             } else {
                 if (cachedIndexInput.isClosed()) {
-                    // if it's already in the file cache, but closed, open it and replace the original one
-                    try {
-                        final IndexInput luceneIndexInput = blobFetchRequest.getDirectory()
-                            .openInput(blobFetchRequest.getFileName(), IOContext.READ);
-                        return new FileCachedIndexInput(fileCache, blobFetchRequest.getFilePath(), luceneIndexInput);
-                    } catch (IOException e) {
-                        logger.warn("Failed to open existing file for " + blobFetchRequest.getFilePath(), e);
-                        return null;
-                    }
+                    return AccessController.doPrivileged((PrivilegedAction<CachedIndexInput>) () -> {
+                        // if it's already in the file cache, but closed, open it and replace the original one
+                        try {
+                            final IndexInput luceneIndexInput = blobFetchRequest.getDirectory()
+                                .openInput(blobFetchRequest.getFileName(), IOContext.READ);
+                            return new FileCachedIndexInput(fileCache, blobFetchRequest.getFilePath(), luceneIndexInput);
+                        } catch (IOException e) {
+                            logger.warn("Failed to open existing file for " + blobFetchRequest.getFilePath(), e);
+                            return null;
+                        }
+                    });
                 }
                 // already in the cache and ready to be used (open)
                 return cachedIndexInput;
@@ -88,17 +94,27 @@ public class TransferManager {
     }
 
     private IndexInput downloadBlockLocally(BlobFetchRequest blobFetchRequest) throws IOException {
-        try (
-            InputStream snapshotFileInputStream = blobContainer.readBlob(
-                blobFetchRequest.getBlobName(),
-                blobFetchRequest.getPosition(),
-                blobFetchRequest.getLength()
-            );
-            OutputStream fileOutputStream = Files.newOutputStream(blobFetchRequest.getFilePath());
-            OutputStream localFileOutputStream = new BufferedOutputStream(fileOutputStream);
-        ) {
-            snapshotFileInputStream.transferTo(localFileOutputStream);
-        }
-        return blobFetchRequest.getDirectory().openInput(blobFetchRequest.getFileName(), IOContext.READ);
+        // We need to do a privileged action here in order to fetch from remote
+        // and write to the local file cache in case this is invoked as a side
+        // effect of a plugin (such as a scripted search) that doesn't have the
+        // necessary permissions.
+        return AccessController.doPrivileged((PrivilegedAction<? extends IndexInput>) () -> {
+            try {
+                try (
+                    InputStream snapshotFileInputStream = blobContainer.readBlob(
+                        blobFetchRequest.getBlobName(),
+                        blobFetchRequest.getPosition(),
+                        blobFetchRequest.getLength()
+                    );
+                    OutputStream fileOutputStream = Files.newOutputStream(blobFetchRequest.getFilePath());
+                    OutputStream localFileOutputStream = new BufferedOutputStream(fileOutputStream);
+                ) {
+                    snapshotFileInputStream.transferTo(localFileOutputStream);
+                }
+                return blobFetchRequest.getDirectory().openInput(blobFetchRequest.getFileName(), IOContext.READ);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
     }
 }
