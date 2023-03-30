@@ -4388,9 +4388,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws IOException if exception occurs while reading segments from remote store
      */
     public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal, boolean refreshLevelSegmentSync) throws IOException {
-        if (recoveryState.getStage() != RecoveryState.Stage.INDEX) {
-            return;
-        }
+        assert recoveryState.getStage() == RecoveryState.Stage.INDEX: "Shard recovery should be in INDEX stage";
         assert indexSettings.isRemoteStoreEnabled();
         logger.info("Downloading segments from remote segment store");
         assert remoteStore.directory() instanceof FilterDirectory : "Store.directory is not an instance of FilterDirectory";
