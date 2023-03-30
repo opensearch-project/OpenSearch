@@ -118,7 +118,7 @@ public class SegmentReplicationPressureService implements Closeable {
         this.maxAllowedStaleReplicas = MAX_ALLOWED_STALE_SHARDS.get(settings);
         clusterSettings.addSettingsUpdateConsumer(MAX_ALLOWED_STALE_SHARDS, this::setMaxAllowedStaleReplicas);
 
-        this.failStaleReplicaTask = new AsyncFailStaleReplicaTask(TimeValue.timeValueSeconds(30));
+        this.failStaleReplicaTask = new AsyncFailStaleReplicaTask(this, TimeValue.timeValueSeconds(30));
     }
 
     public void isSegrepLimitBreached(ShardId shardId) {
@@ -188,10 +188,13 @@ public class SegmentReplicationPressureService implements Closeable {
     }
 
     // Background Task to fail replica shards if they are too far behind primary shard.
-    final class AsyncFailStaleReplicaTask extends AbstractAsyncTask {
+    final static class AsyncFailStaleReplicaTask extends AbstractAsyncTask {
 
-        AsyncFailStaleReplicaTask(TimeValue interval) {
-            super(logger, threadPool, interval, true);
+        final SegmentReplicationPressureService pressureService;
+
+        AsyncFailStaleReplicaTask(SegmentReplicationPressureService pressureService, TimeValue interval) {
+            super(logger, pressureService.threadPool, interval, true);
+            this.pressureService = pressureService;
             rescheduleIfNecessary();
         }
 
@@ -202,16 +205,18 @@ public class SegmentReplicationPressureService implements Closeable {
 
         @Override
         protected void runInternal() {
-            if (isSegmentReplicationBackpressureEnabled) {
-                final SegmentReplicationStats stats = tracker.getStats();
+            if (pressureService.isSegmentReplicationBackpressureEnabled) {
+                final SegmentReplicationStats stats = pressureService.tracker.getStats();
                 for (Map.Entry<ShardId, SegmentReplicationPerGroupStats> entry : stats.getShardStats().entrySet()) {
-                    final Set<SegmentReplicationShardStats> staleReplicas = getStaleReplicas(entry.getValue().getReplicaStats());
+                    final Set<SegmentReplicationShardStats> staleReplicas = pressureService.getStaleReplicas(
+                        entry.getValue().getReplicaStats()
+                    );
                     final ShardId shardId = entry.getKey();
-                    final IndexService indexService = indicesService.indexService(shardId.getIndex());
+                    final IndexService indexService = pressureService.indicesService.indexService(shardId.getIndex());
                     final IndexShard primaryShard = indexService.getShard(shardId.getId());
                     for (SegmentReplicationShardStats staleReplica : staleReplicas) {
-                        if (staleReplica.getCurrentReplicationTimeMillis() > 2 * maxReplicationTime.millis()) {
-                            shardStateAction.remoteShardFailed(
+                        if (staleReplica.getCurrentReplicationTimeMillis() > 2 * pressureService.maxReplicationTime.millis()) {
+                            pressureService.shardStateAction.remoteShardFailed(
                                 shardId,
                                 staleReplica.getAllocationId(),
                                 primaryShard.getOperationPrimaryTerm(),
@@ -238,6 +243,11 @@ public class SegmentReplicationPressureService implements Closeable {
                     }
                 }
             }
+        }
+
+        @Override
+        protected String getThreadPool() {
+            return ThreadPool.Names.GENERIC;
         }
 
         @Override
