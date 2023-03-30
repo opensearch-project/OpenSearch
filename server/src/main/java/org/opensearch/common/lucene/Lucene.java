@@ -93,6 +93,7 @@ import org.opensearch.common.util.iterable.Iterables;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.fielddata.IndexFieldData;
+import org.opensearch.search.sort.SortedWiderNumericSortField;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -599,8 +600,8 @@ public class Lucene {
             SortField newSortField = new SortField(sortField.getField(), SortField.Type.STRING, sortField.getReverse());
             newSortField.setMissingValue(sortField.getMissingValue());
             sortField = newSortField;
-        } else if (sortField.getClass() == SortedNumericSortField.class) {
-            // for multi-valued sort field, we replace the SortedSetSortField with a simple SortField.
+        } else if (sortField.getClass() == SortedNumericSortField.class || sortField.getClass() == SortedWiderNumericSortField.class) {
+            // for multi-valued sort field, we replace the SortedNumericSortField/SortedWiderNumericSortField with a simple SortField.
             // It works because the sort field is only used to merge results from different shards.
             SortField newSortField = new SortField(
                 sortField.getField(),

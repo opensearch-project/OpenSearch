@@ -87,6 +87,7 @@ import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.opensearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.opensearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
+import org.opensearch.index.fielddata.fieldcomparator.IntValuesComparatorSource;
 import org.opensearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.test.OpenSearchTestCase;
@@ -753,7 +754,7 @@ public class LuceneTests extends OpenSearchTestCase {
         IndexFieldData.XFieldComparatorSource comparatorSource;
         boolean reverse = randomBoolean();
         Object missingValue = null;
-        switch (randomIntBetween(0, 3)) {
+        switch (randomIntBetween(0, 4)) {
             case 0:
                 comparatorSource = new LongValuesComparatorSource(
                     null,
@@ -782,6 +783,15 @@ public class LuceneTests extends OpenSearchTestCase {
                 comparatorSource = new BytesRefFieldComparatorSource(
                     null,
                     randomBoolean() ? "_first" : "_last",
+                    randomFrom(MultiValueMode.values()),
+                    null
+                );
+                missingValue = comparatorSource.missingValue(reverse);
+                break;
+            case 4:
+                comparatorSource = new IntValuesComparatorSource(
+                    null,
+                    randomBoolean() ? randomInt() : null,
                     randomFrom(MultiValueMode.values()),
                     null
                 );

@@ -96,6 +96,7 @@ import static org.opensearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
 import static org.opensearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
 import static org.opensearch.common.settings.Settings.readSettingsFromStream;
 import static org.opensearch.common.settings.Settings.writeSettingsToStream;
+import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 
 /**
  * Index metadata information
@@ -317,8 +318,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
 
             @Override
             public void validate(final Boolean value, final Map<Setting<?>, Object> settings) {
+                final Object clusterSettingReplicationType = settings.get(CLUSTER_REPLICATION_TYPE_SETTING);
                 final Object replicationType = settings.get(INDEX_REPLICATION_TYPE_SETTING);
-                if (replicationType != ReplicationType.SEGMENT && value == true) {
+                if ((replicationType).equals(ReplicationType.SEGMENT) == false
+                    && (clusterSettingReplicationType).equals(ReplicationType.SEGMENT) == false
+                    && value == true) {
                     throw new IllegalArgumentException(
                         "To enable "
                             + INDEX_REMOTE_STORE_ENABLED_SETTING.getKey()
@@ -326,13 +330,17 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                             + INDEX_REPLICATION_TYPE_SETTING.getKey()
                             + " should be set to "
                             + ReplicationType.SEGMENT
+                            + " or "
+                            + CLUSTER_REPLICATION_TYPE_SETTING.getKey()
+                            + " should be set to "
+                            + Boolean.TRUE
                     );
                 }
             }
 
             @Override
             public Iterator<Setting<?>> settings() {
-                final List<Setting<?>> settings = Collections.singletonList(INDEX_REPLICATION_TYPE_SETTING);
+                final List<Setting<?>> settings = List.of(INDEX_REPLICATION_TYPE_SETTING, CLUSTER_REPLICATION_TYPE_SETTING);
                 return settings.iterator();
             }
         },

@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.RequestValidators;
 import org.opensearch.action.StepListener;
@@ -2191,8 +2192,10 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         indexNameExpressionResolver
                     )
                 );
+                DynamicActionRegistry dynamicActionRegistry = new DynamicActionRegistry();
+                dynamicActionRegistry.registerUnmodifiableActionMap(actions);
                 client.initialize(
-                    actions,
+                    dynamicActionRegistry,
                     () -> clusterService.localNode().getId(),
                     transportService.getRemoteClusterService(),
                     new NamedWriteableRegistry(Collections.emptyList())
