@@ -330,7 +330,6 @@ public class SettingTests extends OpenSearchTestCase {
         Pattern expectedPattern = Pattern.compile(expectedRegex);
         RegexValidator regexValidator = new RegexValidator(expectedRegex);
         RegexValidator regexValidatorMatcherFalse = new RegexValidator(expectedRegex, false);
-        RegexValidator regexValidatorMatcherTrue = new RegexValidator(expectedRegex, true);
 
         // Test that the pattern is correctly initialized
         assertNotNull(expectedPattern);
@@ -342,17 +341,20 @@ public class SettingTests extends OpenSearchTestCase {
         assertNotNull(regexValidatorMatcherFalse.getPattern());
         assertEquals(expectedPattern.pattern(), regexValidatorMatcherFalse.getPattern().pattern());
 
-        // Test that checks the pattern and isMatching with the set value true parameters are working correctly during initialization
-        assertNotNull(regexValidatorMatcherTrue);
-        assertNotNull(regexValidatorMatcherTrue);
-        assertEquals(expectedPattern.pattern(), regexValidatorMatcherTrue.getPattern().pattern());
-
-        // Test that validate() throws an exception for invalid input
+        // Test throw an exception when the value does not match
         final RegexValidator finalValidator = new RegexValidator(expectedRegex);
         assertThrows(IllegalArgumentException.class, () -> finalValidator.validate("foo"));
-
         try {
             regexValidator.validate("123");
+        } catch (IllegalArgumentException e) {
+            fail("Expected validate() to not throw an exception, but it threw " + e);
+        }
+
+        // Test throws an exception when the value matches
+        final RegexValidator finalValidatorFalse = new RegexValidator(expectedRegex);
+        assertThrows(IllegalArgumentException.class, () -> finalValidatorFalse.validate(expectedRegex));
+        try {
+            regexValidatorMatcherFalse.validate(expectedRegex);
         } catch (IllegalArgumentException e) {
             fail("Expected validate() to not throw an exception, but it threw " + e);
         }
