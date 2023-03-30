@@ -353,7 +353,7 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
         when(remoteDataDirectory.getBlobContainer()).thenReturn(blobContainer);
         when(blobContainer.isMultiStreamUploadSupported()).thenReturn(true);
         CompletableFuture<UploadResponse> uploadResponseCompletableFuture = new CompletableFuture<>();
-        uploadResponseCompletableFuture.complete(new UploadResponse(""));
+        uploadResponseCompletableFuture.complete(new UploadResponse(true));
         when(blobContainer.writeBlobByStreams(any(WriteContext.class))).thenReturn(uploadResponseCompletableFuture);
 
         remoteSegmentStoreDirectory.copyFilesFrom(storeDirectory, List.of(filename), IOContext.DEFAULT);

@@ -141,7 +141,7 @@ public final class AsyncUploadUtils {
                 handleException(returnFuture, () -> "Failed to send multipart upload requests.",
                     throwable);
             } else {
-                returnFuture.complete(new UploadResponse(response.checksumCRC32()));
+                returnFuture.complete(new UploadResponse(true));
             }
 
             return null;
@@ -297,7 +297,7 @@ public final class AsyncUploadUtils {
         CompletableFuture<UploadResponse> putObjectFuture = SocketAccess.doPrivileged(() ->
             s3AsyncClient.putObject(putObjectRequest, AsyncRequestBody.fromInputStream(stream.getInputStream(),
                     stream.getContentLength(), streamReadExecutor))
-                .thenApply(resp -> new UploadResponse(resp.checksumCRC32())));
+                .thenApply(resp -> new UploadResponse(true)));
 
         CompletableFutureUtils.forwardExceptionTo(returnFuture, putObjectFuture);
         CompletableFutureUtils.forwardResultTo(putObjectFuture, returnFuture);

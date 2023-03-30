@@ -63,7 +63,7 @@ public class BlobStoreTransferServiceMultiStreamSupportEnabledTests extends Open
         BlobContainer blobContainer = mock(BlobContainer.class);
         when(blobContainer.isMultiStreamUploadSupported()).thenReturn(true);
         CompletableFuture<UploadResponse> uploadResponseCompletableFuture = new CompletableFuture<>();
-        uploadResponseCompletableFuture.complete(new UploadResponse(""));
+        uploadResponseCompletableFuture.complete(new UploadResponse(true));
         when(blobContainer.writeBlobByStreams(any(WriteContext.class))).thenReturn(uploadResponseCompletableFuture);
         when(blobStore.blobContainer(any(BlobPath.class))).thenReturn(blobContainer);
 

@@ -13,21 +13,21 @@ package org.opensearch.common.blobstore.stream.write;
  */
 public class UploadResponse {
 
-    private final String checksum;
+    private final boolean uploadSuccessful;
 
     /**
      * Construct a new UploadResponse object
      *
-     * @param checksum Checksum of uploaded object
+     * @param uploadSuccessful Whether the current upload was successful or not
      */
-    public UploadResponse(String checksum) {
-        this.checksum = checksum;
+    public UploadResponse(boolean uploadSuccessful) {
+        this.uploadSuccessful = uploadSuccessful;
     }
 
     /**
-     * @return Checksum of UploadResponse object
+     * @return The upload success result
      */
-    public String getChecksum() {
-        return checksum;
+    public boolean isUploadSuccessful() {
+        return uploadSuccessful;
     }
 }
