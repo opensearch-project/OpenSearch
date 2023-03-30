@@ -53,4 +53,16 @@ public class WeightedRoutingUtils {
         }
         return false;
     }
+
+    public static boolean shouldPerformWeightedRouting(boolean ignoreWeightedRouting, WeightedRoutingMetadata weightedRoutingMetadata) {
+        return !ignoreWeightedRouting && weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting().isSet();
+    }
+
+    public static boolean shouldPerformStrictWeightedRouting(
+        boolean isStrictWeightedShardRouting,
+        boolean ignoreWeightedRouting,
+        WeightedRoutingMetadata weightedRoutingMetadata
+    ) {
+        return isStrictWeightedShardRouting && shouldPerformWeightedRouting(ignoreWeightedRouting, weightedRoutingMetadata);
+    }
 }
