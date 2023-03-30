@@ -635,7 +635,7 @@ public final class SearchPhaseController {
      */
     private static boolean isSortWideningRequired(TopFieldDocs[] topFieldDocs, int sortFieldindex) {
         for (int i = 0; i < topFieldDocs.length - 1; i++) {
-            if (topFieldDocs[i].fields[sortFieldindex] != topFieldDocs[i + 1].fields[sortFieldindex]) {
+            if (!topFieldDocs[i].fields[sortFieldindex].equals(topFieldDocs[i + 1].fields[sortFieldindex])) {
                 return true;
             }
         }
