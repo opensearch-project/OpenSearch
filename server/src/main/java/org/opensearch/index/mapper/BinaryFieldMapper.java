@@ -259,14 +259,15 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
                 CollectionUtils.sortAndDedup(bytesList, Arrays::compareUnsigned);
                 int size = bytesList.stream().map(b -> b.length).reduce(0, Integer::sum);
                 int length = bytesList.size();
-                BytesStreamOutput out = new BytesStreamOutput(size + (length + 1) * 5);
-                out.writeVInt(length);  // write total number of values
-                for (byte[] value : bytesList) {
-                    int valueLength = value.length;
-                    out.writeVInt(valueLength);
-                    out.writeBytes(value, 0, valueLength);
+                try (BytesStreamOutput out = new BytesStreamOutput(size + (length + 1) * 5)) {
+                    out.writeVInt(length);  // write total number of values
+                    for (byte[] value : bytesList) {
+                        int valueLength = value.length;
+                        out.writeVInt(valueLength);
+                        out.writeBytes(value, 0, valueLength);
+                    }
+                    return out.bytes().toBytesRef();
                 }
-                return out.bytes().toBytesRef();
             } catch (IOException e) {
                 throw new OpenSearchException("Failed to get binary value", e);
             }
