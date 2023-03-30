@@ -274,7 +274,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }));
         String type = typeName();
         String[] warnings = new String[] {
-            "Parameter [boost] on field [field] is deprecated and will be removed in 8.0",
+            "Parameter [boost] on field [field] is deprecated and will be removed in 3.0",
             "Parameter [boost] has no effect on type [" + type + "] and will be removed in future" };
         allowedWarnings(warnings);
     }
