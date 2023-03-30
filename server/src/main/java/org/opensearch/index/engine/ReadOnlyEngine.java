@@ -137,9 +137,7 @@ public class ReadOnlyEngine extends Engine {
                 }
                 if (seqNoStats == null) {
                     seqNoStats = buildSeqNoStats(config, lastCommittedSegmentInfos);
-                    if (config.getIndexSettings().isRemoteTranslogStoreEnabled() == false) {
-                        ensureMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats);
-                    }
+                    ensureMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats);
                 }
                 this.seqNoStats = seqNoStats;
                 this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, directory);
@@ -179,7 +177,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     protected void ensureMaxSeqNoEqualsToGlobalCheckpoint(final SeqNoStats seqNoStats) {
-        if (requireCompleteHistory == false) {
+        if (requireCompleteHistory == false || config().getIndexSettings().isRemoteTranslogStoreEnabled()) {
             return;
         }
         // Before 3.0 the global checkpoint is not known and up to date when the engine is created after
@@ -200,9 +198,8 @@ public class ReadOnlyEngine extends Engine {
         }
     }
 
-    protected boolean assertMaxSeqNoEqualsToGlobalCheckpoint(final long maxSeqNo, final long globalCheckpoint) {
+    protected void assertMaxSeqNoEqualsToGlobalCheckpoint(final long maxSeqNo, final long globalCheckpoint) {
         assert maxSeqNo == globalCheckpoint : "max seq. no. [" + maxSeqNo + "] does not match [" + globalCheckpoint + "]";
-        return true;
     }
 
     @Override

@@ -202,9 +202,8 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                     IllegalStateException.class,
                     () -> new ReadOnlyEngine(config, null, null, true, Function.identity(), true) {
                         @Override
-                        protected boolean assertMaxSeqNoEqualsToGlobalCheckpoint(final long maxSeqNo, final long globalCheckpoint) {
+                        protected void assertMaxSeqNoEqualsToGlobalCheckpoint(final long maxSeqNo, final long globalCheckpoint) {
                             // we don't want the assertion to trip in this test
-                            return true;
                         }
                     }
                 );
