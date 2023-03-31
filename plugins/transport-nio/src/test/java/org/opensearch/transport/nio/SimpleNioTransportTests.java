@@ -42,7 +42,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.core.internal.io.IOUtils;
-import org.opensearch.core.internal.net.NetUtils;
+import org.opensearch.common.util.net.NetUtils;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.test.transport.StubbableTransport;
