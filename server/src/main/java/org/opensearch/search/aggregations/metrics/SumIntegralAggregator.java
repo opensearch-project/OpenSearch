@@ -32,11 +32,11 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.DoubleArray;
-import org.opensearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.common.util.LongArray;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -54,15 +54,14 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public class SumAggregator extends NumericMetricsAggregator.SingleValue {
+public class SumIntegralAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat format;
 
-    private DoubleArray sums;
-    private DoubleArray compensations;
+    private LongArray sums;
 
-    SumAggregator(
+    SumIntegralAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,
         SearchContext context,
@@ -72,8 +71,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
         super(name, context, parent, metadata);
         this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
         this.format = valuesSourceConfig.format();
-        sums = context.bigArrays().newDoubleArray(1, true);
-        compensations = context.bigArrays().newDoubleArray(1, true);
+        sums = context.bigArrays().newLongArray(1, true);
     }
 
     @Override
@@ -84,29 +82,20 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         final BigArrays bigArrays = context.bigArrays();
-        final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
-        final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+        final SortedNumericDocValues values = valuesSource.longValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 sums = bigArrays.grow(sums, bucket + 1);
-                compensations = bigArrays.grow(compensations, bucket + 1);
 
                 if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
-                    // Compute the sum of double values with Kahan summation algorithm which is more
-                    // accurate than naive summation.
-                    double sum = sums.get(bucket);
-                    double compensation = compensations.get(bucket);
-                    kahanSummation.reset(sum, compensation);
-
+                    long value = sums.get(bucket);
                     for (int i = 0; i < valuesCount; i++) {
-                        double value = values.nextValue();
-                        kahanSummation.add(value);
+                        value += values.nextValue();
                     }
 
-                    compensations.set(bucket, kahanSummation.delta());
-                    sums.set(bucket, kahanSummation.value());
+                    sums.set(bucket, value);
                 }
             }
         };
@@ -135,6 +124,6 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public void doClose() {
-        Releasables.close(sums, compensations);
+        Releasables.close(sums);
     }
 }
