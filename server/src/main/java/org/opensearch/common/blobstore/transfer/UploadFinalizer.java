@@ -8,11 +8,9 @@
 
 package org.opensearch.common.blobstore.transfer;
 
-import java.io.IOException;
-
 /**
  * UploadFinalizer is an interface with support for a method that will be called once upload is complete
  */
 public interface UploadFinalizer {
-    void accept(boolean uploadSuccess) throws IOException;
+    void accept(boolean uploadSuccess);
 }

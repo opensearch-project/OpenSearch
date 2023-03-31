@@ -41,7 +41,6 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
@@ -166,8 +165,12 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final ClusterService clusterService,
         final RecoverySettings recoverySettings
     ) {
-        AsyncUploadUtils asyncUploadUtils = new AsyncUploadUtils(ByteSizeUnit.MB.toBytes(16),
-            normalExecutorBuilder.getStreamReader(), priorityExecutorBuilder.getStreamReader());
+        AsyncUploadUtils asyncUploadUtils = new AsyncUploadUtils(
+            S3Repository.PARALLEL_MULTIPART_UPLOAD_ENABLED_SETTING.get(metadata.settings()),
+            S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING.get(metadata.settings()).getBytes(),
+            normalExecutorBuilder.getStreamReader(),
+            priorityExecutorBuilder.getStreamReader()
+        );
         return new S3Repository(metadata, registry, service, clusterService, recoverySettings,
             asyncUploadUtils, priorityExecutorBuilder, normalExecutorBuilder, s3AsyncService);
     }
@@ -208,7 +211,9 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3ClientSettings.REGION,
             S3ClientSettings.ROLE_ARN_SETTING,
             S3ClientSettings.IDENTITY_TOKEN_FILE_SETTING,
-            S3ClientSettings.ROLE_SESSION_NAME_SETTING
+            S3ClientSettings.ROLE_SESSION_NAME_SETTING,
+            S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING,
+            S3Repository.PARALLEL_MULTIPART_UPLOAD_ENABLED_SETTING
         );
     }
 

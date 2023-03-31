@@ -136,6 +136,9 @@ dependencies {
   // jna
   api "net.java.dev.jna:jna:${versions.jna}"
 
+  // jcraft
+  api "com.jcraft:jzlib:1.1.3"
+
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
     exclude group: 'org.opensearch', module: 'server'

@@ -51,7 +51,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.Stream;
 import org.opensearch.common.Strings;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
@@ -76,7 +75,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -162,18 +160,17 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public boolean isMultiStreamUploadSupported() {
-        return true;
+        return blobStore.getAsyncUploadUtils().isMultipartUploadEnabled();
     }
 
     @Override
     public CompletableFuture<UploadResponse> writeBlobByStreams(WriteContext writeContext) throws IOException {
         UploadRequest uploadRequest = new UploadRequest(blobStore.bucket(),
             buildKey(writeContext.getFileName()), writeContext.getFileSize(), writeContext.getChecksum(),
-            writeContext.getWritePriority());
+            writeContext.getWritePriority(), writeContext.getUploadFinalizer());
         try {
             long partSize = blobStore.getAsyncUploadUtils().calculateOptimalPartSize(writeContext.getFileSize());
             StreamContext streamContext = SocketAccess.doPrivileged(() -> writeContext.getStreamContext(partSize));
-            Iterator<Stream> streamIterator = streamContext.getStreamIterable().iterator();
             try(AmazonAsyncS3Reference amazonS3Reference = SocketAccess.doPrivileged(blobStore::asyncClientReference)){
 
                 S3AsyncClient s3AsyncClient = writeContext.getWritePriority() == WritePriority.HIGH ?

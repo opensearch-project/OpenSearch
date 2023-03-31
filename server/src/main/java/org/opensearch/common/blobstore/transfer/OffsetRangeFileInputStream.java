@@ -54,6 +54,10 @@ public class OffsetRangeFileInputStream extends InputStream {
         }
     }
 
+    public FileChannel getFileChannel() {
+        return fileChannel;
+    }
+
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
         if (b == null) {
@@ -89,7 +93,8 @@ public class OffsetRangeFileInputStream extends InputStream {
 
     @Override
     public boolean markSupported() {
-        return true;
+        // return true;
+        return false;
     }
 
     @Override

@@ -8,14 +8,11 @@ import org.opensearch.common.blobstore.stream.StreamContext;
 import org.opensearch.common.blobstore.stream.write.UploadResponse;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.util.ByteUtils;
 import org.opensearch.repositories.s3.SocketAccess;
 import software.amazon.awssdk.core.async.AsyncRequestBody;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
-import software.amazon.awssdk.services.s3.endpoints.internal.Value;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
-import software.amazon.awssdk.services.s3.model.ChecksumAlgorithm;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadResponse;
 import software.amazon.awssdk.services.s3.model.CompletedMultipartUpload;
@@ -28,9 +25,6 @@ import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.utils.CompletableFutureUtils;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -49,6 +43,7 @@ public final class AsyncUploadUtils {
     private final ExecutorService executorService;
     private final ExecutorService priorityExecutorService;
     private final long minimumPartSize;
+    private final boolean multipartUploadEnabled;
 
     /**
      * The max number of parts on S3 side is 10,000
@@ -56,10 +51,15 @@ public final class AsyncUploadUtils {
     private static final long MAX_UPLOAD_PARTS = 10_000;
 
 
-    public AsyncUploadUtils(long minimumPartSize, ExecutorService executorService, ExecutorService  priorityExecutorService) {
+    public AsyncUploadUtils(boolean multipartUploadEnabled, long minimumPartSize, ExecutorService executorService, ExecutorService  priorityExecutorService) {
         this.executorService = executorService;
         this.priorityExecutorService = priorityExecutorService;
         this.minimumPartSize = minimumPartSize;
+        this.multipartUploadEnabled = multipartUploadEnabled;
+    }
+
+    public boolean isMultipartUploadEnabled() {
+        return multipartUploadEnabled;
     }
 
     public  CompletableFuture<UploadResponse> uploadObject(S3AsyncClient s3AsyncClient,
@@ -89,7 +89,6 @@ public final class AsyncUploadUtils {
         CreateMultipartUploadRequest request = CreateMultipartUploadRequest.builder()
             .bucket(uploadRequest.getBucket())
             .key(uploadRequest.getKey())
-            .checksumAlgorithm(ChecksumAlgorithm.CRC32)
             .build();
         CompletableFuture<CreateMultipartUploadResponse> createMultipartUploadFuture =
             SocketAccess.doPrivileged(()-> s3AsyncClient.createMultipartUpload(request));
@@ -121,6 +120,10 @@ public final class AsyncUploadUtils {
             streamContext, uploadId, completedParts);
 
         CompletableFutureUtils.allOfExceptionForwarded(futures.toArray(new CompletableFuture[0]))
+            .thenApply(resp -> {
+                uploadRequest.getUploadFinalizer().accept(true);
+                return resp;
+            })
             .thenCompose(ignore -> completeMultipartUpload(s3AsyncClient, uploadRequest, uploadId, completedParts))
             .handle(handleExceptionOrResponse(s3AsyncClient, uploadRequest, returnFuture, uploadId))
             .exceptionally(throwable -> {
@@ -163,8 +166,6 @@ public final class AsyncUploadUtils {
                 .bucket(uploadRequest.getBucket())
                 .key(uploadRequest.getKey())
                 .uploadId(uploadId)
-                .checksumCRC32(Base64.getEncoder().encodeToString(Arrays.copyOfRange(
-                    ByteUtils.toByteArrayBE(uploadRequest.getChecksum()), 4, 8)))
                 .multipartUpload(CompletedMultipartUpload.builder()
                     .parts(parts)
                     .build())
@@ -221,7 +222,6 @@ public final class AsyncUploadUtils {
                 .key(uploadRequest.getKey())
                 .uploadId(uploadId)
                 .contentLength(stream.getContentLength())
-                .checksumAlgorithm(ChecksumAlgorithm.CRC32)
                 .build();
             sendIndividualUploadPart(s3AsyncClient, completedParts, futures, uploadPartRequest, stream, uploadRequest);
         }
@@ -244,27 +244,19 @@ public final class AsyncUploadUtils {
                 stream.getContentLength(), streamReadExecutor)));
 
         CompletableFuture<CompletedPart> convertFuture =
-            uploadPartResponseFuture.thenApply(uploadPartResponse ->
-                convertUploadPartResponse(completedParts,uploadPartResponse, partNumber, stream));
+            uploadPartResponseFuture
+                .thenApply(uploadPartResponse ->
+                    convertUploadPartResponse(completedParts, uploadPartResponse, partNumber));
         futures.add(convertFuture);
 
         CompletableFutureUtils.forwardExceptionTo(convertFuture, uploadPartResponseFuture);
     }
 
     private CompletedPart convertUploadPartResponse(AtomicReferenceArray<CompletedPart> completedParts,
-                                                    UploadPartResponse partResponse, int partNumber,
-                                                    Stream stream) {
-
-//        long checksum = stream.getChecksumProvider().get();
-//        String encodedChecksum = Base64.getEncoder().encodeToString(Arrays.copyOfRange(
-//            toByteArrayBE(checksum), 4, 8));
-//        if (!encodedChecksum.equals(partResponse.checksumCRC32())) {
-//            throw new IllegalStateException("Calculated part checksum did not match with the uploaded part.");
-//        }
+                                                    UploadPartResponse partResponse, int partNumber) {
         CompletedPart completedPart = CompletedPart.builder()
             .eTag(partResponse.eTag())
             .partNumber(partNumber)
-//            .checksumCRC32(partResponse.checksumCRC32())
             .build();
         completedParts.set(partNumber - 1, completedPart);
         return completedPart;
@@ -274,7 +266,7 @@ public final class AsyncUploadUtils {
      * Calculates the optimal part size of each part request if the upload operation is carried out as multipart upload.
      */
     public long calculateOptimalPartSize(long contentLengthOfSource) {
-        if (contentLengthOfSource < ByteSizeUnit.MB.toBytes(100)) {
+        if (contentLengthOfSource < ByteSizeUnit.MB.toBytes(5)) {
             return contentLengthOfSource;
         }
         double optimalPartSize = contentLengthOfSource / (double) MAX_UPLOAD_PARTS;
@@ -288,16 +280,23 @@ public final class AsyncUploadUtils {
             .bucket(uploadRequest.getBucket())
             .key(uploadRequest.getKey())
             .contentLength(uploadRequest.getContentLength())
-            .checksumAlgorithm(ChecksumAlgorithm.CRC32)
-            .checksumCRC32(Base64.getEncoder().encodeToString(Arrays.copyOfRange(
-                ByteUtils.toByteArrayBE(uploadRequest.getChecksum()), 4, 8)))
             .build();
         ExecutorService streamReadExecutor = uploadRequest.getWritePriority() == WritePriority.HIGH ?
             priorityExecutorService : executorService;
         CompletableFuture<UploadResponse> putObjectFuture = SocketAccess.doPrivileged(() ->
             s3AsyncClient.putObject(putObjectRequest, AsyncRequestBody.fromInputStream(stream.getInputStream(),
                     stream.getContentLength(), streamReadExecutor))
-                .thenApply(resp -> new UploadResponse(true)));
+                .handle((resp, throwable) -> {
+                    if (throwable != null) {
+                        returnFuture.completeExceptionally(throwable);
+                    } else {
+                        uploadRequest.getUploadFinalizer().accept(true);
+                        returnFuture.complete(new UploadResponse(true));
+                    }
+
+                    return null;
+                }));
+
 
         CompletableFutureUtils.forwardExceptionTo(returnFuture, putObjectFuture);
         CompletableFutureUtils.forwardResultTo(putObjectFuture, returnFuture);

@@ -47,6 +47,9 @@ public class StreamIterable implements Iterable<Stream> {
 
             long position = partSize * partNumber;
             long size = partNumber == numOfParts - 1 ? lastPartSize : partSize;
+            if (numOfParts > 1) {
+                System.out.println();
+            }
             return streamSupplier.supply(partNumber++, size, position);
         }
     }

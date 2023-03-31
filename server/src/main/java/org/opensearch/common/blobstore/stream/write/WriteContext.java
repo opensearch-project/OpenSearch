@@ -24,6 +24,7 @@ public class WriteContext {
     private final boolean failIfAlreadyExists;
     private final WritePriority writePriority;
     private final long checksum;
+    private final UploadFinalizer uploadFinalizer;
 
     /**
      * Construct a new WriteContext object
@@ -35,13 +36,15 @@ public class WriteContext {
      * @param writePriority The <code>WritePriority</code> of this upload
      */
     public WriteContext(String fileName, StreamContextSupplier streamContextSupplier, long fileSize,
-                        boolean failIfAlreadyExists, WritePriority writePriority, long checksum) {
+                        boolean failIfAlreadyExists, WritePriority writePriority, long checksum,
+                        UploadFinalizer uploadFinalizer) {
         this.fileName = fileName;
         this.streamContextSupplier = streamContextSupplier;
         this.fileSize = fileSize;
         this.failIfAlreadyExists = failIfAlreadyExists;
         this.writePriority = writePriority;
         this.checksum = checksum;
+        this.uploadFinalizer = uploadFinalizer;
     }
 
     /**
@@ -85,5 +88,9 @@ public class WriteContext {
      */
     public long getChecksum() {
         return checksum;
+    }
+
+    public UploadFinalizer getUploadFinalizer() {
+        return uploadFinalizer;
     }
 }

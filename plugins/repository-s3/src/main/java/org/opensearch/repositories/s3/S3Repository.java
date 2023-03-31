@@ -151,11 +151,19 @@ class S3Repository extends MeteredBlobStoreRepository {
         MAX_PART_SIZE_USING_MULTIPART
     );
 
-    static final Setting<ByteSizeValue> MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING = Setting.byteSizeSetting(
-        "multipart_upload_minimum_part_size",
+    static final Setting<ByteSizeValue> PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING = Setting.byteSizeSetting(
+        "parallel_multipart_upload.minimum_part_size",
         DEFAULT_MULTIPART_UPLOAD_MINIMUM_PART_SIZE,
         MIN_PART_SIZE_USING_MULTIPART,
-        MAX_PART_SIZE_USING_MULTIPART
+        MAX_PART_SIZE_USING_MULTIPART,
+        Setting.Property.NodeScope
+    );
+
+    public static Setting<Boolean> PARALLEL_MULTIPART_UPLOAD_ENABLED_SETTING = Setting.boolSetting(
+        "parallel_multipart_upload.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Final
     );
 
     /**

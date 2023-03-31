@@ -31,6 +31,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Objects;
 import java.util.function.Supplier;
+import java.util.zip.CRC32;
 
 public class RemoteTransferContainer implements Closeable {
 
@@ -42,7 +43,7 @@ public class RemoteTransferContainer implements Closeable {
     private long lastPartSize;
 
     private final long contentLength;
-    private final SetOnce<InputStream[]> inputStreams = new SetOnce<>();
+    private final SetOnce<CustomCheckedInputStreamExtended[]> inputStreams = new SetOnce<>();
     private final String localFileName;
     private final String remoteFileName;
     private final boolean failTransferIfFileExists;
@@ -98,7 +99,8 @@ public class RemoteTransferContainer implements Closeable {
             contentLength,
             failTransferIfFileExists,
             writePriority,
-            expectedChecksum
+            expectedChecksum,
+            this::finalizeUpload
         );
     }
 
@@ -120,7 +122,8 @@ public class RemoteTransferContainer implements Closeable {
         this.numberOfParts = (int) ((contentLength % partSize) == 0 ? contentLength / partSize
             : (contentLength / partSize) + 1);
 
-        InputStream[] streams = new InputStream[numberOfParts];
+        log.info("Number of parts: {}, Last part size: {}, Part size: {}, Content length: {}", numberOfParts, partSize, lastPartSize, contentLength);
+        CustomCheckedInputStreamExtended[] streams = new CustomCheckedInputStreamExtended[numberOfParts];
         inputStreams.set(streams);
 
         return new StreamContext(
@@ -149,12 +152,21 @@ public class RemoteTransferContainer implements Closeable {
                     throw new IllegalArgumentException("InputStream parts not yet defined.");
                 }
                 offsetRangeInputStream = new OffsetRangeFileInputStream(localFile, size, position);
-                Objects.requireNonNull(inputStreams.get())[streamIdx] = offsetRangeInputStream;
+                if (streamIdx > 0) {
+                    log.info("streamIdx > 0");
+                }
+//                BufferedChecksumStreamInput bufferedChecksumStreamInput = new BufferedChecksumStreamInput(
+//                    new InputStreamStreamInput(offsetRangeInputStream), localFileName
+//                );
+//                CustomCheckedInputStream checkedInputStream = new CustomCheckedInputStream(offsetRangeInputStream, new CRC32(), localFileName, offsetRangeInputStream.getFileChannel());
+                CustomCheckedInputStreamExtended checkedInputStream = new CustomCheckedInputStreamExtended(offsetRangeInputStream, localFileName, offsetRangeInputStream.getFileChannel());
+                Objects.requireNonNull(inputStreams.get())[streamIdx] = checkedInputStream;
+
+                return new Stream(checkedInputStream, size, position);
             } catch (IOException e) {
                 log.error("Failed to create input stream", e);
                 return null;
             }
-            return new Stream(offsetRangeInputStream, size, position);
         };
     }
 
@@ -168,17 +180,53 @@ public class RemoteTransferContainer implements Closeable {
                 }
                 IndexInput indexInput = directory.openInput(localFileName, ioContext);
                 offsetRangeInputStream = new OffsetRangeIndexInputStream(indexInput, size, position);
-                Objects.requireNonNull(inputStreams.get())[streamIdx] = offsetRangeInputStream;
+                if (streamIdx > 0) {
+                    log.info("streamIdx > 0");
+                }
+//                BufferedChecksumStreamInput bufferedChecksumStreamInput = new BufferedChecksumStreamInput(
+//                    new InputStreamStreamInput(offsetRangeInputStream),
+//                    localFileName
+//                );
+//                CustomCheckedInputStream checkedInputStream = new CustomCheckedInputStream(offsetRangeInputStream, new CRC32(), localFileName, indexInput);
+                CustomCheckedInputStreamExtended checkedInputStream = new CustomCheckedInputStreamExtended(offsetRangeInputStream, localFileName, indexInput);
+                Objects.requireNonNull(inputStreams.get())[streamIdx] = checkedInputStream;
+
+                return new Stream(checkedInputStream, size, position);
             } catch (IOException e) {
                 log.error("Failed to create input stream", e);
                 return null;
             }
-            return new Stream(offsetRangeInputStream, size, position);
         };
+    }
+
+    public void finalizeUpload(boolean uploadSuccessful) {
+        if (uploadSuccessful) {
+            long actualChecksum = getActualChecksum();
+            if (actualChecksum != expectedChecksum) {
+                throw new RuntimeException(
+                    new CorruptedLocalFileException("Data integrity check done after upload for file " +
+                        localFileName + " failed, actual checksum: " + actualChecksum + ", expected checksum: " + expectedChecksum)
+                );
+            }
+        }
     }
 
     public long getContentLength() {
         return contentLength;
+    }
+
+    private long getActualChecksum() {
+        long checksum = inputStreams.get()[0].getChecksum();
+        for (int checkSumIdx = 1; checkSumIdx < inputStreams.get().length-1; checkSumIdx ++ ) {
+            checksum = ChecksumUtils.combine(checksum, inputStreams.get()[checkSumIdx].getChecksum(),
+                partSize);
+        }
+        if (numberOfParts > 1) {
+            checksum = ChecksumUtils.combine(checksum, inputStreams.get()[numberOfParts-1].getChecksum(),
+                lastPartSize);
+        }
+
+        return checksum;
     }
 
     @Override
