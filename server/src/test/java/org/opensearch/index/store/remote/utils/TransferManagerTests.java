@@ -10,6 +10,7 @@ package org.opensearch.index.store.remote.utils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -157,7 +158,7 @@ public class TransferManagerTests extends OpenSearchTestCase {
     public void testDownloadFails() throws Exception {
         doThrow(new IOException("Expected test exception")).when(blobContainer).readBlob(eq("failure-blob"), anyLong(), anyLong());
         expectThrows(
-            IOException.class,
+            UncheckedIOException.class,
             () -> transferManager.fetchBlob(
                 BlobFetchRequest.builder()
                     .blobName("failure-blob")
