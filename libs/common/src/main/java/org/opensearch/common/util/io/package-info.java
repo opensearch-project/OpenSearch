@@ -6,5 +6,5 @@
  * compatible open source license.
  */
 
-/** Common internal I/O classes */
-package org.opensearch.core.internal.io;
+/** Common internal I/O utility classes */
+package org.opensearch.common.util.io;
