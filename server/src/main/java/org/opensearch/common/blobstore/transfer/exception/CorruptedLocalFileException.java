@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.common.blobstore.transfer;
+package org.opensearch.common.blobstore.transfer.exception;
 
 import java.io.IOException;
 

@@ -21,6 +21,10 @@ import org.opensearch.common.TransferPartStreamSupplier;
 import org.opensearch.common.blobstore.stream.StreamContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.common.blobstore.transfer.exception.CorruptedLocalFileException;
+import org.opensearch.common.blobstore.transfer.stream.OffsetRangeFileInputStream;
+import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
+import org.opensearch.common.blobstore.transfer.stream.ResettableCheckedInputStream;
 import org.opensearch.index.translog.ChannelFactory;
 import org.opensearch.index.translog.checked.TranslogCheckedContainer;
 
@@ -32,7 +36,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Objects;
 import java.util.function.Supplier;
-import java.util.zip.CRC32;
 
 public class RemoteTransferContainer implements Closeable {
 
@@ -206,13 +209,13 @@ public class RemoteTransferContainer implements Closeable {
     }
 
     private long getActualChecksum() {
-        long checksum = inputStreams.get()[0].getChecksum();
-        for (int checkSumIdx = 1; checkSumIdx < inputStreams.get().length-1; checkSumIdx ++ ) {
-            checksum = JZlib.crc32_combine(checksum, inputStreams.get()[checkSumIdx].getChecksum(),
+        long checksum = Objects.requireNonNull(inputStreams.get())[0].getChecksum();
+        for (int checkSumIdx = 1; checkSumIdx < Objects.requireNonNull(inputStreams.get()).length-1; checkSumIdx ++ ) {
+            checksum = JZlib.crc32_combine(checksum, Objects.requireNonNull(inputStreams.get())[checkSumIdx].getChecksum(),
                 partSize);
         }
         if (numberOfParts > 1) {
-            checksum = JZlib.crc32_combine(checksum, inputStreams.get()[numberOfParts-1].getChecksum(),
+            checksum = JZlib.crc32_combine(checksum, Objects.requireNonNull(inputStreams.get())[numberOfParts-1].getChecksum(),
                 lastPartSize);
         }
 
