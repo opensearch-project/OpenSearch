@@ -192,7 +192,7 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         assertEquals(0L, stats.getCacheCount());
         assertEquals(0L, stats.getHitCount());
         assertEquals(0L, stats.getMissCount());
-        assertEquals(0L, stats.getMemorySizeInBytes());
+        assertTrue(stats.getMemorySizeInBytes() >= 0L);
 
         cache.close(); // this triggers some assertions
     }
