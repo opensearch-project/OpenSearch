@@ -8,6 +8,7 @@
 
 package org.opensearch.common.blobstore.transfer;
 
+import com.jcraft.jzlib.JZlib;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.Directory;
@@ -207,11 +208,11 @@ public class RemoteTransferContainer implements Closeable {
     private long getActualChecksum() {
         long checksum = inputStreams.get()[0].getChecksum();
         for (int checkSumIdx = 1; checkSumIdx < inputStreams.get().length-1; checkSumIdx ++ ) {
-            checksum = ChecksumUtils.combine(checksum, inputStreams.get()[checkSumIdx].getChecksum(),
+            checksum = JZlib.crc32_combine(checksum, inputStreams.get()[checkSumIdx].getChecksum(),
                 partSize);
         }
         if (numberOfParts > 1) {
-            checksum = ChecksumUtils.combine(checksum, inputStreams.get()[numberOfParts-1].getChecksum(),
+            checksum = JZlib.crc32_combine(checksum, inputStreams.get()[numberOfParts-1].getChecksum(),
                 lastPartSize);
         }
 

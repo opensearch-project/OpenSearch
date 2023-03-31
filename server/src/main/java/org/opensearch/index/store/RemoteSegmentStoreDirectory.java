@@ -8,6 +8,7 @@
 
 package org.opensearch.index.store;
 
+import com.jcraft.jzlib.JZlib;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -21,7 +22,6 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.stream.write.UploadResponse;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
-import org.opensearch.common.blobstore.transfer.ChecksumUtils;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.util.ByteUtils;
@@ -478,7 +478,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
             CRC32 checksumOfChecksum = new CRC32();
             checksumOfChecksum.update(ByteUtils.toByteArrayBE(storedChecksum));
             try {
-                return ChecksumUtils.combine(storedChecksum, checksumOfChecksum.getValue(), SEGMENT_CHECKSUM_BYTES);
+                return JZlib.crc32_combine(storedChecksum, checksumOfChecksum.getValue(), SEGMENT_CHECKSUM_BYTES);
             } catch (Exception e) {
                 throw new ChecksumCombinationException("Potentially corrupted file: Checksum combination failed while combining stored checksum " +
                     "and calculated checksum of stored checksum in segment file: " + file + ", directory: " + directory, file, e);
