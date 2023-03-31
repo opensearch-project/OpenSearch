@@ -492,14 +492,14 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
             List<List<IndexableField>> docs = new ArrayList<>();
             for (int n = 0; n < 10000; n++) {
                 BytesRef outerRange = RangeType.LONG.encodeRanges(
-                    org.opensearch.common.collect.Set.of(new RangeFieldMapper.Range(RangeType.LONG, n % 100, n % 100 + 10, true, true))
+                    Set.of(new RangeFieldMapper.Range(RangeType.LONG, n % 100, n % 100 + 10, true, true))
                 );
                 BytesRef innerRange = RangeType.LONG.encodeRanges(
-                    org.opensearch.common.collect.Set.of(new RangeFieldMapper.Range(RangeType.LONG, n / 100, n / 100 + 10, true, true))
+                    Set.of(new RangeFieldMapper.Range(RangeType.LONG, n / 100, n / 100 + 10, true, true))
                 );
 
                 docs.add(
-                    org.opensearch.common.collect.List.of(
+                    List.of(
                         new BinaryDocValuesField("outer", outerRange),
                         new BinaryDocValuesField("inner", innerRange),
                         new SortedNumericDocValuesField("n", n)

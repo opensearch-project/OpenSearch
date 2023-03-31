@@ -28,6 +28,6 @@
       indices.get_alias:
         index: testind
         name:  testali
-  
+
   - match: { 'status': 404 }
   - match: { 'error': 'alias [testali] missing' }

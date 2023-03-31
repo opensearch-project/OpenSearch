@@ -84,7 +84,7 @@ public abstract class ScoreScript {
     }
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
-    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.opensearch.common.collect.Map.of("doc", value -> {
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of("doc", value -> {
         deprecationLogger.deprecate(
             "score-script_doc",
             "Accessing variable [doc] via [params.doc] from within an score-script " + "is deprecated in favor of directly accessing [doc]."

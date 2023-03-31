@@ -150,7 +150,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
     }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
-        return org.opensearch.common.collect.Map.of(
+        return Map.of(
             "base_path",
             Repository.BASE_PATH_SETTING.get(metadata.settings()),
             "container",

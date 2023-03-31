@@ -227,9 +227,10 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                     public void onReplicationDone(SegmentReplicationState state) {
                         logger.trace(
                             () -> new ParameterizedMessage(
-                                "[shardId {}] [replication id {}] Replication complete, timing data: {}",
+                                "[shardId {}] [replication id {}] Replication complete to {}, timing data: {}",
                                 replicaShard.shardId().getId(),
                                 state.getReplicationId(),
+                                replicaShard.getLatestReplicationCheckpoint(),
                                 state.getTimingData()
                             )
                         );
@@ -362,7 +363,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                             completedReplications.put(target.shardId(), target);
                         }
                     } else {
-                        onGoingReplications.fail(replicationId, new ReplicationFailedException("Segment Replication failed", e), true);
+                        onGoingReplications.fail(replicationId, new ReplicationFailedException("Segment Replication failed", e), false);
                     }
                 }
             });
@@ -384,13 +385,18 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         }
     }
 
+    /**
+     * Force sync transport handler forces round of segment replication. Caller should verify necessary checks before
+     * calling this handler.
+     */
     private class ForceSyncTransportRequestHandler implements TransportRequestHandler<ForceSyncRequest> {
         @Override
         public void messageReceived(final ForceSyncRequest request, TransportChannel channel, Task task) throws Exception {
             assert indicesService != null;
             final IndexShard indexShard = indicesService.getShardOrNull(request.getShardId());
             // Proceed with round of segment replication only when it is allowed
-            if (indexShard.isSegmentReplicationAllowed() == false) {
+            if (indexShard == null || indexShard.getReplicationEngine().isEmpty()) {
+                logger.info("Ignore force segment replication sync as it is not allowed");
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
                 return;
             }
@@ -402,9 +408,10 @@ public class SegmentReplicationTargetService implements IndexEventListener {
                     public void onReplicationDone(SegmentReplicationState state) {
                         logger.trace(
                             () -> new ParameterizedMessage(
-                                "[shardId {}] [replication id {}] Replication complete, timing data: {}",
+                                "[shardId {}] [replication id {}] Replication complete to {}, timing data: {}",
                                 indexShard.shardId().getId(),
                                 state.getReplicationId(),
+                                indexShard.getLatestReplicationCheckpoint(),
                                 state.getTimingData()
                             )
                         );

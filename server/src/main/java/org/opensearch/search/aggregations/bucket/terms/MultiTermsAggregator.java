@@ -188,7 +188,7 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
             otherDocCount,
             0,
             formats,
-            org.opensearch.common.collect.List.of(topBuckets)
+            List.of(topBuckets)
         );
     }
 
@@ -341,7 +341,7 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
                     List<List<Object>> results
                 ) throws IOException {
                     if (index == collectedValues.size()) {
-                        results.add(org.opensearch.common.collect.List.copyOf(current));
+                        results.add(List.copyOf(current));
                     } else if (null != collectedValues.get(index)) {
                         for (Object value : collectedValues.get(index).get()) {
                             current.add(value);

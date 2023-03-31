@@ -62,6 +62,7 @@ import org.opensearch.search.sort.SortOrder;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.LongConsumer;
 
@@ -291,7 +292,7 @@ public class DateHistogramValuesSourceBuilder extends CompositeValuesSourceBuild
     public static void register(ValuesSourceRegistry.Builder builder) {
         builder.register(
             REGISTRY_KEY,
-            org.opensearch.common.collect.List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
+            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
             (valuesSourceConfig, rounding, name, hasScript, format, missingBucket, missingOrder, order) -> {
                 ValuesSource.Numeric numeric = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
                 // TODO once composite is plugged in to the values source registry or at least understands Date values source types use it

@@ -51,7 +51,7 @@ public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
     public TaskProvider<? extends Task> createTask(Project project) {
         project.getPlugins().apply(CompileOnlyResolvePlugin.class);
         project.getConfigurations().create("forbiddenApisCliJar");
-        project.getDependencies().add("forbiddenApisCliJar", "de.thetaphi:forbiddenapis:3.4");
+        project.getDependencies().add("forbiddenApisCliJar", "de.thetaphi:forbiddenapis:3.5.1");
 
         Configuration jdkJarHellConfig = project.getConfigurations().create(JDK_JAR_HELL_CONFIG_NAME);
         if (BuildParams.isInternal() && project.getPath().equals(":libs:opensearch-core") == false) {

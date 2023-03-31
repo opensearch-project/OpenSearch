@@ -32,13 +32,13 @@
 
 package org.opensearch.index.mapper;
 
-import org.opensearch.common.collect.Set;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;

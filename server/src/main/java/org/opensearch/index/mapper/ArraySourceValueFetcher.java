@@ -74,7 +74,7 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
         for (String path : sourcePaths) {
             Object sourceValue = lookup.extractValue(path, nullValue);
             if (sourceValue == null) {
-                return org.opensearch.common.collect.List.of();
+                return List.of();
             }
             values.addAll((List<?>) parseSourceValue(sourceValue));
         }
