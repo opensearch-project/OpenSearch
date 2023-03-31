@@ -17,7 +17,7 @@
         wait_for_status: green
   - do:
       allowed_warnings:
-        - Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead.
+        - Synced flush is deprecated and will be removed in 3.0. Use flush at _/flush or /{index}/_flush instead.
       indices.flush_synced:
         index: testing
 
