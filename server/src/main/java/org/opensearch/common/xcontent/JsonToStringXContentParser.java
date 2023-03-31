@@ -64,7 +64,7 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
     public XContentParser parseObject() throws IOException {
         builder.startObject();
         StringBuilder path = new StringBuilder(fieldTypeName);
-        parseToken(path);
+        parseToken(path, null);
         builder.field(this.fieldTypeName, keyList);
         builder.field(this.fieldTypeName + VALUE_SUFFIX, valueList);
         builder.field(this.fieldTypeName + VALUE_AND_PATH_SUFFIX, valueAndPathList);
@@ -73,24 +73,33 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
         return JsonXContent.jsonXContent.createParser(this.xContentRegistry, this.deprecationHandler, String.valueOf(jString));
     }
 
-    private void parseToken(StringBuilder path) throws IOException {
-        String currentFieldName;
+    private void parseToken(StringBuilder path, String currentFieldName) throws IOException {
+
         while (this.parser.nextToken() != Token.END_OBJECT) {
-            currentFieldName = this.parser.currentName();
+            if (this.parser.currentName() != null) {
+                currentFieldName = this.parser.currentName();
+            }
             StringBuilder parsedFields = new StringBuilder();
-            if (this.parser.nextToken() == Token.START_OBJECT) {
-                // TODO: consider to store the entire JsonObject at StartObject as string without changing the tokenizer position.
+
+            if (this.parser.currentToken() == Token.FIELD_NAME) {
                 path.append(DOT_SYMBOL + currentFieldName);
                 this.keyList.add(currentFieldName);
-                parseToken(path);
+            } else if (this.parser.currentToken() == Token.START_ARRAY) {
+                parseToken(path, currentFieldName);
+                break;
+            } else if (this.parser.currentToken() == Token.END_ARRAY) {
+                // skip
+            } else if (this.parser.currentToken() == Token.START_OBJECT) {
+                parseToken(path, currentFieldName);
                 int dotIndex = path.lastIndexOf(DOT_SYMBOL);
                 if (dotIndex != -1) {
                     path.delete(dotIndex, path.length());
                 }
             } else {
-                path.append(DOT_SYMBOL + currentFieldName);
-                parseValue(currentFieldName, parsedFields);
-                this.keyList.add(currentFieldName);
+                if (!path.toString().contains(currentFieldName)) {
+                    path.append(DOT_SYMBOL + currentFieldName);
+                }
+                parseValue(parsedFields);
                 this.valueList.add(parsedFields.toString());
                 this.valueAndPathList.add(path + EQUAL_SYMBOL + parsedFields);
                 int dotIndex = path.lastIndexOf(DOT_SYMBOL);
@@ -102,7 +111,7 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
         }
     }
 
-    private void parseValue(String currentFieldName, StringBuilder parsedFields) throws IOException {
+    private void parseValue(StringBuilder parsedFields) throws IOException {
         switch (this.parser.currentToken()) {
             case VALUE_BOOLEAN:
             case VALUE_NUMBER:
@@ -112,8 +121,9 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
                 break;
             // Handle other token types as needed
             case FIELD_NAME:
-                break;
             case VALUE_EMBEDDED_OBJECT:
+            case END_ARRAY:
+            case START_ARRAY:
                 break;
             default:
                 throw new IOException("Unsupported token type [" + parser.currentToken() + "]");

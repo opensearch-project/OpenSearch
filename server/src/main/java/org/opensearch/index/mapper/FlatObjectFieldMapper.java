@@ -24,6 +24,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Iterators;
 import org.opensearch.common.lucene.Lucene;
@@ -328,9 +329,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             if (value == null) {
                 return null;
             }
-            if (value instanceof BytesRef) {
-                value = ((BytesRef) value).utf8ToString();
-            }
+            value = inputToString(value);
             return getTextSearchInfo().getSearchAnalyzer().normalize(name(), value.toString());
         }
 
@@ -340,7 +339,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         @Override
         public Query termQuery(Object value, @Nullable QueryShardContext context) {
 
-            String searchValueString = ((BytesRef) value).utf8ToString();
+            String searchValueString = inputToString(value);
             String directSubFieldName = directSubfield();
             String rewriteSearchValue = rewriteValue(searchValueString);
 
@@ -359,7 +358,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             String directedSearchFieldName = directSubfield();
             BytesRef[] bytesRefs = new BytesRef[values.size()];
             for (int i = 0; i < bytesRefs.length; i++) {
-                String rewriteValues = rewriteValue(((BytesRef) values.get(i)).utf8ToString());
+                String rewriteValues = rewriteValue(inputToString(values.get(i)));
 
                 bytesRefs[i] = indexedValueForSearch(new BytesRef(rewriteValues));
 
@@ -399,6 +398,44 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         }
 
+        private String inputToString(Object inputValue) {
+            if (inputValue instanceof Integer) {
+                String inputToString = Integer.toString((Integer) inputValue);
+                return inputToString;
+            } else if (inputValue instanceof Integer) {
+                String inputToString = Integer.toString((Integer) inputValue);
+                return inputToString;
+            } else if (inputValue instanceof Float) {
+                String inputToString = Float.toString((Float) inputValue);
+                return inputToString;
+            } else if (inputValue instanceof Boolean) {
+                String inputToString = Boolean.toString((Boolean) inputValue);
+                return inputToString;
+            } else if (inputValue instanceof Short) {
+                String inputToString = Short.toString((Short) inputValue);
+                return inputToString;
+            } else if (inputValue instanceof Long) {
+                String inputToString = Long.toString((Long) inputValue);
+                return inputToString;
+            } else if (inputValue instanceof Double) {
+                String inputToString = Double.toString((Double) inputValue);
+                return inputToString;
+            } else if (inputValue instanceof BytesRef) {
+                String inputToString = (((BytesRef) inputValue).utf8ToString());
+                return inputToString;
+            } else if (inputValue instanceof String) {
+                String inputToString = (String) inputValue;
+                return inputToString;
+            } else if (inputValue instanceof Version) {
+                String inputToString = inputValue.toString();
+                return inputToString;
+            } else {
+                // default to cast as BytesRef
+                String inputToString = ((BytesRef) inputValue).utf8ToString();
+                return inputToString;
+            }
+        }
+
         @Override
         public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
             String directSubfield = directSubfield();
@@ -425,8 +462,8 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
             String directSubfield = directSubfield();
-            String rewriteUpperTerm = rewriteValue(((BytesRef) upperTerm).utf8ToString());
-            String rewriteLowerTerm = rewriteValue(((BytesRef) lowerTerm).utf8ToString());
+            String rewriteUpperTerm = rewriteValue(inputToString(upperTerm));
+            String rewriteLowerTerm = rewriteValue(inputToString(lowerTerm));
             if (context.allowExpensiveQueries() == false) {
                 throw new OpenSearchException(
                     "[range] queries on [text] or [keyword] fields cannot be executed when '"
