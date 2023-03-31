@@ -281,6 +281,58 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         assertTrue(expectedExtensions.containsAll(emptyList()));
     }
 
+    public void testMissingRequiredFieldsInExtensionDiscovery() throws Exception {
+        Path emptyExtensionDir = createTempDir();
+        ExtensionsManager extensionsManager;
+        List<String> requiredFieldMissingYmlLines = extensionsYmlLines.stream()
+            .map(s -> s.replace("     minimumCompatibleVersion: '2.0.0'", ""))
+            .collect(Collectors.toList());
+        Files.write(emptyExtensionDir.resolve("extensions.yml"), requiredFieldMissingYmlLines, StandardCharsets.UTF_8);
+
+        try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ExtensionsManager.class))) {
+
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "Required field is missing in extensions.yml",
+                    "org.opensearch.extensions.ExtensionsManager",
+                    Level.WARN,
+                    "loading extension has been failed because of exception : Extension is missing these required fields : [minimumCompatibleVersion]"
+                )
+            );
+
+            extensionsManager = new ExtensionsManager(settings, emptyExtensionDir);
+
+            mockLogAppender.assertAllExpectationsMatched();
+        }
+
+        List<DiscoveryExtensionNode> expectedExtensions = new ArrayList<DiscoveryExtensionNode>();
+
+        expectedExtensions.add(
+            new DiscoveryExtensionNode(
+                "firstExtension",
+                "uniqueid1",
+                new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
+                new HashMap<String, String>(),
+                Version.fromString("3.0.0"),
+                Version.fromString("3.0.0"),
+                Collections.emptyList()
+            )
+        );
+        assertEquals(expectedExtensions.size(), extensionsManager.getExtensionIdMap().values().size());
+        for (DiscoveryExtensionNode extension : expectedExtensions) {
+            DiscoveryExtensionNode initializedExtension = extensionsManager.getExtensionIdMap().get(extension.getId());
+            assertEquals(extension.getName(), initializedExtension.getName());
+            assertEquals(extension.getId(), initializedExtension.getId());
+            assertEquals(extension.getAddress(), initializedExtension.getAddress());
+            assertEquals(extension.getAttributes(), initializedExtension.getAttributes());
+            assertEquals(extension.getVersion(), initializedExtension.getVersion());
+            assertEquals(extension.getMinimumCompatibleVersion(), initializedExtension.getMinimumCompatibleVersion());
+            assertEquals(extension.getDependencies(), initializedExtension.getDependencies());
+        }
+        assertTrue(expectedExtensions.containsAll(emptyList()));
+        assertTrue(expectedExtensions.containsAll(emptyList()));
+    }
+
     public void testDiscoveryExtension() throws Exception {
         String expectedId = "test id";
         Version expectedVersion = Version.fromString("2.0.0");
