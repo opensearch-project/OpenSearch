@@ -10,6 +10,7 @@ package org.opensearch.common;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class StreamIterable implements Iterable<Stream> {
 
@@ -17,7 +18,7 @@ public class StreamIterable implements Iterable<Stream> {
     private final long partSize;
     private final long lastPartSize;
     private final int numOfParts;
-    private int partNumber = 0;
+    private final AtomicInteger partNumber = new AtomicInteger();
 
     public StreamIterable(TransferPartStreamSupplier streamSupplier, long partSize, long lastPartSize,
                           int numOfParts) {
@@ -36,21 +37,18 @@ public class StreamIterable implements Iterable<Stream> {
 
         @Override
         public boolean hasNext() {
-            return partNumber < numOfParts;
+            return partNumber.get() < numOfParts;
         }
 
         @Override
-        public Stream next() {
+        public synchronized Stream next() {
             if (!hasNext()) {
                 throw new NoSuchElementException("No Stream available");
             }
 
-            long position = partSize * partNumber;
-            long size = partNumber == numOfParts - 1 ? lastPartSize : partSize;
-            if (numOfParts > 1) {
-                System.out.println();
-            }
-            return streamSupplier.supply(partNumber++, size, position);
+            long position = partSize * partNumber.get();
+            long size = partNumber.get() == numOfParts - 1 ? lastPartSize : partSize;
+            return streamSupplier.supply(partNumber.getAndIncrement(), size, position);
         }
     }
 }
