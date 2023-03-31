@@ -93,8 +93,7 @@ public class OffsetRangeFileInputStream extends InputStream {
 
     @Override
     public boolean markSupported() {
-        // return true;
-        return false;
+         return true;
     }
 
     @Override

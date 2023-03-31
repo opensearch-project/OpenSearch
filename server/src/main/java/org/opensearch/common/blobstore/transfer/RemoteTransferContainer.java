@@ -43,7 +43,7 @@ public class RemoteTransferContainer implements Closeable {
     private long lastPartSize;
 
     private final long contentLength;
-    private final SetOnce<CustomCheckedInputStreamExtended[]> inputStreams = new SetOnce<>();
+    private final SetOnce<ResettableCheckedInputStream[]> inputStreams = new SetOnce<>();
     private final String localFileName;
     private final String remoteFileName;
     private final boolean failTransferIfFileExists;
@@ -123,7 +123,7 @@ public class RemoteTransferContainer implements Closeable {
             : (contentLength / partSize) + 1);
 
         log.info("Number of parts: {}, Last part size: {}, Part size: {}, Content length: {}", numberOfParts, partSize, lastPartSize, contentLength);
-        CustomCheckedInputStreamExtended[] streams = new CustomCheckedInputStreamExtended[numberOfParts];
+        ResettableCheckedInputStream[] streams = new ResettableCheckedInputStream[numberOfParts];
         inputStreams.set(streams);
 
         return new StreamContext(
@@ -146,20 +146,15 @@ public class RemoteTransferContainer implements Closeable {
     private Supplier<Stream> getMultiPartStreamSupplierForFile(final int streamIdx, final long size,
                                                                final long position) {
         return () -> {
-            OffsetRangeFileInputStream offsetRangeInputStream;
             try {
                 if (inputStreams.get() == null) {
                     throw new IllegalArgumentException("InputStream parts not yet defined.");
                 }
-                offsetRangeInputStream = new OffsetRangeFileInputStream(localFile, size, position);
+                OffsetRangeFileInputStream offsetRangeInputStream = new OffsetRangeFileInputStream(localFile, size, position);
                 if (streamIdx > 0) {
                     log.info("streamIdx > 0");
                 }
-//                BufferedChecksumStreamInput bufferedChecksumStreamInput = new BufferedChecksumStreamInput(
-//                    new InputStreamStreamInput(offsetRangeInputStream), localFileName
-//                );
-//                CustomCheckedInputStream checkedInputStream = new CustomCheckedInputStream(offsetRangeInputStream, new CRC32(), localFileName, offsetRangeInputStream.getFileChannel());
-                CustomCheckedInputStreamExtended checkedInputStream = new CustomCheckedInputStreamExtended(offsetRangeInputStream, localFileName, offsetRangeInputStream.getFileChannel());
+                ResettableCheckedInputStream checkedInputStream = new ResettableCheckedInputStream(offsetRangeInputStream);
                 Objects.requireNonNull(inputStreams.get())[streamIdx] = checkedInputStream;
 
                 return new Stream(checkedInputStream, size, position);
@@ -173,22 +168,16 @@ public class RemoteTransferContainer implements Closeable {
     private Supplier<Stream> getMultiPartStreamSupplierForIndexInput(final int streamIdx, final long size,
                                                                      final long position) {
         return () -> {
-            OffsetRangeIndexInputStream offsetRangeInputStream;
             try {
                 if (inputStreams.get() == null) {
                     throw new IllegalArgumentException("InputStream parts not yet defined.");
                 }
                 IndexInput indexInput = directory.openInput(localFileName, ioContext);
-                offsetRangeInputStream = new OffsetRangeIndexInputStream(indexInput, size, position);
+                OffsetRangeIndexInputStream offsetRangeInputStream = new OffsetRangeIndexInputStream(indexInput, size, position);
                 if (streamIdx > 0) {
                     log.info("streamIdx > 0");
                 }
-//                BufferedChecksumStreamInput bufferedChecksumStreamInput = new BufferedChecksumStreamInput(
-//                    new InputStreamStreamInput(offsetRangeInputStream),
-//                    localFileName
-//                );
-//                CustomCheckedInputStream checkedInputStream = new CustomCheckedInputStream(offsetRangeInputStream, new CRC32(), localFileName, indexInput);
-                CustomCheckedInputStreamExtended checkedInputStream = new CustomCheckedInputStreamExtended(offsetRangeInputStream, localFileName, indexInput);
+                ResettableCheckedInputStream checkedInputStream = new ResettableCheckedInputStream(offsetRangeInputStream);
                 Objects.requireNonNull(inputStreams.get())[streamIdx] = checkedInputStream;
 
                 return new Stream(checkedInputStream, size, position);

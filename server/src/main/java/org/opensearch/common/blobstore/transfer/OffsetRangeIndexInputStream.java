@@ -48,8 +48,7 @@ public class OffsetRangeIndexInputStream extends InputStream {
 
     @Override
     public boolean markSupported() {
-//        return inputStreamIndexInput.markSupported();
-        return false;
+        return inputStreamIndexInput.markSupported();
     }
 
     @Override
