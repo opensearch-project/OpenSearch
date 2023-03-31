@@ -576,12 +576,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         expectThrows(
             OpenSearchParseException.class,
             () -> searchPipelineService.validatePipeline(
-                Map.of(
-                    n1,
-                    new SearchPipelinesInfo(List.of(reqProcessor, rspProcessor)),
-                    n2,
-                    new SearchPipelinesInfo(List.of(reqProcessor))
-                ),
+                Map.of(n1, new SearchPipelineInfo(List.of(reqProcessor, rspProcessor)), n2, new SearchPipelineInfo(List.of(reqProcessor))),
                 putRequest
             )
         );
@@ -605,9 +600,9 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             () -> searchPipelineService.validatePipeline(
                 Map.of(
                     n1,
-                    new SearchPipelinesInfo(List.of(reqProcessor, rspProcessor)),
+                    new SearchPipelineInfo(List.of(reqProcessor, rspProcessor)),
                     n2,
-                    new SearchPipelinesInfo(List.of(reqProcessor, rspProcessor))
+                    new SearchPipelineInfo(List.of(reqProcessor, rspProcessor))
                 ),
                 badPutRequest
             )
@@ -617,9 +612,9 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         searchPipelineService.validatePipeline(
             Map.of(
                 n1,
-                new SearchPipelinesInfo(List.of(reqProcessor, rspProcessor)),
+                new SearchPipelineInfo(List.of(reqProcessor, rspProcessor)),
                 n2,
-                new SearchPipelinesInfo(List.of(reqProcessor, rspProcessor))
+                new SearchPipelineInfo(List.of(reqProcessor, rspProcessor))
             ),
             putRequest
         );
@@ -627,7 +622,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
     public void testInfo() {
         SearchPipelineService searchPipelineService = createWithProcessors();
-        SearchPipelinesInfo info = searchPipelineService.info();
+        SearchPipelineInfo info = searchPipelineService.info();
         assertTrue(info.containsProcessor("scale_request_size"));
         assertTrue(info.containsProcessor("fixed_score"));
     }

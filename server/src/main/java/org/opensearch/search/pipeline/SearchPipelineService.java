@@ -62,7 +62,7 @@ import java.util.function.Consumer;
  * The main entry point for search pipelines. Handles CRUD operations and exposes the API to execute search pipelines
  * against requests and responses.
  */
-public class SearchPipelineService implements ClusterStateApplier, ReportingService<SearchPipelinesInfo> {
+public class SearchPipelineService implements ClusterStateApplier, ReportingService<SearchPipelineInfo> {
     public static final String SEARCH_PIPELINE_ORIGIN = "search_pipeline";
 
     private static final Logger logger = LogManager.getLogger(SearchPipelineService.class);
@@ -206,12 +206,12 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
     }
 
     public void putPipeline(
-        Map<DiscoveryNode, SearchPipelinesInfo> searchPipelinesInfos,
+        Map<DiscoveryNode, SearchPipelineInfo> searchPipelineInfos,
         PutSearchPipelineRequest request,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
 
-        validatePipeline(searchPipelinesInfos, request);
+        validatePipeline(searchPipelineInfos, request);
         clusterService.submitStateUpdateTask(
             "put-search-pipeline-" + request.getId(),
             new AckedClusterStateUpdateTask<>(request, listener) {
@@ -251,15 +251,15 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         return newState.build();
     }
 
-    void validatePipeline(Map<DiscoveryNode, SearchPipelinesInfo> searchPipelinesInfos, PutSearchPipelineRequest request) throws Exception {
-        if (searchPipelinesInfos.isEmpty()) {
+    void validatePipeline(Map<DiscoveryNode, SearchPipelineInfo> searchPipelineInfos, PutSearchPipelineRequest request) throws Exception {
+        if (searchPipelineInfos.isEmpty()) {
             throw new IllegalStateException("Search pipeline info is empty");
         }
         Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
         Pipeline pipeline = Pipeline.create(request.getId(), pipelineConfig, processorFactories);
         List<Exception> exceptions = new ArrayList<>();
         for (Processor processor : pipeline.flattenAllProcessors()) {
-            for (Map.Entry<DiscoveryNode, SearchPipelinesInfo> entry : searchPipelinesInfos.entrySet()) {
+            for (Map.Entry<DiscoveryNode, SearchPipelineInfo> entry : searchPipelineInfos.entrySet()) {
                 String type = processor.getType();
                 if (entry.getValue().containsProcessor(type) == false) {
                     String message = "Processor type [" + processor.getType() + "] is not installed on node [" + entry.getKey() + "]";
@@ -363,12 +363,12 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
     }
 
     @Override
-    public SearchPipelinesInfo info() {
+    public SearchPipelineInfo info() {
         List<ProcessorInfo> processorInfoList = new ArrayList<>();
         for (Map.Entry<String, Processor.Factory> entry : processorFactories.entrySet()) {
             processorInfoList.add(new ProcessorInfo(entry.getKey()));
         }
-        return new SearchPipelinesInfo(processorInfoList);
+        return new SearchPipelineInfo(processorInfoList);
     }
 
     public static List<PipelineConfiguration> getPipelines(ClusterState clusterState, String... ids) {

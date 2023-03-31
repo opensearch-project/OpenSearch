@@ -1,5 +1,5 @@
 {
-  "search_pipelines.delete_pipeline": {
+  "search_pipeline.delete": {
     "documentation": {
       "description": "Deletes a search pipeline.",
       "url": "https://opensearch.org/docs/latest/opensearch/rest-api/search_pipelines/"

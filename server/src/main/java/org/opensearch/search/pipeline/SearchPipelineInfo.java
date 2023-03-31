@@ -24,18 +24,18 @@ import java.util.TreeSet;
  *
  * @opensearch.internal
  */
-public class SearchPipelinesInfo implements ReportingService.Info {
+public class SearchPipelineInfo implements ReportingService.Info {
 
     private final Set<ProcessorInfo> processors;
 
-    public SearchPipelinesInfo(List<ProcessorInfo> processors) {
+    public SearchPipelineInfo(List<ProcessorInfo> processors) {
         this.processors = new TreeSet<>(processors);  // we use a treeset here to have a test-able / predictable order
     }
 
     /**
      * Read from a stream.
      */
-    public SearchPipelinesInfo(StreamInput in) throws IOException {
+    public SearchPipelineInfo(StreamInput in) throws IOException {
         processors = new TreeSet<>();
         final int size = in.readVInt();
         for (int i = 0; i < size; i++) {
@@ -71,7 +71,7 @@ public class SearchPipelinesInfo implements ReportingService.Info {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        SearchPipelinesInfo that = (SearchPipelinesInfo) o;
+        SearchPipelineInfo that = (SearchPipelineInfo) o;
         return Objects.equals(processors, that.processors);
     }
 

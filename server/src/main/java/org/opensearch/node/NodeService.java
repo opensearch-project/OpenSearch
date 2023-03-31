@@ -149,25 +149,46 @@ public class NodeService implements Closeable {
         boolean ingest,
         boolean aggs,
         boolean indices,
-        boolean searchPipelines
+        boolean searchPipeline
     ) {
-        return new NodeInfo(
-            Version.CURRENT,
-            Build.CURRENT,
-            transportService.getLocalNode(),
-            settings ? settingsFilter.filter(this.settings) : null,
-            os ? monitorService.osService().info() : null,
-            process ? monitorService.processService().info() : null,
-            jvm ? monitorService.jvmService().info() : null,
-            threadPool ? this.threadPool.info() : null,
-            transport ? transportService.info() : null,
-            http ? (httpServerTransport == null ? null : httpServerTransport.info()) : null,
-            plugin ? (pluginService == null ? null : pluginService.info()) : null,
-            ingest ? (ingestService == null ? null : ingestService.info()) : null,
-            aggs ? (aggregationUsageService == null ? null : aggregationUsageService.info()) : null,
-            indices ? indicesService.getTotalIndexingBufferBytes() : null,
-            searchPipelines ? (searchPipelineService == null ? null : searchPipelineService.info()) : null
-        );
+        NodeInfo.Builder builder = NodeInfo.builder(Version.CURRENT, Build.CURRENT, transportService.getLocalNode());
+        if (settings) {
+            builder.setSettings(settingsFilter.filter(this.settings));
+        }
+        if (os) {
+            builder.setOs(monitorService.osService().info());
+        }
+        if (process) {
+            builder.setProcess(monitorService.processService().info());
+        }
+        if (jvm) {
+            builder.setJvm(monitorService.jvmService().info());
+        }
+        if (threadPool) {
+            builder.setThreadPool(this.threadPool.info());
+        }
+        if (transport) {
+            builder.setTransport(transportService.info());
+        }
+        if (http && httpServerTransport != null) {
+            builder.setHttp(httpServerTransport.info());
+        }
+        if (plugin && pluginService != null) {
+            builder.setPlugins(pluginService.info());
+        }
+        if (ingest && ingestService != null) {
+            builder.setIngest(ingestService.info());
+        }
+        if (aggs && aggregationUsageService != null) {
+            builder.setAggsInfo(aggregationUsageService.info());
+        }
+        if (indices) {
+            builder.setTotalIndexingBuffer(indicesService.getTotalIndexingBufferBytes());
+        }
+        if (searchPipeline && searchPipelineService != null) {
+            builder.setSearchPipelineInfo(searchPipelineService.info());
+        }
+        return builder.build();
     }
 
     public NodeStats stats(

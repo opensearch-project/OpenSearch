@@ -20,10 +20,10 @@ import java.util.Collections;
 
 import static java.util.Collections.emptySet;
 
-public final class SearchPipelinesClient {
+public final class SearchPipelineClient {
     private final RestHighLevelClient restHighLevelClient;
 
-    SearchPipelinesClient(RestHighLevelClient restHighLevelClient) {
+    SearchPipelineClient(RestHighLevelClient restHighLevelClient) {
         this.restHighLevelClient = restHighLevelClient;
     }
 
@@ -35,7 +35,7 @@ public final class SearchPipelinesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public AcknowledgedResponse putPipeline(PutSearchPipelineRequest request, RequestOptions options) throws IOException {
+    public AcknowledgedResponse put(PutSearchPipelineRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             request,
             SearchPipelinesRequestConverters::putPipeline,
@@ -53,11 +53,7 @@ public final class SearchPipelinesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable putPipelineAsync(
-        PutSearchPipelineRequest request,
-        RequestOptions options,
-        ActionListener<AcknowledgedResponse> listener
-    ) {
+    public Cancellable putAsync(PutSearchPipelineRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
             SearchPipelinesRequestConverters::putPipeline,
@@ -76,7 +72,7 @@ public final class SearchPipelinesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public GetSearchPipelineResponse getPipeline(GetSearchPipelineRequest request, RequestOptions options) throws IOException {
+    public GetSearchPipelineResponse get(GetSearchPipelineRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             request,
             SearchPipelinesRequestConverters::getPipeline,
@@ -94,7 +90,7 @@ public final class SearchPipelinesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable getPipelineAsync(
+    public Cancellable getAsync(
         GetSearchPipelineRequest request,
         RequestOptions options,
         ActionListener<GetSearchPipelineResponse> listener
@@ -117,7 +113,7 @@ public final class SearchPipelinesClient {
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public AcknowledgedResponse deletePipeline(DeleteSearchPipelineRequest request, RequestOptions options) throws IOException {
+    public AcknowledgedResponse delete(DeleteSearchPipelineRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             request,
             SearchPipelinesRequestConverters::deletePipeline,
@@ -135,7 +131,7 @@ public final class SearchPipelinesClient {
      * @param listener the listener to be notified upon request completion
      * @return cancellable that may be used to cancel the request
      */
-    public Cancellable deletePipelineAsync(
+    public Cancellable deleteAsync(
         DeleteSearchPipelineRequest request,
         RequestOptions options,
         ActionListener<AcknowledgedResponse> listener

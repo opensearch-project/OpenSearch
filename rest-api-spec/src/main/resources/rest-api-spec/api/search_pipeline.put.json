@@ -1,5 +1,5 @@
 {
-  "search_pipelines.put_pipeline": {
+  "search_pipeline.put": {
     "documentation": {
       "description": "Creates or updates a search pipeline.",
       "url": "https://opensearch.org/docs/latest/opensearch/rest-api/search_pipelines/"

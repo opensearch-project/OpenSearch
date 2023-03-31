@@ -24,7 +24,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.search.pipeline.SearchPipelineService;
-import org.opensearch.search.pipeline.SearchPipelinesInfo;
+import org.opensearch.search.pipeline.SearchPipelineInfo;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -84,11 +84,11 @@ public class PutSearchPipelineTransportAction extends TransportClusterManagerNod
     ) throws Exception {
         NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
         client.admin().cluster().nodesInfo(nodesInfoRequest, ActionListener.wrap(nodeInfos -> {
-            Map<DiscoveryNode, SearchPipelinesInfo> searchPipelinesInfos = new HashMap<>();
+            Map<DiscoveryNode, SearchPipelineInfo> searchPipelineInfos = new HashMap<>();
             for (NodeInfo nodeInfo : nodeInfos.getNodes()) {
-                searchPipelinesInfos.put(nodeInfo.getNode(), nodeInfo.getInfo(SearchPipelinesInfo.class));
+                searchPipelineInfos.put(nodeInfo.getNode(), nodeInfo.getInfo(SearchPipelineInfo.class));
             }
-            searchPipelineService.putPipeline(searchPipelinesInfos, request, listener);
+            searchPipelineService.putPipeline(searchPipelineInfos, request, listener);
         }, listener::onFailure));
     }
 

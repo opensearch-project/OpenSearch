@@ -268,7 +268,7 @@ public class RestHighLevelClient implements Closeable {
     private final IngestClient ingestClient = new IngestClient(this);
     private final SnapshotClient snapshotClient = new SnapshotClient(this);
     private final TasksClient tasksClient = new TasksClient(this);
-    private final SearchPipelinesClient searchPipelinesClient = new SearchPipelinesClient(this);
+    private final SearchPipelineClient searchPipelineClient = new SearchPipelineClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -355,8 +355,8 @@ public class RestHighLevelClient implements Closeable {
         return tasksClient;
     }
 
-    public final SearchPipelinesClient searchPipelines() {
-        return searchPipelinesClient;
+    public final SearchPipelineClient searchPipeline() {
+        return searchPipelineClient;
     }
 
     /**

@@ -1,14 +1,14 @@
 ---
 teardown:
   - do:
-      search_pipelines.delete_pipeline:
+      search_pipeline.delete:
         id: "my_pipeline"
         ignore: 404
 
 ---
 "Test filter_query processor":
   - do:
-      search_pipelines.put_pipeline:
+      search_pipeline.put:
         id: "my_pipeline"
         body: >
           {

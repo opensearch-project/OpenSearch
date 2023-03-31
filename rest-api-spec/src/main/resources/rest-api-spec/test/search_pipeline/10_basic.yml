@@ -4,7 +4,7 @@
       version: " - 2.99.99"
       reason: "to be introduced in future release / TODO: change if/when we backport to 2.x"
   - do:
-      search_pipelines.put_pipeline:
+      search_pipeline.put:
         id: "my_pipeline"
         body:  >
           {
@@ -15,18 +15,18 @@
   - match: { acknowledged: true }
 
   - do:
-      search_pipelines.get_pipeline:
+      search_pipeline.get:
         id: "my_pipeline"
   - match: { my_pipeline.description: "_description" }
 
   - do:
-      search_pipelines.delete_pipeline:
+      search_pipeline.delete:
         id: "my_pipeline"
   - match: { acknowledged: true }
 
   - do:
       catch: missing
-      search_pipelines.get_pipeline:
+      search_pipeline.get:
         id: "my_pipeline"
 
 ---
@@ -35,7 +35,7 @@
       version: " - 2.99.99"
       reason: "to be introduced in future release / TODO: change if/when we backport to 2.x"
   - do:
-      search_pipelines.put_pipeline:
+      search_pipeline.put:
         id: "my_pipeline"
         body: >
           {
@@ -45,13 +45,13 @@
   - match: { acknowledged: true }
 
   - do:
-      search_pipelines.get_pipeline:
+      search_pipeline.get:
         id: "my_pipeline"
   - match: { my_pipeline.version: 10 }
 
   # Lower version
   - do:
-      search_pipelines.put_pipeline:
+      search_pipeline.put:
         id: "my_pipeline"
         body: >
           {
@@ -61,13 +61,13 @@
   - match: { acknowledged: true }
 
   - do:
-      search_pipelines.get_pipeline:
+      search_pipeline.get:
         id: "my_pipeline"
   - match: { my_pipeline.version: 9 }
 
   # Higher version
   - do:
-      search_pipelines.put_pipeline:
+      search_pipeline.put:
         id: "my_pipeline"
         body: >
           {
@@ -77,13 +77,13 @@
   - match: { acknowledged: true }
 
   - do:
-      search_pipelines.get_pipeline:
+      search_pipeline.get:
         id: "my_pipeline"
   - match: { my_pipeline.version: 6789 }
 
   # No version
   - do:
-      search_pipelines.put_pipeline:
+      search_pipeline.put:
         id: "my_pipeline"
         body: >
           {
@@ -92,13 +92,13 @@
   - match: { acknowledged: true }
 
   - do:
-      search_pipelines.get_pipeline:
+      search_pipeline.get:
         id: "my_pipeline"
   - is_false: my_pipeline.version
 
   # Coming back with a version
   - do:
-      search_pipelines.put_pipeline:
+      search_pipeline.put:
         id: "my_pipeline"
         body: >
           {
@@ -108,19 +108,19 @@
   - match: { acknowledged: true }
 
   - do:
-      search_pipelines.get_pipeline:
+      search_pipeline.get:
         id: "my_pipeline"
   - match: { my_pipeline.version: 5385 }
 
   # Able to delete the versioned pipeline
   - do:
-      search_pipelines.delete_pipeline:
+      search_pipeline.delete:
         id: "my_pipeline"
   - match: { acknowledged: true }
 
   - do:
       catch: missing
-      search_pipelines.get_pipeline:
+      search_pipeline.get:
         id: "my_pipeline"
 ---
 "Test Get All Pipelines":
@@ -128,7 +128,7 @@
       version: " - 2.99.99"
       reason: "to be introduced in future release / TODO: change if/when we backport to 2.x"
   - do:
-      search_pipelines.put_pipeline:
+      search_pipeline.put:
         id: "first_pipeline"
         body:  >
           {
@@ -136,7 +136,7 @@
             "request_processors": []
           }
   - do:
-      search_pipelines.put_pipeline:
+      search_pipeline.put:
         id: "second_pipeline"
         body:  >
           {
@@ -145,7 +145,7 @@
           }
 
   - do:
-      search_pipelines.get_pipeline: {}
+      search_pipeline.get: {}
   - match: { first_pipeline.description: "first" }
   - match: { second_pipeline.description: "second" }
 
@@ -156,7 +156,7 @@
       reason: "to be introduced in future release / TODO: change if/when we backport to 2.x"
   - do:
       catch: /parse_exception/
-      search_pipelines.put_pipeline:
+      search_pipeline.put:
         id: "my_pipeline"
         body:  >
           {

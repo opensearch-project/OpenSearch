@@ -19,7 +19,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class SearchPipelinesClientIT extends OpenSearchRestHighLevelClientTestCase {
+public class SearchPipelineClientIT extends OpenSearchRestHighLevelClientTestCase {
 
     public void testPutPipeline() throws IOException {
         String id = "some_pipeline_id";
@@ -35,8 +35,8 @@ public class SearchPipelinesClientIT extends OpenSearchRestHighLevelClientTestCa
     private static void createPipeline(PutSearchPipelineRequest request) throws IOException {
         AcknowledgedResponse response = execute(
             request,
-            highLevelClient().searchPipelines()::putPipeline,
-            highLevelClient().searchPipelines()::putPipelineAsync
+            highLevelClient().searchPipeline()::put,
+            highLevelClient().searchPipeline()::putAsync
         );
         assertTrue(response.isAcknowledged());
     }
@@ -54,8 +54,8 @@ public class SearchPipelinesClientIT extends OpenSearchRestHighLevelClientTestCa
         GetSearchPipelineRequest getRequest = new GetSearchPipelineRequest(id);
         GetSearchPipelineResponse response = execute(
             getRequest,
-            highLevelClient().searchPipelines()::getPipeline,
-            highLevelClient().searchPipelines()::getPipelineAsync
+            highLevelClient().searchPipeline()::get,
+            highLevelClient().searchPipeline()::getAsync
         );
         assertTrue(response.isFound());
         assertEquals(1, response.pipelines().size());
@@ -75,8 +75,8 @@ public class SearchPipelinesClientIT extends OpenSearchRestHighLevelClientTestCa
         DeleteSearchPipelineRequest deleteRequest = new DeleteSearchPipelineRequest(id);
         AcknowledgedResponse response = execute(
             deleteRequest,
-            highLevelClient().searchPipelines()::deletePipeline,
-            highLevelClient().searchPipelines()::deletePipelineAsync
+            highLevelClient().searchPipeline()::delete,
+            highLevelClient().searchPipeline()::deleteAsync
         );
         assertTrue(response.isAcknowledged());
     }

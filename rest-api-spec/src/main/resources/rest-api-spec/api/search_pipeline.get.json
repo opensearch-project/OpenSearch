@@ -1,5 +1,5 @@
 {
-  "search_pipelines.get_pipeline": {
+  "search_pipeline.get": {
     "documentation": {
       "description": "Returns a search pipeline",
       "url": "https://opensearch.org/docs/latest/opensearch/rest-api/search_pipelines/"

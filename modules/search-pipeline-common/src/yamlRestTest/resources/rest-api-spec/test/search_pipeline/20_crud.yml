@@ -1,14 +1,14 @@
 ---
 teardown:
  - do:
-     search_pipelines.delete_pipeline:
+     search_pipeline.delete:
        id: "my_pipeline"
        ignore: 404
 
 ---
 "Test basic pipeline crud":
   - do:
-      search_pipelines.put_pipeline:
+      search_pipeline.put:
         id: "my_pipeline"
         body:  >
           {
@@ -28,20 +28,20 @@ teardown:
   - match: { acknowledged: true }
 
   - do:
-      search_pipelines.get_pipeline:
+      search_pipeline.get:
         id: "my_pipeline"
   - match: { my_pipeline.description: "_description" }
 
   - do:
-      search_pipelines.get_pipeline: {}
+      search_pipeline.get: {}
   - match: { my_pipeline.description: "_description" }
 
   - do:
-      search_pipelines.delete_pipeline:
+      search_pipeline.delete:
         id: "my_pipeline"
   - match: { acknowledged: true }
 
   - do:
       catch: missing
-      search_pipelines.get_pipeline:
+      search_pipeline.get:
         id: "my_pipeline"
