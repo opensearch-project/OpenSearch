@@ -143,6 +143,7 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         assertEquals(0L, stats.getCacheCount());
         assertEquals(0L, stats.getHitCount());
         assertEquals(0L, stats.getMissCount());
+        assertEquals(0L, stats.getMemorySizeInBytes());
 
         assertEquals(1, s.count(new DummyQuery(0)));
 
@@ -151,6 +152,7 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         assertEquals(1L, stats.getCacheCount());
         assertEquals(0L, stats.getHitCount());
         assertEquals(1L, stats.getMissCount());
+        assertTrue(stats.getMemorySizeInBytes() >= 0L);
 
         for (int i = 1; i < 20; ++i) {
             assertEquals(1, s.count(new DummyQuery(i)));
@@ -161,6 +163,7 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         assertEquals(20L, stats.getCacheCount());
         assertEquals(0L, stats.getHitCount());
         assertEquals(20L, stats.getMissCount());
+        assertTrue(stats.getMemorySizeInBytes() >= 0L);
 
         s.count(new DummyQuery(10));
 
@@ -169,6 +172,7 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         assertEquals(20L, stats.getCacheCount());
         assertEquals(1L, stats.getHitCount());
         assertEquals(20L, stats.getMissCount());
+        assertTrue(stats.getMemorySizeInBytes() >= 0L);
 
         IOUtils.close(r, dir);
 
@@ -178,6 +182,7 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         assertEquals(20L, stats.getCacheCount());
         assertEquals(1L, stats.getHitCount());
         assertEquals(20L, stats.getMissCount());
+        assertTrue(stats.getMemorySizeInBytes() >= 0L);
 
         cache.onClose(shard);
 
@@ -187,6 +192,7 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         assertEquals(0L, stats.getCacheCount());
         assertEquals(0L, stats.getHitCount());
         assertEquals(0L, stats.getMissCount());
+        assertEquals(0L, stats.getMemorySizeInBytes());
 
         cache.close(); // this triggers some assertions
     }
