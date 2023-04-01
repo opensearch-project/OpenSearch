@@ -26,7 +26,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Update Apache Lucene to 9.5.0-snapshot-d5cef1c ([#5570](https://github.com/opensearch-project/OpenSearch/pull/5570))
 - Bump `maven-model` from 3.6.2 to 3.8.6 ([#5599](https://github.com/opensearch-project/OpenSearch/pull/5599))
 - Bump `maxmind-db` from 2.1.0 to 3.0.0 ([#5601](https://github.com/opensearch-project/OpenSearch/pull/5601))
-- Bump `protobuf-java` from 3.21.11 to 3.21.12 ([#5603](https://github.com/opensearch-project/OpenSearch/pull/5603))
 - Bump `wiremock-jre8-standalone` from 2.33.2 to 2.35.0
 - Bump `gson` from 2.10 to 2.10.1
 - Bump `json-schema-validator` from 1.0.73 to 1.0.76
@@ -98,7 +97,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `io.projectreactor.netty:reactor-netty` from 1.1.3 to 1.1.4
 - Bump `com.avast.gradle:gradle-docker-compose-plugin` from 0.15.2 to 0.16.11
 - Bump `net.minidev:json-smart` from 2.4.8 to 2.4.9
-- Bump `com.google.protobuf:protobuf-java` from 3.22.0 to 3.22.2
+- Bump `com.google.protobuf:protobuf-java` to 3.22.2
 - Bump Netty to 4.1.90.Final ([#6677](https://github.com/opensearch-project/OpenSearch/pull/6677)
 - Bump `com.diffplug.spotless` from 6.15.0 to 6.17.0
 - Bump `org.apache.zookeeper:zookeeper` from 3.8.0 to 3.8.1
