@@ -16,7 +16,7 @@ package org.opensearch.search.sort;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
-import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.comparators.NumericComparator;
 
 import java.io.IOException;
@@ -27,7 +27,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class SortedWiderNumericSortField extends SortField {
+public class SortedWiderNumericSortField extends SortedNumericSortField {
     /**
      * Creates a sort, possibly in reverse, specifying how the sort value from the document's set is
      * selected.
