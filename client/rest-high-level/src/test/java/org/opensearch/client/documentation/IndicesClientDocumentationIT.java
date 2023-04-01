@@ -1033,7 +1033,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
 
             // tag::flush-synced-execute
             SyncedFlushResponse flushSyncedResponse = client.indices().flushSynced(request, expectWarnings(
-                "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead."
+                "Synced flush is deprecated and will be removed in 3.0. Use flush at _/flush or /{index}/_flush instead."
             ));
             // end::flush-synced-execute
 
@@ -1079,7 +1079,7 @@ public class IndicesClientDocumentationIT extends OpenSearchRestHighLevelClientT
 
             // tag::flush-synced-execute-async
             client.indices().flushSyncedAsync(request, expectWarnings(
-                "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead."
+                "Synced flush is deprecated and will be removed in 3.0. Use flush at _/flush or /{index}/_flush instead."
             ), listener); // <1>
             // end::flush-synced-execute-async
 
