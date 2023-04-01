@@ -16,8 +16,7 @@ package org.opensearch.search.sort;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.LeafFieldComparator;
-import org.apache.lucene.search.SortedNumericSelector;
-import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.comparators.NumericComparator;
 
 import java.io.IOException;
@@ -28,7 +27,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class SortedWiderNumericSortField extends SortedNumericSortField {
+public class SortedWiderNumericSortField extends SortField {
     /**
      * Creates a sort, possibly in reverse, specifying how the sort value from the document's set is
      * selected.
@@ -36,10 +35,9 @@ public class SortedWiderNumericSortField extends SortedNumericSortField {
      * @param field    Name of field to sort by. Must not be null.
      * @param type     Type of values
      * @param reverse  True if natural order should be reversed.
-     * @param selector custom selector type for choosing the sort value from the set.
      */
-    public SortedWiderNumericSortField(String field, Type type, boolean reverse, SortedNumericSelector.Type selector) {
-        super(field, type, reverse, selector);
+    public SortedWiderNumericSortField(String field, Type type, boolean reverse) {
+        super(field, type, reverse);
     }
 
     /**
@@ -83,5 +81,24 @@ public class SortedWiderNumericSortField extends SortedNumericSortField {
                 }
             }
         };
+    }
+
+    /**
+     * The only below types would be considered for widening during merging topDocs results for sort,
+     * This will support indices having different Numeric types to be sorted together.
+     * @param type
+     * @return
+     */
+    public static boolean isTypeSupported(Type type) {
+        // Only below 4 numeric types supported as of now for widened merge
+        switch (type) {
+            case INT:
+            case LONG:
+            case FLOAT:
+            case DOUBLE:
+                return true;
+            default:
+                return false;
+        }
     }
 }

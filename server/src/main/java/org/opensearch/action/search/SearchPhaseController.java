@@ -615,14 +615,13 @@ public final class SearchPhaseController {
         final SortField[] newFields = new SortField[firstTopDocFields.length];
 
         for (int i = 0; i < firstTopDocFields.length; i++) {
-            if (firstTopDocFields[i] instanceof SortedNumericSortField && isSortWideningRequired(topFieldDocs, i)) {
-                final SortedNumericSortField delegate = (SortedNumericSortField) firstTopDocFields[i];
-                newFields[i] = new SortedWiderNumericSortField(
-                    delegate.getField(),
-                    delegate.getNumericType(),
-                    delegate.getReverse(),
-                    delegate.getSelector()
-                );
+            final SortField delegate = firstTopDocFields[i];
+            final SortField.Type type = delegate instanceof SortedNumericSortField
+                ? ((SortedNumericSortField) delegate).getNumericType()
+                : delegate.getType();
+
+            if (SortedWiderNumericSortField.isTypeSupported(type) && isSortWideningRequired(topFieldDocs, i)) {
+                newFields[i] = new SortedWiderNumericSortField(delegate.getField(), type, delegate.getReverse());
             } else {
                 newFields[i] = firstTopDocFields[i];
             }
