@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.blobstore.BlobContainer;
-import org.opensearch.index.store.remote.filecache.CachedIndexInput;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCachedIndexInput;
 
@@ -21,7 +20,6 @@ import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
@@ -52,17 +50,21 @@ public class TransferManager {
     public IndexInput fetchBlob(BlobFetchRequest blobFetchRequest) throws IOException {
         final Path key = blobFetchRequest.getFilePath();
 
-        final IndexInput origin = fileCache.compute(key, (path, cachedIndexInput) -> {
-            if (cachedIndexInput == null) {
-                try {
-                    return new FileCachedIndexInput(fileCache, blobFetchRequest.getFilePath(), downloadBlockLocally(blobFetchRequest));
-                } catch (IOException e) {
-                    logger.warn("Failed to download " + blobFetchRequest.getFilePath(), e);
-                    return null;
-                }
-            } else {
-                if (cachedIndexInput.isClosed()) {
-                    return AccessController.doPrivileged((PrivilegedAction<CachedIndexInput>) () -> {
+        // We need to do a privileged action here in order to fetch from remote
+        // and write to the local file cache in case this is invoked as a side
+        // effect of a plugin (such as a scripted search) that doesn't have the
+        // necessary permissions.
+        final IndexInput origin = AccessController.doPrivileged(
+            (PrivilegedAction<IndexInput>) () -> fileCache.compute(key, (path, cachedIndexInput) -> {
+                if (cachedIndexInput == null) {
+                    try {
+                        return new FileCachedIndexInput(fileCache, blobFetchRequest.getFilePath(), downloadBlockLocally(blobFetchRequest));
+                    } catch (IOException e) {
+                        logger.warn("Failed to download " + blobFetchRequest.getFilePath(), e);
+                        return null;
+                    }
+                } else {
+                    if (cachedIndexInput.isClosed()) {
                         // if it's already in the file cache, but closed, open it and replace the original one
                         try {
                             final IndexInput luceneIndexInput = blobFetchRequest.getDirectory()
@@ -72,12 +74,12 @@ public class TransferManager {
                             logger.warn("Failed to open existing file for " + blobFetchRequest.getFilePath(), e);
                             return null;
                         }
-                    });
+                    }
+                    // already in the cache and ready to be used (open)
+                    return cachedIndexInput;
                 }
-                // already in the cache and ready to be used (open)
-                return cachedIndexInput;
-            }
-        });
+            })
+        );
 
         if (origin == null) {
             throw new IOException("Failed to create IndexInput for " + blobFetchRequest.getFileName());
@@ -94,27 +96,17 @@ public class TransferManager {
     }
 
     private IndexInput downloadBlockLocally(BlobFetchRequest blobFetchRequest) throws IOException {
-        // We need to do a privileged action here in order to fetch from remote
-        // and write to the local file cache in case this is invoked as a side
-        // effect of a plugin (such as a scripted search) that doesn't have the
-        // necessary permissions.
-        return AccessController.doPrivileged((PrivilegedAction<? extends IndexInput>) () -> {
-            try {
-                try (
-                    InputStream snapshotFileInputStream = blobContainer.readBlob(
-                        blobFetchRequest.getBlobName(),
-                        blobFetchRequest.getPosition(),
-                        blobFetchRequest.getLength()
-                    );
-                    OutputStream fileOutputStream = Files.newOutputStream(blobFetchRequest.getFilePath());
-                    OutputStream localFileOutputStream = new BufferedOutputStream(fileOutputStream);
-                ) {
-                    snapshotFileInputStream.transferTo(localFileOutputStream);
-                }
-                return blobFetchRequest.getDirectory().openInput(blobFetchRequest.getFileName(), IOContext.READ);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        });
+        try (
+            InputStream snapshotFileInputStream = blobContainer.readBlob(
+                blobFetchRequest.getBlobName(),
+                blobFetchRequest.getPosition(),
+                blobFetchRequest.getLength()
+            );
+            OutputStream fileOutputStream = Files.newOutputStream(blobFetchRequest.getFilePath());
+            OutputStream localFileOutputStream = new BufferedOutputStream(fileOutputStream);
+        ) {
+            snapshotFileInputStream.transferTo(localFileOutputStream);
+        }
+        return blobFetchRequest.getDirectory().openInput(blobFetchRequest.getFileName(), IOContext.READ);
     }
 }
