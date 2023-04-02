@@ -73,6 +73,7 @@ import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.env.Environment;
@@ -91,6 +92,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.InvalidIndexNameException;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -123,6 +125,9 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DAT
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SETTING;
 
 /**
@@ -874,6 +879,8 @@ public class MetadataCreateIndexService {
         indexSettingsBuilder.put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
         indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
+        updateRemoteStoreSettings(indexSettingsBuilder);
+
         if (sourceMetadata != null) {
             assert request.resizeType() != null;
             prepareResizeIndexSettings(
@@ -904,6 +911,17 @@ public class MetadataCreateIndexService {
         validateStoreTypeSettings(indexSettings);
 
         return indexSettings;
+    }
+
+    private static void updateRemoteStoreSettings(Settings.Builder settings) {
+        if (FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE) && FeatureFlags.isEnabled(FeatureFlags.REPLICATION_TYPE)) {
+            if ("true".equalsIgnoreCase(System.getProperty("opensearch.remote_store.enabled.force"))) {
+                settings.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                    .put(SETTING_REMOTE_STORE_ENABLED, "true")
+                    .put(SETTING_REMOTE_STORE_REPOSITORY, System.getProperty("opensearch.remote_store.repo.default"))
+                    .build();
+            }
+        }
     }
 
     public static void validateStoreTypeSettings(Settings settings) {

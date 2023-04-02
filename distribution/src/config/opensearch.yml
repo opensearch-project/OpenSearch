@@ -87,6 +87,14 @@ ${path.logs}
 #
 #action.destructive_requires_name: true
 #
+# ---------------------------------- Remote Store -----------------------------------
+# Controls whether cluster imposes index creation only with remote store enabled
+#opensearch.remote_store.enabled.force: true
+#
+#
+# Repository to use while enforcing remote store for an index
+# opensearch.remote_store.repo.default: my-repo-1
+#
 # ---------------------------------- Experimental Features -----------------------------------
 #
 # Gates the visibility of the index setting that allows changing of replication type.
