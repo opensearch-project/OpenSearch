@@ -18,7 +18,6 @@ import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Optional;
 
 /**
  * CLusterService Request for Extensibility
@@ -69,7 +68,8 @@ public class ExtensionRequest extends TransportRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ExtensionRequest that = (ExtensionRequest) o;
-        return Objects.equals(request.getRequestType(), that.request.getRequestType()) && Objects.equals(request.getUniqiueId(), that.request.getUniqiueId());
+        return Objects.equals(request.getRequestType(), that.request.getRequestType())
+            && Objects.equals(request.getUniqiueId(), that.request.getUniqiueId());
     }
 
     @Override

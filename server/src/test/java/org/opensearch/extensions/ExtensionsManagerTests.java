@@ -32,7 +32,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -528,7 +527,9 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         ExtensionRequest clusterStateRequest = new ExtensionRequest(ExtensionRequestOuterClass.RequestType.REQUEST_EXTENSION_CLUSTER_STATE);
         assertEquals(ClusterStateResponse.class, extensionsManager.handleExtensionRequest(clusterStateRequest).getClass());
 
-        ExtensionRequest clusterSettingRequest = new ExtensionRequest(ExtensionRequestOuterClass.RequestType.REQUEST_EXTENSION_CLUSTER_SETTINGS);
+        ExtensionRequest clusterSettingRequest = new ExtensionRequest(
+            ExtensionRequestOuterClass.RequestType.REQUEST_EXTENSION_CLUSTER_SETTINGS
+        );
         assertEquals(ClusterSettingsResponse.class, extensionsManager.handleExtensionRequest(clusterSettingRequest).getClass());
 
         ExtensionRequest environmentSettingsRequest = new ExtensionRequest(
@@ -545,7 +546,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     }
 
     public void testExtensionRequest() throws Exception {
-        ExtensionRequestOuterClass.RequestType expectedRequestType = ExtensionRequestOuterClass.RequestType.REQUEST_EXTENSION_DEPENDENCY_INFORMATION;
+        ExtensionRequestOuterClass.RequestType expectedRequestType =
+            ExtensionRequestOuterClass.RequestType.REQUEST_EXTENSION_DEPENDENCY_INFORMATION;
 
         // Test ExtensionRequest 2 arg constructor
         String expectedUniqueId = "test uniqueid";
