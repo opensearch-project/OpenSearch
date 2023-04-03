@@ -16,7 +16,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.Stream;
-import org.opensearch.common.StreamIterable;
+import org.opensearch.common.StreamProvder;
 import org.opensearch.common.TransferPartStreamSupplier;
 import org.opensearch.common.blobstore.stream.StreamContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
@@ -131,8 +131,7 @@ public class RemoteTransferContainer implements Closeable {
         inputStreams.set(streams);
 
         return new StreamContext(
-            new StreamIterable(getTransferPartStreamSupplier(), partSize, lastPartSize, numberOfParts),
-            contentLength,
+            new StreamProvder(getTransferPartStreamSupplier(), partSize, lastPartSize, numberOfParts),
             numberOfParts
         );
     }
@@ -155,10 +154,15 @@ public class RemoteTransferContainer implements Closeable {
                     throw new IllegalArgumentException("InputStream parts not yet defined.");
                 }
                 OffsetRangeFileInputStream offsetRangeInputStream = new OffsetRangeFileInputStream(localFile, size, position);
-                if (streamIdx > 0) {
-                    log.info("streamIdx > 0");
-                }
-                ResettableCheckedInputStream checkedInputStream = new ResettableCheckedInputStream(offsetRangeInputStream);
+                ResettableCheckedInputStream checkedInputStream = new ResettableCheckedInputStream(offsetRangeInputStream,
+                    localFileName, streamIdx, numberOfParts, ()-> {
+                    try {
+                        return offsetRangeInputStream.getFileChannel().position();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                    return null;
+                });
                 Objects.requireNonNull(inputStreams.get())[streamIdx] = checkedInputStream;
 
                 return new Stream(checkedInputStream, size, position);
@@ -178,10 +182,8 @@ public class RemoteTransferContainer implements Closeable {
                 }
                 IndexInput indexInput = directory.openInput(localFileName, ioContext);
                 OffsetRangeIndexInputStream offsetRangeInputStream = new OffsetRangeIndexInputStream(indexInput, size, position);
-                if (streamIdx > 0) {
-                    log.info("streamIdx > 0");
-                }
-                ResettableCheckedInputStream checkedInputStream = new ResettableCheckedInputStream(offsetRangeInputStream);
+                ResettableCheckedInputStream checkedInputStream = new ResettableCheckedInputStream(offsetRangeInputStream,
+                    localFileName, streamIdx, numberOfParts, indexInput::getFilePointer);
                 Objects.requireNonNull(inputStreams.get())[streamIdx] = checkedInputStream;
 
                 return new Stream(checkedInputStream, size, position);

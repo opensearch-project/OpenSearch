@@ -13,18 +13,31 @@ import com.jcraft.jzlib.CRC32;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.function.Supplier;
 
 public class ResettableCheckedInputStream extends FilterInputStream {
     private final CRC32 cksum;
     private final CRC32 markedChecksum;
+    private final long startPos;
+    private String file;
+    private int partNumber;
+    private int numberOfParts;
+    private Supplier<Long> posSupplier;
     /**
      * Creates an input stream using the specified Checksum.
      * @param in the input stream
      */
-    public ResettableCheckedInputStream(InputStream in) {
+    public ResettableCheckedInputStream(InputStream in, String file, int partNumber, int numberOfParts, Supplier<Long> posSupplier) {
         super(in);
         this.cksum = new CRC32();
         this.markedChecksum = new CRC32();
+        this.startPos = posSupplier.get();
+        this.file = file;
+        this.partNumber = partNumber;
+        this.numberOfParts = numberOfParts;
+        this.posSupplier = posSupplier;
+        System.out.println("Created stream from position: " + posSupplier.get() + ", partNumber: " + partNumber +
+            ", numberOfParts: " + numberOfParts + ", checksum: " + getChecksum() + " , file: " + file);
     }
 
     /**
@@ -34,7 +47,10 @@ public class ResettableCheckedInputStream extends FilterInputStream {
      */
     public int read() throws IOException {
         byte[] buffer = new byte[1];
-        return read(buffer, 0, 1);
+        int l = read(buffer, 0, 1);
+        System.out.println("Reading single byte from position: " + posSupplier.get() + ", partNumber: " + partNumber +
+            ", numberOfParts: " + numberOfParts + ", checksum: " + getChecksum() + " , file: " + file);
+        return l;
     }
 
     /**
@@ -57,6 +73,8 @@ public class ResettableCheckedInputStream extends FilterInputStream {
         if (len != -1) {
             cksum.update(buf, off, len);
         }
+        System.out.println("Reading multiple bytes from position: " + posSupplier.get() + ", partNumber: " + partNumber +
+             ", numberOfParts: " + numberOfParts + ", checksum: " + getChecksum() + " , file: " + file);
         return len;
     }
 
@@ -90,12 +108,19 @@ public class ResettableCheckedInputStream extends FilterInputStream {
 
     @Override
     public synchronized void mark(int readlimit) {
+        System.out.println("Mark stream called from position: " + posSupplier.get() + ", partNumber: " + partNumber +
+            ", numberOfParts: " + numberOfParts + ", checksum: " + getChecksum() + " , file: " + file);
         markedChecksum.reset(cksum.getValue());
         super.mark(readlimit);
     }
 
     @Override
     public synchronized void reset() throws IOException {
+        System.out.println("Reset stream called from position: " + posSupplier.get() + ", partNumber: " + partNumber +
+            ", numberOfParts: " + numberOfParts + ", checksum: " + getChecksum() + " , file: " + file);
+        if (startPos == posSupplier.get()) {
+            return;
+        }
         cksum.reset(markedChecksum.getValue());
         super.reset();
     }

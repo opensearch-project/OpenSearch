@@ -8,41 +8,32 @@
 
 package org.opensearch.common.blobstore.stream;
 
-import org.opensearch.common.StreamIterable;
+import org.opensearch.common.StreamProvder;
 
 /**
  * StreamContext encapsulates all the data required for uploading multiple streams
  */
 public class StreamContext {
 
-    private final StreamIterable streamIterable;
-    private final long totalContentLength;
+    private final StreamProvder streamProvider;
     private final int numberOfParts;
 
     /**
      * Construct a new StreamContext object
      *
-     * @param streamIterable A stream iterable to iterate over streams for upload
-     * @param totalContentLength The total content length for the upload
+     * @param streamProvider A stream provider to provide a stream for a given part number.
+     * @param numberOfParts Number of parts of the content referenced by equivalent number of streams.
      */
-    public StreamContext(StreamIterable streamIterable, long totalContentLength, int numberOfParts) {
-        this.streamIterable = streamIterable;
-        this.totalContentLength = totalContentLength;
+    public StreamContext(StreamProvder streamProvider, int numberOfParts) {
+        this.streamProvider = streamProvider;
         this.numberOfParts = numberOfParts;
     }
 
     /**
      * @return The stream iterable for the current upload
      */
-    public StreamIterable getStreamIterable() {
-        return streamIterable;
-    }
-
-    /**
-     * @return The total content length for the upload
-     */
-    public long getTotalContentLength() {
-        return totalContentLength;
+    public StreamProvder getStreamProvider() {
+        return streamProvider;
     }
 
     /**

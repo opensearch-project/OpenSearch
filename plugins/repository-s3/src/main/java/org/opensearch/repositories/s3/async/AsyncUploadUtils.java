@@ -29,7 +29,6 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
@@ -70,7 +69,7 @@ public final class AsyncUploadUtils {
         try {
             if (streamContext.getNumberOfParts() == 1) {
                 log.debug(() -> "Starting the upload as a single upload part request");
-                uploadInOneChunk(s3AsyncClient, uploadRequest, streamContext.getStreamIterable().iterator().next(),
+                uploadInOneChunk(s3AsyncClient, uploadRequest, streamContext.getStreamProvider().provideStream(0),
                     returnFuture);
             } else {
                 log.debug(() -> "Starting the upload as multipart upload request");
@@ -214,11 +213,11 @@ public final class AsyncUploadUtils {
                                                                           AtomicReferenceArray<CompletedPart> completedParts) {
         List<CompletableFuture<CompletedPart>> futures = new ArrayList<>();
 
-        AtomicInteger partNumber = new AtomicInteger();
-        for (Stream stream : streamContext.getStreamIterable()) {
+        for (int partIdx = 0;partIdx < streamContext.getNumberOfParts(); partIdx++) {
+            Stream stream = streamContext.getStreamProvider().provideStream(partIdx);
             UploadPartRequest uploadPartRequest = UploadPartRequest.builder()
                 .bucket(uploadRequest.getBucket())
-                .partNumber(partNumber.incrementAndGet())
+                .partNumber(partIdx+1)
                 .key(uploadRequest.getKey())
                 .uploadId(uploadId)
                 .contentLength(stream.getContentLength())
