@@ -16,7 +16,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.Stream;
-import org.opensearch.common.StreamProvder;
+import org.opensearch.common.StreamProvider;
 import org.opensearch.common.TransferPartStreamSupplier;
 import org.opensearch.common.blobstore.stream.StreamContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
@@ -131,7 +131,7 @@ public class RemoteTransferContainer implements Closeable {
         inputStreams.set(streams);
 
         return new StreamContext(
-            new StreamProvder(getTransferPartStreamSupplier(), partSize, lastPartSize, numberOfParts),
+            new StreamProvider(getTransferPartStreamSupplier(), partSize, lastPartSize, numberOfParts),
             numberOfParts
         );
     }
