@@ -39,6 +39,7 @@ public class ExtensionRestRequest extends TransportRequest {
 
     private Method method;
     private String uri;
+    private String path;
     private Map<String, String> params;
     private Map<String, List<String>> headers;
     private XContentType xContentType = null;
@@ -57,6 +58,7 @@ public class ExtensionRestRequest extends TransportRequest {
      *
      * @param method of type {@link Method}
      * @param uri the REST uri string (excluding the query)
+     * @param path the REST path
      * @param params the REST params
      * @param headers the REST headers
      * @param xContentType the content type, or null for plain text or no content
@@ -67,6 +69,7 @@ public class ExtensionRestRequest extends TransportRequest {
     public ExtensionRestRequest(
         Method method,
         String uri,
+        String path,
         Map<String, String> params,
         Map<String, List<String>> headers,
         XContentType xContentType,
@@ -76,6 +79,7 @@ public class ExtensionRestRequest extends TransportRequest {
     ) {
         this.method = method;
         this.uri = uri;
+        this.path = path;
         this.params = params;
         this.headers = headers;
         this.xContentType = xContentType;
@@ -94,6 +98,7 @@ public class ExtensionRestRequest extends TransportRequest {
         super(in);
         method = in.readEnum(RestRequest.Method.class);
         uri = in.readString();
+        path = in.readString();
         params = in.readMap(StreamInput::readString, StreamInput::readString);
         headers = in.readMap(StreamInput::readString, StreamInput::readStringList);
         if (in.readBoolean()) {
@@ -109,6 +114,7 @@ public class ExtensionRestRequest extends TransportRequest {
         super.writeTo(out);
         out.writeEnum(method);
         out.writeString(uri);
+        out.writeString(path);
         out.writeMap(params, StreamOutput::writeString, StreamOutput::writeString);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeStringCollection);
         out.writeBoolean(xContentType != null);
@@ -136,6 +142,15 @@ public class ExtensionRestRequest extends TransportRequest {
      */
     public String uri() {
         return uri;
+    }
+
+    /**
+     * Gets the REST path
+     *
+     * @return This REST request's path
+     */
+    public String path() {
+        return path;
     }
 
     /**
@@ -289,6 +304,8 @@ public class ExtensionRestRequest extends TransportRequest {
             + method
             + ", uri="
             + uri
+            + ", path="
+            + path
             + ", params="
             + params
             + ", headers="
@@ -311,6 +328,7 @@ public class ExtensionRestRequest extends TransportRequest {
         ExtensionRestRequest that = (ExtensionRestRequest) obj;
         return Objects.equals(method, that.method)
             && Objects.equals(uri, that.uri)
+            && Objects.equals(path, that.path)
             && Objects.equals(params, that.params)
             && Objects.equals(headers, that.headers)
             && Objects.equals(xContentType, that.xContentType)
@@ -321,6 +339,6 @@ public class ExtensionRestRequest extends TransportRequest {
 
     @Override
     public int hashCode() {
-        return Objects.hash(method, uri, params, headers, xContentType, content, principalIdentifierToken, httpVersion);
+        return Objects.hash(method, uri, path, params, headers, xContentType, content, principalIdentifierToken, httpVersion);
     }
 }
