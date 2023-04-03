@@ -36,7 +36,9 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.DoubleArray;
 import org.opensearch.common.util.LongArray;
+import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -50,7 +52,7 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * Aggregate all docs into a single sum value
+ * Aggregate all docs into a single sum value for integral numbers
  *
  * @opensearch.internal
  */
@@ -58,7 +60,6 @@ public class SumIntegralAggregator extends NumericMetricsAggregator.SingleValue 
 
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat format;
-
     private LongArray sums;
 
     SumIntegralAggregator(

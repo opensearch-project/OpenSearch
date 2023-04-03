@@ -50,7 +50,7 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * Aggregate all docs into a single sum value
+ * Aggregate all docs into a single sum value for floating point data types
  *
  * @opensearch.internal
  */

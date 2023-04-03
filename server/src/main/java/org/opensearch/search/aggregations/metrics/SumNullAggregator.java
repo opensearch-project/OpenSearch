@@ -44,7 +44,7 @@ import java.io.IOException;
 import java.util.Map;
 
 /**
- * Aggregate all docs into a single sum value
+ * Return default values when valueSource has no values
  *
  * @opensearch.internal
  */

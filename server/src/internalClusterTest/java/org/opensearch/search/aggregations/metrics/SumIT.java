@@ -96,6 +96,20 @@ public class SumIT extends AbstractNumericTestCase {
 
         indexRandom(true, builders);
         ensureSearchable();
+
+        prepareCreate("longidx").setMapping(
+            "value",
+            "type=long"
+        ).get();
+
+        List<IndexRequestBuilder> b = new ArrayList<>();
+        b.add(client().prepareIndex("longidx").setSource("value", 0L));
+        b.add(client().prepareIndex("longidx").setSource("value", -1L));
+        b.add(client().prepareIndex("longidx").setSource("value", 1000L));
+        b.add(client().prepareIndex("longidx").setSource("value", -500L));
+
+        indexRandom(true, b);
+        ensureSearchable();
     }
 
     @Override
@@ -405,5 +419,19 @@ public class SumIT extends AbstractNumericTestCase {
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getValue(), equalTo(50.5));
+    }
+
+    public void testLargeLongValues() throws Exception {
+        SearchResponse searchResponse = client().prepareSearch("longidx")
+            .setQuery(matchAllQuery())
+            .addAggregation(sum("sum").field("value"))
+            .get();
+
+        assertHitCount(searchResponse, 4);
+
+        Sum sum = searchResponse.getAggregations().get("sum");
+        assertThat(sum, notNullValue());
+        assertThat(sum.getName(), equalTo("sum"));
+        assertThat((long) sum.getValue(), equalTo(-9223372026854775808L + 9223372026854775807L + 1000L - 500L));
     }
 }

@@ -66,21 +66,22 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
         builder.register(
             SumAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
-            SumAggregatorFactory::methodName,
+            SumAggregatorFactory::parseSumAggregator,
             true
         );
     }
 
-    private static Aggregator methodName(String s, ValuesSourceConfig valuesSourceConfig, SearchContext searchContext, Aggregator aggregator, Map<String, Object> stringObjectMap) throws IOException {
-        if (valuesSourceConfig.hasValues()) {
-            if (((ValuesSource.Numeric) valuesSourceConfig.getValuesSource()).isFloatingPoint()) {
-                return new SumAggregator(s, valuesSourceConfig, searchContext, aggregator, stringObjectMap);
-            } else {
-                return new SumIntegralAggregator(s, valuesSourceConfig, searchContext, aggregator, stringObjectMap);
-            }
-        } else {
+    private static Aggregator parseSumAggregator(String s, ValuesSourceConfig valuesSourceConfig, SearchContext searchContext, Aggregator aggregator, Map<String, Object> stringObjectMap) throws IOException {
+        if (!valuesSourceConfig.hasValues()) {
             return new SumNullAggregator(s, valuesSourceConfig, searchContext, aggregator, stringObjectMap);
         }
+
+        // use kahan summation for floating point numbers
+        if (((ValuesSource.Numeric) valuesSourceConfig.getValuesSource()).isFloatingPoint()) {
+            return new SumAggregator(s, valuesSourceConfig, searchContext, aggregator, stringObjectMap);
+        }
+
+        return new SumIntegralAggregator(s, valuesSourceConfig, searchContext, aggregator, stringObjectMap);
     }
 
     @Override
