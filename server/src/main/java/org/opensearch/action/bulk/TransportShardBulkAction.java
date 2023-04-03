@@ -135,6 +135,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
     private final SegmentReplicationPressureService segmentReplicationPressureService;
+    private final Object remoteStoreUploadPressureService;
 
     /**
      * This action is used for performing primary term validation. With remote translog enabled, the translogs would
@@ -179,6 +180,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.segmentReplicationPressureService = segmentReplicationPressureService;
+        this.remoteStoreUploadPressureService = new Object();
 
         this.transportPrimaryTermValidationAction = ACTION_NAME + "[validate_primary_term]";
 

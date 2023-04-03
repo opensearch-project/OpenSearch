@@ -101,6 +101,7 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.RemoteUploadPressureService;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.engine.CommitStats;
@@ -1015,14 +1016,21 @@ public class IndicesService extends AbstractLifecycleComponent
         final Consumer<ShardId> globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final DiscoveryNode targetNode,
-        final DiscoveryNode sourceNode
+        final DiscoveryNode sourceNode,
+        final RemoteUploadPressureService remoteUploadPressureService
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         ensureChangesAllowed();
         IndexService indexService = indexService(shardRouting.index());
         assert indexService != null;
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
-        IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer, checkpointPublisher);
+        IndexShard indexShard = indexService.createShard(
+            shardRouting,
+            globalCheckpointSyncer,
+            retentionLeaseSyncer,
+            checkpointPublisher,
+            remoteUploadPressureService
+        );
         indexShard.addShardFailureCallback(onShardFailure);
         indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService, mapping -> {
             assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS

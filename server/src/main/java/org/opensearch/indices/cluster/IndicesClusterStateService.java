@@ -65,6 +65,7 @@ import org.opensearch.index.Index;
 import org.opensearch.index.IndexComponent;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.RemoteUploadPressureService;
 import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
@@ -147,6 +148,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     private final SegmentReplicationCheckpointPublisher checkpointPublisher;
 
+    private final RemoteUploadPressureService remoteUploadPressureService;
+
     @Inject
     public IndicesClusterStateService(
         final Settings settings,
@@ -165,7 +168,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final PrimaryReplicaSyncer primaryReplicaSyncer,
         final GlobalCheckpointSyncAction globalCheckpointSyncAction,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final SegmentReplicationCheckpointPublisher checkpointPublisher
+        final SegmentReplicationCheckpointPublisher checkpointPublisher,
+        final RemoteUploadPressureService remoteUploadPressureService
     ) {
         this(
             settings,
@@ -184,7 +188,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             snapshotShardsService,
             primaryReplicaSyncer,
             globalCheckpointSyncAction::updateGlobalCheckpointForShard,
-            retentionLeaseSyncer
+            retentionLeaseSyncer,
+            remoteUploadPressureService
         );
     }
 
@@ -206,7 +211,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final SnapshotShardsService snapshotShardsService,
         final PrimaryReplicaSyncer primaryReplicaSyncer,
         final Consumer<ShardId> globalCheckpointSyncer,
-        final RetentionLeaseSyncer retentionLeaseSyncer
+        final RetentionLeaseSyncer retentionLeaseSyncer,
+        final RemoteUploadPressureService remoteUploadPressureService
     ) {
         this.settings = settings;
         this.checkpointPublisher = checkpointPublisher;
@@ -232,6 +238,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.globalCheckpointSyncer = globalCheckpointSyncer;
         this.retentionLeaseSyncer = Objects.requireNonNull(retentionLeaseSyncer);
         this.sendRefreshMapping = settings.getAsBoolean("indices.cluster.send_refresh_mapping", true);
+        this.remoteUploadPressureService = remoteUploadPressureService;
     }
 
     @Override
@@ -661,7 +668,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 globalCheckpointSyncer,
                 retentionLeaseSyncer,
                 nodes.getLocalNode(),
-                sourceNode
+                sourceNode,
+                remoteUploadPressureService
             );
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed to create shard", e, state);
@@ -1019,7 +1027,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             Consumer<ShardId> globalCheckpointSyncer,
             RetentionLeaseSyncer retentionLeaseSyncer,
             DiscoveryNode targetNode,
-            @Nullable DiscoveryNode sourceNode
+            @Nullable DiscoveryNode sourceNode,
+            RemoteUploadPressureService remoteUploadPressureService
         ) throws IOException;
 
         /**

@@ -21,6 +21,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.index.RemoteUploadPressureService;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -56,6 +57,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     private final Directory storeDirectory;
     private final RemoteSegmentStoreDirectory remoteDirectory;
     private final Map<String, String> localSegmentChecksumMap;
+    private final RemoteUploadPressureService remoteUploadPressureService;
     private long primaryTerm;
     private static final Logger logger = LogManager.getLogger(RemoteStoreRefreshListener.class);
 
@@ -66,6 +68,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
             .getDelegate()).getDelegate();
         this.primaryTerm = indexShard.getOperationPrimaryTerm();
         localSegmentChecksumMap = new HashMap<>();
+        this.remoteUploadPressureService = indexShard.getRemoteUploadPressureService();
         if (indexShard.shardRouting.primary()) {
             try {
                 this.remoteDirectory.init();

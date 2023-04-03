@@ -438,7 +438,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         final ShardRouting routing,
         final Consumer<ShardId> globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final SegmentReplicationCheckpointPublisher checkpointPublisher
+        final SegmentReplicationCheckpointPublisher checkpointPublisher,
+        final RemoteUploadPressureService remoteUploadPressureService
     ) throws IOException {
         Objects.requireNonNull(retentionLeaseSyncer);
         /*
@@ -506,7 +507,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 circuitBreakerService,
                 translogFactorySupplier,
                 this.indexSettings.isSegRepEnabled() ? checkpointPublisher : null,
-                remoteStore
+                remoteStore,
+                remoteUploadPressureService
             );
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);

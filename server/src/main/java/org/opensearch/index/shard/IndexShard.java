@@ -106,6 +106,7 @@ import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.RemoteUploadPressureService;
 import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.cache.IndexCache;
@@ -325,6 +326,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private volatile boolean useRetentionLeasesInPeerRecovery;
     private final Store remoteStore;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
+    private final RemoteUploadPressureService remoteUploadPressureService;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -349,7 +351,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final CircuitBreakerService circuitBreakerService,
         final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         @Nullable final SegmentReplicationCheckpointPublisher checkpointPublisher,
-        @Nullable final Store remoteStore
+        @Nullable final Store remoteStore,
+        @Nullable final RemoteUploadPressureService remoteUploadPressureService
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -441,6 +444,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.checkpointPublisher = checkpointPublisher;
         this.remoteStore = remoteStore;
         this.translogFactorySupplier = translogFactorySupplier;
+        this.remoteUploadPressureService = remoteUploadPressureService;
     }
 
     public ThreadPool getThreadPool() {
@@ -515,6 +519,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /** Returns the primary term that is currently being used to assign to operations */
     public long getOperationPrimaryTerm() {
         return replicationTracker.getOperationPrimaryTerm();
+    }
+
+    public RemoteUploadPressureService getRemoteUploadPressureService() {
+        return remoteUploadPressureService;
     }
 
     /**

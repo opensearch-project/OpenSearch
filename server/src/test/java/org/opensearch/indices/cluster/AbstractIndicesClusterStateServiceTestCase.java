@@ -46,6 +46,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.RemoteUploadPressureService;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
@@ -262,7 +263,8 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends OpenSea
             final Consumer<ShardId> globalCheckpointSyncer,
             final RetentionLeaseSyncer retentionLeaseSyncer,
             final DiscoveryNode targetNode,
-            final DiscoveryNode sourceNode
+            final DiscoveryNode sourceNode,
+            final RemoteUploadPressureService remoteUploadPressureService
         ) throws IOException {
             failRandomly();
             RecoveryState recoveryState = new RecoveryState(shardRouting, targetNode, sourceNode);
