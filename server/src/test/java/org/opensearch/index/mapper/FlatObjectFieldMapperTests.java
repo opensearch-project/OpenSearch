@@ -12,15 +12,21 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.NormsFieldExistsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Strings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
 import static org.opensearch.index.mapper.FlatObjectFieldMapper.VALUE_AND_PATH_SUFFIX;
@@ -45,9 +51,27 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
     }
 
     protected void assertExistsQuery(MapperService mapperService) throws IOException {
-        // Suppress the default behaviour
-        // super.assertExistsQuery(mapperService);
+        ParseContext.Document fields = mapperService.documentMapper().parse(source(this::writeField)).rootDoc();
+        QueryShardContext queryShardContext = createQueryShardContext(mapperService);
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        Query query = fieldType.existsQuery(queryShardContext);
+        assertExistsQuery(fieldType, query, fields);
+
     }
+    protected void assertExistsQuery(MappedFieldType fieldType, Query query, ParseContext.Document fields) {
+        // we always perform a term query against _field_names, even when the field
+        // is not added to _field_names because it is not indexed nor stored
+        assertThat(query, instanceOf(TermQuery.class));
+        TermQuery termQuery = (TermQuery) query;
+        assertEquals(FieldNamesFieldMapper.NAME, termQuery.getTerm().field());
+        assertEquals("field", termQuery.getTerm().text());
+        if (fieldType.isSearchable() || fieldType.isStored()) {
+            assertNotNull(fields.getField(FieldNamesFieldMapper.NAME));
+        } else {
+            assertNoFieldNamesField(fields);
+        }
+    }
+
 
     public void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", FIELD_TYPE);
@@ -98,10 +122,12 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
         IndexableField[] fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
         assertEquals(1, fieldValues.length);
         assertTrue(fieldValues[0] instanceof KeywordFieldMapper.KeywordField);
+        assertEquals(new BytesRef("bar"), fieldValues[0].binaryValue());
 
         IndexableField[] fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
         assertEquals(1, fieldValues.length);
         assertTrue(fieldValueAndPaths[0] instanceof KeywordFieldMapper.KeywordField);
+        assertEquals(new BytesRef("field.foo=bar"), fieldValueAndPaths[0].binaryValue());
     }
 
     public void testNullValue() throws IOException {
