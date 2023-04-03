@@ -23,16 +23,33 @@ import java.io.IOException;
 
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
+import static org.opensearch.index.mapper.FlatObjectFieldMapper.VALUE_AND_PATH_SUFFIX;
+import static org.opensearch.index.mapper.FlatObjectFieldMapper.VALUE_SUFFIX;
 
-public class FlatObjectFieldMapperTests extends MapperServiceTestCase {
+public class FlatObjectFieldMapperTests extends MapperTestCase {
     private static final String FIELD_TYPE = "flat_object";
 
-    public final void testExistsQueryDocValuesDisabledWithNorms() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> { minimalMapping(b); }));
-        assertParseMinimalWarnings();
+    protected boolean supportsMeta() {
+        return false;
     }
 
-    private void minimalMapping(XContentBuilder b) throws IOException {
+    protected boolean supportsOrIgnoresBoost() {
+        return false;
+    }
+
+    public void testMapperServiceHasParser() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> { minimalMapping(b); }));
+        Mapper.TypeParser parser = mapperService.mapperRegistry.getMapperParsers().get(FIELD_TYPE);
+        assertNotNull(parser);
+        assertTrue(parser instanceof FlatObjectFieldMapper.TypeParser);
+    }
+
+    protected void assertExistsQuery(MapperService mapperService) throws IOException {
+        // Suppress the default behaviour
+        // super.assertExistsQuery(mapperService);
+    }
+
+    public void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", FIELD_TYPE);
     }
 
@@ -40,21 +57,10 @@ public class FlatObjectFieldMapperTests extends MapperServiceTestCase {
      * Writes a sample value for the field to the provided {@link XContentBuilder}.
      * @param builder builder
      */
-
     protected void writeFieldValue(XContentBuilder builder) throws IOException {
         builder.startObject();
         builder.field("foo", "bar");
         builder.endObject();
-    }
-
-    public final void testEmptyName() {
-        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
-            b.startObject("");
-            minimalMapping(b);
-            b.endObject();
-        })));
-        assertThat(e.getMessage(), containsString("name cannot be empty string"));
-        assertParseMinimalWarnings();
     }
 
     public void testMinimalToMaximal() throws IOException {
@@ -88,6 +94,14 @@ public class FlatObjectFieldMapperTests extends MapperServiceTestCase {
         assertThat(fieldType.indexOptions(), equalTo(IndexOptions.DOCS));
         assertEquals(DocValuesType.NONE, fieldType.docValuesType());
 
+        // Test internal substring fields as well
+        IndexableField[] fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
+        assertEquals(1, fieldValues.length);
+        assertTrue(fieldValues[0] instanceof KeywordFieldMapper.KeywordField);
+
+        IndexableField[] fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
+        assertEquals(1, fieldValues.length);
+        assertTrue(fieldValueAndPaths[0] instanceof KeywordFieldMapper.KeywordField);
     }
 
     public void testNullValue() throws IOException {
@@ -97,12 +111,9 @@ public class FlatObjectFieldMapperTests extends MapperServiceTestCase {
 
     }
 
-    protected void assertParseMinimalWarnings() {
-        // Most mappers don't emit any warnings
-    }
-
-    protected void assertParseMaximalWarnings() {
-        // Most mappers don't emit any warnings
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        // In the future we will want to make sure parameter updates are covered.
     }
 
 }

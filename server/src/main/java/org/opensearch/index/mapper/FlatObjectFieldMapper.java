@@ -63,8 +63,8 @@ import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     public static final String CONTENT_TYPE = "flat_object";
-    private static final String VALUE_AND_PATH_SUFFIX = "._valueAndPath";
-    private static final String VALUE_SUFFIX = "._value";
+    protected static final String VALUE_AND_PATH_SUFFIX = "._valueAndPath";
+    protected static final String VALUE_SUFFIX = "._value";
     private static final String DOT_SYMBOL = ".";
     private static final String EQUAL_SYMBOL = "=";
 
@@ -135,7 +135,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         /**
          * ValueFieldMapper is the subfield type for values in the Json.
-         * use a keywordfieldtype
+         * use a {@link KeywordFieldMapper.KeywordField}
          */
         private ValueFieldMapper buildValueFieldMapper(BuilderContext context, FieldType fieldType, FlatObjectFieldType fft) {
             String fullName = buildFullName(context);
@@ -147,7 +147,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
         /**
          * ValueAndPathFieldMapper is the subfield type for path=value format in the Json.
-         * also use a keywordfieldtype
+         * also use a {@link KeywordFieldMapper.KeywordField}
          */
         private ValueAndPathFieldMapper buildValueAndPathFieldMapper(BuilderContext context, FieldType fieldType, FlatObjectFieldType fft) {
             String fullName = buildFullName(context);
