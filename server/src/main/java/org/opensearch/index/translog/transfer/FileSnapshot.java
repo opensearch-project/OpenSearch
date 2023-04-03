@@ -11,7 +11,7 @@ package org.opensearch.index.translog.transfer;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.common.lucene.store.InputStreamIndexInput;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 
 import java.io.BufferedInputStream;
 import java.io.Closeable;

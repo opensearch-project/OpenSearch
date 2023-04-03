@@ -15,7 +15,6 @@ import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotReques
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.opensearch.action.index.IndexRequestBuilder;
-import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
@@ -31,20 +30,20 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;
-import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.repositories.fs.FsRepository;
 
 import java.io.IOException;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
@@ -53,7 +52,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.FS;
 import static org.opensearch.common.util.CollectionUtils.iterableAsArrayList;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
@@ -522,7 +520,6 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         return stats.getUsed().getBytes() == 0L && stats.getActive().getBytes() == 0L;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6738")
     public void testPruneFileCacheOnIndexDeletion() throws Exception {
         final String snapshotName = "test-snap";
         final String repoName = "test-repo";
@@ -531,7 +528,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         final Client client = client();
         final int numNodes = 2;
 
-        internalCluster().ensureAtLeastNumSearchNodes(numNodes);
+        internalCluster().ensureAtLeastNumSearchAndDataNodes(numNodes);
         createIndexWithDocsAndEnsureGreen(1, 100, indexName1);
 
         createRepositoryWithSettings(null, repoName);
@@ -545,47 +542,68 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertAllNodesFileCacheEmpty();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6686")
-    public void testCacheFilesAreClosedAfterUse() throws Exception {
-        final int numReplicasIndex = randomIntBetween(1, 4);
+    /**
+     * Test scenario that checks the cache folder location on search nodes for the restored index on snapshot restoration
+     * and ensures the index folder is cleared on all nodes post index deletion
+     */
+    public void testCacheIndexFilesClearedOnDelete() throws Exception {
+        final int numReplicas = randomIntBetween(1, 4);
+        final int numShards = numReplicas + 1;
         final String indexName = "test-idx";
         final String restoredIndexName = indexName + "-copy";
         final String repoName = "test-repo";
         final String snapshotName = "test-snap";
-        final String id = randomAlphaOfLength(5);
         final Client client = client();
 
-        internalCluster().ensureAtLeastNumSearchAndDataNodes(numReplicasIndex + 1);
-        createIndex(indexName);
-        client().prepareIndex(indexName).setId(id).setSource("field", "test").get();
-        ensureGreen();
+        internalCluster().ensureAtLeastNumSearchAndDataNodes(numShards);
+        createIndexWithDocsAndEnsureGreen(numReplicas, 100, indexName);
         createRepositoryWithSettings(null, repoName);
         takeSnapshot(client, snapshotName, repoName, indexName);
         restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
+        assertDocCount(restoredIndexName, 100L);
 
-        // Search document to make the index fetch data from the remote snapshot to local storage
-        SearchResponse searchResponse = client().prepareSearch(restoredIndexName).setQuery(QueryBuilders.termQuery("field", "test")).get();
-        assertHitCount(searchResponse, 1);
+        // The index count will be 1 since there is only a single restored index "test-idx-copy"
+        assertCacheDirectoryReplicaAndIndexCount(numShards, 1);
 
         // The local cache files should be closed by deleting the restored index
         deleteIndicesAndEnsureGreen(client, restoredIndexName);
 
-        logger.info("--> validate all the cache files are closed");
-        // Get path of cache files
-        final NodeEnvironment nodeEnv = internalCluster().getInstance(NodeEnvironment.class);
-        Path fileCachePath = nodeEnv.fileCacheNodePath().fileCachePath;
-        // Find all the files in the path
-        try (Stream<Path> paths = Files.walk(fileCachePath)) {
-            paths.filter(Files::isRegularFile).forEach(path -> {
-                // Testing moving the file to check the file is closed or not.
-                try {
-                    Files.move(path, path, StandardCopyOption.REPLACE_EXISTING);
-                } catch (IOException e) {
-                    fail("No exception is expected. The file can't be moved, so it may not be closed.");
+        logger.info("--> validate cache file path is deleted");
+        // The index count will be 0 since the only restored index "test-idx-copy" was deleted
+        assertCacheDirectoryReplicaAndIndexCount(numShards, 0);
+        logger.info("--> validated that the cache file path doesn't exist");
+    }
+
+    /**
+     * Asserts the cache folder count to match the number of shards and the number of indices within the cache folder
+     * as provided.
+     * @param numCacheFolderCount total number of cache folders that should exist for the test case
+     * @param numIndexCount total number of index folder locations that should exist within the cache folder
+     */
+    private void assertCacheDirectoryReplicaAndIndexCount(int numCacheFolderCount, int numIndexCount) throws IOException {
+        // Get the available NodeEnvironment instances
+        Iterable<NodeEnvironment> nodeEnvironments = internalCluster().getInstances(NodeEnvironment.class);
+
+        // Filter out search NodeEnvironment(s) since FileCache is initialized only on search nodes and
+        // collect the path for all the cache locations on search nodes.
+        List<Path> searchNodeFileCachePaths = StreamSupport.stream(nodeEnvironments.spliterator(), false)
+            .filter(nodeEnv -> nodeEnv.fileCache() != null)
+            .map(nodeEnv -> nodeEnv.fileCacheNodePath().fileCachePath)
+            .collect(Collectors.toList());
+
+        // Walk through the cache directory on nodes
+        for (Path fileCachePath : searchNodeFileCachePaths) {
+            assertTrue(Files.exists(fileCachePath));
+            assertTrue(Files.isDirectory(fileCachePath));
+            try (DirectoryStream<Path> cachePathStream = Files.newDirectoryStream(fileCachePath)) {
+                Path nodeLockIdPath = cachePathStream.iterator().next();
+                assertTrue(Files.isDirectory(nodeLockIdPath));
+                try (Stream<Path> dataPathStream = Files.list(nodeLockIdPath)) {
+                    assertEquals(numIndexCount, dataPathStream.count());
                 }
-            });
-        } catch (NoSuchFileException e) {
-            logger.debug("--> the path for the cache files doesn't exist");
+            }
         }
+        // Verifies if all the shards (primary and replica) have been deleted
+        assertEquals(numCacheFolderCount, searchNodeFileCachePaths.size());
     }
 }

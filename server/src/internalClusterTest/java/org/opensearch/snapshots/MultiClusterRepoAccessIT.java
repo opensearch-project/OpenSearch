@@ -33,7 +33,7 @@ package org.opensearch.snapshots;
 
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.snapshots.mockstore.MockRepository;

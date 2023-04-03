@@ -28,7 +28,15 @@
       },
       "master_timeout":{
         "type":"time",
-        "description":"Specify timeout for connection to master"
+        "description":"Specify timeout for connection to master",
+        "deprecated":{
+          "version":"2.0.0",
+          "description":"To promote inclusive language, use 'cluster_manager_timeout' instead."
+        }
+      },
+      "cluster_manager_timeout":{
+        "type":"time",
+        "description":"Specify timeout for connection to cluster-manager node"
       },
       "ignore_unavailable":{
         "type":"boolean",
@@ -53,6 +61,14 @@
       "wait_for_active_shards":{
         "type":"string",
         "description":"Sets the number of active shards to wait for before the operation returns."
+      },
+      "wait_for_completion": {
+        "type" : "boolean",
+        "description" : "If false, the request will return a task immediately and the operation will run in background. Defaults to true."
+      },
+      "task_execution_timeout": {
+        "type" : "time",
+        "description" : "Explicit task execution timeout, only useful when wait_for_completion is false, defaults to 1h."
       }
     }
   }

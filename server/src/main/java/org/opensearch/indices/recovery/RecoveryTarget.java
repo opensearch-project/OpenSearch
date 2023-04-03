@@ -35,7 +35,7 @@ package org.opensearch.indices.recovery;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
-import org.opensearch.Assertions;
+import org.opensearch.core.Assertions;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
@@ -107,11 +107,6 @@ public class RecoveryTarget extends ReplicationTarget implements RecoveryTargetH
      */
     public RecoveryTarget retryCopy() {
         return new RecoveryTarget(indexShard, sourceNode, listener);
-    }
-
-    public IndexShard indexShard() {
-        ensureRefCount();
-        return indexShard;
     }
 
     public String source() {

@@ -11,6 +11,7 @@ package org.opensearch.index.store.remote.filecache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexModule;
@@ -60,6 +61,7 @@ public class FileCacheCleaner implements IndexEventListener {
                         fileCache.remove(subPath.toRealPath());
                     }
                 }
+                FileSystemUtils.deleteSubDirectories(shardPath.getRootDataPath());
             }
         } catch (IOException ioe) {
             log.error(() -> new ParameterizedMessage("Error removing items from cache during shard deletion {})", shardId), ioe);

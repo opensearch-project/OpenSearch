@@ -56,7 +56,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ThreadInterruptedException;
-import org.opensearch.Assertions;
+import org.opensearch.core.Assertions;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
@@ -99,7 +99,7 @@ import org.opensearch.common.util.concurrent.RunOnce;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.gateway.WriteStateException;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;
@@ -4372,11 +4372,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Downloads segments from remote segment store.
+     * Downloads segments from remote segment store. This method will download segments till
+     * last refresh checkpoint.
      * @param overrideLocal flag to override local segment files with those in remote store
      * @throws IOException if exception occurs while reading segments from remote store
      */
     public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal) throws IOException {
+        syncSegmentsFromRemoteSegmentStore(overrideLocal, true);
+    }
+
+    /**
+     * Downloads segments from remote segment store.
+     * @param overrideLocal flag to override local segment files with those in remote store
+     * @param refreshLevelSegmentSync last refresh checkpoint is used if true, commit checkpoint otherwise
+     * @throws IOException if exception occurs while reading segments from remote store
+     */
+    public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal, boolean refreshLevelSegmentSync) throws IOException {
         assert indexSettings.isRemoteStoreEnabled();
         logger.info("Downloading segments from remote segment store");
         assert remoteStore.directory() instanceof FilterDirectory : "Store.directory is not an instance of FilterDirectory";
@@ -4415,7 +4426,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     skippedSegments.add(file);
                 }
             }
-            if (segmentInfosSnapshotFilename != null) {
+            if (refreshLevelSegmentSync && segmentInfosSnapshotFilename != null) {
                 try (
                     ChecksumIndexInput indexInput = new BufferedChecksumIndexInput(
                         storeDirectory.openInput(segmentInfosSnapshotFilename, IOContext.DEFAULT)

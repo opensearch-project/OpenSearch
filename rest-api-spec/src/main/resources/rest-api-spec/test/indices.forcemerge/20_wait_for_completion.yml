@@ -1,0 +1,39 @@
+---
+"Force merge index with wait_for_completion":
+  # force merge index with wait_for_completion parameter, when the parameter is set to false, the API
+  # will return a task immediately and the merge process will run in background.
+
+  - skip:
+      version: " - 2.9.99"
+      reason: "only available in 3.0+"
+      features: allowed_warnings
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - do:
+      indices.forcemerge:
+        index: test_index
+        wait_for_completion: false
+        max_num_segments: 1
+  - match: { task: /^.+$/ }
+  - set: { task: taskId }
+
+  - do:
+      tasks.get:
+        wait_for_completion: true
+        task_id: $taskId
+  - match: { task.action: "indices:admin/forcemerge" }
+  - match: { task.description: "Force-merge indices [test_index], maxSegments[1], onlyExpungeDeletes[false], flush[true]" }
+
+  # .tasks index is created when the force-merge operation completes, so we should delete .tasks index finally,
+  # if not, the .tasks index may introduce unexpected warnings and then cause other test cases to fail.
+  # Delete the .tasks index directly will also introduce warning, but currently we don't have such APIs which can delete one
+  # specified task or clear all completed tasks, so we have to do so. Expect we can introduce more tasks related APIs in future
+  - do:
+      allowed_warnings:
+        - "this request accesses system indices: [.tasks], but in a future major version, direct access to system indices will be prevented by default"
+      indices.delete:
+        index: .tasks
+        ignore_unavailable: true
