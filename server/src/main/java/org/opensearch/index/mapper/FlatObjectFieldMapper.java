@@ -63,8 +63,8 @@ import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     public static final String CONTENT_TYPE = "flat_object";
-    protected static final String VALUE_AND_PATH_SUFFIX = "._valueAndPath";
-    protected static final String VALUE_SUFFIX = "._value";
+    private static final String VALUE_AND_PATH_SUFFIX = "._valueAndPath";
+    private static final String VALUE_SUFFIX = "._value";
     private static final String DOT_SYMBOL = ".";
     private static final String EQUAL_SYMBOL = "=";
 
@@ -402,9 +402,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             if (inputValue instanceof Integer) {
                 String inputToString = Integer.toString((Integer) inputValue);
                 return inputToString;
-            } else if (inputValue instanceof Integer) {
-                String inputToString = Integer.toString((Integer) inputValue);
-                return inputToString;
             } else if (inputValue instanceof Float) {
                 String inputToString = Float.toString((Float) inputValue);
                 return inputToString;
@@ -430,9 +427,8 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
                 String inputToString = inputValue.toString();
                 return inputToString;
             } else {
-                // default to cast as BytesRef
-                String inputToString = ((BytesRef) inputValue).utf8ToString();
-                return inputToString;
+                // default to cast toString
+                return inputValue.toString();
             }
         }
 
@@ -653,7 +649,20 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
             if (fieldType().hasDocValues()) {
                 if (context.doc().getField(fieldType().name()) == null || !context.doc().getFields(fieldType().name()).equals(field)) {
-                    context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+                    if (fieldName.equals(fieldType().name())) {
+                        context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+                    }
+                    if (valueType.equals(VALUE_SUFFIX)) {
+                        if (valueFieldMapper != null) {
+                            context.doc().add(new SortedSetDocValuesField(fieldType().name() + VALUE_SUFFIX, binaryValue));
+                        }
+                    }
+                    if (valueType.equals(VALUE_AND_PATH_SUFFIX)) {
+                        if (valueAndPathFieldMapper != null) {
+                            context.doc().add(new SortedSetDocValuesField(fieldType().name() + VALUE_AND_PATH_SUFFIX, binaryValue));
+                        }
+                    }
+
                 }
             }
 

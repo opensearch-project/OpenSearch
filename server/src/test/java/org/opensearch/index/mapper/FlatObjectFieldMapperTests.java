@@ -12,8 +12,6 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
@@ -29,11 +27,11 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
-import static org.opensearch.index.mapper.FlatObjectFieldMapper.VALUE_AND_PATH_SUFFIX;
-import static org.opensearch.index.mapper.FlatObjectFieldMapper.VALUE_SUFFIX;
 
 public class FlatObjectFieldMapperTests extends MapperTestCase {
     private static final String FIELD_TYPE = "flat_object";
+    private static final String VALUE_AND_PATH_SUFFIX = "._valueAndPath";
+    private static final String VALUE_SUFFIX = "._value";
 
     protected boolean supportsMeta() {
         return false;
@@ -58,6 +56,7 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
         assertExistsQuery(fieldType, query, fields);
 
     }
+
     protected void assertExistsQuery(MappedFieldType fieldType, Query query, ParseContext.Document fields) {
         // we always perform a term query against _field_names, even when the field
         // is not added to _field_names because it is not indexed nor stored
@@ -71,7 +70,6 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
             assertNoFieldNamesField(fields);
         }
     }
-
 
     public void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", FIELD_TYPE);
@@ -109,7 +107,7 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(source(json));
         IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(4, fields.length);
+        assertEquals(2, fields.length);
         assertEquals(new BytesRef("field.foo"), fields[0].binaryValue());
 
         IndexableFieldType fieldType = fields[0].fieldType();
@@ -120,12 +118,12 @@ public class FlatObjectFieldMapperTests extends MapperTestCase {
 
         // Test internal substring fields as well
         IndexableField[] fieldValues = doc.rootDoc().getFields("field" + VALUE_SUFFIX);
-        assertEquals(1, fieldValues.length);
+        assertEquals(2, fieldValues.length);
         assertTrue(fieldValues[0] instanceof KeywordFieldMapper.KeywordField);
         assertEquals(new BytesRef("bar"), fieldValues[0].binaryValue());
 
         IndexableField[] fieldValueAndPaths = doc.rootDoc().getFields("field" + VALUE_AND_PATH_SUFFIX);
-        assertEquals(1, fieldValues.length);
+        assertEquals(2, fieldValues.length);
         assertTrue(fieldValueAndPaths[0] instanceof KeywordFieldMapper.KeywordField);
         assertEquals(new BytesRef("field.foo=bar"), fieldValueAndPaths[0].binaryValue());
     }
