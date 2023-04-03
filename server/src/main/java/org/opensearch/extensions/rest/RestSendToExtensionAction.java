@@ -185,7 +185,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             this.allowList = Set.of("Content-Type");
             this.denyList = Set.of("Authorization", "Proxy-Authorization");
 
-            filterHeaders(headers, allowList, denyList);
+            Map<String, List<String>> filteredHeaders = filterHeaders(headers, allowList, denyList);
 
             transportService.sendRequest(
                 discoveryExtensionNode,
