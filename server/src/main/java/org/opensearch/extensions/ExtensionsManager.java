@@ -67,7 +67,6 @@ import org.opensearch.transport.TransportService;
 import org.yaml.snakeyaml.Yaml;
 import org.opensearch.env.EnvironmentSettingsResponse;
 
-
 /**
  * The main class for managing Extension communication with the OpenSearch Node.
  *
