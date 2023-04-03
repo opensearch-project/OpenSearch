@@ -25,6 +25,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
+import org.opensearch.http.HttpRequest;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -117,12 +118,14 @@ public class RestSendToExtensionAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        HttpRequest httpRequest = request.getHttpRequest();
         Method method = request.method();
-        String path = request.path();
+        String uri = httpRequest.uri();
         Map<String, String> params = request.params();
         Map<String, List<String>> headers = request.getHeaders();
         XContentType contentType = request.getXContentType();
         BytesReference content = request.content();
+        HttpRequest.HttpVersion = httpRequest.protocolVersion();
 
         if (path.startsWith(pathPrefix)) {
             path = path.substring(pathPrefix.length());
@@ -189,7 +192,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 ExtensionsManager.REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION,
                 // DO NOT INCLUDE HEADERS WITH SECURITY OR PRIVACY INFORMATION
                 // SEE https://github.com/opensearch-project/OpenSearch/issues/4429
-                new ExtensionRestRequest(method, path, params, filteredHeaders, contentType, content, requestIssuerIdentity),
+                new ExtensionRestRequest(method, uri, params, filteredHeaders, contentType, content, requestIssuerIdentity, httpVersion),
                 restExecuteOnExtensionResponseHandler
             );
             inProgressFuture.orTimeout(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();

@@ -38,7 +38,7 @@ import java.util.Set;
 public class ExtensionRestRequest extends TransportRequest {
 
     private Method method;
-    private String path;
+    private String uri;
     private Map<String, String> params;
     private Map<String, List<String>> headers;
     private XContentType xContentType = null;
