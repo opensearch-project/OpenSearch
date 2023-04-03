@@ -127,7 +127,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         Map<String, List<String>> headers = request.getHeaders();
         XContentType contentType = request.getXContentType();
         BytesReference content = request.content();
-        HttpRequest.HttpVersion = httpRequest.protocolVersion();
+        HttpRequest.HttpVersion httpVersion = httpRequest.protocolVersion();
 
         if (path.startsWith(pathPrefix)) {
             path = path.substring(pathPrefix.length());
