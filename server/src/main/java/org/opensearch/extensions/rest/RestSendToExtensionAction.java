@@ -33,6 +33,7 @@ import java.security.Principal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
@@ -62,8 +63,8 @@ public class RestSendToExtensionAction extends BaseRestHandler {
     private final DiscoveryExtensionNode discoveryExtensionNode;
     private final TransportService transportService;
 
-    private static final Set<String> allowList;
-    private static final Set<String> denyList;
+    private static final Set<String> allowList = Set.of("Content-Type");
+    private static final Set<String> denyList = Set.of("Authorization", "Proxy-Authorization");
 
     /**
      * Instantiates this object using a {@link RegisterRestActionsRequest} to populate the routes.
@@ -107,7 +108,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         return this.routes;
     }
 
-    public Map<String, List<String>> filterHeaders(Map<String, List<String>> headers, Set allowList, Set denyList) {
+    public Map<String, List<String>> filterHeaders(Map<String, List<String>> headers, Set<String> allowList, Set<String> denyList) {
         Map<String, List<String>> filteredHeaders = headers.entrySet()
             .stream()
             .filter(e -> !denyList.contains(e.getKey()))
@@ -119,6 +120,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         HttpRequest httpRequest = request.getHttpRequest();
+        String path = request.path();
         Method method = request.method();
         String uri = httpRequest.uri();
         Map<String, String> params = request.params();
@@ -181,9 +183,6 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             // Will be replaced with ExtensionTokenProcessor and PrincipalIdentifierToken classes from feature/identity
             final String extensionTokenProcessor = "placeholder_token_processor";
             final String requestIssuerIdentity = "placeholder_request_issuer_identity";
-
-            this.allowList = Set.of("Content-Type");
-            this.denyList = Set.of("Authorization", "Proxy-Authorization");
 
             Map<String, List<String>> filteredHeaders = filterHeaders(headers, allowList, denyList);
 
