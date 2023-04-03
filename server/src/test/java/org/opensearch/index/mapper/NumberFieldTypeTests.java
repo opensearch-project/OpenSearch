@@ -62,7 +62,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.document.SortedUnsignedLongDocValuesRangeQuery;
 import org.opensearch.index.fielddata.IndexNumericFieldData;

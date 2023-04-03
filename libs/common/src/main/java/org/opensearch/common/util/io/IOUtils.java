@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.core.internal.io;
+package org.opensearch.common.util.io;
 
 import org.opensearch.common.Nullable;
 

@@ -39,7 +39,7 @@ import org.opensearch.action.delete.DeleteResponse;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpClient;

@@ -7,4 +7,4 @@
  */
 
 /** Common Network Utility Classes */
-package org.opensearch.core.internal.net;
+package org.opensearch.common.util.net;

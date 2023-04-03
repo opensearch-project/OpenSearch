@@ -45,7 +45,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.SpecialPermission;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 
 import java.io.FilterInputStream;
 import java.io.IOException;

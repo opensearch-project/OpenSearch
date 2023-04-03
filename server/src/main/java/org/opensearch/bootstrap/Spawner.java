@@ -33,7 +33,7 @@
 package org.opensearch.bootstrap;
 
 import org.apache.lucene.util.Constants;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.plugins.Platforms;
 import org.opensearch.plugins.PluginInfo;

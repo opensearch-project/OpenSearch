@@ -31,7 +31,7 @@
 
 package org.opensearch.index.snapshots.blobstore;
 
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 
 import java.io.IOException;
 import java.io.InputStream;

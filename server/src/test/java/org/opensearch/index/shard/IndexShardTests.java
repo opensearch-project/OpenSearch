@@ -49,7 +49,7 @@ import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.junit.Assert;
-import org.opensearch.Assertions;
+import org.opensearch.core.Assertions;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;

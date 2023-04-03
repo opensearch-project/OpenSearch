@@ -51,7 +51,7 @@ import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.CountDown;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.junit.After;
 import org.junit.Before;

@@ -48,7 +48,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.test.OpenSearchTestCase;
