@@ -470,7 +470,7 @@ public class TransportService extends AbstractLifecycleComponent
     }
 
     /**
-     * Connect to the specified node with the given connection profile.
+     * Connect to the specified node as an extension with the given connection profile.
      * The ActionListener will be called on the calling thread or the generic thread pool.
      *
      * @param node the node to connect to
@@ -488,7 +488,12 @@ public class TransportService extends AbstractLifecycleComponent
             listener.onResponse(null);
             return;
         }
-        connectionManager.connectToNode(node, connectionProfile, connectionValidatorForExtension(node, extensionUniqueId), listener);
+        connectionManager.connectToNode(
+            node,
+            connectionProfile,
+            connectionValidatorForExtensionConnectingToNode(node, extensionUniqueId),
+            listener
+        );
     }
 
     public void connectToExtensionNode(final DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Void> listener) {
@@ -514,7 +519,10 @@ public class TransportService extends AbstractLifecycleComponent
         };
     }
 
-    public ConnectionManager.ConnectionValidator connectionValidatorForExtension(DiscoveryNode node, String extensionUniqueId) {
+    public ConnectionManager.ConnectionValidator connectionValidatorForExtensionConnectingToNode(
+        DiscoveryNode node,
+        String extensionUniqueId
+    ) {
         return (newConnection, actualProfile, listener) -> {
             // We don't validate cluster names to allow for CCS connections.
             threadPool.getThreadContext().putHeader("extension_unique_id", extensionUniqueId);
