@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.extensions.proto.ExtensionRequestOuterClass;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -26,42 +27,41 @@ import java.util.Optional;
  */
 public class ExtensionRequest extends TransportRequest {
     private static final Logger logger = LogManager.getLogger(ExtensionRequest.class);
-    private final ExtensionsManager.RequestType requestType;
-    private final Optional<String> uniqueId;
+    private final ExtensionRequestOuterClass.ExtensionRequest request;
 
-    public ExtensionRequest(ExtensionsManager.RequestType requestType) {
+    public ExtensionRequest(ExtensionRequestOuterClass.RequestType requestType) {
         this(requestType, null);
     }
 
-    public ExtensionRequest(ExtensionsManager.RequestType requestType, @Nullable String uniqueId) {
-        this.requestType = requestType;
-        this.uniqueId = uniqueId == null ? Optional.empty() : Optional.of(uniqueId);
+    public ExtensionRequest(ExtensionRequestOuterClass.RequestType requestType, @Nullable String uniqueId) {
+        ExtensionRequestOuterClass.ExtensionRequest.Builder builder = ExtensionRequestOuterClass.ExtensionRequest.newBuilder();
+        if (uniqueId != null) {
+            builder.setUniqiueId(uniqueId);
+        }
+        this.request = builder.setRequestType(requestType).build();
     }
 
     public ExtensionRequest(StreamInput in) throws IOException {
         super(in);
-        this.requestType = in.readEnum(ExtensionsManager.RequestType.class);
-        String id = in.readOptionalString();
-        this.uniqueId = id == null ? Optional.empty() : Optional.of(id);
+        this.request = ExtensionRequestOuterClass.ExtensionRequest.parseFrom(in.readByteArray());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeEnum(requestType);
-        out.writeOptionalString(uniqueId.orElse(null));
+        out.writeByteArray(request.toByteArray());
     }
 
-    public ExtensionsManager.RequestType getRequestType() {
-        return this.requestType;
+    public ExtensionRequestOuterClass.RequestType getRequestType() {
+        return this.request.getRequestType();
     }
 
-    public Optional<String> getUniqueId() {
-        return uniqueId;
+    public String getUniqueId() {
+        return request.getUniqiueId();
     }
 
     public String toString() {
-        return "ExtensionRequest{" + "requestType=" + requestType + "uniqueId=" + uniqueId + '}';
+        return "ExtensionRequest{" + request.toString() + '}';
     }
 
     @Override
@@ -69,11 +69,11 @@ public class ExtensionRequest extends TransportRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ExtensionRequest that = (ExtensionRequest) o;
-        return Objects.equals(requestType, that.requestType) && Objects.equals(uniqueId, that.uniqueId);
+        return Objects.equals(request.getRequestType(), that.request.getRequestType()) && Objects.equals(request.getUniqiueId(), that.request.getUniqiueId());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(requestType, uniqueId);
+        return Objects.hash(request.getRequestType(), request.getUniqiueId());
     }
 }

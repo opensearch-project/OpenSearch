@@ -89,7 +89,6 @@ public class ExtensionsManager {
     public static final String REQUEST_EXTENSION_REGISTER_CUSTOM_SETTINGS = "internal:discovery/registercustomsettings";
     public static final String REQUEST_EXTENSION_REGISTER_REST_ACTIONS = "internal:discovery/registerrestactions";
     public static final String REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS = "internal:discovery/registertransportactions";
-    public static final String REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE = "internal:discovery/parsenamedwriteable";
     public static final String REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION = "internal:extensions/restexecuteonextensiontaction";
     public static final String REQUEST_EXTENSION_HANDLE_TRANSPORT_ACTION = "internal:extensions/handle-transportaction";
     public static final String REQUEST_EXTENSION_HANDLE_REMOTE_TRANSPORT_ACTION = "internal:extensions/handle-remote-transportaction";
@@ -443,7 +442,7 @@ public class ExtensionsManager {
             case REQUEST_EXTENSION_ENVIRONMENT_SETTINGS:
                 return new EnvironmentSettingsResponse(this.environmentSettings);
             case REQUEST_EXTENSION_DEPENDENCY_INFORMATION:
-                String uniqueId = extensionRequest.getUniqueId().orElse(null);
+                String uniqueId = extensionRequest.getUniqueId();
                 if (uniqueId == null) {
                     return new ExtensionDependencyResponse(extensions);
                 } else {
@@ -684,10 +683,6 @@ public class ExtensionsManager {
 
     public static String getRequestExtensionRegisterRestActions() {
         return REQUEST_EXTENSION_REGISTER_REST_ACTIONS;
-    }
-
-    public static String getRequestOpensearchParseNamedWriteable() {
-        return REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE;
     }
 
     public static String getRequestRestExecuteOnExtensionAction() {
