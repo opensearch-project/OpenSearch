@@ -50,7 +50,7 @@ import org.opensearch.core.xcontent.XContentGenerator;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.filtering.FilterPathBasedFilter;
-import org.opensearch.core.internal.io.Streams;
+import org.opensearch.common.util.io.Streams;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;

@@ -39,7 +39,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.store.Directory;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.apache.lucene.tests.util.TestUtil;
 import org.opensearch.index.fielddata.FieldData;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
