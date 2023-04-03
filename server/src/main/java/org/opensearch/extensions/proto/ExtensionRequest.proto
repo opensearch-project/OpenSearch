@@ -15,5 +15,5 @@ enum RequestType {
 
 message ExtensionRequest {
   RequestType requestType = 1;
-  string uniqiueId = 2;
+  optional string uniqiueId = 2;
 }
