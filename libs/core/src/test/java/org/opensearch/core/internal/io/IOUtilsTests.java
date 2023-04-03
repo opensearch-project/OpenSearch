@@ -35,6 +35,7 @@ import org.apache.lucene.tests.mockfile.FilterPath;
 import org.apache.lucene.util.Constants;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.Closeable;

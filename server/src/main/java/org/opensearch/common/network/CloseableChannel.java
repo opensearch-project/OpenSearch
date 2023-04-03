@@ -35,7 +35,7 @@ package org.opensearch.common.network;
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;

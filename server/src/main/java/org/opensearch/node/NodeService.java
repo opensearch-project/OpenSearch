@@ -33,7 +33,7 @@
 package org.opensearch.node;
 
 import org.opensearch.cluster.routing.WeightedRoutingStats;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.Build;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
