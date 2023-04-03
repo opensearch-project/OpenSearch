@@ -20,6 +20,9 @@ import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.junit.Before;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.stream.write.UploadResponse;
+import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
@@ -34,6 +37,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.doReturn;
@@ -326,6 +330,65 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
         assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
         remoteSegmentStoreDirectory.copyFrom(storeDirectory, filename, filename, IOContext.DEFAULT);
         assertTrue(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
+
+        storeDirectory.close();
+    }
+
+    public void testCopyFilesFromMultiStreamSupportEnabled() throws Exception {
+        String filename = "_100.si";
+        populateMetadata();
+        remoteSegmentStoreDirectory.init();
+
+        Directory storeDirectory = LuceneTestCase.newDirectory();
+        IndexOutput indexOutput = storeDirectory.createOutput(filename, IOContext.DEFAULT);
+        indexOutput.writeString("Hello World!");
+        CodecUtil.writeFooter(indexOutput);
+        indexOutput.close();
+        storeDirectory.sync(List.of(filename));
+
+        assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
+
+        BlobContainer blobContainer = mock(BlobContainer.class);
+        when(remoteDataDirectory.getBlobContainer()).thenReturn(blobContainer);
+        when(blobContainer.isMultiStreamUploadSupported()).thenReturn(true);
+        CompletableFuture<UploadResponse> uploadResponseCompletableFuture = new CompletableFuture<>();
+        uploadResponseCompletableFuture.complete(new UploadResponse(true));
+        when(blobContainer.writeBlobByStreams(any(WriteContext.class))).thenReturn(uploadResponseCompletableFuture);
+
+        remoteSegmentStoreDirectory.copyFilesFrom(storeDirectory, List.of(filename), IOContext.DEFAULT);
+
+        assertTrue(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
+
+        storeDirectory.close();
+    }
+
+    public void testCopyFilesFromMultiStreamSupportEnabledIOException() throws Exception {
+        String filename = "_100.si";
+        populateMetadata();
+        remoteSegmentStoreDirectory.init();
+
+        Directory storeDirectory = LuceneTestCase.newDirectory();
+        IndexOutput indexOutput = storeDirectory.createOutput(filename, IOContext.DEFAULT);
+        indexOutput.writeString("Hello World!");
+        CodecUtil.writeFooter(indexOutput);
+        indexOutput.close();
+        storeDirectory.sync(List.of(filename));
+
+        assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
+
+        BlobContainer blobContainer = mock(BlobContainer.class);
+        when(remoteDataDirectory.getBlobContainer()).thenReturn(blobContainer);
+        when(blobContainer.isMultiStreamUploadSupported()).thenReturn(true);
+        CompletableFuture<UploadResponse> uploadResponseCompletableFuture = new CompletableFuture<>();
+        uploadResponseCompletableFuture.complete(new UploadResponse(true));
+        when(blobContainer.writeBlobByStreams(any(WriteContext.class))).thenThrow(new IOException());
+
+        assertThrows(
+            IOException.class,
+            () -> remoteSegmentStoreDirectory.copyFilesFrom(storeDirectory, List.of(filename), IOContext.DEFAULT)
+        );
+
+        assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
 
         storeDirectory.close();
     }

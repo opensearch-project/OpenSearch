@@ -32,12 +32,16 @@
 
 package org.opensearch.common.blobstore;
 
+import org.opensearch.common.blobstore.stream.write.UploadResponse;
+import org.opensearch.common.blobstore.stream.write.WriteContext;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * An interface for managing a repository of blob entries, where each blob entry is just a named group of bytes.
@@ -123,6 +127,14 @@ public interface BlobContainer {
      * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
      */
     void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException;
+
+    default boolean isMultiStreamUploadSupported() {
+        return false;
+    }
+
+    default CompletableFuture<UploadResponse> writeBlobByStreams(WriteContext writeContext) throws IOException {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Reads blob content from the input stream and writes it to the container in a new blob with the given name,
