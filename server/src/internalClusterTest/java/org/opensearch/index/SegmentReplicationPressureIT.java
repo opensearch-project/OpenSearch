@@ -221,9 +221,7 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
         final AtomicInteger totalDocs = new AtomicInteger(0);
         try (final Releasable ignored = blockReplication(replicaNodes, latch)) {
             // Index docs until replicas are staled.
-            Thread indexingThread = new Thread(() -> { totalDocs.getAndSet(indexUntilCheckpointCount()); });
-            indexingThread.start();
-            indexingThread.join();
+            totalDocs.getAndSet(indexUntilCheckpointCount());
             latch.await();
             // index again while we are stale.
             indexDoc();

@@ -80,14 +80,9 @@ public class SegmentReplicationPressureService implements Closeable {
 
     private final ThreadPool threadPool;
     private final SegmentReplicationStatsTracker tracker;
-
     private final ShardStateAction shardStateAction;
 
-    public AsyncFailStaleReplicaTask getFailStaleReplicaTask() {
-        return failStaleReplicaTask;
-    }
-
-    private volatile AsyncFailStaleReplicaTask failStaleReplicaTask;
+    private final AsyncFailStaleReplicaTask failStaleReplicaTask;
 
     @Inject
     public SegmentReplicationPressureService(
@@ -118,7 +113,12 @@ public class SegmentReplicationPressureService implements Closeable {
         this.maxAllowedStaleReplicas = MAX_ALLOWED_STALE_SHARDS.get(settings);
         clusterSettings.addSettingsUpdateConsumer(MAX_ALLOWED_STALE_SHARDS, this::setMaxAllowedStaleReplicas);
 
-        this.failStaleReplicaTask = new AsyncFailStaleReplicaTask(this, TimeValue.timeValueSeconds(30));
+        this.failStaleReplicaTask = new AsyncFailStaleReplicaTask(this);
+    }
+
+    // visible for testing
+    AsyncFailStaleReplicaTask getFailStaleReplicaTask() {
+        return failStaleReplicaTask;
     }
 
     public void isSegrepLimitBreached(ShardId shardId) {
@@ -192,8 +192,10 @@ public class SegmentReplicationPressureService implements Closeable {
 
         final SegmentReplicationPressureService pressureService;
 
-        AsyncFailStaleReplicaTask(SegmentReplicationPressureService pressureService, TimeValue interval) {
-            super(logger, pressureService.threadPool, interval, true);
+        static final TimeValue INTERVAL = TimeValue.timeValueSeconds(30);
+
+        AsyncFailStaleReplicaTask(SegmentReplicationPressureService pressureService) {
+            super(logger, pressureService.threadPool, INTERVAL, true);
             this.pressureService = pressureService;
             rescheduleIfNecessary();
         }
@@ -207,11 +209,29 @@ public class SegmentReplicationPressureService implements Closeable {
         protected void runInternal() {
             if (pressureService.isSegmentReplicationBackpressureEnabled) {
                 final SegmentReplicationStats stats = pressureService.tracker.getStats();
+                long highestCurrentReplicationTimeMillis = 0;
+                ShardId shardIdWithHighestCurrentReplicationTime = null;
+
+                // Find the shardId in node which is having stale replicas with highest current replication time.
+                // This way we only fail one shardId's stale replicas in every iteration of this background async task and there by decrease
+                // load gradually on node.
                 for (Map.Entry<ShardId, SegmentReplicationPerGroupStats> entry : stats.getShardStats().entrySet()) {
                     final Set<SegmentReplicationShardStats> staleReplicas = pressureService.getStaleReplicas(
                         entry.getValue().getReplicaStats()
                     );
-                    final ShardId shardId = entry.getKey();
+                    for (SegmentReplicationShardStats staleReplica : staleReplicas) {
+                        if (staleReplica.getCurrentReplicationTimeMillis() > highestCurrentReplicationTimeMillis) {
+                            shardIdWithHighestCurrentReplicationTime = entry.getKey();
+                        }
+                    }
+                }
+
+                // Fail the stale replicas of shardId having highest current replication time
+                if (shardIdWithHighestCurrentReplicationTime != null) {
+                    final Set<SegmentReplicationShardStats> staleReplicas = pressureService.getStaleReplicas(
+                        stats.getShardStats().get(shardIdWithHighestCurrentReplicationTime).getReplicaStats()
+                    );
+                    final ShardId shardId = shardIdWithHighestCurrentReplicationTime;
                     final IndexService indexService = pressureService.indicesService.indexService(shardId.getIndex());
                     final IndexShard primaryShard = indexService.getShard(shardId.getId());
                     for (SegmentReplicationShardStats staleReplica : staleReplicas) {
