@@ -737,6 +737,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
         final SegmentInfos segmentInfos = SegmentInfos.readLatestCommit(replicaShard.store().directory());
         replicaShard.finalizeReplication(segmentInfos);
+        ensureYellow(INDEX_NAME);
 
         final int docCount = scaledRandomIntBetween(10, 200);
         for (int i = 0; i < docCount; i++) {
