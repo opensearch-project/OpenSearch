@@ -13,7 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.extensions.proto.ExtensionRequestOuterClass;
+import org.opensearch.extensions.proto.ExtensionRequestProto;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -26,23 +26,23 @@ import java.util.Objects;
  */
 public class ExtensionRequest extends TransportRequest {
     private static final Logger logger = LogManager.getLogger(ExtensionRequest.class);
-    private final ExtensionRequestOuterClass.ExtensionRequest request;
+    private final ExtensionRequestProto.ExtensionRequest request;
 
-    public ExtensionRequest(ExtensionRequestOuterClass.RequestType requestType) {
+    public ExtensionRequest(ExtensionRequestProto.RequestType requestType) {
         this(requestType, null);
     }
 
-    public ExtensionRequest(ExtensionRequestOuterClass.RequestType requestType, @Nullable String uniqueId) {
-        ExtensionRequestOuterClass.ExtensionRequest.Builder builder = ExtensionRequestOuterClass.ExtensionRequest.newBuilder();
+    public ExtensionRequest(ExtensionRequestProto.RequestType requestType, @Nullable String uniqueId) {
+        ExtensionRequestProto.ExtensionRequest.Builder builder = ExtensionRequestProto.ExtensionRequest.newBuilder();
         if (uniqueId != null) {
-            builder.setUniqiueId(uniqueId);
+            builder.setUniqueId(uniqueId);
         }
         this.request = builder.setRequestType(requestType).build();
     }
 
     public ExtensionRequest(StreamInput in) throws IOException {
         super(in);
-        this.request = ExtensionRequestOuterClass.ExtensionRequest.parseFrom(in.readByteArray());
+        this.request = ExtensionRequestProto.ExtensionRequest.parseFrom(in.readByteArray());
     }
 
     @Override
@@ -51,12 +51,12 @@ public class ExtensionRequest extends TransportRequest {
         out.writeByteArray(request.toByteArray());
     }
 
-    public ExtensionRequestOuterClass.RequestType getRequestType() {
+    public ExtensionRequestProto.RequestType getRequestType() {
         return this.request.getRequestType();
     }
 
     public String getUniqueId() {
-        return request.getUniqiueId();
+        return request.getUniqueId();
     }
 
     public String toString() {
@@ -69,11 +69,11 @@ public class ExtensionRequest extends TransportRequest {
         if (o == null || getClass() != o.getClass()) return false;
         ExtensionRequest that = (ExtensionRequest) o;
         return Objects.equals(request.getRequestType(), that.request.getRequestType())
-            && Objects.equals(request.getUniqiueId(), that.request.getUniqiueId());
+            && Objects.equals(request.getUniqueId(), that.request.getUniqueId());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(request.getRequestType(), request.getUniqiueId());
+        return Objects.hash(request.getRequestType(), request.getUniqueId());
     }
 }

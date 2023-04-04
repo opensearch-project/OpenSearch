@@ -411,7 +411,7 @@ public class ExtensionsManager {
     /**
      * Handles an {@link ExtensionRequest}.
      *
-     * @param extensionRequest  The request to handle, of a type defined in the {@link org.opensearch.extensions.proto.ExtensionRequestOuterClass.RequestType} enum.
+     * @param extensionRequest  The request to handle, of a type defined in the {@link org.opensearch.extensions.proto.ExtensionRequestProto.RequestType} enum.
      * @return  an Response matching the request.
      * @throws Exception if the request is not handled properly.
      */

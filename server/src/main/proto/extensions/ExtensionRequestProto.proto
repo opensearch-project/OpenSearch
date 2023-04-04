@@ -12,6 +12,8 @@
 syntax = "proto3";
 package org.opensearch.extensions.proto;
 
+option java_outer_classname = "ExtensionRequestProto";
+
 enum RequestType {
     REQUEST_EXTENSION_CLUSTER_STATE = 0;
     REQUEST_EXTENSION_CLUSTER_SETTINGS = 1;
@@ -26,5 +28,5 @@ enum RequestType {
 
 message ExtensionRequest {
   RequestType requestType = 1;
-  optional string uniqiueId = 2;
+  optional string uniqueId = 2;
 }

@@ -30,6 +30,10 @@
 
 import org.opensearch.gradle.info.BuildParams
 
+plugins {
+  id('com.google.protobuf') version '0.8.19'
+}
+
 apply plugin: 'opensearch.build'
 apply plugin: 'com.netflix.nebula.optional-base'
 apply plugin: 'opensearch.publish'
