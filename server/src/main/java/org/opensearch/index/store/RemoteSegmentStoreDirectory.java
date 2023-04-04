@@ -17,6 +17,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
@@ -135,7 +136,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
 
     private Map<String, UploadedSegmentMetadata> readMetadataFile(String metadataFilename) throws IOException {
         try (IndexInput indexInput = remoteMetadataDirectory.openInput(metadataFilename, IOContext.DEFAULT)) {
-            RemoteSegmentMetadata metadata = metadataStreamWrapper.readStream(indexInput);
+            byte[] metadataBytes = new byte[(int) indexInput.length()];
+            indexInput.readBytes(metadataBytes, 0, (int) indexInput.length());
+            RemoteSegmentMetadata metadata = metadataStreamWrapper.readStream(new ByteArrayIndexInput(metadataFilename, metadataBytes));
             return metadata.getMetadata();
         }
     }
