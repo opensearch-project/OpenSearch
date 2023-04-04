@@ -115,7 +115,7 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
      * @param maxDelayForRetry MaxDelay that can be returned from backoff policy
      * @return A backoff policy with exponential backoff with equal jitter which can't return delay more than given max delay
      */
-    public static BackoffPolicy exponentialEqualJitterBackoff(int baseDelay, int maxDelayForRetry) {
+    public static BackoffPolicy exponentialEqualJitterBackoff(long baseDelay, long maxDelayForRetry) {
         return new ExponentialEqualJitterBackoff(baseDelay, maxDelayForRetry);
     }
 
@@ -223,10 +223,10 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
     }
 
     private static class ExponentialEqualJitterBackoff extends BackoffPolicy {
-        private final int maxDelayForRetry;
-        private final int baseDelay;
+        private final long maxDelayForRetry;
+        private final long baseDelay;
 
-        private ExponentialEqualJitterBackoff(int baseDelay, int maxDelayForRetry) {
+        private ExponentialEqualJitterBackoff(long baseDelay, long maxDelayForRetry) {
             this.maxDelayForRetry = maxDelayForRetry;
             this.baseDelay = baseDelay;
         }
@@ -252,11 +252,11 @@ public abstract class BackoffPolicy implements Iterable<TimeValue> {
          * Once delay has exceeded maxDelayForRetry, it will return maxDelayForRetry only
          * and not increase the delay.
          */
-        private final int maxDelayForRetry;
-        private final int baseDelay;
+        private final long maxDelayForRetry;
+        private final long baseDelay;
         private int retriesAttempted;
 
-        private ExponentialEqualJitterBackoffIterator(int baseDelay, int maxDelayForRetry) {
+        private ExponentialEqualJitterBackoffIterator(long baseDelay, long maxDelayForRetry) {
             this.baseDelay = baseDelay;
             this.maxDelayForRetry = maxDelayForRetry;
         }

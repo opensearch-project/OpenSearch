@@ -166,8 +166,12 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         int put_mapping_threshold_value = randomIntBetween(1, 10);
+        int baseDelay = randomIntBetween(1, 10);
+        int maxDelay = randomIntBetween(1, 10);
         Settings initialSettings = Settings.builder()
             .put("cluster_manager.throttling.thresholds.put-mapping.value", put_mapping_threshold_value)
+            .put("cluster_manager.throttling.retry.base.delay", baseDelay + "s")
+            .put("cluster_manager.throttling.retry.max.delay", maxDelay + "s")
             .build();
         ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(initialSettings, clusterSettings, () -> {
             return clusterService.getMasterService().getMinNodeVersion();
@@ -176,6 +180,32 @@ public class ClusterManagerTaskThrottlerTests extends OpenSearchTestCase {
 
         // assert that limit is applied on throttler
         assertEquals(put_mapping_threshold_value, throttler.getThrottlingLimit("put-mapping").intValue());
+        // assert that delay setting is applied on throttler
+        assertEquals(baseDelay, ClusterManagerTaskThrottler.getBaseDelayForRetry().seconds());
+        assertEquals(maxDelay, ClusterManagerTaskThrottler.getMaxDelayForRetry().seconds());
+    }
+
+    public void testUpdateRetryDelaySetting() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.builder().build(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterManagerTaskThrottler throttler = new ClusterManagerTaskThrottler(Settings.EMPTY, clusterSettings, () -> {
+            return clusterService.getMasterService().getMinNodeVersion();
+        }, new ClusterManagerThrottlingStats());
+
+        // verify defaults
+        assertEquals(ClusterManagerTaskThrottler.baseDelay, ClusterManagerTaskThrottler.getBaseDelayForRetry());
+        assertEquals(ClusterManagerTaskThrottler.maxDelay, ClusterManagerTaskThrottler.getMaxDelayForRetry());
+
+        // verify update base delay
+        int baseDelay = randomIntBetween(1, 10);
+        Settings newSettings = Settings.builder().put("cluster_manager.throttling.retry.base.delay", baseDelay + "s").build();
+        clusterSettings.applySettings(newSettings);
+        assertEquals(baseDelay, ClusterManagerTaskThrottler.getBaseDelayForRetry().seconds());
+
+        // verify update max delay
+        int maxDelay = randomIntBetween(1, 10);
+        newSettings = Settings.builder().put("cluster_manager.throttling.retry.max.delay", maxDelay + "s").build();
+        clusterSettings.applySettings(newSettings);
+        assertEquals(maxDelay, ClusterManagerTaskThrottler.getMaxDelayForRetry().seconds());
     }
 
     public void testValidateSettingsForUnknownTask() {
