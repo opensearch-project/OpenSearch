@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
@@ -58,6 +59,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     private final RemoteSegmentStoreDirectory remoteDirectory;
     private final Map<String, String> localSegmentChecksumMap;
     private final RemoteUploadPressureService remoteUploadPressureService;
+    private final AtomicLong refreshCheckpointSeqNo = new AtomicLong();
     private long primaryTerm;
     private static final Logger logger = LogManager.getLogger(RemoteStoreRefreshListener.class);
 
@@ -72,6 +74,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         if (indexShard.shardRouting.primary()) {
             try {
                 this.remoteDirectory.init();
+
             } catch (IOException e) {
                 logger.error("Exception while initialising RemoteSegmentStoreDirectory", e);
             }
