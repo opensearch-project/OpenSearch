@@ -894,7 +894,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         );
         final IndexShard replicaShard = getIndexShard(replica, INDEX_NAME);
         final SegmentInfos segmentInfos = replicaShard.getLatestSegmentInfosAndCheckpoint().v1().get();
-        final Collection<String> snapshottedSegments = segmentInfos.files(true);
+        final Collection<String> snapshottedSegments = segmentInfos.files(false);
         // opens a scrolled query before a flush is called.
         // this is for testing scroll segment consistency between refresh and flush
         SearchResponse searchResponse = client(replica).prepareSearch()
@@ -1142,9 +1142,8 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
                 (OpenSearchDirectoryReader) searcher.getDirectoryReader()
             );
             final SegmentInfos infos = standardDirectoryReader.getSegmentInfos();
-            snapshottedSegments = infos.files(true);
+            snapshottedSegments = infos.files(false);
         }
-        ;
 
         flush(INDEX_NAME);
         for (int i = 101; i < 200; i++) {
