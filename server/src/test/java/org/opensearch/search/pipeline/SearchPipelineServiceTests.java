@@ -11,7 +11,9 @@ package org.opensearch.search.pipeline;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.TotalHits;
+import org.junit.AfterClass;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.ResourceNotFoundException;
 import org.opensearch.Version;
@@ -27,9 +29,11 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.TermQueryBuilder;
@@ -54,7 +58,18 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+@SuppressForbidden(reason = "feature flag overrides")
 public class SearchPipelineServiceTests extends OpenSearchTestCase {
+    @BeforeClass
+    public static void enableFeature() {
+        System.setProperty(FeatureFlags.SEARCH_PIPELINE, "true");
+    }
+
+    @AfterClass
+    public static void disableFeature() {
+        System.setProperty(FeatureFlags.SEARCH_PIPELINE, "false");
+    }
+
     private static final SearchPipelinePlugin DUMMY_PLUGIN = new SearchPipelinePlugin() {
         @Override
         public Map<String, Processor.Factory> getProcessors(Processor.Parameters parameters) {

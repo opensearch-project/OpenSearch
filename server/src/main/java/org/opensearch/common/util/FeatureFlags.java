@@ -55,6 +55,12 @@ public class FeatureFlags {
     public static final String EXTENSIONS = "opensearch.experimental.feature.extensions.enabled";
 
     /**
+     * Gates the search pipeline features during initial development.
+     * Once the feature is complete and ready for release, this feature flag can be removed.
+     */
+    public static final String SEARCH_PIPELINE = "opensearch.experimental.feature.search_pipeline.enabled";
+
+    /**
      * Should store the settings from opensearch.yml.
      */
     private static Settings settings;
@@ -89,4 +95,6 @@ public class FeatureFlags {
     public static final Setting<Boolean> SEARCHABLE_SNAPSHOT_SETTING = Setting.boolSetting(SEARCHABLE_SNAPSHOT, false, Property.NodeScope);
 
     public static final Setting<Boolean> EXTENSIONS_SETTING = Setting.boolSetting(EXTENSIONS, false, Property.NodeScope);
+
+    public static final Setting<Boolean> SEARCH_PIPELINE_SETTING = Setting.boolSetting(SEARCH_PIPELINE, false, Property.NodeScope);
 }

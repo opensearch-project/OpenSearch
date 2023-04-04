@@ -38,7 +38,7 @@ public final class SearchPipelineClient {
     public AcknowledgedResponse put(PutSearchPipelineRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             request,
-            SearchPipelinesRequestConverters::putPipeline,
+            SearchPipelineRequestConverters::putPipeline,
             options,
             AcknowledgedResponse::fromXContent,
             emptySet()
@@ -56,7 +56,7 @@ public final class SearchPipelineClient {
     public Cancellable putAsync(PutSearchPipelineRequest request, RequestOptions options, ActionListener<AcknowledgedResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
-            SearchPipelinesRequestConverters::putPipeline,
+            SearchPipelineRequestConverters::putPipeline,
             options,
             AcknowledgedResponse::fromXContent,
             listener,
@@ -75,7 +75,7 @@ public final class SearchPipelineClient {
     public GetSearchPipelineResponse get(GetSearchPipelineRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             request,
-            SearchPipelinesRequestConverters::getPipeline,
+            SearchPipelineRequestConverters::getPipeline,
             options,
             GetSearchPipelineResponse::fromXContent,
             Collections.singleton(404)
@@ -97,7 +97,7 @@ public final class SearchPipelineClient {
     ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
-            SearchPipelinesRequestConverters::getPipeline,
+            SearchPipelineRequestConverters::getPipeline,
             options,
             GetSearchPipelineResponse::fromXContent,
             listener,
@@ -116,7 +116,7 @@ public final class SearchPipelineClient {
     public AcknowledgedResponse delete(DeleteSearchPipelineRequest request, RequestOptions options) throws IOException {
         return restHighLevelClient.performRequestAndParseEntity(
             request,
-            SearchPipelinesRequestConverters::deletePipeline,
+            SearchPipelineRequestConverters::deletePipeline,
             options,
             AcknowledgedResponse::fromXContent,
             emptySet()
@@ -138,7 +138,7 @@ public final class SearchPipelineClient {
     ) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(
             request,
-            SearchPipelinesRequestConverters::deletePipeline,
+            SearchPipelineRequestConverters::deletePipeline,
             options,
             AcknowledgedResponse::fromXContent,
             listener,

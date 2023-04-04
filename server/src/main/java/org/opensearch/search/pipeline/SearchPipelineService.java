@@ -36,6 +36,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -63,6 +64,7 @@ import java.util.function.Consumer;
  * against requests and responses.
  */
 public class SearchPipelineService implements ClusterStateApplier, ReportingService<SearchPipelineInfo> {
+
     public static final String SEARCH_PIPELINE_ORIGIN = "search_pipeline";
 
     private static final Logger logger = LogManager.getLogger(SearchPipelineService.class);
@@ -210,6 +212,9 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         PutSearchPipelineRequest request,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
+        if (FeatureFlags.isEnabled(FeatureFlags.SEARCH_PIPELINE) == false) {
+            throw new IllegalArgumentException("Experimental search pipeline feature is not enabled");
+        }
 
         validatePipeline(searchPipelineInfos, request);
         clusterService.submitStateUpdateTask(
@@ -325,7 +330,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
 
     public SearchRequest transformRequest(SearchRequest originalRequest) {
         String pipelineId = originalRequest.pipeline();
-        if (pipelineId != null) {
+        if (pipelineId != null && FeatureFlags.isEnabled(FeatureFlags.SEARCH_PIPELINE)) {
             PipelineHolder pipeline = pipelines.get(pipelineId);
             if (pipeline == null) {
                 throw new IllegalArgumentException("Pipeline " + pipelineId + " is not defined");
@@ -348,7 +353,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
 
     public SearchResponse transformResponse(SearchRequest request, SearchResponse searchResponse) {
         String pipelineId = request.pipeline();
-        if (pipelineId != null) {
+        if (pipelineId != null && FeatureFlags.isEnabled(FeatureFlags.SEARCH_PIPELINE)) {
             PipelineHolder pipeline = pipelines.get(pipelineId);
             if (pipeline == null) {
                 throw new IllegalArgumentException("Pipeline " + pipelineId + " is not defined");

@@ -17,8 +17,8 @@ import org.opensearch.action.search.PutSearchPipelineRequest;
 
 import java.io.IOException;
 
-final class SearchPipelinesRequestConverters {
-    private SearchPipelinesRequestConverters() {}
+final class SearchPipelineRequestConverters {
+    private SearchPipelineRequestConverters() {}
 
     static Request putPipeline(PutSearchPipelineRequest putPipelineRequest) throws IOException {
         String endpoint = new RequestConverters.EndpointBuilder().addPathPartAsIs("_search/pipeline")
