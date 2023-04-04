@@ -102,7 +102,6 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
     @Override
     public V get(K key) {
         Objects.requireNonNull(key);
-        final ReentrantLock lock = this.lock;
         lock.lock();
         try {
             Node<K, V> node = data.get(key);
@@ -125,7 +124,6 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
         Objects.requireNonNull(key);
         Objects.requireNonNull(value);
 
-        final ReentrantLock lock = this.lock;
         lock.lock();
         try {
             Node<K, V> node = data.get(key);
@@ -146,7 +144,6 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
     public V compute(K key, BiFunction<? super K, ? super V, ? extends V> remappingFunction) {
         Objects.requireNonNull(key);
         Objects.requireNonNull(remappingFunction);
-        final ReentrantLock lock = this.lock;
         lock.lock();
         try {
             final Node<K, V> node = data.get(key);
@@ -179,7 +176,6 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
     @Override
     public void remove(K key) {
         Objects.requireNonNull(key);
-        final ReentrantLock lock = this.lock;
         lock.lock();
         try {
             removeNode(key);
@@ -190,7 +186,6 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
 
     @Override
     public void clear() {
-        final ReentrantLock lock = this.lock;
         lock.lock();
         try {
             usage = 0L;
@@ -214,7 +209,6 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
     @Override
     public void incRef(K key) {
         Objects.requireNonNull(key);
-        final ReentrantLock lock = this.lock;
         lock.lock();
         try {
             Node<K, V> node = data.get(key);
@@ -240,7 +234,6 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
     @Override
     public void decRef(K key) {
         Objects.requireNonNull(key);
-        final ReentrantLock lock = this.lock;
         lock.lock();
         try {
             Node<K, V> node = data.get(key);
@@ -265,7 +258,6 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
     @Override
     public long prune() {
         long sum = 0L;
-        final ReentrantLock lock = this.lock;
         lock.lock();
         try {
             final Iterator<Node<K, V>> iterator = lru.values().iterator();
@@ -286,7 +278,6 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
 
     @Override
     public CacheUsage usage() {
-        final ReentrantLock lock = this.lock;
         lock.lock();
         try {
             return new CacheUsage(usage, activeUsage);
@@ -297,7 +288,6 @@ class LRUCache<K, V> implements RefCountedCache<K, V> {
 
     @Override
     public CacheStats stats() {
-        final ReentrantLock lock = this.lock;
         lock.lock();
         try {
             return statsCounter.snapshot();
