@@ -745,7 +745,8 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
             refresh(INDEX_NAME);
         }
         // Refresh, this should trigger round of segment replication
-        assertBusy(() -> { assertDocCounts(docCount, replicaNode); });
+        waitForSearchableDocs(docCount, primaryNode, replicaNode);
+        verifyStoreContent();
         final IndexShard replicaAfterFailure = getIndexShard(replicaNode, INDEX_NAME);
         assertNotEquals(replicaAfterFailure.routingEntry().allocationId().getId(), replicaShard.routingEntry().allocationId().getId());
     }
