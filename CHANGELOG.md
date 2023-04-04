@@ -118,6 +118,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Added equals/hashcode for named DocValueFormat.DateTime inner class ([#6357](https://github.com/opensearch-project/OpenSearch/pull/6357))
 - Fixed bug for searchable snapshot to take 'base_path' of blob into account ([#6558](https://github.com/opensearch-project/OpenSearch/pull/6558))
 - Fix fuzziness validation ([#5805](https://github.com/opensearch-project/OpenSearch/pull/5805))
+- Fixed bug for incorrect summation for large longs ([#6983](https://github.com/opensearch-project/OpenSearch/pull/6983))
 
 ### Security
 
