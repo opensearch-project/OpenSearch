@@ -494,8 +494,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return indexSettings.getIndexMetadata().isSystem();
     }
 
-    public String getCodecName() {
-        return codecService.codec("default").getName();
+    /**
+     * Returns the name of the default codec in codecService
+     */
+    public String getDefaultCodecName() {
+        return codecService.codec(CodecService.DEFAULT_CODEC).getName();
     }
 
     /**
@@ -1488,7 +1491,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return null;
         }
         if (getEngineOrNull() == null) {
-            return new Tuple<>(new GatedCloseable<>(null, () -> {}), ReplicationCheckpoint.empty(shardId, getCodecName()));
+            return new Tuple<>(new GatedCloseable<>(null, () -> {}), ReplicationCheckpoint.empty(shardId, getDefaultCodecName()));
         }
         // do not close the snapshot - caller will close it.
         final GatedCloseable<SegmentInfos> snapshot = getSegmentInfosSnapshot();
@@ -1512,7 +1515,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             } catch (IOException e) {
                 throw new OpenSearchException("Error Fetching SegmentInfos and latest checkpoint", e);
             }
-        }).orElseGet(() -> new Tuple<>(new GatedCloseable<>(null, () -> {}), ReplicationCheckpoint.empty(shardId, getCodecName())));
+        }).orElseGet(() -> new Tuple<>(new GatedCloseable<>(null, () -> {}), ReplicationCheckpoint.empty(shardId, getDefaultCodecName())));
     }
 
     /**
