@@ -72,7 +72,7 @@ public class NRTReplicationReaderManager extends OpenSearchReaderManager {
         for (LeafReaderContext ctx : standardDirectoryReader.leaves()) {
             subs.add(ctx.reader());
         }
-        final Collection<String> files = currentInfos.files(true);
+        final Collection<String> files = currentInfos.files(false);
         DirectoryReader innerReader = StandardDirectoryReader.open(referenceToRefresh.directory(), currentInfos, subs, null);
         final DirectoryReader softDeletesDirectoryReaderWrapper = new SoftDeletesDirectoryReaderWrapper(
             innerReader,
