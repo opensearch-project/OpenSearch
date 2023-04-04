@@ -245,6 +245,26 @@ public class IndicesService extends AbstractLifecycleComponent
     );
 
     /**
+     * Used to specify if all indexes are to create with remote store enabled by default
+     */
+    public static final Setting<Boolean> CLUSTER_REMOTE_STORE_INDEX_FORCE_SETTING = Setting.boolSetting(
+        "cluster.remote_store.enabled.force",
+        false,
+        Property.NodeScope,
+        Property.Final
+    );
+
+    /**
+     * Used to specify default repo to use for remote store backed indices
+     */
+    public static final Setting<String> CLUSTER_REMOTE_STORE_DEFAULT_REPO_SETTING = Setting.simpleString(
+        "cluster.remote_store.repository.default",
+        "",
+        Property.NodeScope,
+        Property.Final
+    );
+
+    /**
      * The node's settings.
      */
     private final Settings settings;

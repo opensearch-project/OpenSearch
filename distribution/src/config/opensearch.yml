@@ -89,11 +89,10 @@ ${path.logs}
 #
 # ---------------------------------- Remote Store -----------------------------------
 # Controls whether cluster imposes index creation only with remote store enabled
-#opensearch.remote_store.enabled.force: true
-#
+# cluster.remote_store.enabled.force: true
 #
 # Repository to use while enforcing remote store for an index
-# opensearch.remote_store.repo.default: my-repo-1
+# cluster.remote_store.repository.default: my-repo-1
 #
 # ---------------------------------- Experimental Features -----------------------------------
 #

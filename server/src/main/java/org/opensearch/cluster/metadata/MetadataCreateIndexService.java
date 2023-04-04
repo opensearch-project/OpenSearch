@@ -120,6 +120,9 @@ import java.util.stream.IntStream;
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING;
+import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_REPLICATION_TYPE_SETTING;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
@@ -129,6 +132,8 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.Metadata.DEFAULT_REPLICA_COUNT_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_DEFAULT_REPO_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_INDEX_FORCE_SETTING;
 
 /**
  * Service responsible for submitting create index requests
@@ -879,7 +884,7 @@ public class MetadataCreateIndexService {
         indexSettingsBuilder.put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
         indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
-        updateRemoteStoreSettings(indexSettingsBuilder);
+        updateRemoteStoreSettings(indexSettingsBuilder, request.settings(), settings);
 
         if (sourceMetadata != null) {
             assert request.resizeType() != null;
@@ -913,12 +918,25 @@ public class MetadataCreateIndexService {
         return indexSettings;
     }
 
-    private static void updateRemoteStoreSettings(Settings.Builder settings) {
+    private static void updateRemoteStoreSettings(Settings.Builder settings, Settings requestSettings, Settings clusterSettings) {
         if (FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE) && FeatureFlags.isEnabled(FeatureFlags.REPLICATION_TYPE)) {
-            if ("true".equalsIgnoreCase(System.getProperty("opensearch.remote_store.enabled.force"))) {
+            if (CLUSTER_REMOTE_STORE_INDEX_FORCE_SETTING.get(clusterSettings)) {
+                if (INDEX_REMOTE_STORE_ENABLED_SETTING.exists(requestSettings)
+                    || INDEX_REMOTE_STORE_REPOSITORY_SETTING.exists(requestSettings)
+                    || INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings)) {
+                    throw new IllegalArgumentException(
+                        "Cannot override "
+                            + INDEX_REMOTE_STORE_ENABLED_SETTING.getKey()
+                            + ", "
+                            + INDEX_REMOTE_STORE_REPOSITORY_SETTING.getKey()
+                            + " and "
+                            + INDEX_REPLICATION_TYPE_SETTING.getKey()
+                            + " while remote store backed indices are enabled by default"
+                    );
+                }
                 settings.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-                    .put(SETTING_REMOTE_STORE_ENABLED, "true")
-                    .put(SETTING_REMOTE_STORE_REPOSITORY, System.getProperty("opensearch.remote_store.repo.default"))
+                    .put(SETTING_REMOTE_STORE_ENABLED, true)
+                    .put(SETTING_REMOTE_STORE_REPOSITORY, CLUSTER_REMOTE_STORE_DEFAULT_REPO_SETTING.get(clusterSettings))
                     .build();
             }
         }
