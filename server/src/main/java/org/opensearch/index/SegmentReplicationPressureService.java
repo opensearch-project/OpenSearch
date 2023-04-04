@@ -46,6 +46,10 @@ public class SegmentReplicationPressureService implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(SegmentReplicationPressureService.class);
 
+    /**
+     * When enabled, writes will be rejected when a replica shard falls behind by both the MAX_REPLICATION_TIME_SETTING time value and MAX_INDEXING_CHECKPOINTS number of checkpoints.
+     * Once a shard falls behind double the MAX_REPLICATION_TIME_SETTING time value it will be marked as failed.
+     */
     public static final Setting<Boolean> SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED = Setting.boolSetting(
         "segrep.pressure.enabled",
         false,
