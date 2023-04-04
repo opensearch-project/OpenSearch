@@ -3078,9 +3078,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
              * calculations of the global checkpoint. However, we can not assert that we are in the translog stage of recovery here as
              * while the global checkpoint update may have emanated from the primary when we were in that state, we could subsequently move
              * to recovery finalization, or even finished recovery before the update arrives here.
+             * When remote translog is enabled for an index, replication operation is limited to primary term validation and does not
+             * update local checkpoint at replica, so the local checkpoint at replica can be less than globalCheckpoint.
              */
-            assert state() != IndexShardState.POST_RECOVERY && state() != IndexShardState.STARTED
-                : "supposedly in-sync shard copy received a global checkpoint ["
+            assert (state() != IndexShardState.POST_RECOVERY && state() != IndexShardState.STARTED)
+                || indexSettings.isRemoteTranslogStoreEnabled() : "supposedly in-sync shard copy received a global checkpoint ["
                     + globalCheckpoint
                     + "] "
                     + "that is higher than its local checkpoint ["
