@@ -66,7 +66,7 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
 
         when(repositoriesService.repository("remote_store_repository")).thenReturn(repository);
 
-        try (Directory directory = remoteSegmentStoreDirectoryFactory.newDirectory("remote_store_repository", indexSettings, shardPath)) {
+        try (Directory directory = remoteSegmentStoreDirectoryFactory.newDirectory(indexSettings, shardPath)) {
             assertTrue(directory instanceof RemoteSegmentStoreDirectory);
             ArgumentCaptor<BlobPath> blobPathCaptor = ArgumentCaptor.forClass(BlobPath.class);
             verify(blobStore, times(2)).blobContainer(blobPathCaptor.capture());
@@ -87,10 +87,7 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
 
         when(repositoriesService.repository("remote_store_repository")).thenThrow(new RepositoryMissingException("Missing"));
 
-        assertThrows(
-            IllegalArgumentException.class,
-            () -> remoteSegmentStoreDirectoryFactory.newDirectory("remote_store_repository", indexSettings, shardPath)
-        );
+        assertThrows(IllegalArgumentException.class, () -> remoteSegmentStoreDirectoryFactory.newDirectory(indexSettings, shardPath));
     }
 
 }
