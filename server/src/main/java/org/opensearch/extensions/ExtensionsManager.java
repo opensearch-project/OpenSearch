@@ -94,25 +94,7 @@ public class ExtensionsManager {
     public static final String REQUEST_EXTENSION_HANDLE_REMOTE_TRANSPORT_ACTION = "internal:extensions/handle-remote-transportaction";
     public static final String TRANSPORT_ACTION_REQUEST_FROM_EXTENSION = "internal:extensions/request-transportaction-from-extension";
     public static final int EXTENSION_REQUEST_WAIT_TIMEOUT = 10;
-
     private static final Logger logger = LogManager.getLogger(ExtensionsManager.class);
-
-    /**
-     * Enum for Extension Requests
-     *
-     * @opensearch.internal
-     */
-    public static enum RequestType {
-        REQUEST_EXTENSION_CLUSTER_STATE,
-        REQUEST_EXTENSION_CLUSTER_SETTINGS,
-        REQUEST_EXTENSION_REGISTER_REST_ACTIONS,
-        REQUEST_EXTENSION_REGISTER_SETTINGS,
-        REQUEST_EXTENSION_ENVIRONMENT_SETTINGS,
-        REQUEST_EXTENSION_DEPENDENCY_INFORMATION,
-        CREATE_COMPONENT,
-        ON_INDEX_MODULE,
-        GET_SETTINGS
-    };
 
     /**
      * Enum for OpenSearch Requests
@@ -429,7 +411,7 @@ public class ExtensionsManager {
     /**
      * Handles an {@link ExtensionRequest}.
      *
-     * @param extensionRequest  The request to handle, of a type defined in the {@link RequestType} enum.
+     * @param extensionRequest  The request to handle, of a type defined in the {@link org.opensearch.extensions.proto.ExtensionRequestOuterClass.RequestType} enum.
      * @return  an Response matching the request.
      * @throws Exception if the request is not handled properly.
      */
