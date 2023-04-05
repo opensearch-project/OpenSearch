@@ -2778,7 +2778,7 @@ public class InternalEngine extends Engine {
         private final AtomicLong refreshedTime;
         private final AtomicLong refreshedSeqNo;
         private long pendingCheckpoint;
-        private long pendingTime;
+        private long pendingRefreshTime;
         private final AtomicLong beforeRefreshSeqNo;
 
         LastRefreshedCheckpointListener(long initialLocalCheckpoint) {
@@ -2793,7 +2793,7 @@ public class InternalEngine extends Engine {
         public void beforeRefresh() {
             // all changes until this point should be visible after refresh
             pendingCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
-            pendingTime = System.nanoTime();
+            pendingRefreshTime = System.nanoTime();
             beforeRefreshSeqNo.incrementAndGet();
         }
 
@@ -2812,8 +2812,8 @@ public class InternalEngine extends Engine {
         }
 
         private void updateRefreshedTime() {
-            refreshedTime.updateAndGet(curr -> Math.max(curr, pendingTime));
-            assert refreshedTime.get() >= pendingTime : refreshedTime.get() + " < " + pendingTime;
+            refreshedTime.updateAndGet(curr -> Math.max(curr, pendingRefreshTime));
+            assert refreshedTime.get() >= pendingRefreshTime : refreshedTime.get() + " < " + pendingRefreshTime;
         }
 
         private void updateRefreshedSeqNo() {

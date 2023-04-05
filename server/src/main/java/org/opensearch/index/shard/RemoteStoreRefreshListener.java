@@ -22,6 +22,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.index.RemoteUploadPressureService;
+import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -37,7 +38,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
@@ -59,7 +59,6 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     private final RemoteSegmentStoreDirectory remoteDirectory;
     private final Map<String, String> localSegmentChecksumMap;
     private final RemoteUploadPressureService remoteUploadPressureService;
-    private final AtomicLong refreshCheckpointSeqNo = new AtomicLong();
     private long primaryTerm;
     private static final Logger logger = LogManager.getLogger(RemoteStoreRefreshListener.class);
 
@@ -74,7 +73,6 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         if (indexShard.shardRouting.primary()) {
             try {
                 this.remoteDirectory.init();
-
             } catch (IOException e) {
                 logger.error("Exception while initialising RemoteSegmentStoreDirectory", e);
             }
@@ -143,17 +141,20 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                                         localSegmentsPostRefresh,
                                         storeDirectory,
                                         indexShard.getOperationPrimaryTerm(),
-                                        segmentInfos.getGeneration(),
-                                        refreshCheckpointSeqNo.incrementAndGet()
+                                        segmentInfos.getGeneration()
                                     );
                                     localSegmentChecksumMap.keySet()
                                         .stream()
                                         .filter(file -> !localSegmentsPostRefresh.contains(file))
                                         .collect(Collectors.toSet())
                                         .forEach(localSegmentChecksumMap::remove);
-                                    final long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine())
-                                        .lastRefreshedCheckpoint();
-                                    indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
+
+                                    Engine engine = indexShard.getEngine();
+                                    InternalEngine internalEngine = (InternalEngine) engine;
+                                    final long lastRefreshedCheckpoint = internalEngine.lastRefreshedCheckpoint();
+                                    // TODO - We need to add latest refresh time and latest refresh seq no
+
+                                    engine.translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
                                 }
                             }
                         } catch (EngineException e) {
