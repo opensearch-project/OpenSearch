@@ -36,6 +36,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.DoubleArray;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
@@ -47,6 +48,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.Map;
 
 /**
@@ -58,7 +60,7 @@ public class SumIntegralAggregator extends NumericMetricsAggregator.SingleValue 
 
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat format;
-    private LongArray sums;
+    private DoubleArray sums;
 
     SumIntegralAggregator(
         String name,
@@ -70,7 +72,7 @@ public class SumIntegralAggregator extends NumericMetricsAggregator.SingleValue 
         super(name, context, parent, metadata);
         this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
         this.format = valuesSourceConfig.format();
-        sums = context.bigArrays().newLongArray(1, true);
+        sums = context.bigArrays().newDoubleArray(1, true);
     }
 
     @Override
@@ -89,12 +91,12 @@ public class SumIntegralAggregator extends NumericMetricsAggregator.SingleValue 
 
                 if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
-                    long value = sums.get(bucket);
+                    BigInteger value = BigInteger.valueOf((long) sums.get(bucket));
                     for (int i = 0; i < valuesCount; i++) {
-                        value += values.nextValue();
+                        value = value.add(BigInteger.valueOf(values.nextValue()));
                     }
 
-                    sums.set(bucket, value);
+                    sums.set(bucket, value.doubleValue());
                 }
             }
         };
