@@ -8,6 +8,12 @@
 
 package org.opensearch.index;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.inject.Inject;
+import org.opensearch.common.settings.Settings;
+
 /**
  * Remote upload back pressure service.
  *
@@ -15,19 +21,15 @@ package org.opensearch.index;
  */
 public class RemoteUploadPressureService {
 
-    public RemoteUploadPressureService() {
+    private static final Logger logger = LogManager.getLogger(RemoteUploadPressureService.class);
 
-    }
+    private final RemoteUploadPressureSettings remoteUploadPressureSettings;
 
-    public void updateRefreshTime(long lastRefreshedTime) {
+    private final RemoteUploadStatsTracker remoteUploadStatsTracker;
 
-    }
-
-    public void updateRefreshSeqNo(long lastRefreshedSeqNo) {
-
-    }
-
-    private static class RemoteUploadSettings {
-
+    @Inject
+    public RemoteUploadPressureService(ClusterService clusterService, Settings settings) {
+        remoteUploadStatsTracker = new RemoteUploadStatsTracker();
+        remoteUploadPressureSettings = new RemoteUploadPressureSettings(clusterService, settings);
     }
 }

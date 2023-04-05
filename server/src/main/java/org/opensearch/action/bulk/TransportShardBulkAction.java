@@ -81,6 +81,7 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexingPressureService;
+import org.opensearch.index.RemoteUploadPressureService;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.VersionConflictEngineException;
@@ -135,7 +136,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
     private final SegmentReplicationPressureService segmentReplicationPressureService;
-    private final Object remoteStoreUploadPressureService;
+    private final RemoteUploadPressureService remoteUploadPressureService;
 
     /**
      * This action is used for performing primary term validation. With remote translog enabled, the translogs would
@@ -159,7 +160,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         ActionFilters actionFilters,
         IndexingPressureService indexingPressureService,
         SegmentReplicationPressureService segmentReplicationPressureService,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        RemoteUploadPressureService remoteUploadPressureService
     ) {
         super(
             settings,
@@ -180,7 +182,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.segmentReplicationPressureService = segmentReplicationPressureService;
-        this.remoteStoreUploadPressureService = new Object();
+        this.remoteUploadPressureService = remoteUploadPressureService;
 
         this.transportPrimaryTermValidationAction = ACTION_NAME + "[validate_primary_term]";
 
@@ -530,6 +532,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     @Override
     protected Releasable checkPrimaryLimits(BulkShardRequest request, boolean rerouteWasLocal, boolean localRerouteInitiatedByNodeClient) {
+
         if (force(request) == false && segmentReplicationPressureService.isSegmentReplicationBackpressureEnabled()) {
             segmentReplicationPressureService.isSegrepLimitBreached(request.shardId());
         }

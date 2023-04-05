@@ -150,8 +150,6 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
 
                                     // TODO - Move this to a different method
                                     InternalEngine internalEngine = (InternalEngine) indexShard.getEngine();
-                                    remoteUploadPressureService.updateRefreshTime(internalEngine.lastRefreshedTime());
-                                    remoteUploadPressureService.updateRefreshSeqNo(internalEngine.lastRefreshedSeqNo());
                                     internalEngine.translogManager().setMinSeqNoToKeep(internalEngine.lastRefreshedCheckpoint() + 1);
                                 }
                             }
