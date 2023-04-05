@@ -33,7 +33,7 @@
 package org.opensearch.nio;
 
 import org.opensearch.common.concurrent.CompletableContext;
-import org.opensearch.core.internal.net.NetUtils;
+import org.opensearch.common.util.net.NetUtils;
 import org.opensearch.nio.utils.ByteBufferUtils;
 import org.opensearch.nio.utils.ExceptionsHelper;
 

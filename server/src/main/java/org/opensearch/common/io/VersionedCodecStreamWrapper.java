@@ -11,7 +11,6 @@ package org.opensearch.common.io;
 import java.io.IOException;
 
 import org.apache.lucene.codecs.CodecUtil;
-import org.apache.lucene.store.BufferedChecksumIndexInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -47,10 +46,9 @@ public class VersionedCodecStreamWrapper<T> {
      * @return stream content parsed into {@link T}
      */
     public T readStream(IndexInput indexInput) throws IOException {
-        ChecksumIndexInput checksumIndexInput = new BufferedChecksumIndexInput(indexInput);
-        int readStreamVersion = checkHeader(checksumIndexInput);
-        T content = getHandlerForVersion(readStreamVersion).readContent(checksumIndexInput);
-        checkFooter(checksumIndexInput);
+        CodecUtil.checksumEntireFile(indexInput);
+        int readStreamVersion = checkHeader(indexInput);
+        T content = getHandlerForVersion(readStreamVersion).readContent(indexInput);
         return content;
     }
 

@@ -176,6 +176,7 @@ import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
+import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.ShardLimitValidator;
@@ -1802,6 +1803,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
                 final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
                 repositoriesServiceReference.set(repositoriesService);
+                FileCacheCleaner fileCacheCleaner = new FileCacheCleaner(nodeEnv, null);
                 if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
                     indicesService = new IndicesService(
                         settings,
@@ -1837,7 +1839,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         null,
                         emptyMap(),
                         new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService),
-                        repositoriesServiceReference::get
+                        repositoriesServiceReference::get,
+                        fileCacheCleaner
                     );
                 } else {
                     indicesService = new IndicesService(
@@ -1873,7 +1876,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         null,
                         emptyMap(),
                         new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService),
-                        repositoriesServiceReference::get
+                        repositoriesServiceReference::get,
+                        fileCacheCleaner
                     );
                 }
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
@@ -1981,7 +1985,13 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     new UpdateHelper(scriptService),
                     actionFilters,
                     new IndexingPressureService(settings, clusterService),
-                    new SegmentReplicationPressureService(settings, clusterService, mock(IndicesService.class)),
+                    new SegmentReplicationPressureService(
+                        settings,
+                        clusterService,
+                        mock(IndicesService.class),
+                        mock(ShardStateAction.class),
+                        mock(ThreadPool.class)
+                    ),
                     new SystemIndices(emptyMap())
                 );
                 actions.put(

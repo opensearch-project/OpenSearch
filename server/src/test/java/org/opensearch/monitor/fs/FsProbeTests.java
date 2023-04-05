@@ -33,10 +33,16 @@
 package org.opensearch.monitor.fs;
 
 import org.apache.lucene.util.Constants;
+import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.breaker.NoopCircuitBreaker;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.NodeEnvironment.NodePath;
+import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.store.remote.filecache.FileCacheFactory;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -113,7 +119,14 @@ public class FsProbeTests extends OpenSearchTestCase {
     public void testFsCacheInfo() throws IOException {
         Settings settings = Settings.builder().put("node.roles", "search").build();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
-            FsProbe probe = new FsProbe(env, settings);
+            ByteSizeValue gbByteSizeValue = new ByteSizeValue(1, ByteSizeUnit.GB);
+            env.fileCacheNodePath().fileCacheReservedSize = gbByteSizeValue;
+            FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
+                gbByteSizeValue.getBytes(),
+                16,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST)
+            );
+            FsProbe probe = new FsProbe(env, fileCache);
             FsInfo stats = probe.stats(null);
             assertNotNull(stats);
             assertTrue(stats.getTimestamp() > 0L);
