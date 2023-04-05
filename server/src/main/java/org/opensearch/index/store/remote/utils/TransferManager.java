@@ -20,10 +20,14 @@ import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CountDownLatch;
 
 /**
  * This acts as entry point to fetch {@link BlobFetchRequest} and return actual {@link IndexInput}. Utilizes the BlobContainer interface to
@@ -34,6 +38,7 @@ import java.security.PrivilegedAction;
 public class TransferManager {
     private static final Logger logger = LogManager.getLogger(TransferManager.class);
 
+    private final ConcurrentMap<Path, CountDownLatch> latchMap = new ConcurrentHashMap<>();
     private final BlobContainer blobContainer;
     private final FileCache fileCache;
 
@@ -48,41 +53,67 @@ public class TransferManager {
      * @return future of IndexInput augmented with internal caching maintenance tasks
      */
     public IndexInput fetchBlob(BlobFetchRequest blobFetchRequest) throws IOException {
-        final Path key = blobFetchRequest.getFilePath();
-
         // We need to do a privileged action here in order to fetch from remote
         // and write to the local file cache in case this is invoked as a side
         // effect of a plugin (such as a scripted search) that doesn't have the
         // necessary permissions.
-        final IndexInput origin = AccessController.doPrivileged(
-            (PrivilegedAction<IndexInput>) () -> fileCache.compute(key, (path, cachedIndexInput) -> {
-                if (cachedIndexInput == null) {
-                    try {
-                        return new FileCachedIndexInput(fileCache, blobFetchRequest.getFilePath(), downloadBlockLocally(blobFetchRequest));
-                    } catch (IOException e) {
-                        logger.warn("Failed to download " + blobFetchRequest.getFilePath(), e);
-                        return null;
-                    }
-                } else {
-                    if (cachedIndexInput.isClosed()) {
-                        // if it's already in the file cache, but closed, open it and replace the original one
-                        try {
-                            final IndexInput luceneIndexInput = blobFetchRequest.getDirectory()
-                                .openInput(blobFetchRequest.getFileName(), IOContext.READ);
-                            return new FileCachedIndexInput(fileCache, blobFetchRequest.getFilePath(), luceneIndexInput);
-                        } catch (IOException e) {
-                            logger.warn("Failed to open existing file for " + blobFetchRequest.getFilePath(), e);
-                            return null;
-                        }
-                    }
-                    // already in the cache and ready to be used (open)
-                    return cachedIndexInput;
+        try {
+            return AccessController.doPrivileged((PrivilegedAction<IndexInput>) () -> fetchBlobInternal(blobFetchRequest));
+        } catch (UncheckedIOException e) {
+            throw e.getCause();
+        }
+    }
+
+    private IndexInput fetchBlobInternal(BlobFetchRequest blobFetchRequest) {
+        final Path key = blobFetchRequest.getFilePath();
+        // check if the origin is already in block cache
+        IndexInput origin = fileCache.compute(key, (path, cachedIndexInput) -> {
+            if (cachedIndexInput != null && cachedIndexInput.isClosed()) {
+                // if it's already in the file cache, but closed, open it and replace the original one
+                try {
+                    IndexInput luceneIndexInput = blobFetchRequest.getDirectory().openInput(blobFetchRequest.getFileName(), IOContext.READ);
+                    return new FileCachedIndexInput(fileCache, blobFetchRequest.getFilePath(), luceneIndexInput);
+                } catch (IOException ioe) {
+                    logger.warn("Open index input " + blobFetchRequest.getFilePath() + " got error ", ioe);
+                    // open failed so return null to download the file again
+                    return null;
                 }
-            })
-        );
+
+            }
+            // already in the cache and ready to be used (open)
+            return cachedIndexInput;
+        });
 
         if (origin == null) {
-            throw new IOException("Failed to create IndexInput for " + blobFetchRequest.getFileName());
+            final CountDownLatch existingLatch = latchMap.putIfAbsent(key, new CountDownLatch(1));
+            if (existingLatch != null) {
+                // Another thread is downloading the same resource. Wait for it
+                // to complete then make a recursive call to fetch it from the
+                // cache.
+                try {
+                    existingLatch.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Interrupted while waiting on block download at " + key, e);
+                }
+                return fetchBlobInternal(blobFetchRequest);
+            } else {
+                // Origin is not in file cache, download origin and put in cache
+                // We've effectively taken a lock for this key by inserting a
+                // latch into the concurrent map, so we must be sure to remove it
+                // and count it down before leaving.
+                try {
+                    IndexInput downloaded = downloadBlockLocally(blobFetchRequest);
+                    FileCachedIndexInput newOrigin =
+                        new FileCachedIndexInput(fileCache, blobFetchRequest.getFilePath(), downloaded);
+                    fileCache.put(key, newOrigin);
+                    origin = newOrigin;
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                } finally {
+                    latchMap.remove(key).countDown();
+                }
+            }
         }
 
         // Origin was either retrieved from the cache or newly added, either
