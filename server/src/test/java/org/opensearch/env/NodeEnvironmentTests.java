@@ -38,9 +38,6 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsException;
-import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.util.io.IOUtils;
@@ -48,8 +45,6 @@ import org.opensearch.gateway.MetadataStateFormat;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardId;
-import org.opensearch.monitor.fs.FsInfo;
-import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.node.Node;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.IndexSettingsModule;
@@ -70,7 +65,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.opensearch.test.NodeRoles.addRoles;
 import static org.opensearch.test.NodeRoles.nonDataNode;
 import static org.opensearch.test.NodeRoles.nonClusterManagerNode;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -587,49 +581,6 @@ public class NodeEnvironmentTests extends OpenSearchTestCase {
         // assert that we fail on shard data even without the metadata dir.
         verifyFailsOnShardData(noDataSettings, indexPath, shardDataDirName);
         verifyFailsOnShardData(noDataNoClusterManagerSettings, indexPath, shardDataDirName);
-    }
-
-    public void testSearchFileCacheConfiguration() throws IOException {
-        Settings searchRoleSettings = addRoles(buildEnvSettings(Settings.EMPTY), Set.of(DiscoveryNodeRole.SEARCH_ROLE));
-        ByteSizeValue cacheSize = new ByteSizeValue(16, ByteSizeUnit.GB);
-        Settings searchRoleSettingsWithConfig = Settings.builder()
-            .put(searchRoleSettings)
-            .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize)
-            .build();
-
-        Settings onlySearchRoleSettings = Settings.builder()
-            .put(searchRoleSettings)
-            .put(
-                NodeRoles.removeRoles(
-                    searchRoleSettings,
-                    Set.of(
-                        DiscoveryNodeRole.DATA_ROLE,
-                        DiscoveryNodeRole.CLUSTER_MANAGER_ROLE,
-                        DiscoveryNodeRole.INGEST_ROLE,
-                        DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE
-                    )
-                )
-            )
-            .build();
-
-        // Test exception thrown with configuration missing
-        assertThrows(SettingsException.class, () -> newNodeEnvironment(searchRoleSettings));
-
-        // Test data + search node with defined cache size
-        try (NodeEnvironment env = newNodeEnvironment(searchRoleSettingsWithConfig)) {
-            NodeEnvironment.NodePath fileCacheNodePath = env.fileCacheNodePath();
-            assertEquals(cacheSize.getBytes(), fileCacheNodePath.fileCacheReservedSize.getBytes());
-        }
-
-        // Test dedicated search node with no configuration
-        try (NodeEnvironment env = newNodeEnvironment(onlySearchRoleSettings)) {
-            NodeEnvironment.NodePath fileCacheNodePath = env.fileCacheNodePath();
-            assertTrue(fileCacheNodePath.fileCacheReservedSize.getBytes() > 0);
-            FsProbe fsProbe = new FsProbe(env, onlySearchRoleSettings);
-            FsInfo fsInfo = fsProbe.stats(null);
-            FsInfo.Path cachePathInfo = fsInfo.iterator().next();
-            assertEquals(cachePathInfo.getFileCacheReserved().getBytes(), fileCacheNodePath.fileCacheReservedSize.getBytes());
-        }
     }
 
     private void verifyFailsOnShardData(Settings settings, Path indexPath, String shardDataDirName) {

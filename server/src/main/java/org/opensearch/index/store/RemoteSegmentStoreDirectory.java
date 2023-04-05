@@ -17,6 +17,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
@@ -135,7 +136,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
 
     private Map<String, UploadedSegmentMetadata> readMetadataFile(String metadataFilename) throws IOException {
         try (IndexInput indexInput = remoteMetadataDirectory.openInput(metadataFilename, IOContext.DEFAULT)) {
-            RemoteSegmentMetadata metadata = metadataStreamWrapper.readStream(indexInput);
+            byte[] metadataBytes = new byte[(int) indexInput.length()];
+            indexInput.readBytes(metadataBytes, 0, (int) indexInput.length());
+            RemoteSegmentMetadata metadata = metadataStreamWrapper.readStream(new ByteArrayIndexInput(metadataFilename, metadataBytes));
             return metadata.getMetadata();
         }
     }
@@ -150,25 +153,31 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
         private final String originalFilename;
         private final String uploadedFilename;
         private final String checksum;
+        private final long length;
 
-        UploadedSegmentMetadata(String originalFilename, String uploadedFilename, String checksum) {
+        UploadedSegmentMetadata(String originalFilename, String uploadedFilename, String checksum, long length) {
             this.originalFilename = originalFilename;
             this.uploadedFilename = uploadedFilename;
             this.checksum = checksum;
+            this.length = length;
         }
 
         @Override
         public String toString() {
-            return String.join(SEPARATOR, originalFilename, uploadedFilename, checksum);
+            return String.join(SEPARATOR, originalFilename, uploadedFilename, checksum, String.valueOf(length));
         }
 
         public String getChecksum() {
             return this.checksum;
         }
 
+        public long getLength() {
+            return this.length;
+        }
+
         public static UploadedSegmentMetadata fromString(String uploadedFilename) {
             String[] values = uploadedFilename.split(SEPARATOR);
-            return new UploadedSegmentMetadata(values[0], values[1], values[2]);
+            return new UploadedSegmentMetadata(values[0], values[1], values[2], Long.parseLong(values[3]));
         }
     }
 
@@ -270,6 +279,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      */
     @Override
     public long fileLength(String name) throws IOException {
+        if (segmentsUploadedToRemoteStore.containsKey(name)) {
+            return segmentsUploadedToRemoteStore.get(name).getLength();
+        }
         String remoteFilename = getExistingRemoteFilename(name);
         if (remoteFilename != null) {
             return remoteDataDirectory.fileLength(remoteFilename);
@@ -314,7 +326,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
         }
         remoteDataDirectory.copyFrom(from, src, remoteFilename, context);
         String checksum = getChecksumOfLocalFile(from, src);
-        UploadedSegmentMetadata segmentMetadata = new UploadedSegmentMetadata(src, remoteFilename, checksum);
+        UploadedSegmentMetadata segmentMetadata = new UploadedSegmentMetadata(src, remoteFilename, checksum, from.fileLength(src));
         segmentsUploadedToRemoteStore.put(src, segmentMetadata);
     }
 
