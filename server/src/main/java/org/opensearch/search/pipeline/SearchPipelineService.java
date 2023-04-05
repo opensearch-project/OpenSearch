@@ -79,6 +79,8 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
     private final NamedWriteableRegistry namedWriteableRegistry;
     private volatile ClusterState state;
 
+    private boolean forceEnabled = false;
+
     public SearchPipelineService(
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -212,7 +214,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         PutSearchPipelineRequest request,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        if (FeatureFlags.isEnabled(FeatureFlags.SEARCH_PIPELINE) == false) {
+        if (isFeatureEnabled() == false) {
             throw new IllegalArgumentException("Experimental search pipeline feature is not enabled");
         }
 
@@ -330,7 +332,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
 
     public SearchRequest transformRequest(SearchRequest originalRequest) {
         String pipelineId = originalRequest.pipeline();
-        if (pipelineId != null && FeatureFlags.isEnabled(FeatureFlags.SEARCH_PIPELINE)) {
+        if (pipelineId != null && isFeatureEnabled()) {
             PipelineHolder pipeline = pipelines.get(pipelineId);
             if (pipeline == null) {
                 throw new IllegalArgumentException("Pipeline " + pipelineId + " is not defined");
@@ -353,7 +355,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
 
     public SearchResponse transformResponse(SearchRequest request, SearchResponse searchResponse) {
         String pipelineId = request.pipeline();
-        if (pipelineId != null && FeatureFlags.isEnabled(FeatureFlags.SEARCH_PIPELINE)) {
+        if (pipelineId != null && isFeatureEnabled()) {
             PipelineHolder pipeline = pipelines.get(pipelineId);
             if (pipeline == null) {
                 throw new IllegalArgumentException("Pipeline " + pipelineId + " is not defined");
@@ -425,5 +427,13 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             this.configuration = Objects.requireNonNull(configuration);
             this.pipeline = Objects.requireNonNull(pipeline);
         }
+    }
+
+    private boolean isFeatureEnabled() {
+        return forceEnabled || FeatureFlags.isEnabled(FeatureFlags.SEARCH_PIPELINE);
+    }
+
+    void setForceEnabled(boolean forceEnabled) {
+        this.forceEnabled = forceEnabled;
     }
 }
