@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.shard.ShardId;
 
 /**
  * Remote upload back pressure service.
@@ -31,5 +32,9 @@ public class RemoteUploadPressureService {
     public RemoteUploadPressureService(ClusterService clusterService, Settings settings) {
         remoteUploadStatsTracker = new RemoteUploadStatsTracker();
         remoteUploadPressureSettings = new RemoteUploadPressureSettings(clusterService, settings);
+    }
+
+    public RemoteSegmentUploadShardStatsTracker getStatsTracker(ShardId shardId) {
+        return remoteUploadStatsTracker.getStatsTracker(shardId);
     }
 }
