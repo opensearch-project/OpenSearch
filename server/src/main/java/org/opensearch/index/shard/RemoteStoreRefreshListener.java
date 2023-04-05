@@ -21,6 +21,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.index.RemoteSegmentUploadShardStatsTracker;
 import org.opensearch.index.RemoteUploadPressureService;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
@@ -86,6 +87,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     /**
      * Upload new segment files created as part of the last refresh to the remote segment store.
      * This method also uploads remote_segments_metadata file which contains metadata of each segment file uploaded.
+     *
      * @param didRefresh true if the refresh opened a new reference
      */
     @Override
@@ -98,6 +100,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                         this.remoteDirectory.init();
                     }
                     try {
+                        RemoteSegmentUploadShardStatsTracker statsTracker = remoteUploadPressureService.getStatsTracker(indexShard.shardId());
                         // if a new segments_N file is present in local that is not uploaded to remote store yet, it
                         // is considered as a first refresh post commit. A cleanup of stale commit files is triggered.
                         // This is done to avoid delete post each refresh.
@@ -131,7 +134,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                                     .filter(file -> !file.equals(latestSegmentInfos.get()))
                                     .forEach(localSegmentsPostRefresh::remove);
 
-                                boolean uploadStatus = uploadNewSegments(localSegmentsPostRefresh);
+                                boolean uploadStatus = uploadNewSegments(localSegmentsPostRefresh, statsTracker);
                                 if (uploadStatus) {
                                     segmentInfoSnapshotFilename = uploadSegmentInfosSnapshot(latestSegmentInfos.get(), segmentInfos);
                                     localSegmentsPostRefresh.add(segmentInfoSnapshotFilename);
@@ -201,27 +204,48 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     }
 
     // Visible for testing
-    boolean uploadNewSegments(Collection<String> localFiles) throws IOException {
+    boolean uploadNewSegments(Collection<String> localFiles, RemoteSegmentUploadShardStatsTracker statsTracker) throws IOException {
         AtomicBoolean uploadSuccess = new AtomicBoolean(true);
-        localFiles.stream().filter(file -> !EXCLUDE_FILES.contains(file)).filter(file -> {
-            try {
-                return !remoteDirectory.containsFile(file, getChecksumOfLocalFile(file));
-            } catch (IOException e) {
-                logger.info(
-                    "Exception while reading checksum of local segment file: {}, ignoring the exception and re-uploading the file",
-                    file
-                );
-                return true;
+        try {
+            statsTracker.incrementTotalUploadsStarted();
+            localFiles.stream().filter(file -> !EXCLUDE_FILES.contains(file)).filter(file -> {
+                try {
+                    return !remoteDirectory.containsFile(file, getChecksumOfLocalFile(file));
+                } catch (IOException e) {
+                    logger.info(
+                        "Exception while reading checksum of local segment file: {}, ignoring the exception and re-uploading the file",
+                        file
+                    );
+                    return true;
+                }
+            }).forEach(file -> {
+                long fileSize = 0;
+                boolean success = false;
+                try {
+                    fileSize = storeDirectory.fileLength(file);
+                    // Upload starting
+                    statsTracker.incrementUploadBytesStarted(fileSize);
+                    // Upload started
+                    remoteDirectory.copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
+                    // Upload succeeded
+                    statsTracker.incrementUploadBytesSucceeded(fileSize);
+                    success = true;
+                } catch (IOException e) {
+                    // ToDO: Handle transient and permanent un-availability of the remote store (GitHub #3397)
+                    logger.warn(() -> new ParameterizedMessage("Exception while uploading file {} to the remote segment store", file), e);
+                } finally {
+                    if (success == false) {
+                        uploadSuccess.set(false);
+                        // Upload failed
+                        statsTracker.incrementUploadBytesFailed(fileSize);
+                    }
+                }
+            });
+        } finally {
+            if (uploadSuccess.get() == false) {
+                statsTracker.incrementTotalUploadsFailed();
             }
-        }).forEach(file -> {
-            try {
-                remoteDirectory.copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
-            } catch (IOException e) {
-                uploadSuccess.set(false);
-                // ToDO: Handle transient and permanent un-availability of the remote store (GitHub #3397)
-                logger.warn(() -> new ParameterizedMessage("Exception while uploading file {} to the remote segment store", file), e);
-            }
-        });
+        }
         return uploadSuccess.get();
     }
 
