@@ -28,6 +28,13 @@ public class FeatureFlags {
     public static final String REPLICATION_TYPE = "opensearch.experimental.feature.replication_type.enabled";
 
     /**
+     * Gates the visibility of the segment replication cluster setting that allows changing of replication type.
+     * Once the feature is ready for production release, this feature flag can be removed.
+     */
+    public static final String SEGMENT_REPLICATION_CLUSTER_SETTING =
+        "opensearch.experimental.feature.segment_replication.cluster_setting.enabled";
+
+    /**
      * Gates the visibility of the index setting that allows persisting data to remote store along with local disk.
      * Once the feature is ready for production release, this feature flag can be removed.
      */
@@ -83,6 +90,12 @@ public class FeatureFlags {
     }
 
     public static final Setting<Boolean> REPLICATION_TYPE_SETTING = Setting.boolSetting(REPLICATION_TYPE, false, Property.NodeScope);
+
+    public static final Setting<Boolean> SEGMENT_REPLICATION_CLUSTER_REPLICATION_TYPE_SETTING = Setting.boolSetting(
+        SEGMENT_REPLICATION_CLUSTER_SETTING,
+        false,
+        Property.NodeScope
+    );
 
     public static final Setting<Boolean> REMOTE_STORE_SETTING = Setting.boolSetting(REMOTE_STORE, false, Property.NodeScope);
 
