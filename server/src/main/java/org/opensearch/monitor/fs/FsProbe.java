@@ -36,14 +36,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
-import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.PathUtils;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.NodeEnvironment.NodePath;
+import org.opensearch.index.store.remote.filecache.FileCache;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -64,12 +63,11 @@ public class FsProbe {
     private static final Logger logger = LogManager.getLogger(FsProbe.class);
 
     private final NodeEnvironment nodeEnv;
+    private final FileCache fileCache;
 
-    private final Settings settings;
-
-    public FsProbe(NodeEnvironment nodeEnv, Settings settings) {
+    public FsProbe(NodeEnvironment nodeEnv, FileCache fileCache) {
         this.nodeEnv = nodeEnv;
-        this.settings = settings;
+        this.fileCache = fileCache;
     }
 
     public FsInfo stats(FsInfo previous) throws IOException {
@@ -80,9 +78,9 @@ public class FsProbe {
         FsInfo.Path[] paths = new FsInfo.Path[dataLocations.length];
         for (int i = 0; i < dataLocations.length; i++) {
             paths[i] = getFSInfo(dataLocations[i]);
-            if (settings != null && DiscoveryNode.isSearchNode(settings) && dataLocations[i].fileCacheReservedSize != ByteSizeValue.ZERO) {
+            if (fileCache != null && dataLocations[i].fileCacheReservedSize != ByteSizeValue.ZERO) {
                 paths[i].fileCacheReserved = adjustForHugeFilesystems(dataLocations[i].fileCacheReservedSize.getBytes());
-                paths[i].fileCacheUtilized = adjustForHugeFilesystems(nodeEnv.fileCacheStats().getUsed().getBytes());
+                paths[i].fileCacheUtilized = adjustForHugeFilesystems(fileCache.usage().usage());
                 paths[i].available -= (paths[i].fileCacheReserved - paths[i].fileCacheUtilized);
             }
         }
