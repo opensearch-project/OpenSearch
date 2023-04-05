@@ -48,7 +48,6 @@ public class FlatObjectFieldDataTests extends AbstractFieldDataTestCase {
         writer.commit();
 
         IndexFieldData<?> fieldData = getForField("field");
-        // LeafReaderContext context = fieldData.load();
         List<LeafReaderContext> readers = refreshReader();
         assertEquals(1, readers.size());
 

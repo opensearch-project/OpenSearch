@@ -55,9 +55,8 @@ import java.util.function.Supplier;
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 /**
- * A field mapper for flat_objects. This mapper accepts JSON object and treat as string fields in one index.
- * A flat_object field contains one parent field itself and two substring fields:
- * field._valueAndPath and field._value
+ * A field mapper for flat_objects.
+ * This mapper accepts JSON object and treat as string fields in one index.
  * @opensearch.internal
  */
 public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
@@ -106,12 +105,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
     }
 
     /**
-     * The builder for the flat_object field mapper using default parameters as
-     * indexed: flat_object field mapper is default to be indexed.
-     * hasDocValues: to store index and support efficient access to individual field values.
-     * stored: the original value of the field is not stored in the index.
-     * nullValue: not accept null value
-     * ignoreAbove: exclude values that exceed the maximum length from the indexing process.
+     * The builder for the flat_object field mapper using default parameters
      * @opensearch.internal
      */
     public static class Builder extends FieldMapper.Builder<Builder> {
@@ -368,7 +362,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
 
         /**
-         * To direch search fields, if a dot path was used in search query,
+         * To direct search fields, if a dot path was used in search query,
          * then direct to flatObjectFieldName._valueAndPath subfield,
          * else, direct to flatObjectFieldName._value subfield.
          * @return directedSubFieldName

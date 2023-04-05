@@ -386,60 +386,6 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
         assertThat(response.getHits().getAt(2).getFields().get("sNum1").getValues().get(0), equalTo(6.0));
     }
 
-    // public void testScriptFieldWithFlatObject() throws Exception {
-    // createIndex("test");
-    //
-    // String mapping = Strings.toString(
-    // XContentFactory.jsonBuilder()
-    // .startObject()
-    // .startObject(MapperService.SINGLE_MAPPING_NAME)
-    // .startObject("properties")
-    // .startObject("flat_object_field")
-    // .field("type", "flat_object")
-    // .endObject()
-    // .endObject()
-    // .endObject()
-    // .endObject()
-    // );
-    //
-    // client().admin().indices().preparePutMapping().setSource(mapping, XContentType.JSON).get();
-    // indexRandom(
-    // true,
-    // false,
-    // client().prepareIndex("test")
-    // .setId("1")
-    // .setSource(jsonBuilder().startObject().field("date", "1970-01-01T00:00:00.000Z").endObject()),
-    //// client().prepareIndex("test").setId("2").setSource(jsonBuilder().startObject().field("date", date).endObject())
-    // );
-    //
-    // SearchResponse response = client().prepareSearch()
-    // .setQuery(matchAllQuery())
-    // .addSort("date", SortOrder.ASC)
-    // .addScriptField(
-    // "date1",
-    // new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['date'].date.millis", Collections.emptyMap())
-    // )
-    // .addScriptField(
-    // "date2",
-    // new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['date'].date.nanos", Collections.emptyMap())
-    // )
-    // .get();
-    //
-    // assertNoFailures(response);
-    //
-    // assertThat(response.getHits().getAt(0).getId(), is("1"));
-    // assertThat(response.getHits().getAt(0).getFields().get("date1").getValues().get(0), equalTo(0L));
-    // assertThat(response.getHits().getAt(0).getFields().get("date2").getValues().get(0), equalTo(0L));
-    // assertThat(response.getHits().getAt(0).getSortValues()[0], equalTo(0L));
-    //
-    // assertThat(response.getHits().getAt(1).getId(), is("2"));
-    // Instant instant = ZonedDateTime.parse(date).toInstant();
-    // long dateAsNanos = DateUtils.toLong(instant);
-    // long dateAsMillis = instant.toEpochMilli();
-    // assertThat(response.getHits().getAt(1).getFields().get("date1").getValues().get(0), equalTo(dateAsMillis));
-    // assertThat(response.getHits().getAt(1).getFields().get("date2").getValues().get(0), equalTo(dateAsNanos));
-    // assertThat(response.getHits().getAt(1).getSortValues()[0], equalTo(dateAsNanos));
-    // }
     public void testScriptFieldWithNanos() throws Exception {
         createIndex("test");
 
