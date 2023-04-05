@@ -15,6 +15,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
+import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.shard.IndexShard;
@@ -62,10 +63,12 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put("node.name", SegmentReplicationTargetServiceTests.class.getSimpleName())
             .build();
+        CodecService codecService = new CodecService(null, null);
+        String defaultCodecName = codecService.codec(CodecService.DEFAULT_CODEC).getName();
         primaryShard = newStartedShard(true, settings);
         replicaShard = newShard(false, settings, new NRTReplicationEngineFactory());
         recoverReplica(replicaShard, primaryShard, true, getReplicationFunc(replicaShard));
-        checkpoint = new ReplicationCheckpoint(replicaShard.shardId(), 0L, 0L, 0L);
+        checkpoint = new ReplicationCheckpoint(replicaShard.shardId(), 0L, 0L, 0L, defaultCodecName);
         SegmentReplicationSourceFactory replicationSourceFactory = mock(SegmentReplicationSourceFactory.class);
         replicationSource = mock(SegmentReplicationSource.class);
         when(replicationSourceFactory.get(replicaShard)).thenReturn(replicationSource);
@@ -76,13 +79,15 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             initialCheckpoint.getShardId(),
             initialCheckpoint.getPrimaryTerm(),
             initialCheckpoint.getSegmentsGen(),
-            initialCheckpoint.getSegmentInfosVersion() + 1
+            initialCheckpoint.getSegmentInfosVersion() + 1,
+            defaultCodecName
         );
         newPrimaryCheckpoint = new ReplicationCheckpoint(
             initialCheckpoint.getShardId(),
             initialCheckpoint.getPrimaryTerm() + 1,
             initialCheckpoint.getSegmentsGen(),
-            initialCheckpoint.getSegmentInfosVersion() + 1
+            initialCheckpoint.getSegmentInfosVersion() + 1,
+            defaultCodecName
         );
     }
 

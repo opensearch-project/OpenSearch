@@ -48,7 +48,7 @@ import org.opensearch.client.support.AbstractClient;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.internal.InternalSearchResponse;

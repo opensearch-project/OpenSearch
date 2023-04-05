@@ -53,7 +53,7 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.nio.BytesChannelContext;
 import org.opensearch.nio.ChannelFactory;
 import org.opensearch.nio.Config;

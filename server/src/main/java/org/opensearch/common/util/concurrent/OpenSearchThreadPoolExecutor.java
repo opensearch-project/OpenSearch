@@ -33,6 +33,7 @@
 package org.opensearch.common.util.concurrent;
 
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadFactory;

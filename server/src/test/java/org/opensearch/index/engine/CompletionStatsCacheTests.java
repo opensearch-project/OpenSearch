@@ -43,7 +43,7 @@ import org.apache.lucene.search.suggest.document.Completion90PostingsFormat;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.store.Directory;
 import org.opensearch.OpenSearchException;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.test.OpenSearchTestCase;
 

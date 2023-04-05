@@ -60,7 +60,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.NodeMetadata;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.MetadataUpgrader;

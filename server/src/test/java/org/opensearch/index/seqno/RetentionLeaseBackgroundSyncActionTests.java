@@ -42,7 +42,7 @@ import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.gateway.WriteStateException;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;

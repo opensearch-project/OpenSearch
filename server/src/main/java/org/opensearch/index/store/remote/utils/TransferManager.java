@@ -22,6 +22,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 
 /**
  * This acts as entry point to fetch {@link BlobFetchRequest} and return actual {@link IndexInput}. Utilizes the BlobContainer interface to
@@ -48,30 +50,36 @@ public class TransferManager {
     public IndexInput fetchBlob(BlobFetchRequest blobFetchRequest) throws IOException {
         final Path key = blobFetchRequest.getFilePath();
 
-        final IndexInput origin = fileCache.compute(key, (path, cachedIndexInput) -> {
-            if (cachedIndexInput == null) {
-                try {
-                    return new FileCachedIndexInput(fileCache, blobFetchRequest.getFilePath(), downloadBlockLocally(blobFetchRequest));
-                } catch (IOException e) {
-                    logger.warn("Failed to download " + blobFetchRequest.getFilePath(), e);
-                    return null;
-                }
-            } else {
-                if (cachedIndexInput.isClosed()) {
-                    // if it's already in the file cache, but closed, open it and replace the original one
+        // We need to do a privileged action here in order to fetch from remote
+        // and write to the local file cache in case this is invoked as a side
+        // effect of a plugin (such as a scripted search) that doesn't have the
+        // necessary permissions.
+        final IndexInput origin = AccessController.doPrivileged(
+            (PrivilegedAction<IndexInput>) () -> fileCache.compute(key, (path, cachedIndexInput) -> {
+                if (cachedIndexInput == null) {
                     try {
-                        final IndexInput luceneIndexInput = blobFetchRequest.getDirectory()
-                            .openInput(blobFetchRequest.getFileName(), IOContext.READ);
-                        return new FileCachedIndexInput(fileCache, blobFetchRequest.getFilePath(), luceneIndexInput);
+                        return new FileCachedIndexInput(fileCache, blobFetchRequest.getFilePath(), downloadBlockLocally(blobFetchRequest));
                     } catch (IOException e) {
-                        logger.warn("Failed to open existing file for " + blobFetchRequest.getFilePath(), e);
+                        logger.warn("Failed to download " + blobFetchRequest.getFilePath(), e);
                         return null;
                     }
+                } else {
+                    if (cachedIndexInput.isClosed()) {
+                        // if it's already in the file cache, but closed, open it and replace the original one
+                        try {
+                            final IndexInput luceneIndexInput = blobFetchRequest.getDirectory()
+                                .openInput(blobFetchRequest.getFileName(), IOContext.READ);
+                            return new FileCachedIndexInput(fileCache, blobFetchRequest.getFilePath(), luceneIndexInput);
+                        } catch (IOException e) {
+                            logger.warn("Failed to open existing file for " + blobFetchRequest.getFilePath(), e);
+                            return null;
+                        }
+                    }
+                    // already in the cache and ready to be used (open)
+                    return cachedIndexInput;
                 }
-                // already in the cache and ready to be used (open)
-                return cachedIndexInput;
-            }
-        });
+            })
+        );
 
         if (origin == null) {
             throw new IOException("Failed to create IndexInput for " + blobFetchRequest.getFileName());

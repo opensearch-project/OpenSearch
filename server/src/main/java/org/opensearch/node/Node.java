@@ -35,24 +35,32 @@ package org.opensearch.node;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.settings.SettingsException;
+import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexingPressureService;
+import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
+import org.opensearch.index.store.remote.filecache.FileCacheFactory;
 import org.opensearch.indices.replication.SegmentReplicationSourceFactory;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.NoopExtensionsManager;
+import org.opensearch.monitor.fs.FsInfo;
+import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.search.backpressure.SearchBackpressureService;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.watcher.ResourceWatcherService;
-import org.opensearch.Assertions;
+import org.opensearch.core.Assertions;
 import org.opensearch.Build;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchTimeoutException;
@@ -121,7 +129,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.env.Environment;
@@ -237,6 +245,7 @@ import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
 import static org.opensearch.common.util.FeatureFlags.REPLICATION_TYPE;
+import static org.opensearch.env.NodeEnvironment.collectFileCacheDataPath;
 import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
 
 /**
@@ -357,6 +366,7 @@ public class Node implements Closeable {
     private final NodeService nodeService;
     final NamedWriteableRegistry namedWriteableRegistry;
     private final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
+    private FileCache fileCache;
 
     public Node(Environment environment) {
         this(environment, Collections.emptyList(), true);
@@ -551,7 +561,6 @@ public class Node implements Closeable {
             for (Module pluginModule : pluginsService.createGuiceModules()) {
                 modules.add(pluginModule);
             }
-            final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
             final FsHealthService fsHealthService = new FsHealthService(
                 settings,
                 clusterService.getClusterSettings(),
@@ -587,6 +596,11 @@ public class Node implements Closeable {
                 pluginCircuitBreakers,
                 settingsModule.getClusterSettings()
             );
+            // File cache will be initialized by the node once circuit breakers are in place.
+            initializeFileCache(settings, circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
+            final FileCacheCleaner fileCacheCleaner = new FileCacheCleaner(nodeEnvironment, fileCache);
+            final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool, fileCache);
+
             pluginsService.filterPlugins(CircuitBreakerPlugin.class).forEach(plugin -> {
                 CircuitBreaker breaker = circuitBreakerService.getBreaker(plugin.getCircuitBreaker(settings).getName());
                 plugin.setCircuitBreaker(breaker);
@@ -632,7 +646,7 @@ public class Node implements Closeable {
             final Map<String, IndexStorePlugin.DirectoryFactory> builtInDirectoryFactories = IndexModule.createBuiltInDirectoryFactories(
                 repositoriesServiceReference::get,
                 threadPool,
-                nodeEnvironment.fileCache()
+                fileCache
             );
 
             final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories = new HashMap<>();
@@ -671,7 +685,7 @@ public class Node implements Closeable {
             rerouteServiceReference.set(rerouteService);
             clusterService.setRerouteService(rerouteService);
 
-            final IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
+            final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
                 repositoriesServiceReference::get
             );
 
@@ -700,7 +714,8 @@ public class Node implements Closeable {
                     searchModule.getValuesSourceRegistry(),
                     recoveryStateFactories,
                     remoteDirectoryFactory,
-                    repositoriesServiceReference::get
+                    repositoriesServiceReference::get,
+                    fileCacheCleaner
                 );
             } else {
                 indicesService = new IndicesService(
@@ -725,7 +740,8 @@ public class Node implements Closeable {
                     searchModule.getValuesSourceRegistry(),
                     recoveryStateFactories,
                     remoteDirectoryFactory,
-                    repositoriesServiceReference::get
+                    repositoriesServiceReference::get,
+                    fileCacheCleaner
                 );
             }
 
@@ -970,7 +986,7 @@ public class Node implements Closeable {
                 indexingPressureService,
                 searchModule.getValuesSourceRegistry().getUsageService(),
                 searchBackpressureService,
-                nodeEnvironment
+                fileCache
             );
 
             final SearchService searchService = newSearchService(
@@ -1666,5 +1682,50 @@ public class Node implements Closeable {
             assert localNode.get() != null;
             return localNode.get();
         }
+    }
+
+    /**
+     * Initializes the search cache with a defined capacity.
+     * The capacity of the cache is based on user configuration for {@link Node#NODE_SEARCH_CACHE_SIZE_SETTING}.
+     * If the user doesn't configure the cache size, it fails if the node is a data + search node.
+     * Else it configures the size to 80% of available capacity for a dedicated search node, if not explicitly defined.
+     */
+    private void initializeFileCache(Settings settings, CircuitBreaker circuitBreaker) throws IOException {
+        if (DiscoveryNode.isSearchNode(settings)) {
+            NodeEnvironment.NodePath fileCacheNodePath = nodeEnvironment.fileCacheNodePath();
+            long capacity = NODE_SEARCH_CACHE_SIZE_SETTING.get(settings).getBytes();
+            FsInfo.Path info = ExceptionsHelper.catchAsRuntimeException(() -> FsProbe.getFSInfo(fileCacheNodePath));
+            long availableCapacity = info.getAvailable().getBytes();
+
+            // Initialize default values for cache if NODE_SEARCH_CACHE_SIZE_SETTING is not set.
+            if (capacity == 0) {
+                // If node is not a dedicated search node without configuration, prevent cache initialization
+                if (DiscoveryNode.getRolesFromSettings(settings).stream().anyMatch(role -> !DiscoveryNodeRole.SEARCH_ROLE.equals(role))) {
+                    throw new SettingsException(
+                        "Unable to initialize the "
+                            + DiscoveryNodeRole.SEARCH_ROLE.roleName()
+                            + "-"
+                            + DiscoveryNodeRole.DATA_ROLE.roleName()
+                            + " node: Missing value for configuration "
+                            + NODE_SEARCH_CACHE_SIZE_SETTING.getKey()
+                    );
+                } else {
+                    capacity = 80 * availableCapacity / 100;
+                }
+            }
+            capacity = Math.min(capacity, availableCapacity);
+            fileCacheNodePath.fileCacheReservedSize = new ByteSizeValue(capacity, ByteSizeUnit.BYTES);
+            this.fileCache = FileCacheFactory.createConcurrentLRUFileCache(capacity, circuitBreaker);
+            List<Path> fileCacheDataPaths = collectFileCacheDataPath(fileCacheNodePath);
+            this.fileCache.restoreFromDirectory(fileCacheDataPaths);
+        }
+    }
+
+    /**
+     * Returns the {@link FileCache} instance for remote search node
+     * Note: Visible for testing
+     */
+    public FileCache fileCache() {
+        return this.fileCache;
     }
 }
