@@ -84,7 +84,8 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             this.xContentRegistry(),
             this.writableRegistry(),
             List.of(DUMMY_PLUGIN),
-            client
+            client,
+            false
         );
         Map<String, Processor.Factory> factories = searchPipelineService.getProcessorFactories();
         assertEquals(1, factories.size());
@@ -104,7 +105,8 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                 this.xContentRegistry(),
                 this.writableRegistry(),
                 List.of(DUMMY_PLUGIN, DUMMY_PLUGIN),
-                client
+                client,
+                false
             )
         );
         assertTrue(e.getMessage(), e.getMessage().contains(" already registered"));
@@ -121,9 +123,9 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             this.xContentRegistry(),
             this.writableRegistry(),
             List.of(DUMMY_PLUGIN),
-            client
+            client,
+            true
         );
-        searchPipelineService.setForceEnabled(true);
         final SearchRequest searchRequest = new SearchRequest("_index").pipeline("bar");
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -233,9 +235,9 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
                     return processors;
                 }
             }),
-            client
+            client,
+            true
         );
-        searchPipelineService.setForceEnabled(true);
         return searchPipelineService;
     }
 

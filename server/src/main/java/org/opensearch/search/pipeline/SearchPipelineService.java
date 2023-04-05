@@ -36,7 +36,6 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CollectionUtils;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -79,7 +78,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
     private final NamedWriteableRegistry namedWriteableRegistry;
     private volatile ClusterState state;
 
-    private boolean forceEnabled = false;
+    private final boolean isEnabled;
 
     public SearchPipelineService(
         ClusterService clusterService,
@@ -90,7 +89,8 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         NamedXContentRegistry namedXContentRegistry,
         NamedWriteableRegistry namedWriteableRegistry,
         List<SearchPipelinePlugin> searchPipelinePlugins,
-        Client client
+        Client client,
+        boolean isEnabled
     ) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
@@ -113,6 +113,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         );
         putPipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.PUT_SEARCH_PIPELINE_KEY, true);
         deletePipelineTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_SEARCH_PIPELINE_KEY, true);
+        this.isEnabled = isEnabled;
     }
 
     private static Map<String, Processor.Factory> processorFactories(
@@ -214,7 +215,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         PutSearchPipelineRequest request,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        if (isFeatureEnabled() == false) {
+        if (isEnabled == false) {
             throw new IllegalArgumentException("Experimental search pipeline feature is not enabled");
         }
 
@@ -332,7 +333,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
 
     public SearchRequest transformRequest(SearchRequest originalRequest) {
         String pipelineId = originalRequest.pipeline();
-        if (pipelineId != null && isFeatureEnabled()) {
+        if (pipelineId != null && isEnabled) {
             PipelineHolder pipeline = pipelines.get(pipelineId);
             if (pipeline == null) {
                 throw new IllegalArgumentException("Pipeline " + pipelineId + " is not defined");
@@ -355,7 +356,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
 
     public SearchResponse transformResponse(SearchRequest request, SearchResponse searchResponse) {
         String pipelineId = request.pipeline();
-        if (pipelineId != null && isFeatureEnabled()) {
+        if (pipelineId != null && isEnabled) {
             PipelineHolder pipeline = pipelines.get(pipelineId);
             if (pipeline == null) {
                 throw new IllegalArgumentException("Pipeline " + pipelineId + " is not defined");
@@ -427,13 +428,5 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             this.configuration = Objects.requireNonNull(configuration);
             this.pipeline = Objects.requireNonNull(pipeline);
         }
-    }
-
-    private boolean isFeatureEnabled() {
-        return forceEnabled || FeatureFlags.isEnabled(FeatureFlags.SEARCH_PIPELINE);
-    }
-
-    void setForceEnabled(boolean forceEnabled) {
-        this.forceEnabled = forceEnabled;
     }
 }

@@ -2101,7 +2101,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                             namedXContentRegistry,
                             namedWriteableRegistry,
                             List.of(),
-                            client
+                            client,
+                            false
                         )
                     )
                 );
