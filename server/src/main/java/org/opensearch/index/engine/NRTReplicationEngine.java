@@ -143,7 +143,6 @@ public class NRTReplicationEngine extends Engine implements LifecycleAware {
         );
     }
 
-    @Override
     public TranslogManager translogManager() {
         return translogManager;
     }
