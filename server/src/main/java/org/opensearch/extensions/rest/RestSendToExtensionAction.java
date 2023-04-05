@@ -114,7 +114,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             .stream()
             .filter(e -> !denyList.contains(e.getKey()))
             .filter(e -> allowlist.contains(e.getKey()))
-            .collect(Collectors.toMap());
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         return filteredHeaders;
     }
 
@@ -192,7 +192,17 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 ExtensionsManager.REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION,
                 // DO NOT INCLUDE HEADERS WITH SECURITY OR PRIVACY INFORMATION
                 // SEE https://github.com/opensearch-project/OpenSearch/issues/4429
-                new ExtensionRestRequest(method, uri, params, filteredHeaders, contentType, content, requestIssuerIdentity, httpVersion),
+                new ExtensionRestRequest(
+                    method,
+                    uri,
+                    path,
+                    params,
+                    filteredHeaders,
+                    contentType,
+                    content,
+                    requestIssuerIdentity,
+                    httpVersion
+                ),
                 restExecuteOnExtensionResponseHandler
             );
             inProgressFuture.orTimeout(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();
