@@ -18,25 +18,27 @@ import java.util.Map;
  */
 public class RemoteSegmentUploadShardStats {
 
+    public static final long UNASSIGNED = -1L;
+
     public RemoteSegmentUploadShardStats() {
         latestUploadFileNameLengthMap = new HashMap<>();
     }
 
-    private long refreshSeqNo;
+    private long refreshSeqNo = UNASSIGNED;
 
-    private long refreshTime;
+    private long refreshTime = UNASSIGNED;
 
-    private long uploadBytesStarted;
+    private long uploadBytesStarted = UNASSIGNED;
 
-    private long uploadBytesFailed;
+    private long uploadBytesFailed = UNASSIGNED;
 
-    private long uploadBytesSucceeded;
+    private long uploadBytesSucceeded = UNASSIGNED;
 
-    private long totalUploadsStarted;
+    private long totalUploadsStarted = UNASSIGNED;
 
-    private long totalUploadsFailed;
+    private long totalUploadsFailed = UNASSIGNED;
 
-    private long totalUploadsSucceeded;
+    private long totalUploadsSucceeded = UNASSIGNED;
 
     /**
      * Keeps map of filename to bytes length of the most recent segments upload as part of refresh.
