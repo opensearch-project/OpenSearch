@@ -79,6 +79,16 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      */
     private Map<String, UploadedSegmentMetadata> segmentsUploadedToRemoteStore;
 
+    /**
+     * This holds the name of the most recent uploaded metadata file.
+     */
+    private String latestMetadataFileName;
+
+    /**
+     * This time would only be used for comparison between the latest remote segments upload time and most recent local refresh time.
+     */
+    private long latestMetadataUploadTime;
+
     private static final VersionedCodecStreamWrapper<RemoteSegmentMetadata> metadataStreamWrapper = new VersionedCodecStreamWrapper<>(
         new RemoteSegmentMetadataHandler(),
         RemoteSegmentMetadata.CURRENT_VERSION,
@@ -393,6 +403,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
             indexOutput.close();
             storeDirectory.sync(Collections.singleton(metadataFilename));
             remoteMetadataDirectory.copyFrom(storeDirectory, metadataFilename, metadataFilename, IOContext.DEFAULT);
+            // Keeping track of the latest metadata file name and time which is used for tracking lag in remote segments upload.
+            latestMetadataFileName = metadataFilename;
             storeDirectory.deleteFile(metadataFilename);
         }
     }

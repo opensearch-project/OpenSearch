@@ -8,6 +8,11 @@
 
 package org.opensearch.index;
 
+/**
+ * Remote upload back pressure service.
+ *
+ * @opensearch.internal
+ */
 public class RemoteUploadPressureService {
 
     private static class RemoteUploadSettings {

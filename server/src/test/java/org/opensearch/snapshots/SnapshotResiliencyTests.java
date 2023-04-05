@@ -1936,7 +1936,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         actionFilters
                     ),
                     RetentionLeaseSyncer.EMPTY,
-                    SegmentReplicationCheckpointPublisher.EMPTY
+                    SegmentReplicationCheckpointPublisher.EMPTY,
+                    null
                 );
                 Map<ActionType, TransportAction> actions = new HashMap<>();
                 final SystemIndices systemIndices = new SystemIndices(emptyMap());

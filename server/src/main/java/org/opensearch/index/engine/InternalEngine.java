@@ -2754,6 +2754,10 @@ public class InternalEngine extends Engine {
         return lastRefreshedCheckpointListener.refreshedCheckpoint.get();
     }
 
+    public final long lastRefreshedTime() {
+        return lastRefreshedCheckpointListener.refreshedTime.get();
+    }
+
     private final Object refreshIfNeededMutex = new Object();
 
     /**
@@ -2771,28 +2775,39 @@ public class InternalEngine extends Engine {
 
     private final class LastRefreshedCheckpointListener implements ReferenceManager.RefreshListener {
         final AtomicLong refreshedCheckpoint;
+        final AtomicLong refreshedTime;
         private long pendingCheckpoint;
+        private long pendingTime;
 
         LastRefreshedCheckpointListener(long initialLocalCheckpoint) {
             this.refreshedCheckpoint = new AtomicLong(initialLocalCheckpoint);
+            // When a shard is initializing, it is safe to assign the refreshed time to current nanoTime.
+            this.refreshedTime = new AtomicLong(System.nanoTime());
         }
 
         @Override
         public void beforeRefresh() {
             // all changes until this point should be visible after refresh
             pendingCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
+            pendingTime = System.nanoTime();
         }
 
         @Override
         public void afterRefresh(boolean didRefresh) {
             if (didRefresh) {
                 updateRefreshedCheckpoint(pendingCheckpoint);
+                updateRefreshedTime(pendingTime);
             }
         }
 
         void updateRefreshedCheckpoint(long checkpoint) {
             refreshedCheckpoint.updateAndGet(curr -> Math.max(curr, checkpoint));
             assert refreshedCheckpoint.get() >= checkpoint : refreshedCheckpoint.get() + " < " + checkpoint;
+        }
+
+        private void updateRefreshedTime(long time) {
+            refreshedTime.updateAndGet(curr -> Math.max(curr, time));
+            assert refreshedTime.get() >= time : refreshedTime.get() + " < " + time;
         }
     }
 
