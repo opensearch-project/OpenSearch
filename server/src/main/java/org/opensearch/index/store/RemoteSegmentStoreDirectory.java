@@ -223,12 +223,13 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
         }
 
         // Visible for testing
-        static String getMetadataFilename(long primaryTerm, long generation, String uuid) {
+        static String getMetadataFilename(long primaryTerm, long generation, long refreshCheckpointSeqNo, String uuid) {
             return String.join(
                 SEPARATOR,
                 METADATA_PREFIX,
                 Long.toString(primaryTerm),
                 Long.toString(generation, Character.MAX_RADIX),
+                Long.toString(refreshCheckpointSeqNo),
                 uuid
             );
         }
@@ -365,10 +366,20 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      * @param generation commit generation
      * @throws IOException in case of I/O error while uploading the metadata file
      */
-    public void uploadMetadata(Collection<String> segmentFiles, Directory storeDirectory, long primaryTerm, long generation)
-        throws IOException {
+    public void uploadMetadata(
+        Collection<String> segmentFiles,
+        Directory storeDirectory,
+        long primaryTerm,
+        long generation,
+        long refreshCheckpointSeqNo
+    ) throws IOException {
         synchronized (this) {
-            String metadataFilename = MetadataFilenameUtils.getMetadataFilename(primaryTerm, generation, this.commonFilenameSuffix);
+            String metadataFilename = MetadataFilenameUtils.getMetadataFilename(
+                primaryTerm,
+                generation,
+                refreshCheckpointSeqNo,
+                this.commonFilenameSuffix
+            );
             IndexOutput indexOutput = storeDirectory.createOutput(metadataFilename, IOContext.DEFAULT);
             Map<String, String> uploadedSegments = new HashMap<>();
             for (String file : segmentFiles) {

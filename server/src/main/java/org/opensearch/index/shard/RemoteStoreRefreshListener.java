@@ -143,7 +143,8 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                                         localSegmentsPostRefresh,
                                         storeDirectory,
                                         indexShard.getOperationPrimaryTerm(),
-                                        segmentInfos.getGeneration()
+                                        segmentInfos.getGeneration(),
+                                        refreshCheckpointSeqNo.incrementAndGet()
                                     );
                                     localSegmentChecksumMap.keySet()
                                         .stream()

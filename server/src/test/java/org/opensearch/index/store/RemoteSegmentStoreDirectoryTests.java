@@ -80,8 +80,8 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
     public void testGetMetadataFilename() {
         // Generation 23 is replaced by n due to radix 32
         assertEquals(
-            RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX + "__12__n__uuid1",
-            RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(12, 23, "uuid1")
+            RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX + "__12__n__55__uuid1",
+            RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(12, 23, 55, "uuid1")
         );
     }
 
@@ -441,7 +441,10 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
         when(storeDirectory.createOutput(startsWith("metadata__12__o"), eq(IOContext.DEFAULT))).thenReturn(indexOutput);
 
         Collection<String> segmentFiles = List.of("s1", "s2", "s3");
-        assertThrows(NoSuchFileException.class, () -> remoteSegmentStoreDirectory.uploadMetadata(segmentFiles, storeDirectory, 12L, 24L));
+        assertThrows(
+            NoSuchFileException.class,
+            () -> remoteSegmentStoreDirectory.uploadMetadata(segmentFiles, storeDirectory, 12L, 24L, 55L)
+        );
     }
 
     public void testUploadMetadataNonEmpty() throws IOException {
@@ -454,7 +457,7 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
         when(storeDirectory.createOutput(startsWith("metadata__12__o"), eq(IOContext.DEFAULT))).thenReturn(indexOutput);
 
         Collection<String> segmentFiles = List.of("_0.si");
-        remoteSegmentStoreDirectory.uploadMetadata(segmentFiles, storeDirectory, 12L, 24L);
+        remoteSegmentStoreDirectory.uploadMetadata(segmentFiles, storeDirectory, 12L, 24L, 55L);
 
         verify(remoteMetadataDirectory).copyFrom(
             eq(storeDirectory),
