@@ -15,6 +15,18 @@ package org.opensearch.index;
  */
 public class RemoteUploadPressureService {
 
+    public RemoteUploadPressureService() {
+
+    }
+
+    public void updateRefreshTime(long lastRefreshedTime) {
+
+    }
+
+    public void updateRefreshSeqNo(long lastRefreshedSeqNo) {
+
+    }
+
     private static class RemoteUploadSettings {
 
     }
