@@ -2758,6 +2758,10 @@ public class InternalEngine extends Engine {
         return lastRefreshedCheckpointListener.refreshedTime.get();
     }
 
+    public final long lastRefreshedSeqNo() {
+        return lastRefreshedCheckpointListener.refreshedSeqNo.get();
+    }
+
     private final Object refreshIfNeededMutex = new Object();
 
     /**

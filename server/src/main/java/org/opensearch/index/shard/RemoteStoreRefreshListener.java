@@ -22,7 +22,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.index.RemoteUploadPressureService;
-import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -149,12 +148,11 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                                         .collect(Collectors.toSet())
                                         .forEach(localSegmentChecksumMap::remove);
 
-                                    Engine engine = indexShard.getEngine();
-                                    InternalEngine internalEngine = (InternalEngine) engine;
-                                    final long lastRefreshedCheckpoint = internalEngine.lastRefreshedCheckpoint();
-                                    // TODO - We need to add latest refresh time and latest refresh seq no
-
-                                    engine.translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
+                                    // TODO - Move this to a different method
+                                    InternalEngine internalEngine = (InternalEngine) indexShard.getEngine();
+                                    remoteUploadPressureService.updateRefreshTime(internalEngine.lastRefreshedTime());
+                                    remoteUploadPressureService.updateRefreshSeqNo(internalEngine.lastRefreshedSeqNo());
+                                    internalEngine.translogManager().setMinSeqNoToKeep(internalEngine.lastRefreshedCheckpoint() + 1);
                                 }
                             }
                         } catch (EngineException e) {
