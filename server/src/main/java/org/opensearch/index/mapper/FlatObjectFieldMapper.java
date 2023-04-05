@@ -129,7 +129,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
 
         private FlatObjectFieldType buildFlatObjectFieldType(BuilderContext context, FieldType fieldType) {
-            NamedAnalyzer normalizer = Lucene.KEYWORD_ANALYZER;
             return new FlatObjectFieldType(buildFullName(context), fieldType);
         }
 
@@ -141,6 +140,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
             String fullName = buildFullName(context);
             FieldType vft = new FieldType(fieldType);
             KeywordFieldMapper.KeywordFieldType valueFieldType = new KeywordFieldMapper.KeywordFieldType(fullName + VALUE_SUFFIX, vft);
+
             fft.setValueFieldType(valueFieldType);
             return new ValueFieldMapper(vft, valueFieldType);
         }
