@@ -1,5 +1,8 @@
 ---
-# Create flat_object mapping
+# The initial test setup includes:
+# - Create flat_object mapping
+# - Index two example documents
+# - Refresh the index so it is ready for search tests
 setup:
   - do:
       indices.create:
@@ -14,19 +17,6 @@ setup:
               required_matches:
                 type : "long"
 
-# Delete Index when connection is teardown
----
-teardown:
-  - do:
-      indices.delete:
-        index: test
-
-# Upload a sample document to index
----
-"Flat object test":
-  - skip:
-      version: " - 2.99.99"
-      reason: "flat_object is introduced in 3.0.0 in main branch"
   - do:
       index:
         index: test
@@ -46,9 +36,10 @@ teardown:
             "location": [-81.7982,41.3847 ],
             "review": [["great",99.8],["ok",80.0]],
             "publishDate": "2015-01-01"
-            },
+          },
           "required_matches": 1
         }
+
   - do:
       index:
         index: test
@@ -77,9 +68,21 @@ teardown:
       indices.refresh:
         index: test
 
-  # Verify that mapping under the catalog field did not expand.
-  # Verify that there are no dynamic fields created.
-  # https://github.com/opensearch-project/OpenSearch/tree/main/rest-api-spec/src/main/resources/rest-api-spec/test#length
+---
+# Delete Index when connection is teardown
+teardown:
+  - do:
+      indices.delete:
+        index: test
+
+---
+# Verify that mappings under the catalog field did not expand
+# and no dynamic fields were created.
+"Mappings":
+  - skip:
+      version: " - 2.99.99"
+      reason: "flat_object is introduced in 3.0.0 in main branch"
+
   - do:
       indices.get_mapping:
         index: test
@@ -87,8 +90,15 @@ teardown:
   - match: { test.mappings.properties.ISBN13.type:  keyword     }
   - match: { test.mappings.properties.catalog.type: flat_object }
   - match: { test.mappings.properties.required_matches.type: long }
+  # https://github.com/opensearch-project/OpenSearch/tree/main/rest-api-spec/src/main/resources/rest-api-spec/test#length
   - length: { test.mappings.properties: 3 }
   - length: { test.mappings.properties.catalog: 1 }
+
+---
+"Supported queries":
+  - skip:
+      version: " - 2.99.99"
+      reason: "flat_object is introduced in 3.0.0 in main branch"
 
   # Verify Document Count
   - do:
@@ -594,6 +604,11 @@ teardown:
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._source.catalog.author.surname: "Doe" }
 
+---
+"Unsupported":
+  - skip:
+      version: " - 2.99.99"
+      reason: "flat_object is introduced in 3.0.0 in main branch"
 
   # Wildcard Query with dot path.
   - do:
@@ -610,7 +625,6 @@ teardown:
   - match: { error.root_cause.0.type: "query_shard_exception" }
   - match: { error.root_cause.0.reason: "Can only use wildcard queries on keyword and text fields - not on [catalog.title] which is of type [flat_object]"}
   - match: { status: 400 }
-
 
   # Wildcard Query without dot path.
   - do:
@@ -675,7 +689,6 @@ teardown:
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.root_cause.0.reason: "Field [catalog.rating] of type [flat_object] is not supported for aggregation [avg]" }
   - match: { status: 400 }
-
 
   # Aggregation using geolocation and Match Query with dot path.
   - do:

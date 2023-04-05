@@ -40,7 +40,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.AbstractXContentParser;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 
 import java.io.IOException;
 import java.nio.CharBuffer;

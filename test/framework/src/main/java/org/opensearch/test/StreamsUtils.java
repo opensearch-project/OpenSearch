@@ -34,7 +34,7 @@ package org.opensearch.test;
 
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.internal.io.Streams;
+import org.opensearch.common.util.io.Streams;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;

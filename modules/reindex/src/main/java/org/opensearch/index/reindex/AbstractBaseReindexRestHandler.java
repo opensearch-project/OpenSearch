@@ -37,13 +37,9 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.BaseRestHandler;
-import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.rest.RestStatus;
 import org.opensearch.tasks.LoggingTaskListener;
-import org.opensearch.tasks.Task;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -122,17 +118,6 @@ public abstract class AbstractBaseReindexRestHandler<
         }
 
         return request;
-    }
-
-    private RestChannelConsumer sendTask(String localNodeId, Task task) {
-        return channel -> {
-            try (XContentBuilder builder = channel.newBuilder()) {
-                builder.startObject();
-                builder.field("task", localNodeId + ":" + task.getId());
-                builder.endObject();
-                channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
-            }
-        };
     }
 
     private static Integer parseSlices(RestRequest request) {

@@ -14,9 +14,10 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.replication.SegmentReplicationBaseIT;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -53,11 +54,23 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
     }
 
     @Override
+    public Settings indexSettings() {
+        // we want to control refreshes
+        return Settings.builder()
+            .put(super.indexSettings())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, SHARD_COUNT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, REPLICA_COUNT)
+            .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put("index.refresh_interval", -1)
+            .build();
+    }
+
+    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return asList(MockTransportService.TestPlugin.class);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6671")
     public void testWritesRejected() throws Exception {
         final String primaryNode = internalCluster().startNode();
         createIndex(INDEX_NAME);
@@ -76,6 +89,10 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
             indexingThread.start();
             indexingThread.join();
             latch.await();
+
+            indexDoc();
+            totalDocs.incrementAndGet();
+            refresh(INDEX_NAME);
             // index again while we are stale.
             assertBusy(() -> {
                 expectThrows(OpenSearchRejectedExecutionException.class, () -> {
@@ -90,6 +107,7 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
 
         // index another doc showing there is no pressure enforced.
         indexDoc();
+        refresh(INDEX_NAME);
         waitForSearchableDocs(totalDocs.incrementAndGet(), replicaNodes.toArray(new String[] {}));
         verifyStoreContent();
     }
@@ -98,7 +116,6 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
      * This test ensures that a replica can be added while the index is under write block.
      * Ensuring that only write requests are blocked.
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6671")
     public void testAddReplicaWhileWritesBlocked() throws Exception {
         final String primaryNode = internalCluster().startNode();
         createIndex(INDEX_NAME);
@@ -118,6 +135,9 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
             indexingThread.start();
             indexingThread.join();
             latch.await();
+            indexDoc();
+            totalDocs.incrementAndGet();
+            refresh(INDEX_NAME);
             // index again while we are stale.
             assertBusy(() -> {
                 expectThrows(OpenSearchRejectedExecutionException.class, () -> {
@@ -142,6 +162,7 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
 
         // index another doc showing there is no pressure enforced.
         indexDoc();
+        refresh(INDEX_NAME);
         waitForSearchableDocs(totalDocs.incrementAndGet(), replicaNodes.toArray(new String[] {}));
         verifyStoreContent();
     }
@@ -258,7 +279,7 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
     }
 
     private void indexDoc() {
-        client().prepareIndex(INDEX_NAME).setId(UUIDs.base64UUID()).setSource("{}", "{}").get();
+        client().prepareIndex(INDEX_NAME).setId(UUIDs.base64UUID()).setSource("{}", "{}").execute().actionGet();
     }
 
     private void assertEqualSegmentInfosVersion(List<String> replicaNames, IndexShard primaryShard) {
