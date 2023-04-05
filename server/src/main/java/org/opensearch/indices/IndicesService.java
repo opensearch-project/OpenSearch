@@ -288,7 +288,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Set<Index> danglingIndicesToWrite = Sets.newConcurrentHashSet();
     private final boolean nodeWriteDanglingIndicesInfo;
     private final ValuesSourceRegistry valuesSourceRegistry;
-    private final IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory;
+    private final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
 
     @Override
@@ -318,7 +318,7 @@ public class IndicesService extends AbstractLifecycleComponent
         Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         this.settings = settings;
@@ -433,7 +433,7 @@ public class IndicesService extends AbstractLifecycleComponent
         Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         this.settings = settings;

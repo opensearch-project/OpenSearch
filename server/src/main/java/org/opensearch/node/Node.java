@@ -671,7 +671,7 @@ public class Node implements Closeable {
             rerouteServiceReference.set(rerouteService);
             clusterService.setRerouteService(rerouteService);
 
-            final IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
+            final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
                 repositoriesServiceReference::get
             );
 
