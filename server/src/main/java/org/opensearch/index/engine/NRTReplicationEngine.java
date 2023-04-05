@@ -70,7 +70,7 @@ public class NRTReplicationEngine extends Engine implements LifecycleAware {
         WriteOnlyTranslogManager translogManagerRef = null;
         try {
             lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-            readerManager = new NRTReplicationReaderManager(OpenSearchDirectoryReader.wrap(getDirectoryReader(), shardId));
+            readerManager = buildReaderManager();
             final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
                 this.lastCommittedSegmentInfos.getUserData().entrySet()
             );
@@ -121,6 +121,29 @@ public class NRTReplicationEngine extends Engine implements LifecycleAware {
         }
     }
 
+    private NRTReplicationReaderManager buildReaderManager() throws IOException {
+        return new NRTReplicationReaderManager(
+            OpenSearchDirectoryReader.wrap(getDirectoryReader(), shardId),
+            store::incRefFileDeleter,
+            (files) -> {
+                store.decRefFileDeleter(files);
+                try {
+                    store.cleanupAndPreserveLatestCommitPoint(
+                        "On reader closed",
+                        getLatestSegmentInfos(),
+                        getLastCommittedSegmentInfos(),
+                        false
+                    );
+                } catch (IOException e) {
+                    // Log but do not rethrow - we can try cleaning up again after next replication cycle.
+                    // If that were to fail, the shard will as well.
+                    logger.error("Unable to clean store after reader closed", e);
+                }
+            }
+        );
+    }
+
+    @Override
     public TranslogManager translogManager() {
         return translogManager;
     }
