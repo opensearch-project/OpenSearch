@@ -20,9 +20,10 @@ import java.util.Map;
  */
 public class RemoteUploadStatsTracker {
 
-    private final Map<ShardId, RemoteUploadShardStats> shardLevelStats;
+    private final Map<ShardId, RemoteSegmentUploadShardStats> shardLevelStats;
 
     public RemoteUploadStatsTracker() {
         this.shardLevelStats = ConcurrentCollections.newConcurrentMap();
     }
+
 }
