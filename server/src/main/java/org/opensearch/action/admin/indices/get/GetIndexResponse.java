@@ -32,13 +32,12 @@
 
 package org.opensearch.action.admin.indices.get;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.Version;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
@@ -255,27 +254,27 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             }
         }
         out.writeVInt(aliases.size());
-        for (ObjectObjectCursor<String, List<AliasMetadata>> indexEntry : aliases) {
-            out.writeString(indexEntry.key);
-            out.writeVInt(indexEntry.value.size());
-            for (AliasMetadata aliasEntry : indexEntry.value) {
+        for (Map.Entry<String, List<AliasMetadata>> indexEntry : aliases.entrySet()) {
+            out.writeString(indexEntry.getKey());
+            out.writeVInt(indexEntry.getValue().size());
+            for (AliasMetadata aliasEntry : indexEntry.getValue()) {
                 aliasEntry.writeTo(out);
             }
         }
         out.writeVInt(settings.size());
-        for (ObjectObjectCursor<String, Settings> indexEntry : settings) {
-            out.writeString(indexEntry.key);
-            Settings.writeSettingsToStream(indexEntry.value, out);
+        for (Map.Entry<String, Settings> indexEntry : settings.entrySet()) {
+            out.writeString(indexEntry.getKey());
+            Settings.writeSettingsToStream(indexEntry.getValue(), out);
         }
         out.writeVInt(defaultSettings.size());
-        for (ObjectObjectCursor<String, Settings> indexEntry : defaultSettings) {
-            out.writeString(indexEntry.key);
-            Settings.writeSettingsToStream(indexEntry.value, out);
+        for (Map.Entry<String, Settings> indexEntry : defaultSettings.entrySet()) {
+            out.writeString(indexEntry.getKey());
+            Settings.writeSettingsToStream(indexEntry.getValue(), out);
         }
         out.writeVInt(dataStreams.size());
-        for (ObjectObjectCursor<String, String> indexEntry : dataStreams) {
-            out.writeString(indexEntry.key);
-            out.writeOptionalString(indexEntry.value);
+        for (Map.Entry<String, String> indexEntry : dataStreams.entrySet()) {
+            out.writeString(indexEntry.getKey());
+            out.writeOptionalString(indexEntry.getValue());
         }
     }
 

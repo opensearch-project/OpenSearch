@@ -26,7 +26,7 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.WeightedRouting;
 import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.search.stats.SearchStats;

@@ -32,7 +32,6 @@
 
 package org.opensearch.common.io.stream;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -51,7 +50,7 @@ import org.opensearch.common.CharArrays;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.io.stream.Writeable.Writer;
 import org.opensearch.common.settings.SecureString;
@@ -649,9 +648,9 @@ public abstract class StreamOutput extends OutputStream {
     public final <K, V> void writeMap(final ImmutableOpenMap<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
         throws IOException {
         writeVInt(map.size());
-        for (final ObjectObjectCursor<K, V> entry : map) {
-            keyWriter.write(this, entry.key);
-            valueWriter.write(this, entry.value);
+        for (final Map.Entry<K, V> entry : map.entrySet()) {
+            keyWriter.write(this, entry.getKey());
+            valueWriter.write(this, entry.getValue());
         }
     }
 

@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.routing;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
 import org.opensearch.action.admin.indices.shards.IndicesShardStoresResponse;
@@ -48,7 +47,7 @@ import org.opensearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAll
 import org.opensearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenIntMap;
+import org.opensearch.core.common.collect.ImmutableOpenIntMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentType;
@@ -74,6 +73,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -323,9 +323,9 @@ public class PrimaryAllocationIT extends OpenSearchIntegTestCase {
             .getStoreStatuses()
             .get(idxName);
         ClusterRerouteRequestBuilder rerouteBuilder = client().admin().cluster().prepareReroute();
-        for (IntObjectCursor<List<IndicesShardStoresResponse.StoreStatus>> shardStoreStatuses : storeStatuses) {
-            int shardId = shardStoreStatuses.key;
-            IndicesShardStoresResponse.StoreStatus storeStatus = randomFrom(shardStoreStatuses.value);
+        for (Map.Entry<Integer, List<IndicesShardStoresResponse.StoreStatus>> shardStoreStatuses : storeStatuses.entrySet()) {
+            int shardId = shardStoreStatuses.getKey();
+            IndicesShardStoresResponse.StoreStatus storeStatus = randomFrom(shardStoreStatuses.getValue());
             logger.info("--> adding allocation command for shard {}", shardId);
             // force allocation based on node id
             if (useStaleReplica) {

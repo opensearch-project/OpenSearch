@@ -32,13 +32,12 @@
 package org.opensearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.io.stream.StreamInput;
@@ -246,9 +245,9 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
         out.writeStringCollection(patterns);
         Settings.writeSettingsToStream(settings, out);
         out.writeVInt(mappings.size());
-        for (ObjectObjectCursor<String, CompressedXContent> cursor : mappings) {
-            out.writeString(cursor.key);
-            cursor.value.writeTo(out);
+        for (Map.Entry<String, CompressedXContent> cursor : mappings.entrySet()) {
+            out.writeString(cursor.getKey());
+            cursor.getValue().writeTo(out);
         }
         out.writeVInt(aliases.size());
         for (ObjectCursor<AliasMetadata> cursor : aliases.values()) {

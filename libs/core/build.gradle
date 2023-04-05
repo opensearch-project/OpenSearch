@@ -82,6 +82,10 @@ dependencies {
   // lucene
   api "org.apache.lucene:lucene-core:${versions.lucene}"
 
+  // hppc
+  // @todo remove and replace w/ java util?
+  api 'com.carrotsearch:hppc:0.8.1'
+
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
   testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
@@ -89,6 +93,13 @@ dependencies {
   testImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'opensearch-core'
   }
+}
+
+// carried over from :server, remove compiler warnings for ImmutableOpenMap
+tasks.withType(JavaCompile).configureEach {
+  options.compilerArgs -= '-Xlint:cast'
+  options.compilerArgs -= '-Xlint:rawtypes'
+  options.compilerArgs -= '-Xlint:unchecked'
 }
 
 tasks.named('forbiddenApisMain').configure {

@@ -52,7 +52,7 @@ import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;

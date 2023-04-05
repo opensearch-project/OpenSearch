@@ -37,7 +37,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.unit.TimeValue;

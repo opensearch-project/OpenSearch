@@ -64,7 +64,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.common.Priority;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;

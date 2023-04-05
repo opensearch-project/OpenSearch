@@ -37,7 +37,7 @@ import org.opensearch.client.AbstractResponseTestCase;
 import org.opensearch.client.GetAliasesResponseTests;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.XContentParser;

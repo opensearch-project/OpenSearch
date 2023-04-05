@@ -38,7 +38,7 @@ import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.opensearch.action.admin.indices.rollover.RolloverInfo;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;

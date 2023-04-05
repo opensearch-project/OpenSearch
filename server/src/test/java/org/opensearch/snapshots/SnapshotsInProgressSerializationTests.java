@@ -39,7 +39,7 @@ import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.SnapshotsInProgress.Entry;
 import org.opensearch.cluster.SnapshotsInProgress.ShardState;
 import org.opensearch.cluster.SnapshotsInProgress.State;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.index.Index;

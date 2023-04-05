@@ -33,10 +33,9 @@
 package org.opensearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState.Custom;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
@@ -49,6 +48,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -524,9 +524,9 @@ public class RestoreInProgress extends AbstractNamedDiffable<Custom> implements 
         builder.endArray();
         builder.startArray("shards");
         {
-            for (ObjectObjectCursor<ShardId, ShardRestoreStatus> shardEntry : entry.shards) {
-                ShardId shardId = shardEntry.key;
-                ShardRestoreStatus status = shardEntry.value;
+            for (Map.Entry<ShardId, ShardRestoreStatus> shardEntry : entry.shards.entrySet()) {
+                ShardId shardId = shardEntry.getKey();
+                ShardRestoreStatus status = shardEntry.getValue();
                 builder.startObject();
                 {
                     builder.field("index", shardId.getIndex());

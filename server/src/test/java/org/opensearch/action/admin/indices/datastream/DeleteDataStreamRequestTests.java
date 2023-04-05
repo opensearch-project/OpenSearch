@@ -42,7 +42,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataDeleteIndexService;
 import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;

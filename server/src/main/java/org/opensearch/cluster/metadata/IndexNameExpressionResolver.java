@@ -39,7 +39,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.regex.Regex;

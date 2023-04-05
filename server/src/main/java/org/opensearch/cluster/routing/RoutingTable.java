@@ -34,7 +34,6 @@ package org.opensearch.cluster.routing;
 
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.Diffable;
 import org.opensearch.cluster.DiffableUtils;
@@ -43,7 +42,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.RemoteStoreRecoverySource;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.util.iterable.Iterables;
@@ -635,8 +634,8 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder("routing_table (version ").append(version).append("):\n");
-        for (ObjectObjectCursor<String, IndexRoutingTable> entry : indicesRouting) {
-            sb.append(entry.value.prettyPrint()).append('\n');
+        for (Map.Entry<String, IndexRoutingTable> entry : indicesRouting.entrySet()) {
+            sb.append(entry.getValue().prettyPrint()).append('\n');
         }
         return sb.toString();
     }

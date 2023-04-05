@@ -33,12 +33,11 @@
 package org.opensearch.index.mapper;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -625,9 +624,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 } else {
                     context.path().add(mainFieldBuilder.name());
                     ImmutableOpenMap.Builder mapperBuilders = this.mapperBuilders;
-                    for (ObjectObjectCursor<String, Mapper.Builder> cursor : this.mapperBuilders) {
-                        String key = cursor.key;
-                        Mapper.Builder value = cursor.value;
+                    for (Map.Entry<String, Mapper.Builder> cursor : this.mapperBuilders.build().entrySet()) {
+                        String key = cursor.getKey();
+                        Mapper.Builder value = cursor.getValue();
                         Mapper mapper = value.build(context);
                         assert mapper instanceof FieldMapper;
                         mapperBuilders.put(key, mapper);
@@ -644,8 +643,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         private MultiFields(ImmutableOpenMap<String, FieldMapper> mappers) {
             ImmutableOpenMap.Builder<String, FieldMapper> builder = new ImmutableOpenMap.Builder<>();
             // we disable the all in multi-field mappers
-            for (ObjectObjectCursor<String, FieldMapper> cursor : mappers) {
-                builder.put(cursor.key, cursor.value);
+            for (Map.Entry<String, FieldMapper> cursor : mappers.entrySet()) {
+                builder.put(cursor.getKey(), cursor.getValue());
             }
             this.mappers = builder.build();
         }

@@ -33,7 +33,6 @@
 package org.opensearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
@@ -53,7 +52,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
@@ -388,9 +387,9 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         sb.append(getRoutingNodes());
         if (customs.isEmpty() == false) {
             sb.append("customs:\n");
-            for (ObjectObjectCursor<String, Custom> cursor : customs) {
-                final String type = cursor.key;
-                final Custom custom = cursor.value;
+            for (Map.Entry<String, Custom> cursor : customs.entrySet()) {
+                final String type = cursor.getKey();
+                final Custom custom = cursor.getValue();
                 sb.append(TAB).append(type).append(": ").append(custom);
             }
         }
@@ -506,9 +505,9 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
             if (!blocks().indices().isEmpty()) {
                 builder.startObject("indices");
-                for (ObjectObjectCursor<String, Set<ClusterBlock>> entry : blocks().indices()) {
-                    builder.startObject(entry.key);
-                    for (ClusterBlock block : entry.value) {
+                for (Map.Entry<String, Set<ClusterBlock>> entry : blocks().indices().entrySet()) {
+                    builder.startObject(entry.getKey());
+                    for (ClusterBlock block : entry.getValue()) {
                         block.toXContent(builder, params);
                     }
                     builder.endObject();
@@ -576,9 +575,9 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             builder.endObject();
         }
         if (metrics.contains(Metric.CUSTOMS)) {
-            for (ObjectObjectCursor<String, Custom> cursor : customs) {
-                builder.startObject(cursor.key);
-                cursor.value.toXContent(builder, params);
+            for (Map.Entry<String, Custom> cursor : customs.entrySet()) {
+                builder.startObject(cursor.getKey());
+                cursor.getValue().toXContent(builder, params);
                 builder.endObject();
             }
         }

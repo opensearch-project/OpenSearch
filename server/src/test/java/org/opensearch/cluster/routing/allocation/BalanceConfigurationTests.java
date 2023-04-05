@@ -33,7 +33,6 @@
 package org.opensearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.ArrayUtil;
@@ -69,6 +68,7 @@ import org.hamcrest.Matchers;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -523,12 +523,12 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
 
     private void verifyPerIndexPrimaryBalance(ClusterState currentState) {
         RoutingNodes nodes = currentState.getRoutingNodes();
-        for (ObjectObjectCursor<String, IndexRoutingTable> index : currentState.getRoutingTable().indicesRouting()) {
-            final int totalPrimaryShards = index.value.primaryShardsActive();
+        for (Map.Entry<String, IndexRoutingTable> index : currentState.getRoutingTable().indicesRouting().entrySet()) {
+            final int totalPrimaryShards = index.getValue().primaryShardsActive();
             final int avgPrimaryShardsPerNode = (int) Math.ceil(totalPrimaryShards * 1f / currentState.getRoutingNodes().size());
 
             for (RoutingNode node : nodes) {
-                final int primaryCount = node.shardsWithState(index.key, STARTED)
+                final int primaryCount = node.shardsWithState(index.getKey(), STARTED)
                     .stream()
                     .filter(ShardRouting::primary)
                     .collect(Collectors.toList())
@@ -542,8 +542,8 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         assertBusy(() -> {
             RoutingNodes nodes = clusterState.getRoutingNodes();
             int totalPrimaryShards = 0;
-            for (ObjectObjectCursor<String, IndexRoutingTable> index : clusterState.getRoutingTable().indicesRouting()) {
-                totalPrimaryShards += index.value.primaryShardsActive();
+            for (Map.Entry<String, IndexRoutingTable> index : clusterState.getRoutingTable().indicesRouting().entrySet()) {
+                totalPrimaryShards += index.getValue().primaryShardsActive();
             }
             final int avgPrimaryShardsPerNode = (int) Math.ceil(totalPrimaryShards * 1f / clusterState.getRoutingNodes().size());
             for (RoutingNode node : nodes) {

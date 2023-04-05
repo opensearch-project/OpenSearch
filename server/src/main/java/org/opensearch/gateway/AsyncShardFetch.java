@@ -31,7 +31,6 @@
 
 package org.opensearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchTimeoutException;
@@ -295,8 +294,8 @@ public abstract class AsyncShardFetch<T extends BaseNodeResponse> implements Rel
      */
     private void fillShardCacheWithDataNodes(Map<String, NodeEntry<T>> shardCache, DiscoveryNodes nodes) {
         // verify that all current data nodes are there
-        for (ObjectObjectCursor<String, DiscoveryNode> cursor : nodes.getDataNodes()) {
-            DiscoveryNode node = cursor.value;
+        for (Map.Entry<String, DiscoveryNode> cursor : nodes.getDataNodes().entrySet()) {
+            DiscoveryNode node = cursor.getValue();
             if (shardCache.containsKey(node.getId()) == false) {
                 shardCache.put(node.getId(), new NodeEntry<T>(node.getId()));
             }

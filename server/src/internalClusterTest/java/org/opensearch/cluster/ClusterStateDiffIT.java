@@ -56,7 +56,7 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;

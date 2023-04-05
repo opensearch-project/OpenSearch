@@ -34,7 +34,6 @@ package org.opensearch.snapshots;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -79,13 +78,13 @@ import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
@@ -854,8 +853,8 @@ public class RestoreService implements ClusterStateApplier {
         RestoreInProgress.Builder builder = new RestoreInProgress.Builder();
         for (RestoreInProgress.Entry entry : oldRestore) {
             ImmutableOpenMap.Builder<ShardId, ShardRestoreStatus> shardsBuilder = null;
-            for (ObjectObjectCursor<ShardId, ShardRestoreStatus> cursor : entry.shards()) {
-                ShardId shardId = cursor.key;
+            for (Map.Entry<ShardId, ShardRestoreStatus> cursor : entry.shards().entrySet()) {
+                ShardId shardId = cursor.getKey();
                 if (deletedIndices.contains(shardId.getIndex())) {
                     changesMade = true;
                     if (shardsBuilder == null) {
@@ -1214,10 +1213,10 @@ public class RestoreService implements ClusterStateApplier {
     public static Set<Index> restoringIndices(final ClusterState currentState, final Set<Index> indicesToCheck) {
         final Set<Index> indices = new HashSet<>();
         for (RestoreInProgress.Entry entry : currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)) {
-            for (ObjectObjectCursor<ShardId, RestoreInProgress.ShardRestoreStatus> shard : entry.shards()) {
-                Index index = shard.key.getIndex();
+            for (Map.Entry<ShardId, RestoreInProgress.ShardRestoreStatus> shard : entry.shards().entrySet()) {
+                Index index = shard.getKey().getIndex();
                 if (indicesToCheck.contains(index)
-                    && shard.value.state().completed() == false
+                    && shard.getValue().state().completed() == false
                     && currentState.getMetadata().index(index) != null) {
                     indices.add(index);
                 }

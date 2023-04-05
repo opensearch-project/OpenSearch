@@ -104,7 +104,7 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
         public ClusterState execute(ClusterState currentState) throws Exception {
             final Map<String, IndexMetadata> indexMetadataMap = currentState.metadata().indices();
             final List<IndexMetadata> updatedMetadata = new ArrayList<>();
-            for (Map.Entry<String, IndexMetadata> cursor : indexMetadataMap.entrySet()) {
+            for (final Map.Entry<String, IndexMetadata> cursor : indexMetadataMap.entrySet()) {
                 if (cursor.getValue() != lastIndexMetadataMap.get(cursor.getKey())) {
                     if (systemIndices.isSystemIndex(cursor.getValue().getIndex()) != cursor.getValue().isSystem()) {
                         updatedMetadata.add(IndexMetadata.builder(cursor.getValue()).system(!cursor.getValue().isSystem()).build());

@@ -48,7 +48,7 @@ import org.opensearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.gateway.GatewayAllocator;

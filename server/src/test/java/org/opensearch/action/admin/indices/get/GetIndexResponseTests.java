@@ -37,7 +37,7 @@ import org.opensearch.action.admin.indices.alias.get.GetAliasesResponseTests;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponseTests;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;

@@ -32,7 +32,7 @@
 
 package org.opensearch.snapshots;
 
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 
 /**
  * Service for getting information about empty snapshots

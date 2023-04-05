@@ -36,7 +36,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.XContentParser;

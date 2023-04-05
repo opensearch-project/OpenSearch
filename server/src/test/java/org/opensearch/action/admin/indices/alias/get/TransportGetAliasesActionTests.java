@@ -36,7 +36,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.test.OpenSearchTestCase;

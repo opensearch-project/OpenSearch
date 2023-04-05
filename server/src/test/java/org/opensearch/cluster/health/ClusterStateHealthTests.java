@@ -31,7 +31,6 @@
 
 package org.opensearch.cluster.health;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -56,7 +55,7 @@ import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.collect.ImmutableOpenIntMap;
+import org.opensearch.core.common.collect.ImmutableOpenIntMap;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
@@ -78,6 +77,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -448,8 +448,8 @@ public class ClusterStateHealthTests extends OpenSearchTestCase {
         }
         routingTable = RoutingTable.builder(routingTable).add(newIndexRoutingTable).build();
         IndexMetadata.Builder idxMetaBuilder = IndexMetadata.builder(clusterState.metadata().index(indexName));
-        for (final IntObjectCursor<Set<String>> entry : allocationIds.build()) {
-            idxMetaBuilder.putInSyncAllocationIds(entry.key, entry.value);
+        for (final Map.Entry<Integer, Set<String>> entry : allocationIds.build().entrySet()) {
+            idxMetaBuilder.putInSyncAllocationIds(entry.getKey(), entry.getValue());
         }
         Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata()).put(idxMetaBuilder);
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metadata(metadataBuilder).build();
@@ -496,8 +496,8 @@ public class ClusterStateHealthTests extends OpenSearchTestCase {
         }
         routingTable = RoutingTable.builder(routingTable).add(newIndexRoutingTable).build();
         idxMetaBuilder = IndexMetadata.builder(clusterState.metadata().index(indexName));
-        for (final IntObjectCursor<Set<String>> entry : allocationIds.build()) {
-            idxMetaBuilder.putInSyncAllocationIds(entry.key, entry.value);
+        for (final Map.Entry<Integer, Set<String>> entry : allocationIds.build().entrySet()) {
+            idxMetaBuilder.putInSyncAllocationIds(entry.getKey(), entry.getValue());
         }
         metadataBuilder = Metadata.builder(clusterState.metadata()).put(idxMetaBuilder);
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metadata(metadataBuilder).build();
@@ -568,10 +568,13 @@ public class ClusterStateHealthTests extends OpenSearchTestCase {
     // returns true if the inactive primaries in the index are only due to cluster recovery
     // (not because of allocation of existing shard or previously having allocation ids assigned)
     private boolean primaryInactiveDueToRecovery(final String indexName, final ClusterState clusterState) {
-        for (final IntObjectCursor<IndexShardRoutingTable> shardRouting : clusterState.routingTable().index(indexName).shards()) {
-            final ShardRouting primaryShard = shardRouting.value.primaryShard();
+        for (final Map.Entry<Integer, IndexShardRoutingTable> shardRouting : clusterState.routingTable()
+            .index(indexName)
+            .shards()
+            .entrySet()) {
+            final ShardRouting primaryShard = shardRouting.getValue().primaryShard();
             if (primaryShard.active() == false) {
-                if (clusterState.metadata().index(indexName).inSyncAllocationIds(shardRouting.key).isEmpty() == false) {
+                if (clusterState.metadata().index(indexName).inSyncAllocationIds(shardRouting.getKey()).isEmpty() == false) {
                     return false;
                 }
                 if (primaryShard.recoverySource() != null

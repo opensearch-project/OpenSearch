@@ -51,7 +51,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.index.Index;

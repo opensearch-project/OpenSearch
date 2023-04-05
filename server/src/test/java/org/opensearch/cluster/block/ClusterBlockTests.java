@@ -34,7 +34,7 @@ package org.opensearch.cluster.block;
 
 import org.opensearch.Version;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.rest.RestStatus;

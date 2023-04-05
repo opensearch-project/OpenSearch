@@ -33,9 +33,7 @@
 package org.opensearch.cluster.metadata;
 
 import com.carrotsearch.hppc.LongArrayList;
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.core.Assertions;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
@@ -49,8 +47,8 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.node.DiscoveryNodeFilters;
 import org.opensearch.cluster.routing.allocation.IndexMetadataUpdater;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.collect.ImmutableOpenIntMap;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenIntMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.io.stream.StreamInput;
@@ -900,8 +898,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      */
     @Nullable
     public MappingMetadata mapping() {
-        for (ObjectObjectCursor<String, MappingMetadata> cursor : mappings) {
-            return cursor.value;
+        for (Map.Entry<String, MappingMetadata> cursor : mappings.entrySet()) {
+            return cursor.getValue();
         }
         return null;
     }
@@ -1230,14 +1228,14 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             cursor.value.writeTo(out);
         }
         out.writeVInt(customData.size());
-        for (final ObjectObjectCursor<String, DiffableStringMap> cursor : customData) {
-            out.writeString(cursor.key);
-            cursor.value.writeTo(out);
+        for (final Map.Entry<String, DiffableStringMap> cursor : customData.entrySet()) {
+            out.writeString(cursor.getKey());
+            cursor.getValue().writeTo(out);
         }
         out.writeVInt(inSyncAllocationIds.size());
-        for (IntObjectCursor<Set<String>> cursor : inSyncAllocationIds) {
-            out.writeVInt(cursor.key);
-            DiffableUtils.StringSetValueSerializer.getInstance().write(cursor.value, out);
+        for (Map.Entry<Integer, Set<String>> cursor : inSyncAllocationIds.entrySet()) {
+            out.writeVInt(cursor.getKey());
+            DiffableUtils.StringSetValueSerializer.getInstance().write(cursor.getValue(), out);
         }
         out.writeVInt(rolloverInfos.size());
         for (ObjectCursor<RolloverInfo> cursor : rolloverInfos.values()) {
@@ -1703,9 +1701,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 builder.endObject();
             }
 
-            for (ObjectObjectCursor<String, DiffableStringMap> cursor : indexMetadata.customData) {
-                builder.field(cursor.key);
-                builder.map(cursor.value);
+            for (Map.Entry<String, DiffableStringMap> cursor : indexMetadata.customData.entrySet()) {
+                builder.field(cursor.getKey());
+                builder.map(cursor.getValue());
             }
 
             if (context != Metadata.XContentContext.API) {
@@ -1735,9 +1733,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             builder.startObject(KEY_IN_SYNC_ALLOCATIONS);
-            for (IntObjectCursor<Set<String>> cursor : indexMetadata.inSyncAllocationIds) {
-                builder.startArray(String.valueOf(cursor.key));
-                for (String allocationId : cursor.value) {
+            for (Map.Entry<Integer, Set<String>> cursor : indexMetadata.inSyncAllocationIds.entrySet()) {
+                builder.startArray(String.valueOf(cursor.getKey()));
+                for (String allocationId : cursor.getValue()) {
                     builder.value(allocationId);
                 }
                 builder.endArray();

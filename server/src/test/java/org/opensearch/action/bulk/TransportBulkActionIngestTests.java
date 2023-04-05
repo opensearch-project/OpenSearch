@@ -57,7 +57,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;

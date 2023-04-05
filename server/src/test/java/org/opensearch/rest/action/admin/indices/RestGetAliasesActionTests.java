@@ -33,7 +33,7 @@
 package org.opensearch.rest.action.admin.indices;
 
 import org.opensearch.cluster.metadata.AliasMetadata;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;

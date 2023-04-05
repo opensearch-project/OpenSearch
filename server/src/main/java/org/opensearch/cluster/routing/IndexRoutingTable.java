@@ -34,7 +34,6 @@ package org.opensearch.cluster.routing;
 
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.IntCursor;
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
@@ -47,7 +46,7 @@ import org.opensearch.cluster.routing.RecoverySource.PeerRecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.opensearch.cluster.routing.RecoverySource.RemoteStoreRecoverySource;
 import org.opensearch.common.Randomness;
-import org.opensearch.common.collect.ImmutableOpenIntMap;
+import org.opensearch.core.common.collect.ImmutableOpenIntMap;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.index.Index;
@@ -59,6 +58,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -95,8 +95,8 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
         this.shards = shards;
         List<ShardRouting> allActiveShards = new ArrayList<>();
-        for (IntObjectCursor<IndexShardRoutingTable> cursor : shards) {
-            for (ShardRouting shardRouting : cursor.value) {
+        for (Map.Entry<Integer, IndexShardRoutingTable> cursor : shards.entrySet()) {
+            for (ShardRouting shardRouting : cursor.getValue()) {
                 if (shardRouting.active()) {
                     allActiveShards.add(shardRouting);
                 }

@@ -58,7 +58,7 @@ import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.env.ShardLockObtainFailedException;

@@ -32,9 +32,8 @@
 
 package org.opensearch.action.admin.cluster.stats;
 
-import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.action.admin.indices.stats.CommonStats;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.cache.query.QueryCacheStats;
@@ -46,6 +45,7 @@ import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Cluster Stats per index
@@ -66,7 +66,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
     private MappingStats mappings;
 
     public ClusterStatsIndices(List<ClusterStatsNodeResponse> nodeResponses, MappingStats mappingStats, AnalysisStats analysisStats) {
-        ObjectObjectHashMap<String, ShardStats> countsPerIndex = new ObjectObjectHashMap<>();
+        ImmutableOpenMap.Builder<String, ShardStats> countsPerIndex = new ImmutableOpenMap.Builder<>();
 
         this.docs = new DocsStats();
         this.store = new StoreStats();
@@ -101,8 +101,9 @@ public class ClusterStatsIndices implements ToXContentFragment {
 
         shards = new ShardStats();
         indexCount = countsPerIndex.size();
-        for (ObjectObjectCursor<String, ShardStats> indexCountsCursor : countsPerIndex) {
-            shards.addIndexShardCount(indexCountsCursor.value);
+        // build the immutable map (syntactic sugar around the ImmutableOpenMap) and iterate over the entrySet
+        for (Map.Entry<String, ShardStats> indexCountsCursor : countsPerIndex.build().entrySet()) {
+            shards.addIndexShardCount(indexCountsCursor.getValue());
         }
 
         this.mappings = mappingStats;

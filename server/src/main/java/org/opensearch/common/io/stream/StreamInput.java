@@ -49,7 +49,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.SecureString;
 import org.opensearch.common.text.Text;

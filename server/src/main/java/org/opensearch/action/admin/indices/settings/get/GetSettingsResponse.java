@@ -32,10 +32,9 @@
 
 package org.opensearch.action.admin.indices.settings.get;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
@@ -212,18 +211,18 @@ public class GetSettingsResponse extends ActionResponse implements ToXContentObj
 
     private XContentBuilder toXContent(XContentBuilder builder, Params params, boolean omitEmptySettings) throws IOException {
         builder.startObject();
-        for (ObjectObjectCursor<String, Settings> cursor : getIndexToSettings()) {
+        for (Map.Entry<String, Settings> cursor : getIndexToSettings().entrySet()) {
             // no settings, jump over it to shorten the response data
-            if (omitEmptySettings && cursor.value.isEmpty()) {
+            if (omitEmptySettings && cursor.getValue().isEmpty()) {
                 continue;
             }
-            builder.startObject(cursor.key);
+            builder.startObject(cursor.getKey());
             builder.startObject("settings");
-            cursor.value.toXContent(builder, params);
+            cursor.getValue().toXContent(builder, params);
             builder.endObject();
             if (indexToDefaultSettings.isEmpty() == false) {
                 builder.startObject("defaults");
-                indexToDefaultSettings.get(cursor.key).toXContent(builder, params);
+                indexToDefaultSettings.get(cursor.getKey()).toXContent(builder, params);
                 builder.endObject();
             }
             builder.endObject();

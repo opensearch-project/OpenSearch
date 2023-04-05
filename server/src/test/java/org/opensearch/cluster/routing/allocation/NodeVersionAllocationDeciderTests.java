@@ -63,7 +63,7 @@ import org.opensearch.cluster.routing.allocation.decider.NodeVersionAllocationDe
 import org.opensearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActiveAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.index.Index;

@@ -32,7 +32,6 @@
 
 package org.opensearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -58,6 +57,7 @@ import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
@@ -233,8 +233,8 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     }
 
     private boolean hasNewNodes(DiscoveryNodes nodes) {
-        for (ObjectObjectCursor<String, DiscoveryNode> node : nodes.getDataNodes()) {
-            if (lastSeenEphemeralIds.contains(node.value.getEphemeralId()) == false) {
+        for (Map.Entry<String, DiscoveryNode> node : nodes.getDataNodes().entrySet()) {
+            if (lastSeenEphemeralIds.contains(node.getValue().getEphemeralId()) == false) {
                 return true;
             }
         }

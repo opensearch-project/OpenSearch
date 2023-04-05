@@ -34,14 +34,13 @@ package org.opensearch.cluster.node;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.Version;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.regex.Regex;
@@ -844,15 +843,15 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             Version maxNodeVersion = null;
             Version minNonClientNodeVersion = null;
             Version maxNonClientNodeVersion = null;
-            for (ObjectObjectCursor<String, DiscoveryNode> nodeEntry : nodes) {
-                if (nodeEntry.value.isDataNode()) {
-                    dataNodesBuilder.put(nodeEntry.key, nodeEntry.value);
+            for (Map.Entry<String, DiscoveryNode> nodeEntry : nodes.build().entrySet()) {
+                if (nodeEntry.getValue().isDataNode()) {
+                    dataNodesBuilder.put(nodeEntry.getKey(), nodeEntry.getValue());
                 }
-                if (nodeEntry.value.isClusterManagerNode()) {
-                    clusterManagerNodesBuilder.put(nodeEntry.key, nodeEntry.value);
+                if (nodeEntry.getValue().isClusterManagerNode()) {
+                    clusterManagerNodesBuilder.put(nodeEntry.getKey(), nodeEntry.getValue());
                 }
-                final Version version = nodeEntry.value.getVersion();
-                if (nodeEntry.value.isDataNode() || nodeEntry.value.isClusterManagerNode()) {
+                final Version version = nodeEntry.getValue().getVersion();
+                if (nodeEntry.getValue().isDataNode() || nodeEntry.getValue().isClusterManagerNode()) {
                     if (minNonClientNodeVersion == null) {
                         minNonClientNodeVersion = version;
                         maxNonClientNodeVersion = version;
@@ -861,8 +860,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                         maxNonClientNodeVersion = Version.max(maxNonClientNodeVersion, version);
                     }
                 }
-                if (nodeEntry.value.isIngestNode()) {
-                    ingestNodesBuilder.put(nodeEntry.key, nodeEntry.value);
+                if (nodeEntry.getValue().isIngestNode()) {
+                    ingestNodesBuilder.put(nodeEntry.getKey(), nodeEntry.getValue());
                 }
                 minNodeVersion = minNodeVersion == null ? version : Version.min(minNodeVersion, version);
                 maxNodeVersion = maxNodeVersion == null ? version : Version.max(maxNodeVersion, version);

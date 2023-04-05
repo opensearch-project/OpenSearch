@@ -33,12 +33,10 @@
 package org.opensearch.cluster;
 
 import com.carrotsearch.hppc.cursors.IntCursor;
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.Version;
-import org.opensearch.common.collect.ImmutableOpenIntMap;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.common.collect.ImmutableOpenIntMap;
+import org.opensearch.core.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable.Reader;
@@ -320,15 +318,15 @@ public final class DiffableUtils {
                 }
             }
 
-            for (ObjectObjectCursor<K, T> partIter : after) {
-                T beforePart = before.get(partIter.key);
+            for (Map.Entry<K, T> partIter : after.entrySet()) {
+                T beforePart = before.get(partIter.getKey());
                 if (beforePart == null) {
-                    upserts.put(partIter.key, partIter.value);
-                } else if (partIter.value.equals(beforePart) == false) {
+                    upserts.put(partIter.getKey(), partIter.getValue());
+                } else if (partIter.getValue().equals(beforePart) == false) {
                     if (valueSerializer.supportsDiffableValues()) {
-                        diffs.put(partIter.key, valueSerializer.diff(partIter.value, beforePart));
+                        diffs.put(partIter.getKey(), valueSerializer.diff(partIter.getValue(), beforePart));
                     } else {
-                        upserts.put(partIter.key, partIter.value);
+                        upserts.put(partIter.getKey(), partIter.getValue());
                     }
                 }
             }
@@ -398,15 +396,15 @@ public final class DiffableUtils {
                 }
             }
 
-            for (IntObjectCursor<T> partIter : after) {
-                T beforePart = before.get(partIter.key);
+            for (Map.Entry<Integer, T> partIter : after.entrySet()) {
+                T beforePart = before.get(partIter.getKey());
                 if (beforePart == null) {
-                    upserts.put(partIter.key, partIter.value);
-                } else if (partIter.value.equals(beforePart) == false) {
+                    upserts.put(partIter.getKey(), partIter.getValue());
+                } else if (partIter.getValue().equals(beforePart) == false) {
                     if (valueSerializer.supportsDiffableValues()) {
-                        diffs.put(partIter.key, valueSerializer.diff(partIter.value, beforePart));
+                        diffs.put(partIter.getKey(), valueSerializer.diff(partIter.getValue(), beforePart));
                     } else {
-                        upserts.put(partIter.key, partIter.value);
+                        upserts.put(partIter.getKey(), partIter.getValue());
                     }
                 }
             }

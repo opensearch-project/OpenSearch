@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -71,7 +70,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.collect.ImmutableOpenIntMap;
+import org.opensearch.core.common.collect.ImmutableOpenIntMap;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Setting;
@@ -642,8 +641,8 @@ public class MetadataIndexStateService {
             final AtomicArray<ShardResult> results = new AtomicArray<>(shards.size());
             final CountDown countDown = new CountDown(shards.size());
 
-            for (IntObjectCursor<IndexShardRoutingTable> shard : shards) {
-                final IndexShardRoutingTable shardRoutingTable = shard.value;
+            for (Map.Entry<Integer, IndexShardRoutingTable> shard : shards.entrySet()) {
+                final IndexShardRoutingTable shardRoutingTable = shard.getValue();
                 final int shardId = shardRoutingTable.shardId().id();
                 sendVerifyShardBeforeCloseRequest(shardRoutingTable, closingBlock, new NotifyOnceListener<ReplicationResponse>() {
                     @Override
@@ -775,8 +774,8 @@ public class MetadataIndexStateService {
             final AtomicArray<AddBlockShardResult> results = new AtomicArray<>(shards.size());
             final CountDown countDown = new CountDown(shards.size());
 
-            for (IntObjectCursor<IndexShardRoutingTable> shard : shards) {
-                final IndexShardRoutingTable shardRoutingTable = shard.value;
+            for (Map.Entry<Integer, IndexShardRoutingTable> shard : shards.entrySet()) {
+                final IndexShardRoutingTable shardRoutingTable = shard.getValue();
                 final int shardId = shardRoutingTable.shardId().id();
                 sendVerifyShardBlockRequest(shardRoutingTable, clusterBlock, new NotifyOnceListener<ReplicationResponse>() {
                     @Override
