@@ -28,7 +28,7 @@ public class FeatureFlags {
     public static final String REPLICATION_TYPE = "opensearch.experimental.feature.replication_type.enabled";
 
     /**
-     * Gates the visibility of the segment replication cluster setting that allows changing of replication type.
+     * Gates the visibility of the segment replication cluster setting that allows changing of default replication type in a cluster.
      * Once the feature is ready for production release, this feature flag can be removed.
      */
     public static final String SEGMENT_REPLICATION_CLUSTER_SETTING =
@@ -91,7 +91,7 @@ public class FeatureFlags {
 
     public static final Setting<Boolean> REPLICATION_TYPE_SETTING = Setting.boolSetting(REPLICATION_TYPE, false, Property.NodeScope);
 
-    public static final Setting<Boolean> SEGMENT_REPLICATION_CLUSTER_REPLICATION_TYPE_SETTING = Setting.boolSetting(
+    public static final Setting<Boolean> REPLICATION_TYPE_SEGMENT_REPLICATION_CLUSTER_SETTING = Setting.boolSetting(
         SEGMENT_REPLICATION_CLUSTER_SETTING,
         false,
         Property.NodeScope
