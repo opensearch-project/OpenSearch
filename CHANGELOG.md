@@ -97,7 +97,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `io.projectreactor.netty:reactor-netty` from 1.1.3 to 1.1.4
 - Bump `com.avast.gradle:gradle-docker-compose-plugin` from 0.15.2 to 0.16.11
 - Bump `net.minidev:json-smart` from 2.4.8 to 2.4.9
-- Bump `com.google.protobuf:protobuf-java` to 3.22.2
+- Bump `com.google.protobuf:protobuf-java` to 3.22.2 ([#6994](https://github.com/opensearch-project/OpenSearch/pull/6994))
 - Bump Netty to 4.1.90.Final ([#6677](https://github.com/opensearch-project/OpenSearch/pull/6677)
 - Bump `com.diffplug.spotless` from 6.15.0 to 6.17.0
 - Bump `org.apache.zookeeper:zookeeper` from 3.8.0 to 3.8.1
