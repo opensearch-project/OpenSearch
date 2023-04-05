@@ -457,7 +457,7 @@ final class StoreRecovery {
         remoteStore.incRef();
         try {
             // Download segments from remote segment store
-            indexShard.syncSegmentsFromRemoteSegmentStore(true);
+            indexShard.syncSegmentsFromRemoteSegmentStore(true, true, false);
 
             if (store.directory().listAll().length == 0) {
                 store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion);

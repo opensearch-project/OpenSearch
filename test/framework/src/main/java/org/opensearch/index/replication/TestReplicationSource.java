@@ -9,6 +9,7 @@
 package org.opensearch.index.replication;
 
 import org.opensearch.action.ActionListener;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.CheckpointInfoResponse;
@@ -35,7 +36,7 @@ public abstract class TestReplicationSource implements SegmentReplicationSource 
         long replicationId,
         ReplicationCheckpoint checkpoint,
         List<StoreFileMetadata> filesToFetch,
-        Store store,
+        IndexShard indexShard,
         ActionListener<GetSegmentFilesResponse> listener
     );
 

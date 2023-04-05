@@ -73,6 +73,7 @@ import org.opensearch.index.seqno.RetentionLeaseSyncAction;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
+import org.opensearch.index.shard.RemoteStoreSegmentUploadNotificationPublisher;
 import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
@@ -286,6 +287,11 @@ public class IndicesModule extends AbstractModule {
             bind(SegmentReplicationCheckpointPublisher.class).asEagerSingleton();
         } else {
             bind(SegmentReplicationCheckpointPublisher.class).toInstance(SegmentReplicationCheckpointPublisher.EMPTY);
+        }
+        if (FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE)) {
+            bind(RemoteStoreSegmentUploadNotificationPublisher.class).asEagerSingleton();
+        } else {
+            bind(RemoteStoreSegmentUploadNotificationPublisher.class).toInstance(RemoteStoreSegmentUploadNotificationPublisher.EMPTY);
         }
     }
 

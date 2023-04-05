@@ -327,6 +327,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     private final Store remoteStore;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
+    private final RemoteStoreSegmentUploadNotificationPublisher remoteSegmentNotificationPublisher;
 
     public IndexShard(
         final ShardRouting shardRouting,
@@ -351,7 +352,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final CircuitBreakerService circuitBreakerService,
         final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         @Nullable final SegmentReplicationCheckpointPublisher checkpointPublisher,
-        @Nullable final Store remoteStore
+        @Nullable final Store remoteStore,
+        RemoteStoreSegmentUploadNotificationPublisher remoteSegmentNotificationPublisher
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -403,6 +405,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.pendingPrimaryTerm = primaryTerm;
         this.globalCheckpointListeners = new GlobalCheckpointListeners(shardId, threadPool.scheduler(), logger);
         this.pendingReplicationActions = new PendingReplicationActions(shardId, threadPool);
+        this.remoteSegmentNotificationPublisher = remoteSegmentNotificationPublisher;
         this.replicationTracker = new ReplicationTracker(
             shardId,
             aId,
@@ -2182,7 +2185,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             assert currentEngineReference.get() == null : "engine is running";
             verifyNotClosed();
             if (indexSettings.isRemoteStoreEnabled()) {
-                syncSegmentsFromRemoteSegmentStore(false);
+                syncSegmentsFromRemoteSegmentStore(false, true, false);
             }
             // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
             final Engine newEngine = engineFactory.newReadWriteEngine(config);
@@ -3090,6 +3093,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
              * When remote translog is enabled for an index, replication operation is limited to primary term validation and does not
              * update local checkpoint at replica, so the local checkpoint at replica can be less than globalCheckpoint.
              */
+
             assert (state() != IndexShardState.POST_RECOVERY && state() != IndexShardState.STARTED)
                 || indexSettings.isRemoteTranslogStoreEnabled() : "supposedly in-sync shard copy received a global checkpoint ["
                     + globalCheckpoint
@@ -3499,11 +3503,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final List<ReferenceManager.RefreshListener> internalRefreshListener = new ArrayList<>();
         internalRefreshListener.add(new RefreshMetricUpdater(refreshMetric));
         if (isRemoteStoreEnabled()) {
-            internalRefreshListener.add(new RemoteStoreRefreshListener(this));
+            internalRefreshListener.add(new RemoteStoreRefreshListener(this, remoteSegmentNotificationPublisher));
         }
-        if (this.checkpointPublisher != null && indexSettings.isSegRepEnabled() && shardRouting.primary()) {
+        if (this.checkpointPublisher != null && indexSettings.isSegRepEnabled() && shardRouting.primary() && !indexSettings.isRemoteStoreEnabled()) {
             internalRefreshListener.add(new CheckpointRefreshListener(this, this.checkpointPublisher));
         }
+
         /**
          * With segment replication enabled for primary relocation, recover replica shard initially as read only and
          * change to a writeable engine during relocation handoff after a round of segment replication.
@@ -4078,7 +4083,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     // for tests
-    ReplicationTracker getReplicationTracker() {
+    public ReplicationTracker getReplicationTracker() {
         return replicationTracker;
     }
 
@@ -4347,7 +4352,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             };
             IOUtils.close(currentEngineReference.getAndSet(readOnlyEngine));
             if (indexSettings.isRemoteStoreEnabled()) {
-                syncSegmentsFromRemoteSegmentStore(false);
+                syncSegmentsFromRemoteSegmentStore(false, true, false);
             }
             newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));
             onNewEngine(newEngineReference.get());
@@ -4381,22 +4386,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
-     * Downloads segments from remote segment store. This method will download segments till
-     * last refresh checkpoint.
-     * @param overrideLocal flag to override local segment files with those in remote store
-     * @throws IOException if exception occurs while reading segments from remote store
-     */
-    public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal) throws IOException {
-        syncSegmentsFromRemoteSegmentStore(overrideLocal, true);
-    }
-
-    /**
      * Downloads segments from remote segment store.
      * @param overrideLocal flag to override local segment files with those in remote store
      * @param refreshLevelSegmentSync last refresh checkpoint is used if true, commit checkpoint otherwise
+     * @param shouldCommit if the shard requires committing the changes after sync from remote.
      * @throws IOException if exception occurs while reading segments from remote store
      */
-    public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal, boolean refreshLevelSegmentSync) throws IOException {
+    public void syncSegmentsFromRemoteSegmentStore(boolean overrideLocal, boolean refreshLevelSegmentSync, boolean shouldCommit) throws IOException {
         assert indexSettings.isRemoteStoreEnabled();
         logger.info("Downloading segments from remote segment store");
         assert remoteStore.directory() instanceof FilterDirectory : "Store.directory is not an instance of FilterDirectory";
@@ -4448,6 +4444,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     skippedSegments.add(file);
                 }
             }
+
             if (refreshLevelSegmentSync && segmentInfosSnapshotFilename != null) {
                 try (
                     ChecksumIndexInput indexInput = new BufferedChecksumIndexInput(
@@ -4460,7 +4457,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         Long.parseLong(segmentInfosSnapshotFilename.split("__")[1])
                     );
                     long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
-                    store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
+                    if (shouldCommit) {
+                        finalizeReplication(infosSnapshot);
+                        store.cleanupAndPreserveLatestCommitPoint("finalize - clean with in memory infos", infosSnapshot);
+                    }
+                    else {
+                        store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
+                    }
                 }
             }
         } catch (IOException e) {

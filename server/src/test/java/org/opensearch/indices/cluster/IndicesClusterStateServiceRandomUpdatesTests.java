@@ -64,6 +64,7 @@ import org.opensearch.common.util.set.Sets;
 import org.opensearch.index.Index;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
+import org.opensearch.index.shard.RemoteStoreSegmentUploadNotificationPublisher;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
@@ -583,7 +584,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             null,
             primaryReplicaSyncer,
             s -> {},
-            RetentionLeaseSyncer.EMPTY
+            RetentionLeaseSyncer.EMPTY,
+            RemoteStoreSegmentUploadNotificationPublisher.EMPTY
         );
     }
 

@@ -399,7 +399,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 missing.add(value);
             } else {
                 final StoreFileMetadata fileMetadata = target.get(value.name());
-                if (fileMetadata.isSame(value)) {
+                // match segments using checksum
+                if (fileMetadata.checksum().equals(value.checksum())) {
                     identical.add(value);
                 } else {
                     different.add(value);

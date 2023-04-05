@@ -600,7 +600,8 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 breakerService,
                 translogFactorySupplier,
                 checkpointPublisher,
-                remoteStore
+                remoteStore,
+                new RemoteStoreSegmentUploadNotificationPublisher(null)
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;
@@ -1315,7 +1316,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 long replicationId,
                 ReplicationCheckpoint checkpoint,
                 List<StoreFileMetadata> filesToFetch,
-                Store store,
+                IndexShard indexShard,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 try (

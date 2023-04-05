@@ -25,6 +25,8 @@ import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -57,14 +59,16 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     private final RemoteSegmentStoreDirectory remoteDirectory;
     private final Map<String, String> localSegmentChecksumMap;
     private long primaryTerm;
+    private final RemoteStoreSegmentUploadNotificationPublisher notificationPublisher;
     private static final Logger logger = LogManager.getLogger(RemoteStoreRefreshListener.class);
 
-    public RemoteStoreRefreshListener(IndexShard indexShard) {
+    public RemoteStoreRefreshListener(IndexShard indexShard, RemoteStoreSegmentUploadNotificationPublisher notificationPublisher) {
         this.indexShard = indexShard;
         this.storeDirectory = indexShard.store().directory();
         this.remoteDirectory = (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory())
             .getDelegate()).getDelegate();
         this.primaryTerm = indexShard.getOperationPrimaryTerm();
+        this.notificationPublisher = notificationPublisher;
         localSegmentChecksumMap = new HashMap<>();
         if (indexShard.shardRouting.primary()) {
             try {
@@ -102,6 +106,9 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                         if (isRefreshAfterCommit()) {
                             deleteStaleCommits();
                         }
+
+                        // Capture replication checkpoint before uploading the segments as upload can take some time and checkpoint can move.
+                        ReplicationCheckpoint checkpoint = indexShard.getLatestReplicationCheckpoint();
 
                         String segmentInfoSnapshotFilename = null;
                         try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
@@ -148,6 +155,10 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                                         .lastRefreshedCheckpoint();
                                     ((InternalEngine) indexShard.getEngine()).translogManager()
                                         .setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
+
+                                    if (!RemoteStoreSegmentUploadNotificationPublisher.EMPTY.equals(notificationPublisher)) {
+                                        notificationPublisher.notifySegmentUpload(indexShard, checkpoint);
+                                    }
                                 }
                             }
                         } catch (EngineException e) {

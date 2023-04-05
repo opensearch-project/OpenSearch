@@ -130,7 +130,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
                 long replicationId,
                 ReplicationCheckpoint checkpoint,
                 List<StoreFileMetadata> filesToFetch,
-                Store store,
+                IndexShard indexShard,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 Assert.fail("Should not be called");

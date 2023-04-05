@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -79,7 +80,7 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
         long replicationId,
         ReplicationCheckpoint checkpoint,
         List<StoreFileMetadata> filesToFetch,
-        Store store,
+        IndexShard indexShard,
         ActionListener<GetSegmentFilesResponse> listener
     ) {
         final Writeable.Reader<GetSegmentFilesResponse> reader = GetSegmentFilesResponse::new;
@@ -99,7 +100,7 @@ public class PrimaryShardReplicationSource implements SegmentReplicationSource {
 
     @Override
     public String getDescription() {
-        return sourceNode.getName();
+        return "remote store";
     }
 
     @Override

@@ -175,6 +175,7 @@ import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
+import org.opensearch.index.shard.RemoteStoreSegmentUploadNotificationPublisher;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
 import org.opensearch.indices.IndicesModule;
@@ -1940,7 +1941,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         actionFilters
                     ),
                     RetentionLeaseSyncer.EMPTY,
-                    SegmentReplicationCheckpointPublisher.EMPTY
+                    RemoteStoreSegmentUploadNotificationPublisher.EMPTY
                 );
                 Map<ActionType, TransportAction> actions = new HashMap<>();
                 final SystemIndices systemIndices = new SystemIndices(emptyMap());

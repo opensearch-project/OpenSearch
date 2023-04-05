@@ -127,7 +127,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 long replicationId,
                 ReplicationCheckpoint checkpoint,
                 List<StoreFileMetadata> filesToFetch,
-                Store store,
+                IndexShard indexShard,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 assertEquals(1, filesToFetch.size());
@@ -178,7 +178,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 long replicationId,
                 ReplicationCheckpoint checkpoint,
                 List<StoreFileMetadata> filesToFetch,
-                Store store,
+                IndexShard indexShard,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
@@ -221,7 +221,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 long replicationId,
                 ReplicationCheckpoint checkpoint,
                 List<StoreFileMetadata> filesToFetch,
-                Store store,
+                IndexShard indexShard,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 listener.onFailure(exception);
@@ -264,7 +264,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 long replicationId,
                 ReplicationCheckpoint checkpoint,
                 List<StoreFileMetadata> filesToFetch,
-                Store store,
+                IndexShard indexShard,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
@@ -309,7 +309,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 long replicationId,
                 ReplicationCheckpoint checkpoint,
                 List<StoreFileMetadata> filesToFetch,
-                Store store,
+                IndexShard indexShard,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
@@ -353,7 +353,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 long replicationId,
                 ReplicationCheckpoint checkpoint,
                 List<StoreFileMetadata> filesToFetch,
-                Store store,
+                IndexShard indexShard,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));
@@ -404,7 +404,7 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
                 long replicationId,
                 ReplicationCheckpoint checkpoint,
                 List<StoreFileMetadata> filesToFetch,
-                Store store,
+                IndexShard indexShard,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));

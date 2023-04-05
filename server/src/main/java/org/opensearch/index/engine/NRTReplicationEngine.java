@@ -485,7 +485,7 @@ public class NRTReplicationEngine extends Engine implements LifecycleAware {
 
     @Override
     public Engine recoverFromTranslog(TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo) throws IOException {
-        throw new UnsupportedOperationException("Read only replicas do not have an IndexWriter and cannot recover from a translog.");
+        return this;
     }
 
     @Override

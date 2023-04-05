@@ -46,6 +46,7 @@ import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
+import org.opensearch.index.shard.RemoteStoreSegmentUploadNotificationPublisher;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.opensearch.indices.recovery.RecoveryState;
@@ -153,7 +154,8 @@ public class IndicesLifecycleListenerSingleNodeTests extends OpenSearchSingleNod
                 newRouting,
                 s -> {},
                 RetentionLeaseSyncer.EMPTY,
-                SegmentReplicationCheckpointPublisher.EMPTY
+                SegmentReplicationCheckpointPublisher.EMPTY,
+                RemoteStoreSegmentUploadNotificationPublisher.EMPTY
             );
             IndexShardTestCase.updateRoutingEntry(shard, newRouting);
             assertEquals(5, counter.get());

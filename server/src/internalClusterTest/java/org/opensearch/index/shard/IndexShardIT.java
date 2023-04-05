@@ -678,7 +678,8 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             cbs,
             (indexSettings, shardRouting) -> new InternalTranslogFactory(),
             SegmentReplicationCheckpointPublisher.EMPTY,
-            null
+            null,
+            RemoteStoreSegmentUploadNotificationPublisher.EMPTY
         );
     }
 

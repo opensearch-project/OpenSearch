@@ -51,6 +51,7 @@ import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
+import org.opensearch.index.shard.RemoteStoreSegmentUploadNotificationPublisher;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndex;
@@ -252,18 +253,18 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends OpenSea
         }
 
         @Override
-        public MockIndexShard createShard(
-            final ShardRouting shardRouting,
-            final SegmentReplicationCheckpointPublisher checkpointPublisher,
-            final PeerRecoveryTargetService recoveryTargetService,
-            final RecoveryListener recoveryListener,
-            final RepositoriesService repositoriesService,
-            final Consumer<IndexShard.ShardFailure> onShardFailure,
-            final Consumer<ShardId> globalCheckpointSyncer,
-            final RetentionLeaseSyncer retentionLeaseSyncer,
-            final DiscoveryNode targetNode,
-            final DiscoveryNode sourceNode
-        ) throws IOException {
+        public MockIndexShard createShard(ShardRouting shardRouting,
+                                          SegmentReplicationCheckpointPublisher checkpointPublisher,
+                                          PeerRecoveryTargetService recoveryTargetService,
+                                          RecoveryListener recoveryListener,
+                                          RepositoriesService repositoriesService,
+                                          Consumer<IndexShard.ShardFailure> onShardFailure,
+                                          Consumer<ShardId> globalCheckpointSyncer,
+                                          RetentionLeaseSyncer retentionLeaseSyncer,
+                                          DiscoveryNode targetNode,
+                                          DiscoveryNode sourceNode,
+                                          RemoteStoreSegmentUploadNotificationPublisher remoteSegmentNotificationPublisher)
+                throws IOException {
             failRandomly();
             RecoveryState recoveryState = new RecoveryState(shardRouting, targetNode, sourceNode);
             MockIndexService indexService = indexService(recoveryState.getShardId().getIndex());
