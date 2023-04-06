@@ -25,12 +25,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Dependencies
 - Bump `org.apache.logging.log4j:log4j-core` from 2.18.0 to 2.20.0 ([#6490](https://github.com/opensearch-project/OpenSearch/pull/6490))
 - Bump `com.azure:azure-storage-common` from 12.19.3 to 12.20.0 ([#6492](https://github.com/opensearch-project/OpenSearch/pull/6492)
-- Bump `com.azure:azure-storage-blob` from 12.15.0 to 12.20.0 ([#6921](https://github.com/opensearch-project/OpenSearch/pull/6921)
 - Bump `snakeyaml` from 1.33 to 2.0 ([#6511](https://github.com/opensearch-project/OpenSearch/pull/6511))
 - Bump `io.projectreactor.netty:reactor-netty` from 1.1.3 to 1.1.4
 - Bump `com.avast.gradle:gradle-docker-compose-plugin` from 0.15.2 to 0.16.11
 - Bump `net.minidev:json-smart` from 2.4.8 to 2.4.9
-- Bump `com.google.protobuf:protobuf-java` from 3.22.0 to 3.22.2
+- Bump `com.google.protobuf:protobuf-java` to 3.22.2 ([#6994](https://github.com/opensearch-project/OpenSearch/pull/6994))
 - Bump Netty to 4.1.90.Final ([#6677](https://github.com/opensearch-project/OpenSearch/pull/6677)
 - Bump `com.diffplug.spotless` from 6.15.0 to 6.17.0
 - Bump `org.apache.zookeeper:zookeeper` from 3.8.0 to 3.8.1
