@@ -5,6 +5,7 @@
     - [Feature Requests](#feature-requests)
     - [Documentation Changes](#documentation-changes)
     - [Contributing Code](#contributing-code)
+  - [First pull request](#first-pull-request)
   - [Developer Certificate of Origin](#developer-certificate-of-origin)
   - [Changelog](#changelog)
   - [Review Process](#review-process)
@@ -13,6 +14,7 @@
 
 OpenSearch is a community project that is built and maintained by people just like **you**. We're glad you're interested in helping out. There are several different ways you can do it, but before we talk about that, let's talk about how to get started.
 
+Before you read this markdown and start contributing, we advise you to read [ONBOARDING.md](https://github.com/opensearch-project/.github/blob/main/ONBOARDING.md)
 ## First Things First
 
 1. **When in doubt, open an issue** - For almost any type of contribution, the first step is opening an issue. Even if you think you already know what the solution is, writing down a description of the problem you're trying to solve will help everyone get context when they review your pull request. If it's truly a trivial change (e.g. spelling error), you can skip this step -- but as the subject says, when in doubt, [open an issue](https://github.com/opensearch-project/OpenSearch/issues).
@@ -61,6 +63,16 @@ If you would like to contribute to the documentation, please do so in the [docum
 As with other types of contributions, the first step is to [**open an issue on GitHub**](https://github.com/opensearch-project/OpenSearch/issues/new/choose). Opening an issue before you make changes makes sure that someone else isn't already working on that particular problem. It also lets us all work together to find the right approach before you spend a bunch of time on a PR. So again, when in doubt, open an issue.
 
 Additionally, here are a few guidelines to help you decide whether a particular feature should be included in OpenSearch.
+
+**Note**: Since you are a beginner, we advise you to start with simple issues.
+
+For this there is a special label "<font color="SlateBlue">**Good first issue**</font>"
+
+Warning! If you have selected an issue and want to get started, check if the issue is free. If for it has already been assigned <br> and there is no pull request for a long time, ask that user using @ (e.g @nickname) if he/she is willing to concede to you.
+
+If the issue has recently been created and there are no appointees, then feel free to write in a comment that you are ready to take on the issue.
+
+Feel free to create an issue if you have not been able to work out the installation, or a bug within the project. Also feel free to ask on the issue page if you are solving a problem but can't figure out the structure of the project.
 
 **Is your feature important to most users of OpenSearch?**
 
@@ -116,7 +128,160 @@ Each commit must include a DCO which looks like this
 Signed-off-by: Jane Smith <jane.smith@email.com>
 ```
 You may type this line on your own when writing your commit messages. However, if your user.name and user.email are set in your git configs, you can use `-s` or `--signoff` to add the `Signed-off-by` line to the end of the commit message.
+Fill in your personal details as well as an email that is public on github:
 
+```
+git config --global user.name "FIRST_NAME LAST_NAME"
+git config --global user.email "MY_NAME@example.com"
+```
+
+_Note_: If you want to set up this data only for a specific repository then do it without the `--global` parameter:
+
+```
+git config user.name "FIRST_NAME LAST_NAME"
+git config user.email "MY_NAME@example.com"
+```
+
+## First pull request
+
+Let's look at what you need to create your first Pull Request!
+
+To fully work with the repository, you need to know how to use git
+But to solve a simple issue, and create a pull request for it, you only need to know a few important git commands:
+
+After you have done a fork and cloned the repository, you can modify the code and save it to the index.
+
+But before all this, make sure you are on the main branch by calling the command in the repository directory:
+
+```
+git branch
+```
+
+The terminal will show a list of branches, with the current branch shown as '*' (e.g. *main)
+
+If you only see one branch in the list main, you are doing the right thing
+
+We recommend that you create a branch for each pull request of the same issue and only if you are on the main branch.
+To do this, switch to the main branch:
+
+```
+git checkout main
+```
+
+_Note_: only create a new branch if you are on the main branch! And if you want to save commit history for another pull request, only then can you create a branch from any other branch
+
+We changed the code, now we want to save the changes to a new branch that will be included in the pull request, so let's create a new branch and switch to it.
+
+Creating a branch:
+
+```
+git branch <new-branch-for-pr>
+```
+
+Switching to the branch created:
+
+```
+git checkout new-branch-for-pr
+```
+
+_Note_: the previous two commands can be replaced by one:
+
+```
+git checkout -b new-branch-for-pr
+```
+
+The `-b` flag allows you to switch to a branch by creating it
+
+You have switched to the created branch, now you can add the files that were changed to the index and do a `commit`:
+Before doing so, let's check the status of our changes:
+
+```
+git status
+```
+
+_Note_: The `git status` command allows you to see what status our files are in
+
+If you have created a file, you will see that it is `untracked`.
+If you modified an existing file, you will see the status as `not staged`.
+
+To add files to the list to be added to commit, run the command:
+
+```
+git add <src>
+```
+
+`<src>` is the path to the file. Executing `git status` will show all paths
+
+_Note_: Text editors have a built-in git system. There you can control the status of changes
+
+For example in VS code you can open the **Source Control** panel with the shortcut:
+
+```
+ Ctrl + Shift + G
+```
+
+If you have changed several files, you can add them with one command:
+
+```
+git add .
+```
+
+We have added all our changes to the index, now we can "Save" our changes by making a commit:
+
+```
+git commit -s -m "My first commit and commit message"
+```
+
+With this command, we initialize all our files that we've changed into a commit.
+
+**Warning!**
+
+The `-s` flag is required! It is required for the Developer Certificate of Origin (DCO).
+It will sign your commit with the data you added to the git config.
+Be sure to read the [DCO](#developer-certificate-of-origin).
+
+The `-m` flag is also required! This is needed to succinctly describe changes to your files. Please keep your descriptions short and to the point.
+
+Once you've committed, you need to submit your changes to a remote repository (forked repository):
+
+```
+git push -u origin new-branch-for-pr
+```
+
+The `git push` command transfers all local changes to the remote repository, in this case we have specified `origin`.
+
+The `origin` is our remote repository (forked repository) that is copied and located on your github account.
+There is also a source for `upstream` - but this is a read-only repository (fetch/pull).
+
+You can see all the sources with the command:
+
+```
+git remote -v
+```
+
+We have dealt with the selected source. Let's move on to the `-u` flag.
+
+The `-u` flag in git `push origin -u` (or `git push -u origin`) sets the branch on the remote repository as "upstream" for the local branch. This means that the next time you use git push without specifying the remote branch name and local branch name, Git will automatically send changes to the branch on the remote repository that is set to upstream.
+
+For example, if you are working on a local new-branch-for-pr and want to push changes to a remote repository on a branch with the same name, you can use:
+
+```
+git push -u origin new-branch-for-pr
+```
+
+This will tell Git that the local new-branch-for-pr branch is upstream to the remote origin/new-branch-for-pr branch. Next time you push into this branch, you can simply use:
+
+```
+git push
+```
+
+Once you have done a git push, go to your forked repository page. You will see a notification that a new branch has been added and an opportunity to make a pull request. Click on the green "Compare & pull request" button.
+
+Describe your pull request. Also use `#` in Issues Resolved to specify an issue that can be resolved by your changes. (e.g #3027)
+
+To set to checked in the Check List, insert `x` in []. Check result in preview mode.
+
+Done! You have done a great job! Check the completed pull request form and create the pull request.
 ## Changelog
 
 OpenSearch maintains version specific changelog by enforcing a change to the ongoing [CHANGELOG](CHANGELOG.md) file adhering to the [Keep A Changelog](https://keepachangelog.com/en/1.0.0/) format. The purpose of the changelog is for the contributors and maintainers to incrementally build the release notes throughout the development process to avoid a painful and error-prone process of attempting to compile the release notes at release time. On each release the "unreleased" entries of the changelog are moved to the appropriate release notes document in the `./release-notes` folder. Also, incrementally building the changelog provides a concise, human-readable list of significant features that have been added to the unreleased version under development.
