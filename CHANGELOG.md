@@ -42,6 +42,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.commons:commons-compress` from 1.22 to 1.23.0
 - Bump `org.apache.commons:commons-configuration2` from 2.8.0 to 2.9.0
 - Bump `com.netflix.nebula:nebula-publishing-plugin` from 19.2.0 to 20.2.0
+- Bump `net.minidev:json-smart` from 2.4.9 to 2.4.10
 
 ### Changed
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
