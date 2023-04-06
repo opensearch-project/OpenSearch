@@ -12,6 +12,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.index.codec.CodecServiceFactory;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.EngineConfig;
 
 import java.util.Optional;
 
@@ -26,15 +27,25 @@ import java.util.Optional;
  */
 public final class CustomCodecPlugin extends Plugin implements EnginePlugin {
 
+    /** ZSTD compression with dictionary */
+    protected static final String ZSTD_CODEC_NAME = "ZSTD";
+
+    /** ZSTD compression without dictionary */
+    protected static final String ZSTDNODICT_CODEC_NAME = "ZSTDNODICT";
+
     /** Creates a new instance */
     public CustomCodecPlugin() {}
 
     /**
      * @param indexSettings is the default indexSettings
-     * @return the engine factory
+     * @return the custom-codec service factory
      */
     @Override
     public Optional<CodecServiceFactory> getCustomCodecServiceFactory(final IndexSettings indexSettings) {
-        return Optional.of(new CustomCodecServiceFactory());
+        String codec = indexSettings.getValue(EngineConfig.INDEX_CODEC_SETTING);
+        if (codec.equals(ZSTD_CODEC_NAME) || codec.equals(ZSTDNODICT_CODEC_NAME)) {
+            return Optional.of(new CustomCodecServiceFactory());
+        }
+        return Optional.empty();
     }
 }
