@@ -1984,7 +1984,13 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     new UpdateHelper(scriptService),
                     actionFilters,
                     new IndexingPressureService(settings, clusterService),
-                    new SegmentReplicationPressureService(settings, clusterService, mock(IndicesService.class)),
+                    new SegmentReplicationPressureService(
+                        settings,
+                        clusterService,
+                        mock(IndicesService.class),
+                        mock(ShardStateAction.class),
+                        mock(ThreadPool.class)
+                    ),
                     new SystemIndices(emptyMap())
                 );
                 actions.put(
