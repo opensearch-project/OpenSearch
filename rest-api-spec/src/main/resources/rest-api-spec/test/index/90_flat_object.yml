@@ -627,34 +627,6 @@ teardown:
   - match: { error.root_cause.0.reason: "Mapping definition for [data] has unsupported parameters:  [analyzer : standard]"}
   - match: { status: 400 }
 
-  #  - do:
-  #      index:
-  #        index: test_analyzer
-  #        id:    1
-  #        body:  {
-  #          "data": {
-  #            "text": "Lucene in Action",
-  #          }
-  #        }
-  #
-  #  - do:
-  #      catch: bad_request
-  #      search:
-  #        body: {
-  #          _source: true,
-  #          query: {
-  #            "match": {
-  #              "data": "action lucene"
-  #            }
-  #          }
-  #        }
-  #
-  #  - match: { ... }
-  #
-  #  - do:
-  #      indices.delete:
-  #        index: test_analyzer
-
   # Wildcard Query with dot path.
   - do:
       catch: bad_request

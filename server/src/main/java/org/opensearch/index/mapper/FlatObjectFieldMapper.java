@@ -99,22 +99,16 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     }
 
-    private static FlatObjectFieldMapper toType(FieldMapper in) {
-        return (FlatObjectFieldMapper) in;
-    }
-
     /**
      * The builder for the flat_object field mapper using default parameters
      * @opensearch.internal
      */
     public static class Builder extends FieldMapper.Builder<Builder> {
 
-
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE);
             builder = this;
         }
-
 
         private FlatObjectFieldType buildFlatObjectFieldType(BuilderContext context, FieldType fieldType) {
             return new FlatObjectFieldType(buildFullName(context), fieldType);
