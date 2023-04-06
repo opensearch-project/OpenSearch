@@ -113,7 +113,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         Map<String, List<String>> filteredHeaders = headers.entrySet()
             .stream()
             .filter(e -> !denyList.contains(e.getKey()))
-            .filter(e -> allowlist.contains(e.getKey()))
+            .filter(e -> allowList.contains(e.getKey()))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         return filteredHeaders;
     }
