@@ -610,6 +610,51 @@ teardown:
       version: " - 2.99.99"
       reason: "flat_object is introduced in 3.0.0 in main branch"
 
+  # Mapping parameters (such as index/search analyzers) are currently not supported
+  # The plan is to support them in the next version
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test_analyzer
+        body:
+          mappings:
+            properties:
+              data:
+                type : "flat_object"
+                analyzer: "standard"
+
+  - match: { error.root_cause.0.type: "mapper_parsing_exception" }
+  - match: { error.root_cause.0.reason: "Mapping definition for [data] has unsupported parameters:  [analyzer : standard]"}
+  - match: { status: 400 }
+
+  #  - do:
+  #      index:
+  #        index: test_analyzer
+  #        id:    1
+  #        body:  {
+  #          "data": {
+  #            "text": "Lucene in Action",
+  #          }
+  #        }
+  #
+  #  - do:
+  #      catch: bad_request
+  #      search:
+  #        body: {
+  #          _source: true,
+  #          query: {
+  #            "match": {
+  #              "data": "action lucene"
+  #            }
+  #          }
+  #        }
+  #
+  #  - match: { ... }
+  #
+  #  - do:
+  #      indices.delete:
+  #        index: test_analyzer
+
   # Wildcard Query with dot path.
   - do:
       catch: bad_request

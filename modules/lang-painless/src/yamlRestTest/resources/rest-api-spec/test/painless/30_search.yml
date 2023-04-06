@@ -499,6 +499,13 @@
               flat:
                 type : "flat_object"
 
+  # This document has 6 distinct parts in its flat_object field paths:
+  # - flat.field_1
+  # - flat.field_2
+  # - flat.field_3
+  # - flat.inner
+  # - flat.field_A
+  # - flat.field_B
   - do:
       index:
         index: test
@@ -507,7 +514,11 @@
           "flat": {
             "field_1": "John Doe",
             "field_2": 33,
-            "field_3": false
+            "field_3": false,
+            "inner": {
+              "field_A": ["foo", "bar"],
+              "field_B": false
+            }
           }
         }
 
@@ -526,7 +537,7 @@
       indices.refresh:
         index: test
 
-  # It is possible to filter based on the number of fields in the flat-object
+  # It is possible to filter based on the number of distinct parts of flat_object field paths
   - do:
       search:
         body: {
@@ -536,7 +547,7 @@
               filter: {
                 script: {
                   script: {
-                    source: "doc['flat'].size() > 2",
+                    source: "doc['flat'].size() == 6",
                     lang: "painless"
                   }
                 }
@@ -557,7 +568,7 @@
               filter: {
                 script: {
                   script: {
-                    source: "doc['flat'].size() < 3",
+                    source: "doc['flat'].size() < 6",
                     lang: "painless"
                   }
                 }
