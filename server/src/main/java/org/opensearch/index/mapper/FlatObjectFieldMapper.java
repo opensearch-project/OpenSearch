@@ -33,7 +33,6 @@ import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.JsonToStringXContentParser;
-import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -110,17 +109,12 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
      */
     public static class Builder extends FieldMapper.Builder<Builder> {
 
-        private final IndexAnalyzers indexAnalyzers;
-
-        Builder(String name, IndexAnalyzers indexAnalyzers) {
-            super(name, Defaults.FIELD_TYPE);
-            builder = this;
-            this.indexAnalyzers = indexAnalyzers;
-        }
 
         public Builder(String name) {
-            this(name, null);
+            super(name, Defaults.FIELD_TYPE);
+            builder = this;
         }
+
 
         private FlatObjectFieldType buildFlatObjectFieldType(BuilderContext context, FieldType fieldType) {
             return new FlatObjectFieldType(buildFullName(context), fieldType);
@@ -170,7 +164,7 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers()));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
 
     /**
      * Creates a new TypeParser for flatObjectFieldMapper that does not use ParameterizedFieldMapper
@@ -509,7 +503,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
 
     private final ValueFieldMapper valueFieldMapper;
     private final ValueAndPathFieldMapper valueAndPathFieldMapper;
-    private final IndexAnalyzers indexAnalyzers;
 
     FlatObjectFieldMapper(
         String simpleName,
@@ -523,7 +516,6 @@ public final class FlatObjectFieldMapper extends DynamicKeyFieldMapper {
         super(simpleName, fieldType, mappedFieldType, copyTo);
         assert fieldType.indexOptions().compareTo(IndexOptions.DOCS_AND_FREQS) <= 0;
         this.fieldType = fieldType;
-        this.indexAnalyzers = builder.indexAnalyzers;
         this.valueFieldMapper = valueFieldMapper;
         this.valueAndPathFieldMapper = valueAndPathFieldMapper;
         this.mappedFieldType = mappedFieldType;
