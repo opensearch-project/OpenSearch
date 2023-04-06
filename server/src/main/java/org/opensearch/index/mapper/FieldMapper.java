@@ -34,6 +34,7 @@ package org.opensearch.index.mapper;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
@@ -624,9 +625,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 } else {
                     context.path().add(mainFieldBuilder.name());
                     ImmutableOpenMap.Builder mapperBuilders = this.mapperBuilders;
-                    for (Map.Entry<String, Mapper.Builder> cursor : this.mapperBuilders.build().entrySet()) {
-                        String key = cursor.getKey();
-                        Mapper.Builder value = cursor.getValue();
+                    for (ObjectObjectCursor<String, Mapper.Builder> cursor : this.mapperBuilders) {
+                        String key = cursor.key;
+                        Mapper.Builder value = cursor.value;
                         Mapper mapper = value.build(context);
                         assert mapper instanceof FieldMapper;
                         mapperBuilders.put(key, mapper);
