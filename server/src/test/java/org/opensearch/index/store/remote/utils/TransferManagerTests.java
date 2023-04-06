@@ -24,6 +24,8 @@ import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.breaker.NoopCircuitBreaker;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheFactory;
@@ -42,7 +44,11 @@ import static org.mockito.Mockito.mock;
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 public class TransferManagerTests extends OpenSearchTestCase {
     private static final int EIGHT_MB = 1024 * 1024 * 8;
-    private final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(EIGHT_MB * 2, 1);
+    private final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
+        EIGHT_MB * 2,
+        1,
+        new NoopCircuitBreaker(CircuitBreaker.REQUEST)
+    );
     private MMapDirectory directory;
     private BlobContainer blobContainer;
     private TransferManager transferManager;

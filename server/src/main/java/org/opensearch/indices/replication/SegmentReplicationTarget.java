@@ -51,6 +51,8 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     private final SegmentReplicationState state;
     protected final MultiFileWriter multiFileWriter;
 
+    public final static String REPLICATION_PREFIX = "replication.";
+
     public ReplicationCheckpoint getCheckpoint() {
         return this.checkpoint;
     }
@@ -85,7 +87,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     @Override
     protected String getPrefix() {
-        return "replication." + UUIDs.randomBase64UUID() + ".";
+        return REPLICATION_PREFIX + UUIDs.randomBase64UUID() + ".";
     }
 
     @Override
