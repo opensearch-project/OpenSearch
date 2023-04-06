@@ -68,6 +68,7 @@ public class NRTReplicationEngine extends Engine {
         WriteOnlyTranslogManager translogManagerRef = null;
         try {
             lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+            this.store.incRefFileDeleter(lastCommittedSegmentInfos.files(true));
             readerManager = buildReaderManager();
             final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(
                 this.lastCommittedSegmentInfos.getUserData().entrySet()
@@ -75,6 +76,7 @@ public class NRTReplicationEngine extends Engine {
             this.localCheckpointTracker = new LocalCheckpointTracker(commitInfo.maxSeqNo, commitInfo.localCheckpoint);
             this.completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
             this.readerManager = readerManager;
+            this.store.incRefFileDeleter(getLatestSegmentInfos().files(false));
             this.readerManager.addListener(completionStatsCache);
             for (ReferenceManager.RefreshListener listener : engineConfig.getExternalRefreshListener()) {
                 this.readerManager.addListener(listener);
@@ -123,21 +125,7 @@ public class NRTReplicationEngine extends Engine {
         return new NRTReplicationReaderManager(
             OpenSearchDirectoryReader.wrap(getDirectoryReader(), shardId),
             store::incRefFileDeleter,
-            (files) -> {
-                store.decRefFileDeleter(files);
-                try {
-                    store.cleanupAndPreserveLatestCommitPoint(
-                        "On reader closed",
-                        getLatestSegmentInfos(),
-                        getLastCommittedSegmentInfos(),
-                        false
-                    );
-                } catch (IOException e) {
-                    // Log but do not rethrow - we can try cleaning up again after next replication cycle.
-                    // If that were to fail, the shard will as well.
-                    logger.error("Unable to clean store after reader closed", e);
-                }
-            }
+            store::decRefFileDeleter
         );
     }
 
@@ -152,7 +140,10 @@ public class NRTReplicationEngine extends Engine {
         try (ReleasableLock lock = writeLock.acquire()) {
             final long maxSeqNo = Long.parseLong(infos.userData.get(MAX_SEQ_NO));
             final long incomingGeneration = infos.getGeneration();
+            final SegmentInfos lastSegmentInfos = getLatestSegmentInfos();
             readerManager.updateSegments(infos);
+            this.store.incRefFileDeleter(infos.files(false));
+            this.store.decRefFileDeleter(lastSegmentInfos.files(false));
 
             // Commit and roll the translog when we receive a different generation than what was last received.
             // lower/higher gens are possible from a new primary that was just elected.
@@ -177,8 +168,11 @@ public class NRTReplicationEngine extends Engine {
      * @throws IOException - When there is an IO error committing the SegmentInfos.
      */
     private void commitSegmentInfos(SegmentInfos infos) throws IOException {
+        final SegmentInfos lastCommit = this.lastCommittedSegmentInfos;
         store.commitSegmentInfos(infos, localCheckpointTracker.getMaxSeqNo(), localCheckpointTracker.getProcessedCheckpoint());
         this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+        store.incRefFileDeleter(this.lastCommittedSegmentInfos.files(true));
+        store.decRefFileDeleter(lastCommit.files(true));
         translogManager.syncTranslog();
     }
 
