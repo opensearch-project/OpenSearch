@@ -38,6 +38,12 @@ import org.opensearch.test.AbstractSerializingTestCase;
 
 public class OpenIndexResponseTests extends AbstractSerializingTestCase<OpenIndexResponse> {
 
+    public void testToString() {
+        OpenIndexResponse response = new OpenIndexResponse(true, false);
+        String output = response.toString();
+        assertEquals("OpenIndexResponse[acknowledged=true,shards_acknowledged=false]", output);
+    }
+
     @Override
     protected OpenIndexResponse doParseInstance(XContentParser parser) {
         return OpenIndexResponse.fromXContent(parser);

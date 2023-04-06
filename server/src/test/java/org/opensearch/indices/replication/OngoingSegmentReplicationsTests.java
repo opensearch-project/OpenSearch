@@ -17,6 +17,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
@@ -47,7 +48,7 @@ import static org.mockito.Mockito.when;
 public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
 
     private final IndicesService mockIndicesService = mock(IndicesService.class);
-    private ReplicationCheckpoint testCheckpoint;
+    private ReplicationCheckpoint testCheckpoint, olderCodecTestCheckpoint;
     private DiscoveryNode primaryDiscoveryNode;
     private DiscoveryNode replicaDiscoveryNode;
     private IndexShard primary;
@@ -73,10 +74,14 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
 
         ShardId testShardId = primary.shardId();
 
+        CodecService codecService = new CodecService(null, null);
+        String defaultCodecName = codecService.codec(CodecService.DEFAULT_CODEC).getName();
+
         // This mirrors the creation of the ReplicationCheckpoint inside CopyState
-        testCheckpoint = new ReplicationCheckpoint(testShardId, primary.getOperationPrimaryTerm(), 0L, 0L);
+        testCheckpoint = new ReplicationCheckpoint(testShardId, primary.getOperationPrimaryTerm(), 0L, 0L, defaultCodecName);
+        olderCodecTestCheckpoint = new ReplicationCheckpoint(testShardId, primary.getOperationPrimaryTerm(), 0L, 0L, "Lucene94");
         IndexService mockIndexService = mock(IndexService.class);
-        when(mockIndicesService.indexService(testShardId.getIndex())).thenReturn(mockIndexService);
+        when(mockIndicesService.indexServiceSafe(testShardId.getIndex())).thenReturn(mockIndexService);
         when(mockIndexService.getShard(testShardId.id())).thenReturn(primary);
 
         TransportService transportService = mock(TransportService.class);
@@ -87,6 +92,44 @@ public class OngoingSegmentReplicationsTests extends IndexShardTestCase {
     public void tearDown() throws Exception {
         closeShards(primary, replica);
         super.tearDown();
+    }
+
+    public void testSuccessfulCodecCompatibilityCheck() throws Exception {
+        indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
+        primary.refresh("Test");
+        OngoingSegmentReplications replications = spy(new OngoingSegmentReplications(mockIndicesService, recoverySettings));
+        // replica checkpoint is on same/higher lucene codec than primary
+        final CheckpointInfoRequest request = new CheckpointInfoRequest(
+            1L,
+            replica.routingEntry().allocationId().getId(),
+            replicaDiscoveryNode,
+            testCheckpoint
+        );
+        final FileChunkWriter segmentSegmentFileChunkWriter = (fileMetadata, position, content, lastChunk, totalTranslogOps, listener) -> {
+            listener.onResponse(null);
+        };
+        final CopyState copyState = replications.prepareForReplication(request, segmentSegmentFileChunkWriter);
+    }
+
+    public void testFailCodecCompatibilityCheck() throws Exception {
+        indexDoc(primary, "1", "{\"foo\" : \"baz\"}", XContentType.JSON, "foobar");
+        primary.refresh("Test");
+        OngoingSegmentReplications replications = spy(new OngoingSegmentReplications(mockIndicesService, recoverySettings));
+        // replica checkpoint is on lower/older lucene codec than primary
+        final CheckpointInfoRequest request = new CheckpointInfoRequest(
+            1L,
+            replica.routingEntry().allocationId().getId(),
+            replicaDiscoveryNode,
+            olderCodecTestCheckpoint
+        );
+        final FileChunkWriter segmentSegmentFileChunkWriter = (fileMetadata, position, content, lastChunk, totalTranslogOps, listener) -> {
+            listener.onResponse(null);
+        };
+        try {
+            final CopyState copyState = replications.prepareForReplication(request, segmentSegmentFileChunkWriter);
+        } catch (CancellableThreads.ExecutionCancelledException ex) {
+            Assert.assertTrue(ex.getMessage().contains("Requested unsupported codec version"));
+        }
     }
 
     public void testPrepareAndSendSegments() throws IOException {

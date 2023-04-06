@@ -27,7 +27,7 @@ import java.util.function.Supplier;
  *
  * @opensearch.internal
  */
-public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.RemoteDirectoryFactory {
+public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
     private final Supplier<RepositoriesService> repositoriesService;
 
@@ -36,7 +36,8 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Remo
     }
 
     @Override
-    public Directory newDirectory(String repositoryName, IndexSettings indexSettings, ShardPath path) throws IOException {
+    public Directory newDirectory(IndexSettings indexSettings, ShardPath path) throws IOException {
+        String repositoryName = indexSettings.getRemoteStoreRepository();
         try (Repository repository = repositoriesService.get().repository(repositoryName)) {
             assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
             BlobPath commonBlobPath = ((BlobStoreRepository) repository).basePath();

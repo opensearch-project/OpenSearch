@@ -11,13 +11,16 @@ package org.opensearch.remotestore;
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
+import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
+import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalTestCluster;
@@ -30,6 +33,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
@@ -206,5 +211,90 @@ public class RemoteStoreIT extends OpenSearchIntegTestCase {
 
     public void testRemoteTranslogRestoreWithCommittedData() throws IOException {
         testRestoreFlow(true, randomIntBetween(2, 5), true);
+    }
+
+    private void testPeerRecovery(boolean remoteTranslog, int numberOfIterations, boolean invokeFlush) throws Exception {
+        internalCluster().startDataOnlyNodes(3);
+        if (remoteTranslog) {
+            createIndex(INDEX_NAME, remoteTranslogIndexSettings(0));
+        } else {
+            createIndex(INDEX_NAME, remoteStoreIndexSettings(0));
+        }
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        ensureGreen(INDEX_NAME);
+
+        Map<String, Long> indexStats = indexData(numberOfIterations, invokeFlush);
+
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(INDEX_NAME)
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+            .get();
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        ensureGreen(INDEX_NAME);
+
+        refresh(INDEX_NAME);
+        String replicaNodeName = replicaNodeName(INDEX_NAME);
+        assertBusy(
+            () -> assertHitCount(client(replicaNodeName).prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(TOTAL_OPERATIONS)),
+            30,
+            TimeUnit.SECONDS
+        );
+
+        RecoveryResponse recoveryResponse = client(replicaNodeName).admin().indices().prepareRecoveries().get();
+
+        Optional<RecoveryState> recoverySource = recoveryResponse.shardRecoveryStates()
+            .get(INDEX_NAME)
+            .stream()
+            .filter(rs -> rs.getRecoverySource().getType() == RecoverySource.Type.PEER)
+            .findFirst();
+        assertFalse(recoverySource.isEmpty());
+        if (numberOfIterations == 1 && invokeFlush) {
+            // segments_N file is copied to new replica
+            assertEquals(1, recoverySource.get().getIndex().recoveredFileCount());
+        } else {
+            assertEquals(0, recoverySource.get().getIndex().recoveredFileCount());
+        }
+
+        IndexResponse response = indexSingleDoc();
+        assertEquals(indexStats.get(MAX_SEQ_NO_TOTAL) + 1, response.getSeqNo());
+        refresh(INDEX_NAME);
+        assertBusy(
+            () -> assertHitCount(client(replicaNodeName).prepareSearch(INDEX_NAME).setSize(0).get(), indexStats.get(TOTAL_OPERATIONS) + 1),
+            30,
+            TimeUnit.SECONDS
+        );
+    }
+
+    public void testPeerRecoveryWithRemoteStoreNoRemoteTranslogNoDataFlush() throws Exception {
+        testPeerRecovery(false, 1, true);
+    }
+
+    public void testPeerRecoveryWithRemoteStoreNoRemoteTranslogFlush() throws Exception {
+        testPeerRecovery(false, randomIntBetween(2, 5), true);
+    }
+
+    public void testPeerRecoveryWithRemoteStoreNoRemoteTranslogNoDataRefresh() throws Exception {
+        testPeerRecovery(false, 1, false);
+    }
+
+    public void testPeerRecoveryWithRemoteStoreNoRemoteTranslogRefresh() throws Exception {
+        testPeerRecovery(false, randomIntBetween(2, 5), false);
+    }
+
+    public void testPeerRecoveryWithRemoteStoreAndRemoteTranslogNoDataFlush() throws Exception {
+        testPeerRecovery(true, 1, true);
+    }
+
+    public void testPeerRecoveryWithRemoteStoreAndRemoteTranslogFlush() throws Exception {
+        testPeerRecovery(true, randomIntBetween(2, 5), true);
+    }
+
+    public void testPeerRecoveryWithRemoteStoreAndRemoteTranslogNoDataRefresh() throws Exception {
+        testPeerRecovery(true, 1, false);
+    }
+
+    public void testPeerRecoveryWithRemoteStoreAndRemoteTranslogRefresh() throws Exception {
+        testPeerRecovery(true, randomIntBetween(2, 5), false);
     }
 }

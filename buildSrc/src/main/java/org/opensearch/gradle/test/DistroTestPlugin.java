@@ -119,8 +119,8 @@ public class DistroTestPlugin implements Plugin<Project> {
             TaskProvider<?> depsTask = project.getTasks().register(taskname + "#deps");
             depsTask.configure(t -> t.dependsOn(distribution, examplePlugin));
             depsTasks.put(taskname, depsTask);
-            // TODO - suppressing failure temporarily where duplicate tasks are created for docker.
-            try {
+            // Avoid duplicate tasks such as docker registered in lifecycleTasks
+            if (project.getTasksByName(taskname, false).isEmpty()) {
                 TaskProvider<Test> destructiveTask = configureTestTask(project, taskname, distribution, t -> {
                     t.onlyIf(t2 -> distribution.isDocker() == false || dockerSupport.get().getDockerAvailability().isAvailable);
                     addSysprop(t, DISTRIBUTION_SYSPROP, distribution::getFilepath);
@@ -134,8 +134,6 @@ public class DistroTestPlugin implements Plugin<Project> {
                 }
                 destructiveDistroTest.configure(t -> t.dependsOn(destructiveTask));
                 lifecycleTasks.get(distribution.getType()).configure(t -> t.dependsOn(destructiveTask));
-            } catch (Exception ex) {
-                System.out.println(ex.getMessage());
             }
 
             if ((distribution.getType() == OpenSearchDistribution.Type.DEB || distribution.getType() == OpenSearchDistribution.Type.RPM)

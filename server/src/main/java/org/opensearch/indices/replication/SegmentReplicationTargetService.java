@@ -395,13 +395,13 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             assert indicesService != null;
             final IndexShard indexShard = indicesService.getShardOrNull(request.getShardId());
             // Proceed with round of segment replication only when it is allowed
-            if (indexShard.getReplicationEngine().isEmpty()) {
+            if (indexShard == null || indexShard.getReplicationEngine().isEmpty()) {
                 logger.info("Ignore force segment replication sync as it is not allowed");
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
                 return;
             }
             startReplication(
-                ReplicationCheckpoint.empty(request.getShardId()),
+                ReplicationCheckpoint.empty(request.getShardId(), indexShard.getDefaultCodecName()),
                 indexShard,
                 new SegmentReplicationTargetService.SegmentReplicationListener() {
                     @Override

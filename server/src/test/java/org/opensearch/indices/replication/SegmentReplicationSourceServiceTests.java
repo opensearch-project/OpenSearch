@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.replication;
 
+import org.apache.lucene.codecs.Codec;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -51,11 +52,17 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
         ShardId testShardId = mockIndexShard.shardId();
         IndicesService mockIndicesService = mock(IndicesService.class);
         IndexService mockIndexService = mock(IndexService.class);
-        when(mockIndicesService.indexService(testShardId.getIndex())).thenReturn(mockIndexService);
+        when(mockIndicesService.indexServiceSafe(testShardId.getIndex())).thenReturn(mockIndexService);
         when(mockIndexService.getShard(testShardId.id())).thenReturn(mockIndexShard);
 
         // This mirrors the creation of the ReplicationCheckpoint inside CopyState
-        testCheckpoint = new ReplicationCheckpoint(testShardId, mockIndexShard.getOperationPrimaryTerm(), 0L, 0L);
+        testCheckpoint = new ReplicationCheckpoint(
+            testShardId,
+            mockIndexShard.getOperationPrimaryTerm(),
+            0L,
+            0L,
+            Codec.getDefault().getName()
+        );
         testThreadPool = new TestThreadPool("test", Settings.EMPTY);
         CapturingTransport transport = new CapturingTransport();
         localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);

@@ -28,18 +28,20 @@ while [ -h "$SCRIPT" ] ; do
   fi
 done
 
-# determine OpenSearch home; to do this, we strip from the path until we find
-# bin, and then strip bin (there is an assumption here that there is no nested
-# directory under bin also named bin)
-OPENSEARCH_HOME=`dirname "$SCRIPT"`
+if [[ -z "$OPENSEARCH_HOME" ]]; then
+  # determine OpenSearch home; to do this, we strip from the path until we find
+  # bin, and then strip bin (there is an assumption here that there is no nested
+  # directory under bin also named bin)
+  OPENSEARCH_HOME=`dirname "$SCRIPT"`
 
-# now make OPENSEARCH_HOME absolute
-OPENSEARCH_HOME=`cd "$OPENSEARCH_HOME"; pwd`
+  # now make OPENSEARCH_HOME absolute
+  OPENSEARCH_HOME=`cd "$OPENSEARCH_HOME"; pwd`
 
-while [ "`basename "$OPENSEARCH_HOME"`" != "bin" ]; do
+  while [ "`basename "$OPENSEARCH_HOME"`" != "bin" ]; do
+    OPENSEARCH_HOME=`dirname "$OPENSEARCH_HOME"`
+  done
   OPENSEARCH_HOME=`dirname "$OPENSEARCH_HOME"`
-done
-OPENSEARCH_HOME=`dirname "$OPENSEARCH_HOME"`
+fi
 
 # now set the classpath
 OPENSEARCH_CLASSPATH="$OPENSEARCH_HOME/lib/*"

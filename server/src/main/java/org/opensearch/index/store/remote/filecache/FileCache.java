@@ -8,6 +8,8 @@
 
 package org.opensearch.index.store.remote.filecache;
 
+import org.opensearch.common.breaker.CircuitBreaker;
+import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.index.store.remote.utils.cache.CacheUsage;
 import org.opensearch.index.store.remote.utils.cache.RefCountedCache;
 import org.opensearch.index.store.remote.utils.cache.SegmentedCache;
@@ -43,8 +45,11 @@ import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirector
 public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
     private final SegmentedCache<Path, CachedIndexInput> theCache;
 
-    public FileCache(SegmentedCache<Path, CachedIndexInput> cache) {
+    private final CircuitBreaker circuitBreaker;
+
+    public FileCache(SegmentedCache<Path, CachedIndexInput> cache, CircuitBreaker circuitBreaker) {
         this.theCache = cache;
+        this.circuitBreaker = circuitBreaker;
     }
 
     public long capacity() {
@@ -53,7 +58,9 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
 
     @Override
     public CachedIndexInput put(Path filePath, CachedIndexInput indexInput) {
-        return theCache.put(filePath, indexInput);
+        CachedIndexInput cachedIndexInput = theCache.put(filePath, indexInput);
+        checkParentBreaker(filePath);
+        return cachedIndexInput;
     }
 
     @Override
@@ -61,7 +68,9 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
         Path key,
         BiFunction<? super Path, ? super CachedIndexInput, ? extends CachedIndexInput> remappingFunction
     ) {
-        return theCache.compute(key, remappingFunction);
+        CachedIndexInput cachedIndexInput = theCache.compute(key, remappingFunction);
+        checkParentBreaker(key);
+        return cachedIndexInput;
     }
 
     /**
@@ -122,6 +131,24 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
     }
 
     /**
+     * Ensures that the PARENT breaker is not tripped when an entry is added to the cache
+     * @param filePath the path key for which entry is added
+     */
+    private void checkParentBreaker(Path filePath) {
+        try {
+            circuitBreaker.addEstimateBytesAndMaybeBreak(0, "filecache_entry");
+        } catch (CircuitBreakingException ex) {
+            theCache.remove(filePath);
+            throw new CircuitBreakingException(
+                "Unable to create file cache entries",
+                ex.getBytesWanted(),
+                ex.getByteLimit(),
+                ex.getDurability()
+            );
+        }
+    }
+
+    /**
      * Restores the file cache instance performing a folder scan of the
      * {@link org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory#LOCAL_STORE_LOCATION}
      * directory within the provided file cache path.
@@ -152,5 +179,24 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
                     );
                 }
             });
+    }
+
+    /**
+     * Returns the current {@link FileCacheStats}
+     */
+    public FileCacheStats fileCacheStats() {
+        CacheStats stats = stats();
+        CacheUsage usage = usage();
+        return new FileCacheStats(
+            System.currentTimeMillis(),
+            usage.activeUsage(),
+            capacity(),
+            usage.usage(),
+            stats.evictionWeight(),
+            stats.removeWeight(),
+            stats.replaceCount(),
+            stats.hitCount(),
+            stats.missCount()
+        );
     }
 }

@@ -18,6 +18,7 @@ import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.common.UUIDs;
@@ -49,6 +50,8 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     private final SegmentReplicationSource source;
     private final SegmentReplicationState state;
     protected final MultiFileWriter multiFileWriter;
+
+    public final static String REPLICATION_PREFIX = "replication.";
 
     public ReplicationCheckpoint getCheckpoint() {
         return this.checkpoint;
@@ -84,7 +87,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     @Override
     protected String getPrefix() {
-        return "replication." + UUIDs.randomBase64UUID() + ".";
+        return REPLICATION_PREFIX + UUIDs.randomBase64UUID() + ".";
     }
 
     @Override
@@ -213,9 +216,10 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         ActionListener.completeWith(listener, () -> {
             cancellableThreads.checkForCancel();
             state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);
+            Store store = null;
             try {
                 multiFileWriter.renameAllTempFiles();
-                final Store store = store();
+                store = store();
                 store.incRef();
                 // Deserialize the new SegmentInfos object sent from the primary.
                 final ReplicationCheckpoint responseCheckpoint = checkpointInfoResponse.getCheckpoint();
@@ -250,6 +254,13 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                 );
                 fail(rfe, true);
                 throw rfe;
+            } catch (OpenSearchException ex) {
+                /*
+                 Ignore closed replication target as it can happen due to index shard closed event in a separate thread.
+                 In such scenario, ignore the exception
+                 */
+                assert cancellableThreads.isCancelled() : "Replication target closed but segment replication not cancelled";
+                logger.info("Replication target closed", ex);
             } catch (Exception ex) {
                 ReplicationFailedException rfe = new ReplicationFailedException(
                     indexShard.shardId(),
@@ -259,7 +270,9 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                 fail(rfe, true);
                 throw rfe;
             } finally {
-                store.decRef();
+                if (store != null) {
+                    store.decRef();
+                }
             }
             return null;
         });

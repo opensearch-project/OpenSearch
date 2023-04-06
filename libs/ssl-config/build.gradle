@@ -34,7 +34,6 @@ apply plugin: "opensearch.publish"
 
 dependencies {
   api project(':libs:opensearch-common')
-  api project(':libs:opensearch-core')
 
   testImplementation(project(":test:framework")) {
     exclude group: 'org.opensearch', module: 'opensearch-ssl-config'

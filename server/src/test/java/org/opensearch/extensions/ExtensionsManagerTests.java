@@ -15,6 +15,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.mock;
@@ -40,6 +41,7 @@ import org.apache.logging.log4j.LogManager;
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.Version;
+import org.opensearch.action.ActionModule;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
@@ -94,6 +96,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
     private FeatureFlagSetter featureFlagSetter;
     private TransportService transportService;
+    private ActionModule actionModule;
     private RestController restController;
     private SettingsModule settingsModule;
     private ClusterService clusterService;
@@ -157,6 +160,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             null,
             Collections.emptySet()
         );
+        actionModule = mock(ActionModule.class);
         restController = new RestController(
             emptySet(),
             null,
@@ -164,6 +168,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             new NoneCircuitBreakerService(),
             new UsageService()
         );
+        when(actionModule.getRestController()).thenReturn(restController);
         settingsModule = new SettingsModule(Settings.EMPTY, emptyList(), emptyList(), emptySet());
         clusterService = createClusterService(threadPool);
 
@@ -247,6 +252,58 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         Files.write(emptyExtensionDir.resolve("extensions.yml"), nonUniqueYmlLines, StandardCharsets.UTF_8);
 
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, emptyExtensionDir);
+
+        List<DiscoveryExtensionNode> expectedExtensions = new ArrayList<DiscoveryExtensionNode>();
+
+        expectedExtensions.add(
+            new DiscoveryExtensionNode(
+                "firstExtension",
+                "uniqueid1",
+                new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
+                new HashMap<String, String>(),
+                Version.fromString("3.0.0"),
+                Version.fromString("3.0.0"),
+                Collections.emptyList()
+            )
+        );
+        assertEquals(expectedExtensions.size(), extensionsManager.getExtensionIdMap().values().size());
+        for (DiscoveryExtensionNode extension : expectedExtensions) {
+            DiscoveryExtensionNode initializedExtension = extensionsManager.getExtensionIdMap().get(extension.getId());
+            assertEquals(extension.getName(), initializedExtension.getName());
+            assertEquals(extension.getId(), initializedExtension.getId());
+            assertEquals(extension.getAddress(), initializedExtension.getAddress());
+            assertEquals(extension.getAttributes(), initializedExtension.getAttributes());
+            assertEquals(extension.getVersion(), initializedExtension.getVersion());
+            assertEquals(extension.getMinimumCompatibleVersion(), initializedExtension.getMinimumCompatibleVersion());
+            assertEquals(extension.getDependencies(), initializedExtension.getDependencies());
+        }
+        assertTrue(expectedExtensions.containsAll(emptyList()));
+        assertTrue(expectedExtensions.containsAll(emptyList()));
+    }
+
+    public void testMissingRequiredFieldsInExtensionDiscovery() throws Exception {
+        Path emptyExtensionDir = createTempDir();
+        ExtensionsManager extensionsManager;
+        List<String> requiredFieldMissingYmlLines = extensionsYmlLines.stream()
+            .map(s -> s.replace("     minimumCompatibleVersion: '2.0.0'", ""))
+            .collect(Collectors.toList());
+        Files.write(emptyExtensionDir.resolve("extensions.yml"), requiredFieldMissingYmlLines, StandardCharsets.UTF_8);
+
+        try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ExtensionsManager.class))) {
+
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "Required field is missing in extensions.yml",
+                    "org.opensearch.extensions.ExtensionsManager",
+                    Level.WARN,
+                    "loading extension has been failed because of exception : Extension is missing these required fields : [minimumCompatibleVersion]"
+                )
+            );
+
+            extensionsManager = new ExtensionsManager(settings, emptyExtensionDir);
+
+            mockLogAppender.assertAllExpectationsMatched();
+        }
 
         List<DiscoveryExtensionNode> expectedExtensions = new ArrayList<DiscoveryExtensionNode>();
 
@@ -732,7 +789,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             )
         );
         extensionsManager.initializeServicesAndRestHandler(
-            restController,
+            actionModule,
             settingsModule,
             mockTransportService,
             clusterService,
@@ -812,7 +869,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         transportService.start();
         transportService.acceptIncomingRequests();
         extensionsManager.initializeServicesAndRestHandler(
-            restController,
+            actionModule,
             settingsModule,
             transportService,
             clusterService,

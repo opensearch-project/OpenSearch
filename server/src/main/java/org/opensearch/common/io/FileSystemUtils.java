@@ -34,7 +34,7 @@ package org.opensearch.common.io;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
 
