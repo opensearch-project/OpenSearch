@@ -34,7 +34,7 @@ package org.opensearch.threadpool;
 
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.threadpool.ThreadPool.Names;
 
 import java.util.concurrent.CountDownLatch;

@@ -198,7 +198,7 @@ public abstract class Streams {
      * Fully consumes the input stream, throwing the bytes away. Returns the number of bytes consumed.
      */
     public static long consumeFully(InputStream inputStream) throws IOException {
-        return org.opensearch.core.internal.io.Streams.copy(inputStream, NULL_OUTPUT_STREAM);
+        return org.opensearch.common.util.io.Streams.copy(inputStream, NULL_OUTPUT_STREAM);
     }
 
     public static List<String> readAllLines(InputStream input) throws IOException {
@@ -244,7 +244,7 @@ public abstract class Streams {
      */
     public static BytesReference readFully(InputStream in) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
-        org.opensearch.core.internal.io.Streams.copy(in, out);
+        org.opensearch.common.util.io.Streams.copy(in, out);
         return out.bytes();
     }
 

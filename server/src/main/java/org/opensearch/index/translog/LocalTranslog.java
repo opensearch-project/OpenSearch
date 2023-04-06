@@ -9,7 +9,7 @@
 package org.opensearch.index.translog;
 
 import org.opensearch.common.util.concurrent.ReleasableLock;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 
 import java.io.IOException;
 import java.nio.file.Files;

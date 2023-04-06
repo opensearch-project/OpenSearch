@@ -52,7 +52,7 @@ import org.opensearch.common.recycler.Recycler;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.nio.BytesChannelContext;
 import org.opensearch.nio.BytesWriteHandler;

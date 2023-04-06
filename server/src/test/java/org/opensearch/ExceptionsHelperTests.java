@@ -40,7 +40,7 @@ import org.opensearch.action.ShardOperationFailedException;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.ParsingException;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.Index;
 import org.opensearch.index.query.QueryShardException;
 import org.opensearch.index.shard.ShardId;

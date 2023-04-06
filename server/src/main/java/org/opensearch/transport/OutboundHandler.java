@@ -49,7 +49,7 @@ import org.opensearch.common.transport.NetworkExceptionHelper;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;

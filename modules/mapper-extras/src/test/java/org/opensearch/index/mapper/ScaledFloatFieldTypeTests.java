@@ -45,7 +45,7 @@ import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.fielddata.LeafNumericFieldData;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;

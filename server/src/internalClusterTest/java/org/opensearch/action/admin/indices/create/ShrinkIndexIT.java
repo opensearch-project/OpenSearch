@@ -806,7 +806,7 @@ public class ShrinkIndexIT extends OpenSearchIntegTestCase {
                 .setResizeType(ResizeType.SHRINK)
                 .get()
         );
-        assertEquals(exc.getMessage(), "Cannot set max_shard_size and index.number_of_shards at the same time!");
+        assertTrue(exc.getMessage().contains("Cannot set max_shard_size and index.number_of_shards at the same time!"));
 
         // use max_shard_size to calculate the target index's shards number
         // set max_shard_size to 1 then the target index's shards number will be same with the source index's

@@ -33,10 +33,11 @@
 package org.opensearch;
 
 import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenIntMap;
-import org.opensearch.common.collect.ImmutableOpenMap;
+import org.opensearch.core.Assertions;
 
 import java.lang.reflect.Field;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * The Contents of this file were originally moved from {@link Version}.
@@ -53,11 +54,11 @@ public class LegacyESVersion extends Version {
     public static final LegacyESVersion V_7_2_0 = new LegacyESVersion(7020099, org.apache.lucene.util.Version.LUCENE_8_0_0);
 
     // todo move back to Version.java if retiring legacy version support
-    protected static final ImmutableOpenIntMap<Version> idToVersion;
-    protected static final ImmutableOpenMap<String, Version> stringToVersion;
+    protected static final Map<Integer, Version> idToVersion;
+    protected static final Map<String, Version> stringToVersion;
     static {
-        final ImmutableOpenIntMap.Builder<Version> builder = ImmutableOpenIntMap.builder();
-        final ImmutableOpenMap.Builder<String, Version> builderByString = ImmutableOpenMap.builder();
+        final Map<Integer, Version> builder = new HashMap<>();
+        final Map<String, Version> builderByString = new HashMap<>();
 
         for (final Field declaredField : LegacyESVersion.class.getFields()) {
             if (declaredField.getType().equals(Version.class) || declaredField.getType().equals(LegacyESVersion.class)) {
@@ -119,8 +120,8 @@ public class LegacyESVersion extends Version {
 
         builder.put(V_EMPTY_ID, V_EMPTY);
         builderByString.put(V_EMPTY.toString(), V_EMPTY);
-        idToVersion = builder.build();
-        stringToVersion = builderByString.build();
+        idToVersion = Map.copyOf(builder);
+        stringToVersion = Map.copyOf(builderByString);
     }
 
     protected LegacyESVersion(int id, org.apache.lucene.util.Version luceneVersion) {

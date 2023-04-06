@@ -34,6 +34,7 @@ package org.opensearch.cluster.node;
 
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
+import org.opensearch.common.Booleans;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -245,8 +246,8 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
         @Override
         public Setting<Boolean> legacySetting() {
-            // copy the setting here so we can mark it private in org.opensearch.node.Node
-            return Setting.boolSetting("node.master", true, Property.Deprecated, Property.NodeScope);
+            // 'cluster_manager' role should not configure legacy setting since deprecated 'master' role is supported till OS 2.x
+            return null;
         }
 
         @Override
@@ -273,6 +274,10 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
             }
         }
 
+        @Override
+        public boolean isEnabledByDefault(final Settings settings) {
+            return Booleans.isBoolean(settings.get("node.master")) == false;
+        }
     };
 
     public static final DiscoveryNodeRole REMOTE_CLUSTER_CLIENT_ROLE = new DiscoveryNodeRole("remote_cluster_client", "r") {
