@@ -49,7 +49,7 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
     protected Settings featureFlagSettings() {
         return Settings.builder()
             .put(super.featureFlagSettings())
-            .put(FeatureFlags.SEGMENT_REPLICATION_CLUSTER_SETTING, "true")
+            .put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL, "true")
             .put(FeatureFlags.REPLICATION_TYPE, "true")
             .build();
     }
