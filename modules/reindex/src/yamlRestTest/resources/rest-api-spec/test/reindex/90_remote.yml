@@ -390,14 +390,12 @@
         refresh: true
 
   - do:
-      # sometimes IIS is listening on port 0. In that case we fail in other ways and this test isn't useful.
-      # make sure to stop any local webservers if running this test locally otherwise an s_s_l handshake exception may occur
       catch: /connect_exception|IIS Windows Server/
       reindex:
         body:
           source:
             remote:
-              host: http://127.0.0.1:0
+              host: http://127.0.0.1:54321
             index: source
           dest:
             index: dest
