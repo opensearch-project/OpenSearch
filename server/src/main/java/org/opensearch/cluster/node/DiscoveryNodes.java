@@ -843,7 +843,8 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             Version maxNodeVersion = null;
             Version minNonClientNodeVersion = null;
             Version maxNonClientNodeVersion = null;
-            for (Map.Entry<String, DiscoveryNode> nodeEntry : nodes.build().entrySet()) {
+            ImmutableOpenMap<String, DiscoveryNode> nodeMap = this.nodes.build();
+            for (Map.Entry<String, DiscoveryNode> nodeEntry : nodeMap.entrySet()) {
                 if (nodeEntry.getValue().isDataNode()) {
                     dataNodesBuilder.put(nodeEntry.getKey(), nodeEntry.getValue());
                 }
@@ -868,7 +869,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
             }
 
             return new DiscoveryNodes(
-                nodes.build(),
+                nodeMap,
                 dataNodesBuilder.build(),
                 clusterManagerNodesBuilder.build(),
                 ingestNodesBuilder.build(),
