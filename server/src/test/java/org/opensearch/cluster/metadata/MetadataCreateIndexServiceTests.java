@@ -65,6 +65,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.env.Environment;
@@ -79,8 +80,10 @@ import org.opensearch.indices.InvalidIndexNameException;
 import org.opensearch.indices.ShardLimitValidator;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.opensearch.test.ClusterServiceUtils;
+import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.test.gateway.TestGatewayAllocator;
@@ -126,6 +129,12 @@ import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_BLOC
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.aggregateIndexSettings;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.buildIndexMetadata;
@@ -134,6 +143,9 @@ import static org.opensearch.cluster.metadata.MetadataCreateIndexService.getInde
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.parseV1Mappings;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.resolveAndValidateAliases;
 import static org.opensearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_DEFAULT_SEGMENT_REPO_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_DEFAULT_TRANSLOG_REPO_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_INDEX_FORCE_SETTING;
 import static org.opensearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 
 public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
@@ -1119,6 +1131,183 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         threadPool.shutdown();
     }
 
+    public void testRemoteStoreDisabledByUserIndexSettings() {
+        Settings settings = Settings.builder()
+            .put(CLUSTER_REMOTE_STORE_INDEX_FORCE_SETTING.getKey(), true)
+            .put(CLUSTER_REMOTE_STORE_DEFAULT_SEGMENT_REPO_SETTING.getKey(), "my-segment-repo-1")
+            .put(CLUSTER_REMOTE_STORE_DEFAULT_TRANSLOG_REPO_SETTING.getKey(), "my-translog-repo-1")
+            .build();
+        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
+        FeatureFlagSetter.set(FeatureFlags.REPLICATION_TYPE);
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        final Settings.Builder requestSettings = Settings.builder();
+        requestSettings.put(SETTING_REMOTE_STORE_ENABLED, false);
+        request.settings(requestSettings.build());
+        Settings indexSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            settings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet()
+        );
+        verifyRemoteStoreIndexSettings(indexSettings, "false", null, null, null, null, null);
+    }
+
+    public void testRemoteStoreTranslogDisabledByUserIndexSettings() {
+        Settings settings = Settings.builder()
+            .put(CLUSTER_REMOTE_STORE_INDEX_FORCE_SETTING.getKey(), true)
+            .put(CLUSTER_REMOTE_STORE_DEFAULT_SEGMENT_REPO_SETTING.getKey(), "my-segment-repo-1")
+            .put(CLUSTER_REMOTE_STORE_DEFAULT_TRANSLOG_REPO_SETTING.getKey(), "my-translog-repo-1")
+            .build();
+        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
+        FeatureFlagSetter.set(FeatureFlags.REPLICATION_TYPE);
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        final Settings.Builder requestSettings = Settings.builder();
+        requestSettings.put(SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false);
+        request.settings(requestSettings.build());
+        Settings indexSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            settings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet()
+        );
+        verifyRemoteStoreIndexSettings(indexSettings, "true", "my-segment-repo-1", "false", null, ReplicationType.SEGMENT.toString(), null);
+    }
+
+    public void testRemoteStoreTranslogNoUserOverrideIndexSettings() {
+        Settings settings = Settings.builder()
+            .put(CLUSTER_REMOTE_STORE_INDEX_FORCE_SETTING.getKey(), true)
+            .put(CLUSTER_REMOTE_STORE_DEFAULT_SEGMENT_REPO_SETTING.getKey(), "my-segment-repo-1")
+            .put(CLUSTER_REMOTE_STORE_DEFAULT_TRANSLOG_REPO_SETTING.getKey(), "my-translog-repo-1")
+            .build();
+        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
+        FeatureFlagSetter.set(FeatureFlags.REPLICATION_TYPE);
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        Settings indexSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            settings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet()
+        );
+        verifyRemoteStoreIndexSettings(
+            indexSettings,
+            "true",
+            "my-segment-repo-1",
+            "true",
+            "my-translog-repo-1",
+            ReplicationType.SEGMENT.toString(),
+            null
+        );
+    }
+
+    public void testRemoteStoreTranslogOverrideSegmentRepoIndexSettings() {
+        Settings settings = Settings.builder()
+            .put(CLUSTER_REMOTE_STORE_INDEX_FORCE_SETTING.getKey(), true)
+            .put(CLUSTER_REMOTE_STORE_DEFAULT_SEGMENT_REPO_SETTING.getKey(), "my-segment-repo-1")
+            .put(CLUSTER_REMOTE_STORE_DEFAULT_TRANSLOG_REPO_SETTING.getKey(), "my-translog-repo-1")
+            .build();
+        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
+        FeatureFlagSetter.set(FeatureFlags.REPLICATION_TYPE);
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        final Settings.Builder requestSettings = Settings.builder();
+        requestSettings.put(SETTING_REMOTE_STORE_REPOSITORY, "my-custom-repo");
+        request.settings(requestSettings.build());
+        Settings indexSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            settings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet()
+        );
+        verifyRemoteStoreIndexSettings(
+            indexSettings,
+            "true",
+            "my-custom-repo",
+            "true",
+            "my-translog-repo-1",
+            ReplicationType.SEGMENT.toString(),
+            null
+        );
+    }
+
+    public void testRemoteStoreTranslogOverrideTranslogRepoIndexSettings() {
+        Settings settings = Settings.builder()
+            .put(CLUSTER_REMOTE_STORE_INDEX_FORCE_SETTING.getKey(), true)
+            .put(CLUSTER_REMOTE_STORE_DEFAULT_SEGMENT_REPO_SETTING.getKey(), "my-segment-repo-1")
+            .put(CLUSTER_REMOTE_STORE_DEFAULT_TRANSLOG_REPO_SETTING.getKey(), "my-translog-repo-1")
+            .build();
+        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
+        FeatureFlagSetter.set(FeatureFlags.REPLICATION_TYPE);
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        final Settings.Builder requestSettings = Settings.builder();
+        requestSettings.put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "my-custom-repo");
+        request.settings(requestSettings.build());
+        Settings indexSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            settings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet()
+        );
+        verifyRemoteStoreIndexSettings(
+            indexSettings,
+            "true",
+            "my-segment-repo-1",
+            "true",
+            "my-custom-repo",
+            ReplicationType.SEGMENT.toString(),
+            null
+        );
+    }
+
+    public void testRemoteStoreTranslogOverrideReplicationTypeIndexSettings() {
+        Settings settings = Settings.builder()
+            .put(CLUSTER_REMOTE_STORE_INDEX_FORCE_SETTING.getKey(), true)
+            .put(CLUSTER_REMOTE_STORE_DEFAULT_SEGMENT_REPO_SETTING.getKey(), "my-segment-repo-1")
+            .put(CLUSTER_REMOTE_STORE_DEFAULT_TRANSLOG_REPO_SETTING.getKey(), "my-translog-repo-1")
+            .build();
+        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
+        FeatureFlagSetter.set(FeatureFlags.REPLICATION_TYPE);
+
+        request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
+        final Settings.Builder requestSettings = Settings.builder();
+        requestSettings.put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT);
+        request.settings(requestSettings.build());
+        Settings indexSettings = aggregateIndexSettings(
+            ClusterState.EMPTY_STATE,
+            request,
+            Settings.EMPTY,
+            null,
+            settings,
+            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
+            randomShardLimitService(),
+            Collections.emptySet()
+        );
+        verifyRemoteStoreIndexSettings(indexSettings, null, null, null, null, ReplicationType.DOCUMENT.toString(), null);
+    }
+
     public void testBuildIndexMetadata() {
         IndexMetadata sourceIndexMetadata = IndexMetadata.builder("parent")
             .settings(Settings.builder().put("index.version.created", Version.CURRENT).build())
@@ -1315,5 +1504,22 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         } finally {
             threadPool.shutdown();
         }
+    }
+
+    private void verifyRemoteStoreIndexSettings(
+        Settings indexSettings,
+        String isRemoteSegmentEnabled,
+        String remoteSegmentRepo,
+        String isRemoteTranslogEnabled,
+        String remoteTranslogRepo,
+        String replicationType,
+        String translogBufferInterval
+    ) {
+        assertEquals(replicationType, indexSettings.get(SETTING_REPLICATION_TYPE));
+        assertEquals(isRemoteSegmentEnabled, indexSettings.get(SETTING_REMOTE_STORE_ENABLED));
+        assertEquals(remoteSegmentRepo, indexSettings.get(SETTING_REMOTE_STORE_REPOSITORY));
+        assertEquals(isRemoteTranslogEnabled, indexSettings.get(SETTING_REMOTE_TRANSLOG_STORE_ENABLED));
+        assertEquals(remoteTranslogRepo, indexSettings.get(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY));
+        assertEquals(translogBufferInterval, indexSettings.get(SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL));
     }
 }

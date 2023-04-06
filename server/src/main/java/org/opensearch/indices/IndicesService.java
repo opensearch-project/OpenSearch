@@ -255,10 +255,20 @@ public class IndicesService extends AbstractLifecycleComponent
     );
 
     /**
-     * Used to specify default repo to use for remote store backed indices
+     * Used to specify default repo to use for segment upload for remote store backed indices
      */
-    public static final Setting<String> CLUSTER_REMOTE_STORE_DEFAULT_REPO_SETTING = Setting.simpleString(
-        "cluster.remote_store.repository.default",
+    public static final Setting<String> CLUSTER_REMOTE_STORE_DEFAULT_SEGMENT_REPO_SETTING = Setting.simpleString(
+        "cluster.remote_store.repository.segment.default",
+        "",
+        Property.NodeScope,
+        Property.Final
+    );
+
+    /**
+     * Used to specify default repo to use for translog upload for remote store backed indices
+     */
+    public static final Setting<String> CLUSTER_REMOTE_STORE_DEFAULT_TRANSLOG_REPO_SETTING = Setting.simpleString(
+        "cluster.remote_store.repository.translog.default",
         "",
         Property.NodeScope,
         Property.Final

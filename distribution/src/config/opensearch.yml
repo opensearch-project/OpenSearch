@@ -91,8 +91,11 @@ ${path.logs}
 # Controls whether cluster imposes index creation only with remote store enabled
 # cluster.remote_store.enabled.force: true
 #
-# Repository to use while enforcing remote store for an index
-# cluster.remote_store.repository.default: my-repo-1
+# Repository to use for segment upload while enforcing remote store for an index
+# cluster.remote_store.repository.segment.default: my-repo-1
+#
+# Repository to use for translog upload while enforcing remote store for an index
+# cluster.remote_store.repository.translog.default: my-repo-1
 #
 # ---------------------------------- Experimental Features -----------------------------------
 #
