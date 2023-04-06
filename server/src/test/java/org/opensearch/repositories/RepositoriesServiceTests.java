@@ -354,7 +354,12 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
         }
 
         @Override
-        public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
+        public IndexShardSnapshotStatus getShardSnapshotStatus(
+            SnapshotId snapshotId,
+            IndexId indexId,
+            ShardId shardId,
+            boolean isRemoteIndexShard
+        ) {
             return null;
         }
 

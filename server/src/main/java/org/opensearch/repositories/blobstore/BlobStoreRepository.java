@@ -2850,17 +2850,35 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-        BlobStoreIndexShardSnapshot snapshot = loadShardSnapshot(shardContainer(indexId, shardId), snapshotId);
-        return IndexShardSnapshotStatus.newDone(
-            snapshot.startTime(),
-            snapshot.time(),
-            snapshot.incrementalFileCount(),
-            snapshot.totalFileCount(),
-            snapshot.incrementalSize(),
-            snapshot.totalSize(),
-            null
-        ); // Not adding a real generation here as it doesn't matter to callers
+    public IndexShardSnapshotStatus getShardSnapshotStatus(
+        SnapshotId snapshotId,
+        IndexId indexId,
+        ShardId shardId,
+        boolean isRemoteIndexShard
+    ) {
+        if (!isRemoteIndexShard) {
+            BlobStoreIndexShardSnapshot snapshot = loadShardSnapshot(shardContainer(indexId, shardId), snapshotId);
+            return IndexShardSnapshotStatus.newDone(
+                snapshot.startTime(),
+                snapshot.time(),
+                snapshot.incrementalFileCount(),
+                snapshot.totalFileCount(),
+                snapshot.incrementalSize(),
+                snapshot.totalSize(),
+                null
+            ); // Not adding a real generation here as it doesn't matter to callers
+        } else {
+            RemoteStoreShardShallowCopySnapshot snapshot = loadRemStoreEnabledShardSnapshot(shardContainer(indexId, shardId), snapshotId);
+            return IndexShardSnapshotStatus.newDone(
+                snapshot.startTime(),
+                snapshot.time(),
+                snapshot.incrementalFileCount(),
+                snapshot.totalFileCount(),
+                snapshot.incrementalSize(),
+                snapshot.totalSize(),
+                null
+            ); // Not adding a real generation here as it doesn't matter to callers
+        }
     }
 
     @Override
