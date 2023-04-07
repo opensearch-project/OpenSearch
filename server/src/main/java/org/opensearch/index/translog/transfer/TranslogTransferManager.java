@@ -81,7 +81,7 @@ public class TranslogTransferManager {
                 translogTransferListener.onUploadComplete(transferSnapshot);
                 return true;
             }
-            final CountDownLatch latch = new CountDownLatch(toUpload.size());
+            final CountDownLatch latch = new CountDownLatch(toUpload.size() + 1);
             LatchedActionListener<TransferFileSnapshot> latchedActionListener = new LatchedActionListener<>(
                 ActionListener.wrap(fileTransferTracker::onSuccess, ex -> {
                     assert ex instanceof FileTransferException;
@@ -106,6 +106,29 @@ public class TranslogTransferManager {
                     latchedActionListener
                 )
             );
+
+            // Different listener of metadata as we are not adding it to fileTransferTracker
+            ActionListener<TransferFileSnapshot> mdListener = new ActionListener<>() {
+                @Override
+                public void onResponse(TransferFileSnapshot response) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.info("failed to upload metadata", e);
+                    exceptionList.add(e);
+                    latch.countDown();
+                }
+            };
+
+            transferService.uploadBlobAsync(
+                ThreadPool.Names.TRANSLOG_TRANSFER,
+                prepareMetadata(transferSnapshot),
+                remoteMetadataTransferPath,
+                mdListener
+            );
+
             try {
                 if (latch.await(TRANSFER_TIMEOUT_IN_MILLIS, TimeUnit.MILLISECONDS) == false) {
                     Exception ex = new TimeoutException("Timed out waiting for transfer of snapshot " + transferSnapshot + " to complete");
@@ -118,7 +141,6 @@ public class TranslogTransferManager {
                 throw ex;
             }
             if (exceptionList.isEmpty()) {
-                transferService.uploadBlob(prepareMetadata(transferSnapshot), remoteMetadataTransferPath);
                 translogTransferListener.onUploadComplete(transferSnapshot);
                 return true;
             } else {
@@ -149,6 +171,13 @@ public class TranslogTransferManager {
         return true;
     }
 
+    boolean generationExists(String primaryTerm, String generation) throws IOException {
+        Set<String> allFiles = transferService.listAll(remoteBaseTransferPath.add(primaryTerm));
+        String ckpFileName = Translog.getCommitCheckpointFileName(Long.parseLong(generation));
+        String translogFilename = Translog.getFilename(Long.parseLong(generation));
+        return allFiles.contains(ckpFileName) && allFiles.contains(translogFilename);
+    }
+
     private void downloadToFS(String fileName, Path location, String primaryTerm) throws IOException {
         Path filePath = location.resolve(fileName);
         // Here, we always override the existing file if present.
@@ -163,16 +192,37 @@ public class TranslogTransferManager {
         fileTransferTracker.add(fileName, true);
     }
 
+    /*
+    Finds out most recent metadata which has all the referenced translog and ckp files uploaded to the remote
+    This is needed as we upload metadata, translog and ckp all in async fashion .
+    Hence, there are no guarantees if the translog and ckp files referred in metadata files are uploaded successfully
+     */
     public TranslogTransferMetadata readMetadata() throws IOException {
-        return transferService.listAll(remoteMetadataTransferPath).stream().max(METADATA_FILENAME_COMPARATOR).map(filename -> {
-            try (InputStream inputStream = transferService.downloadBlob(remoteMetadataTransferPath, filename);) {
+        List<String> allMetadataFiles = transferService.listAll(remoteMetadataTransferPath)
+            .stream()
+            .sorted(METADATA_FILENAME_COMPARATOR.reversed())
+            .collect(Collectors.toList());
+        for (String mdFilename : allMetadataFiles) {
+            try (InputStream inputStream = transferService.downloadBlob(remoteMetadataTransferPath, mdFilename)) {
                 IndexInput indexInput = new ByteArrayIndexInput("metadata file", inputStream.readAllBytes());
-                return new TranslogTransferMetadata(indexInput);
-            } catch (IOException e) {
-                logger.error(() -> new ParameterizedMessage("Exception while reading metadata file: {}", filename), e);
-                return null;
+                TranslogTransferMetadata translogMetadata = new TranslogTransferMetadata(indexInput);
+                Map<String, String> generationToPrimaryTermMapper = translogMetadata.getGenerationToPrimaryTermMapper();
+                boolean isComplete = true;
+                for (long i = translogMetadata.getGeneration(); i >= translogMetadata.getMinTranslogGeneration(); i--) {
+                    String generation = Long.toString(i);
+                    if (!generationExists(generationToPrimaryTermMapper.get(generation), generation)) {
+                        isComplete = false;
+                        logger.info("Missing generation is {}", generation);
+                        break;
+                    }
+                }
+                if (isComplete) {
+                    logger.info("Complete metadata found {}", mdFilename);
+                    return translogMetadata;
+                }
             }
-        }).orElse(null);
+        }
+        return null;
     }
 
     private TransferFileSnapshot prepareMetadata(TransferSnapshot transferSnapshot) throws IOException {

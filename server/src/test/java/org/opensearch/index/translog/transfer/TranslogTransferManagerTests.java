@@ -32,7 +32,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -61,7 +63,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         assumeFalse("Test does not run on Windows", Constants.WINDOWS);
         primaryTerm = randomNonNegativeLong();
         generation = randomNonNegativeLong();
-        minTranslogGeneration = randomLongBetween(0, generation);
+        minTranslogGeneration = randomLongBetween(generation - 100, generation);
         remoteBaseTransferPath = new BlobPath().add("base_path");
         transferService = mock(TransferService.class);
         threadPool = new TestThreadPool(getClass().getName());
@@ -174,9 +176,24 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
             @Override
             public TranslogTransferMetadata getTranslogTransferMetadata() {
-                return new TranslogTransferMetadata(primaryTerm, generation, minTranslogGeneration, randomInt(5));
+                TranslogTransferMetadata translogTransferMetadata = new TranslogTransferMetadata(
+                    primaryTerm,
+                    generation,
+                    minTranslogGeneration,
+                    randomInt(5)
+                );
+                return translogTransferMetadata;
             }
         };
+    }
+
+    private void setGenerationToPrimaryTermMapper(TranslogTransferMetadata translogTransferMetadata) {
+        Map<String, String> generationPrimaryTermMap = new HashMap<>();
+        for (long i = minTranslogGeneration; i <= generation; i++) {
+            generationPrimaryTermMap.put(String.valueOf(i), String.valueOf(primaryTerm));
+            ;
+        }
+        translogTransferMetadata.setGenerationToPrimaryTermMapper(new HashMap<>(generationPrimaryTermMap));
     }
 
     public void testReadMetadataNoFile() throws IOException {
@@ -186,33 +203,6 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         assertNull(translogTransferManager.readMetadata());
     }
 
-    public void testReadMetadataSingleFile() throws IOException {
-        TranslogTransferManager translogTransferManager = new TranslogTransferManager(transferService, remoteBaseTransferPath, null);
-
-        // BlobPath does not have equals method, so we can't use the instance directly in when
-        when(transferService.listAll(any(BlobPath.class))).thenReturn(Sets.newHashSet("12__234"));
-
-        TranslogTransferMetadata metadata = createTransferSnapshot().getTranslogTransferMetadata();
-        when(transferService.downloadBlob(any(BlobPath.class), eq("12__234"))).thenReturn(
-            new ByteArrayInputStream(metadata.createMetadataBytes())
-        );
-
-        assertEquals(metadata, translogTransferManager.readMetadata());
-    }
-
-    public void testReadMetadataMultipleFiles() throws IOException {
-        TranslogTransferManager translogTransferManager = new TranslogTransferManager(transferService, remoteBaseTransferPath, null);
-
-        when(transferService.listAll(any(BlobPath.class))).thenReturn(Sets.newHashSet("12__234", "12__235", "12__233"));
-
-        TranslogTransferMetadata metadata = createTransferSnapshot().getTranslogTransferMetadata();
-        when(transferService.downloadBlob(any(BlobPath.class), eq("12__235"))).thenReturn(
-            new ByteArrayInputStream(metadata.createMetadataBytes())
-        );
-
-        assertEquals(metadata, translogTransferManager.readMetadata());
-    }
-
     public void testReadMetadataException() throws IOException {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(transferService, remoteBaseTransferPath, null);
 
@@ -220,7 +210,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
         when(transferService.downloadBlob(any(BlobPath.class), eq("12__235"))).thenThrow(new IOException("Something went wrong"));
 
-        assertNull(translogTransferManager.readMetadata());
+        assertThrows(IOException.class, () -> translogTransferManager.readMetadata());
     }
 
     public void testReadMetadataSamePrimaryTermGeneration() throws IOException {
@@ -348,4 +338,150 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         translogTransferManager.deleteGenerationAsync(primaryTerm, Set.of(19L), () -> {});
         assertEquals(2, tracker.allUploaded().size());
     }
+
+    public void testGenerationExist() throws Exception {
+        FileTransferTracker tracker = new FileTransferTracker(new ShardId("index", "indexUuid", 0));
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(transferService, remoteBaseTransferPath, tracker);
+
+        // BlobPath does not have equals method, so we can't use the instance directly in when
+
+        // no file
+        when(transferService.listAll(any(BlobPath.class))).thenReturn(Sets.newHashSet());
+        assertEquals(false, translogTransferManager.generationExists(String.valueOf(primaryTerm), String.valueOf(generation)));
+
+        // only ckp
+        when(transferService.listAll(any(BlobPath.class))).thenReturn(Sets.newHashSet(Translog.getFilename(generation)));
+        assertEquals(false, translogTransferManager.generationExists(String.valueOf(primaryTerm), String.valueOf(generation)));
+
+        // only tlog
+        when(transferService.listAll(any(BlobPath.class))).thenReturn(Sets.newHashSet(Translog.getCommitCheckpointFileName(generation)));
+        assertEquals(false, translogTransferManager.generationExists(String.valueOf(primaryTerm), String.valueOf(generation)));
+
+        // both tlog and ckp
+        when(transferService.listAll(any(BlobPath.class))).thenReturn(
+            Sets.newHashSet(Translog.getFilename(generation), Translog.getCommitCheckpointFileName(generation))
+        );
+        assertEquals(true, translogTransferManager.generationExists(String.valueOf(primaryTerm), String.valueOf(generation)));
+    }
+
+    public void testReadMetadataSingleFile() throws Exception {
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(transferService, remoteBaseTransferPath, null);
+
+        // BlobPath does not have equals method, so we can't use the instance directly in when
+        String mdFile = primaryTerm + "__" + generation;
+
+        minTranslogGeneration = generation - randomLongBetween(1, 10);
+
+        Set<String> allCkpFiles = Sets.newHashSet();
+        for (long i = minTranslogGeneration; i <= generation; i++) {
+            allCkpFiles.add(Translog.getFilename(i));
+            allCkpFiles.add(Translog.getCommitCheckpointFileName(i));
+        }
+
+        when(transferService.listAll(any(BlobPath.class))).thenReturn(Sets.newHashSet(mdFile), allCkpFiles);
+
+        TranslogTransferMetadata metadata = createTransferSnapshot().getTranslogTransferMetadata();
+        setGenerationToPrimaryTermMapper(metadata);
+        when(transferService.downloadBlob(any(BlobPath.class), eq(mdFile))).thenReturn(
+            new ByteArrayInputStream(metadata.createMetadataBytes())
+        );
+
+        assertEquals(metadata, translogTransferManager.readMetadata());
+
+        // delete one file from CkpFile list . Incomplete metadata file.
+        allCkpFiles.remove(Translog.getFilename(minTranslogGeneration));
+        when(transferService.listAll(any(BlobPath.class))).thenReturn(Sets.newHashSet(mdFile), allCkpFiles);
+
+        metadata = createTransferSnapshot().getTranslogTransferMetadata();
+        setGenerationToPrimaryTermMapper(metadata);
+        when(transferService.downloadBlob(any(BlobPath.class), eq(mdFile))).thenReturn(
+            new ByteArrayInputStream(metadata.createMetadataBytes())
+        );
+
+        assertEquals(null, translogTransferManager.readMetadata());
+    }
+
+    public void testReadMetadata_MultipleMetadata() throws Exception {
+        /*
+        2 Metadafiles
+        Latest one is one generation ahead , but no corresponding ckp and tlog files
+        Previous is complete one.
+         */
+
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(transferService, remoteBaseTransferPath, null);
+
+        // BlobPath does not have equals method, so we can't use the instance directly in when
+        String mdFile = primaryTerm + "__" + generation;
+        String incompMDFile = primaryTerm + "__" + (generation + 1);
+
+        minTranslogGeneration = generation - randomLongBetween(1, 10);
+
+        Set<String> allCkpFiles = Sets.newHashSet();
+        for (long i = minTranslogGeneration; i <= generation; i++) {
+            allCkpFiles.add(Translog.getFilename(i));
+            allCkpFiles.add(Translog.getCommitCheckpointFileName(i));
+        }
+
+        when(transferService.listAll(any(BlobPath.class))).thenReturn(Sets.newHashSet(mdFile, incompMDFile), allCkpFiles);
+
+        TranslogTransferMetadata metadata = createTransferSnapshot().getTranslogTransferMetadata();
+        setGenerationToPrimaryTermMapper(metadata);
+
+        generation++;
+        TranslogTransferMetadata incompMetadata = createTransferSnapshot().getTranslogTransferMetadata();
+        setGenerationToPrimaryTermMapper(incompMetadata);
+
+        when(transferService.downloadBlob(any(BlobPath.class), eq(mdFile))).thenReturn(
+            new ByteArrayInputStream(metadata.createMetadataBytes())
+        );
+
+        when(transferService.downloadBlob(any(BlobPath.class), eq(incompMDFile))).thenReturn(
+            new ByteArrayInputStream(incompMetadata.createMetadataBytes())
+        );
+
+        assertEquals(metadata, translogTransferManager.readMetadata());
+    }
+
+    public void testReadMetadata_MultipleCompleteMetadata() throws Exception {
+        /*
+        2 Metadafiles : Both complete
+         */
+
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(transferService, remoteBaseTransferPath, null);
+
+        // BlobPath does not have equals method, so we can't use the instance directly in when
+        String mdFile = primaryTerm + "__" + (generation - 1);
+        String latestMDFile = primaryTerm + "__" + generation;
+
+        minTranslogGeneration = generation - randomLongBetween(1, 10);
+
+        Set<String> allCkpFiles = Sets.newHashSet();
+        for (long i = minTranslogGeneration; i <= generation; i++) {
+            allCkpFiles.add(Translog.getFilename(i));
+            allCkpFiles.add(Translog.getCommitCheckpointFileName(i));
+        }
+
+        when(transferService.listAll(any(BlobPath.class))).thenReturn(Sets.newHashSet(mdFile, latestMDFile), allCkpFiles);
+
+        // Older metadata
+        generation--;
+        TranslogTransferMetadata metadata = createTransferSnapshot().getTranslogTransferMetadata();
+        setGenerationToPrimaryTermMapper(metadata);
+
+        // Latest metadata
+        generation++;
+        TranslogTransferMetadata latestMetadata = createTransferSnapshot().getTranslogTransferMetadata();
+        setGenerationToPrimaryTermMapper(latestMetadata);
+
+        when(transferService.downloadBlob(any(BlobPath.class), eq(mdFile))).thenReturn(
+            new ByteArrayInputStream(metadata.createMetadataBytes())
+        );
+
+        when(transferService.downloadBlob(any(BlobPath.class), eq(latestMDFile))).thenReturn(
+            new ByteArrayInputStream(latestMetadata.createMetadataBytes())
+        );
+
+        assertEquals(latestMetadata, translogTransferManager.readMetadata());
+    }
+
 }
