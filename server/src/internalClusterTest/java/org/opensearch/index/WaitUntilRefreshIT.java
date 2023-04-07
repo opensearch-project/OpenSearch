@@ -44,7 +44,6 @@ import org.opensearch.action.update.UpdateResponse;
 import org.opensearch.client.Requests;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestStatus;
@@ -78,7 +77,7 @@ public class WaitUntilRefreshIT extends OpenSearchIntegTestCase {
     public Settings indexSettings() {
         // Use a shorter refresh interval to speed up the tests. We'll be waiting on this interval several times.
         final Settings.Builder builder = Settings.builder().put(super.indexSettings()).put("index.refresh_interval", "40ms");
-        if (FeatureFlags.isEnabled(FeatureFlags.REPLICATION_TYPE)) {
+        if (randomBoolean()) {
             builder.put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT);
         }
         return builder.build();

@@ -244,7 +244,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
-import static org.opensearch.common.util.FeatureFlags.REPLICATION_TYPE;
 import static org.opensearch.env.NodeEnvironment.collectFileCacheDataPath;
 import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
 
@@ -1077,23 +1076,18 @@ public class Node implements Closeable {
                         .toInstance(new PeerRecoverySourceService(transportService, indicesService, recoverySettings));
                     b.bind(PeerRecoveryTargetService.class)
                         .toInstance(new PeerRecoveryTargetService(threadPool, transportService, recoverySettings, clusterService));
-                    if (FeatureFlags.isEnabled(REPLICATION_TYPE)) {
-                        b.bind(SegmentReplicationTargetService.class)
-                            .toInstance(
-                                new SegmentReplicationTargetService(
-                                    threadPool,
-                                    recoverySettings,
-                                    transportService,
-                                    new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService),
-                                    indicesService
-                                )
-                            );
-                        b.bind(SegmentReplicationSourceService.class)
-                            .toInstance(new SegmentReplicationSourceService(indicesService, transportService, recoverySettings));
-                    } else {
-                        b.bind(SegmentReplicationTargetService.class).toInstance(SegmentReplicationTargetService.NO_OP);
-                        b.bind(SegmentReplicationSourceService.class).toInstance(SegmentReplicationSourceService.NO_OP);
-                    }
+                    b.bind(SegmentReplicationTargetService.class)
+                        .toInstance(
+                            new SegmentReplicationTargetService(
+                                threadPool,
+                                recoverySettings,
+                                transportService,
+                                new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService),
+                                indicesService
+                            )
+                        );
+                    b.bind(SegmentReplicationSourceService.class)
+                        .toInstance(new SegmentReplicationSourceService(indicesService, transportService, recoverySettings));
                 }
                 b.bind(HttpServerTransport.class).toInstance(httpServerTransport);
                 pluginComponents.stream().forEach(p -> b.bind((Class) p.getClass()).toInstance(p));
@@ -1244,9 +1238,7 @@ public class Node implements Closeable {
         assert transportService.getLocalNode().equals(localNodeFactory.getNode())
             : "transportService has a different local node than the factory provided";
         injector.getInstance(PeerRecoverySourceService.class).start();
-        if (FeatureFlags.isEnabled(REPLICATION_TYPE)) {
-            injector.getInstance(SegmentReplicationSourceService.class).start();
-        }
+        injector.getInstance(SegmentReplicationSourceService.class).start();
 
         // Load (and maybe upgrade) the metadata stored on disk
         final GatewayMetaState gatewayMetaState = injector.getInstance(GatewayMetaState.class);
@@ -1426,9 +1418,7 @@ public class Node implements Closeable {
         // close filter/fielddata caches after indices
         toClose.add(injector.getInstance(IndicesStore.class));
         toClose.add(injector.getInstance(PeerRecoverySourceService.class));
-        if (FeatureFlags.isEnabled(REPLICATION_TYPE)) {
-            toClose.add(injector.getInstance(SegmentReplicationSourceService.class));
-        }
+        toClose.add(injector.getInstance(SegmentReplicationSourceService.class));
         toClose.add(() -> stopWatch.stop().start("cluster"));
         toClose.add(injector.getInstance(ClusterService.class));
         toClose.add(() -> stopWatch.stop().start("node_connections_service"));

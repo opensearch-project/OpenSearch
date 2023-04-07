@@ -22,12 +22,6 @@ import org.opensearch.common.settings.Settings;
 public class FeatureFlags {
 
     /**
-     * Gates the visibility of the index setting that allows changing of replication type.
-     * Once the feature is ready for production release, this feature flag can be removed.
-     */
-    public static final String REPLICATION_TYPE = "opensearch.experimental.feature.replication_type.enabled";
-
-    /**
      * Gates the visibility of the segment replication experimental features that allows users to test unreleased beta features.
      */
     public static final String SEGMENT_REPLICATION_EXPERIMENTAL =
@@ -87,8 +81,6 @@ public class FeatureFlags {
         }
         return settings != null && settings.getAsBoolean(featureFlagName, false);
     }
-
-    public static final Setting<Boolean> REPLICATION_TYPE_SETTING = Setting.boolSetting(REPLICATION_TYPE, false, Property.NodeScope);
 
     public static final Setting<Boolean> SEGMENT_REPLICATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
         SEGMENT_REPLICATION_EXPERIMENTAL,
