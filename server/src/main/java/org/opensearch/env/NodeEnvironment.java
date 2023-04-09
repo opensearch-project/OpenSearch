@@ -1307,9 +1307,7 @@ public final class NodeEnvironment implements Closeable {
      * @param shardId shard to resolve the path to
      */
     public Path resolveFileCacheLocation(final Path fileCachePath, final ShardId shardId) {
-        return fileCachePath.resolve(Integer.toString(nodeLockId))
-            .resolve(shardId.getIndex().getUUID())
-            .resolve(Integer.toString(shardId.id()));
+        return fileCachePath.resolve(shardId.getIndex().getUUID()).resolve(Integer.toString(shardId.id()));
     }
 
     /**
