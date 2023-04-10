@@ -144,9 +144,7 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
         );
         assertThat(
             exc.getMessage(),
-            containsString(
-                "Settings index.remote_store.repository can only be set/enabled when index.remote_store.enabled is set to true"
-            )
+            containsString("Settings index.remote_store.repository can only be set/enabled when index.remote_store.enabled is set to true")
         );
     }
 
