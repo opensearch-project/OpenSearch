@@ -41,6 +41,8 @@ public class RemoteSegmentUploadShardStatsTracker {
 
     private volatile long totalUploadsSucceeded = UNASSIGNED;
 
+    private volatile long totalUploadsSkipped = UNASSIGNED;
+
     /**
      * Keeps map of filename to bytes length of the local segments post most recent refresh.
      */
@@ -73,6 +75,10 @@ public class RemoteSegmentUploadShardStatsTracker {
 
     public void incrementTotalUploadsSucceeded() {
         totalUploadsSucceeded += 1;
+    }
+
+    public void incrementTotalUploadsSkipped() {
+        totalUploadsSkipped += 1;
     }
 
     public void updateLocalRefreshSeqNo(long localRefreshSeqNo) {
