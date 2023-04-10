@@ -8,22 +8,33 @@
 
 package org.opensearch.index.store;
 
+import com.jcraft.jzlib.JZlib;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.lucene.store.ByteArrayIndexInput;
-import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
+import org.opensearch.common.blobstore.stream.write.UploadResponse;
+import org.opensearch.common.blobstore.stream.write.WriteContext;
+import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
+import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
+import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.common.util.ByteUtils;
+import org.opensearch.index.store.exception.ChecksumCombinationException;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
 
 import java.io.IOException;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -33,9 +44,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
+import java.util.zip.CRC32;
 
 /**
  * A RemoteDirectory extension for remote segment store. We need to make sure we don't overwrite a segment file once uploaded.
@@ -53,6 +68,11 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      * For example, _0.cfe in local filesystem will be uploaded to remote segment store as _0.cfe__gX7bNIIBrs0AUNsR2yEG
      */
     public static final String SEGMENT_NAME_UUID_SEPARATOR = "__";
+
+    /**
+     * Number of bytes in the segment file to store checksum
+     */
+    private static final int SEGMENT_CHECKSUM_BYTES = 8;
 
     public static final MetadataFilenameUtils.MetadataFilenameComparator METADATA_FILENAME_COMPARATOR =
         new MetadataFilenameUtils.MetadataFilenameComparator();
@@ -317,14 +337,106 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
         }
     }
 
-    public void copyFrom(Directory from, String src, String dest, IOContext context, boolean useCommonSuffix) throws IOException {
+    public void copyFilesFrom(Directory from, Collection<String> files, IOContext context) throws Exception {
+
+        List<CompletableFuture<UploadResponse>> resultFutures = new ArrayList<>();
+
+        for (String src : files) {
+            String remoteFilename = createRemoteFileName(src, false);
+            if (remoteDataDirectory.getBlobContainer().isMultiStreamUploadSupported()) {
+                CompletableFuture<UploadResponse> resultFuture = createUploadFuture(from, src, remoteFilename, context);
+                resultFutures.add(resultFuture);
+            } else {
+                copyFrom(from, src, src, context, false);
+            }
+        }
+
+        if (resultFutures.isEmpty() == false) {
+            CompletableFuture<Void> resultFuture = CompletableFuture.allOf(resultFutures.toArray(new CompletableFuture[0]));
+            try {
+                resultFuture.get();
+            } catch (ExecutionException e) {
+                IOException corruptIndexException = ExceptionsHelper.unwrapCorruption(e);
+                if (corruptIndexException != null) {
+                    throw corruptIndexException;
+                }
+                throw e;
+            }
+        }
+    }
+
+    private CompletableFuture<UploadResponse> createUploadFuture(Directory from, String src, String remoteFileName, IOContext ioContext)
+        throws Exception {
+
+        AtomicReference<Exception> exceptionRef = new AtomicReference<>();
+        long expectedChecksum = calculateChecksumOfChecksum(from, src);
+        long contentLength;
+        try (IndexInput indexInput = from.openInput(src, ioContext)) {
+            contentLength = indexInput.length();
+        }
+        RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
+            src,
+            remoteFileName,
+            contentLength,
+            true,
+            WritePriority.NORMAL,
+            (size, position) -> new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position),
+            expectedChecksum
+        );
+        WriteContext writeContext = remoteTransferContainer.createWriteContext();
+        CompletableFuture<UploadResponse> uploadFuture = remoteDataDirectory.getBlobContainer().writeBlobByStreams(writeContext);
+        return uploadFuture.whenComplete((resp, throwable) -> {
+            try {
+                remoteTransferContainer.close();
+            } catch (Exception e) {
+                logger.warn("Error occurred while closing streams", e);
+            }
+            if (throwable != null) {
+                handleException(throwable, exceptionRef);
+            } else {
+                try {
+                    postUpload(from, src, remoteFileName);
+                } catch (Exception e) {
+                    logger.error(() -> new ParameterizedMessage("Exception in segment postUpload for file [{}]", src), e);
+                    handleException(e, exceptionRef);
+                }
+            }
+        });
+    }
+
+    private void handleException(Throwable throwable, AtomicReference<Exception> exceptionRef) {
+        Exception ex;
+        if (throwable instanceof Exception) {
+            ex = (Exception) throwable;
+        } else {
+            ex = new RuntimeException(throwable);
+        }
+
+        if (exceptionRef.get() == null) {
+            exceptionRef.set(ex);
+        } else {
+            exceptionRef.get().addSuppressed(ex);
+        }
+    }
+
+    private String createRemoteFileName(String dest, boolean useCommonSuffix) {
         String remoteFilename;
         if (useCommonSuffix) {
             remoteFilename = dest + SEGMENT_NAME_UUID_SEPARATOR + this.commonFilenameSuffix;
         } else {
             remoteFilename = getNewRemoteSegmentFilename(dest);
         }
+
+        return remoteFilename;
+    }
+
+    public void copyFrom(Directory from, String src, String dest, IOContext context, boolean useCommonSuffix) throws IOException {
+        String remoteFilename = createRemoteFileName(dest, useCommonSuffix);
         remoteDataDirectory.copyFrom(from, src, remoteFilename, context);
+        postUpload(from, src, remoteFilename);
+    }
+
+    private void postUpload(Directory from, String src, String remoteFilename) throws IOException {
         String checksum = getChecksumOfLocalFile(from, src);
         UploadedSegmentMetadata segmentMetadata = new UploadedSegmentMetadata(src, remoteFilename, checksum, from.fileLength(src));
         segmentsUploadedToRemoteStore.put(src, segmentMetadata);
@@ -384,6 +496,27 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
     private String getChecksumOfLocalFile(Directory directory, String file) throws IOException {
         try (IndexInput indexInput = directory.openInput(file, IOContext.DEFAULT)) {
             return Long.toString(CodecUtil.retrieveChecksum(indexInput));
+        }
+    }
+
+    private long calculateChecksumOfChecksum(Directory directory, String file) throws IOException {
+        try (IndexInput indexInput = directory.openInput(file, IOContext.DEFAULT)) {
+            long storedChecksum = CodecUtil.retrieveChecksum(indexInput);
+            CRC32 checksumOfChecksum = new CRC32();
+            checksumOfChecksum.update(ByteUtils.toByteArrayBE(storedChecksum));
+            try {
+                return JZlib.crc32_combine(storedChecksum, checksumOfChecksum.getValue(), SEGMENT_CHECKSUM_BYTES);
+            } catch (Exception e) {
+                throw new ChecksumCombinationException(
+                    "Potentially corrupted file: Checksum combination failed while combining stored checksum "
+                        + "and calculated checksum of stored checksum in segment file: "
+                        + file
+                        + ", directory: "
+                        + directory,
+                    file,
+                    e
+                );
+            }
         }
     }
 

@@ -146,8 +146,14 @@ dependencies {
   // jna
   api "net.java.dev.jna:jna:${versions.jna}"
 
+  // jcraft
+  api "com.jcraft:jzlib:${versions.jzlib}"
+
   // protobuf
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
+
+  // jcraft
+  api "com.jcraft:jzlib:${versions.jzlib}"
 
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
