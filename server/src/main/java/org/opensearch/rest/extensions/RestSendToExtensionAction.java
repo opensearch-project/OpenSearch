@@ -29,6 +29,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
+import org.opensearch.http.HttpRequest;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -37,6 +38,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
@@ -65,6 +68,9 @@ public class RestSendToExtensionAction extends BaseRestHandler {
     private final String pathPrefix;
     private final DiscoveryExtensionNode discoveryExtensionNode;
     private final TransportService transportService;
+
+    private static final Set<String> allowList = Set.of("Content-Type");
+    private static final Set<String> denyList = Set.of("Authorization", "Proxy-Authorization");
 
     /**
      * Instantiates this object using a {@link RegisterRestActionsRequest} to populate the routes.
@@ -119,13 +125,26 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         return this.routes;
     }
 
+    public Map<String, List<String>> filterHeaders(Map<String, List<String>> headers, Set<String> allowList, Set<String> denyList) {
+        Map<String, List<String>> filteredHeaders = headers.entrySet()
+            .stream()
+            .filter(e -> !denyList.contains(e.getKey()))
+            .filter(e -> allowList.contains(e.getKey()))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        return filteredHeaders;
+    }
+
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        Method method = request.method();
+        HttpRequest httpRequest = request.getHttpRequest();
         String path = request.path();
+        Method method = request.method();
+        String uri = httpRequest.uri();
         Map<String, String> params = request.params();
+        Map<String, List<String>> headers = request.getHeaders();
         XContentType contentType = request.getXContentType();
         BytesReference content = request.content();
+        HttpRequest.HttpVersion httpVersion = httpRequest.protocolVersion();
 
         if (path.startsWith(pathPrefix)) {
             path = path.substring(pathPrefix.length());
@@ -176,17 +195,30 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 return ThreadPool.Names.GENERIC;
             }
         };
+
         try {
             // Will be replaced with ExtensionTokenProcessor and PrincipalIdentifierToken classes from feature/identity
             final String extensionTokenProcessor = "placeholder_token_processor";
             final String requestIssuerIdentity = "placeholder_request_issuer_identity";
 
+            Map<String, List<String>> filteredHeaders = filterHeaders(headers, allowList, denyList);
+
             transportService.sendRequest(
                 discoveryExtensionNode,
                 ExtensionsManager.REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION,
-                // HERE BE DRAGONS - DO NOT INCLUDE HEADERS
+                // DO NOT INCLUDE HEADERS WITH SECURITY OR PRIVACY INFORMATION
                 // SEE https://github.com/opensearch-project/OpenSearch/issues/4429
-                new ExtensionRestRequest(method, path, params, contentType, content, requestIssuerIdentity),
+                new ExtensionRestRequest(
+                    method,
+                    uri,
+                    path,
+                    params,
+                    filteredHeaders,
+                    contentType,
+                    content,
+                    requestIssuerIdentity,
+                    httpVersion
+                ),
                 restExecuteOnExtensionResponseHandler
             );
             inProgressFuture.orTimeout(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).join();

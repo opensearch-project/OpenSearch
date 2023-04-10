@@ -52,7 +52,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.DocumentMapper;

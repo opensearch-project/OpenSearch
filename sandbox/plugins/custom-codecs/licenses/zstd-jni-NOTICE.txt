@@ -1,0 +1,1 @@
+The code for the JNI bindings to Zstd library was originally authored by Luben Karavelov

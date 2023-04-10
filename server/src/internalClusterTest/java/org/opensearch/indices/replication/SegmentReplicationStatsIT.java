@@ -72,6 +72,7 @@ public class SegmentReplicationStatsIT extends SegmentReplicationBaseIT {
             assertEquals(segmentReplicationStatsResponse.getReplicationStats().size(), 1);
             assertEquals(segmentReplicationStatsResponse.getTotalShards(), numShards * 2);
             assertEquals(segmentReplicationStatsResponse.getSuccessfulShards(), numShards * 2);
+            assertNotNull(currentReplicationState);
             assertEquals(currentReplicationState.getStage(), SegmentReplicationState.Stage.DONE);
             assertTrue(currentReplicationState.getIndex().recoveredFileCount() > 0);
         }, 1, TimeUnit.MINUTES);

@@ -51,7 +51,7 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.cache.query.QueryCacheStats;
 import org.opensearch.index.shard.ShardId;
@@ -143,6 +143,7 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         assertEquals(0L, stats.getCacheCount());
         assertEquals(0L, stats.getHitCount());
         assertEquals(0L, stats.getMissCount());
+        assertEquals(0L, stats.getMemorySizeInBytes());
 
         assertEquals(1, s.count(new DummyQuery(0)));
 
@@ -151,6 +152,7 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         assertEquals(1L, stats.getCacheCount());
         assertEquals(0L, stats.getHitCount());
         assertEquals(1L, stats.getMissCount());
+        assertTrue(stats.getMemorySizeInBytes() > 0L && stats.getMemorySizeInBytes() < Long.MAX_VALUE);
 
         for (int i = 1; i < 20; ++i) {
             assertEquals(1, s.count(new DummyQuery(i)));
@@ -161,6 +163,7 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         assertEquals(20L, stats.getCacheCount());
         assertEquals(0L, stats.getHitCount());
         assertEquals(20L, stats.getMissCount());
+        assertTrue(stats.getMemorySizeInBytes() > 0L && stats.getMemorySizeInBytes() < Long.MAX_VALUE);
 
         s.count(new DummyQuery(10));
 
@@ -169,6 +172,7 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         assertEquals(20L, stats.getCacheCount());
         assertEquals(1L, stats.getHitCount());
         assertEquals(20L, stats.getMissCount());
+        assertTrue(stats.getMemorySizeInBytes() > 0L && stats.getMemorySizeInBytes() < Long.MAX_VALUE);
 
         IOUtils.close(r, dir);
 
@@ -178,6 +182,7 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         assertEquals(20L, stats.getCacheCount());
         assertEquals(1L, stats.getHitCount());
         assertEquals(20L, stats.getMissCount());
+        assertTrue(stats.getMemorySizeInBytes() > 0L && stats.getMemorySizeInBytes() < Long.MAX_VALUE);
 
         cache.onClose(shard);
 
@@ -187,6 +192,7 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         assertEquals(0L, stats.getCacheCount());
         assertEquals(0L, stats.getHitCount());
         assertEquals(0L, stats.getMissCount());
+        assertTrue(stats.getMemorySizeInBytes() >= 0L && stats.getMemorySizeInBytes() < Long.MAX_VALUE);
 
         cache.close(); // this triggers some assertions
     }
@@ -227,12 +233,14 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         assertEquals(1L, stats1.getCacheCount());
         assertEquals(0L, stats1.getHitCount());
         assertEquals(1L, stats1.getMissCount());
+        assertTrue(stats1.getMemorySizeInBytes() >= 0L && stats1.getMemorySizeInBytes() < Long.MAX_VALUE);
 
         QueryCacheStats stats2 = cache.getStats(shard2);
         assertEquals(0L, stats2.getCacheSize());
         assertEquals(0L, stats2.getCacheCount());
         assertEquals(0L, stats2.getHitCount());
         assertEquals(0L, stats2.getMissCount());
+        assertTrue(stats2.getMemorySizeInBytes() >= 0L && stats2.getMemorySizeInBytes() < Long.MAX_VALUE);
 
         assertEquals(1, s2.count(new DummyQuery(0)));
 
@@ -241,12 +249,14 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         assertEquals(1L, stats1.getCacheCount());
         assertEquals(0L, stats1.getHitCount());
         assertEquals(1L, stats1.getMissCount());
+        assertTrue(stats1.getMemorySizeInBytes() >= 0L && stats1.getMemorySizeInBytes() < Long.MAX_VALUE);
 
         stats2 = cache.getStats(shard2);
         assertEquals(1L, stats2.getCacheSize());
         assertEquals(1L, stats2.getCacheCount());
         assertEquals(0L, stats2.getHitCount());
         assertEquals(1L, stats2.getMissCount());
+        assertTrue(stats2.getMemorySizeInBytes() >= 0L && stats2.getMemorySizeInBytes() < Long.MAX_VALUE);
 
         for (int i = 0; i < 20; ++i) {
             assertEquals(1, s2.count(new DummyQuery(i)));
@@ -257,12 +267,14 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         assertEquals(1L, stats1.getCacheCount());
         assertEquals(0L, stats1.getHitCount());
         assertEquals(1L, stats1.getMissCount());
+        assertTrue(stats1.getMemorySizeInBytes() >= 0L && stats1.getMemorySizeInBytes() < Long.MAX_VALUE);
 
         stats2 = cache.getStats(shard2);
         assertEquals(10L, stats2.getCacheSize());
         assertEquals(20L, stats2.getCacheCount());
         assertEquals(1L, stats2.getHitCount());
         assertEquals(20L, stats2.getMissCount());
+        assertTrue(stats2.getMemorySizeInBytes() >= 0L && stats2.getMemorySizeInBytes() < Long.MAX_VALUE);
 
         IOUtils.close(r1, dir1);
 
@@ -272,12 +284,14 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         assertEquals(1L, stats1.getCacheCount());
         assertEquals(0L, stats1.getHitCount());
         assertEquals(1L, stats1.getMissCount());
+        assertTrue(stats1.getMemorySizeInBytes() >= 0L && stats1.getMemorySizeInBytes() < Long.MAX_VALUE);
 
         stats2 = cache.getStats(shard2);
         assertEquals(10L, stats2.getCacheSize());
         assertEquals(20L, stats2.getCacheCount());
         assertEquals(1L, stats2.getHitCount());
         assertEquals(20L, stats2.getMissCount());
+        assertTrue(stats2.getMemorySizeInBytes() >= 0L && stats2.getMemorySizeInBytes() < Long.MAX_VALUE);
 
         cache.onClose(shard1);
 
@@ -287,12 +301,14 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         assertEquals(0L, stats1.getCacheCount());
         assertEquals(0L, stats1.getHitCount());
         assertEquals(0L, stats1.getMissCount());
+        assertTrue(stats1.getMemorySizeInBytes() >= 0L && stats1.getMemorySizeInBytes() < Long.MAX_VALUE);
 
         stats2 = cache.getStats(shard2);
         assertEquals(10L, stats2.getCacheSize());
         assertEquals(20L, stats2.getCacheCount());
         assertEquals(1L, stats2.getHitCount());
         assertEquals(20L, stats2.getMissCount());
+        assertTrue(stats2.getMemorySizeInBytes() >= 0L && stats2.getMemorySizeInBytes() < Long.MAX_VALUE);
 
         IOUtils.close(r2, dir2);
         cache.onClose(shard2);
@@ -303,12 +319,14 @@ public class IndicesQueryCacheTests extends OpenSearchTestCase {
         assertEquals(0L, stats1.getCacheCount());
         assertEquals(0L, stats1.getHitCount());
         assertEquals(0L, stats1.getMissCount());
+        assertTrue(stats1.getMemorySizeInBytes() >= 0L && stats1.getMemorySizeInBytes() < Long.MAX_VALUE);
 
         stats2 = cache.getStats(shard2);
         assertEquals(0L, stats2.getCacheSize());
         assertEquals(0L, stats2.getCacheCount());
         assertEquals(0L, stats2.getHitCount());
         assertEquals(0L, stats2.getMissCount());
+        assertTrue(stats2.getMemorySizeInBytes() >= 0L && stats2.getMemorySizeInBytes() < Long.MAX_VALUE);
 
         cache.close(); // this triggers some assertions
     }

@@ -567,7 +567,12 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                 .add(
                     new BooleanQuery.Builder().add(new BooleanClause(new TermQuery(new Term(TEXT_FIELD_NAME, "foo")), defaultOp))
                         .add(new BooleanClause(new TermQuery(new Term(TEXT_FIELD_NAME, "bar")), defaultOp))
-                        .add(new BooleanClause(new PrefixQuery(new Term(TEXT_FIELD_NAME, "foobar")), defaultOp))
+                        .add(
+                            new BooleanClause(
+                                new PrefixQuery(new Term(TEXT_FIELD_NAME, "foobar"), MultiTermQuery.CONSTANT_SCORE_REWRITE),
+                                defaultOp
+                            )
+                        )
                         .build(),
                     defaultOp
                 )
@@ -579,6 +584,8 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     public void testToQueryWildcardWithIndexedPrefixes() throws Exception {
         QueryStringQueryParser queryParser = new QueryStringQueryParser(createShardContext(), "prefix_field");
+        queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+
         Query query = queryParser.parse("foo*");
         Query expectedQuery = new ConstantScoreQuery(new TermQuery(new Term("prefix_field._index_prefix", "foo")));
         assertThat(query, equalTo(expectedQuery));
@@ -586,9 +593,16 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         query = queryParser.parse("g*");
         Automaton a = Operations.concatenate(Arrays.asList(Automata.makeChar('g'), Automata.makeAnyChar()));
         expectedQuery = new ConstantScoreQuery(
-            new BooleanQuery.Builder().add(new AutomatonQuery(new Term("prefix_field._index_prefix", "g*"), a), Occur.SHOULD)
-                .add(new TermQuery(new Term("prefix_field", "g")), Occur.SHOULD)
-                .build()
+            new BooleanQuery.Builder().add(
+                new AutomatonQuery(
+                    new Term("prefix_field._index_prefix", "g*"),
+                    a,
+                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                    false,
+                    MultiTermQuery.CONSTANT_SCORE_REWRITE
+                ),
+                Occur.SHOULD
+            ).add(new TermQuery(new Term("prefix_field", "g")), Occur.SHOULD).build()
         );
         assertThat(query, equalTo(expectedQuery));
     }
@@ -598,7 +612,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             BooleanClause.Occur defaultOp = op.toBooleanClauseOccur();
             QueryStringQueryParser queryParser = new QueryStringQueryParser(createShardContext(), TEXT_FIELD_NAME);
             queryParser.setAnalyzeWildcard(true);
-            queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_REWRITE);
+            queryParser.setMultiTermRewriteMethod(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE);
             queryParser.setDefaultOperator(op.toQueryParserOperator());
             queryParser.setForceAnalyzer(new MockRepeatAnalyzer());
             Query query = queryParser.parse("first foo-bar-foobar* last");
@@ -1157,15 +1171,29 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     public void testExpandedTerms() throws Exception {
         // Prefix
         Query query = new QueryStringQueryBuilder("aBc*").field(TEXT_FIELD_NAME).analyzer("whitespace").toQuery(createShardContext());
-        assertEquals(new PrefixQuery(new Term(TEXT_FIELD_NAME, "aBc")), query);
+        assertEquals(new PrefixQuery(new Term(TEXT_FIELD_NAME, "aBc"), MultiTermQuery.CONSTANT_SCORE_REWRITE), query);
         query = new QueryStringQueryBuilder("aBc*").field(TEXT_FIELD_NAME).analyzer("standard").toQuery(createShardContext());
-        assertEquals(new PrefixQuery(new Term(TEXT_FIELD_NAME, "abc")), query);
+        assertEquals(new PrefixQuery(new Term(TEXT_FIELD_NAME, "abc"), MultiTermQuery.CONSTANT_SCORE_REWRITE), query);
 
         // Wildcard
         query = new QueryStringQueryBuilder("aBc*D").field(TEXT_FIELD_NAME).analyzer("whitespace").toQuery(createShardContext());
-        assertEquals(new WildcardQuery(new Term(TEXT_FIELD_NAME, "aBc*D")), query);
+        assertEquals(
+            new WildcardQuery(
+                new Term(TEXT_FIELD_NAME, "aBc*D"),
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                MultiTermQuery.CONSTANT_SCORE_REWRITE
+            ),
+            query
+        );
         query = new QueryStringQueryBuilder("aBc*D").field(TEXT_FIELD_NAME).analyzer("standard").toQuery(createShardContext());
-        assertEquals(new WildcardQuery(new Term(TEXT_FIELD_NAME, "abc*d")), query);
+        assertEquals(
+            new WildcardQuery(
+                new Term(TEXT_FIELD_NAME, "abc*d"),
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
+                MultiTermQuery.CONSTANT_SCORE_REWRITE
+            ),
+            query
+        );
 
         // Fuzzy
         query = new QueryStringQueryBuilder("aBc~1").field(TEXT_FIELD_NAME).analyzer("whitespace").toQuery(createShardContext());
@@ -1407,7 +1435,10 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     public void testWithPrefixStopWords() throws Exception {
         Query query = new QueryStringQueryBuilder("the* quick fox").field(TEXT_FIELD_NAME).analyzer("stop").toQuery(createShardContext());
-        BooleanQuery expected = new BooleanQuery.Builder().add(new PrefixQuery(new Term(TEXT_FIELD_NAME, "the")), Occur.SHOULD)
+        BooleanQuery expected = new BooleanQuery.Builder().add(
+            new PrefixQuery(new Term(TEXT_FIELD_NAME, "the"), MultiTermQuery.CONSTANT_SCORE_REWRITE),
+            Occur.SHOULD
+        )
             .add(new TermQuery(new Term(TEXT_FIELD_NAME, "quick")), Occur.SHOULD)
             .add(new TermQuery(new Term(TEXT_FIELD_NAME, "fox")), Occur.SHOULD)
             .build();
@@ -1488,7 +1519,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .analyzer("standard")
             .analyzeWildcard(true)
             .toQuery(createShardContext());
-        Query expected = new PrefixQuery(new Term(TEXT_FIELD_NAME, "quick"));
+        Query expected = new PrefixQuery(new Term(TEXT_FIELD_NAME, "quick"), MultiTermQuery.CONSTANT_SCORE_REWRITE);
         assertEquals(expected, query);
     }
 
