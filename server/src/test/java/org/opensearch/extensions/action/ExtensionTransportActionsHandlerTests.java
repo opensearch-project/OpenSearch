@@ -13,8 +13,8 @@ import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
+import org.opensearch.action.admin.cluster.state.ClusterStateAction;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
-import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -45,7 +45,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import static java.util.Collections.emptyMap;
@@ -97,7 +102,7 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
             Version.fromString("3.0.0"),
             Collections.emptyList()
         );
-        client = new NoOpNodeClient(this.getTestName());
+        client = spy(new NoOpNodeClient(this.getTestName()));
         ActionModule mockActionModule = mock(ActionModule.class);
         DynamicActionRegistry dynamicActionRegistry = new DynamicActionRegistry();
         dynamicActionRegistry.registerUnmodifiableActionMap(Collections.emptyMap());
@@ -181,9 +186,8 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
 
     public void testHandleClusterStateRequest() throws Exception {
         ClusterStateRequest clusterStateRequest = new ClusterStateRequest().all();
-        assertEquals(
-            ClusterStateResponse.class,
-            extensionTransportActionsHandler.handleClusterStateRequest(clusterStateRequest).getClass()
-        );
+        // The client is no-op so doesn't actually execute this request, but we can verify it's called
+        extensionTransportActionsHandler.handleClusterStateRequest(clusterStateRequest);
+        verify(client, times(1)).execute(eq(ClusterStateAction.INSTANCE), eq(clusterStateRequest), any());
     }
 }
