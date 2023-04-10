@@ -42,7 +42,7 @@ class ClusterConfiguration {
     String distribution = 'archive'
 
     @Input
-    int numNodes = 1
+    int numNodes = 2
 
     @Input
     int numBwcNodes = 0

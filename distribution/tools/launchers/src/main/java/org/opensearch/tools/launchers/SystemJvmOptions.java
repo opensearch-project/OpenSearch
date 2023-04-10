@@ -47,6 +47,11 @@ final class SystemJvmOptions {
                  * networkaddress.cache.ttl; can be set to -1 to cache forever.
                  */
                 "-Dopensearch.networkaddress.cache.ttl=60",
+                "-Djava.security.policy=/home/rishma/ws/pa/performance-analyzer/config/opensearch_security.policy",
+                "-Djdk.attach.allowAttachSelf=true",
+                "-Dclk.tck=100",
+                "--add-opens=jdk.attach/sun.tools.attach=ALL-UNNAMED",
+
                 /*
                  * Cache ttl in seconds for negative DNS lookups noting that this overrides the JDK security property
                  * networkaddress.cache.negative ttl; set to -1 to cache forever.

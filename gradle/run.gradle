@@ -37,8 +37,6 @@ def numZones = findProperty('numZones') as Integer ?: 1
 testClusters {
   runTask {
     testDistribution = 'archive'
-    if (numZones > 1) numberOfZones = numZones
-    if (numNodes > 1) numberOfNodes = numNodes
   }
 }
 

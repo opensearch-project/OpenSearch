@@ -64,7 +64,7 @@ public class RunTask extends DefaultTestClustersTask {
     private static final int DEFAULT_DEBUG_PORT = 5005;
     public static final String LOCALHOST_ADDRESS_PREFIX = "127.0.0.1:";
 
-    private Boolean debug = false;
+    private Boolean debug = true;
 
     private Boolean debugServer = false;
 

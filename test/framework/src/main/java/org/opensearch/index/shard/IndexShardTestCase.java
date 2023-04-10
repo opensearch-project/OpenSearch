@@ -982,7 +982,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             primary,
             new AsyncRecoveryTarget(recoveryTarget, threadPool.generic(), primary, replica, replicatePrimaryFunction),
             request,
-            recoverySettings
+            recoverySettings, null
         );
         primary.updateShardState(
             primary.routingEntry(),
