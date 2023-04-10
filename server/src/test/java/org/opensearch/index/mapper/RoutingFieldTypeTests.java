@@ -32,6 +32,7 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RegexpQuery;
@@ -45,7 +46,7 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = RoutingFieldMapper.RoutingFieldType.INSTANCE;
 
         Query expected = new PrefixQuery(new Term("_routing", new BytesRef("foo*")));
-        assertEquals(expected, ft.prefixQuery("foo*", null, MOCK_QSC));
+        assertEquals(expected, ft.prefixQuery("foo*", MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, MOCK_QSC));
 
         OpenSearchException ee = expectThrows(OpenSearchException.class, () -> ft.prefixQuery("foo*", null, MOCK_QSC_DISALLOW_EXPENSIVE));
         assertEquals(
@@ -59,7 +60,7 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = RoutingFieldMapper.RoutingFieldType.INSTANCE;
 
         Query expected = new RegexpQuery(new Term("_routing", new BytesRef("foo?")));
-        assertEquals(expected, ft.regexpQuery("foo?", 0, 0, 10, null, MOCK_QSC));
+        assertEquals(expected, ft.regexpQuery("foo?", 0, 0, 10, MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, MOCK_QSC));
 
         OpenSearchException ee = expectThrows(
             OpenSearchException.class,
@@ -72,7 +73,7 @@ public class RoutingFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = RoutingFieldMapper.RoutingFieldType.INSTANCE;
 
         Query expected = new WildcardQuery(new Term("_routing", new BytesRef("foo*")));
-        assertEquals(expected, ft.wildcardQuery("foo*", null, MOCK_QSC));
+        assertEquals(expected, ft.wildcardQuery("foo*", MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, MOCK_QSC));
 
         OpenSearchException ee = expectThrows(
             OpenSearchException.class,

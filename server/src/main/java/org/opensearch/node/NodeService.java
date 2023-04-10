@@ -33,7 +33,7 @@
 package org.opensearch.node;
 
 import org.opensearch.cluster.routing.WeightedRoutingStats;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.Build;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
@@ -45,9 +45,9 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.discovery.Discovery;
-import org.opensearch.env.NodeEnvironment;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.index.IndexingPressureService;
+import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.ingest.IngestService;
@@ -87,7 +87,7 @@ public class NodeService implements Closeable {
     private final SearchBackpressureService searchBackpressureService;
     private final ClusterService clusterService;
     private final Discovery discovery;
-    private final NodeEnvironment nodeEnvironment;
+    private final FileCache fileCache;
 
     NodeService(
         Settings settings,
@@ -108,7 +108,7 @@ public class NodeService implements Closeable {
         IndexingPressureService indexingPressureService,
         AggregationUsageService aggregationUsageService,
         SearchBackpressureService searchBackpressureService,
-        NodeEnvironment nodeEnvironment
+        FileCache fileCache
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -128,7 +128,7 @@ public class NodeService implements Closeable {
         this.aggregationUsageService = aggregationUsageService;
         this.searchBackpressureService = searchBackpressureService;
         this.clusterService = clusterService;
-        this.nodeEnvironment = nodeEnvironment;
+        this.fileCache = fileCache;
         clusterService.addStateApplier(ingestService);
     }
 
@@ -209,7 +209,7 @@ public class NodeService implements Closeable {
             searchBackpressure ? this.searchBackpressureService.nodeStats() : null,
             clusterManagerThrottling ? this.clusterService.getClusterManagerService().getThrottlingStats() : null,
             weightedRoutingStats ? WeightedRoutingStats.getInstance() : null,
-            fileCacheStats ? nodeEnvironment.fileCacheStats() : null
+            fileCacheStats && fileCache != null ? fileCache.fileCacheStats() : null
         );
     }
 

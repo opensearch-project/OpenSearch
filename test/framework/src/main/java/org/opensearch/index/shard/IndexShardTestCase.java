@@ -73,7 +73,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexSettings;
@@ -1299,7 +1299,10 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 ActionListener<CheckpointInfoResponse> listener
             ) {
                 try {
-                    final CopyState copyState = new CopyState(ReplicationCheckpoint.empty(primaryShard.shardId), primaryShard);
+                    final CopyState copyState = new CopyState(
+                        ReplicationCheckpoint.empty(primaryShard.shardId, primaryShard.getDefaultCodecName()),
+                        primaryShard
+                    );
                     listener.onResponse(
                         new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
                     );
@@ -1353,7 +1356,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         for (IndexShard replica : replicaShards) {
             final SegmentReplicationTargetService targetService = prepareForReplication(primaryShard, replica);
             final SegmentReplicationTarget target = targetService.startReplication(
-                ReplicationCheckpoint.empty(replica.shardId),
+                ReplicationCheckpoint.empty(replica.shardId, replica.getDefaultCodecName()),
                 replica,
                 new SegmentReplicationTargetService.SegmentReplicationListener() {
                     @Override

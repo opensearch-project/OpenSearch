@@ -365,7 +365,6 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
     /**
      * This test verifies global balance by creating indices iteratively and verify primary shards do not pile up on one
      * node.
-     * @throws Exception
      */
     public void testGlobalPrimaryBalance() throws Exception {
         AllocationService strategy = createAllocationService(getSettingsBuilderForPrimaryBalance().build(), new TestGatewayAllocator());

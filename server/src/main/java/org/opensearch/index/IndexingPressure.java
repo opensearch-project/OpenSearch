@@ -39,7 +39,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.stats.IndexingPressureStats;
 
 import java.util.concurrent.atomic.AtomicBoolean;

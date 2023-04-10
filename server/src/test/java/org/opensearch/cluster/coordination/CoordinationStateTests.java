@@ -31,7 +31,7 @@
 
 package org.opensearch.cluster.coordination;
 
-import org.opensearch.Assertions;
+import org.opensearch.core.Assertions;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
