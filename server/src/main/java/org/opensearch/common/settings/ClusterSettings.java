@@ -39,6 +39,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressure;
+import org.opensearch.index.RemoteUploadPressureSettings;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.ShardIndexingPressureMemoryManager;
 import org.opensearch.index.ShardIndexingPressureSettings;
@@ -636,6 +637,15 @@ public final class ClusterSettings extends AbstractScopedSettings {
 
                 // Settings related to Searchable Snapshots
                 Node.NODE_SEARCH_CACHE_SIZE_SETTING
+                SegmentReplicationPressureService.MAX_ALLOWED_STALE_SHARDS,
+
+                // Settings related to remote segments upload back pressure
+                RemoteUploadPressureSettings.REMOTE_SEGMENT_UPLOAD_PRESSURE_ENABLED,
+                RemoteUploadPressureSettings.MIN_SEQ_NO_LAG_LIMIT,
+                RemoteUploadPressureSettings.MIN_BYTES_LAG_LIMIT,
+                RemoteUploadPressureSettings.MIN_TIME_LAG_LIMIT,
+                RemoteUploadPressureSettings.MIN_INFLIGHT_BYTES_LIMIT,
+                RemoteUploadPressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT
             )
         )
     );

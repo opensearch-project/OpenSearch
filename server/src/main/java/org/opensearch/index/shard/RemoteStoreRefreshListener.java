@@ -103,13 +103,12 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
      */
     @Override
     public void afterRefresh(boolean didRefresh) {
-        if (didRefresh == false) {
-            return;
-        }
-        try {
+        if (didRefresh) {
             // Update local stats
             updateRefreshTime();
             updateRefreshSeqNo();
+        }
+        try {
             RemoteSegmentUploadShardStatsTracker statsTracker = remoteUploadPressureService.getStatsTracker(indexShard.shardId());
             updateRefreshStats(statsTracker, false);
             if (indexShard.getReplicationTracker().isPrimaryMode()) {
@@ -160,7 +159,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                             // Start the segments upload
                             segmentsUploadStatus = UploadStatus.STARTED;
                             segmentsUploadStatus = uploadNewSegments(localSegmentsPostRefresh, statsTracker, sizeMap);
-                            if (UploadStatus.SUCCEEDED == segmentsUploadStatus) {
+                            if (UploadStatus.SUCCEEDED == segmentsUploadStatus || UploadStatus.SKIPPED == segmentsUploadStatus) {
                                 segmentInfoSnapshotFilename = uploadSegmentInfosSnapshot(latestSegmentInfos.get(), segmentInfos);
                                 localSegmentsPostRefresh.add(segmentInfoSnapshotFilename);
                                 // Start Metadata upload
@@ -268,10 +267,12 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
             }
         }).collect(Collectors.toList());
 
+        if (filesToUpload.isEmpty()) {
+            return UploadStatus.SKIPPED;
+        }
+
         // Start tracking the upload bytes started
-        filesToUpload.forEach(file -> {
-            statsTracker.incrementUploadBytesStarted(sizeMap.get(file));
-        });
+        filesToUpload.forEach(file -> statsTracker.incrementUploadBytesStarted(sizeMap.get(file)));
 
         // Starting the uploads now
         filesToUpload.forEach(file -> {
@@ -349,11 +350,13 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
 
     /**
      * Used to track the status of upload of segments file and metadata files.
+     * TODO - Add a state machine.
      */
     private enum UploadStatus {
         NOT_STARTED,
         STARTED,
         FAILED,
+        SKIPPED,
         SUCCEEDED
     }
 }

@@ -50,8 +50,8 @@ public class RemoteUploadPressureSettings {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Long> MIN_INFLIGHT_BYTES_LAG_LIMIT_LIMIT = Setting.longSetting(
-        "remote_store.segment_upload.pressure.bytes.lag.limit",
+    public static final Setting<Long> MIN_INFLIGHT_BYTES_LIMIT = Setting.longSetting(
+        "remote_store.segment_upload.pressure.inflight_bytes.limit",
         10 * 1024 * 1024, // 10MB
         1024 * 1024, // 1MB
         Setting.Property.Dynamic,
@@ -59,7 +59,7 @@ public class RemoteUploadPressureSettings {
     );
 
     public static final Setting<Integer> MIN_CONSECUTIVE_FAILURES_LIMIT = Setting.intSetting(
-        "remote_store.segment_upload.pressure.min_consecutive_failures.limit",
+        "remote_store.segment_upload.pressure.consecutive_failures.limit",
         10,
         1,
         Setting.Property.Dynamic,
@@ -93,8 +93,8 @@ public class RemoteUploadPressureSettings {
         this.minTimeLagLimit = MIN_TIME_LAG_LIMIT.get(settings);
         clusterSettings.addSettingsUpdateConsumer(MIN_TIME_LAG_LIMIT, this::setMinTimeLagLimit);
 
-        this.minInflightBytesLagLimit = MIN_INFLIGHT_BYTES_LAG_LIMIT_LIMIT.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(MIN_INFLIGHT_BYTES_LAG_LIMIT_LIMIT, this::setMinInflightBytesLagLimit);
+        this.minInflightBytesLagLimit = MIN_INFLIGHT_BYTES_LIMIT.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(MIN_INFLIGHT_BYTES_LIMIT, this::setMinInflightBytesLagLimit);
 
         this.minConsecutiveFailuresLimit = MIN_CONSECUTIVE_FAILURES_LIMIT.get(settings);
         clusterSettings.addSettingsUpdateConsumer(MIN_CONSECUTIVE_FAILURES_LIMIT, this::setMinConsecutiveFailuresLimit);
