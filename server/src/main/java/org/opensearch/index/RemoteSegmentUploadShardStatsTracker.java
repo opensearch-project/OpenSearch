@@ -8,7 +8,6 @@
 
 package org.opensearch.index;
 
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -19,10 +18,6 @@ import java.util.Map;
 public class RemoteSegmentUploadShardStatsTracker {
 
     public static final long UNASSIGNED = 0L;
-
-    public RemoteSegmentUploadShardStatsTracker() {
-        latestUploadFileNameLengthMap = new HashMap<>();
-    }
 
     private volatile long localRefreshSeqNo = UNASSIGNED;
 
@@ -45,9 +40,14 @@ public class RemoteSegmentUploadShardStatsTracker {
     private volatile long totalUploadsSucceeded = UNASSIGNED;
 
     /**
+     * Keeps map of filename to bytes length of the local segments post most recent refresh.
+     */
+    private volatile Map<String, Long> latestLocalFileNameLengthMap;
+
+    /**
      * Keeps map of filename to bytes length of the most recent segments upload as part of refresh.
      */
-    private final Map<String, Long> latestUploadFileNameLengthMap;
+    private volatile Map<String, Long> latestUploadFileNameLengthMap;
 
     public void incrementUploadBytesStarted(long bytes) {
         uploadBytesStarted += bytes;
@@ -79,5 +79,21 @@ public class RemoteSegmentUploadShardStatsTracker {
 
     public void updateLocalRefreshTime(long localRefreshTime) {
         this.localRefreshTime = localRefreshTime;
+    }
+
+    public void updateRemoteRefreshSeqNo(long remoteRefreshSeqNo) {
+        this.remoteRefreshSeqNo = remoteRefreshSeqNo;
+    }
+
+    public void updateRemoteRefreshTime(long remoteRefreshTime) {
+        this.remoteRefreshTime = remoteRefreshTime;
+    }
+
+    public void updateLatestLocalFileNameLengthMap(Map<String, Long> latestLocalFileNameLengthMap) {
+        this.latestLocalFileNameLengthMap = latestLocalFileNameLengthMap;
+    }
+
+    public void updateLatestUploadFileNameLengthMap(Map<String, Long> latestUploadFileNameLengthMap) {
+        this.latestUploadFileNameLengthMap = latestUploadFileNameLengthMap;
     }
 }
