@@ -8,9 +8,9 @@
 
 package org.opensearch.client;
 
-import org.apache.hc.client5.http.classic.methods.HttpDelete;
-import org.apache.hc.client5.http.classic.methods.HttpGet;
-import org.apache.hc.client5.http.classic.methods.HttpPut;
+import org.apache.http.client.methods.HttpDelete;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPut;
 import org.opensearch.action.search.DeleteSearchPipelineRequest;
 import org.opensearch.action.search.GetSearchPipelineRequest;
 import org.opensearch.action.search.PutSearchPipelineRequest;
@@ -28,7 +28,7 @@ final class SearchPipelineRequestConverters {
 
         RequestConverters.Params params = new RequestConverters.Params();
         params.withTimeout(putPipelineRequest.timeout());
-        params.withClusterManagerTimeout(putPipelineRequest.clusterManagerNodeTimeout());
+        params.withMasterTimeout(putPipelineRequest.clusterManagerNodeTimeout());
         request.addParameters(params.asMap());
         request.setEntity(RequestConverters.createEntity(putPipelineRequest, RequestConverters.REQUEST_BODY_CONTENT_TYPE));
         return request;
@@ -42,7 +42,7 @@ final class SearchPipelineRequestConverters {
 
         RequestConverters.Params parameters = new RequestConverters.Params();
         parameters.withTimeout(deletePipelineRequest.timeout());
-        parameters.withClusterManagerTimeout(deletePipelineRequest.clusterManagerNodeTimeout());
+        parameters.withMasterTimeout(deletePipelineRequest.clusterManagerNodeTimeout());
         request.addParameters(parameters.asMap());
         return request;
     }
@@ -54,7 +54,7 @@ final class SearchPipelineRequestConverters {
         Request request = new Request(HttpGet.METHOD_NAME, endpoint);
 
         RequestConverters.Params parameters = new RequestConverters.Params();
-        parameters.withClusterManagerTimeout(getPipelineRequest.clusterManagerNodeTimeout());
+        parameters.withMasterTimeout(getPipelineRequest.clusterManagerNodeTimeout());
         request.addParameters(parameters.asMap());
         return request;
     }

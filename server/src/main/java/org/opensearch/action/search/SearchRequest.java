@@ -259,9 +259,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
         if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
             cancelAfterTimeInterval = in.readOptionalTimeValue();
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) { // TODO: Update if/when we backport to 2.x
-            pipeline = in.readOptionalString();
         }
+        if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
+            pipeline = in.readOptionalString();
         }
     }
 
@@ -299,9 +299,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
         if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
             out.writeOptionalTimeValue(cancelAfterTimeInterval);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) { // TODO: Update if/when we backport to 2.x
-            out.writeOptionalString(pipeline);
         }
+        if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
+            out.writeOptionalString(pipeline);
         }
     }
 

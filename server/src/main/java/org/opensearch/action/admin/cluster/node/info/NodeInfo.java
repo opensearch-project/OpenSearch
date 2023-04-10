@@ -102,9 +102,9 @@ public class NodeInfo extends BaseNodeResponse {
         addInfoIfNonNull(IngestInfo.class, in.readOptionalWriteable(IngestInfo::new));
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             addInfoIfNonNull(AggregationInfo.class, in.readOptionalWriteable(AggregationInfo::new));
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) { // TODO: Change if/when we backport to 2.x
-            addInfoIfNonNull(SearchPipelineInfo.class, in.readOptionalWriteable(SearchPipelineInfo::new));
         }
+        if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
+            addInfoIfNonNull(SearchPipelineInfo.class, in.readOptionalWriteable(SearchPipelineInfo::new));
         }
     }
 
@@ -232,10 +232,11 @@ public class NodeInfo extends BaseNodeResponse {
         out.writeOptionalWriteable(getInfo(IngestInfo.class));
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             out.writeOptionalWriteable(getInfo(AggregationInfo.class));
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) { // TODO: Change if/when we backport to 2.x
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
             out.writeOptionalWriteable(getInfo(SearchPipelineInfo.class));
         }
-        }
+    }
 
     public static NodeInfo.Builder builder(Version version, Build build, DiscoveryNode node) {
         return new Builder(version, build, node);
@@ -347,8 +348,6 @@ public class NodeInfo extends BaseNodeResponse {
                 searchPipelineInfo
             );
         }
-
-    }
 
     }
 }
