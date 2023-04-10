@@ -175,7 +175,6 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                                 );
                                 // Metadata upload succeeded
                                 metadataUploadStatus = UploadStatus.SUCCEEDED;
-                                statsTracker.incrementTotalUploadsSucceeded();
                                 statsTracker.updateLatestUploadFileNameLengthMap(sizeMap);
                                 updateRefreshStats(statsTracker, true);
 
@@ -192,10 +191,8 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                     } catch (EngineException e) {
                         logger.warn("Exception while reading SegmentInfosSnapshot", e);
                     } finally {
-                        // Incrementing the total uploads failed when the metadata upload could not succeed.
-                        if (segmentsUploadStatus != UploadStatus.NOT_STARTED && metadataUploadStatus != UploadStatus.SUCCEEDED) {
-                            statsTracker.incrementTotalUploadsFailed();
-                        }
+                        // Update the stats tracker with the final upload status as seen at the end
+                        updateTotalUploadTerminalStats(metadataUploadStatus, segmentsUploadStatus, statsTracker);
                         // Deletes the segment info file created for the upload of segment metadata.
                         try {
                             if (segmentInfoSnapshotFilename != null) {
@@ -213,6 +210,24 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
             }
         } catch (Throwable t) {
             logger.error("Exception in RemoteStoreRefreshListener.afterRefresh()", t);
+        }
+    }
+
+    private void updateTotalUploadTerminalStats(
+        UploadStatus metadataUploadStatus,
+        UploadStatus segmentsUploadStatus,
+        RemoteSegmentUploadShardStatsTracker statsTracker
+    ) {
+        // If the metadata upload status is succeeded, then increment upload success count. If the metadata upload status is not succeeded,
+        // then there are 3 cases - 1. metadata upload was skipped as all segments and metadata file are already present in remote store -
+        // in which case the upload was skipped 2. segments upload status is started or ahead in which case the upload failed 3. segments
+        // upload did not start at all - in which case the upload never started.
+        if (metadataUploadStatus == UploadStatus.SUCCEEDED) {
+            statsTracker.incrementTotalUploadsSucceeded();
+        } else if (segmentsUploadStatus == UploadStatus.SKIPPED) {
+            statsTracker.incrementTotalUploadsSkipped();
+        } else if (Set.of(UploadStatus.STARTED, UploadStatus.SUCCEEDED, UploadStatus.FAILED).contains(segmentsUploadStatus)) {
+            statsTracker.incrementTotalUploadsSkipped();
         }
     }
 
