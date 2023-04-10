@@ -32,6 +32,7 @@
 
 package org.opensearch.indices.recovery;
 
+import io.opentelemetry.api.trace.Span;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
@@ -55,7 +56,9 @@ import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.otel.OtelService;
 import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequestHandler;
@@ -68,6 +71,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+
+import static io.opentelemetry.api.common.AttributeKey.doubleKey;
+import static io.opentelemetry.api.common.AttributeKey.longKey;
+import static io.opentelemetry.api.common.AttributeKey.stringKey;
 
 /**
  * The source recovery accepts recovery requests from other peer shards and start the recovery process from this
@@ -94,12 +101,15 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     private final RecoverySettings recoverySettings;
 
     final OngoingRecoveries ongoingRecoveries = new OngoingRecoveries();
+    private final OtelService otelService;
 
     @Inject
-    public PeerRecoverySourceService(TransportService transportService, IndicesService indicesService, RecoverySettings recoverySettings) {
+    public PeerRecoverySourceService(TransportService transportService, IndicesService indicesService, RecoverySettings recoverySettings,
+                                     OtelService otelService) {
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.recoverySettings = recoverySettings;
+        this.otelService = otelService;
         // When the target node wants to start a peer recovery it sends a START_RECOVERY request to the source
         // node. Upon receiving START_RECOVERY, the source node will initiate the peer recovery.
         transportService.registerRequestHandler(
@@ -157,9 +167,16 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     }
 
     private void recover(StartRecoveryRequest request, ActionListener<RecoveryResponse> listener) {
+        listener = OtelService.startSpan("recover", listener);
+        Span span = Span.current();
+        span.setAttribute(stringKey("index-name"), request.shardId().getIndexName());
+        span.setAttribute(longKey("shard-id"), request.shardId().id());
+        span.setAttribute(stringKey("source-node"), request.sourceNode().getId());
+        span.setAttribute(stringKey("target-node"), request.targetNode().getId());
+        otelService.emitResources(span, "resource-usage-start");
+
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard shard = indexService.getShard(request.shardId().id());
-
         final ShardRouting routingEntry = shard.routingEntry();
 
         if (routingEntry.primary() == false || routingEntry.active() == false) {
@@ -183,7 +200,9 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             request.shardId().id(),
             request.targetNode()
         );
+
         handler.recoverToTarget(ActionListener.runAfter(listener, () -> ongoingRecoveries.remove(shard, handler)));
+        otelService.emitResources(span, "resource-usage-end");
     }
 
     private void reestablish(ReestablishRecoveryRequest request, ActionListener<RecoveryResponse> listener) {
@@ -378,7 +397,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     recoverySettings,
                     throttleTime -> shard.recoveryStats().addThrottleTime(throttleTime)
                 );
-                handler = RecoverySourceHandlerFactory.create(shard, recoveryTarget, request, recoverySettings);
+                handler = RecoverySourceHandlerFactory.create(shard, recoveryTarget, request, recoverySettings, otelService);
                 return Tuple.tuple(handler, recoveryTarget);
             }
         }

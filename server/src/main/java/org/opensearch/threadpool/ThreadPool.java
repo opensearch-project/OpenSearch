@@ -413,8 +413,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         if (holder == null) {
             throw new IllegalArgumentException("no executor service found for [" + name + "]");
         }
-        return holder.executor();
+        return io.opentelemetry.context.Context.taskWrapping(holder.executor());
     }
+
+
 
     /**
      * Schedules a one-shot command to run after a given delay. The command is run in the context of the calling thread.
@@ -693,7 +695,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public final Info info;
 
         ExecutorHolder(ExecutorService executor, Info info) {
-            assert executor instanceof OpenSearchThreadPoolExecutor || executor == DIRECT_EXECUTOR;
+//             assert executor instanceof OpenSearchThreadPoolExecutor || executor == DIRECT_EXECUTOR;
             this.executor = executor;
             this.info = info;
         }

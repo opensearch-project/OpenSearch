@@ -32,6 +32,7 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.otel.OtelEventListener;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.client.Client;
@@ -203,6 +204,10 @@ public abstract class Plugin implements Closeable {
      * @return the settings upgraders
      */
     public List<SettingUpgrader<?>> getSettingUpgraders() {
+        return Collections.emptyList();
+    }
+
+    public List<OtelEventListener> getOtelEventListeners() {
         return Collections.emptyList();
     }
 

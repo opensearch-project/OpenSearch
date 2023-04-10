@@ -32,6 +32,7 @@
 
 package org.opensearch.indices.recovery;
 
+import io.opentelemetry.api.trace.Span;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexCommit;
@@ -71,6 +72,7 @@ import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.RunUnderPrimaryPermit;
 import org.opensearch.indices.replication.SegmentFileTransferHandler;
+import org.opensearch.otel.OtelService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transports;
 
@@ -81,6 +83,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -88,6 +91,9 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 import java.util.stream.StreamSupport;
+
+import static io.opentelemetry.api.common.AttributeKey.longKey;
+import static io.opentelemetry.api.common.AttributeKey.stringKey;
 
 /**
  * RecoverySourceHandler handles the three phases of shard recovery, which is
@@ -119,6 +125,7 @@ public abstract class RecoverySourceHandler {
     protected final ListenableFuture<RecoveryResponse> future = new ListenableFuture<>();
     public static final String PEER_RECOVERY_NAME = "peer-recovery";
     private final SegmentFileTransferHandler transferHandler;
+    private final OtelService otelService;
 
     RecoverySourceHandler(
         IndexShard shard,
@@ -127,7 +134,8 @@ public abstract class RecoverySourceHandler {
         StartRecoveryRequest request,
         int fileChunkSizeInBytes,
         int maxConcurrentFileChunks,
-        int maxConcurrentOperations
+        int maxConcurrentOperations,
+        OtelService otelService
     ) {
         this.logger = Loggers.getLogger(RecoverySourceHandler.class, request.shardId(), "recover to " + request.targetNode().getName());
         this.transferHandler = new SegmentFileTransferHandler(
@@ -138,7 +146,8 @@ public abstract class RecoverySourceHandler {
             threadPool,
             cancellableThreads,
             fileChunkSizeInBytes,
-            maxConcurrentFileChunks
+            maxConcurrentFileChunks,
+            otelService
         );
         this.shard = shard;
         this.threadPool = threadPool;
@@ -148,6 +157,7 @@ public abstract class RecoverySourceHandler {
         this.chunkSizeInBytes = fileChunkSizeInBytes;
         // if the target is on an old version, it won't be able to handle out-of-order file chunks.
         this.maxConcurrentOperations = maxConcurrentOperations;
+        this.otelService = otelService;
     }
 
     public StartRecoveryRequest getRequest() {
@@ -190,6 +200,7 @@ public abstract class RecoverySourceHandler {
 
     protected abstract void innerRecoveryToTarget(ActionListener<RecoveryResponse> listener, Consumer<Exception> onFailure)
         throws IOException;
+
 
     protected void finalizeStepAndCompleteFuture(
         long startingSeqNo,
@@ -431,18 +442,19 @@ public abstract class RecoverySourceHandler {
                     phase1ExistingFileNames.size(),
                     new ByteSizeValue(existingTotalSizeInBytes)
                 );
-                final StepListener<Void> sendFileInfoStep = new StepListener<>();
+                StepListener<Void> sendFileInfoStep = new StepListener<>();
                 final StepListener<Void> sendFilesStep = new StepListener<>();
                 final StepListener<RetentionLease> createRetentionLeaseStep = new StepListener<>();
                 final StepListener<Void> cleanFilesStep = new StepListener<>();
                 cancellableThreads.checkForCancel();
+                ActionListener<Void> wrapperSendFileInfoStep = OtelService.startSpan("receiveFileInfo", sendFileInfoStep);
                 recoveryTarget.receiveFileInfo(
                     phase1FileNames,
                     phase1FileSizes,
                     phase1ExistingFileNames,
                     phase1ExistingFileSizes,
                     translogOps.getAsInt(),
-                    sendFileInfoStep
+                    wrapperSendFileInfoStep
                 );
 
                 sendFileInfoStep.whenComplete(
@@ -514,6 +526,10 @@ public abstract class RecoverySourceHandler {
     }
 
     void sendFiles(Store store, StoreFileMetadata[] files, IntSupplier translogOps, ActionListener<Void> listener) {
+        if (otelService != null) {
+            listener = OtelService.startSpan("sendFiles", listener);
+            otelService.emitResources(Span.current(), "start-resources");
+        }
         final MultiChunkTransfer<StoreFileMetadata, SegmentFileTransferHandler.FileChunk> transfer = transferHandler.createTransfer(
             store,
             files,
@@ -522,9 +538,12 @@ public abstract class RecoverySourceHandler {
         );
         resources.add(transfer);
         transfer.start();
+        otelService.emitResources(Span.current(), "end-resources");
     }
 
     void createRetentionLease(final long startingSeqNo, ActionListener<RetentionLease> listener) {
+        listener = OtelService.startSpan("createRetentionLease", listener);
+        ActionListener<RetentionLease> finalListener = listener;
         RunUnderPrimaryPermit.run(() -> {
             // Clone the peer recovery retention lease belonging to the source shard. We are retaining history between the the local
             // checkpoint of the safe commit we're creating and this lease's retained seqno with the retention lock, and by cloning an
@@ -541,7 +560,7 @@ public abstract class RecoverySourceHandler {
                     new ThreadedActionListener<>(logger, shard.getThreadPool(), ThreadPool.Names.GENERIC, cloneRetentionLeaseStep, false)
                 );
                 logger.trace("cloned primary's retention lease as [{}]", clonedLease);
-                cloneRetentionLeaseStep.whenComplete(rr -> listener.onResponse(clonedLease), listener::onFailure);
+                cloneRetentionLeaseStep.whenComplete(rr -> finalListener.onResponse(clonedLease), finalListener::onFailure);
             } catch (RetentionLeaseNotFoundException e) {
                 // it's possible that the primary has no retention lease yet if we are doing a rolling upgrade from a version before
                 // 7.4, and in that case we just create a lease using the local checkpoint of the safe commit which we're using for
@@ -554,7 +573,7 @@ public abstract class RecoverySourceHandler {
                     estimatedGlobalCheckpoint,
                     new ThreadedActionListener<>(logger, shard.getThreadPool(), ThreadPool.Names.GENERIC, addRetentionLeaseStep, false)
                 );
-                addRetentionLeaseStep.whenComplete(rr -> listener.onResponse(newLease), listener::onFailure);
+                addRetentionLeaseStep.whenComplete(rr -> finalListener.onResponse(newLease), finalListener::onFailure);
                 logger.trace("created retention lease with estimated checkpoint of [{}]", estimatedGlobalCheckpoint);
             }
         }, shardId + " establishing retention lease for [" + request.targetAllocationId() + "]", shard, cancellableThreads, logger);
@@ -598,13 +617,15 @@ public abstract class RecoverySourceHandler {
     }
 
     void prepareTargetForTranslog(int totalTranslogOps, ActionListener<TimeValue> listener) {
+        listener = OtelService.startSpan("prepareForTranslog", listener);
         StopWatch stopWatch = new StopWatch().start();
+        ActionListener<TimeValue> finalListener = listener;
         final ActionListener<Void> wrappedListener = ActionListener.wrap(nullVal -> {
             stopWatch.stop();
             final TimeValue tookTime = stopWatch.totalTime();
             logger.trace("recovery [phase1]: remote engine start took [{}]", tookTime);
-            listener.onResponse(tookTime);
-        }, e -> listener.onFailure(new RecoveryEngineException(shard.shardId(), 1, "prepare target for translog failed", e)));
+            finalListener.onResponse(tookTime);
+        }, e -> finalListener.onFailure(new RecoveryEngineException(shard.shardId(), 1, "prepare target for translog failed", e)));
         // Send a request preparing the new shard's translog to receive operations. This ensures the shard engine is started and disables
         // garbage collection (not the JVM's GC!) of tombstone deletes.
         logger.trace("recovery [phase1]: prepare remote engine for translog");
@@ -635,8 +656,9 @@ public abstract class RecoverySourceHandler {
         final long maxSeqNoOfUpdatesOrDeletes,
         final RetentionLeases retentionLeases,
         final long mappingVersion,
-        final ActionListener<SendSnapshotResult> listener
+        ActionListener<SendSnapshotResult> listener
     ) throws IOException {
+        listener = OtelService.startSpan("phase2", listener);
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
         }
@@ -653,6 +675,7 @@ public abstract class RecoverySourceHandler {
             mappingVersion,
             sendListener
         );
+        ActionListener<SendSnapshotResult> finalListener = listener;
         sendListener.whenComplete(ignored -> {
             final long skippedOps = sender.skippedOps.get();
             final int totalSentOps = sender.sentOps.get();
@@ -668,7 +691,7 @@ public abstract class RecoverySourceHandler {
             stopWatch.stop();
             final TimeValue tookTime = stopWatch.totalTime();
             logger.trace("recovery [phase2]: took [{}]", tookTime);
-            listener.onResponse(new SendSnapshotResult(targetLocalCheckpoint, totalSentOps, tookTime));
+            finalListener.onResponse(new SendSnapshotResult(targetLocalCheckpoint, totalSentOps, tookTime));
         }, listener::onFailure);
         sender.start();
     }
@@ -786,6 +809,8 @@ public abstract class RecoverySourceHandler {
     }
 
     void finalizeRecovery(long targetLocalCheckpoint, long trimAboveSeqNo, ActionListener<Void> listener) throws IOException {
+        listener = OtelService.startSpan("finalizeRecovery", listener);
+
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
         }
@@ -809,6 +834,7 @@ public abstract class RecoverySourceHandler {
         final StepListener<Void> finalizeListener = new StepListener<>();
         cancellableThreads.checkForCancel();
         recoveryTarget.finalizeRecovery(globalCheckpoint, trimAboveSeqNo, finalizeListener);
+        ActionListener<Void> finalListener = listener;
         finalizeListener.whenComplete(r -> {
             RunUnderPrimaryPermit.run(
                 () -> shard.updateGlobalCheckpointForShard(request.targetAllocationId(), globalCheckpoint),
@@ -840,7 +866,7 @@ public abstract class RecoverySourceHandler {
             }
             stopWatch.stop();
             logger.info("finalizing recovery took [{}]", stopWatch.totalTime());
-            listener.onResponse(null);
+            finalListener.onResponse(null);
         }, listener::onFailure);
     }
 
@@ -896,12 +922,14 @@ public abstract class RecoverySourceHandler {
         // Once the files have been renamed, any other files that are not
         // related to this recovery (out of date segments, for example)
         // are deleted
+        ActionListener<Void> wrappedListener = OtelService.startSpan("receiveFileInfo", listener);
+
         cancellableThreads.checkForCancel();
         recoveryTarget.cleanFiles(
             translogOps.getAsInt(),
             globalCheckpoint,
             sourceMetadata,
-            ActionListener.delegateResponse(listener, (l, e) -> ActionListener.completeWith(l, () -> {
+            ActionListener.delegateResponse(wrappedListener, (l, e) -> ActionListener.completeWith(l, () -> {
                 StoreFileMetadata[] mds = StreamSupport.stream(sourceMetadata.spliterator(), false).toArray(StoreFileMetadata[]::new);
                 ArrayUtil.timSort(mds, Comparator.comparingLong(StoreFileMetadata::length)); // check small files first
                 transferHandler.handleErrorOnSendFiles(store, e, mds);

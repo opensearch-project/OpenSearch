@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.replication;
 
+import io.opentelemetry.api.trace.Span;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.CorruptIndexException;
@@ -28,6 +29,8 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.FileChunkWriter;
 import org.opensearch.indices.recovery.MultiChunkTransfer;
+import org.opensearch.otel.OtelEventListener;
+import org.opensearch.otel.OtelService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.Transports;
@@ -56,6 +59,7 @@ public final class SegmentFileTransferHandler {
     private final int maxConcurrentFileChunks;
     private final DiscoveryNode targetNode;
     private final CancellableThreads cancellableThreads;
+    private final OtelService otelService;
 
     public SegmentFileTransferHandler(
         IndexShard shard,
@@ -67,6 +71,21 @@ public final class SegmentFileTransferHandler {
         int fileChunkSizeInBytes,
         int maxConcurrentFileChunks
     ) {
+        this(shard, targetNode, chunkWriter, logger, threadPool, cancellableThreads,
+            fileChunkSizeInBytes, maxConcurrentFileChunks, null);
+    }
+
+    public SegmentFileTransferHandler(
+        IndexShard shard,
+        DiscoveryNode targetNode,
+        FileChunkWriter chunkWriter,
+        Logger logger,
+        ThreadPool threadPool,
+        CancellableThreads cancellableThreads,
+        int fileChunkSizeInBytes,
+        int maxConcurrentFileChunks,
+        OtelService otelService
+    ) {
         this.shard = shard;
         this.targetNode = targetNode;
         this.chunkWriter = chunkWriter;
@@ -76,6 +95,7 @@ public final class SegmentFileTransferHandler {
         this.chunkSizeInBytes = fileChunkSizeInBytes;
         // if the target is on an old version, it won't be able to handle out-of-order file chunks.
         this.maxConcurrentFileChunks = maxConcurrentFileChunks;
+        this.otelService = otelService;
     }
 
     /**
@@ -145,13 +165,24 @@ public final class SegmentFileTransferHandler {
             @Override
             protected void executeChunkRequest(FileChunk request, ActionListener<Void> listener1) {
                 cancellableThreads.checkForCancel();
+                if (otelService != null) {
+                    otelService.emitResources(Span.current(), "StartExecuteChunkRequest");
+                }
+
+                ActionListener<Void> listener2 = ActionListener.runBefore(listener1, request::close);
+                ActionListener<Void> listener3 = ActionListener.runBefore(listener2, () -> {
+                    if (otelService != null) {
+                        otelService.emitResources(Span.current(), "EndExecuteChunkRequest");
+                    }
+                });
+
                 chunkWriter.writeFileChunk(
                     request.md,
                     request.position,
                     request.content,
                     request.lastChunk,
                     translogOps.getAsInt(),
-                    ActionListener.runBefore(listener1, request::close)
+                    listener3
                 );
             }
 

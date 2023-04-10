@@ -182,4 +182,10 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
 
+  permission java.net.NetPermission "getProxySelector";
+  permission java.util.PropertyPermission "*", "read,write";
+  permission java.net.SocketPermission "127.0.0.1:4318", "connect,resolve";
+  permission java.net.SocketPermission "127.0.0.1:4317", "connect,resolve";
+  permission java.net.SocketPermission "[0:0:0:0:0:0:0:1]:4317", "connect,resolve";
+  permission java.net.SocketPermission "[0:0:0:0:0:0:0:1]:4318", "connect,resolve";
 };

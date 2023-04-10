@@ -32,6 +32,7 @@
 
 package org.opensearch.common.util.concurrent;
 
+import io.opentelemetry.context.Context;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -352,7 +353,7 @@ public class OpenSearchExecutors {
      * @return an {@link ExecutorService} that executes submitted tasks on the current thread
      */
     public static ExecutorService newDirectExecutorService() {
-        return DIRECT_EXECUTOR_SERVICE;
+        return Context.taskWrapping(DIRECT_EXECUTOR_SERVICE);
     }
 
     public static String threadName(Settings settings, String namePrefix) {

@@ -111,7 +111,7 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
         final ThreadFactory threadFactory = OpenSearchExecutors.daemonThreadFactory(
             OpenSearchExecutors.threadName(settings.nodeName, name())
         );
-        final ExecutorService executor = OpenSearchExecutors.newScaling(
+        final ExecutorService executor = io.opentelemetry.context.Context.taskWrapping(OpenSearchExecutors.newScaling(
             settings.nodeName + "/" + name(),
             core,
             max,
@@ -119,7 +119,7 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
             TimeUnit.MILLISECONDS,
             threadFactory,
             threadContext
-        );
+        ));
         return new ThreadPool.ExecutorHolder(executor, info);
     }
 

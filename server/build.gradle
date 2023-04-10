@@ -143,6 +143,31 @@ dependencies {
   api "org.apache.logging.log4j:log4j-jul:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
 
+  api 'io.opentelemetry:opentelemetry-api:1.23.1'
+  api 'io.opentelemetry:opentelemetry-api-logs:1.23.1-alpha'
+  api 'io.opentelemetry:opentelemetry-api-events:1.23.1-alpha'
+  api 'io.opentelemetry:opentelemetry-sdk:1.23.1'
+  api 'io.opentelemetry:opentelemetry-sdk-metrics:1.23.1'
+  api 'io.opentelemetry:opentelemetry-sdk-common:1.23.1'
+  api 'io.opentelemetry:opentelemetry-sdk-trace:1.23.1'
+  api 'io.opentelemetry:opentelemetry-context:1.23.1'
+  api 'io.opentelemetry:opentelemetry-sdk-logs:1.23.1-alpha'
+  api 'io.opentelemetry:opentelemetry-semconv:1.23.1-alpha'
+
+  // exporters
+  api 'io.opentelemetry:opentelemetry-exporter-common:1.23.1'
+  //implementation 'io.opentelemetry:opentelemetry-exporter-jaeger:1.23.1'
+  api 'io.opentelemetry:opentelemetry-exporter-otlp:1.23.1'
+  api 'io.opentelemetry:opentelemetry-exporter-otlp-common:1.23.1'
+  api("com.squareup.okhttp3:okhttp:4.10.0")
+  api 'org.jetbrains.kotlin:kotlin-stdlib:1.6.20'
+  api 'com.squareup.okio:okio-jvm:3.0.0'
+
+  //implementation "com.squareup.okio:okio:2.8.0"
+
+  //implementation 'io.opentelemetry:opentelemetry-exporter-logging:1.23.1'
+  //implementation 'io.opentelemetry:opentelemetry-exporter-jaeger:1.23.1'
+
   // jna
   api "net.java.dev.jna:jna:${versions.jna}"
 

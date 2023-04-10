@@ -20,6 +20,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.RunUnderPrimaryPermit;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transports;
+import org.opensearch.otel.OtelService;
 
 import java.io.IOException;
 import java.util.function.Consumer;
@@ -38,9 +39,10 @@ public class RemoteStorePeerRecoverySourceHandler extends RecoverySourceHandler 
         StartRecoveryRequest request,
         int fileChunkSizeInBytes,
         int maxConcurrentFileChunks,
-        int maxConcurrentOperations
+        int maxConcurrentOperations,
+        OtelService otelService
     ) {
-        super(shard, recoveryTarget, threadPool, request, fileChunkSizeInBytes, maxConcurrentFileChunks, maxConcurrentOperations);
+        super(shard, recoveryTarget, threadPool, request, fileChunkSizeInBytes, maxConcurrentFileChunks, maxConcurrentOperations, otelService);
     }
 
     @Override

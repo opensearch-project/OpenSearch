@@ -228,7 +228,7 @@ public class LocalStorePeerRecoverySourceHandlerTests extends OpenSearchTestCase
             between(1, 5)
         );
         PlainActionFuture<Void> sendFilesFuture = new PlainActionFuture<>();
-        handler.sendFiles(store, metas.toArray(new StoreFileMetadata[0]), () -> 0, sendFilesFuture);
+        handler.sendFiles(store, metas.toArray(new StoreFileMetadata[0]), () -> 0, sendFilesFuture, null);
         sendFilesFuture.actionGet();
         Store.MetadataSnapshot targetStoreMetadata = targetStore.getMetadata();
         Store.RecoveryDiff recoveryDiff = targetStoreMetadata.recoveryDiff(metadata);
@@ -570,7 +570,7 @@ public class LocalStorePeerRecoverySourceHandlerTests extends OpenSearchTestCase
             store,
             metas.toArray(new StoreFileMetadata[0]),
             () -> 0,
-            new LatchedActionListener<>(ActionListener.wrap(r -> sendFilesError.set(null), e -> sendFilesError.set(e)), latch)
+            new LatchedActionListener<>(ActionListener.wrap(r -> sendFilesError.set(null), e -> sendFilesError.set(e)), latch), null
         );
         latch.await();
         assertThat(sendFilesError.get(), instanceOf(IOException.class));
@@ -640,7 +640,7 @@ public class LocalStorePeerRecoverySourceHandlerTests extends OpenSearchTestCase
             between(1, 4)
         );
         PlainActionFuture<Void> sendFilesFuture = new PlainActionFuture<>();
-        handler.sendFiles(store, metas.toArray(new StoreFileMetadata[0]), () -> 0, sendFilesFuture);
+        handler.sendFiles(store, metas.toArray(new StoreFileMetadata[0]), () -> 0, sendFilesFuture, null);
         Exception ex = expectThrows(Exception.class, sendFilesFuture::actionGet);
         final IOException unwrappedCorruption = ExceptionsHelper.unwrapCorruption(ex);
         if (throwCorruptedIndexException) {
@@ -808,7 +808,7 @@ public class LocalStorePeerRecoverySourceHandlerTests extends OpenSearchTestCase
         List<StoreFileMetadata> files = generateFiles(store, between(1, 10), () -> between(1, chunkSize * 20));
         int totalChunks = files.stream().mapToInt(md -> ((int) md.length() + chunkSize - 1) / chunkSize).sum();
         PlainActionFuture<Void> sendFilesFuture = new PlainActionFuture<>();
-        handler.sendFiles(store, files.toArray(new StoreFileMetadata[0]), () -> 0, sendFilesFuture);
+        handler.sendFiles(store, files.toArray(new StoreFileMetadata[0]), () -> 0, sendFilesFuture, null);
         assertBusy(() -> {
             assertThat(sentChunks.get(), equalTo(Math.min(totalChunks, maxConcurrentChunks)));
             assertThat(unrepliedChunks, hasSize(sentChunks.get()));
@@ -886,7 +886,8 @@ public class LocalStorePeerRecoverySourceHandlerTests extends OpenSearchTestCase
             store,
             files.toArray(new StoreFileMetadata[0]),
             () -> 0,
-            new LatchedActionListener<>(ActionListener.wrap(r -> sendFilesError.set(null), e -> sendFilesError.set(e)), sendFilesLatch)
+            new LatchedActionListener<>(ActionListener.wrap(r -> sendFilesError.set(null), e -> sendFilesError.set(e)), sendFilesLatch),
+                null
         );
         assertBusy(() -> assertThat(sentChunks.get(), equalTo(Math.min(totalChunks, maxConcurrentChunks))));
         List<FileChunkResponse> failedChunks = randomSubsetOf(between(1, unrepliedChunks.size()), unrepliedChunks);
