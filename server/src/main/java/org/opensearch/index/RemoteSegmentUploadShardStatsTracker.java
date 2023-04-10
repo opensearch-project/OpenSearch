@@ -24,9 +24,13 @@ public class RemoteSegmentUploadShardStatsTracker {
         latestUploadFileNameLengthMap = new HashMap<>();
     }
 
-    private volatile long refreshSeqNo = UNASSIGNED;
+    private volatile long localRefreshSeqNo = UNASSIGNED;
 
-    private volatile long refreshTime = UNASSIGNED;
+    private volatile long localRefreshTime = UNASSIGNED;
+
+    private volatile long remoteRefreshSeqNo = UNASSIGNED;
+
+    private volatile long remoteRefreshTime = UNASSIGNED;
 
     private volatile long uploadBytesStarted = UNASSIGNED;
 
@@ -69,4 +73,11 @@ public class RemoteSegmentUploadShardStatsTracker {
         totalUploadsSucceeded += 1;
     }
 
+    public void updateLocalRefreshSeqNo(long localRefreshSeqNo) {
+        this.localRefreshSeqNo = localRefreshSeqNo;
+    }
+
+    public void updateLocalRefreshTime(long localRefreshTime) {
+        this.localRefreshTime = localRefreshTime;
+    }
 }

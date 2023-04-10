@@ -2754,14 +2754,6 @@ public class InternalEngine extends Engine {
         return lastRefreshedCheckpointListener.refreshedCheckpoint.get();
     }
 
-    public final long lastRefreshedTime() {
-        return lastRefreshedCheckpointListener.refreshedTime.get();
-    }
-
-    public final long lastRefreshedSeqNo() {
-        return lastRefreshedCheckpointListener.refreshedSeqNo.get();
-    }
-
     private final Object refreshIfNeededMutex = new Object();
 
     /**
@@ -2779,50 +2771,28 @@ public class InternalEngine extends Engine {
 
     private final class LastRefreshedCheckpointListener implements ReferenceManager.RefreshListener {
         final AtomicLong refreshedCheckpoint;
-        private final AtomicLong refreshedTime;
-        private final AtomicLong refreshedSeqNo;
         private long pendingCheckpoint;
-        private long pendingRefreshTime;
-        private final AtomicLong beforeRefreshSeqNo;
 
         LastRefreshedCheckpointListener(long initialLocalCheckpoint) {
             this.refreshedCheckpoint = new AtomicLong(initialLocalCheckpoint);
-            // When a shard is initializing, it is safe to assign the refreshed time to current nanoTime.
-            this.refreshedTime = new AtomicLong(System.nanoTime());
-            this.refreshedSeqNo = new AtomicLong();
-            this.beforeRefreshSeqNo = new AtomicLong();
         }
 
         @Override
         public void beforeRefresh() {
             // all changes until this point should be visible after refresh
             pendingCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
-            pendingRefreshTime = System.nanoTime();
-            beforeRefreshSeqNo.incrementAndGet();
         }
 
         @Override
         public void afterRefresh(boolean didRefresh) {
             if (didRefresh) {
                 updateRefreshedCheckpoint(pendingCheckpoint);
-                updateRefreshedTime();
-                updateRefreshedSeqNo();
             }
         }
 
         void updateRefreshedCheckpoint(long checkpoint) {
             refreshedCheckpoint.updateAndGet(curr -> Math.max(curr, checkpoint));
             assert refreshedCheckpoint.get() >= checkpoint : refreshedCheckpoint.get() + " < " + checkpoint;
-        }
-
-        private void updateRefreshedTime() {
-            refreshedTime.updateAndGet(curr -> Math.max(curr, pendingRefreshTime));
-            assert refreshedTime.get() >= pendingRefreshTime : refreshedTime.get() + " < " + pendingRefreshTime;
-        }
-
-        private void updateRefreshedSeqNo() {
-            refreshedSeqNo.updateAndGet(curr -> Math.max(curr, beforeRefreshSeqNo.get()));
-            assert refreshedSeqNo.get() >= beforeRefreshSeqNo.get() : refreshedTime.get() + " < " + beforeRefreshSeqNo.get();
         }
     }
 
