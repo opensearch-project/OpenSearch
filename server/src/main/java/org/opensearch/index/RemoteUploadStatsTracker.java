@@ -27,7 +27,6 @@ public class RemoteUploadStatsTracker {
     }
 
     public RemoteSegmentUploadShardStatsTracker getStatsTracker(ShardId shardId) {
-        return shardLevelStats.get(shardId);
+        return shardLevelStats.computeIfAbsent(shardId, k -> new RemoteSegmentUploadShardStatsTracker());
     }
-
 }
