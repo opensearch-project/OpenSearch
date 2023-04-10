@@ -385,7 +385,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             throw new IllegalArgumentException(
                 "Settings "
                     + setting.getKey()
-                    + " can ont be set/enabled when "
+                    + " can only be set/enabled when "
                     + INDEX_REMOTE_STORE_ENABLED_SETTING.getKey()
                     + " is set to true"
             );
