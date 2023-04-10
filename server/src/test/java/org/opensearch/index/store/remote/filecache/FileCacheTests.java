@@ -54,9 +54,8 @@ public class FileCacheTests extends OpenSearchTestCase {
     }
 
     @SuppressForbidden(reason = "creating a test file for cache")
-    private void createFile(String nodeId, String indexName, String shardId, String fileName) throws IOException {
+    private void createFile(String indexName, String shardId, String fileName) throws IOException {
         Path folderPath = path.resolve(NodeEnvironment.CACHE_FOLDER)
-            .resolve(nodeId)
             .resolve(indexName)
             .resolve(shardId)
             .resolve(RemoteSnapshotDirectoryFactory.LOCAL_STORE_LOCATION);
@@ -266,10 +265,9 @@ public class FileCacheTests extends OpenSearchTestCase {
     }
 
     public void testCacheRestore() throws IOException {
-        String nodeId = "0";
         String indexName = "test-index";
         String shardId = "0";
-        createFile(nodeId, indexName, shardId, "test.0");
+        createFile(indexName, shardId, "test.0");
         FileCache fileCache = createFileCache(GIGA_BYTES);
         assertEquals(0, fileCache.usage().usage());
         Path fileCachePath = path.resolve(NodeEnvironment.CACHE_FOLDER).resolve(indexName).resolve(shardId);
