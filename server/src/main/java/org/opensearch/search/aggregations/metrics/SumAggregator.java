@@ -48,6 +48,7 @@ import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.Map;
 
 /**
@@ -91,13 +92,21 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
 
                 if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
+                    double value = sums.get(bucket);
+                    BigInteger valueInteger = BigInteger.valueOf((long) value);
+                    double valueFloating = value - (long) value;
+
                     BigDecimal sum = BigDecimal.valueOf(sums.get(bucket));
 
                     for (int i = 0; i < valuesCount; i++) {
+                        value = values.nextValue();
+                        valueInteger = valueInteger.add(BigInteger.valueOf((long) value));
+                        valueFloating += value - (long) value;
+
                         sum = sum.add(BigDecimal.valueOf(values.nextValue()));
                     }
 
-                    sums.set(bucket, sum.doubleValue());
+                    sums.set(bucket, valueInteger.doubleValue() + valueFloating);
                 }
             }
         };
