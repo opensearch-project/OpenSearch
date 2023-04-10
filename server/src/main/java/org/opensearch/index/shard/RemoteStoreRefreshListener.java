@@ -103,12 +103,13 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
      */
     @Override
     public void afterRefresh(boolean didRefresh) {
+        if (didRefresh == false) {
+            return;
+        }
         try {
             // Update local stats
-            if (didRefresh) {
-                updateRefreshTime();
-                updateRefreshSeqNo();
-            }
+            updateRefreshTime();
+            updateRefreshSeqNo();
             RemoteSegmentUploadShardStatsTracker statsTracker = remoteUploadPressureService.getStatsTracker(indexShard.shardId());
             updateRefreshStats(statsTracker, false);
             if (indexShard.getReplicationTracker().isPrimaryMode()) {
@@ -268,7 +269,9 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         }).collect(Collectors.toList());
 
         // Start tracking the upload bytes started
-        filesToUpload.forEach(file -> { statsTracker.incrementUploadBytesStarted(sizeMap.get(file)); });
+        filesToUpload.forEach(file -> {
+            statsTracker.incrementUploadBytesStarted(sizeMap.get(file));
+        });
 
         // Starting the uploads now
         filesToUpload.forEach(file -> {
