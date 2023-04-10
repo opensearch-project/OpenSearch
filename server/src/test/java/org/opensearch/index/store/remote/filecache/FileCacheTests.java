@@ -272,7 +272,7 @@ public class FileCacheTests extends OpenSearchTestCase {
         createFile(nodeId, indexName, shardId, "test.0");
         FileCache fileCache = createFileCache(GIGA_BYTES);
         assertEquals(0, fileCache.usage().usage());
-        Path fileCachePath = path.resolve(NodeEnvironment.CACHE_FOLDER).resolve(nodeId).resolve(indexName).resolve(shardId);
+        Path fileCachePath = path.resolve(NodeEnvironment.CACHE_FOLDER).resolve(indexName).resolve(shardId);
         fileCache.restoreFromDirectory(List.of(fileCachePath));
         assertTrue(fileCache.usage().usage() > 0);
     }
