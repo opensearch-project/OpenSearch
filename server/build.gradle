@@ -210,6 +210,12 @@ def generatePluginsList = tasks.register("generatePluginsList") {
     }
 }
 
+protobuf {
+  protoc {
+    artifact = "com.google.protobuf:protoc:3.22.2"
+  }
+}
+
 tasks.named("processResources").configure {
     dependsOn generateModulesList, generatePluginsList
 }
