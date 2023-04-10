@@ -8,7 +8,9 @@
 
 package org.opensearch.index;
 
+import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Remote upload stats.
@@ -91,6 +93,10 @@ public class RemoteSegmentUploadShardStatsTracker {
 
     public void updateLatestLocalFileNameLengthMap(Map<String, Long> latestLocalFileNameLengthMap) {
         this.latestLocalFileNameLengthMap = latestLocalFileNameLengthMap;
+    }
+
+    public Set<String> getLatestUploadFiles() {
+        return latestUploadFileNameLengthMap == null ? Collections.emptySet() : latestUploadFileNameLengthMap.keySet();
     }
 
     public void updateLatestUploadFileNameLengthMap(Map<String, Long> latestUploadFileNameLengthMap) {
