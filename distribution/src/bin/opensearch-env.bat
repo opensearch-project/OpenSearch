@@ -1,18 +1,22 @@
 set SCRIPT=%0
 
+for %%I in (opensearch.bat) do (
+    set "OPENSEARCH_HOME=%%~dpI"
+)
+
 rem determine OpenSearch home; to do this, we strip from the path until we
 rem find bin, and then strip bin (there is an assumption here that there is no
 rem nested directory under bin also named bin)
 if not defined OPENSEARCH_HOME (
-  for %%I in (%SCRIPT%) do set OPENSEARCH_HOME=%%~dpI
+    for %%I in (%0) do set OPENSEARCH_HOME=%%~dpI
 
-  :opensearch_home_loop
-  for %%I in ("%OPENSEARCH_HOME:~1,-1%") do set DIRNAME=%%~nxI
-  if not "%DIRNAME%" == "bin" (
+    :opensearch_home_loop
+    for %%I in ("%OPENSEARCH_HOME:~1,-1%") do set DIRNAME=%%~nxI
+    if not "%DIRNAME%" == "bin" (
+        for %%I in ("%OPENSEARCH_HOME%..") do set OPENSEARCH_HOME=%%~dpfI
+        goto opensearch_home_loop
+    )
     for %%I in ("%OPENSEARCH_HOME%..") do set OPENSEARCH_HOME=%%~dpfI
-    goto opensearch_home_loop
-  )
-  for %%I in ("%OPENSEARCH_HOME%..") do set OPENSEARCH_HOME=%%~dpfI
 )
 
 rem now set the classpath
@@ -43,10 +47,10 @@ if "%1" == "nojava" (
 
 rem comparing to empty string makes this equivalent to bash -v check on env var
 rem and allows to effectively force use of the bundled jdk when launching OpenSearch
-rem by setting OPENSEARCH_JAVA_HOME= and JAVA_HOME= 
+rem by setting OPENSEARCH_JAVA_HOME= and JAVA_HOME=
 if not "%OPENSEARCH_JAVA_HOME%" == "" (
   set "JAVA=%OPENSEARCH_JAVA_HOME%\bin\java.exe"
-  set JAVA_TYPE=OPENSEARCH_JAVA_HOME 
+  set JAVA_TYPE=OPENSEARCH_JAVA_HOME
 ) else if not "%JAVA_HOME%" == "" (
   set "JAVA=%JAVA_HOME%\bin\java.exe"
   set JAVA_TYPE=JAVA_HOME
