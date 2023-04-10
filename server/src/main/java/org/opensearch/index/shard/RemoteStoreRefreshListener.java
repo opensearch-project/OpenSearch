@@ -70,6 +70,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     private final AtomicLong refreshTime = new AtomicLong(System.nanoTime());
     private long beforeRefreshSeqNo;
     private final AtomicLong refreshSeqNo = new AtomicLong();
+    private final Map<String, Long> fileSizeMap = new HashMap<>();
 
     public RemoteStoreRefreshListener(IndexShard indexShard) {
         this.indexShard = indexShard;
@@ -102,9 +103,14 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
      */
     @Override
     public void afterRefresh(boolean didRefresh) {
-        RemoteSegmentUploadShardStatsTracker statsTracker = remoteUploadPressureService.getStatsTracker(indexShard.shardId());
-        updateLocalStatsAndStatsTracker(didRefresh, statsTracker);
         try {
+            // Update local stats
+            if (didRefresh) {
+                updateRefreshTime();
+                updateRefreshSeqNo();
+            }
+            RemoteSegmentUploadShardStatsTracker statsTracker = remoteUploadPressureService.getStatsTracker(indexShard.shardId());
+            updateRefreshStats(statsTracker, false);
             if (indexShard.getReplicationTracker().isPrimaryMode()) {
                 if (this.primaryTerm != indexShard.getOperationPrimaryTerm()) {
                     this.primaryTerm = indexShard.getOperationPrimaryTerm();
@@ -143,12 +149,16 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                                 .filter(file -> !file.equals(latestSegmentInfos.get()))
                                 .forEach(localSegmentsPostRefresh::remove);
 
+                            // Create a map of file name to size and update the stats tracker
+                            Map<String, Long> sizeMap = createSizeMap(localSegmentsPostRefresh);
+                            statsTracker.updateLatestLocalFileNameLengthMap(sizeMap);
+
                             // Start tracking total uploads started
                             statsTracker.incrementTotalUploadsStarted();
 
                             // Start the segments upload
                             segmentsUploadStatus = UploadStatus.STARTED;
-                            segmentsUploadStatus = uploadNewSegments(localSegmentsPostRefresh, statsTracker);
+                            segmentsUploadStatus = uploadNewSegments(localSegmentsPostRefresh, statsTracker, sizeMap);
                             if (UploadStatus.SUCCEEDED == segmentsUploadStatus) {
                                 segmentInfoSnapshotFilename = uploadSegmentInfosSnapshot(latestSegmentInfos.get(), segmentInfos);
                                 localSegmentsPostRefresh.add(segmentInfoSnapshotFilename);
@@ -163,6 +173,8 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                                 // Metadata upload succeeded
                                 metadataUploadStatus = UploadStatus.SUCCEEDED;
                                 statsTracker.incrementTotalUploadsSucceeded();
+                                statsTracker.updateLatestUploadFileNameLengthMap(sizeMap);
+                                updateRefreshStats(statsTracker, true);
 
                                 localSegmentChecksumMap.keySet()
                                     .stream()
@@ -201,15 +213,14 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         }
     }
 
-    private void updateLocalStatsAndStatsTracker(boolean didRefresh, RemoteSegmentUploadShardStatsTracker statsTracker) {
-        // Update local stats
-        if (didRefresh) {
-            updateRefreshTime();
-            updateRefreshSeqNo();
+    private void updateRefreshStats(RemoteSegmentUploadShardStatsTracker statsTracker, boolean remote) {
+        if (remote) {
+            statsTracker.updateRemoteRefreshTime(refreshTime.get());
+            statsTracker.updateRemoteRefreshSeqNo(refreshSeqNo.get());
+        } else {
+            statsTracker.updateLocalRefreshTime(refreshTime.get());
+            statsTracker.updateLocalRefreshSeqNo(refreshSeqNo.get());
         }
-        // Update stats tracker
-        statsTracker.updateLocalRefreshTime(refreshTime.get());
-        statsTracker.updateLocalRefreshSeqNo(refreshSeqNo.get());
     }
 
     private boolean isRefreshAfterCommit() throws IOException {
@@ -237,10 +248,14 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     }
 
     // Visible for testing
-    UploadStatus uploadNewSegments(Collection<String> localFiles, RemoteSegmentUploadShardStatsTracker statsTracker) throws IOException {
+    UploadStatus uploadNewSegments(
+        Collection<String> localSegmentsPostRefresh,
+        RemoteSegmentUploadShardStatsTracker statsTracker,
+        Map<String, Long> sizeMap
+    ) throws IOException {
         AtomicBoolean uploadSuccess = new AtomicBoolean(true);
         // Exclude files that are already uploaded and the exclude files to come up with the list of files to be uploaded.
-        List<String> filesToUpload = localFiles.stream().filter(file -> !EXCLUDE_FILES.contains(file)).filter(file -> {
+        List<String> filesToUpload = localSegmentsPostRefresh.stream().filter(file -> !EXCLUDE_FILES.contains(file)).filter(file -> {
             try {
                 return !remoteDirectory.containsFile(file, getChecksumOfLocalFile(file));
             } catch (IOException e) {
@@ -252,19 +267,10 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
             }
         }).collect(Collectors.toList());
 
-        // Create a map of file name to size and start tracking the upload bytes started
-        Map<String, Long> sizeMap = filesToUpload.stream().collect(Collectors.toMap(Function.identity(), file -> {
-            long fileSize = -1;
-            try {
-                fileSize = storeDirectory.fileLength(file);
-                // Start tracking upload bytes started
-                statsTracker.incrementUploadBytesStarted(fileSize);
-            } catch (IOException e) {
-                logger.warn("Exception while reading the fileLength of file={}", file, e);
-            }
-            return fileSize;
-        }));
+        // Start tracking the upload bytes started
+        filesToUpload.forEach(file -> { statsTracker.incrementUploadBytesStarted(sizeMap.get(file)); });
 
+        // Starting the uploads now
         filesToUpload.forEach(file -> {
             boolean success = false;
             long fileSize = sizeMap.get(file);
@@ -314,6 +320,28 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     private void updateRefreshSeqNo() {
         refreshSeqNo.updateAndGet(curr -> Math.max(curr, beforeRefreshSeqNo));
         assert refreshSeqNo.get() >= beforeRefreshSeqNo : refreshSeqNo.get() + " < " + beforeRefreshSeqNo;
+    }
+
+    private Map<String, Long> createSizeMap(Collection<String> segmentFiles) {
+        // Create a map of file name to size
+        Map<String, Long> sizeMap = segmentFiles.stream()
+            .filter(file -> !EXCLUDE_FILES.contains(file))
+            .collect(Collectors.toMap(Function.identity(), file -> {
+                if (fileSizeMap.containsKey(file)) {
+                    return fileSizeMap.get(file);
+                }
+                long fileSize = 0;
+                try {
+                    fileSize = storeDirectory.fileLength(file);
+                    fileSizeMap.put(file, fileSize);
+                } catch (IOException e) {
+                    logger.warn(new ParameterizedMessage("Exception while reading the fileLength of file={}", file), e);
+                }
+                return fileSize;
+            }));
+        // Remove keys from the fileSizeMap that do not exist in the latest segment files
+        fileSizeMap.entrySet().removeIf(entry -> sizeMap.containsKey(entry.getKey()) == false);
+        return sizeMap;
     }
 
     /**
