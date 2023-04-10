@@ -13,6 +13,9 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
+import org.opensearch.action.admin.cluster.state.ClusterStateAction;
+import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.io.stream.StreamInput;
@@ -31,6 +34,7 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -309,5 +313,43 @@ public class ExtensionTransportActionsHandler {
             }
         }
         return extensionActionResponse;
+    }
+
+    /**
+     * Handles a {@link ClusterStateRequest}.
+     *
+     * @param request The request to handle.
+     * @return A {@link ClusterStateResponse}.
+     */
+    public ClusterStateResponse handleClusterStateRequest(ClusterStateRequest request) {
+        final CompletableFuture<ClusterStateResponse> inProgressFuture = new CompletableFuture<>();
+        client.execute(ClusterStateAction.INSTANCE, request, new ActionListener<ClusterStateResponse>() {
+            @Override
+            public void onResponse(ClusterStateResponse response) {
+                inProgressFuture.complete(response);
+            }
+
+            @Override
+            public void onFailure(Exception exp) {
+                logger.debug("Cluster State Request failed", exp);
+                inProgressFuture.completeExceptionally(exp);
+            }
+        });
+        try {
+            return inProgressFuture.orTimeout(ExtensionsManager.EXTENSION_REQUEST_WAIT_TIMEOUT, TimeUnit.SECONDS).get();
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof TimeoutException) {
+                logger.debug("No response from extension to request.");
+            }
+            if (e.getCause() instanceof RuntimeException) {
+                throw (RuntimeException) e.getCause();
+            } else if (e.getCause() instanceof Error) {
+                throw (Error) e.getCause();
+            } else {
+                throw new RuntimeException(e.getCause());
+            }
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

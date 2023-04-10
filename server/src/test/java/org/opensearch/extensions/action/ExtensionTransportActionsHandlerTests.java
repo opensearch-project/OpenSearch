@@ -13,6 +13,8 @@ import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
+import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
+import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -175,5 +177,13 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
         assertTrue(response.getStatus());
 
         expectThrows(NodeNotConnectedException.class, () -> extensionTransportActionsHandler.sendTransportRequestToExtension(request));
+    }
+
+    public void testHandleClusterStateRequest() throws Exception {
+        ClusterStateRequest clusterStateRequest = new ClusterStateRequest().all();
+        assertEquals(
+            ClusterStateResponse.class,
+            extensionTransportActionsHandler.handleClusterStateRequest(clusterStateRequest).getClass()
+        );
     }
 }

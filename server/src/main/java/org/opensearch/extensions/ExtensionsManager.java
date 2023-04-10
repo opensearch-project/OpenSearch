@@ -32,7 +32,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
-import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -246,8 +246,8 @@ public class ExtensionsManager {
             ThreadPool.Names.GENERIC,
             false,
             false,
-            ExtensionRequest::new,
-            ((request, channel, task) -> channel.sendResponse(handleExtensionRequest(request)))
+            ClusterStateRequest::new,
+            ((request, channel, task) -> channel.sendResponse(extensionTransportActionsHandler.handleClusterStateRequest(request)))
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_CLUSTER_SETTINGS,
@@ -436,8 +436,6 @@ public class ExtensionsManager {
      */
     TransportResponse handleExtensionRequest(ExtensionRequest extensionRequest) throws Exception {
         switch (extensionRequest.getRequestType()) {
-            case REQUEST_EXTENSION_CLUSTER_STATE:
-                return new ClusterStateResponse(clusterService.getClusterName(), clusterService.state(), false);
             case REQUEST_EXTENSION_CLUSTER_SETTINGS:
                 return new ClusterSettingsResponse(clusterService);
             case REQUEST_EXTENSION_ENVIRONMENT_SETTINGS:
