@@ -487,8 +487,8 @@
 
 "Flat-object fields from within the scripting":
   - skip:
-      version: " - 2.99.99"
-      reason: "flat_object is introduced in 3.0.0 in main branch"
+      version: " - 2.6.99"
+      reason: "flat_object is introduced in 2.7.0"
 
   - do:
       indices.create:
