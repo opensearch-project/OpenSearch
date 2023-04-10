@@ -170,6 +170,7 @@ import org.opensearch.gateway.MetaStateService;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexingPressureService;
+import org.opensearch.index.RemoteUploadPressureService;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
@@ -1992,7 +1993,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         mock(ShardStateAction.class),
                         mock(ThreadPool.class)
                     ),
-                    new SystemIndices(emptyMap())
+                    new SystemIndices(emptyMap()),
+                    mock(RemoteUploadPressureService.class)
                 );
                 actions.put(
                     BulkAction.INSTANCE,
