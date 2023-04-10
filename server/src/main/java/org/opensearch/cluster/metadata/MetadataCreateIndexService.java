@@ -922,6 +922,12 @@ public class MetadataCreateIndexService {
         return indexSettings;
     }
 
+    /**
+     * Updates index settings to enable remote store by default based on cluster level settings
+     * @param settingsBuilder index settings builder to be updated with relevant settings
+     * @param requestSettings settings passed in during index create request
+     * @param clusterSettings cluster level settings
+     */
     private static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, Settings requestSettings, Settings clusterSettings) {
         if (FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE)
             && FeatureFlags.isEnabled(FeatureFlags.REPLICATION_TYPE)
