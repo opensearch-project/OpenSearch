@@ -107,6 +107,7 @@ import org.opensearch.search.SearchParseException;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.internal.ShardSearchContextId;
+import org.opensearch.search.pipeline.SearchPipelineProcessingException;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotException;
 import org.opensearch.snapshots.SnapshotId;
@@ -250,7 +251,11 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         // Remove the deprecated exception classes from the unregistered list.
         assertTrue(notRegistered.remove(NotMasterException.class));
         assertTrue(notRegistered.remove(MasterNotDiscoveredException.class));
-        assertTrue("Classes subclassing OpenSearchException must be registered \n" + notRegistered.toString(), notRegistered.isEmpty());
+        assertTrue(
+            "Classes subclassing OpenSearchException must be registered in OpenSearchException.OpenSearchExceptionHandle \n"
+                + notRegistered,
+            notRegistered.isEmpty()
+        );
         assertTrue(registered.removeAll(OpenSearchException.getRegisteredKeys())); // check
         assertEquals(registered.toString(), 0, registered.size());
     }
@@ -878,6 +883,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(167, UnsupportedWeightedRoutingStateException.class);
         ids.put(168, PreferenceBasedSearchNotAllowedException.class);
         ids.put(169, NodeWeighedAwayException.class);
+        ids.put(170, SearchPipelineProcessingException.class);
         ids.put(10001, IndexCreateBlockException.class);
 
         Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();
@@ -889,6 +895,10 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
 
         for (final Tuple<Integer, Class<? extends OpenSearchException>> tuple : OpenSearchException.classes()) {
             assertNotNull(tuple.v1());
+            assertNotNull(
+                tuple.v2().getName() + " not found in ExceptionSerializationTests.testIds. Please add it.",
+                reverse.get(tuple.v2())
+            );
             assertEquals((int) reverse.get(tuple.v2()), (int) tuple.v1());
         }
 
