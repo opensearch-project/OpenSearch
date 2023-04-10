@@ -55,6 +55,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.search.SearchException;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
+import org.opensearch.search.pipeline.SearchPipelineProcessingException;
 import org.opensearch.snapshots.SnapshotInUseDeletionException;
 import org.opensearch.transport.TcpTransport;
 
@@ -1657,6 +1658,12 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             V_2_6_0
         ),
         NODE_WEIGHED_AWAY_EXCEPTION(NodeWeighedAwayException.class, NodeWeighedAwayException::new, 169, V_2_6_0),
+        SEARCH_PIPELINE_PROCESSING_EXCEPTION(
+            SearchPipelineProcessingException.class,
+            SearchPipelineProcessingException::new,
+            170,
+            V_3_0_0 // TODO: Update if/when we backport to 2.x
+        ),
         INDEX_CREATE_BLOCK_EXCEPTION(
             org.opensearch.cluster.block.IndexCreateBlockException.class,
             org.opensearch.cluster.block.IndexCreateBlockException::new,
