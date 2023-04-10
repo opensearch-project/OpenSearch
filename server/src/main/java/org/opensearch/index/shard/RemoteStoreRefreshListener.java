@@ -373,7 +373,6 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
 
     /**
      * Used to track the status of upload of segments file and metadata files.
-     * TODO - Add a state machine.
      */
     private enum UploadStatus {
         NOT_STARTED,
