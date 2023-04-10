@@ -13,6 +13,8 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.shard.IndexEventListener;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 
 /**
@@ -20,7 +22,7 @@ import org.opensearch.index.shard.ShardId;
  *
  * @opensearch.internal
  */
-public class RemoteUploadPressureService {
+public class RemoteUploadPressureService implements IndexEventListener {
 
     private static final Logger logger = LogManager.getLogger(RemoteUploadPressureService.class);
 
@@ -36,5 +38,10 @@ public class RemoteUploadPressureService {
 
     public RemoteSegmentUploadShardStatsTracker getStatsTracker(ShardId shardId) {
         return remoteUploadStatsTracker.getStatsTracker(shardId);
+    }
+
+    @Override
+    public void beforeIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+        remoteUploadStatsTracker.remove(shardId);
     }
 }

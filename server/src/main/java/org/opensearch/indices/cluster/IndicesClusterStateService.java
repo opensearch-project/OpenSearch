@@ -225,6 +225,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             indexEventListeners.add(segmentReplicationTargetService);
             indexEventListeners.add(segmentReplicationSourceService);
         }
+        // if remote store feature is not enabled, do not wire the remote upload pressure service as an IndexEventListener.
+        if (FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE)) {
+            indexEventListeners.add(remoteUploadPressureService);
+        }
         this.segmentReplicationTargetService = segmentReplicationTargetService;
         this.builtInIndexListener = Collections.unmodifiableList(indexEventListeners);
         this.indicesService = indicesService;

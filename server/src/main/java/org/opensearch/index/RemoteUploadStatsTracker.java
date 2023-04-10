@@ -22,11 +22,15 @@ public class RemoteUploadStatsTracker {
 
     private final Map<ShardId, RemoteSegmentUploadShardStatsTracker> shardLevelStats;
 
-    public RemoteUploadStatsTracker() {
+    RemoteUploadStatsTracker() {
         this.shardLevelStats = ConcurrentCollections.newConcurrentMap();
     }
 
-    public RemoteSegmentUploadShardStatsTracker getStatsTracker(ShardId shardId) {
+    RemoteSegmentUploadShardStatsTracker getStatsTracker(ShardId shardId) {
         return shardLevelStats.computeIfAbsent(shardId, k -> new RemoteSegmentUploadShardStatsTracker());
+    }
+
+    void remove(ShardId shardId) {
+        shardLevelStats.remove(shardId);
     }
 }
