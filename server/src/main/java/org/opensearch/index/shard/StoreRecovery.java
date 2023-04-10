@@ -268,7 +268,9 @@ final class StoreRecovery {
             in.copyFrom(new FilterDirectory(from) {
                 @Override
                 public IndexInput openInput(String name, IOContext context) throws IOException {
-                    index.addFileDetail(dest, l, false);
+                    if (index.getFileDetails(dest) == null) {
+                        index.addFileDetail(dest, l, false);
+                    }
                     copies.set(true);
                     final IndexInput input = in.openInput(name, context);
                     return new IndexInput("StatsDirectoryWrapper(" + input.toString() + ")") {
@@ -311,7 +313,7 @@ final class StoreRecovery {
                     };
                 }
             }, src, dest, context);
-            if (copies.get() == false) {
+            if (copies.get() == false && index.getFileDetails(dest) == null) {
                 index.addFileDetail(dest, l, true); // hardlinked - we treat it as reused since the file was already somewhat there
             } else {
                 assert index.getFileDetails(dest) != null : "File [" + dest + "] has no file details";

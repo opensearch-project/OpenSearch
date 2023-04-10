@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.replication;
 
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
@@ -106,7 +107,8 @@ public class SegmentReplicationTargetTests extends IndexShardTestCase {
             spyIndexShard.shardId(),
             spyIndexShard.getPendingPrimaryTerm(),
             testSegmentInfos.getGeneration(),
-            testSegmentInfos.version
+            testSegmentInfos.version,
+            Codec.getDefault().getName()
         );
     }
 

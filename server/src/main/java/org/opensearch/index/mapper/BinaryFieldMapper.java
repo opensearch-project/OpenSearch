@@ -32,7 +32,9 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.document.InvertableType;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StoredValue;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
@@ -272,6 +274,16 @@ public class BinaryFieldMapper extends ParametrizedFieldMapper {
                 throw new OpenSearchException("Failed to get binary value", e);
             }
 
+        }
+
+        @Override
+        public StoredValue storedValue() {
+            return null;
+        }
+
+        @Override
+        public InvertableType invertableType() {
+            return InvertableType.BINARY;
         }
     }
 }

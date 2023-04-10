@@ -379,6 +379,17 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertEquals(1, getSnapshotsResponse.getSnapshots().size());
         assertEquals("snap-on-empty-repo", getSnapshotsResponse.getSnapshots().get(0).snapshotId().getName());
+
+        // there is an in-progress snapshot, make sure we return empty result when getting a non-existing snapshot with setting
+        // ignore_unavailable to true
+        getSnapshotsResponse = client.admin()
+            .cluster()
+            .prepareGetSnapshots("test-repo")
+            .setIgnoreUnavailable(true)
+            .addSnapshots("non-existent-snapshot")
+            .get();
+        assertEquals(0, getSnapshotsResponse.getSnapshots().size());
+
         unblockNode(repositoryName, initialBlockedNode); // unblock node
         admin().cluster().prepareDeleteSnapshot(repositoryName, "snap-on-empty-repo").get();
 

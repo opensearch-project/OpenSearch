@@ -27,12 +27,12 @@ import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
 import org.opensearch.index.store.remote.filecache.FileCacheStats;
 import org.opensearch.monitor.fs.FsInfo;
+import org.opensearch.node.Node;
 import org.opensearch.repositories.fs.FsRepository;
 
 import java.io.IOException;
@@ -582,13 +582,13 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
      */
     private void assertCacheDirectoryReplicaAndIndexCount(int numCacheFolderCount, int numIndexCount) throws IOException {
         // Get the available NodeEnvironment instances
-        Iterable<NodeEnvironment> nodeEnvironments = internalCluster().getInstances(NodeEnvironment.class);
+        Iterable<Node> nodes = internalCluster().getInstances(Node.class);
 
         // Filter out search NodeEnvironment(s) since FileCache is initialized only on search nodes and
         // collect the path for all the cache locations on search nodes.
-        List<Path> searchNodeFileCachePaths = StreamSupport.stream(nodeEnvironments.spliterator(), false)
-            .filter(nodeEnv -> nodeEnv.fileCache() != null)
-            .map(nodeEnv -> nodeEnv.fileCacheNodePath().fileCachePath)
+        List<Path> searchNodeFileCachePaths = StreamSupport.stream(nodes.spliterator(), false)
+            .filter(node -> node.fileCache() != null)
+            .map(node -> node.getNodeEnvironment().fileCacheNodePath().fileCachePath)
             .collect(Collectors.toList());
 
         // Walk through the cache directory on nodes
