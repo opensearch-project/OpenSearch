@@ -39,6 +39,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump: Netty from 4.1.90.Final to 4.1.91.Final , ASM 9.4 to ASM 9.5, ByteBuddy 1.14.2 to 1.14.3 ([#6981](https://github.com/opensearch-project/OpenSearch/pull/6981))
 - Bump `com.azure:azure-storage-blob` from 12.15.0 to 12.21.1
 - Bump `org.gradle.test-retry` from 1.5.1 to 1.5.2
+- Bump `org.apache.hadoop:hadoop-minicluster` from 3.3.4 to 3.3.5
 
 ### Changed
 - Require MediaType in Strings.toString API ([#6009](https://github.com/opensearch-project/OpenSearch/pull/6009))
