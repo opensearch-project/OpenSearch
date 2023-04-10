@@ -69,6 +69,7 @@ import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressureService;
+import org.opensearch.index.RemoteUploadPressureService;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.Engine;
@@ -1072,7 +1073,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(ActionFilters.class),
             mock(IndexingPressureService.class),
             mock(SegmentReplicationPressureService.class),
-            mock(SystemIndices.class)
+            mock(SystemIndices.class),
+            mock(RemoteUploadPressureService.class)
         );
         action.handlePrimaryTermValidationRequest(
             new TransportShardBulkAction.PrimaryTermValidationRequest(aId + "-1", 1, shardId),
@@ -1102,7 +1104,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(ActionFilters.class),
             mock(IndexingPressureService.class),
             mock(SegmentReplicationPressureService.class),
-            mock(SystemIndices.class)
+            mock(SystemIndices.class),
+            mock(RemoteUploadPressureService.class)
         );
         action.handlePrimaryTermValidationRequest(
             new TransportShardBulkAction.PrimaryTermValidationRequest(aId, 1, shardId),
@@ -1132,7 +1135,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(ActionFilters.class),
             mock(IndexingPressureService.class),
             mock(SegmentReplicationPressureService.class),
-            mock(SystemIndices.class)
+            mock(SystemIndices.class),
+            mock(RemoteUploadPressureService.class)
         );
         action.handlePrimaryTermValidationRequest(
             new TransportShardBulkAction.PrimaryTermValidationRequest(aId, 1, shardId),
@@ -1173,7 +1177,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(ActionFilters.class),
             mock(IndexingPressureService.class),
             mock(SegmentReplicationPressureService.class),
-            mock(SystemIndices.class)
+            mock(SystemIndices.class),
+            mock(RemoteUploadPressureService.class)
         );
     }
 
