@@ -36,7 +36,6 @@ public class RemoteUploadPressureService implements IndexEventListener {
 
     private final RemoteUploadPressureSettings remoteUploadPressureSettings;
 
-
     private final Map<ShardId, AtomicLong> rejectionCount = ConcurrentCollections.newConcurrentMap();
 
     @Inject

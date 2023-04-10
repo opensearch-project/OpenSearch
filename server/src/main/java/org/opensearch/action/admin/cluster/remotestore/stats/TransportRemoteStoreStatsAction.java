@@ -38,7 +38,10 @@ import java.util.List;
 /**
  *
  */
-public class TransportRemoteStoreStatsAction extends TransportBroadcastByNodeAction<RemoteStoreStatsRequest, RemoteStoreStatsResponse, RemoteStoreStats> {
+public class TransportRemoteStoreStatsAction extends TransportBroadcastByNodeAction<
+    RemoteStoreStatsRequest,
+    RemoteStoreStatsResponse,
+    RemoteStoreStats> {
 
     private final IndicesService indicesService;
 
@@ -107,7 +110,13 @@ public class TransportRemoteStoreStatsAction extends TransportBroadcastByNodeAct
         List<DefaultShardOperationFailedException> shardFailures,
         ClusterState clusterState
     ) {
-        return new RemoteStoreStatsResponse(responses.toArray(new RemoteStoreStats[0]), totalShards, successfulShards, failedShards, shardFailures);
+        return new RemoteStoreStatsResponse(
+            responses.toArray(new RemoteStoreStats[0]),
+            totalShards,
+            successfulShards,
+            failedShards,
+            shardFailures
+        );
     }
 
     @Override
@@ -124,7 +133,9 @@ public class TransportRemoteStoreStatsAction extends TransportBroadcastByNodeAct
             throw new ShardNotFoundException(indexShard.shardId());
         }
 
-        RemoteSegmentUploadShardStatsTracker remoteSegmentUploadShardStatsTracker = RemoteUploadStatsTracker.INSTANCE.getStatsTracker(indexShard.shardId());
+        RemoteSegmentUploadShardStatsTracker remoteSegmentUploadShardStatsTracker = RemoteUploadStatsTracker.INSTANCE.getStatsTracker(
+            indexShard.shardId()
+        );
 
         return new RemoteStoreStats(remoteSegmentUploadShardStatsTracker);
     }

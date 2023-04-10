@@ -636,7 +636,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SegmentReplicationPressureService.MAX_ALLOWED_STALE_SHARDS,
 
                 // Settings related to Searchable Snapshots
-                Node.NODE_SEARCH_CACHE_SIZE_SETTING
+                Node.NODE_SEARCH_CACHE_SIZE_SETTING,
                 SegmentReplicationPressureService.MAX_ALLOWED_STALE_SHARDS,
 
                 // Settings related to remote segments upload back pressure
