@@ -44,6 +44,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `net.minidev:json-smart` from 2.4.9 to 2.4.10
 - Bump `com.netflix.nebula.ospackage-base` from 11.0.0 to 11.2.0
 - Bump `org.apache.hadoop:hadoop-minicluster` from 3.3.4 to 3.3.5
+- Bump `org.apache.commons:commons-compress` from 1.22 to 1.23.0
 
 ### Changed
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
