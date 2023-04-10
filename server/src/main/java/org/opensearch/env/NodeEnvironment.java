@@ -1255,9 +1255,7 @@ public final class NodeEnvironment implements Closeable {
                 for (Path indexPath : indexStream) {
                     if (Files.isDirectory(indexPath)) {
                         try (Stream<Path> shardStream = Files.list(indexPath)) {
-                            shardStream.filter(NodeEnvironment::isShardPath)
-                                .map(Path::toAbsolutePath)
-                                .forEach(indexSubPaths::add);
+                            shardStream.filter(NodeEnvironment::isShardPath).map(Path::toAbsolutePath).forEach(indexSubPaths::add);
                         }
                     }
                 }
