@@ -129,6 +129,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
 
                     String segmentInfoSnapshotFilename = null;
                     UploadStatus segmentsUploadStatus = UploadStatus.NOT_STARTED, metadataUploadStatus = UploadStatus.NOT_STARTED;
+                    long bytesBeforeUpload = statsTracker.getUploadBytesSucceeded(), startTimeInNS = System.nanoTime();
                     try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
                         SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
 
@@ -191,7 +192,13 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                         logger.warn("Exception while reading SegmentInfosSnapshot", e);
                     } finally {
                         // Update the stats tracker with the final upload status as seen at the end
-                        updateTotalUploadTerminalStats(metadataUploadStatus, segmentsUploadStatus, statsTracker);
+                        updateTotalUploadTerminalStats(
+                            metadataUploadStatus,
+                            segmentsUploadStatus,
+                            statsTracker,
+                            bytesBeforeUpload,
+                            startTimeInNS
+                        );
                         // Deletes the segment info file created for the upload of segment metadata.
                         try {
                             if (segmentInfoSnapshotFilename != null) {
@@ -215,7 +222,9 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     private void updateTotalUploadTerminalStats(
         UploadStatus metadataUploadStatus,
         UploadStatus segmentsUploadStatus,
-        RemoteSegmentUploadShardStatsTracker statsTracker
+        RemoteSegmentUploadShardStatsTracker statsTracker,
+        long bytesBeforeUpload,
+        long startTimeInNS
     ) {
         // If the metadata upload status is succeeded, then increment upload success count. If the metadata upload status is not succeeded,
         // then there are 3 cases - 1. metadata upload was skipped as all segments and metadata file are already present in remote store -
@@ -223,16 +232,22 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         // upload did not start at all - in which case the upload never started.
         if (metadataUploadStatus == UploadStatus.SUCCEEDED) {
             statsTracker.incrementTotalUploadsSucceeded();
-        } else if (segmentsUploadStatus == UploadStatus.SKIPPED) {
+        } else if (metadataUploadStatus == UploadStatus.NOT_STARTED && segmentsUploadStatus == UploadStatus.SUCCEEDED) {
             statsTracker.incrementTotalUploadsSkipped();
         } else if (Set.of(UploadStatus.STARTED, UploadStatus.SUCCEEDED, UploadStatus.FAILED).contains(segmentsUploadStatus)) {
-            statsTracker.incrementTotalUploadsSkipped();
+            statsTracker.incrementTotalUploadsFailed();
+        }
+
+        long bytesUploaded = statsTracker.getUploadBytesSucceeded() - bytesBeforeUpload;
+        long timeTakenInNS = System.nanoTime() - startTimeInNS;
+        if (bytesUploaded != 0) {
+            statsTracker.addUploadBytes(bytesUploaded);
+            statsTracker.addUploadBytesPerSecond((bytesUploaded * 10 ^ 9L) / timeTakenInNS);
         }
     }
 
     private boolean shouldUploadMetadata(UploadStatus segmentsUploadStatus, Set<String> localSegments, Set<String> remoteSegments) {
-        return UploadStatus.SUCCEEDED == segmentsUploadStatus
-            || (UploadStatus.SKIPPED == segmentsUploadStatus && !localSegments.equals(remoteSegments));
+        return UploadStatus.SUCCEEDED == segmentsUploadStatus && !localSegments.equals(remoteSegments);
     }
 
     private void updateRefreshStats(
@@ -293,10 +308,6 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                 return true;
             }
         }).collect(Collectors.toList());
-
-        if (filesToUpload.isEmpty()) {
-            return UploadStatus.SKIPPED;
-        }
 
         // Start tracking the upload bytes started
         filesToUpload.forEach(file -> statsTracker.incrementUploadBytesStarted(sizeMap.get(file)));
@@ -380,7 +391,6 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         NOT_STARTED,
         STARTED,
         FAILED,
-        SKIPPED,
         SUCCEEDED
     }
 }

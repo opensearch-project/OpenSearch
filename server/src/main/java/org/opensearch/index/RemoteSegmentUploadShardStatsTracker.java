@@ -8,6 +8,9 @@
 
 package org.opensearch.index;
 
+import org.opensearch.common.util.MovingAverage;
+import org.opensearch.common.util.Streak;
+
 import java.util.Map;
 import java.util.Set;
 
@@ -19,6 +22,10 @@ import java.util.Set;
 public class RemoteSegmentUploadShardStatsTracker {
 
     public static final long UNASSIGNED = 0L;
+
+    public static final int UPLOAD_BYTES_WINDOW_SIZE = 2000;
+
+    public static final int UPLOAD_BYTES_PER_SECOND_WINDOW_SIZE = 2000;
 
     private volatile long localRefreshSeqNo = UNASSIGNED;
 
@@ -52,8 +59,18 @@ public class RemoteSegmentUploadShardStatsTracker {
      */
     private volatile Set<String> latestUploadFiles;
 
+    private final Streak failures = new Streak();
+
+    private final MovingAverage uploadBytesMovingAverage = new MovingAverage(UPLOAD_BYTES_WINDOW_SIZE);
+
+    private final MovingAverage uploadBytesPerSecondMovingAverage = new MovingAverage(UPLOAD_BYTES_PER_SECOND_WINDOW_SIZE);
+
     public void incrementUploadBytesStarted(long bytes) {
         uploadBytesStarted += bytes;
+    }
+
+    public long getUploadBytesSucceeded() {
+        return uploadBytesSucceeded;
     }
 
     public void incrementUploadBytesFailed(long bytes) {
@@ -70,14 +87,17 @@ public class RemoteSegmentUploadShardStatsTracker {
 
     public void incrementTotalUploadsFailed() {
         totalUploadsFailed += 1;
+        failures.record(true);
     }
 
     public void incrementTotalUploadsSucceeded() {
         totalUploadsSucceeded += 1;
+        failures.record(false);
     }
 
     public void incrementTotalUploadsSkipped() {
         totalUploadsSkipped += 1;
+        failures.record(false);
     }
 
     public void updateLocalRefreshSeqNo(long localRefreshSeqNo) {
@@ -107,4 +127,13 @@ public class RemoteSegmentUploadShardStatsTracker {
     public void updateLatestUploadFiles(Set<String> latestUploadFiles) {
         this.latestUploadFiles = latestUploadFiles;
     }
+
+    public void addUploadBytes(long bytes) {
+        uploadBytesMovingAverage.record(bytes);
+    }
+
+    public void addUploadBytesPerSecond(long bytesPerSecond) {
+        uploadBytesPerSecondMovingAverage.record(bytesPerSecond);
+    }
+
 }
