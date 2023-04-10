@@ -33,6 +33,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -71,6 +72,8 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     private long beforeRefreshSeqNo;
     private final AtomicLong refreshSeqNo = new AtomicLong();
     private final Map<String, Long> fileSizeMap = new HashMap<>();
+
+    private final Set<String> latestSuccessfulUploadFiles = new HashSet<>();
 
     public RemoteStoreRefreshListener(IndexShard indexShard) {
         this.indexShard = indexShard;
@@ -130,7 +133,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                     try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
                         SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
 
-                        Collection<String> localSegmentsPostRefresh = segmentInfos.files(true);
+                        HashSet<String> localSegmentsPostRefresh = new HashSet<>(segmentInfos.files(true));
 
                         List<String> segmentInfosFiles = localSegmentsPostRefresh.stream()
                             .filter(file -> file.startsWith(IndexFileNames.SEGMENTS))
@@ -159,7 +162,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                             // Start the segments upload
                             segmentsUploadStatus = UploadStatus.STARTED;
                             segmentsUploadStatus = uploadNewSegments(localSegmentsPostRefresh, statsTracker, sizeMap);
-                            if (UploadStatus.SUCCEEDED == segmentsUploadStatus || UploadStatus.SKIPPED == segmentsUploadStatus) {
+                            if (shouldUploadMetadata(segmentsUploadStatus, localSegmentsPostRefresh, statsTracker.getLatestUploadFiles())) {
                                 segmentInfoSnapshotFilename = uploadSegmentInfosSnapshot(latestSegmentInfos.get(), segmentInfos);
                                 localSegmentsPostRefresh.add(segmentInfoSnapshotFilename);
                                 // Start Metadata upload
@@ -211,6 +214,11 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         } catch (Throwable t) {
             logger.error("Exception in RemoteStoreRefreshListener.afterRefresh()", t);
         }
+    }
+
+    private boolean shouldUploadMetadata(UploadStatus segmentsUploadStatus, Set<String> localSegments, Set<String> remoteSegments) {
+        return UploadStatus.SUCCEEDED == segmentsUploadStatus
+            || (UploadStatus.SKIPPED == segmentsUploadStatus && !localSegments.equals(remoteSegments));
     }
 
     private void updateRefreshStats(RemoteSegmentUploadShardStatsTracker statsTracker, boolean remote) {
