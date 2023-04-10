@@ -8,7 +8,6 @@
 
 package org.opensearch.index;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
@@ -49,9 +48,9 @@ public class RemoteSegmentUploadShardStatsTracker {
     private volatile Map<String, Long> latestLocalFileNameLengthMap;
 
     /**
-     * Keeps map of filename to bytes length of the most recent segments upload as part of refresh.
+     * Keeps list of filename of the most recent segments uploaded as part of refresh.
      */
-    private volatile Map<String, Long> latestUploadFileNameLengthMap;
+    private volatile Set<String> latestUploadFiles;
 
     public void incrementUploadBytesStarted(long bytes) {
         uploadBytesStarted += bytes;
@@ -102,10 +101,10 @@ public class RemoteSegmentUploadShardStatsTracker {
     }
 
     public Set<String> getLatestUploadFiles() {
-        return latestUploadFileNameLengthMap == null ? Collections.emptySet() : latestUploadFileNameLengthMap.keySet();
+        return latestUploadFiles;
     }
 
-    public void updateLatestUploadFileNameLengthMap(Map<String, Long> latestUploadFileNameLengthMap) {
-        this.latestUploadFileNameLengthMap = latestUploadFileNameLengthMap;
+    public void updateLatestUploadFiles(Set<String> latestUploadFiles) {
+        this.latestUploadFiles = latestUploadFiles;
     }
 }

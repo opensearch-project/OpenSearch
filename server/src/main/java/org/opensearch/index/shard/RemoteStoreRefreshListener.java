@@ -69,11 +69,8 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     // Stats related variables
     private long pendingRefreshTime;
     private final AtomicLong refreshTime = new AtomicLong(System.nanoTime());
-    private long beforeRefreshSeqNo;
     private final AtomicLong refreshSeqNo = new AtomicLong();
     private final Map<String, Long> fileSizeMap = new HashMap<>();
-
-    private final Set<String> latestSuccessfulUploadFiles = new HashSet<>();
 
     public RemoteStoreRefreshListener(IndexShard indexShard) {
         this.indexShard = indexShard;
@@ -95,7 +92,6 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     @Override
     public void beforeRefresh() throws IOException {
         pendingRefreshTime = System.nanoTime();
-        beforeRefreshSeqNo++;
     }
 
     /**
@@ -106,14 +102,17 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
      */
     @Override
     public void afterRefresh(boolean didRefresh) {
+        RemoteSegmentUploadShardStatsTracker statsTracker = remoteUploadPressureService.getStatsTracker(indexShard.shardId());
+        long latestRefreshTime, latestRefreshSeqNo;
         if (didRefresh) {
-            // Update local stats
-            updateRefreshTime();
-            updateRefreshSeqNo();
+            latestRefreshTime = updateRefreshTime();
+            latestRefreshSeqNo = updateRefreshSeqNo();
+            updateRefreshStats(statsTracker, false, latestRefreshTime, latestRefreshSeqNo);
+        } else {
+            latestRefreshTime = refreshTime.get();
+            latestRefreshSeqNo = refreshSeqNo.get();
         }
         try {
-            RemoteSegmentUploadShardStatsTracker statsTracker = remoteUploadPressureService.getStatsTracker(indexShard.shardId());
-            updateRefreshStats(statsTracker, false);
             if (indexShard.getReplicationTracker().isPrimaryMode()) {
                 if (this.primaryTerm != indexShard.getOperationPrimaryTerm()) {
                     this.primaryTerm = indexShard.getOperationPrimaryTerm();
@@ -175,8 +174,8 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                                 );
                                 // Metadata upload succeeded
                                 metadataUploadStatus = UploadStatus.SUCCEEDED;
-                                statsTracker.updateLatestUploadFileNameLengthMap(sizeMap);
-                                updateRefreshStats(statsTracker, true);
+                                statsTracker.updateLatestUploadFiles(sizeMap.keySet());
+                                updateRefreshStats(statsTracker, true, latestRefreshTime, latestRefreshSeqNo);
 
                                 localSegmentChecksumMap.keySet()
                                     .stream()
@@ -236,13 +235,18 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
             || (UploadStatus.SKIPPED == segmentsUploadStatus && !localSegments.equals(remoteSegments));
     }
 
-    private void updateRefreshStats(RemoteSegmentUploadShardStatsTracker statsTracker, boolean remote) {
+    private void updateRefreshStats(
+        RemoteSegmentUploadShardStatsTracker statsTracker,
+        boolean remote,
+        long refreshTime,
+        long refreshSeqNo
+    ) {
         if (remote) {
-            statsTracker.updateRemoteRefreshTime(refreshTime.get());
-            statsTracker.updateRemoteRefreshSeqNo(refreshSeqNo.get());
+            statsTracker.updateRemoteRefreshTime(refreshTime);
+            statsTracker.updateRemoteRefreshSeqNo(refreshSeqNo);
         } else {
-            statsTracker.updateLocalRefreshTime(refreshTime.get());
-            statsTracker.updateLocalRefreshSeqNo(refreshSeqNo.get());
+            statsTracker.updateLocalRefreshTime(refreshTime);
+            statsTracker.updateLocalRefreshSeqNo(refreshSeqNo);
         }
     }
 
@@ -339,14 +343,12 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         }
     }
 
-    private void updateRefreshTime() {
-        refreshTime.updateAndGet(curr -> Math.max(curr, pendingRefreshTime));
-        assert refreshTime.get() >= pendingRefreshTime : refreshTime.get() + " < " + pendingRefreshTime;
+    private long updateRefreshTime() {
+        return refreshTime.updateAndGet(curr -> Math.max(curr, pendingRefreshTime));
     }
 
-    private void updateRefreshSeqNo() {
-        refreshSeqNo.updateAndGet(curr -> Math.max(curr, beforeRefreshSeqNo));
-        assert refreshSeqNo.get() >= beforeRefreshSeqNo : refreshSeqNo.get() + " < " + beforeRefreshSeqNo;
+    private long updateRefreshSeqNo() {
+        return refreshSeqNo.incrementAndGet();
     }
 
     private Map<String, Long> createSizeMap(Collection<String> segmentFiles) {
