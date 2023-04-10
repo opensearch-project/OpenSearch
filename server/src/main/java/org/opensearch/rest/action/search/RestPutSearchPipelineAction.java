@@ -43,6 +43,7 @@ public class RestPutSearchPipelineAction extends BaseRestHandler {
         Tuple<XContentType, BytesReference> sourceTuple = restRequest.contentOrSourceParam();
         PutSearchPipelineRequest request = new PutSearchPipelineRequest(restRequest.param("id"), sourceTuple.v2(), sourceTuple.v1());
         request.clusterManagerNodeTimeout(restRequest.paramAsTime("cluster_manager_timeout", request.clusterManagerNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(request, restRequest);
         request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
         return channel -> client.admin().cluster().putSearchPipeline(request, new RestToXContentListener<>(channel));
     }

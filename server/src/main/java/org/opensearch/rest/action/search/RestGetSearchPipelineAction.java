@@ -40,6 +40,7 @@ public class RestGetSearchPipelineAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         GetSearchPipelineRequest request = new GetSearchPipelineRequest(Strings.splitStringByCommaToArray(restRequest.param("id")));
         request.clusterManagerNodeTimeout(restRequest.paramAsTime("cluster_manager_timeout", request.clusterManagerNodeTimeout()));
+        parseDeprecatedMasterTimeoutParameter(request, restRequest);
         return channel -> client.admin().cluster().getSearchPipeline(request, new RestStatusToXContentListener<>(channel));
     }
 }
