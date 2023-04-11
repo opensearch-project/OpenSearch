@@ -79,16 +79,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      */
     private Map<String, UploadedSegmentMetadata> segmentsUploadedToRemoteStore;
 
-    /**
-     * This holds the name of the most recent uploaded metadata file.
-     */
-    private String latestMetadataFileName;
-
-    /**
-     * This time would only be used for comparison between the latest remote segments upload time and most recent local refresh time.
-     */
-    private long latestMetadataUploadTime;
-
     private static final VersionedCodecStreamWrapper<RemoteSegmentMetadata> metadataStreamWrapper = new VersionedCodecStreamWrapper<>(
         new RemoteSegmentMetadataHandler(),
         RemoteSegmentMetadata.CURRENT_VERSION,
@@ -123,38 +113,33 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      * Refresh metadata files keep track of active segments for the shard at the time of refresh.
      * In order to get the list of segment files uploaded to the remote segment store, we need to read the latest metadata file.
      * Each metadata file contains a map where
-     * Key is - Segment local filename and
-     * Value is - local filename::uploaded filename::checksum
-     *
+     *      Key is - Segment local filename and
+     *      Value is - local filename::uploaded filename::checksum
      * @return Map of segment filename to uploaded filename with checksum
      * @throws IOException if there were any failures in reading the metadata file
      */
     private Map<String, UploadedSegmentMetadata> readLatestMetadataFile() throws IOException {
-        Optional<RemoteSegmentMetadata> remoteSegmentMetadata = getLatestRemoteSegmentMetadata();
-        if (remoteSegmentMetadata.isPresent()) {
-            return remoteSegmentMetadata.get().getMetadata();
-        }
-        return Collections.emptyMap();
-    }
+        Map<String, UploadedSegmentMetadata> segmentMetadataMap = new HashMap<>();
 
-    private Optional<RemoteSegmentMetadata> getLatestRemoteSegmentMetadata() throws IOException {
         Collection<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefix(MetadataFilenameUtils.METADATA_PREFIX);
         Optional<String> latestMetadataFile = metadataFiles.stream().max(METADATA_FILENAME_COMPARATOR);
 
         if (latestMetadataFile.isPresent()) {
             logger.info("Reading latest Metadata file {}", latestMetadataFile.get());
-            return Optional.of(readMetadataFile(latestMetadataFile.get()));
+            segmentMetadataMap = readMetadataFile(latestMetadataFile.get());
+        } else {
+            logger.info("No metadata file found, this can happen for new index with no data uploaded to remote segment store");
         }
-        logger.info("No metadata file found, this can happen for new index with no data uploaded to remote segment store");
-        return Optional.empty();
+
+        return segmentMetadataMap;
     }
 
-    private RemoteSegmentMetadata readMetadataFile(String metadataFilename) throws IOException {
+    private Map<String, UploadedSegmentMetadata> readMetadataFile(String metadataFilename) throws IOException {
         try (IndexInput indexInput = remoteMetadataDirectory.openInput(metadataFilename, IOContext.DEFAULT)) {
             byte[] metadataBytes = new byte[(int) indexInput.length()];
             indexInput.readBytes(metadataBytes, 0, (int) indexInput.length());
             RemoteSegmentMetadata metadata = metadataStreamWrapper.readStream(new ByteArrayIndexInput(metadataFilename, metadataBytes));
-            return metadata;
+            return metadata.getMetadata();
         }
     }
 
@@ -375,25 +360,25 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
      * @param generation commit generation
      * @throws IOException in case of I/O error while uploading the metadata file
      */
-    public synchronized void uploadMetadata(Collection<String> segmentFiles, Directory storeDirectory, long primaryTerm, long generation)
+    public void uploadMetadata(Collection<String> segmentFiles, Directory storeDirectory, long primaryTerm, long generation)
         throws IOException {
-        String metadataFilename = MetadataFilenameUtils.getMetadataFilename(primaryTerm, generation, this.commonFilenameSuffix);
-        IndexOutput indexOutput = storeDirectory.createOutput(metadataFilename, IOContext.DEFAULT);
-        Map<String, String> uploadedSegments = new HashMap<>();
-        for (String file : segmentFiles) {
-            if (segmentsUploadedToRemoteStore.containsKey(file)) {
-                uploadedSegments.put(file, segmentsUploadedToRemoteStore.get(file).toString());
-            } else {
-                throw new NoSuchFileException(file);
+        synchronized (this) {
+            String metadataFilename = MetadataFilenameUtils.getMetadataFilename(primaryTerm, generation, this.commonFilenameSuffix);
+            IndexOutput indexOutput = storeDirectory.createOutput(metadataFilename, IOContext.DEFAULT);
+            Map<String, String> uploadedSegments = new HashMap<>();
+            for (String file : segmentFiles) {
+                if (segmentsUploadedToRemoteStore.containsKey(file)) {
+                    uploadedSegments.put(file, segmentsUploadedToRemoteStore.get(file).toString());
+                } else {
+                    throw new NoSuchFileException(file);
+                }
             }
+            metadataStreamWrapper.writeStream(indexOutput, RemoteSegmentMetadata.fromMapOfStrings(uploadedSegments));
+            indexOutput.close();
+            storeDirectory.sync(Collections.singleton(metadataFilename));
+            remoteMetadataDirectory.copyFrom(storeDirectory, metadataFilename, metadataFilename, IOContext.DEFAULT);
+            storeDirectory.deleteFile(metadataFilename);
         }
-        metadataStreamWrapper.writeStream(indexOutput, RemoteSegmentMetadata.fromMapOfStrings(uploadedSegments));
-        indexOutput.close();
-        storeDirectory.sync(Collections.singleton(metadataFilename));
-        remoteMetadataDirectory.copyFrom(storeDirectory, metadataFilename, metadataFilename, IOContext.DEFAULT);
-        // Keeping track of the latest metadata file name and time which is used for tracking lag in remote segments upload.
-        latestMetadataFileName = metadataFilename;
-        storeDirectory.deleteFile(metadataFilename);
     }
 
     private String getChecksumOfLocalFile(Directory directory, String file) throws IOException {
@@ -448,14 +433,14 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory {
         Map<String, UploadedSegmentMetadata> activeSegmentFilesMetadataMap = new HashMap<>();
         Set<String> activeSegmentRemoteFilenames = new HashSet<>();
         for (String metadataFile : latestNMetadataFiles) {
-            Map<String, UploadedSegmentMetadata> segmentMetadataMap = readMetadataFile(metadataFile).getMetadata();
+            Map<String, UploadedSegmentMetadata> segmentMetadataMap = readMetadataFile(metadataFile);
             activeSegmentFilesMetadataMap.putAll(segmentMetadataMap);
             activeSegmentRemoteFilenames.addAll(
                 segmentMetadataMap.values().stream().map(metadata -> metadata.uploadedFilename).collect(Collectors.toSet())
             );
         }
         for (String metadataFile : sortedMetadataFileList.subList(0, sortedMetadataFileList.size() - lastNMetadataFilesToKeep)) {
-            Map<String, UploadedSegmentMetadata> staleSegmentFilesMetadataMap = readMetadataFile(metadataFile).getMetadata();
+            Map<String, UploadedSegmentMetadata> staleSegmentFilesMetadataMap = readMetadataFile(metadataFile);
             Set<String> staleSegmentRemoteFilenames = staleSegmentFilesMetadataMap.values()
                 .stream()
                 .map(metadata -> metadata.uploadedFilename)
