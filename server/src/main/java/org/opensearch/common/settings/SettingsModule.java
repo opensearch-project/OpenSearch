@@ -107,10 +107,6 @@ public class SettingsModule implements Module {
             }
         }
 
-        registerSetting(CLUSTER_REMOTE_STORE_INDEX_FORCE_SETTING);
-        registerSetting(CLUSTER_REMOTE_STORE_DEFAULT_SEGMENT_REPO_SETTING);
-        registerSetting(CLUSTER_REMOTE_STORE_DEFAULT_TRANSLOG_REPO_SETTING);
-
         for (Setting<?> setting : additionalSettings) {
             registerSetting(setting);
         }

@@ -647,7 +647,13 @@ public final class ClusterSettings extends AbstractScopedSettings {
         FeatureFlags.SEARCHABLE_SNAPSHOT,
         List.of(Node.NODE_SEARCH_CACHE_SIZE_SETTING),
         FeatureFlags.REPLICATION_TYPE,
-        List.of(IndicesService.CLUSTER_REPLICATION_TYPE_SETTING)
+        List.of(IndicesService.CLUSTER_REPLICATION_TYPE_SETTING),
+        FeatureFlags.REMOTE_STORE,
+        List.of(
+            IndicesService.CLUSTER_REMOTE_STORE_INDEX_FORCE_SETTING,
+            IndicesService.CLUSTER_REMOTE_STORE_DEFAULT_SEGMENT_REPO_SETTING,
+            IndicesService.CLUSTER_REMOTE_STORE_DEFAULT_TRANSLOG_REPO_SETTING
+        )
     );
 
 }

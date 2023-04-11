@@ -929,9 +929,7 @@ public class MetadataCreateIndexService {
      * @param clusterSettings cluster level settings
      */
     private static void updateRemoteStoreSettings(Settings.Builder settingsBuilder, Settings requestSettings, Settings clusterSettings) {
-        if (FeatureFlags.isEnabled(FeatureFlags.REMOTE_STORE)
-            && FeatureFlags.isEnabled(FeatureFlags.REPLICATION_TYPE)
-            && CLUSTER_REMOTE_STORE_INDEX_FORCE_SETTING.get(clusterSettings)) {
+        if (CLUSTER_REMOTE_STORE_INDEX_FORCE_SETTING.get(clusterSettings)) {
             // Verify if we can create a remote store based index based on user provided settings
             if ((INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings)
                 && !INDEX_REPLICATION_TYPE_SETTING.get(requestSettings).equals(ReplicationType.SEGMENT))
@@ -939,13 +937,13 @@ public class MetadataCreateIndexService {
                     && !INDEX_REMOTE_STORE_ENABLED_SETTING.get(requestSettings))) {
                 return;
             }
-            String segmentStoreRepo = requestSettings.get(SETTING_REMOTE_STORE_REPOSITORY);
-            if (segmentStoreRepo == null) {
-                segmentStoreRepo = CLUSTER_REMOTE_STORE_DEFAULT_SEGMENT_REPO_SETTING.get(clusterSettings);
+            String remoteStoreRepo = requestSettings.get(SETTING_REMOTE_STORE_REPOSITORY);
+            if (remoteStoreRepo == null) {
+                remoteStoreRepo = CLUSTER_REMOTE_STORE_DEFAULT_SEGMENT_REPO_SETTING.get(clusterSettings);
             }
             settingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
                 .put(SETTING_REMOTE_STORE_ENABLED, true)
-                .put(SETTING_REMOTE_STORE_REPOSITORY, segmentStoreRepo);
+                .put(SETTING_REMOTE_STORE_REPOSITORY, remoteStoreRepo);
 
             if (!Objects.equals(requestSettings.get(INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey()), "false")) {
                 String translogStoreRepo = requestSettings.get(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
