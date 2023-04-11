@@ -71,8 +71,11 @@ public class RemoteUploadPressureService implements IndexEventListener {
         // Check if the remote store seq no lag is above the min seq no lag limit
         validateSeqNoLag(statsTracker, shardId);
 
-        // Check if the remote store is lagging more than the average times a variance factor
+        // Check if the remote store is lagging more than the upload bytes average multiplied by a variance factor
         validateBytesBehindLag(statsTracker, shardId);
+
+        // Check if the remote store is lagging more than the upload time average multiplied by a variance factor
+        validateTimeBehindLag(statsTracker, shardId);
     }
 
     private void validateSeqNoLag(RemoteSegmentUploadShardStatsTracker statsTracker, ShardId shardId) {
@@ -115,6 +118,28 @@ public class RemoteUploadPressureService implements IndexEventListener {
                     shardId,
                     bytesBehind,
                     dynamicBytesBehindThreshold
+                ),
+                shardId
+            );
+        }
+    }
+
+    private void validateTimeBehindLag(RemoteSegmentUploadShardStatsTracker statsTracker, ShardId shardId) {
+        if (statsTracker.isUploadTimeAverageReady() == false) {
+            return;
+        }
+        long timeBehind = statsTracker.getLocalRefreshTime() - statsTracker.getRemoteRefreshTime();
+        double dynamicTimeBehindThreshold = statsTracker.getUploadTimeAverage() * remoteUploadPressureSettings
+            .getTimeBehindVarianceThreshold();
+        if (timeBehind > dynamicTimeBehindThreshold) {
+            rejectRequest(
+                String.format(
+                    Locale.ROOT,
+                    "rejected execution on primary shard:%s due to remote segments lagging behind local segments."
+                        + "time_behind:%s ns dynamic_time_behind_threshold:%s ns",
+                    shardId,
+                    timeBehind,
+                    dynamicTimeBehindThreshold
                 ),
                 shardId
             );

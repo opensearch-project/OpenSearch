@@ -101,6 +101,10 @@ public class RemoteSegmentUploadShardStatsTracker {
         return localRefreshSeqNo;
     }
 
+    public long getLocalRefreshTime() {
+        return localRefreshTime;
+    }
+
     public void updateLocalRefreshSeqNo(long localRefreshSeqNo) {
         this.localRefreshSeqNo = localRefreshSeqNo;
     }
@@ -115,6 +119,10 @@ public class RemoteSegmentUploadShardStatsTracker {
 
     public void updateRemoteRefreshSeqNo(long remoteRefreshSeqNo) {
         this.remoteRefreshSeqNo = remoteRefreshSeqNo;
+    }
+
+    public long getRemoteRefreshTime() {
+        return remoteRefreshTime;
     }
 
     public void updateRemoteRefreshTime(long remoteRefreshTime) {
@@ -156,6 +164,15 @@ public class RemoteSegmentUploadShardStatsTracker {
 
     public void addUploadTime(long uploadTime) {
         uploadTimeMovingAverage.record(uploadTime);
+    }
+
+    public boolean isUploadTimeAverageReady() {
+        return uploadTimeMovingAverage.isReady();
+    }
+
+    public double getUploadTimeAverage() {
+        assert isUploadTimeAverageReady();
+        return uploadTimeMovingAverage.getAverage();
     }
 
 }
