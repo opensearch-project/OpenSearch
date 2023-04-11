@@ -1247,22 +1247,15 @@ public final class NodeEnvironment implements Closeable {
      * The returned paths will point to the shard data folder.
      */
     public static List<Path> collectFileCacheDataPath(NodePath fileCacheNodePath) throws IOException {
+        // Structure is: <file cache path>/<index uuid>/<shard id>/...
         List<Path> indexSubPaths = new ArrayList<>();
         Path fileCachePath = fileCacheNodePath.fileCachePath;
         if (Files.isDirectory(fileCachePath)) {
-            try (DirectoryStream<Path> nodeStream = Files.newDirectoryStream(fileCachePath)) {
-                for (Path nodePath : nodeStream) {
-                    if (Files.isDirectory(nodePath)) {
-                        try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(nodePath)) {
-                            for (Path indexPath : indexStream) {
-                                if (Files.isDirectory(indexPath)) {
-                                    try (Stream<Path> shardStream = Files.list(indexPath)) {
-                                        shardStream.filter(NodeEnvironment::isShardPath)
-                                            .map(Path::toAbsolutePath)
-                                            .forEach(indexSubPaths::add);
-                                    }
-                                }
-                            }
+            try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(fileCachePath)) {
+                for (Path indexPath : indexStream) {
+                    if (Files.isDirectory(indexPath)) {
+                        try (Stream<Path> shardStream = Files.list(indexPath)) {
+                            shardStream.filter(NodeEnvironment::isShardPath).map(Path::toAbsolutePath).forEach(indexSubPaths::add);
                         }
                     }
                 }
@@ -1307,9 +1300,7 @@ public final class NodeEnvironment implements Closeable {
      * @param shardId shard to resolve the path to
      */
     public Path resolveFileCacheLocation(final Path fileCachePath, final ShardId shardId) {
-        return fileCachePath.resolve(Integer.toString(nodeLockId))
-            .resolve(shardId.getIndex().getUUID())
-            .resolve(Integer.toString(shardId.id()));
+        return fileCachePath.resolve(shardId.getIndex().getUUID()).resolve(Integer.toString(shardId.id()));
     }
 
     /**

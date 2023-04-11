@@ -92,8 +92,7 @@ public class FileCacheCleanerTests extends OpenSearchTestCase {
     }
 
     public void testIndexRemoved() {
-        final Path indexCachePath = env.fileCacheNodePath().fileCachePath.resolve(Integer.toString(env.getNodeLockId()))
-            .resolve(SHARD_0.getIndex().getUUID());
+        final Path indexCachePath = env.fileCacheNodePath().fileCachePath.resolve(SHARD_0.getIndex().getUUID());
         assertTrue(Files.exists(indexCachePath));
 
         cleaner.beforeIndexShardDeleted(SHARD_0, SETTINGS);
