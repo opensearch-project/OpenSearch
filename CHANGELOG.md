@@ -40,6 +40,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.netflix.nebula:nebula-publishing-plugin` from 19.2.0 to 20.3.0
 - Bump `com.diffplug.spotless` from 6.17.0 to 6.18.0
 - Bump `io.opencensus:opencensus-api` from 0.18.0 to 0.31.1 ([#7291](https://github.com/opensearch-project/OpenSearch/pull/7291))
+- Bump `com.google.cloud:google-cloud-storage` from 1.113.1 to 2.21.0 in /plugins/repository-gcs ([#6835](https://github.com/opensearch-project/OpenSearch/pull/6835))
 
 ### Changed
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
