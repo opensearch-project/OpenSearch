@@ -93,12 +93,20 @@ public class RemoteSegmentUploadShardStatsTracker {
         failures.record(false);
     }
 
+    public long getLocalRefreshSeqNo() {
+        return localRefreshSeqNo;
+    }
+
     public void updateLocalRefreshSeqNo(long localRefreshSeqNo) {
         this.localRefreshSeqNo = localRefreshSeqNo;
     }
 
     public void updateLocalRefreshTime(long localRefreshTime) {
         this.localRefreshTime = localRefreshTime;
+    }
+
+    public long getRemoteRefreshSeqNo() {
+        return remoteRefreshSeqNo;
     }
 
     public void updateRemoteRefreshSeqNo(long remoteRefreshSeqNo) {
@@ -111,10 +119,6 @@ public class RemoteSegmentUploadShardStatsTracker {
 
     public void updateLatestLocalFileNameLengthMap(Map<String, Long> latestLocalFileNameLengthMap) {
         this.latestLocalFileNameLengthMap = latestLocalFileNameLengthMap;
-    }
-
-    public Set<String> getLatestUploadFiles() {
-        return latestUploadFiles;
     }
 
     public void updateLatestUploadFiles(Set<String> latestUploadFiles) {

@@ -28,8 +28,8 @@ public class RemoteUploadPressureSettings {
 
     public static final Setting<Long> MIN_SEQ_NO_LAG_LIMIT = Setting.longSetting(
         "remote_store.segment_upload.pressure.seq_no.lag.limit",
+        5L,
         2L,
-        1L,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

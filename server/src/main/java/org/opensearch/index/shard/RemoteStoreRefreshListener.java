@@ -103,14 +103,8 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     @Override
     public void afterRefresh(boolean didRefresh) {
         RemoteSegmentUploadShardStatsTracker statsTracker = remoteUploadPressureService.getStatsTracker(indexShard.shardId());
-        long latestRefreshTime, latestRefreshSeqNo;
         if (didRefresh) {
-            latestRefreshTime = updateRefreshTime();
-            latestRefreshSeqNo = updateRefreshSeqNo();
-            updateRefreshStats(statsTracker, false, latestRefreshTime, latestRefreshSeqNo);
-        } else {
-            latestRefreshTime = refreshTime.get();
-            latestRefreshSeqNo = refreshSeqNo.get();
+            updateRefreshStats(statsTracker, false, updateAndGetRefreshTime(), updateAndGetRefreshSeqNo());
         }
         try {
             if (indexShard.getReplicationTracker().isPrimaryMode()) {
@@ -176,7 +170,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                                 // Metadata upload succeeded
                                 metadataUploadStatus = UploadStatus.SUCCEEDED;
                                 statsTracker.updateLatestUploadFiles(sizeMap.keySet());
-                                updateRefreshStats(statsTracker, true, latestRefreshTime, latestRefreshSeqNo);
+                                updateRefreshStats(statsTracker, true, refreshTime.get(), refreshSeqNo.get());
 
                                 localSegmentChecksumMap.keySet()
                                     .stream()
@@ -242,10 +236,6 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
             statsTracker.addUploadBytes(bytesUploaded);
             statsTracker.addUploadBytesPerSecond((bytesUploaded * 10 ^ 9L) / timeTakenInNS);
         }
-    }
-
-    private boolean shouldUploadMetadata(UploadStatus segmentsUploadStatus, Set<String> localSegments, Set<String> remoteSegments) {
-        return UploadStatus.SUCCEEDED == segmentsUploadStatus && !localSegments.equals(remoteSegments);
     }
 
     private void updateRefreshStats(
@@ -352,11 +342,11 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         }
     }
 
-    private long updateRefreshTime() {
+    private long updateAndGetRefreshTime() {
         return refreshTime.updateAndGet(curr -> Math.max(curr, pendingRefreshTime));
     }
 
-    private long updateRefreshSeqNo() {
+    private long updateAndGetRefreshSeqNo() {
         return refreshSeqNo.incrementAndGet();
     }
 
