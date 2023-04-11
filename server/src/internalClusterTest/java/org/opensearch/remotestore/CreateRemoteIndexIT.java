@@ -27,19 +27,23 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANS
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_DEFAULT_SEGMENT_REPO_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_DEFAULT_TRANSLOG_REPO_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_INDEX_FORCE_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_REPOSITORY_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
+
+    @Override
     protected Settings nodeSettings(int nodeOriginal) {
         Settings settings = super.nodeSettings(nodeOriginal);
         Settings.Builder builder = Settings.builder()
-            .put(CLUSTER_REMOTE_STORE_INDEX_FORCE_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_STORE_DEFAULT_SEGMENT_REPO_SETTING.getKey(), "my-segment-repo-1")
-            .put(CLUSTER_REMOTE_STORE_DEFAULT_TRANSLOG_REPO_SETTING.getKey(), "my-translog-repo-1")
+            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
+            .put(CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey(), true)
+            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
             .put(settings);
         return builder.build();
     }
@@ -76,7 +80,7 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
         );
     }
 
-    public void testDefaultRemoteStoreIndexSettings() throws Exception {
+    public void testDefaultRemoteStoreNoUserOverride() throws Exception {
         final int numReplicas = internalCluster().numDataNodes();
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
@@ -99,7 +103,7 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
         );
     }
 
-    public void testRemoteStoreDisabledByUserIndexSettings() throws Exception {
+    public void testRemoteStoreDisabledByUser() throws Exception {
         final int numReplicas = internalCluster().numDataNodes();
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
@@ -115,12 +119,49 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
         verifyRemoteStoreIndexSettings(indexSettings, "false", null, null, null, null, null);
     }
 
-    public void testRemoteStoreTranslogDisabledByUserIndexSettings() throws Exception {
+    public void testRemoteStoreEnabledByUserWithoutRemoteRepoAndSegmentReplicationIllegalArgumentException() throws Exception {
         final int numReplicas = internalCluster().numDataNodes();
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
-            .put(SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false)
+            .put(SETTING_REMOTE_STORE_ENABLED, true)
+            .build();
+
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get()
+        );
+        assertThat(
+            exc.getMessage(),
+            containsString("To enable index.remote_store.enabled, index.replication.type should be set to SEGMENT")
+        );
+    }
+
+    public void testRemoteStoreEnabledByUserWithoutRemoteRepoIllegalArgumentException() throws Exception {
+        final int numReplicas = internalCluster().numDataNodes();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+            .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(SETTING_REMOTE_STORE_ENABLED, true)
+            .build();
+
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get()
+        );
+        assertThat(
+            exc.getMessage(),
+            containsString("Setting index.remote_store.repository should be provided with non-empty repository ID")
+        );
+    }
+
+    public void testReplicationTypeDocumentByUser() throws Exception {
+        final int numReplicas = internalCluster().numDataNodes();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+            .put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
             .build();
         assertAcked(client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get());
         GetIndexResponse getIndexResponse = client().admin()
@@ -128,10 +169,10 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             .getIndex(new GetIndexRequest().indices("test-idx-1").includeDefaults(true))
             .get();
         Settings indexSettings = getIndexResponse.settings().get("test-idx-1");
-        verifyRemoteStoreIndexSettings(indexSettings, "true", "my-segment-repo-1", "false", null, ReplicationType.SEGMENT.toString(), null);
+        verifyRemoteStoreIndexSettings(indexSettings, null, null, null, null, ReplicationType.DOCUMENT.toString(), null);
     }
 
-    public void testRemoteStoreOverrideSegmentRepoIndexSettingsIllegalArgumentException() throws Exception {
+    public void testRemoteStoreSegmentRepoWithoutRemoteEnabledAndSegmentReplicationIllegalArgumentException() throws Exception {
         final int numReplicas = internalCluster().numDataNodes();
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
@@ -148,15 +189,16 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
         );
     }
 
-    public void testRemoteStoreOverrideSegmentRepoIndexSettings() throws Exception {
+    public void testRemoteStoreEnabledByUserWithRemoteRepo() throws Exception {
         final int numReplicas = internalCluster().numDataNodes();
         Settings settings = Settings.builder()
-            .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(SETTING_REMOTE_STORE_ENABLED, true)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+            .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(SETTING_REMOTE_STORE_ENABLED, true)
             .put(SETTING_REMOTE_STORE_REPOSITORY, "my-custom-repo")
             .build();
+
         assertAcked(client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get());
         GetIndexResponse getIndexResponse = client().admin()
             .indices()
@@ -174,7 +216,23 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
         );
     }
 
-    public void testRemoteStoreOverrideTranslogRepoIndexSettingsIllegalArgumentException() throws Exception {
+    public void testRemoteStoreTranslogDisabledByUser() throws Exception {
+        final int numReplicas = internalCluster().numDataNodes();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+            .put(SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false)
+            .build();
+        assertAcked(client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get());
+        GetIndexResponse getIndexResponse = client().admin()
+            .indices()
+            .getIndex(new GetIndexRequest().indices("test-idx-1").includeDefaults(true))
+            .get();
+        Settings indexSettings = getIndexResponse.settings().get("test-idx-1");
+        verifyRemoteStoreIndexSettings(indexSettings, "true", "my-segment-repo-1", "false", null, ReplicationType.SEGMENT.toString(), null);
+    }
+
+    public void testRemoteStoreOverrideOnlyTranslogRepoIllegalArgumentException() throws Exception {
         final int numReplicas = internalCluster().numDataNodes();
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
@@ -193,13 +251,119 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
         );
     }
 
-    public void testRemoteStoreOverrideTranslogRepoIndexSettings() throws Exception {
+    public void testRemoteStoreOverrideOnlyTranslogEnabled() throws Exception {
+        final int numReplicas = internalCluster().numDataNodes();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+            .put(SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
+            .build();
+
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get()
+        );
+        assertThat(
+            exc.getMessage(),
+            containsString(
+                "Settings index.remote_store.translog.enabled can only be set/enabled when index.remote_store.enabled is set to true"
+            )
+        );
+    }
+
+    public void testRemoteStoreOverrideOnlyTranslogEnabledAndRepo() throws Exception {
+        final int numReplicas = internalCluster().numDataNodes();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+            .put(SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
+            .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "my-custom-repo")
+            .build();
+
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get()
+        );
+        assertThat(
+            exc.getMessage(),
+            containsString(
+                "Settings index.remote_store.translog.enabled can only be set/enabled when index.remote_store.enabled is set to true"
+            )
+        );
+    }
+
+    public void testRemoteStoreOverrideTranslogDisabledCorrectly() throws Exception {
         final int numReplicas = internalCluster().numDataNodes();
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
             .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(SETTING_REMOTE_STORE_ENABLED, true)
+            .put(SETTING_REMOTE_STORE_REPOSITORY, "my-custom-repo")
+            .put(SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false)
+            .build();
+        assertAcked(client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get());
+        GetIndexResponse getIndexResponse = client().admin()
+            .indices()
+            .getIndex(new GetIndexRequest().indices("test-idx-1").includeDefaults(true))
+            .get();
+        Settings indexSettings = getIndexResponse.settings().get("test-idx-1");
+        verifyRemoteStoreIndexSettings(indexSettings, "true", "my-custom-repo", "false", null, ReplicationType.SEGMENT.toString(), null);
+    }
+
+    public void testRemoteStoreOverrideTranslogDisabledWithTranslogRepoIllegalArgumentException() throws Exception {
+        final int numReplicas = internalCluster().numDataNodes();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+            .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(SETTING_REMOTE_STORE_ENABLED, true)
+            .put(SETTING_REMOTE_STORE_REPOSITORY, "my-custom-repo")
+            .put(SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false)
+            .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "my-custom-repo")
+            .build();
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get()
+        );
+        assertThat(
+            exc.getMessage(),
+            containsString(
+                "Settings index.remote_store.translog.repository can only be set/enabled when index.remote_store.translog.enabled is set to true"
+            )
+        );
+    }
+
+    public void testRemoteStoreOverrideOnlyTranslogRepoWithRemoteStoreEnabledIllegalArgumentException() throws Exception {
+        final int numReplicas = internalCluster().numDataNodes();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+            .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(SETTING_REMOTE_STORE_ENABLED, true)
+            .put(SETTING_REMOTE_STORE_REPOSITORY, "my-custom-repo")
+            .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "my-custom-repo")
+            .build();
+        IllegalArgumentException exc = expectThrows(
+            IllegalArgumentException.class,
+            () -> client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get()
+        );
+        assertThat(
+            exc.getMessage(),
+            containsString(
+                "Settings index.remote_store.translog.repository can only be set/enabled when index.remote_store.translog.enabled is set to true"
+            )
+        );
+    }
+
+    public void testRemoteStoreOverrideTranslogRepoCorrectly() throws Exception {
+        final int numReplicas = internalCluster().numDataNodes();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+            .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(SETTING_REMOTE_STORE_ENABLED, true)
+            .put(SETTING_REMOTE_STORE_REPOSITORY, "my-custom-repo")
             .put(SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true)
             .put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "my-custom-repo")
             .build();
@@ -212,7 +376,7 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
         verifyRemoteStoreIndexSettings(
             indexSettings,
             "true",
-            "my-segment-repo-1",
+            "my-custom-repo",
             "true",
             "my-custom-repo",
             ReplicationType.SEGMENT.toString(),
@@ -236,7 +400,7 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
         verifyRemoteStoreIndexSettings(indexSettings, null, null, null, null, ReplicationType.DOCUMENT.toString(), null);
     }
 
-    private void verifyRemoteStoreIndexSettings(
+    protected void verifyRemoteStoreIndexSettings(
         Settings indexSettings,
         String isRemoteSegmentEnabled,
         String remoteSegmentRepo,

@@ -247,8 +247,8 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Used to specify if all indexes are to create with remote store enabled by default
      */
-    public static final Setting<Boolean> CLUSTER_REMOTE_STORE_INDEX_FORCE_SETTING = Setting.boolSetting(
-        "cluster.remote_store.enabled.force",
+    public static final Setting<Boolean> CLUSTER_REMOTE_STORE_ENABLED_SETTING = Setting.boolSetting(
+        "cluster.remote_store.enabled",
         false,
         Property.NodeScope,
         Property.Final
@@ -257,9 +257,19 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Used to specify default repo to use for segment upload for remote store backed indices
      */
-    public static final Setting<String> CLUSTER_REMOTE_STORE_DEFAULT_SEGMENT_REPO_SETTING = Setting.simpleString(
-        "cluster.remote_store.repository.segment.default",
+    public static final Setting<String> CLUSTER_REMOTE_STORE_REPOSITORY_SETTING = Setting.simpleString(
+        "cluster.remote_store.repository",
         "",
+        Property.NodeScope,
+        Property.Final
+    );
+
+    /**
+     * Used to specify if all indexes are to create with translog remote store enabled by default
+     */
+    public static final Setting<Boolean> CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING = Setting.boolSetting(
+        "cluster.remote_store.translog.enabled",
+        false,
         Property.NodeScope,
         Property.Final
     );
@@ -267,8 +277,8 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Used to specify default repo to use for translog upload for remote store backed indices
      */
-    public static final Setting<String> CLUSTER_REMOTE_STORE_DEFAULT_TRANSLOG_REPO_SETTING = Setting.simpleString(
-        "cluster.remote_store.repository.translog.default",
+    public static final Setting<String> CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING = Setting.simpleString(
+        "cluster.remote_store.translog.repository",
         "",
         Property.NodeScope,
         Property.Final

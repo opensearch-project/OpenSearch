@@ -53,10 +53,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_DEFAULT_SEGMENT_REPO_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_DEFAULT_TRANSLOG_REPO_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_INDEX_FORCE_SETTING;
-
 /**
  * A module that binds the provided settings to the {@link Settings} interface.
  *
@@ -95,8 +91,8 @@ public class SettingsModule implements Module {
             registerSetting(setting);
         }
 
-        for (Map.Entry<String, List<Setting>> featureFlaggedSetting : ClusterSettings.FEATURE_FLAGGED_CLUSTER_SETTINGS.entrySet()) {
-            if (FeatureFlags.isEnabled(featureFlaggedSetting.getKey())) {
+        for (Map.Entry<List<String>, List<Setting>> featureFlaggedSetting : ClusterSettings.FEATURE_FLAGGED_CLUSTER_SETTINGS.entrySet()) {
+            if (featureFlaggedSetting.getKey().stream().allMatch(FeatureFlags::isEnabled)) {
                 featureFlaggedSetting.getValue().forEach(this::registerSetting);
             }
         }

@@ -143,9 +143,10 @@ import static org.opensearch.cluster.metadata.MetadataCreateIndexService.getInde
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.parseV1Mappings;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.resolveAndValidateAliases;
 import static org.opensearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_DEFAULT_SEGMENT_REPO_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_DEFAULT_TRANSLOG_REPO_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_INDEX_FORCE_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_REPOSITORY_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING;
 import static org.opensearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
 
 public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
@@ -1133,9 +1134,10 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     public void testRemoteStoreNoUserOverrideIndexSettings() {
         Settings settings = Settings.builder()
-            .put(CLUSTER_REMOTE_STORE_INDEX_FORCE_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_STORE_DEFAULT_SEGMENT_REPO_SETTING.getKey(), "my-segment-repo-1")
-            .put(CLUSTER_REMOTE_STORE_DEFAULT_TRANSLOG_REPO_SETTING.getKey(), "my-translog-repo-1")
+            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
+            .put(CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey(), true)
+            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
             .build();
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         FeatureFlagSetter.set(FeatureFlags.REPLICATION_TYPE);
@@ -1164,9 +1166,9 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     public void testRemoteStoreDisabledByUserIndexSettings() {
         Settings settings = Settings.builder()
-            .put(CLUSTER_REMOTE_STORE_INDEX_FORCE_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_STORE_DEFAULT_SEGMENT_REPO_SETTING.getKey(), "my-segment-repo-1")
-            .put(CLUSTER_REMOTE_STORE_DEFAULT_TRANSLOG_REPO_SETTING.getKey(), "my-translog-repo-1")
+            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
+            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
             .build();
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         FeatureFlagSetter.set(FeatureFlags.REPLICATION_TYPE);
@@ -1190,9 +1192,9 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     public void testRemoteStoreTranslogDisabledByUserIndexSettings() {
         Settings settings = Settings.builder()
-            .put(CLUSTER_REMOTE_STORE_INDEX_FORCE_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_STORE_DEFAULT_SEGMENT_REPO_SETTING.getKey(), "my-segment-repo-1")
-            .put(CLUSTER_REMOTE_STORE_DEFAULT_TRANSLOG_REPO_SETTING.getKey(), "my-translog-repo-1")
+            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
+            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
             .build();
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         FeatureFlagSetter.set(FeatureFlags.REPLICATION_TYPE);
@@ -1216,16 +1218,19 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     public void testRemoteStoreOverrideSegmentRepoIndexSettings() {
         Settings settings = Settings.builder()
-            .put(CLUSTER_REMOTE_STORE_INDEX_FORCE_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_STORE_DEFAULT_SEGMENT_REPO_SETTING.getKey(), "my-segment-repo-1")
-            .put(CLUSTER_REMOTE_STORE_DEFAULT_TRANSLOG_REPO_SETTING.getKey(), "my-translog-repo-1")
+            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
+            .put(CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey(), true)
+            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
             .build();
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         FeatureFlagSetter.set(FeatureFlags.REPLICATION_TYPE);
 
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
-        requestSettings.put(SETTING_REMOTE_STORE_REPOSITORY, "my-custom-repo");
+        requestSettings.put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(SETTING_REMOTE_STORE_ENABLED, true)
+            .put(SETTING_REMOTE_STORE_REPOSITORY, "my-custom-repo");
         request.settings(requestSettings.build());
         Settings indexSettings = aggregateIndexSettings(
             ClusterState.EMPTY_STATE,
@@ -1250,16 +1255,16 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     public void testRemoteStoreOverrideTranslogRepoIndexSettings() {
         Settings settings = Settings.builder()
-            .put(CLUSTER_REMOTE_STORE_INDEX_FORCE_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_STORE_DEFAULT_SEGMENT_REPO_SETTING.getKey(), "my-segment-repo-1")
-            .put(CLUSTER_REMOTE_STORE_DEFAULT_TRANSLOG_REPO_SETTING.getKey(), "my-translog-repo-1")
+            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
+            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
             .build();
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         FeatureFlagSetter.set(FeatureFlags.REPLICATION_TYPE);
 
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
-        requestSettings.put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "my-custom-repo");
+        requestSettings.put(SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "my-custom-repo").put(SETTING_REMOTE_TRANSLOG_STORE_ENABLED, true);
         request.settings(requestSettings.build());
         Settings indexSettings = aggregateIndexSettings(
             ClusterState.EMPTY_STATE,
@@ -1284,9 +1289,9 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
     public void testRemoteStoreOverrideReplicationTypeIndexSettings() {
         Settings settings = Settings.builder()
-            .put(CLUSTER_REMOTE_STORE_INDEX_FORCE_SETTING.getKey(), true)
-            .put(CLUSTER_REMOTE_STORE_DEFAULT_SEGMENT_REPO_SETTING.getKey(), "my-segment-repo-1")
-            .put(CLUSTER_REMOTE_STORE_DEFAULT_TRANSLOG_REPO_SETTING.getKey(), "my-translog-repo-1")
+            .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
+            .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
+            .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
             .build();
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
         FeatureFlagSetter.set(FeatureFlags.REPLICATION_TYPE);
