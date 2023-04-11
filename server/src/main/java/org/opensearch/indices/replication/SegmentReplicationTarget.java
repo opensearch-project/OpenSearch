@@ -292,5 +292,6 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     protected void onCancel(String reason) {
         cancellableThreads.cancel(reason);
         source.cancel();
+        multiFileWriter.close();
     }
 }
