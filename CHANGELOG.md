@@ -41,6 +41,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.zookeeper:zookeeper` from 3.8.0 to 3.8.1
 - Bump `net.minidev:json-smart` from 2.4.8 to 2.4.10
 - Bump `org.apache.maven:maven-model` from 3.8.6 to 3.9.1
+- Bump `com.google.cloud:google-cloud-storage` from 1.113.1 to 2.21.0 in /plugins/repository-gcs ([#6835](https://github.com/opensearch-project/OpenSearch/pull/6835))
 
 ### Changed
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
