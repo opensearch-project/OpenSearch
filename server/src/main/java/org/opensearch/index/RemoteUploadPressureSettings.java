@@ -58,6 +58,14 @@ public class RemoteUploadPressureSettings {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Double> TIME_BEHIND_VARIANCE_THRESHOLD = Setting.doubleSetting(
+        "remote_store.segment_upload.pressure.time_behind.variance",
+        2.0,
+        0.0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     public static final Setting<Long> MIN_INFLIGHT_BYTES_LIMIT = Setting.longSetting(
         "remote_store.segment_upload.pressure.inflight_bytes.limit",
         10 * 1024 * 1024, // 10MB
@@ -84,6 +92,8 @@ public class RemoteUploadPressureSettings {
 
     private volatile TimeValue minTimeBehindLimit;
 
+    private volatile double timeBehindVarianceThreshold;
+
     private volatile long minInflightBytesLagLimit;
 
     private volatile int minConsecutiveFailuresLimit;
@@ -105,6 +115,9 @@ public class RemoteUploadPressureSettings {
 
         this.minTimeBehindLimit = MIN_TIME_BEHIND_LIMIT.get(settings);
         clusterSettings.addSettingsUpdateConsumer(MIN_TIME_BEHIND_LIMIT, this::setMinTimeBehindLimit);
+
+        this.timeBehindVarianceThreshold = TIME_BEHIND_VARIANCE_THRESHOLD.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(TIME_BEHIND_VARIANCE_THRESHOLD, this::setTimeBehindVarianceThreshold);
 
         this.minInflightBytesLagLimit = MIN_INFLIGHT_BYTES_LIMIT.get(settings);
         clusterSettings.addSettingsUpdateConsumer(MIN_INFLIGHT_BYTES_LIMIT, this::setMinInflightBytesLagLimit);
@@ -151,6 +164,14 @@ public class RemoteUploadPressureSettings {
 
     public void setMinTimeBehindLimit(TimeValue minTimeBehindLimit) {
         this.minTimeBehindLimit = minTimeBehindLimit;
+    }
+
+    public double getTimeBehindVarianceThreshold() {
+        return timeBehindVarianceThreshold;
+    }
+
+    public void setTimeBehindVarianceThreshold(double timeBehindVarianceThreshold) {
+        this.timeBehindVarianceThreshold = timeBehindVarianceThreshold;
     }
 
     public long getMinInflightBytesLagLimit() {
