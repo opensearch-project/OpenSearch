@@ -10,6 +10,8 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Bump `org.apache.hadoop:hadoop-minicluster` from 3.3.4 to 3.3.5
 
 ### Changed
+- Changed `opensearch-env` to respect already set `OPENSEARCH_HOME` environment variable ([#6956](https://github.com/opensearch-project/OpenSearch/pull/6956/))
+
 ### Deprecated
 ### Removed
 ### Fixed
