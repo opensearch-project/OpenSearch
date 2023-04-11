@@ -91,9 +91,7 @@ public class FileCacheCleaner implements IndexEventListener {
     ) {
         if (isRemoteSnapshot(indexSettings.getSettings())
             && reason == IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED) {
-            final Path indexCachePath = nodeEnvironment.fileCacheNodePath().fileCachePath.resolve(
-                Integer.toString(nodeEnvironment.getNodeLockId())
-            ).resolve(index.getUUID());
+            final Path indexCachePath = nodeEnvironment.fileCacheNodePath().fileCachePath.resolve(index.getUUID());
             if (Files.exists(indexCachePath)) {
                 try {
                     IOUtils.rm(indexCachePath);
