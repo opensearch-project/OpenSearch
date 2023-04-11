@@ -76,6 +76,9 @@ public class RemoteUploadPressureService implements IndexEventListener {
 
         // Check if the remote store is lagging more than the upload time average multiplied by a variance factor
         validateTimeBehindLag(statsTracker, shardId);
+
+        // Check if consecutive failure limit has been breached
+        validateConsecutiveFailureLimitBreached(statsTracker, shardId);
     }
 
     private void validateSeqNoLag(RemoteSegmentUploadShardStatsTracker statsTracker, ShardId shardId) {
@@ -144,6 +147,10 @@ public class RemoteUploadPressureService implements IndexEventListener {
                 shardId
             );
         }
+    }
+
+    private void validateConsecutiveFailureLimitBreached(RemoteSegmentUploadShardStatsTracker statsTracker, ShardId shardId) {
+
     }
 
     private void rejectRequest(String rejectionReason, ShardId shardId) {
