@@ -145,6 +145,10 @@ public class RemoteSegmentUploadShardStatsTracker {
         this.latestUploadFiles = latestUploadFiles;
     }
 
+    public int getConsecutiveFailureCount() {
+        return failures.length();
+    }
+
     public double getUploadBytesAverage() {
         assert isUploadBytesAverageReady();
         return uploadBytesMovingAverage.getAverage();
