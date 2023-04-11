@@ -13,6 +13,7 @@ import org.opensearch.common.util.Streak;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Remote upload stats.
@@ -21,33 +22,31 @@ import java.util.Set;
  */
 public class RemoteSegmentUploadShardStatsTracker {
 
-    public static final long UNASSIGNED = 0L;
-
     public static final int UPLOAD_BYTES_WINDOW_SIZE = 2000;
 
     public static final int UPLOAD_BYTES_PER_SECOND_WINDOW_SIZE = 2000;
 
     public static final int UPLOAD_TIME_WINDOW_SIZE = 2000;
 
-    private volatile long localRefreshSeqNo = UNASSIGNED;
+    private final AtomicLong localRefreshSeqNo = new AtomicLong();
 
-    private volatile long localRefreshTime = UNASSIGNED;
+    private final AtomicLong localRefreshTime = new AtomicLong();
 
-    private volatile long remoteRefreshSeqNo = UNASSIGNED;
+    private final AtomicLong remoteRefreshSeqNo = new AtomicLong();
 
-    private volatile long remoteRefreshTime = UNASSIGNED;
+    private final AtomicLong remoteRefreshTime = new AtomicLong();
 
-    private volatile long uploadBytesStarted = UNASSIGNED;
+    private final AtomicLong uploadBytesStarted = new AtomicLong();
 
-    private volatile long uploadBytesFailed = UNASSIGNED;
+    private final AtomicLong uploadBytesFailed = new AtomicLong();
 
-    private volatile long uploadBytesSucceeded = UNASSIGNED;
+    private final AtomicLong uploadBytesSucceeded = new AtomicLong();
 
-    private volatile long totalUploadsStarted = UNASSIGNED;
+    private final AtomicLong totalUploadsStarted = new AtomicLong();
 
-    private volatile long totalUploadsFailed = UNASSIGNED;
+    private final AtomicLong totalUploadsFailed = new AtomicLong();
 
-    private volatile long totalUploadsSucceeded = UNASSIGNED;
+    private final AtomicLong totalUploadsSucceeded = new AtomicLong();
 
     /**
      * Keeps map of filename to bytes length of the local segments post most recent refresh.
@@ -68,65 +67,65 @@ public class RemoteSegmentUploadShardStatsTracker {
     private final MovingAverage uploadTimeMovingAverage = new MovingAverage(UPLOAD_TIME_WINDOW_SIZE);
 
     public void incrementUploadBytesStarted(long bytes) {
-        uploadBytesStarted += bytes;
+        uploadBytesStarted.addAndGet(bytes);
     }
 
     public long getUploadBytesSucceeded() {
-        return uploadBytesSucceeded;
+        return uploadBytesSucceeded.get();
     }
 
     public void incrementUploadBytesFailed(long bytes) {
-        uploadBytesFailed += bytes;
+        uploadBytesFailed.addAndGet(bytes);
     }
 
     public void incrementUploadBytesSucceeded(long bytes) {
-        uploadBytesSucceeded += bytes;
+        uploadBytesSucceeded.addAndGet(bytes);
     }
 
     public void incrementTotalUploadsStarted() {
-        totalUploadsStarted += 1;
+        totalUploadsStarted.incrementAndGet();
     }
 
     public void incrementTotalUploadsFailed() {
-        totalUploadsFailed += 1;
+        totalUploadsFailed.incrementAndGet();
         failures.record(true);
     }
 
     public void incrementTotalUploadsSucceeded() {
-        totalUploadsSucceeded += 1;
+        totalUploadsSucceeded.incrementAndGet();
         failures.record(false);
     }
 
     public long getLocalRefreshSeqNo() {
-        return localRefreshSeqNo;
+        return localRefreshSeqNo.get();
     }
 
     public long getLocalRefreshTime() {
-        return localRefreshTime;
+        return localRefreshTime.get();
     }
 
     public void updateLocalRefreshSeqNo(long localRefreshSeqNo) {
-        this.localRefreshSeqNo = localRefreshSeqNo;
+        this.localRefreshSeqNo.set(localRefreshSeqNo);
     }
 
     public void updateLocalRefreshTime(long localRefreshTime) {
-        this.localRefreshTime = localRefreshTime;
+        this.localRefreshTime.set(localRefreshTime);
     }
 
     public long getRemoteRefreshSeqNo() {
-        return remoteRefreshSeqNo;
+        return remoteRefreshSeqNo.get();
     }
 
     public void updateRemoteRefreshSeqNo(long remoteRefreshSeqNo) {
-        this.remoteRefreshSeqNo = remoteRefreshSeqNo;
+        this.remoteRefreshSeqNo.set(remoteRefreshSeqNo);
     }
 
     public long getRemoteRefreshTime() {
-        return remoteRefreshTime;
+        return remoteRefreshTime.get();
     }
 
     public void updateRemoteRefreshTime(long remoteRefreshTime) {
-        this.remoteRefreshTime = remoteRefreshTime;
+        this.remoteRefreshTime.set(remoteRefreshTime);
     }
 
     public Map<String, Long> getLatestLocalFileNameLengthMap() {
