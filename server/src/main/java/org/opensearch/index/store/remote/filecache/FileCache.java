@@ -172,6 +172,7 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
             .forEach(path -> {
                 try {
                     put(path.toAbsolutePath(), new FileCachedIndexInput.ClosedIndexInput(Files.size(path)));
+                    decRef(path.toAbsolutePath());
                 } catch (IOException e) {
                     throw new UncheckedIOException(
                         "Unable to retrieve cache file details. Please clear the file cache for node startup.",
