@@ -13,12 +13,17 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 /**
  * Remote upload back pressure service.
@@ -33,6 +38,8 @@ public class RemoteUploadPressureService implements IndexEventListener {
 
     private final RemoteUploadStatsTracker remoteUploadStatsTracker;
 
+    private final Map<ShardId, AtomicLong> rejectionCount = ConcurrentCollections.newConcurrentMap();
+
     @Inject
     public RemoteUploadPressureService(ClusterService clusterService, Settings settings) {
         remoteUploadStatsTracker = new RemoteUploadStatsTracker();
@@ -46,6 +53,7 @@ public class RemoteUploadPressureService implements IndexEventListener {
     @Override
     public void beforeIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
         remoteUploadStatsTracker.remove(shardId);
+        rejectionCount.remove(shardId);
     }
 
     public boolean isSegmentsUploadBackpressureEnabled() {
@@ -54,20 +62,67 @@ public class RemoteUploadPressureService implements IndexEventListener {
 
     public void validateSegmentsUploadLag(ShardId shardId) {
         RemoteSegmentUploadShardStatsTracker statsTracker = getStatsTracker(shardId);
-        // Check if refresh checkpoint (a.k.a. seq number) lag is below 3 - this is to handle segment merges that can increase the bytes to
-        // upload almost suddenly.
-        long seqNoLag = statsTracker.getLocalRefreshSeqNo() - statsTracker.getRemoteRefreshSeqNo();
-        if (seqNoLag <= 2) {
+        // Check if refresh checkpoint (a.k.a. seq number) lag is 2 or below - this is to handle segment merges that can
+        // increase the bytes to upload almost suddenly.
+        if (statsTracker.getLocalRefreshSeqNo() - statsTracker.getRemoteRefreshSeqNo() <= 2) {
             return;
         }
 
-        if (seqNoLag > remoteUploadPressureSettings.getMinSeqNoLagLimit()) {
-            rejectRequest(String.format(Locale.ROOT, "rejected execution on primary shard:%s reason:%s", shardId, "seqNoLag"));
-        }
+        // Check if the remote store seq no lag is above the min seq no lag limit
+        validateSeqNoLag(statsTracker, shardId);
 
+        // Check if the remote store is lagging more than the average times a variance factor
+        validateBytesBehindLag(statsTracker, shardId);
     }
 
-    private void rejectRequest(String rejectionReason) {
+    private void validateSeqNoLag(RemoteSegmentUploadShardStatsTracker statsTracker, ShardId shardId) {
+        long seqNoLag = statsTracker.getLocalRefreshSeqNo() - statsTracker.getRemoteRefreshSeqNo();
+        // Check if the remote store seq no lag is above the min seq no lag limit
+        if (seqNoLag > remoteUploadPressureSettings.getMinSeqNoLagLimit()) {
+            rejectRequest(
+                String.format(
+                    Locale.ROOT,
+                    "rejected execution on primary shard:%s due to remote segments lagging behind local segments."
+                        + "remote_refresh_seq_no:%s local_refresh_seq_no:%s",
+                    shardId,
+                    statsTracker.getRemoteRefreshSeqNo(),
+                    statsTracker.getLocalRefreshSeqNo()
+                ),
+                shardId
+            );
+        }
+    }
+
+    private void validateBytesBehindLag(RemoteSegmentUploadShardStatsTracker statsTracker, ShardId shardId) {
+        if (statsTracker.isUploadBytesAverageReady() == false) {
+            return;
+        }
+        Map<String, Long> localFileSizeMap = statsTracker.getLatestLocalFileNameLengthMap();
+        Set<String> remoteFiles = statsTracker.getLatestUploadFiles();
+        Set<String> filesNotYetUploaded = localFileSizeMap.keySet()
+            .stream()
+            .filter(f -> remoteFiles.contains(f) == false)
+            .collect(Collectors.toSet());
+        long bytesBehind = filesNotYetUploaded.stream().map(localFileSizeMap::get).mapToLong(Long::longValue).sum();
+        double dynamicBytesBehindThreshold = statsTracker.getUploadBytesAverage() * remoteUploadPressureSettings
+            .getBytesBehindVarianceThreshold();
+        if (bytesBehind > dynamicBytesBehindThreshold) {
+            rejectRequest(
+                String.format(
+                    Locale.ROOT,
+                    "rejected execution on primary shard:%s due to remote segments lagging behind local segments."
+                        + "bytes_behind:%s dynamic_bytes_behind_threshold:%s",
+                    shardId,
+                    bytesBehind,
+                    dynamicBytesBehindThreshold
+                ),
+                shardId
+            );
+        }
+    }
+
+    private void rejectRequest(String rejectionReason, ShardId shardId) {
+        rejectionCount.computeIfAbsent(shardId, k -> new AtomicLong()).incrementAndGet();
         throw new OpenSearchRejectedExecutionException(rejectionReason, false);
     }
 }

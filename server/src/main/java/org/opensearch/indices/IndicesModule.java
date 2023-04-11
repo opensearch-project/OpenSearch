@@ -43,6 +43,7 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.index.RemoteUploadPressureService;
 import org.opensearch.index.mapper.BinaryFieldMapper;
 import org.opensearch.index.mapper.BooleanFieldMapper;
 import org.opensearch.index.mapper.CompletionFieldMapper;
@@ -284,6 +285,7 @@ public class IndicesModule extends AbstractModule {
         bind(RetentionLeaseSyncAction.class).asEagerSingleton();
         bind(RetentionLeaseBackgroundSyncAction.class).asEagerSingleton();
         bind(RetentionLeaseSyncer.class).asEagerSingleton();
+        bind(RemoteUploadPressureService.class).asEagerSingleton();
         if (FeatureFlags.isEnabled(FeatureFlags.REPLICATION_TYPE)) {
             bind(SegmentReplicationCheckpointPublisher.class).asEagerSingleton();
         } else {

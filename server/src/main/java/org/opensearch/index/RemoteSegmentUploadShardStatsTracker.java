@@ -27,6 +27,8 @@ public class RemoteSegmentUploadShardStatsTracker {
 
     public static final int UPLOAD_BYTES_PER_SECOND_WINDOW_SIZE = 2000;
 
+    public static final int UPLOAD_TIME_WINDOW_SIZE = 2000;
+
     private volatile long localRefreshSeqNo = UNASSIGNED;
 
     private volatile long localRefreshTime = UNASSIGNED;
@@ -62,6 +64,8 @@ public class RemoteSegmentUploadShardStatsTracker {
     private final MovingAverage uploadBytesMovingAverage = new MovingAverage(UPLOAD_BYTES_WINDOW_SIZE);
 
     private final MovingAverage uploadBytesPerSecondMovingAverage = new MovingAverage(UPLOAD_BYTES_PER_SECOND_WINDOW_SIZE);
+
+    private final MovingAverage uploadTimeMovingAverage = new MovingAverage(UPLOAD_TIME_WINDOW_SIZE);
 
     public void incrementUploadBytesStarted(long bytes) {
         uploadBytesStarted += bytes;
@@ -117,20 +121,41 @@ public class RemoteSegmentUploadShardStatsTracker {
         this.remoteRefreshTime = remoteRefreshTime;
     }
 
+    public Map<String, Long> getLatestLocalFileNameLengthMap() {
+        return latestLocalFileNameLengthMap;
+    }
+
     public void updateLatestLocalFileNameLengthMap(Map<String, Long> latestLocalFileNameLengthMap) {
         this.latestLocalFileNameLengthMap = latestLocalFileNameLengthMap;
+    }
+
+    public Set<String> getLatestUploadFiles() {
+        return latestUploadFiles;
     }
 
     public void updateLatestUploadFiles(Set<String> latestUploadFiles) {
         this.latestUploadFiles = latestUploadFiles;
     }
 
+    public double getUploadBytesAverage() {
+        assert isUploadBytesAverageReady();
+        return uploadBytesMovingAverage.getAverage();
+    }
+
     public void addUploadBytes(long bytes) {
         uploadBytesMovingAverage.record(bytes);
     }
 
+    public boolean isUploadBytesAverageReady() {
+        return uploadBytesMovingAverage.isReady();
+    }
+
     public void addUploadBytesPerSecond(long bytesPerSecond) {
         uploadBytesPerSecondMovingAverage.record(bytesPerSecond);
+    }
+
+    public void addUploadTime(long uploadTime) {
+        uploadTimeMovingAverage.record(uploadTime);
     }
 
 }
