@@ -273,6 +273,7 @@ public class FileCacheTests extends OpenSearchTestCase {
         Path fileCachePath = path.resolve(NodeEnvironment.CACHE_FOLDER).resolve(indexName).resolve(shardId);
         fileCache.restoreFromDirectory(List.of(fileCachePath));
         assertTrue(fileCache.usage().usage() > 0);
+        assertEquals(0, fileCache.usage().activeUsage());
     }
 
     private void putAndDecRef(FileCache cache, int path, long indexInputSize) {
