@@ -21,10 +21,9 @@ import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.IntStream;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 
 @ClusterScope(scope = Scope.TEST, supportsDedicatedMasters = false, numDataNodes = 1)
@@ -52,19 +51,11 @@ public class Netty4Http2PostIT extends OpenSearchNetty4IntegTestCase {
                 }
 
                 Collection<String> opaqueIds = Netty4HttpClient.returnOpaqueIds(responses);
-                assertOpaqueIdsInAnyOrder(opaqueIds);
+                String msg = String.format(Locale.ROOT, "Expected opaque id [0], got [%s]", opaqueIds);
+                assertThat(msg, opaqueIds, contains("0"));
             } finally {
                 responses.forEach(ReferenceCounted::release);
             }
         }
     }
-
-    private void assertOpaqueIdsInAnyOrder(Collection<String> opaqueIds) {
-        // check if opaque ids are present in any order, since for HTTP/2 we use streaming (no head of line blocking)
-        // and responses may come back at any order
-        int i = 0;
-        String msg = String.format(Locale.ROOT, "Expected list of opaque ids to be in any order, got [%s]", opaqueIds);
-        assertThat(msg, opaqueIds, containsInAnyOrder(IntStream.range(0, 1).mapToObj(Integer::toString).toArray()));
-    }
-
 }
