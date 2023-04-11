@@ -134,7 +134,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fixed bug for searchable snapshot to take 'base_path' of blob into account ([#6558](https://github.com/opensearch-project/OpenSearch/pull/6558))
 - Fix fuzziness validation ([#5805](https://github.com/opensearch-project/OpenSearch/pull/5805))
 - Fix GetSnapshots to not return non-existent snapshots with ignore_unavailable=true ([#6839](https://github.com/opensearch-project/OpenSearch/pull/6839))
-- Resolve windows opensearch-env.bat having variable delayed expansion issues on OPENSEARCH_HOME assignment in [#6956](https://github.com/opensearch-project/OpenSearch/pull/6956) ([#7080](https://github.com/opensearch-project/OpenSearch/pull/7080))
 
 ### Security
 
