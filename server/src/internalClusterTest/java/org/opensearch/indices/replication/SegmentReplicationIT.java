@@ -729,6 +729,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/7043")
     public void testReplicaHasDiffFilesThanPrimary() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
         final String primaryNode = internalCluster().startNode();

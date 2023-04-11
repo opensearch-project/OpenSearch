@@ -100,6 +100,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -108,6 +109,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.hamcrest.Matchers.anyOf;
@@ -428,6 +430,34 @@ public class StoreTests extends OpenSearchTestCase {
 
         dir.close();
 
+    }
+
+    public void testFileReferences() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(
+            shardId,
+            SEGMENT_REPLICATION_INDEX_SETTINGS,
+            StoreTests.newDirectory(random()),
+            new DummyShardLock(shardId)
+        );
+        commitRandomDocs(store);
+
+        Collection<String> currentFilesOnStore = SegmentInfos.readLatestCommit(store.directory()).files(true);
+        store.incRefFileDeleter(currentFilesOnStore);
+
+        // Commit more docs
+        commitRandomDocs(store);
+
+        List<String> storeFiles = List.of(store.directory().listAll());
+        assertTrue(storeFiles.containsAll(currentFilesOnStore));
+
+        // dec'ref files
+        store.decRefFileDeleter(currentFilesOnStore);
+        storeFiles = List.of(store.directory().listAll());
+        assertTrue(storeFiles.stream().filter(currentFilesOnStore::contains).collect(Collectors.toList()).size() == 0);
+
+        deleteContent(store.directory());
+        IOUtils.close(store);
     }
 
     public void testVerifyingIndexInput() throws IOException {
@@ -1164,45 +1194,6 @@ public class StoreTests extends OpenSearchTestCase {
         // loose check for equality
         assertEquals(segmentInfos.getSegmentsFileName(), metadataSnapshot.getSegmentsFile().name());
         store.close();
-    }
-
-    public void testCleanupAndPreserveLatestCommitPoint() throws IOException {
-        final ShardId shardId = new ShardId("index", "_na_", 1);
-        Store store = new Store(
-            shardId,
-            SEGMENT_REPLICATION_INDEX_SETTINGS,
-            StoreTests.newDirectory(random()),
-            new DummyShardLock(shardId)
-        );
-        commitRandomDocs(store);
-
-        Store.MetadataSnapshot commitMetadata = store.getMetadata();
-
-        // index more docs but only IW.flush, this will create additional files we'll clean up.
-        final IndexWriter writer = indexRandomDocs(store);
-        writer.flush();
-        writer.close();
-
-        final List<String> additionalSegments = new ArrayList<>();
-        for (String file : store.directory().listAll()) {
-            if (commitMetadata.contains(file) == false) {
-                additionalSegments.add(file);
-            }
-        }
-        assertFalse(additionalSegments.isEmpty());
-
-        // clean up everything not in the latest commit point.
-        store.cleanupAndPreserveLatestCommitPoint("test", store.readLastCommittedSegmentsInfo());
-
-        // we want to ensure commitMetadata files are preserved after calling cleanup
-        for (String existingFile : store.directory().listAll()) {
-            if (!IndexWriter.WRITE_LOCK_NAME.equals(existingFile)) {
-                assertTrue(commitMetadata.contains(existingFile));
-                assertFalse(additionalSegments.contains(existingFile));
-            }
-        }
-        deleteContent(store.directory());
-        IOUtils.close(store);
     }
 
     public void testGetSegmentMetadataMap() throws IOException {
