@@ -32,7 +32,6 @@
 
 package org.opensearch.index.engine;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -430,15 +429,15 @@ public class InternalEngineTests extends EngineTestCase {
 
             SegmentsStats stats = engine.segmentsStats(true, false);
             assertThat(stats.getFileSizes().size(), greaterThan(0));
-            assertThat(() -> stats.getFileSizes().valuesIt(), everyItem(greaterThan(0L)));
+            assertThat(() -> stats.getFileSizes().values().iterator(), everyItem(greaterThan(0L)));
 
-            ObjectObjectCursor<String, Long> firstEntry = stats.getFileSizes().iterator().next();
+            Map.Entry<String, Long> firstEntry = stats.getFileSizes().entrySet().iterator().next();
 
             ParsedDocument doc2 = testParsedDocument("2", null, testDocumentWithTextField(), B_2, null);
             engine.index(indexForDoc(doc2));
             engine.refresh("test");
 
-            assertThat(engine.segmentsStats(true, false).getFileSizes().get(firstEntry.key), greaterThan(firstEntry.value));
+            assertThat(engine.segmentsStats(true, false).getFileSizes().get(firstEntry.getKey()), greaterThan(firstEntry.getValue()));
         }
     }
 
