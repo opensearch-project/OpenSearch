@@ -642,10 +642,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 // Settings related to remote segments upload back pressure
                 RemoteUploadPressureSettings.REMOTE_SEGMENT_UPLOAD_PRESSURE_ENABLED,
                 RemoteUploadPressureSettings.MIN_SEQ_NO_LAG_LIMIT,
-                RemoteUploadPressureSettings.MIN_BYTES_LAG_LIMIT,
                 RemoteUploadPressureSettings.BYTES_BEHIND_VARIANCE_THRESHOLD,
-                RemoteUploadPressureSettings.MIN_TIME_BEHIND_LIMIT,
-                RemoteUploadPressureSettings.MIN_INFLIGHT_BYTES_LIMIT,
+                RemoteUploadPressureSettings.TIME_BEHIND_VARIANCE_THRESHOLD,
                 RemoteUploadPressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT
             )
         )
