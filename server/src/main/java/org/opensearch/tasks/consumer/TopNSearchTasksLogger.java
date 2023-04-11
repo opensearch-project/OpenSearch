@@ -11,7 +11,9 @@ package org.opensearch.tasks.consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -54,15 +56,19 @@ public class TopNSearchTasksLogger implements Consumer<Task> {
         Setting.Property.NodeScope
     );
 
-    private final int topQueriesSize;
-    private final long topQueriesLogFrequencyInNanos;
-    private final Queue<Tuple<Long, SearchShardTask>> topQueries;
+    private int topQueriesSize;
+    private long topQueriesLogFrequencyInNanos;
+    private Queue<Tuple<Long, SearchShardTask>> topQueries;
     private long lastReportedTimeInNanos = System.nanoTime();
 
-    public TopNSearchTasksLogger(Settings settings) {
+    public TopNSearchTasksLogger(Settings settings, @Nullable ClusterSettings clusterSettings) {
         this.topQueriesSize = LOG_TOP_QUERIES_SIZE_SETTING.get(settings);
         this.topQueriesLogFrequencyInNanos = LOG_TOP_QUERIES_FREQUENCY_SETTING.get(settings).getNanos();
-        this.topQueries = new PriorityQueue<>(topQueriesSize, Comparator.comparingLong(Tuple::v1));
+        this.topQueries = new PriorityQueue<>(Comparator.comparingLong(Tuple::v1));
+        if (clusterSettings != null) {
+            clusterSettings.addSettingsUpdateConsumer(LOG_TOP_QUERIES_SIZE_SETTING, this::setLogTopQueriesSize);
+            clusterSettings.addSettingsUpdateConsumer(LOG_TOP_QUERIES_FREQUENCY_SETTING, this::setTopQueriesLogFrequencyInNanos);
+        }
     }
 
     /**
@@ -99,5 +105,13 @@ public class TopNSearchTasksLogger implements Consumer<Task> {
         for (Tuple<Long, SearchShardTask> topQuery : topQueries) {
             SEARCH_TASK_DETAILS_LOGGER.info(new SearchShardTaskDetailsLogMessage(topQuery.v2()));
         }
+    }
+
+    void setLogTopQueriesSize(int topQueriesSize) {
+        this.topQueriesSize = topQueriesSize;
+    }
+
+    void setTopQueriesLogFrequencyInNanos(TimeValue timeValue) {
+        this.topQueriesLogFrequencyInNanos = timeValue.getNanos();
     }
 }

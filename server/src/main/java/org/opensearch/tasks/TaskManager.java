@@ -48,6 +48,7 @@ import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -138,17 +139,21 @@ public class TaskManager implements ClusterStateApplier {
         ThreadPool threadPool,
         Set<String> taskHeaders
     ) {
-        final TaskManager taskManager = new TaskManager(settings, threadPool, taskHeaders);
+        final TaskManager taskManager = new TaskManager(settings, threadPool, taskHeaders, clusterSettings);
         clusterSettings.addSettingsUpdateConsumer(TASK_RESOURCE_CONSUMERS_ENABLED, taskManager::setTaskResourceConsumersEnabled);
         return taskManager;
     }
 
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
+        this(settings, threadPool, taskHeaders, null);
+    }
+
+    private TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, @Nullable ClusterSettings clusterSettings) {
         this.threadPool = threadPool;
         this.taskHeaders = new ArrayList<>(taskHeaders);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         this.taskResourceConsumersEnabled = TASK_RESOURCE_CONSUMERS_ENABLED.get(settings);
-        this.taskResourceConsumer = Set.of(new TopNSearchTasksLogger(settings));
+        this.taskResourceConsumer = Set.of(new TopNSearchTasksLogger(settings, clusterSettings));
     }
 
     public void setTaskResultsService(TaskResultsService taskResultsService) {
