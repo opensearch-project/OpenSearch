@@ -15,7 +15,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -27,11 +26,11 @@ import org.openjdk.jmh.annotations.OutputTimeUnit;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
 
 import org.apache.lucene.index.IndexWriterConfig;
 import org.opensearch.Version;
-import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.lucene.Lucene;
@@ -43,12 +42,9 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.env.ShardLock;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.NRTReplicationEngine;
-import org.opensearch.index.engine.SafeCommitInfo;
-import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
@@ -56,90 +52,148 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.threadpool.ThreadPool;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.Collections;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.LongSupplier;
-import java.util.function.Supplier;
 
-import static java.lang.Math.random;
 import static java.util.Collections.emptyList;
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 
-
 /**
- * Benchmark for {@link org.opensearch.index.engine.NRTReplicationEngine} to verify impact of commits
+ * Benchmark for {@link org.opensearch.index.engine.NRTReplicationEngine} to verify commit performance
  */
 @Warmup(iterations = 1)
-@Measurement(iterations = 1)
+@Measurement(iterations = 5)
 @Fork(1)
-@BenchmarkMode(Mode.All)
+@BenchmarkMode(Mode.AverageTime)
 @State(Scope.Benchmark)
-@OutputTimeUnit(TimeUnit.MICROSECONDS)
+@OutputTimeUnit(TimeUnit.MILLISECONDS)
 public class NRTReplicationEngineBenchmark {
+    private final Random random = new Random();
+    private final AtomicInteger idGenerator = new AtomicInteger(1);
 
-    @Benchmark
-    public void testCommitOnReplica() throws IOException {
-        int numDocs = 10;
-        for (int i = 0; i < numDocs; i++) {
-            Document document = new Document();
-            document.add(new StringField("field", "bar"+i, Field.Store.NO));
-            indexWriter.addDocument(document);
-
-            System.out.println("--> Files in latest commit " + Arrays.toString(SegmentInfos.readLatestCommit(indexWriter.getDirectory()).files(true).toArray()));
-            nrtReplicationEngine.updateSegments(SegmentInfos.readLatestCommit(indexWriter.getDirectory()));
-        }
-    }
-    // Writer to generate segments
-    IndexWriter indexWriter;
+    // Writer to generate segments, mimicking primary shard
+    private IndexWriter indexWriter;
 
     // Test subject to be shared across benchmark
-    NRTReplicationEngine nrtReplicationEngine;
+    private NRTReplicationEngine nrtReplicationEngine;
+
+    private Directory writerDirectory;
+    private Directory replicaStoreDirectory;
+
+    private File writerStorePath;
+    private File replicaStorePath;
+    private File replicaTranslogPath;
+
+    @Benchmark
+    public void testCommit_10Docs() throws IOException {
+        indexDocumentsAndPersist(10);
+        nrtReplicationEngine.updateSegments(SegmentInfos.readLatestCommit(indexWriter.getDirectory()));
+    }
+
+    @Benchmark
+    public void testCommit_100Docs() throws IOException {
+        indexDocumentsAndPersist(100);
+        nrtReplicationEngine.updateSegments(SegmentInfos.readLatestCommit(indexWriter.getDirectory()));
+    }
+
+    @Benchmark
+    public void testCommit_1000Docs() throws IOException {
+        indexDocumentsAndPersist(1000);
+        nrtReplicationEngine.updateSegments(SegmentInfos.readLatestCommit(indexWriter.getDirectory()));
+    }
+
+    @Benchmark
+    public void testCommit_10000Docs() throws IOException {
+        indexDocumentsAndPersist(10000);
+        nrtReplicationEngine.updateSegments(SegmentInfos.readLatestCommit(indexWriter.getDirectory()));
+    }
+
+    @Benchmark
+    public void testCommit_With_ForceMerge() throws IOException {
+        indexWriter.forceMerge(1, true);
+        indexDocumentsAndPersist(100);
+        nrtReplicationEngine.updateSegments(SegmentInfos.readLatestCommit(indexWriter.getDirectory()));
+    }
+
+    private void indexDocumentsAndPersist(int numberOfDocs) throws IOException {
+        for (int i = 0; i < numberOfDocs; i++) {
+            Document document = new Document();
+            document.add(new StringField("field", "bar" + idGenerator.getAndIncrement(), Field.Store.NO));
+            indexWriter.addDocument(document);
+        }
+        // commit, sync and copy to replica directory
+        indexWriter.commit();
+        SegmentInfos latest = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
+        FileCleanUp.copyFiles(latest.files(true), writerStorePath.getPath(), replicaStorePath.getPath());
+    }
+
+    @TearDown
+    public void tearDown() throws IOException {
+        indexWriter.close();
+        writerDirectory.close();
+        replicaStoreDirectory.close();
+
+        nrtReplicationEngine.close();
+        // Delete directory and it's content
+        FileCleanUp.cleanUpDirectory(writerStorePath);
+        FileCleanUp.cleanUpDirectory(replicaStorePath);
+        FileCleanUp.cleanUpDirectory(replicaTranslogPath);
+    }
 
     @Setup
     public void createNRTEngine() throws IOException {
+        writerStorePath = new File("primary_store");
+        replicaStorePath = new File("replica_store");
+        replicaTranslogPath = new File("transactions_log");
+
+        // Create index writer
         IndexWriterConfig iwc = new IndexWriterConfig(Lucene.STANDARD_ANALYZER);
-        Directory writerDirectory = new NIOFSDirectory(Paths.get("."));
+        writerDirectory = new NIOFSDirectory(writerStorePath.toPath());
         indexWriter = new IndexWriter(writerDirectory, iwc);
 
+        // Create user data used in replica engine during instantiation
         Map<String, String> userData = new HashMap<>();
-        userData.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID(new Random()));
-//        userData.put(Translog.TRANSLOG_UUID_KEY, null);
+        userData.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID(random));
+        userData.put(Translog.TRANSLOG_UUID_KEY, UUIDs.randomBase64UUID(random));
         userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(-1));
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(-1));
         indexWriter.setLiveCommitData(userData.entrySet());
         indexWriter.commit();
 
+        // Create replica store and config
         Index index = new Index("test-index", IndexMetadata.INDEX_UUID_NA_VALUE);
         IndexSettings indexSettings = getIndexSettings(index);
-
-        Directory replicaStoreDirectory = new NIOFSDirectory(Paths.get("replica_store"));
+        replicaStoreDirectory = new NIOFSDirectory(replicaStorePath.toPath());
         final ShardId shardId = new ShardId(index.getName(), index.getUUID(), 0);
-        Store store = new Store(shardId, indexSettings, replicaStoreDirectory, new DummyShardLock(shardId));
+        Store replicaStore = new Store(shardId, indexSettings, replicaStoreDirectory, new DummyShardLock(shardId));
 
-        final TranslogConfig translogConfig = new TranslogConfig(shardId, Paths.get("xlog"), indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
+        final TranslogConfig translogConfig = new TranslogConfig(
+            shardId,
+            replicaTranslogPath.toPath(),
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE
+        );
 
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-
         EngineConfig engineConfig = new EngineConfig.Builder().shardId(shardId)
-//            .threadPool(ThreadPool.ThreadPoolType.fromType("GENERIC"))
             .indexSettings(indexSettings)
-            .store(store)
+            .store(replicaStore)
             .mergePolicy(NoMergePolicy.INSTANCE)
             .analyzer(iwc.getAnalyzer())
             .similarity(iwc.getSimilarity())
-//            .codecService(new CodecService(null))
             .eventListener(null)
             .queryCache(IndexSearcher.getDefaultQueryCache())
             .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
@@ -147,25 +201,21 @@ public class NRTReplicationEngineBenchmark {
             .flushMergesAfter(TimeValue.timeValueMinutes(1))
             .externalRefreshListener(emptyList())
             .internalRefreshListener(emptyList())
-//            .indexSort(indexSort)
-//            .circuitBreakerService(breakerService)
             .globalCheckpointSupplier(globalCheckpoint::get)
             .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
             .primaryTermSupplier(() -> 1)
-//            .tombstoneDocSupplier(tombstoneDocSupplier())
             .build();
 
-        if (Lucene.indexExists(store.directory()) == false) {
-            store.createEmpty(engineConfig.getIndexSettings().getIndexVersionCreated().luceneVersion);
+        if (Lucene.indexExists(replicaStore.directory()) == false) {
+            replicaStore.createEmpty(engineConfig.getIndexSettings().getIndexVersionCreated().luceneVersion);
             final String translogUuid = Translog.createEmptyTranslog(
                 engineConfig.getTranslogConfig().getTranslogPath(),
                 SequenceNumbers.NO_OPS_PERFORMED,
                 shardId,
                 1
             );
-            store.associateIndexWithNewTranslog(translogUuid);
+            replicaStore.associateIndexWithNewTranslog(translogUuid);
         }
-
         nrtReplicationEngine = new NRTReplicationEngine(engineConfig);
     }
 
@@ -191,61 +241,25 @@ public class NRTReplicationEngineBenchmark {
         return new IndexSettings(metadata, Settings.EMPTY, new IndexScopedSettings(Settings.EMPTY, settingSet));
     }
 
-//    public EngineConfig getReplicaEngineConfig() {
-//        final IndexWriterConfig iwc = newIndexWriterConfig();
-//        final TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, BigArrays.NON_RECYCLING_INSTANCE);
-//        final Engine.EventListener eventListener = new Engine.EventListener() {
-//        }; // we don't need to notify anybody in this test
-//        final List<ReferenceManager.RefreshListener> extRefreshListenerList = externalRefreshListener == null
-//            ? emptyList()
-//            : Collections.singletonList(externalRefreshListener);
-//        final List<ReferenceManager.RefreshListener> intRefreshListenerList = internalRefreshListener == null
-//            ? emptyList()
-//            : Collections.singletonList(internalRefreshListener);
-//        final LongSupplier globalCheckpointSupplier;
-//        final Supplier<RetentionLeases> retentionLeasesSupplier;
-//        if (maybeGlobalCheckpointSupplier == null) {
-//            assert maybeRetentionLeasesSupplier == null;
-//            final ReplicationTracker replicationTracker = new ReplicationTracker(
-//                shardId,
-//                allocationId.getId(),
-//                indexSettings,
-//                randomNonNegativeLong(),
-//                SequenceNumbers.NO_OPS_PERFORMED,
-//                update -> {},
-//                () -> 0L,
-//                (leases, listener) -> listener.onResponse(new ReplicationResponse()),
-//                () -> SafeCommitInfo.EMPTY
-//            );
-//            globalCheckpointSupplier = replicationTracker;
-//            retentionLeasesSupplier = replicationTracker::getRetentionLeases;
-//        } else {
-//            assert maybeRetentionLeasesSupplier != null;
-//            globalCheckpointSupplier = maybeGlobalCheckpointSupplier;
-//            retentionLeasesSupplier = maybeRetentionLeasesSupplier;
-//        }
-//        return new EngineConfig.Builder().shardId(shardId)
-//            .threadPool(threadPool)
-//            .indexSettings(indexSettings)
-//            .warmer(null)
-//            .store(store)
-//            .mergePolicy(mergePolicy)
-//            .analyzer(iwc.getAnalyzer())
-//            .similarity(iwc.getSimilarity())
-//            .codecService(new CodecService(null, logger))
-//            .eventListener(eventListener)
-//            .queryCache(IndexSearcher.getDefaultQueryCache())
-//            .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())
-//            .translogConfig(translogConfig)
-//            .flushMergesAfter(TimeValue.timeValueMinutes(5))
-//            .externalRefreshListener(extRefreshListenerList)
-//            .internalRefreshListener(intRefreshListenerList)
-//            .indexSort(indexSort)
-//            .circuitBreakerService(breakerService)
-//            .globalCheckpointSupplier(globalCheckpointSupplier)
-//            .retentionLeasesSupplier(retentionLeasesSupplier)
-//            .primaryTermSupplier(primaryTerm)
-//            .tombstoneDocSupplier(tombstoneDocSupplier())
-//            .build();
-//    }
+    static class FileCleanUp {
+        private static void cleanUpDirectory(File directory) {
+            if (directory.isDirectory()) {
+                for (File file : directory.listFiles()) {
+                    file.delete();
+                }
+                directory.delete();
+            }
+        }
+
+        // Copies file to replica store, mimicking segment replication
+        private static void copyFiles(Collection<String> files, String writerStorePath, String replicaStorePath) throws IOException {
+            for (String fileName : files) {
+                Path sourcePath = Paths.get(writerStorePath + "/" + fileName);
+                Path targetPath = Paths.get(replicaStorePath + "/" + fileName);
+                if (Files.exists(targetPath) == false) {
+                    Files.copy(sourcePath, targetPath);
+                }
+            }
+        }
+    }
 }
