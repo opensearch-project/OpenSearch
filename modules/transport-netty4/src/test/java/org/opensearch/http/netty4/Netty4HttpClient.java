@@ -213,7 +213,7 @@ class Netty4HttpClient implements Closeable {
 
         } finally {
             if (channelFuture != null) {
-                channelFuture.channel().close().sync();
+                channelFuture.channel().close().awaitUninterruptibly();
             }
         }
 
@@ -370,7 +370,7 @@ class Netty4HttpClient implements Closeable {
             request.headers().add(HttpHeaderNames.HOST, "localhost");
             request.headers().add(HttpConversionUtil.ExtensionHeaderNames.SCHEME.text(), "http");
 
-            ctx.channel().attr(AttributeKey.newInstance("upgrade")).set(true);
+            ctx.channel().attr(AttributeKey.valueOf("upgrade")).set(true);
             ctx.writeAndFlush(request);
             ctx.fireChannelActive();
 
