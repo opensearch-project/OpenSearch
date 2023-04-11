@@ -12,9 +12,13 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.opensearch.indices.replication.SegmentReplicationTarget.REPLICATION_PREFIX;
+
 /**
  * This class is a version of Lucene's ReplicaFileDeleter class used to keep track of
- * segment files that should be preserved on replicas between replication events.
+ * segment files that should be preserved on replicas between replication events. It inc'ref the files which are part of
+ * latest commit or files part of open reader used for pit/scroll queries. This class ignores temporary replication files
+ *
  * The difference is this component does not actually perform any deletions, it only handles refcounts.
  * Our deletions are made through Store.java.
  *
@@ -46,6 +50,6 @@ final class ReplicaFileTracker {
     }
 
     public synchronized boolean canDelete(String fileName) {
-        return refCounts.containsKey(fileName) == false;
+        return fileName.startsWith(REPLICATION_PREFIX) == false && refCounts.containsKey(fileName) == false;
     }
 }
