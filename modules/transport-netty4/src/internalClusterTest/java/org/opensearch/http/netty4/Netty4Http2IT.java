@@ -83,9 +83,7 @@ public class Netty4Http2IT extends OpenSearchNetty4IntegTestCase {
     private void assertOpaqueIdsInAnyOrder(int expected, Collection<String> opaqueIds) {
         // check if opaque ids are present in any order, since for HTTP/2 we use streaming (no head of line blocking)
         // and responses may come back at any order
-        int i = 0;
-        String msg = String.format(Locale.ROOT, "Expected list of opaque ids to be in any order, got [%s]", opaqueIds);
-        assertThat(msg, opaqueIds, containsInAnyOrder(IntStream.range(0, expected).mapToObj(Integer::toString).toArray()));
+        assertThat(opaqueIds, containsInAnyOrder(IntStream.range(0, expected).mapToObj(Integer::toString).toArray()));
     }
 
 }
