@@ -36,7 +36,6 @@ import org.opensearch.node.Node;
 import org.opensearch.repositories.fs.FsRepository;
 
 import java.io.IOException;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -595,12 +594,8 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         for (Path fileCachePath : searchNodeFileCachePaths) {
             assertTrue(Files.exists(fileCachePath));
             assertTrue(Files.isDirectory(fileCachePath));
-            try (DirectoryStream<Path> cachePathStream = Files.newDirectoryStream(fileCachePath)) {
-                Path nodeLockIdPath = cachePathStream.iterator().next();
-                assertTrue(Files.isDirectory(nodeLockIdPath));
-                try (Stream<Path> dataPathStream = Files.list(nodeLockIdPath)) {
-                    assertEquals(numIndexCount, dataPathStream.count());
-                }
+            try (Stream<Path> dataPathStream = Files.list(fileCachePath)) {
+                assertEquals(numIndexCount, dataPathStream.count());
             }
         }
         // Verifies if all the shards (primary and replica) have been deleted
