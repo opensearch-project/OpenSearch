@@ -547,6 +547,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 OperationRouting.WEIGHTED_ROUTING_DEFAULT_WEIGHT,
                 OperationRouting.WEIGHTED_ROUTING_FAILOPEN_ENABLED,
                 OperationRouting.STRICT_WEIGHTED_SHARD_ROUTING_ENABLED,
+                OperationRouting.IGNORE_WEIGHTED_SHARD_ROUTING,
                 IndexGraveyard.SETTING_MAX_TOMBSTONES,
                 PersistentTasksClusterService.CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING,
                 EnableAssignmentDecider.CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING,
@@ -646,7 +647,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
     public static final Map<String, List<Setting>> FEATURE_FLAGGED_CLUSTER_SETTINGS = Map.of(
         FeatureFlags.SEARCHABLE_SNAPSHOT,
         List.of(Node.NODE_SEARCH_CACHE_SIZE_SETTING),
-        FeatureFlags.REPLICATION_TYPE,
+        FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL,
         List.of(IndicesService.CLUSTER_REPLICATION_TYPE_SETTING)
     );
 

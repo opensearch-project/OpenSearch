@@ -290,8 +290,10 @@ public class IndicesService extends AbstractLifecycleComponent
     private final Set<Index> danglingIndicesToWrite = Sets.newConcurrentHashSet();
     private final boolean nodeWriteDanglingIndicesInfo;
     private final ValuesSourceRegistry valuesSourceRegistry;
-    private final IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory;
+    private final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
+
+    private final FileCacheCleaner fileCacheCleaner;
 
     @Override
     protected void doStart() {
@@ -320,8 +322,9 @@ public class IndicesService extends AbstractLifecycleComponent
         Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        FileCacheCleaner fileCacheCleaner
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -368,6 +371,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
         this.directoryFactories = directoryFactories;
         this.recoveryStateFactories = recoveryStateFactories;
+        this.fileCacheCleaner = fileCacheCleaner;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -435,8 +439,9 @@ public class IndicesService extends AbstractLifecycleComponent
         Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
         ValuesSourceRegistry valuesSourceRegistry,
         Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-        IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        FileCacheCleaner fileCacheCleaner
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -483,6 +488,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
         this.directoryFactories = directoryFactories;
         this.recoveryStateFactories = recoveryStateFactories;
+        this.fileCacheCleaner = fileCacheCleaner;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -770,7 +776,6 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
             }
         };
-        final FileCacheCleaner fileCacheCleaner = new FileCacheCleaner(nodeEnv);
         finalListeners.add(onStoreClose);
         finalListeners.add(oldShardsStats);
         finalListeners.add(fileCacheCleaner);
@@ -928,11 +933,11 @@ public class IndicesService extends AbstractLifecycleComponent
             .filter(maybe -> Objects.requireNonNull(maybe).isPresent())
             .collect(Collectors.toList());
         if (engineFactories.isEmpty()) {
-            if (idxSettings.isSegRepEnabled()) {
-                return new NRTReplicationEngineFactory();
-            }
             if (idxSettings.isRemoteSnapshot()) {
                 return config -> new ReadOnlyEngine(config, new SeqNoStats(0, 0, 0), new TranslogStats(), true, Function.identity(), false);
+            }
+            if (idxSettings.isSegRepEnabled()) {
+                return new NRTReplicationEngineFactory();
             }
             return new InternalEngineFactory();
         } else if (engineFactories.size() == 1) {

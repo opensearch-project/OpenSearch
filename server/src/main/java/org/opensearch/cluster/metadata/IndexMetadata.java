@@ -330,10 +330,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                             + INDEX_REPLICATION_TYPE_SETTING.getKey()
                             + " should be set to "
                             + ReplicationType.SEGMENT
-                            + " or "
-                            + CLUSTER_REPLICATION_TYPE_SETTING.getKey()
-                            + " should be set to "
-                            + Boolean.TRUE
                     );
                 }
             }
