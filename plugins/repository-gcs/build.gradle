@@ -82,6 +82,8 @@ dependencies {
   api 'io.opencensus:opencensus-contrib-http-util:0.31.1'
   api 'com.google.apis:google-api-services-storage:v1-rev20220608-1.32.1'
 
+  compileOnly 'org.checkerframework:checker-qual:3.32.0'
+
   testImplementation project(':test:fixtures:gcs-fixture')
 }
 
