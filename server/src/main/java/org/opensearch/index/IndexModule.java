@@ -503,7 +503,7 @@ public final class IndexModule {
         NamedWriteableRegistry namedWriteableRegistry,
         BooleanSupplier idFieldDataEnabled,
         ValuesSourceRegistry valuesSourceRegistry,
-        IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier
     ) throws IOException {
         final IndexEventListener eventListener = freeze();

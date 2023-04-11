@@ -282,22 +282,18 @@ public class RemoteStoreIT extends OpenSearchIntegTestCase {
         testPeerRecovery(false, randomIntBetween(2, 5), false);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6193")
     public void testPeerRecoveryWithRemoteStoreAndRemoteTranslogNoDataFlush() throws Exception {
         testPeerRecovery(true, 1, true);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6193")
     public void testPeerRecoveryWithRemoteStoreAndRemoteTranslogFlush() throws Exception {
         testPeerRecovery(true, randomIntBetween(2, 5), true);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6193")
     public void testPeerRecoveryWithRemoteStoreAndRemoteTranslogNoDataRefresh() throws Exception {
         testPeerRecovery(true, 1, false);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/6193")
     public void testPeerRecoveryWithRemoteStoreAndRemoteTranslogRefresh() throws Exception {
         testPeerRecovery(true, randomIntBetween(2, 5), false);
     }
