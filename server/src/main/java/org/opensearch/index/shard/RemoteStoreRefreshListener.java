@@ -162,7 +162,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                             // Start the segments upload
                             segmentsUploadStatus = UploadStatus.STARTED;
                             segmentsUploadStatus = uploadNewSegments(localSegmentsPostRefresh, statsTracker, sizeMap);
-                            if (shouldUploadMetadata(segmentsUploadStatus, localSegmentsPostRefresh, statsTracker.getLatestUploadFiles())) {
+                            if (UploadStatus.SUCCEEDED == segmentsUploadStatus) {
                                 segmentInfoSnapshotFilename = uploadSegmentInfosSnapshot(latestSegmentInfos.get(), segmentInfos);
                                 localSegmentsPostRefresh.add(segmentInfoSnapshotFilename);
                                 // Start Metadata upload
@@ -232,8 +232,6 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         // upload did not start at all - in which case the upload never started.
         if (metadataUploadStatus == UploadStatus.SUCCEEDED) {
             statsTracker.incrementTotalUploadsSucceeded();
-        } else if (metadataUploadStatus == UploadStatus.NOT_STARTED && segmentsUploadStatus == UploadStatus.SUCCEEDED) {
-            statsTracker.incrementTotalUploadsSkipped();
         } else if (Set.of(UploadStatus.STARTED, UploadStatus.SUCCEEDED, UploadStatus.FAILED).contains(segmentsUploadStatus)) {
             statsTracker.incrementTotalUploadsFailed();
         }
