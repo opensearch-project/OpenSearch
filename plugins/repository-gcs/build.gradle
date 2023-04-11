@@ -54,7 +54,7 @@ versions << [
 ]
 
 dependencies {
-  api 'com.google.cloud:google-cloud-storage:2.20.2'
+  api 'com.google.cloud:google-cloud-storage:2.21.0'
   api 'com.google.cloud:google-cloud-core:2.5.10'
   runtimeOnly 'com.google.guava:guava:31.1-jre'
   api 'com.google.guava:failureaccess:1.0.1'
