@@ -56,6 +56,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingHelper;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
@@ -78,6 +79,7 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MapperTestUtils;
+import org.opensearch.index.RemoteUploadPressureService;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.cache.query.DisabledQueryCache;
@@ -168,6 +170,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 
 /**
  * A base class for unit tests that need to create and shutdown {@link IndexShard} instances easily,
@@ -202,6 +205,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     };
 
     protected ThreadPool threadPool;
+    protected ClusterService clusterService;
     protected long primaryTerm;
 
     @Override
@@ -209,6 +213,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         super.setUp();
         threadPool = setUpThreadPool();
         primaryTerm = randomIntBetween(1, 100); // use random but fixed term for creating shards
+        clusterService = createClusterService(threadPool);
         failOnShardFailures();
     }
 
@@ -220,6 +225,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
     public void tearDown() throws Exception {
         try {
             tearDownThreadPool();
+            clusterService.close();
         } finally {
             super.tearDown();
         }
@@ -545,6 +551,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             storeProvider = is -> createStore(is, shardPath);
         }
         final Store store = storeProvider.apply(indexSettings);
+        RemoteUploadPressureService remoteUploadPressureService = null;
         boolean success = false;
         try {
             IndexCache indexCache = new IndexCache(indexSettings, new DisabledQueryCache(indexSettings), null);
@@ -563,8 +570,11 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 Collections.emptyList(),
                 clusterSettings
             );
-            if (remoteStore == null && indexSettings.isRemoteStoreEnabled()) {
-                remoteStore = createRemoteStore(createTempDir(), routing, indexMetadata);
+            if (indexSettings.isRemoteStoreEnabled()) {
+                if (remoteStore == null) {
+                    remoteStore = createRemoteStore(createTempDir(), routing, indexMetadata);
+                }
+                remoteUploadPressureService = new RemoteUploadPressureService(clusterService, indexSettings.getSettings());
             }
 
             final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier = (settings, shardRouting) -> {
@@ -601,7 +611,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 translogFactorySupplier,
                 checkpointPublisher,
                 remoteStore,
-                null
+                remoteUploadPressureService
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;
