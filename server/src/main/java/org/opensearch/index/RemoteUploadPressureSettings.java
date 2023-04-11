@@ -118,7 +118,7 @@ public class RemoteUploadPressureSettings {
         this.timeBehindVarianceThreshold = timeBehindVarianceThreshold;
     }
 
-    public long getMinConsecutiveFailuresLimit() {
+    public int getMinConsecutiveFailuresLimit() {
         return minConsecutiveFailuresLimit;
     }
 

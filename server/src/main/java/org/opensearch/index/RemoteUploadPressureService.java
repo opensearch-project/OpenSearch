@@ -150,7 +150,21 @@ public class RemoteUploadPressureService implements IndexEventListener {
     }
 
     private void validateConsecutiveFailureLimitBreached(RemoteSegmentUploadShardStatsTracker statsTracker, ShardId shardId) {
-
+        int failureStreakCount = statsTracker.getConsecutiveFailureCount();
+        int minConsecutiveFailureThreshold = remoteUploadPressureSettings.getMinConsecutiveFailuresLimit();
+        if (failureStreakCount > minConsecutiveFailureThreshold) {
+            rejectRequest(
+                String.format(
+                    Locale.ROOT,
+                    "rejected execution on primary shard:%s due to remote segments lagging behind local segments."
+                        + "failure_streak_count:%s min_consecutive_failure_threshold:%s",
+                    shardId,
+                    failureStreakCount,
+                    minConsecutiveFailureThreshold
+                ),
+                shardId
+            );
+        }
     }
 
     private void rejectRequest(String rejectionReason, ShardId shardId) {
