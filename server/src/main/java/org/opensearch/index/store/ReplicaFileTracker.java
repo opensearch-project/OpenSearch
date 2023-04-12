@@ -11,7 +11,8 @@ package org.opensearch.index.store;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Consumer;
+
+import static org.opensearch.indices.replication.SegmentReplicationTarget.REPLICATION_PREFIX;
 
 /**
  * This class is a version of Lucene's ReplicaFileDeleter class used to keep track of
@@ -35,17 +36,20 @@ final class ReplicaFileTracker {
         }
     }
 
-    public synchronized void decRef(Collection<String> fileNames, Consumer<String> deleteConsumer) {
+    public synchronized void decRef(Collection<String> fileNames) {
         for (String fileName : fileNames) {
             Integer curCount = refCounts.get(fileName);
             assert curCount != null : "fileName=" + fileName;
             assert curCount > 0;
             if (curCount == 1) {
                 refCounts.remove(fileName);
-                deleteConsumer.accept(fileName);
             } else {
                 refCounts.put(fileName, curCount - 1);
             }
         }
+    }
+
+    public synchronized boolean canDelete(String fileName) {
+        return fileName.startsWith(REPLICATION_PREFIX) == false && refCounts.containsKey(fileName) == false;
     }
 }
