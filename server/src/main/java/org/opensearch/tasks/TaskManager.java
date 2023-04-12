@@ -48,7 +48,6 @@ import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -61,7 +60,6 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TcpChannel;
 
@@ -70,6 +68,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -139,21 +138,21 @@ public class TaskManager implements ClusterStateApplier {
         ThreadPool threadPool,
         Set<String> taskHeaders
     ) {
-        final TaskManager taskManager = new TaskManager(settings, threadPool, taskHeaders, clusterSettings);
+        final TaskManager taskManager = new TaskManager(settings, threadPool, taskHeaders);
         clusterSettings.addSettingsUpdateConsumer(TASK_RESOURCE_CONSUMERS_ENABLED, taskManager::setTaskResourceConsumersEnabled);
         return taskManager;
     }
 
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
-        this(settings, threadPool, taskHeaders, null);
-    }
-
-    private TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, @Nullable ClusterSettings clusterSettings) {
         this.threadPool = threadPool;
         this.taskHeaders = new ArrayList<>(taskHeaders);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         this.taskResourceConsumersEnabled = TASK_RESOURCE_CONSUMERS_ENABLED.get(settings);
-        this.taskResourceConsumer = Set.of(new TopNSearchTasksLogger(settings, clusterSettings));
+        taskResourceConsumer = new HashSet<>();
+    }
+
+    public void registerTaskResourceConsumer(Consumer<Task> consumer) {
+        taskResourceConsumer.add(consumer);
     }
 
     public void setTaskResultsService(TaskResultsService taskResultsService) {

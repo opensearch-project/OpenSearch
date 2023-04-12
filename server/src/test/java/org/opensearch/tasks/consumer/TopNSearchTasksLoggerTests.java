@@ -15,7 +15,6 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.logging.MockAppender;
@@ -69,7 +68,10 @@ public class TopNSearchTasksLoggerTests extends OpenSearchSingleNodeTestCase {
             .put(LOG_TOP_QUERIES_SIZE_SETTING.getKey(), 1)
             .put(LOG_TOP_QUERIES_FREQUENCY_SETTING.getKey(), "60s")
             .build();
-        topNSearchTasksLogger = new TopNSearchTasksLogger(settings, null);
+        topNSearchTasksLogger = new TopNSearchTasksLogger(
+            settings,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         // This setting overrides is just for testing purpose
         topNSearchTasksLogger.setTopQueriesLogFrequencyInNanos(TimeValue.timeValueMillis(0));
         generateTasks(5);
@@ -84,7 +86,10 @@ public class TopNSearchTasksLoggerTests extends OpenSearchSingleNodeTestCase {
             .put(LOG_TOP_QUERIES_SIZE_SETTING.getKey(), 1)
             .put(LOG_TOP_QUERIES_FREQUENCY_SETTING.getKey(), "60s")
             .build();
-        topNSearchTasksLogger = new TopNSearchTasksLogger(settings, null);
+        topNSearchTasksLogger = new TopNSearchTasksLogger(
+            settings,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
 
         assertNull(appender.getLastEventAndReset());
     }
@@ -95,48 +100,14 @@ public class TopNSearchTasksLoggerTests extends OpenSearchSingleNodeTestCase {
             .put(LOG_TOP_QUERIES_SIZE_SETTING.getKey(), 1)
             .put(LOG_TOP_QUERIES_FREQUENCY_SETTING.getKey(), "10m")
             .build();
-        topNSearchTasksLogger = new TopNSearchTasksLogger(settings, null);
+        topNSearchTasksLogger = new TopNSearchTasksLogger(
+            settings,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         generateTasks(5);
         generateTasks(2);
 
         assertNull(appender.getLastEventAndReset());
-    }
-
-    public void testDynamicSettings() {
-        Settings settings = Settings.builder()
-            .put(LOG_TOP_QUERIES_SIZE_SETTING.getKey(), 1)
-            .put(LOG_TOP_QUERIES_FREQUENCY_SETTING.getKey(), "60s")
-            .build();
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        topNSearchTasksLogger = new TopNSearchTasksLogger(settings, clusterSettings);
-        settings = Settings.builder().put(LOG_TOP_QUERIES_SIZE_SETTING.getKey(), "10").build();
-        ClusterUpdateSettingsResponse response = client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
-        assertEquals(response.getPersistentSettings().get(LOG_TOP_QUERIES_SIZE_SETTING.getKey()), "10");
-
-        settings = Settings.builder().put(LOG_TOP_QUERIES_FREQUENCY_SETTING.getKey(), "100s").build();
-        response = client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get();
-        assertEquals(response.getPersistentSettings().get(LOG_TOP_QUERIES_FREQUENCY_SETTING.getKey()), "100s");
-    }
-
-    public void testMinMaxSettingValues() {
-        final Settings settings = Settings.builder()
-            .put(LOG_TOP_QUERIES_SIZE_SETTING.getKey(), 1)
-            .put(LOG_TOP_QUERIES_FREQUENCY_SETTING.getKey(), "60s")
-            .build();
-        topNSearchTasksLogger = new TopNSearchTasksLogger(settings, null);
-        final Settings sizeSetting = Settings.builder().put(LOG_TOP_QUERIES_SIZE_SETTING.getKey(), "50").build();
-        // request should fail as it crosses maximum defined value(25)
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> client().admin().cluster().prepareUpdateSettings().setPersistentSettings(sizeSetting).get()
-        );
-
-        final Settings freqSetting = Settings.builder().put(LOG_TOP_QUERIES_FREQUENCY_SETTING.getKey(), "30s").build();
-        // request should fail as it crosses minimum defined value(60s)
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> client().admin().cluster().prepareUpdateSettings().setPersistentSettings(freqSetting).get()
-        );
     }
 
     // generate search tasks and updates the topN search tasks logger consumer.

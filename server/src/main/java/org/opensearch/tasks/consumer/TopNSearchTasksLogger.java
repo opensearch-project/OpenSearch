@@ -11,7 +11,6 @@ package org.opensearch.tasks.consumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchShardTask;
-import org.opensearch.common.Nullable;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -32,8 +31,8 @@ import java.util.function.Consumer;
  */
 public class TopNSearchTasksLogger implements Consumer<Task> {
     public static final String TASK_DETAILS_LOG_PREFIX = "task.detailslog";
-    public static final String LOG_TOP_QUERIES_SIZE = "cluster.task.consumers.top_n.size";
-    public static final String LOG_TOP_QUERIES_FREQUENCY = "cluster.task.consumers.top_n.frequency";
+    private static final String LOG_TOP_QUERIES_SIZE = "cluster.task.consumers.top_n.size";
+    private static final String LOG_TOP_QUERIES_FREQUENCY = "cluster.task.consumers.top_n.frequency";
 
     private static final Logger SEARCH_TASK_DETAILS_LOGGER = LogManager.getLogger(TASK_DETAILS_LOG_PREFIX + ".search");
 
@@ -42,7 +41,7 @@ public class TopNSearchTasksLogger implements Consumer<Task> {
         LOG_TOP_QUERIES_SIZE,
         10,
         1,
-        25,
+        100,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -56,19 +55,17 @@ public class TopNSearchTasksLogger implements Consumer<Task> {
         Setting.Property.NodeScope
     );
 
-    private int topQueriesSize;
-    private long topQueriesLogFrequencyInNanos;
-    private Queue<Tuple<Long, SearchShardTask>> topQueries;
+    private volatile int topQueriesSize;
+    private volatile long topQueriesLogFrequencyInNanos;
+    private final Queue<Tuple<Long, SearchShardTask>> topQueries;
     private long lastReportedTimeInNanos = System.nanoTime();
 
-    public TopNSearchTasksLogger(Settings settings, @Nullable ClusterSettings clusterSettings) {
+    public TopNSearchTasksLogger(Settings settings, ClusterSettings clusterSettings) {
         this.topQueriesSize = LOG_TOP_QUERIES_SIZE_SETTING.get(settings);
         this.topQueriesLogFrequencyInNanos = LOG_TOP_QUERIES_FREQUENCY_SETTING.get(settings).getNanos();
-        this.topQueries = new PriorityQueue<>(Comparator.comparingLong(Tuple::v1));
-        if (clusterSettings != null) {
-            clusterSettings.addSettingsUpdateConsumer(LOG_TOP_QUERIES_SIZE_SETTING, this::setLogTopQueriesSize);
-            clusterSettings.addSettingsUpdateConsumer(LOG_TOP_QUERIES_FREQUENCY_SETTING, this::setTopQueriesLogFrequencyInNanos);
-        }
+        this.topQueries = new PriorityQueue<>(topQueriesSize, Comparator.comparingLong(Tuple::v1));
+        clusterSettings.addSettingsUpdateConsumer(LOG_TOP_QUERIES_SIZE_SETTING, this::setLogTopQueriesSize);
+        clusterSettings.addSettingsUpdateConsumer(LOG_TOP_QUERIES_FREQUENCY_SETTING, this::setTopQueriesLogFrequencyInNanos);
     }
 
     /**
@@ -87,11 +84,12 @@ public class TopNSearchTasksLogger implements Consumer<Task> {
             publishTopNEvents();
             lastReportedTimeInNanos = System.nanoTime();
         }
-        if (topQueries.size() >= topQueriesSize && topQueries.peek().v1() < memory_in_bytes) {
+        int topQSize = topQueriesSize;
+        if (topQueries.size() >= topQSize && topQueries.peek().v1() < memory_in_bytes) {
             // evict the element
             topQueries.poll();
         }
-        if (topQueries.size() < topQueriesSize) {
+        if (topQueries.size() < topQSize) {
             topQueries.offer(new Tuple<>(memory_in_bytes, searchTask));
         }
     }
