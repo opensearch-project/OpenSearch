@@ -41,6 +41,7 @@ import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.index.mapper.MapperService;
 
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Since Lucene 4.0 low level index segments are read and written through a
@@ -76,11 +77,11 @@ public class CodecService {
     }
 
     public Codec codec(String name) {
-        Codec codec = codecs.get(name);
-        if (codec == null) {
+        Optional<String> key = codecs.keySet().stream().filter(k -> k.equalsIgnoreCase(name)).findAny();
+        if (!key.isPresent()) {
             throw new IllegalArgumentException("failed to find codec [" + name + "]");
         }
-        return codec;
+        return codecs.get(key.get());
     }
 
     /**

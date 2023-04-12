@@ -123,15 +123,19 @@ public final class EngineConfig {
      * allocated on both `kind` of nodes.
      */
     public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", "default", s -> {
-        switch (s) {
+        switch (s.toLowerCase()) {
             case "default":
             case "best_compression":
             case "lucene_default":
                 return s;
             default:
-                if (Codec.availableCodecs().contains(s) == false) { // we don't error message the not officially supported ones
+                if (!Codec.availableCodecs().stream().anyMatch(c -> c.equalsIgnoreCase(s))) { // we don't error message the not
+                                                                                              // officially supported ones
                     throw new IllegalArgumentException(
-                        "unknown value for [index.codec] must be one of [default, best_compression] but was: " + s
+                        "unknown value for [index.codec] must be one of [default, best_compression] or "
+                            + Codec.availableCodecs()
+                            + " but was: "
+                            + s
                     );
                 }
                 return s;
