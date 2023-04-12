@@ -49,6 +49,13 @@ publishing {
 
 archivesBaseName = 'opensearch'
 
+sourceSets {
+  main {
+    java {
+      srcDir "${buildDir}/generated/source/proto/main/java"
+    }
+  }
+}
 // we want to keep the JDKs in our IDEs set to JDK 8 until minimum JDK is bumped to 11 so we do not include this source set in our IDEs
 if (!isEclipse) {
   sourceSets {
