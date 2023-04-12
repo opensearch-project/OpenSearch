@@ -125,13 +125,13 @@ dependencies {
   api 'org.hdrhistogram:HdrHistogram:2.1.12'
 
   // lucene spatial
-  api "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional
-  api "org.locationtech.jts:jts-core:${versions.jts}", optional
+  api "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}"
+  api "org.locationtech.jts:jts-core:${versions.jts}"
 
   // logging
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-jul:${versions.log4j}"
-  api "org.apache.logging.log4j:log4j-core:${versions.log4j}", optional
+  api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
   // jna
   api "net.java.dev.jna:jna:${versions.jna}"
