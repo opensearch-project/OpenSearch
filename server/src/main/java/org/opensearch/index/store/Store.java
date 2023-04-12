@@ -814,13 +814,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * This method is used to clean up un referenced files by reader manager.
      * @throws IOException when there is an IO error in clean up.
      */
-    private void cleanUnReferencedReaderManagerFiles() throws IOException {
+    private void cleanUnReferencedFiles() throws IOException {
         assert indexSettings.isSegRepEnabled();
-        // fetch a snapshot from the latest on disk Segments_N file. This can be behind
-        // the passed in local in memory snapshot, so we want to ensure files it references are not removed.
         metadataLock.writeLock().lock();
         try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-            cleanupFiles("After commit");
+            cleanupFiles("Segrep cleanup after commit");
         } finally {
             metadataLock.writeLock().unlock();
         }
@@ -1916,7 +1914,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         if (this.indexSettings.isSegRepEnabled()) {
             this.replicaFileTracker.decRef(files);
             try {
-                cleanUnReferencedReaderManagerFiles();
+                cleanUnReferencedFiles();
             } catch (IOException e) {
                 logger.error("Error cleaning files", e);
             }
