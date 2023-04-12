@@ -128,7 +128,7 @@ public abstract class BaseRestHandler implements RestHandler {
         action.accept(channel);
     }
 
-    protected final String unrecognized(
+    public static String unrecognizedStrings(
         final RestRequest request,
         final Set<String> invalids,
         final Set<String> candidates,
@@ -171,6 +171,15 @@ public abstract class BaseRestHandler implements RestHandler {
         }
 
         return message.toString();
+    }
+
+    protected final String unrecognized(
+        final RestRequest request,
+        final Set<String> invalids,
+        final Set<String> candidates,
+        final String detail
+    ) {
+        return unrecognizedStrings(request, invalids, candidates, detail);
     }
 
     /**
