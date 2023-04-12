@@ -81,3 +81,23 @@ teardown:
         }
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "2" }
+
+  # Should work with inline query
+  - do:
+      search:
+        index: test
+        body: {
+          "search_pipeline" : {
+            "request_processors" : [
+              "filter_query": {
+                "query": {
+                  "term": {
+                    "field": "foo"
+                  }
+                }
+              }
+            ]
+          }
+        }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "1" }

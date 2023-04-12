@@ -112,7 +112,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         assertTrue(e.getMessage(), e.getMessage().contains(" already registered"));
     }
 
-    public void testExecuteSearchPipelineDoesNotExist() {
+    public void testResolveSearchPipelineDoesNotExist() {
         Client client = mock(Client.class);
         SearchPipelineService searchPipelineService = new SearchPipelineService(
             mock(ClusterService.class),
@@ -129,7 +129,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         final SearchRequest searchRequest = new SearchRequest("_index").pipeline("bar");
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> searchPipelineService.transformRequest(searchRequest)
+            () -> searchPipelineService.resolvePipeline(searchRequest)
         );
         assertTrue(e.getMessage(), e.getMessage().contains(" not defined"));
     }
@@ -221,7 +221,7 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         ExecutorService executorService = OpenSearchExecutors.newDirectExecutorService();
         when(threadPool.generic()).thenReturn(executorService);
         when(threadPool.executor(anyString())).thenReturn(executorService);
-        SearchPipelineService searchPipelineService = new SearchPipelineService(
+        return new SearchPipelineService(
             mock(ClusterService.class),
             threadPool,
             null,
@@ -238,7 +238,6 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             client,
             true
         );
-        return searchPipelineService;
     }
 
     public void testUpdatePipelines() {
@@ -444,14 +443,16 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(new TermQueryBuilder("foo", "bar")).size(size);
         SearchRequest request = new SearchRequest("_index").source(sourceBuilder).pipeline("p1");
 
-        SearchRequest transformedRequest = searchPipelineService.transformRequest(request);
+        Pipeline pipeline = searchPipelineService.resolvePipeline(request);
+        SearchRequest transformedRequest = pipeline.transformRequest(request);
 
         assertEquals(2 * size, transformedRequest.source().size());
         assertEquals(size, request.source().size());
 
         // This request doesn't specify a pipeline, it doesn't get transformed.
         request = new SearchRequest("_index").source(sourceBuilder);
-        SearchRequest notTransformedRequest = searchPipelineService.transformRequest(request);
+        pipeline = searchPipelineService.resolvePipeline(request);
+        SearchRequest notTransformedRequest = pipeline.transformRequest(request);
         assertEquals(size, notTransformedRequest.source().size());
         assertSame(request, notTransformedRequest);
     }
@@ -488,21 +489,18 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
 
         // First try without specifying a pipeline, which should be a no-op.
         SearchRequest searchRequest = new SearchRequest();
-        SearchResponse notTransformedResponse = searchPipelineService.transformResponse(searchRequest, searchResponse);
+        Pipeline pipeline = searchPipelineService.resolvePipeline(searchRequest);
+        SearchResponse notTransformedResponse = pipeline.transformResponse(searchRequest, searchResponse);
         assertSame(searchResponse, notTransformedResponse);
 
         // Now apply a pipeline
         searchRequest = new SearchRequest().pipeline("p1");
-        SearchResponse transformedResponse = searchPipelineService.transformResponse(searchRequest, searchResponse);
+        pipeline = searchPipelineService.resolvePipeline(searchRequest);
+        SearchResponse transformedResponse = pipeline.transformResponse(searchRequest, searchResponse);
         assertEquals(size, transformedResponse.getHits().getHits().length);
         for (int i = 0; i < size; i++) {
             assertEquals(2.0, transformedResponse.getHits().getHits()[i].getScore(), 0.0001f);
         }
-
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> searchPipelineService.transformResponse(new SearchRequest().pipeline("p2"), searchResponse)
-        );
     }
 
     public void testGetPipelines() {
@@ -624,6 +622,52 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             ),
             putRequest
         );
+    }
+
+    /**
+     * Tests a pipeline defined in the search request source.
+     */
+    public void testInlinePipeline() throws Exception {
+        SearchPipelineService searchPipelineService = createWithProcessors();
+        Map<String, Object> pipelineSourceMap = new HashMap<>();
+        Map<String, Object> requestProcessorConfig = new HashMap<>();
+        requestProcessorConfig.put("scale", 2);
+        Map<String, Object> requestProcessorObject = new HashMap<>();
+        requestProcessorObject.put("scale_request_size", requestProcessorConfig);
+        pipelineSourceMap.put("request_processors", List.of(requestProcessorObject));
+        Map<String, Object> responseProcessorConfig = new HashMap<>();
+        responseProcessorConfig.put("score", 2);
+        Map<String, Object> responseProcessorObject = new HashMap<>();
+        responseProcessorObject.put("fixed_score", responseProcessorConfig);
+        pipelineSourceMap.put("response_processors", List.of(responseProcessorObject));
+
+        SearchSourceBuilder sourceBuilder = SearchSourceBuilder.searchSource().size(100).searchPipelineSource(pipelineSourceMap);
+        SearchRequest searchRequest = new SearchRequest().source(sourceBuilder);
+
+        // Verify pipeline
+        Pipeline pipeline = searchPipelineService.resolvePipeline(searchRequest);
+        assertEquals(SearchPipelineService.AD_HOC_PIPELINE_ID, pipeline.getId());
+        assertEquals(1, pipeline.getSearchRequestProcessors().size());
+        assertEquals(1, pipeline.getSearchResponseProcessors().size());
+
+        // Verify that pipeline transforms request
+        SearchRequest transformedRequest = pipeline.transformRequest(searchRequest);
+        assertEquals(200, transformedRequest.source().size());
+
+        int size = 10;
+        SearchHit[] hits = new SearchHit[size];
+        for (int i = 0; i < size; i++) {
+            hits[i] = new SearchHit(i, "doc" + i, Collections.emptyMap(), Collections.emptyMap());
+            hits[i].score(i);
+        }
+        SearchHits searchHits = new SearchHits(hits, new TotalHits(size * 2, TotalHits.Relation.EQUAL_TO), size);
+        SearchResponseSections searchResponseSections = new SearchResponseSections(searchHits, null, null, false, false, null, 0);
+        SearchResponse searchResponse = new SearchResponse(searchResponseSections, null, 1, 1, 0, 10, null, null);
+
+        SearchResponse transformedResponse = pipeline.transformResponse(searchRequest, searchResponse);
+        for (int i = 0; i < size; i++) {
+            assertEquals(2.0, transformedResponse.getHits().getHits()[i].getScore(), 0.0001);
+        }
     }
 
     public void testInfo() {

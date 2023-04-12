@@ -80,6 +80,7 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.pipeline.Pipeline;
 import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.profile.SearchProfileShardResults;
@@ -390,17 +391,19 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             System::nanoTime
         );
         SearchRequest searchRequest;
+        ActionListener<SearchResponse> listener;
         try {
-            searchRequest = searchPipelineService.transformRequest(originalSearchRequest);
+            Pipeline searchPipeline = searchPipelineService.resolvePipeline(originalSearchRequest);
+            searchRequest = searchPipeline.transformRequest(originalSearchRequest);
+            listener = ActionListener.wrap(
+                // TODO: Should we transform responses with the original request or the transformed request? Or both?
+                r -> originalListener.onResponse(searchPipeline.transformResponse(originalSearchRequest, r)),
+                originalListener::onFailure
+            );
         } catch (Exception e) {
             originalListener.onFailure(e);
             throw new RuntimeException(e);
         }
-        ActionListener<SearchResponse> listener = ActionListener.wrap(
-            // TODO: Should we transform responses with the original request or the transformed request? Or both?
-            r -> originalListener.onResponse(searchPipelineService.transformResponse(originalSearchRequest, r)),
-            originalListener::onFailure
-        );
 
         ActionListener<SearchSourceBuilder> rewriteListener = ActionListener.wrap(source -> {
             if (source != searchRequest.source()) {

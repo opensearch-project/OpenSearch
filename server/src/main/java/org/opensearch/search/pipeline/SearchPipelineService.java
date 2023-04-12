@@ -17,7 +17,6 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.search.DeleteSearchPipelineRequest;
 import org.opensearch.action.search.PutSearchPipelineRequest;
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
@@ -29,13 +28,9 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -65,7 +60,7 @@ import java.util.function.Consumer;
 public class SearchPipelineService implements ClusterStateApplier, ReportingService<SearchPipelineInfo> {
 
     public static final String SEARCH_PIPELINE_ORIGIN = "search_pipeline";
-
+    public static final String AD_HOC_PIPELINE_ID = "_ad_hoc_pipeline";
     private static final Logger logger = LogManager.getLogger(SearchPipelineService.class);
     private final ClusterService clusterService;
     private final ScriptService scriptService;
@@ -171,7 +166,12 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
                 newPipelines = new HashMap<>(existingPipelines);
             }
             try {
-                Pipeline newPipeline = Pipeline.create(newConfiguration.getId(), newConfiguration.getConfigAsMap(), processorFactories);
+                Pipeline newPipeline = Pipeline.create(
+                    newConfiguration.getId(),
+                    newConfiguration.getConfigAsMap(),
+                    processorFactories,
+                    namedWriteableRegistry
+                );
                 newPipelines.put(newConfiguration.getId(), new PipelineHolder(newConfiguration, newPipeline));
 
                 if (previous == null) {
@@ -264,7 +264,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             throw new IllegalStateException("Search pipeline info is empty");
         }
         Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
-        Pipeline pipeline = Pipeline.create(request.getId(), pipelineConfig, processorFactories);
+        Pipeline pipeline = Pipeline.create(request.getId(), pipelineConfig, processorFactories, namedWriteableRegistry);
         List<Exception> exceptions = new ArrayList<>();
         for (Processor processor : pipeline.flattenAllProcessors()) {
             for (Map.Entry<DiscoveryNode, SearchPipelineInfo> entry : searchPipelineInfos.entrySet()) {
@@ -331,39 +331,37 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         return newState.build();
     }
 
-    public SearchRequest transformRequest(SearchRequest originalRequest) {
-        String pipelineId = originalRequest.pipeline();
-        if (pipelineId != null && isEnabled) {
-            PipelineHolder pipeline = pipelines.get(pipelineId);
-            if (pipeline == null) {
-                throw new IllegalArgumentException("Pipeline " + pipelineId + " is not defined");
-            }
-            if (CollectionUtils.isEmpty(pipeline.pipeline.getSearchRequestProcessors()) == false) {
-                try {
-                    // Save the original request by deep cloning the existing request.
-                    BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
-                    originalRequest.writeTo(bytesStreamOutput);
-                    StreamInput input = new NamedWriteableAwareStreamInput(bytesStreamOutput.bytes().streamInput(), namedWriteableRegistry);
-                    SearchRequest request = new SearchRequest(input);
-                    return pipeline.pipeline.transformRequest(request);
-                } catch (Exception e) {
-                    throw new SearchPipelineProcessingException(e);
-                }
-            }
-        }
-        return originalRequest;
-    }
+    public Pipeline resolvePipeline(SearchRequest searchRequest) {
+        Pipeline pipeline = Pipeline.NO_OP_PIPELINE;
 
-    public SearchResponse transformResponse(SearchRequest request, SearchResponse searchResponse) {
-        String pipelineId = request.pipeline();
-        if (pipelineId != null && isEnabled) {
-            PipelineHolder pipeline = pipelines.get(pipelineId);
-            if (pipeline == null) {
+        if (isEnabled == false) {
+            return pipeline;
+        }
+        if (searchRequest.source() != null && searchRequest.source().searchPipelineSource() != null) {
+            if (searchRequest.pipeline() != null) {
+                throw new IllegalArgumentException(
+                    "Both named and inline search pipeline were specified. Please only specify on or the other."
+                );
+            }
+            try {
+                pipeline = Pipeline.create(
+                    AD_HOC_PIPELINE_ID,
+                    searchRequest.source().searchPipelineSource(),
+                    processorFactories,
+                    namedWriteableRegistry
+                );
+            } catch (Exception e) {
+                throw new SearchPipelineProcessingException(e);
+            }
+        } else if (searchRequest.pipeline() != null) {
+            String pipelineId = searchRequest.pipeline();
+            PipelineHolder pipelineHolder = pipelines.get(pipelineId);
+            if (pipelineHolder == null) {
                 throw new IllegalArgumentException("Pipeline " + pipelineId + " is not defined");
             }
-            return pipeline.pipeline.transformResponse(request, searchResponse);
+            pipeline = pipelineHolder.pipeline;
         }
-        return searchResponse;
+        return pipeline;
     }
 
     Map<String, Processor.Factory> getProcessorFactories() {

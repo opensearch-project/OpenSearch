@@ -12,10 +12,15 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.ingest.ConfigurationUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -26,7 +31,7 @@ import static org.opensearch.ingest.Pipeline.VERSION_KEY;
 /**
  * Concrete representation of a search pipeline, holding multiple processors.
  */
-class Pipeline {
+public class Pipeline {
 
     public static final String REQUEST_PROCESSORS_KEY = "request_processors";
     public static final String RESPONSE_PROCESSORS_KEY = "response_processors";
@@ -39,22 +44,30 @@ class Pipeline {
     private final List<SearchRequestProcessor> searchRequestProcessors;
     private final List<SearchResponseProcessor> searchResponseProcessors;
 
+    private final NamedWriteableRegistry namedWriteableRegistry;
+
     Pipeline(
         String id,
         @Nullable String description,
         @Nullable Integer version,
         List<SearchRequestProcessor> requestProcessors,
-        List<SearchResponseProcessor> responseProcessors
+        List<SearchResponseProcessor> responseProcessors,
+        NamedWriteableRegistry namedWriteableRegistry
     ) {
         this.id = id;
         this.description = description;
         this.version = version;
         this.searchRequestProcessors = requestProcessors;
         this.searchResponseProcessors = responseProcessors;
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
-    public static Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorFactories)
-        throws Exception {
+    public static Pipeline create(
+        String id,
+        Map<String, Object> config,
+        Map<String, Processor.Factory> processorFactories,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) throws Exception {
         String description = ConfigurationUtils.readOptionalStringProperty(null, null, config, DESCRIPTION_KEY);
         Integer version = ConfigurationUtils.readIntProperty(null, null, config, VERSION_KEY, null);
         List<Map<String, Object>> requestProcessorConfigs = ConfigurationUtils.readOptionalList(null, null, config, REQUEST_PROCESSORS_KEY);
@@ -82,7 +95,7 @@ class Pipeline {
                     + Arrays.toString(config.keySet().toArray())
             );
         }
-        return new Pipeline(id, description, version, requestProcessors, responseProcessors);
+        return new Pipeline(id, description, version, requestProcessors, responseProcessors, namedWriteableRegistry);
     }
 
     @SuppressWarnings("unchecked") // Cast is checked using isInstance
@@ -142,14 +155,20 @@ class Pipeline {
         return searchResponseProcessors;
     }
 
-    SearchRequest transformRequest(SearchRequest request) throws Exception {
-        for (SearchRequestProcessor searchRequestProcessor : searchRequestProcessors) {
-            request = searchRequestProcessor.processRequest(request);
+    public SearchRequest transformRequest(SearchRequest request) throws Exception {
+        if (searchRequestProcessors.isEmpty() == false) {
+            BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
+            request.writeTo(bytesStreamOutput);
+            StreamInput input = new NamedWriteableAwareStreamInput(bytesStreamOutput.bytes().streamInput(), namedWriteableRegistry);
+            request = new SearchRequest(input);
+            for (SearchRequestProcessor searchRequestProcessor : searchRequestProcessors) {
+                request = searchRequestProcessor.processRequest(request);
+            }
         }
         return request;
     }
 
-    SearchResponse transformResponse(SearchRequest request, SearchResponse response) throws SearchPipelineProcessingException {
+    public SearchResponse transformResponse(SearchRequest request, SearchResponse response) throws SearchPipelineProcessingException {
         try {
             for (SearchResponseProcessor responseProcessor : searchResponseProcessors) {
                 response = responseProcessor.processResponse(request, response);
@@ -159,4 +178,13 @@ class Pipeline {
             throw new SearchPipelineProcessingException(e);
         }
     }
+
+    static final Pipeline NO_OP_PIPELINE = new Pipeline(
+        "no_op",
+        "Pipeline that does not transform anything",
+        0,
+        Collections.emptyList(),
+        Collections.emptyList(),
+        null
+    );
 }
