@@ -786,36 +786,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
-    /**
-     * Segment Replication method
-     *
-     * This method deletes every file in this store that is not referenced by the passed in SegmentInfos or
-     * part of the latest on-disk commit point. This method is used for segment replication when the in memory SegmentInfos
-     * can be ahead of the on disk segment file. In this case files from both snapshots must be preserved. Verification
-     * has been done that all files are present on disk.
-     *
-     * This method deletes every file in this store. Except
-     *  1. Files referenced by the passed in SegmentInfos, usually in-memory segment infos copied from primary
-     *  2. Files part of the passed in segment infos, typically the last committed segment info
-     *  3. Files incremented by active reader for pit/scroll queries
-     *
-     * @param reason         the reason for this cleanup operation logged for each deleted file
-     * @param infos          {@link SegmentInfos} Files from this infos will be preserved on disk if present.
-     *
-     * @throws IllegalStateException if the latest snapshot in this store differs from the given one after the cleanup.
-     */
-    public void cleanupAndPreserveLatestCommitPoint(String reason, SegmentInfos infos) throws IOException {
-        assert indexSettings.isSegRepEnabled();
-        // fetch a snapshot from the latest on disk Segments_N file. This can be behind
-        // the passed in local in memory snapshot, so we want to ensure files it references are not removed.
-        metadataLock.writeLock().lock();
-        try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-            cleanupFiles(reason, getMetadata(readLastCommittedSegmentsInfo()), infos.files(true));
-        } finally {
-            metadataLock.writeLock().unlock();
-        }
-    }
-
     private void cleanupFiles(String reason, MetadataSnapshot localSnapshot, @Nullable Collection<String> additionalFiles)
         throws IOException {
         assert metadataLock.isWriteLockedByCurrentThread();
