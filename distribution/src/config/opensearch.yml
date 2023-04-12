@@ -87,6 +87,19 @@ ${path.logs}
 #
 #action.destructive_requires_name: true
 #
+# ---------------------------------- Remote Store -----------------------------------
+# Controls whether cluster imposes index creation only with remote store enabled
+# cluster.remote_store.enabled: true
+#
+# Repository to use for segment upload while enforcing remote store for an index
+# cluster.remote_store.repository: my-repo-1
+#
+# Controls whether cluster imposes index creation only with translog remote store enabled
+# cluster.remote_store.translog.enabled: true
+#
+# Repository to use for translog upload while enforcing remote store for an index
+# cluster.remote_store.translog.repository: my-repo-1
+#
 # ---------------------------------- Experimental Features -----------------------------------
 #
 # Gates the visibility of the index setting that allows changing of replication type.
