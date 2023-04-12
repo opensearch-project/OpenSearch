@@ -31,6 +31,7 @@ import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_REPOSIT
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
 import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING;
+import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
@@ -40,6 +41,7 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
     protected Settings nodeSettings(int nodeOriginal) {
         Settings settings = super.nodeSettings(nodeOriginal);
         Settings.Builder builder = Settings.builder()
+            .put(CLUSTER_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
             .put(CLUSTER_REMOTE_STORE_ENABLED_SETTING.getKey(), true)
             .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
             .put(CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey(), true)
@@ -52,6 +54,7 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
     protected Settings featureFlagSettings() {
         return Settings.builder()
             .put(super.featureFlagSettings())
+            .put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL, "true")
             .put(FeatureFlags.REPLICATION_TYPE, "true")
             .put(FeatureFlags.REMOTE_STORE, "true")
             .build();
