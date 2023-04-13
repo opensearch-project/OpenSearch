@@ -15,6 +15,7 @@ import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 
 import java.util.HashSet;
 import java.util.List;
@@ -37,8 +38,27 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
     private static final Logger logger = LogManager.getLogger(ClusterManagerTaskThrottler.class);
     public static final ThrottlingKey DEFAULT_THROTTLING_KEY = new ThrottlingKey("default-task-key", false);
 
+    // default value for base delay is 5s
+    static volatile TimeValue baseDelay = TimeValue.timeValueSeconds(5);
+    // default values for max delay is 30s
+    static volatile TimeValue maxDelay = TimeValue.timeValueSeconds(30);
+
     public static final Setting<Settings> THRESHOLD_SETTINGS = Setting.groupSetting(
         "cluster_manager.throttling.thresholds.",
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<TimeValue> BASE_DELAY_SETTINGS = Setting.timeSetting(
+        "cluster_manager.throttling.retry.base.delay",
+        baseDelay,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<TimeValue> MAX_DELAY_SETTINGS = Setting.timeSetting(
+        "cluster_manager.throttling.retry.max.delay",
+        maxDelay,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -68,8 +88,28 @@ public class ClusterManagerTaskThrottler implements TaskBatcherListener {
         this.minNodeVersionSupplier = minNodeVersionSupplier;
         this.clusterManagerTaskThrottlerListener = clusterManagerTaskThrottlerListener;
         clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTINGS, this::updateSetting, this::validateSetting);
+        clusterSettings.addSettingsUpdateConsumer(BASE_DELAY_SETTINGS, this::updateBaseDelay);
+        clusterSettings.addSettingsUpdateConsumer(MAX_DELAY_SETTINGS, this::updateMaxDelay);
         // Required for setting values as per current settings during node bootstrap
         updateSetting(THRESHOLD_SETTINGS.get(settings));
+        updateBaseDelay(BASE_DELAY_SETTINGS.get(settings));
+        updateMaxDelay(MAX_DELAY_SETTINGS.get(settings));
+    }
+
+    void updateBaseDelay(TimeValue newBaseValue) {
+        baseDelay = newBaseValue;
+    }
+
+    void updateMaxDelay(TimeValue newMaxValue) {
+        maxDelay = newMaxValue;
+    }
+
+    public static TimeValue getBaseDelayForRetry() {
+        return baseDelay;
+    }
+
+    public static TimeValue getMaxDelayForRetry() {
+        return maxDelay;
     }
 
     /**
