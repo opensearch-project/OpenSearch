@@ -29,6 +29,7 @@ public class ZstdCodec extends Lucene95CustomCodec {
         super(Mode.ZSTD, compressionLevel);
     }
 
+    /** The name for this codec. */
     @Override
     public String toString() {
         return getClass().getSimpleName();
