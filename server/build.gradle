@@ -31,7 +31,6 @@
 import org.opensearch.gradle.info.BuildParams
 
 apply plugin: 'opensearch.build'
-apply plugin: 'com.netflix.nebula.optional-base'
 apply plugin: 'opensearch.publish'
 apply plugin: 'opensearch.internal-cluster-test'
 
@@ -85,6 +84,20 @@ if (!isEclipse) {
   }
 }
 
+sourceSets {
+  geoSpatial {
+    java {
+      srcDirs = ['server/src/main/java/org/opensearch/common/geo', 'server/src/test/java/org/opensearch/common/geo']
+    }
+  }
+}
+
+java {
+  registerFeature('geoSpatial') {
+    usingSourceSet(sourceSets.geoSpatial)
+  }
+}
+
 dependencies {
 
   api project(':libs:opensearch-common')
@@ -125,8 +138,8 @@ dependencies {
   api 'org.hdrhistogram:HdrHistogram:2.1.12'
 
   // lucene spatial
-  api "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}"
-  api "org.locationtech.jts:jts-core:${versions.jts}"
+  geoSpatialImplementation "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}"
+  geoSpatialImplementation "org.locationtech.jts:jts-core:${versions.jts}"
 
   // logging
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
