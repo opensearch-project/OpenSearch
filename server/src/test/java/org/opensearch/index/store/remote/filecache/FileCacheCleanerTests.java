@@ -14,6 +14,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
+import org.apache.lucene.store.IndexInput;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
@@ -69,7 +70,27 @@ public class FileCacheCleanerTests extends OpenSearchTestCase {
         final Path localStorePath = shardPath.getDataPath().resolve(LOCAL_STORE_LOCATION);
         Files.createDirectories(localStorePath);
         final Path file = Files.createFile(localStorePath.resolve("file"));
-        fileCache.put(file, new FileCachedIndexInput.ClosedIndexInput(1024));
+        fileCache.put(file, new CachedIndexInput() {
+            @Override
+            public IndexInput getIndexInput() {
+                return null;
+            }
+
+            @Override
+            public long length() {
+                return 1024;
+            }
+
+            @Override
+            public boolean isClosed() {
+                return false;
+            }
+
+            @Override
+            public void close() {
+
+            }
+        });
         return file;
     }
 
