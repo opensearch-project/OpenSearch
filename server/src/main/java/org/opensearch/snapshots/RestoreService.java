@@ -444,8 +444,9 @@ public class RestoreService implements ClusterStateApplier {
                                     request.indexSettings(),
                                     request.ignoreIndexSettings()
                                 );
-                                final boolean isSearchableSnapshot = FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT)
-                                    && IndexModule.Type.REMOTE_SNAPSHOT.match(request.storageType().toString());
+                                final boolean isSearchableSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(
+                                    request.storageType().toString()
+                                );
                                 if (isSearchableSnapshot) {
                                     snapshotIndexMetadata = addSnapshotToIndexSettings(
                                         snapshotIndexMetadata,
