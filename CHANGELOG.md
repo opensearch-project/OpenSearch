@@ -38,7 +38,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `net.minidev:json-smart` from 2.4.7 to 2.4.10
 - Bump `org.apache.maven:maven-model` from 3.6.2 to 3.9.1
 - Bump `org.codehaus.jettison:jettison` from 1.5.3 to 1.5.4 ([#6878](https://github.com/opensearch-project/OpenSearch/pull/6878))
-- Add `com.github.luben:zstd-jni:1.5.4-1` ([#3577](https://github.com/opensearch-project/OpenSearch/pull/3577))
+- Add `com.github.luben:zstd-jni:1.5.5-1` ([#3577](https://github.com/opensearch-project/OpenSearch/pull/3577))
 - Bump: Netty from 4.1.90.Final to 4.1.91.Final , ASM 9.4 to ASM 9.5, ByteBuddy 1.14.2 to 1.14.3 ([#6981](https://github.com/opensearch-project/OpenSearch/pull/6981))
 - Bump `com.azure:azure-storage-blob` from 12.15.0 to 12.21.1
 - Bump `org.gradle.test-retry` from 1.5.1 to 1.5.2
