@@ -32,8 +32,6 @@
 
 package org.opensearch.cluster.routing.allocation;
 
-import com.carrotsearch.hppc.ObjectLookupContainer;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -63,6 +61,7 @@ import org.opensearch.common.util.set.Sets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -145,7 +144,7 @@ public class DiskThresholdMonitor {
             return;
         }
 
-        final ImmutableOpenMap<String, DiskUsage> usages = info.getNodeLeastAvailableDiskUsages();
+        final Map<String, DiskUsage> usages = info.getNodeLeastAvailableDiskUsages();
         if (usages == null) {
             logger.trace("skipping monitor as no disk usage information is available");
             checkFinished();
@@ -159,7 +158,7 @@ public class DiskThresholdMonitor {
         final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
 
         // Clean up nodes that have been removed from the cluster
-        final ObjectLookupContainer<String> nodes = usages.keys();
+        final Set<String> nodes = usages.keySet();
         cleanUpRemovedNodes(nodes, nodesOverLowThreshold);
         cleanUpRemovedNodes(nodes, nodesOverHighThreshold);
         cleanUpRemovedNodes(nodes, nodesOverHighThresholdAndRelocating);
@@ -172,9 +171,9 @@ public class DiskThresholdMonitor {
 
         final List<DiskUsage> usagesOverHighThreshold = new ArrayList<>();
 
-        for (final ObjectObjectCursor<String, DiskUsage> entry : usages) {
-            final String node = entry.key;
-            final DiskUsage usage = entry.value;
+        for (final Map.Entry<String, DiskUsage> entry : usages.entrySet()) {
+            final String node = entry.getKey();
+            final DiskUsage usage = entry.getValue();
             final RoutingNode routingNode = routingNodes.node(node);
 
             if (usage.getFreeBytes() < diskThresholdSettings.getFreeBytesThresholdFloodStage().getBytes()
@@ -428,7 +427,7 @@ public class DiskThresholdMonitor {
 
     private void markNodesMissingUsageIneligibleForRelease(
         RoutingNodes routingNodes,
-        ImmutableOpenMap<String, DiskUsage> usages,
+        Map<String, DiskUsage> usages,
         Set<String> indicesToMarkIneligibleForAutoRelease
     ) {
         for (RoutingNode routingNode : routingNodes) {
@@ -488,7 +487,7 @@ public class DiskThresholdMonitor {
             .execute(ActionListener.map(wrappedListener, r -> null));
     }
 
-    private static void cleanUpRemovedNodes(ObjectLookupContainer<String> nodesToKeep, Set<String> nodesToCleanUp) {
+    private static void cleanUpRemovedNodes(Set<String> nodesToKeep, Set<String> nodesToCleanUp) {
         for (String node : nodesToCleanUp) {
             if (nodesToKeep.contains(node) == false) {
                 nodesToCleanUp.remove(node);

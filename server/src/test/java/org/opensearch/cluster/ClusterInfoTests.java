@@ -34,10 +34,12 @@ package org.opensearch.cluster;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.util.HashMap;
+import java.util.Map;
 
 public class ClusterInfoTests extends OpenSearchTestCase {
 
@@ -60,9 +62,9 @@ public class ClusterInfoTests extends OpenSearchTestCase {
         assertEquals(clusterInfo.reservedSpace, result.reservedSpace);
     }
 
-    private static ImmutableOpenMap<String, DiskUsage> randomDiskUsage() {
+    private static Map<String, DiskUsage> randomDiskUsage() {
         int numEntries = randomIntBetween(0, 128);
-        ImmutableOpenMap.Builder<String, DiskUsage> builder = ImmutableOpenMap.builder(numEntries);
+        final Map<String, DiskUsage> builder = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
             String key = randomAlphaOfLength(32);
             DiskUsage diskUsage = new DiskUsage(
@@ -74,34 +76,34 @@ public class ClusterInfoTests extends OpenSearchTestCase {
             );
             builder.put(key, diskUsage);
         }
-        return builder.build();
+        return builder;
     }
 
-    private static ImmutableOpenMap<String, Long> randomShardSizes() {
+    private static Map<String, Long> randomShardSizes() {
         int numEntries = randomIntBetween(0, 128);
-        ImmutableOpenMap.Builder<String, Long> builder = ImmutableOpenMap.builder(numEntries);
+        final Map<String, Long> builder = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
             String key = randomAlphaOfLength(32);
             long shardSize = randomIntBetween(0, Integer.MAX_VALUE);
             builder.put(key, shardSize);
         }
-        return builder.build();
+        return builder;
     }
 
-    private static ImmutableOpenMap<ShardRouting, String> randomRoutingToDataPath() {
+    private static Map<ShardRouting, String> randomRoutingToDataPath() {
         int numEntries = randomIntBetween(0, 128);
-        ImmutableOpenMap.Builder<ShardRouting, String> builder = ImmutableOpenMap.builder(numEntries);
+        final Map<ShardRouting, String> builder = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
             ShardId shardId = new ShardId(randomAlphaOfLength(32), randomAlphaOfLength(32), randomIntBetween(0, Integer.MAX_VALUE));
             ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, null, randomBoolean(), ShardRoutingState.UNASSIGNED);
             builder.put(shardRouting, randomAlphaOfLength(32));
         }
-        return builder.build();
+        return builder;
     }
 
-    private static ImmutableOpenMap<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> randomReservedSpace() {
+    private static Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> randomReservedSpace() {
         int numEntries = randomIntBetween(0, 128);
-        ImmutableOpenMap.Builder<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> builder = ImmutableOpenMap.builder(numEntries);
+        final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> builder = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
             final ClusterInfo.NodeAndPath key = new ClusterInfo.NodeAndPath(randomAlphaOfLength(10), randomAlphaOfLength(10));
             final ClusterInfo.ReservedSpace.Builder valueBuilder = new ClusterInfo.ReservedSpace.Builder();
@@ -111,7 +113,7 @@ public class ClusterInfoTests extends OpenSearchTestCase {
             }
             builder.put(key, valueBuilder.build());
         }
-        return builder.build();
+        return builder;
     }
 
 }
