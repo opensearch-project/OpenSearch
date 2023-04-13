@@ -26,7 +26,6 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
@@ -58,11 +57,6 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
     @Override
     protected boolean addMockInternalEngine() {
         return false;
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(FeatureFlags.SEARCHABLE_SNAPSHOT, "true").build();
     }
 
     @Override
