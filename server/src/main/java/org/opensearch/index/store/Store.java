@@ -124,6 +124,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
 import static org.opensearch.index.store.Store.MetadataSnapshot.loadMetadata;
+import static org.opensearch.indices.replication.SegmentReplicationTarget.REPLICATION_PREFIX;
 
 /**
  * A Store provides plain access to files written by an opensearch index shard. Each shard
@@ -182,6 +183,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private final ShardLock shardLock;
     private final OnClose onClose;
 
+    // used to ref count files when a new Reader is opened for PIT/Scroll queries
+    // prevents segment files deletion until the PIT/Scroll expires or is discarded
+    private final ReplicaFileTracker replicaFileTracker;
+
     private final AbstractRefCounted refCounter = new AbstractRefCounted("store") {
         @Override
         protected void closeInternal() {
@@ -202,6 +207,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         this.directory = new StoreDirectory(sizeCachingDir, Loggers.getLogger("index.store.deletes", shardId));
         this.shardLock = shardLock;
         this.onClose = onClose;
+        this.replicaFileTracker = indexSettings.isSegRepEnabled() ? new ReplicaFileTracker() : null;
 
         assert onClose != null;
         assert shardLock != null;
@@ -782,9 +788,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * Segment Replication method -
+     * Segment Replication method
      * This method deletes every file in this store that is not referenced by the passed in SegmentInfos or
      * part of the latest on-disk commit point.
+     *
      * This method is used for segment replication when the in memory SegmentInfos can be ahead of the on disk segment file.
      * In this case files from both snapshots must be preserved. Verification has been done that all files are present on disk.
      * @param reason         the reason for this cleanup operation logged for each deleted file
@@ -792,24 +799,59 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @throws IllegalStateException if the latest snapshot in this store differs from the given one after the cleanup.
      */
     public void cleanupAndPreserveLatestCommitPoint(String reason, SegmentInfos infos) throws IOException {
+        this.cleanupAndPreserveLatestCommitPoint(reason, infos, readLastCommittedSegmentsInfo(), true);
+    }
+
+    /**
+     * Segment Replication method
+     *
+     * Similar to {@link Store#cleanupAndPreserveLatestCommitPoint(String, SegmentInfos)} with extra parameters for cleanup
+     *
+     * This method deletes every file in this store. Except
+     *  1. Files referenced by the passed in SegmentInfos, usually in-memory segment infos copied from primary
+     *  2. Files part of the passed in segment infos, typically the last committed segment info
+     *  3. Files incremented by active reader for pit/scroll queries
+     *  4. Temporary replication file if passed in deleteTempFiles is true.
+     *
+     * @param reason         the reason for this cleanup operation logged for each deleted file
+     * @param infos          {@link SegmentInfos} Files from this infos will be preserved on disk if present.
+     * @param lastCommittedSegmentInfos {@link SegmentInfos} Last committed segment infos
+     * @param deleteTempFiles Does this clean up delete temporary replication files
+     *
+     * @throws IllegalStateException if the latest snapshot in this store differs from the given one after the cleanup.
+     */
+    public void cleanupAndPreserveLatestCommitPoint(
+        String reason,
+        SegmentInfos infos,
+        SegmentInfos lastCommittedSegmentInfos,
+        boolean deleteTempFiles
+    ) throws IOException {
         assert indexSettings.isSegRepEnabled();
         // fetch a snapshot from the latest on disk Segments_N file. This can be behind
         // the passed in local in memory snapshot, so we want to ensure files it references are not removed.
         metadataLock.writeLock().lock();
         try (Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME)) {
-            cleanupFiles(reason, getMetadata(readLastCommittedSegmentsInfo()), infos.files(true));
+            cleanupFiles(reason, lastCommittedSegmentInfos.files(true), infos.files(true), deleteTempFiles);
         } finally {
             metadataLock.writeLock().unlock();
         }
     }
 
-    private void cleanupFiles(String reason, MetadataSnapshot localSnapshot, @Nullable Collection<String> additionalFiles)
-        throws IOException {
+    private void cleanupFiles(
+        String reason,
+        Collection<String> localSnapshot,
+        @Nullable Collection<String> additionalFiles,
+        boolean deleteTempFiles
+    ) throws IOException {
         assert metadataLock.isWriteLockedByCurrentThread();
         for (String existingFile : directory.listAll()) {
             if (Store.isAutogenerated(existingFile)
-                || localSnapshot.contains(existingFile)
-                || (additionalFiles != null && additionalFiles.contains(existingFile))) {
+                || localSnapshot != null && localSnapshot.contains(existingFile)
+                || (additionalFiles != null && additionalFiles.contains(existingFile))
+                // also ensure we are not deleting a file referenced by an active reader.
+                || replicaFileTracker != null && replicaFileTracker.canDelete(existingFile) == false
+                // prevent temporary file deletion during reader cleanup
+                || deleteTempFiles == false && existingFile.startsWith(REPLICATION_PREFIX)) {
                 // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete
                 // checksum)
                 continue;
@@ -1908,5 +1950,17 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             // later once we stared it up otherwise we would need to wait for it here
             // we also don't specify a codec here and merges should use the engines for this index
             .setMergePolicy(NoMergePolicy.INSTANCE);
+    }
+
+    public void incRefFileDeleter(Collection<String> files) {
+        if (this.indexSettings.isSegRepEnabled()) {
+            this.replicaFileTracker.incRef(files);
+        }
+    }
+
+    public void decRefFileDeleter(Collection<String> files) {
+        if (this.indexSettings.isSegRepEnabled()) {
+            this.replicaFileTracker.decRef(files);
+        }
     }
 }

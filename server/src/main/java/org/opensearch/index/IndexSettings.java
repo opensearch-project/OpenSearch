@@ -751,7 +751,7 @@ public final class IndexSettings {
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
-        if (FeatureFlags.isEnabled(FeatureFlags.REPLICATION_TYPE)
+        if (FeatureFlags.isEnabled(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL)
             && indexMetadata.isSystem() == false
             && settings.get(IndexMetadata.SETTING_REPLICATION_TYPE) == null) {
             replicationType = IndicesService.CLUSTER_REPLICATION_TYPE_SETTING.get(settings);

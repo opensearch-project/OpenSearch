@@ -176,13 +176,15 @@ class Netty4HttpClient implements Closeable {
         List<Tuple<String, CharSequence>> urisAndBodies
     ) throws InterruptedException {
         List<HttpRequest> requests = new ArrayList<>(urisAndBodies.size());
-        for (Tuple<String, CharSequence> uriAndBody : urisAndBodies) {
+        for (int i = 0; i < urisAndBodies.size(); ++i) {
+            final Tuple<String, CharSequence> uriAndBody = urisAndBodies.get(i);
             ByteBuf content = Unpooled.copiedBuffer(uriAndBody.v2(), StandardCharsets.UTF_8);
             HttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, method, uriAndBody.v1(), content);
             request.headers().add(HttpHeaderNames.HOST, "localhost");
             request.headers().add(HttpHeaderNames.CONTENT_LENGTH, content.readableBytes());
             request.headers().add(HttpHeaderNames.CONTENT_TYPE, "application/json");
             request.headers().add(HttpConversionUtil.ExtensionHeaderNames.SCHEME.text(), "http");
+            request.headers().add("X-Opaque-ID", String.valueOf(i));
             requests.add(request);
         }
         return sendRequests(remoteAddress, requests);
@@ -211,7 +213,7 @@ class Netty4HttpClient implements Closeable {
 
         } finally {
             if (channelFuture != null) {
-                channelFuture.channel().close().sync();
+                channelFuture.channel().close().awaitUninterruptibly();
             }
         }
 
@@ -368,7 +370,7 @@ class Netty4HttpClient implements Closeable {
             request.headers().add(HttpHeaderNames.HOST, "localhost");
             request.headers().add(HttpConversionUtil.ExtensionHeaderNames.SCHEME.text(), "http");
 
-            ctx.channel().attr(AttributeKey.newInstance("upgrade")).set(true);
+            ctx.channel().attr(AttributeKey.valueOf("upgrade")).set(true);
             ctx.writeAndFlush(request);
             ctx.fireChannelActive();
 

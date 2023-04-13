@@ -1,6 +1,6 @@
 ---
 title: '[AUTOCUT] Gradle Check Failure on push to {{ env.branch_name }}'
-labels: '>test-failure, bug'
+labels: '>test-failure, bug, autocut'
 ---
 
 Gradle check has failed on push of your commit {{ env.pr_from_sha }}.
