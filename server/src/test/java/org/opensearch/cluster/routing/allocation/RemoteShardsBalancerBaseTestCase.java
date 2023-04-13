@@ -8,8 +8,6 @@
 
 package org.opensearch.cluster.routing.allocation;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterInfo;
 import org.opensearch.cluster.ClusterModule;
@@ -33,7 +31,6 @@ import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 
@@ -67,16 +64,6 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
     private static final int MAX_REROUTE_ITERATIONS = 1000;
 
     protected ClusterSettings EMPTY_CLUSTER_SETTINGS = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-
-    @BeforeClass
-    public static void setup() {
-        System.setProperty(FeatureFlags.SEARCHABLE_SNAPSHOT, "true");
-    }
-
-    @AfterClass
-    public static void teardown() {
-        System.setProperty(FeatureFlags.SEARCHABLE_SNAPSHOT, "false");
-    }
 
     public String getNodeId(int id, boolean isRemote, String prefix) {
         if (isRemote) {

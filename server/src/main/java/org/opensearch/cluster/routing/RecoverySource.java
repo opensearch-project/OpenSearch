@@ -37,7 +37,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -282,7 +281,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             snapshot = new Snapshot(in);
             version = Version.readVersion(in);
             index = new IndexId(in);
-            if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT) && in.getVersion().onOrAfter(Version.V_2_4_0)) {
+            if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
                 isSearchableSnapshot = in.readBoolean();
             } else {
                 isSearchableSnapshot = false;
@@ -321,7 +320,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             snapshot.writeTo(out);
             Version.writeVersion(version, out);
             index.writeTo(out);
-            if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT) && out.getVersion().onOrAfter(Version.V_2_4_0)) {
+            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
                 out.writeBoolean(isSearchableSnapshot);
             }
         }
