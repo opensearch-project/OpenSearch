@@ -10,6 +10,7 @@ package org.opensearch.index;
 
 import org.opensearch.common.util.MovingAverage;
 import org.opensearch.common.util.Streak;
+import org.opensearch.index.shard.ShardId;
 
 import java.util.Map;
 import java.util.Set;
@@ -47,6 +48,7 @@ public class RemoteSegmentUploadShardStatsTracker {
     private final AtomicLong totalUploadsFailed = new AtomicLong();
 
     private final AtomicLong totalUploadsSucceeded = new AtomicLong();
+    private final ShardId shardId;
 
     /**
      * Keeps map of filename to bytes length of the local segments post most recent refresh.
@@ -66,12 +68,40 @@ public class RemoteSegmentUploadShardStatsTracker {
 
     private final MovingAverage uploadTimeMovingAverage = new MovingAverage(UPLOAD_TIME_WINDOW_SIZE);
 
+    public RemoteSegmentUploadShardStatsTracker(ShardId shardId) {
+        this.shardId = shardId;
+    }
+
+    public ShardId getShardId() {
+        return shardId;
+    }
+
     public void incrementUploadBytesStarted(long bytes) {
         uploadBytesStarted.addAndGet(bytes);
     }
 
     public long getUploadBytesSucceeded() {
         return uploadBytesSucceeded.get();
+    }
+
+    public long getUploadBytesStarted() {
+        return uploadBytesStarted.get();
+    }
+
+    public long getUploadBytesFailed() {
+        return uploadBytesFailed.get();
+    }
+
+    public long getTotalUploadsSucceeded() {
+        return totalUploadsSucceeded.get();
+    }
+
+    public long getTotalUploadsStarted() {
+        return totalUploadsStarted.get();
+    }
+
+    public long getTotalUploadsFailed() {
+        return totalUploadsFailed.get();
     }
 
     public void incrementUploadBytesFailed(long bytes) {
@@ -149,8 +179,7 @@ public class RemoteSegmentUploadShardStatsTracker {
     }
 
     public double getUploadBytesAverage() {
-        assert isUploadBytesAverageReady();
-        return uploadBytesMovingAverage.getAverage();
+        return isUploadBytesAverageReady() ? uploadBytesMovingAverage.getAverage() : -1;
     }
 
     public void addUploadBytes(long bytes) {
@@ -165,6 +194,14 @@ public class RemoteSegmentUploadShardStatsTracker {
         uploadBytesPerSecondMovingAverage.record(bytesPerSecond);
     }
 
+    public boolean isUploadBytesPerSecondMovingAverageReady() {
+        return uploadBytesPerSecondMovingAverage.isReady();
+    }
+
+    public double getUploadBytesPerSecondMovingAverage() {
+        return isUploadBytesPerSecondMovingAverageReady() ? uploadBytesPerSecondMovingAverage.getAverage() : -1;
+    }
+
     public void addUploadTime(long uploadTime) {
         uploadTimeMovingAverage.record(uploadTime);
     }
@@ -174,8 +211,7 @@ public class RemoteSegmentUploadShardStatsTracker {
     }
 
     public double getUploadTimeAverage() {
-        assert isUploadTimeAverageReady();
-        return uploadTimeMovingAverage.getAverage();
+        return isUploadTimeAverageReady() ? uploadTimeMovingAverage.getAverage() : -1;
     }
 
 }

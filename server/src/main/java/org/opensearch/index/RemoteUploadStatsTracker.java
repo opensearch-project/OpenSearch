@@ -20,14 +20,16 @@ import java.util.Map;
  */
 public class RemoteUploadStatsTracker {
 
+    public static final RemoteUploadStatsTracker INSTANCE = new RemoteUploadStatsTracker();
+
     private final Map<ShardId, RemoteSegmentUploadShardStatsTracker> shardLevelStats;
 
     RemoteUploadStatsTracker() {
         this.shardLevelStats = ConcurrentCollections.newConcurrentMap();
     }
 
-    RemoteSegmentUploadShardStatsTracker getStatsTracker(ShardId shardId) {
-        return shardLevelStats.computeIfAbsent(shardId, k -> new RemoteSegmentUploadShardStatsTracker());
+    public RemoteSegmentUploadShardStatsTracker getStatsTracker(ShardId shardId) {
+        return shardLevelStats.computeIfAbsent(shardId, k -> new RemoteSegmentUploadShardStatsTracker(shardId));
     }
 
     void remove(ShardId shardId) {

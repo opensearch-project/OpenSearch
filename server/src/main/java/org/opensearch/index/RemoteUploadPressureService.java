@@ -36,23 +36,21 @@ public class RemoteUploadPressureService implements IndexEventListener {
 
     private final RemoteUploadPressureSettings remoteUploadPressureSettings;
 
-    private final RemoteUploadStatsTracker remoteUploadStatsTracker;
 
     private final Map<ShardId, AtomicLong> rejectionCount = ConcurrentCollections.newConcurrentMap();
 
     @Inject
     public RemoteUploadPressureService(ClusterService clusterService, Settings settings) {
-        remoteUploadStatsTracker = new RemoteUploadStatsTracker();
         remoteUploadPressureSettings = new RemoteUploadPressureSettings(clusterService, settings);
     }
 
     public RemoteSegmentUploadShardStatsTracker getStatsTracker(ShardId shardId) {
-        return remoteUploadStatsTracker.getStatsTracker(shardId);
+        return RemoteUploadStatsTracker.INSTANCE.getStatsTracker(shardId);
     }
 
     @Override
     public void beforeIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
-        remoteUploadStatsTracker.remove(shardId);
+        RemoteUploadStatsTracker.INSTANCE.remove(shardId);
         rejectionCount.remove(shardId);
     }
 
