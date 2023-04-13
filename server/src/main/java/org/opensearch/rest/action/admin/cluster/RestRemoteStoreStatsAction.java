@@ -140,6 +140,9 @@ public class RestRemoteStoreStatsAction extends AbstractCatAction {
     Table buildTable(RestRequest request, ClusterStateResponse state, RemoteStoreStatsResponse stats) {
         Table table = getTableWithHeader(request);
         Arrays.stream(stats.getShards()).forEach(shardStats -> {
+            if (shardStats.getStats() == null) {
+                return;
+            }
             table.startRow();
             table.addCell(shardStats.getStats().getShardId());
             table.addCell(shardStats.getStats().getLocalRefreshSeqNo());

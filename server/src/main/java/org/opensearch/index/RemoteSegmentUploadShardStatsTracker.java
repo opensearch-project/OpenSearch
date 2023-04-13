@@ -8,10 +8,14 @@
 
 package org.opensearch.index;
 
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.util.MovingAverage;
 import org.opensearch.common.util.Streak;
 import org.opensearch.index.shard.ShardId;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -21,7 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * @opensearch.internal
  */
-public class RemoteSegmentUploadShardStatsTracker {
+public class RemoteSegmentUploadShardStatsTracker implements Writeable {
 
     public static final int UPLOAD_BYTES_WINDOW_SIZE = 2000;
 
@@ -48,7 +52,7 @@ public class RemoteSegmentUploadShardStatsTracker {
     private final AtomicLong totalUploadsFailed = new AtomicLong();
 
     private final AtomicLong totalUploadsSucceeded = new AtomicLong();
-    private final ShardId shardId;
+    private ShardId shardId;
 
     /**
      * Keeps map of filename to bytes length of the local segments post most recent refresh.
@@ -67,6 +71,39 @@ public class RemoteSegmentUploadShardStatsTracker {
     private final MovingAverage uploadBytesPerSecondMovingAverage = new MovingAverage(UPLOAD_BYTES_PER_SECOND_WINDOW_SIZE);
 
     private final MovingAverage uploadTimeMovingAverage = new MovingAverage(UPLOAD_TIME_WINDOW_SIZE);
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        shardId.writeTo(out);
+        out.writeLong(getLocalRefreshSeqNo());
+        out.writeLong(getLocalRefreshTime());
+        out.writeLong(getRemoteRefreshSeqNo());
+        out.writeLong(getRemoteRefreshTime());
+        out.writeLong(getUploadBytesStarted());
+        out.writeLong(getUploadBytesSucceeded());
+        out.writeLong(getUploadBytesFailed());
+        out.writeLong(getTotalUploadsStarted());
+        out.writeLong(getTotalUploadsSucceeded());
+        out.writeLong(getTotalUploadsFailed());
+    }
+
+    public RemoteSegmentUploadShardStatsTracker(StreamInput in) {
+        try {
+            shardId = new ShardId(in);
+            localRefreshSeqNo.set(in.readLong());
+            localRefreshTime.set(in.readLong());
+            remoteRefreshSeqNo.set(in.readLong());
+            remoteRefreshTime.set(in.readLong());
+            uploadBytesStarted.set(in.readLong());
+            uploadBytesSucceeded.set(in.readLong());
+            uploadBytesFailed.set(in.readLong());
+            totalUploadsStarted.set(in.readLong());
+            totalUploadsSucceeded.set(in.readLong());
+            totalUploadsFailed.set(in.readLong());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
     public RemoteSegmentUploadShardStatsTracker(ShardId shardId) {
         this.shardId = shardId;

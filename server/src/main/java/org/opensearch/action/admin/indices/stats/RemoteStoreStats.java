@@ -27,8 +27,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
 
     public RemoteStoreStats(StreamInput in) {
         try {
-            String a = in.readString();
-            a.equals("random string");
+            remoteSegmentUploadShardStatsTracker = in.readOptionalWriteable(RemoteSegmentUploadShardStatsTracker::new);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -53,6 +52,6 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString("random string");
+        out.writeOptionalWriteable(remoteSegmentUploadShardStatsTracker);
     }
 }
