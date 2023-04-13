@@ -105,7 +105,7 @@ public class TopNSearchTasksLogger implements Consumer<Task> {
         }
     }
 
-    void setLogTopQueriesSize(int topQueriesSize) {
+    private void setLogTopQueriesSize(int topQueriesSize) {
         this.topQueriesSize = topQueriesSize;
     }
 
