@@ -46,6 +46,8 @@ import org.opensearch.gradle.ReaperService;
 import org.opensearch.gradle.Version;
 import org.opensearch.gradle.VersionProperties;
 import org.opensearch.gradle.info.BuildParams;
+import org.yaml.snakeyaml.DumperOptions;
+import org.yaml.snakeyaml.Yaml;
 import org.gradle.api.Action;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
@@ -104,6 +106,8 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import javax.annotation.OverridingMethodsMustInvokeSuper;
+
 import static java.util.Objects.requireNonNull;
 
 public class OpenSearchNode implements TestClusterConfiguration {
@@ -141,6 +145,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
     private final Map<String, Configuration> pluginAndModuleConfigurations = new HashMap<>();
     private final List<Provider<File>> plugins = new ArrayList<>();
     private final List<Provider<File>> modules = new ArrayList<>();
+    private final List<ExtensionProperties> extensions = new ArrayList<>();
     final LazyPropertyMap<String, CharSequence> settings = new LazyPropertyMap<>("Settings", this);
     private final LazyPropertyMap<String, CharSequence> keystoreSettings = new LazyPropertyMap<>("Keystore", this);
     private final LazyPropertyMap<String, File> keystoreFiles = new LazyPropertyMap<>("Keystore files", this, FileEntry::new);
@@ -342,6 +347,38 @@ public class OpenSearchNode implements TestClusterConfiguration {
     }
 
     @Override
+    public void extension(ExtensionProperties extension) {
+        this.extensions.add(extension);
+    }
+
+    public void writeExtensionFiles() {
+        try {
+            //Creates extensions.yml in the target directory
+            System.out.println("Checkpoint 1");
+            Path destination = getDistroDir().resolve("extensions").resolve("extensions.yml");
+            System.out.println(destination);
+            if (!Files.exists(getDistroDir().resolve("extensions"))) {
+                Files.createDirectory(getDistroDir().resolve("extensions"));
+            }
+            DumperOptions dumperOptions = new DumperOptions();
+            dumperOptions.setPrettyFlow(true);
+            dumperOptions.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+            Yaml yaml = new Yaml(dumperOptions);
+            Files.write(destination, yaml.dump(this.extensions).getBytes());
+            System.out.println("Checkpoint 2");
+
+            //Enables the extensions feature flag
+            Path configDestination = getDistroDir().resolve("config").resolve("jvm.options");
+            Files.write(configDestination, "\n-Dopensearch.experimental.feature.extensions.enabled=true".getBytes(), StandardOpenOption.APPEND);
+            System.out.println(configDestination);
+            System.out.println("Checkpoint 2.5");
+        } catch (IOException e) {
+            throw new UncheckedIOException(e.toString(), e);
+        }
+    }
+  
+
+    @Override
     public void keystore(String key, String value) {
         keystoreSettings.put(key, value);
     }
@@ -511,6 +548,11 @@ public class OpenSearchNode implements TestClusterConfiguration {
             logToProcessStdout("installed plugins");
         }
 
+        if (!extensions.isEmpty()) {
+            writeExtensionFiles();
+        }
+        System.out.println("Checkpoint 2.55");
+
         logToProcessStdout("Creating opensearch keystore with password set to [" + keystorePassword + "]");
         if (keystorePassword.length() > 0) {
             runOpenSearchBinScriptWithInput(keystorePassword + "\n" + keystorePassword, "opensearch-keystore", "create", "-p");
@@ -542,7 +584,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
                 runOpenSearchBinScript(entry.executable, entry.args);
             }
         }
-
+        System.out.println("Checkpoint 2.56");
         logToProcessStdout("Starting OpenSearch process");
         startOpenSearchProcess();
     }
