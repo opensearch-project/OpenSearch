@@ -20,13 +20,16 @@ public class RegisterRestActionsTests extends OpenSearchTestCase {
     public void testRegisterRestActionsRequest() throws Exception {
         String uniqueIdStr = "uniqueid1";
         List<String> expected = List.of("GET /foo", "PUT /bar", "POST /baz");
-        RegisterRestActionsRequest registerRestActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, expected);
+        List<String> expectedDeprecated = List.of("GET /deprecated/foo", "It's deprecated");
+        RegisterRestActionsRequest registerRestActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, expected, expectedDeprecated);
 
         assertEquals(uniqueIdStr, registerRestActionsRequest.getUniqueId());
         List<String> restActions = registerRestActionsRequest.getRestActions();
+        List<String> deprecatedRestActions = registerRestActionsRequest.getDeprecatedRestActions();
         assertEquals(expected.size(), restActions.size());
         assertTrue(restActions.containsAll(expected));
         assertTrue(expected.containsAll(restActions));
+        assertTrue(expectedDeprecated.containsAll(deprecatedRestActions));
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             registerRestActionsRequest.writeTo(out);
@@ -36,9 +39,11 @@ public class RegisterRestActionsTests extends OpenSearchTestCase {
 
                 assertEquals(uniqueIdStr, registerRestActionsRequest.getUniqueId());
                 restActions = registerRestActionsRequest.getRestActions();
+                deprecatedRestActions = registerRestActionsRequest.getDeprecatedRestActions();
                 assertEquals(expected.size(), restActions.size());
                 assertTrue(restActions.containsAll(expected));
                 assertTrue(expected.containsAll(restActions));
+                assertTrue(expectedDeprecated.containsAll(deprecatedRestActions));
             }
         }
     }
