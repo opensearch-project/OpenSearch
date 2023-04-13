@@ -600,7 +600,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 TaskResourceTrackingService.TASK_RESOURCE_TRACKING_ENABLED,
                 TaskManager.TASK_RESOURCE_CONSUMERS_ENABLED,
                 ClusterManagerTaskThrottler.THRESHOLD_SETTINGS,
-
+                ClusterManagerTaskThrottler.BASE_DELAY_SETTINGS,
+                ClusterManagerTaskThrottler.MAX_DELAY_SETTINGS,
                 // Settings related to search backpressure
                 SearchBackpressureSettings.SETTING_MODE,
 
