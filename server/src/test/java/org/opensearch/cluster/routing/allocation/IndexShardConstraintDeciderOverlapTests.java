@@ -15,7 +15,6 @@ import org.opensearch.cluster.DiskUsage;
 import org.opensearch.cluster.OpenSearchAllocationWithConstraintsTestCase;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.VersionUtils;
@@ -50,28 +49,22 @@ public class IndexShardConstraintDeciderOverlapTests extends OpenSearchAllocatio
             .build();
 
         // Build Shard size and disk usages
-        ImmutableOpenMap.Builder<String, DiskUsage> usagesBuilder = ImmutableOpenMap.builder();
-        usagesBuilder.put("node_0", new DiskUsage("node_0", "node_0", "/dev/null", 100, 80)); // 20% used
-        usagesBuilder.put("node_1", new DiskUsage("node_1", "node_1", "/dev/null", 100, 55)); // 45% used
-        usagesBuilder.put("node_2", new DiskUsage("node_2", "node_2", "/dev/null", 100, 35)); // 65% used
-        usagesBuilder.put("high_watermark_node_0", new DiskUsage("high_watermark_node_0", "high_watermark_node_0", "/dev/null", 100, 10)); // 90%
-                                                                                                                                           // used
-
-        ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
-        ImmutableOpenMap.Builder<String, Long> shardSizesBuilder = ImmutableOpenMap.builder();
-        clusterState.getRoutingTable().allShards().forEach(shard -> shardSizesBuilder.put(shardIdentifierFromRouting(shard), 1L)); // Each
-                                                                                                                                   // shard
-                                                                                                                                   // is 1
-                                                                                                                                   // byte
-        ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
-
-        final ImmutableOpenMap<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace = new ImmutableOpenMap.Builder<
-            ClusterInfo.NodeAndPath,
-            ClusterInfo.ReservedSpace>().fPut(getNodeAndDevNullPath("node_0"), getReservedSpace())
-            .fPut(getNodeAndDevNullPath("node_1"), getReservedSpace())
-            .fPut(getNodeAndDevNullPath("node_2"), getReservedSpace())
-            .fPut(getNodeAndDevNullPath("high_watermark_node_0"), getReservedSpace())
-            .build();
+        final Map<String, DiskUsage> usages = new HashMap<>();
+        usages.put("node_0", new DiskUsage("node_0", "node_0", "/dev/null", 100, 80)); // 20% used
+        usages.put("node_1", new DiskUsage("node_1", "node_1", "/dev/null", 100, 55)); // 45% used
+        usages.put("node_2", new DiskUsage("node_2", "node_2", "/dev/null", 100, 35)); // 65% used
+        usages.put("high_watermark_node_0", new DiskUsage("high_watermark_node_0", "high_watermark_node_0", "/dev/null", 100, 10)); // 90%
+                                                                                                                                    // used
+        final Map<String, Long> shardSizes = new HashMap<>();
+        clusterState.getRoutingTable().allShards().forEach(shard -> shardSizes.put(shardIdentifierFromRouting(shard), 1L)); // Each
+                                                                                                                            // shard
+                                                                                                                            // is 1
+                                                                                                                            // byte
+        final Map<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace> reservedSpace = new HashMap<>();
+        reservedSpace.put(getNodeAndDevNullPath("node_0"), getReservedSpace());
+        reservedSpace.put(getNodeAndDevNullPath("node_1"), getReservedSpace());
+        reservedSpace.put(getNodeAndDevNullPath("node_2"), getReservedSpace());
+        reservedSpace.put(getNodeAndDevNullPath("high_watermark_node_0"), getReservedSpace());
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes, reservedSpace);
         ClusterInfoService cis = () -> clusterInfo;
         allocation = createAllocationService(settings, cis);
@@ -84,10 +77,9 @@ public class IndexShardConstraintDeciderOverlapTests extends OpenSearchAllocatio
         /* Shard sizes that would breach high watermark on node_2 if allocated.
          */
         addIndices("big_index_", 1, 10, 0);
-        ImmutableOpenMap.Builder<String, Long> bigIndexShardSizeBuilder = ImmutableOpenMap.builder(shardSizes);
-        clusterState.getRoutingNodes().unassigned().forEach(shard -> bigIndexShardSizeBuilder.put(shardIdentifierFromRouting(shard), 20L));
-        shardSizes = bigIndexShardSizeBuilder.build();
-        final ClusterInfo bigIndexClusterInfo = new DevNullClusterInfo(usages, usages, shardSizes, reservedSpace);
+        final Map<String, Long> bigIndexShardSizes = new HashMap<>(shardSizes);
+        clusterState.getRoutingNodes().unassigned().forEach(shard -> bigIndexShardSizes.put(shardIdentifierFromRouting(shard), 20L));
+        final ClusterInfo bigIndexClusterInfo = new DevNullClusterInfo(usages, usages, bigIndexShardSizes, reservedSpace);
         cis = () -> bigIndexClusterInfo;
         allocation = createAllocationService(settings, cis);
 
@@ -179,10 +171,10 @@ public class IndexShardConstraintDeciderOverlapTests extends OpenSearchAllocatio
      */
     public static class DevNullClusterInfo extends ClusterInfo {
         public DevNullClusterInfo(
-            ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage,
-            ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage,
-            ImmutableOpenMap<String, Long> shardSizes,
-            ImmutableOpenMap<NodeAndPath, ReservedSpace> reservedSpace
+            final Map<String, DiskUsage> leastAvailableSpaceUsage,
+            final Map<String, DiskUsage> mostAvailableSpaceUsage,
+            final Map<String, Long> shardSizes,
+            final Map<NodeAndPath, ReservedSpace> reservedSpace
         ) {
             super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, reservedSpace);
         }

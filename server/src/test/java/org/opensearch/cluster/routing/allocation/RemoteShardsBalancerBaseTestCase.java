@@ -31,7 +31,6 @@ import org.opensearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -41,6 +40,7 @@ import org.opensearch.test.gateway.TestGatewayAllocator;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.opensearch.cluster.routing.ShardRoutingState.INITIALIZING;
@@ -248,11 +248,11 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
      */
     public static class DevNullClusterInfo extends ClusterInfo {
         public DevNullClusterInfo(
-            ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage,
-            ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage,
-            ImmutableOpenMap<String, Long> shardSizes
+            final Map<String, DiskUsage> leastAvailableSpaceUsage,
+            final Map<String, DiskUsage> mostAvailableSpaceUsage,
+            final Map<String, Long> shardSizes
         ) {
-            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, ImmutableOpenMap.of());
+            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, Map.of());
         }
 
         @Override
