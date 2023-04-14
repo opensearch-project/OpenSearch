@@ -127,3 +127,8 @@ ${path.logs}
 # the core.
 #
 #opensearch.experimental.feature.extensions.enabled: false
+#
+#
+# Gates the search pipeline feature. This feature enables configurable processors
+# for search requests and search responses, similar to ingest pipelines.
+#opensearch.experimental.feature.search_pipeline.enabled: false

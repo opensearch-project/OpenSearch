@@ -25,16 +25,19 @@ import java.util.Objects;
 public class RegisterRestActionsRequest extends TransportRequest {
     private String uniqueId;
     private List<String> restActions;
+    private List<String> deprecatedRestActions;
 
-    public RegisterRestActionsRequest(String uniqueId, List<String> restActions) {
+    public RegisterRestActionsRequest(String uniqueId, List<String> restActions, List<String> deprecatedRestActions) {
         this.uniqueId = uniqueId;
         this.restActions = new ArrayList<>(restActions);
+        this.deprecatedRestActions = new ArrayList<>(deprecatedRestActions);
     }
 
     public RegisterRestActionsRequest(StreamInput in) throws IOException {
         super(in);
         uniqueId = in.readString();
         restActions = in.readStringList();
+        deprecatedRestActions = in.readStringList();
     }
 
     @Override
@@ -42,6 +45,7 @@ public class RegisterRestActionsRequest extends TransportRequest {
         super.writeTo(out);
         out.writeString(uniqueId);
         out.writeStringCollection(restActions);
+        out.writeStringCollection(deprecatedRestActions);
     }
 
     public String getUniqueId() {
@@ -49,12 +53,22 @@ public class RegisterRestActionsRequest extends TransportRequest {
     }
 
     public List<String> getRestActions() {
-        return new ArrayList<>(restActions);
+        return List.copyOf(restActions);
+    }
+
+    public List<String> getDeprecatedRestActions() {
+        return List.copyOf(deprecatedRestActions);
     }
 
     @Override
     public String toString() {
-        return "RestActionsRequest{uniqueId=" + uniqueId + ", restActions=" + restActions + "}";
+        return "RestActionsRequest{uniqueId="
+            + uniqueId
+            + ", restActions="
+            + restActions
+            + ", deprecatedRestActions="
+            + deprecatedRestActions
+            + "}";
     }
 
     @Override
@@ -62,11 +76,13 @@ public class RegisterRestActionsRequest extends TransportRequest {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         RegisterRestActionsRequest that = (RegisterRestActionsRequest) obj;
-        return Objects.equals(uniqueId, that.uniqueId) && Objects.equals(restActions, that.restActions);
+        return Objects.equals(uniqueId, that.uniqueId)
+            && Objects.equals(restActions, that.restActions)
+            && Objects.equals(deprecatedRestActions, that.deprecatedRestActions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(uniqueId, restActions);
+        return Objects.hash(uniqueId, restActions, deprecatedRestActions);
     }
 }

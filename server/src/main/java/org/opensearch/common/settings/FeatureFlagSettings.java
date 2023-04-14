@@ -37,8 +37,8 @@ public class FeatureFlagSettings extends AbstractScopedSettings {
                 FeatureFlags.REPLICATION_TYPE_SETTING,
                 FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL_SETTING,
                 FeatureFlags.REMOTE_STORE_SETTING,
-                FeatureFlags.SEARCHABLE_SNAPSHOT_SETTING,
-                FeatureFlags.EXTENSIONS_SETTING
+                FeatureFlags.EXTENSIONS_SETTING,
+                FeatureFlags.SEARCH_PIPELINE_SETTING
             )
         )
     );
