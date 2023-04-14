@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
 /**
  * Remote upload stats.
@@ -249,6 +250,25 @@ public class RemoteSegmentUploadShardStatsTracker implements Writeable {
 
     public double getUploadTimeAverage() {
         return isUploadTimeAverageReady() ? uploadTimeMovingAverage.getAverage() : -1;
+    }
+
+    public long getBytesBehind() {
+        if (latestLocalFileNameLengthMap == null || latestLocalFileNameLengthMap.isEmpty() || latestUploadFiles.isEmpty()) {
+            return 0;
+        }
+        Set<String> filesNotYetUploaded = latestLocalFileNameLengthMap.keySet()
+            .stream()
+            .filter(f -> latestUploadFiles.contains(f) == false)
+            .collect(Collectors.toSet());
+        return filesNotYetUploaded.stream().map(latestLocalFileNameLengthMap::get).mapToLong(Long::longValue).sum();
+    }
+
+    public long getInflightUploadBytes() {
+        return uploadBytesStarted.get() - uploadBytesFailed.get() - uploadBytesSucceeded.get();
+    }
+
+    public long getInflightUploads() {
+        return totalUploadsStarted.get() - totalUploadsFailed.get() - totalUploadsSucceeded.get();
     }
 
 }

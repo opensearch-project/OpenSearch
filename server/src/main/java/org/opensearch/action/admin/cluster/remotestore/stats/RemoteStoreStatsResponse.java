@@ -24,7 +24,7 @@ public class RemoteStoreStatsResponse extends BroadcastResponse {
 
     private final RemoteStoreStats[] shards;
 
-    RemoteStoreStatsResponse(StreamInput in) throws IOException {
+    public RemoteStoreStatsResponse(StreamInput in) throws IOException {
         super(in);
         shards = in.readArray(RemoteStoreStats::new, RemoteStoreStats[]::new);
     }
