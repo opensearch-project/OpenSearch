@@ -126,6 +126,7 @@ public class RestRemoteStoreStatsAction extends AbstractCatAction {
             .addCell("upload_bytes_failed", "default:true;alias:s,sh;desc:shard name")
             .addCell("upload_bytes_succeeded", "default:true;alias:s,sh;desc:shard name")
             .addCell("total_uploads_started", "default:true;alias:s,sh;desc:shard name")
+            .addCell("total_uploads_failed", "default:true;alias:s,sh;desc:shard name")
             .addCell("total_uploads_succeeded", "default:true;alias:s,sh;desc:shard name")
             .addCell("uploadTimeMovingAverage", "default:true;alias:s,sh;desc:shard name")
             .addCell("uploadBytesPerSecondMovingAverage", "default:true;alias:s,sh;desc:shard name")
@@ -150,10 +151,11 @@ public class RestRemoteStoreStatsAction extends AbstractCatAction {
             table.addCell(shardStats.getStats().getRemoteRefreshSeqNo());
             table.addCell(shardStats.getStats().getRemoteRefreshTime());
             table.addCell(shardStats.getStats().getUploadBytesStarted());
+            table.addCell(shardStats.getStats().getUploadBytesFailed());
             table.addCell(shardStats.getStats().getUploadBytesSucceeded());
             table.addCell(shardStats.getStats().getTotalUploadsStarted());
-            table.addCell(shardStats.getStats().getTotalUploadsSucceeded());
             table.addCell(shardStats.getStats().getTotalUploadsFailed());
+            table.addCell(shardStats.getStats().getTotalUploadsSucceeded());
             table.addCell(shardStats.getStats().getUploadTimeAverage());
             table.addCell(shardStats.getStats().getUploadBytesPerSecondMovingAverage());
             table.addCell(shardStats.getStats().getUploadBytesAverage());
