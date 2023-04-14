@@ -34,15 +34,17 @@ package org.opensearch.client.indices;
 
 import org.opensearch.client.AbstractResponseTestCase;
 import org.opensearch.cluster.metadata.MappingMetadata;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.HashSet;
+import java.util.Set;
 
 public class GetMappingsResponseTests extends AbstractResponseTestCase<
     org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse,
@@ -50,12 +52,12 @@ public class GetMappingsResponseTests extends AbstractResponseTestCase<
 
     @Override
     protected org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse createServerTestInstance(XContentType xContentType) {
-        ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
+        final Map<String, MappingMetadata> mappings = new HashMap<>();
         int numberOfIndexes = randomIntBetween(1, 5);
         for (int i = 0; i < numberOfIndexes; i++) {
             mappings.put("index-" + randomAlphaOfLength(5), randomMappingMetadata());
         }
-        return new org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse(mappings.build());
+        return new org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse(mappings);
     }
 
     @Override
@@ -93,5 +95,18 @@ public class GetMappingsResponseTests extends AbstractResponseTestCase<
             mappings.put("index", Objects.toString(randomBoolean()));
         }
         return mappings;
+    }
+
+    protected static <T> void assertMapEquals(Map<String, T> expected, Map<String, T> actual) {
+        final Set<String> expectedKeys = new HashSet<>();
+        final Iterator<String> keysIt = expected.keySet().iterator();
+        while (keysIt.hasNext()) {
+            expectedKeys.add(keysIt.next());
+        }
+
+        assertEquals(expectedKeys, actual.keySet());
+        for (String key : expectedKeys) {
+            assertEquals(expected.get(key), actual.get(key));
+        }
     }
 }
