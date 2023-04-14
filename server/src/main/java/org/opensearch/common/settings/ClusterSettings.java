@@ -650,8 +650,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
      * setting should be moved to {@link #BUILT_IN_CLUSTER_SETTINGS}.
      */
     public static final Map<List<String>, List<Setting>> FEATURE_FLAGGED_CLUSTER_SETTINGS = Map.of(
-        List.of(FeatureFlags.SEARCHABLE_SNAPSHOT),
-        List.of(Node.NODE_SEARCH_CACHE_SIZE_SETTING),
         List.of(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL),
         List.of(IndicesService.CLUSTER_REPLICATION_TYPE_SETTING),
         List.of(FeatureFlags.REMOTE_STORE, FeatureFlags.REPLICATION_TYPE),
