@@ -230,7 +230,6 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                 );
                 cancellableThreads.checkForCancel();
                 indexShard.finalizeReplication(infos);
-                store.cleanupAndPreserveLatestCommitPoint("finalize - clean with in memory infos", infos);
             } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
                 // this is a fatal exception at this stage.
                 // this means we transferred files from the remote that have not be checksummed and they are
@@ -292,5 +291,6 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     protected void onCancel(String reason) {
         cancellableThreads.cancel(reason);
         source.cancel();
+        multiFileWriter.close();
     }
 }

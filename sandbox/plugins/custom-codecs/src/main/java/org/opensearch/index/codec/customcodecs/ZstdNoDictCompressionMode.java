@@ -41,11 +41,13 @@ public class ZstdNoDictCompressionMode extends CompressionMode {
         this.compressionLevel = compressionLevel;
     }
 
+    /** Creates a new compressor instance.*/
     @Override
     public Compressor newCompressor() {
         return new ZstdCompressor(compressionLevel);
     }
 
+    /** Creates a new decompressor instance. */
     @Override
     public Decompressor newDecompressor() {
         return new ZstdDecompressor();

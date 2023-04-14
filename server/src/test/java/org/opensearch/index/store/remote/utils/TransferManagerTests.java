@@ -12,6 +12,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -176,6 +177,42 @@ public class TransferManagerTests extends OpenSearchTestCase {
         );
         MatcherAssert.assertThat(fileCache.usage().activeUsage(), equalTo(0L));
         MatcherAssert.assertThat(fileCache.usage().usage(), equalTo(0L));
+    }
+
+    public void testFetchesToDifferentBlobsDoNotBlockOnEachOther() throws Exception {
+        // Mock a call for a blob that will block until the latch is released,
+        // then start the fetch for that blob on a separate thread
+        final CountDownLatch latch = new CountDownLatch(1);
+        doAnswer(i -> {
+            latch.await();
+            return new ByteArrayInputStream(createData());
+        }).when(blobContainer).readBlob(eq("blocking-blob"), anyLong(), anyLong());
+        final Thread blockingThread = new Thread(() -> {
+            try {
+                transferManager.fetchBlob(
+                    BlobFetchRequest.builder()
+                        .blobName("blocking-blob")
+                        .position(0)
+                        .fileName("blocking-file")
+                        .directory(directory)
+                        .length(EIGHT_MB)
+                        .build()
+                );
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+        blockingThread.start();
+
+        // Assert that a different blob can be fetched and will not block on the first blob
+        try (IndexInput i = fetchBlobWithName("file")) {
+            assertIndexInputIsFunctional(i);
+        }
+
+        assertTrue(blockingThread.isAlive());
+        latch.countDown();
+        blockingThread.join(5_000);
+        assertFalse(blockingThread.isAlive());
     }
 
     private IndexInput fetchBlobWithName(String blobname) throws IOException {

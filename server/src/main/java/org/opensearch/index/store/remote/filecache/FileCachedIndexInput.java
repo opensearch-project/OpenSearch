@@ -23,7 +23,7 @@ import java.nio.file.Path;
  *
  * @opensearch.internal
  */
-public class FileCachedIndexInput extends CachedIndexInput implements RandomAccessInput {
+public class FileCachedIndexInput extends IndexInput implements RandomAccessInput {
 
     protected final FileCache cache;
 
@@ -149,73 +149,6 @@ public class FileCachedIndexInput extends CachedIndexInput implements RandomAcce
                 cache.decRef(filePath);
             }
             closed = true;
-        }
-    }
-
-    /**
-     * Mainly used by File Cache to detect origin this IndexInput is closed or not
-     *
-     * @return the index input closed or not
-     */
-    @Override
-    public boolean isClosed() {
-        return closed;
-    }
-
-    /**
-     * IndexInput instance which is utilized to fetch length for the input without opening the IndexInput.
-     */
-    public static class ClosedIndexInput extends CachedIndexInput {
-        private final long length;
-
-        public ClosedIndexInput(long length) {
-            super("ClosedIndexInput");
-            this.length = length;
-        }
-
-        @Override
-        public void close() throws IOException {
-            // No-Op
-        }
-
-        @Override
-        public long getFilePointer() {
-            throw new UnsupportedOperationException("ClosedIndexInput doesn't support getFilePointer().");
-        }
-
-        @Override
-        public void seek(long pos) throws IOException {
-            throw new UnsupportedOperationException("ClosedIndexInput doesn't support seek().");
-        }
-
-        @Override
-        public long length() {
-            return length;
-        }
-
-        @Override
-        public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
-            throw new UnsupportedOperationException("ClosedIndexInput couldn't be sliced.");
-        }
-
-        @Override
-        public byte readByte() throws IOException {
-            throw new UnsupportedOperationException("ClosedIndexInput doesn't support read.");
-        }
-
-        @Override
-        public void readBytes(byte[] b, int offset, int len) throws IOException {
-            throw new UnsupportedOperationException("ClosedIndexInput doesn't support read.");
-        }
-
-        @Override
-        public IndexInput clone() {
-            throw new UnsupportedOperationException("ClosedIndexInput cannot be cloned.");
-        }
-
-        @Override
-        public boolean isClosed() {
-            return true;
         }
     }
 }

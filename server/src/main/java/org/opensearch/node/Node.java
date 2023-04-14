@@ -54,8 +54,10 @@ import org.opensearch.extensions.ExtensionsManager;
 import org.opensearch.extensions.NoopExtensionsManager;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.fs.FsProbe;
+import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.search.backpressure.SearchBackpressureService;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
+import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
@@ -244,6 +246,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
+import static org.opensearch.common.util.FeatureFlags.SEARCH_PIPELINE;
 import static org.opensearch.env.NodeEnvironment.collectFileCacheDataPath;
 import static org.opensearch.index.ShardIndexingPressureSettings.SHARD_INDEXING_PRESSURE_ENABLED_ATTRIBUTE_KEY;
 
@@ -551,6 +554,7 @@ public class Node implements Closeable {
                 pluginsService.filterPlugins(IngestPlugin.class),
                 client
             );
+
             final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
             final UsageService usageService = new UsageService();
@@ -966,6 +970,18 @@ public class Node implements Closeable {
                 rerouteService,
                 fsHealthService
             );
+            final SearchPipelineService searchPipelineService = new SearchPipelineService(
+                clusterService,
+                threadPool,
+                this.environment,
+                scriptService,
+                analysisModule.getAnalysisRegistry(),
+                xContentRegistry,
+                namedWriteableRegistry,
+                pluginsService.filterPlugins(SearchPipelinePlugin.class),
+                client,
+                FeatureFlags.isEnabled(SEARCH_PIPELINE)
+            );
             this.nodeService = new NodeService(
                 settings,
                 threadPool,
@@ -985,6 +1001,7 @@ public class Node implements Closeable {
                 indexingPressureService,
                 searchModule.getValuesSourceRegistry().getUsageService(),
                 searchBackpressureService,
+                searchPipelineService,
                 fileCache
             );
 
@@ -1043,6 +1060,7 @@ public class Node implements Closeable {
                 b.bind(ScriptService.class).toInstance(scriptService);
                 b.bind(AnalysisRegistry.class).toInstance(analysisModule.getAnalysisRegistry());
                 b.bind(IngestService.class).toInstance(ingestService);
+                b.bind(SearchPipelineService.class).toInstance(searchPipelineService);
                 b.bind(IndexingPressureService.class).toInstance(indexingPressureService);
                 b.bind(TaskResourceTrackingService.class).toInstance(taskResourceTrackingService);
                 b.bind(SearchBackpressureService.class).toInstance(searchBackpressureService);

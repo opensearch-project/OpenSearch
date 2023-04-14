@@ -168,7 +168,8 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         PLUGINS("plugins"),
         INGEST("ingest"),
         AGGREGATIONS("aggregations"),
-        INDICES("indices");
+        INDICES("indices"),
+        SEARCH_PIPELINES("search_pipelines");
 
         private String metricName;
 

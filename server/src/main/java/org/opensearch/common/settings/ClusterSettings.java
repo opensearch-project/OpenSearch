@@ -600,7 +600,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 TaskResourceTrackingService.TASK_RESOURCE_TRACKING_ENABLED,
                 TaskManager.TASK_RESOURCE_CONSUMERS_ENABLED,
                 ClusterManagerTaskThrottler.THRESHOLD_SETTINGS,
-
+                ClusterManagerTaskThrottler.BASE_DELAY_SETTINGS,
+                ClusterManagerTaskThrottler.MAX_DELAY_SETTINGS,
                 // Settings related to search backpressure
                 SearchBackpressureSettings.SETTING_MODE,
 
@@ -631,7 +632,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SegmentReplicationPressureService.SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED,
                 SegmentReplicationPressureService.MAX_INDEXING_CHECKPOINTS,
                 SegmentReplicationPressureService.MAX_REPLICATION_TIME_SETTING,
-                SegmentReplicationPressureService.MAX_ALLOWED_STALE_SHARDS
+                SegmentReplicationPressureService.MAX_ALLOWED_STALE_SHARDS,
+
+                // Settings related to Searchable Snapshots
+                Node.NODE_SEARCH_CACHE_SIZE_SETTING
             )
         )
     );
@@ -643,11 +647,15 @@ public final class ClusterSettings extends AbstractScopedSettings {
      * is ready for production release, the feature flag can be removed, and the
      * setting should be moved to {@link #BUILT_IN_CLUSTER_SETTINGS}.
      */
-    public static final Map<String, List<Setting>> FEATURE_FLAGGED_CLUSTER_SETTINGS = Map.of(
-        FeatureFlags.SEARCHABLE_SNAPSHOT,
-        List.of(Node.NODE_SEARCH_CACHE_SIZE_SETTING),
-        FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL,
-        List.of(IndicesService.CLUSTER_REPLICATION_TYPE_SETTING)
+    public static final Map<List<String>, List<Setting>> FEATURE_FLAGGED_CLUSTER_SETTINGS = Map.of(
+        List.of(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL),
+        List.of(IndicesService.CLUSTER_REPLICATION_TYPE_SETTING),
+        List.of(FeatureFlags.REMOTE_STORE, FeatureFlags.REPLICATION_TYPE),
+        List.of(
+            IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING,
+            IndicesService.CLUSTER_REMOTE_STORE_REPOSITORY_SETTING,
+            IndicesService.CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING,
+            IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING
+        )
     );
-
 }

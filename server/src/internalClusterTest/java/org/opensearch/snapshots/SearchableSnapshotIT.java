@@ -26,7 +26,6 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
@@ -36,7 +35,6 @@ import org.opensearch.node.Node;
 import org.opensearch.repositories.fs.FsRepository;
 
 import java.io.IOException;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -59,11 +57,6 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
     @Override
     protected boolean addMockInternalEngine() {
         return false;
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(FeatureFlags.SEARCHABLE_SNAPSHOT, "true").build();
     }
 
     @Override
@@ -595,12 +588,8 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         for (Path fileCachePath : searchNodeFileCachePaths) {
             assertTrue(Files.exists(fileCachePath));
             assertTrue(Files.isDirectory(fileCachePath));
-            try (DirectoryStream<Path> cachePathStream = Files.newDirectoryStream(fileCachePath)) {
-                Path nodeLockIdPath = cachePathStream.iterator().next();
-                assertTrue(Files.isDirectory(nodeLockIdPath));
-                try (Stream<Path> dataPathStream = Files.list(nodeLockIdPath)) {
-                    assertEquals(numIndexCount, dataPathStream.count());
-                }
+            try (Stream<Path> dataPathStream = Files.list(fileCachePath)) {
+                assertEquals(numIndexCount, dataPathStream.count());
             }
         }
         // Verifies if all the shards (primary and replica) have been deleted

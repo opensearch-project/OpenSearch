@@ -397,7 +397,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 handlingSettings.getMaxChunkSize()
             );
 
-            final HttpServerUpgradeHandler upgradeHandler = new HttpServerUpgradeHandler(sourceCodec, upgradeCodecFactory);
+            final HttpServerUpgradeHandler upgradeHandler = new HttpServerUpgradeHandler(
+                sourceCodec,
+                upgradeCodecFactory,
+                handlingSettings.getMaxContentLength()
+            );
             final CleartextHttp2ServerUpgradeHandler cleartextUpgradeHandler = new CleartextHttp2ServerUpgradeHandler(
                 sourceCodec,
                 upgradeHandler,
