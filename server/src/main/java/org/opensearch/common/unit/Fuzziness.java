@@ -195,7 +195,7 @@ public final class Fuzziness implements ToXContentFragment, Writeable {
                     // Validate if the fuzziness value is formatted correctly as a numeric value.
                     try {
                         final float minimumSimilarity = Float.parseFloat(fuzziness);
-                        if (minimumSimilarity < 0.0f && !Float.isInfinite(minimumSimilarity) && !Float.isNaN(minimumSimilarity)) {
+                        if (minimumSimilarity < 0.0f || Float.isInfinite(minimumSimilarity) || Float.isNaN(minimumSimilarity)) {
                             throw new IllegalArgumentException("Invalid fuzziness value: " + fuzziness);
                         }
                         return build(fuzziness);
