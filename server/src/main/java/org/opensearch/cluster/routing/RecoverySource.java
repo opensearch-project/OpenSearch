@@ -281,7 +281,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             snapshot = new Snapshot(in);
             version = Version.readVersion(in);
             index = new IndexId(in);
-            if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
                 isSearchableSnapshot = in.readBoolean();
             } else {
                 isSearchableSnapshot = false;
@@ -320,7 +320,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             snapshot.writeTo(out);
             Version.writeVersion(version, out);
             index.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
                 out.writeBoolean(isSearchableSnapshot);
             }
         }
