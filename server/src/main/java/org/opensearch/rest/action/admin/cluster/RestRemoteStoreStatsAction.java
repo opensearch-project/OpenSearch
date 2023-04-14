@@ -53,6 +53,7 @@ public class RestRemoteStoreStatsAction extends AbstractCatAction {
     public List<Route> routes() {
         return unmodifiableList(
             asList(
+                new Route(GET, "/_cat/remote_store"),
                 new Route(GET, "/_cat/remote_store/{index}"),
                 new Route(GET, "/_cat/remote_store/{index}/{shardId}")
             )
@@ -83,28 +84,17 @@ public class RestRemoteStoreStatsAction extends AbstractCatAction {
             request.paramAsTime("cluster_manager_timeout", clusterStateRequest.clusterManagerNodeTimeout())
         );
         parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request, deprecationLogger, getName());
-        clusterStateRequest.clear().nodes(true).routingTable(true).indices(index);
-        return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
+        RemoteStoreStatsRequest remoteStoreStatsRequest = new RemoteStoreStatsRequest();
+        remoteStoreStatsRequest.all();
+        if (index != null)
+            remoteStoreStatsRequest.indices(index);
+        return channel -> client.admin().cluster().remoteStoreStats(remoteStoreStatsRequest, new RestResponseListener<RemoteStoreStatsResponse>(channel) {
             @Override
-            public void processResponse(final ClusterStateResponse clusterStateResponse) {
-                List<ShardRouting> allShards = clusterStateResponse.getState().getRoutingTable().allShards(index);
-                Set<String> nodeIds = new HashSet<>();
-                allShards.forEach(shardRouting -> {
-                    nodeIds.add(shardRouting.currentNodeId());
-                });
-                RemoteStoreStatsRequest remoteStoreStatsRequest = new RemoteStoreStatsRequest();
-                remoteStoreStatsRequest.all();
-                remoteStoreStatsRequest.indices(index);
-                client.admin().cluster().remoteStoreStats(remoteStoreStatsRequest, new RestResponseListener<RemoteStoreStatsResponse>(channel) {
-                    @Override
-                    public RestResponse buildResponse(RemoteStoreStatsResponse remoteStoreStatsResponse) throws Exception {
-                        return RestTable.buildResponse(buildTable(request, clusterStateResponse, remoteStoreStatsResponse), channel);
-                    }
-                });
-
+            public RestResponse buildResponse(RemoteStoreStatsResponse remoteStoreStatsResponse) throws Exception {
+                return RestTable.buildResponse(buildTable(request, remoteStoreStatsResponse), channel);
             }
-
         });
+
     }
 
     @Override
@@ -138,7 +128,7 @@ public class RestRemoteStoreStatsAction extends AbstractCatAction {
         return table;
     }
 
-    Table buildTable(RestRequest request, ClusterStateResponse state, RemoteStoreStatsResponse stats) {
+    Table buildTable(RestRequest request, RemoteStoreStatsResponse stats) {
         Table table = getTableWithHeader(request);
         Arrays.stream(stats.getShards()).forEach(shardStats -> {
             if (shardStats.getStats() == null) {
