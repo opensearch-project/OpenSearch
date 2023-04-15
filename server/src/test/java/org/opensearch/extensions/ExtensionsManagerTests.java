@@ -115,15 +115,15 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         "     hostAddress: '127.0.0.0'",
         "     port: '9300'",
         "     version: '0.0.7'",
-        "     opensearchVersion: '3.0.0'",
-        "     minimumCompatibleVersion: '3.0.0'",
+        "     opensearchVersion: '" + Version.CURRENT.toString() + "'",
+        "     minimumCompatibleVersion: '" + Version.CURRENT.toString() + "'",
         "   - name: secondExtension",
         "     uniqueId: 'uniqueid2'",
         "     hostAddress: '127.0.0.1'",
         "     port: '9301'",
         "     version: '3.14.16'",
-        "     opensearchVersion: '2.0.0'",
-        "     minimumCompatibleVersion: '2.0.0'",
+        "     opensearchVersion: '" + Version.CURRENT.toString() + "'",
+        "     minimumCompatibleVersion: '" + Version.CURRENT.toString() + "'",
         "     dependencies:",
         "       - uniqueId: 'uniqueid0'",
         "         version: '2.0.0'"
@@ -179,8 +179,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "uniqueid1",
             new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
             new HashMap<String, String>(),
-            Version.fromString("3.0.0"),
-            Version.fromString("3.0.0"),
+            Version.CURRENT,
+            Version.CURRENT,
             Collections.emptyList()
         );
         client = new NoOpNodeClient(this.getTestName());
@@ -213,8 +213,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 "uniqueid1",
                 new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
                 new HashMap<String, String>(),
-                Version.fromString("3.0.0"),
-                Version.fromString("3.0.0"),
+                Version.CURRENT,
+                Version.CURRENT,
                 Collections.emptyList()
             )
         );
@@ -225,8 +225,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 "uniqueid2",
                 new TransportAddress(InetAddress.getByName("127.0.0.1"), 9301),
                 new HashMap<String, String>(),
-                Version.fromString("2.0.0"),
-                Version.fromString("2.0.0"),
+                Version.CURRENT,
+                Version.CURRENT,
                 List.of(expectedDependency)
             )
         );
@@ -261,8 +261,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 "uniqueid1",
                 new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
                 new HashMap<String, String>(),
-                Version.fromString("3.0.0"),
-                Version.fromString("3.0.0"),
+                Version.CURRENT,
+                Version.CURRENT,
                 Collections.emptyList()
             )
         );
@@ -285,7 +285,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         Path emptyExtensionDir = createTempDir();
         ExtensionsManager extensionsManager;
         List<String> requiredFieldMissingYmlLines = extensionsYmlLines.stream()
-            .map(s -> s.replace("     minimumCompatibleVersion: '2.0.0'", ""))
+            .filter(s -> !s.contains("3.14.16"))
             .collect(Collectors.toList());
         Files.write(emptyExtensionDir.resolve("extensions.yml"), requiredFieldMissingYmlLines, StandardCharsets.UTF_8);
 
@@ -296,7 +296,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                     "Required field is missing in extensions.yml",
                     "org.opensearch.extensions.ExtensionsManager",
                     Level.WARN,
-                    "loading extension has been failed because of exception : Extension is missing these required fields : [minimumCompatibleVersion]"
+                    "loading extension has been failed because of exception : Extension is missing these required fields : [version]"
                 )
             );
 
@@ -313,8 +313,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 "uniqueid1",
                 new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
                 new HashMap<String, String>(),
-                Version.fromString("3.0.0"),
-                Version.fromString("3.0.0"),
+                Version.CURRENT,
+                Version.CURRENT,
                 Collections.emptyList()
             )
         );
@@ -343,8 +343,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             "uniqueid1",
             new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
             new HashMap<String, String>(),
-            Version.fromString("3.0.0"),
-            Version.fromString("3.0.0"),
+            Version.CURRENT,
+            Version.CURRENT,
             List.of(expectedDependency)
         );
 
@@ -363,7 +363,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
     public void testExtensionDependency() throws Exception {
         String expectedUniqueId = "Test uniqueId";
-        Version expectedVersion = Version.fromString("3.0.0");
+        Version expectedVersion = Version.CURRENT;
 
         ExtensionDependency dependency = new ExtensionDependency(expectedUniqueId, expectedVersion);
 
@@ -622,8 +622,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 "uniqueid1",
                 new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
                 new HashMap<String, String>(),
-                Version.fromString("3.0.0"),
-                Version.fromString("3.0.0"),
+                Version.CURRENT,
+                Version.CURRENT,
                 List.of(expectedDependency)
             )
         );
@@ -884,7 +884,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
                 "     hostAddress: '127.0.0.0'",
                 "     port: '9300'",
                 "     version: '0.0.7'",
-                "     opensearchVersion: '3.0.0'",
+                "     opensearchVersion: '" + Version.CURRENT.toString() + "'",
                 "     minimumCompatibleVersion: '3.99.0'"
             );
 
