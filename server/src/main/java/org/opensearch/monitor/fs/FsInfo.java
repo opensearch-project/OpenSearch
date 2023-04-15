@@ -94,7 +94,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             total = in.readLong();
             free = in.readLong();
             available = in.readLong();
-            if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
                 fileCacheReserved = in.readLong();
                 fileCacheUtilized = in.readLong();
             }
@@ -108,7 +108,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             out.writeLong(total);
             out.writeLong(free);
             out.writeLong(available);
-            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
                 out.writeLong(fileCacheReserved);
                 out.writeLong(fileCacheUtilized);
             }
