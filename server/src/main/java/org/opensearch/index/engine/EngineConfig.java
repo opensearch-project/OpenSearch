@@ -60,6 +60,7 @@ import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongSupplier;
@@ -123,7 +124,7 @@ public final class EngineConfig {
      * allocated on both `kind` of nodes.
      */
     public static final Setting<String> INDEX_CODEC_SETTING = new Setting<>("index.codec", "default", s -> {
-        switch (s.toLowerCase()) {
+        switch (s.toLowerCase(Locale.ROOT)) {
             case "default":
             case "best_compression":
             case "lucene_default":
