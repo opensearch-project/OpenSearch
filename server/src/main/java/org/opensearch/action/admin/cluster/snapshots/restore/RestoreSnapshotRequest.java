@@ -145,7 +145,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         indexSettings = readSettingsFromStream(in);
         ignoreIndexSettings = in.readStringArray();
         snapshotUuid = in.readOptionalString();
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
             storageType = in.readEnum(StorageType.class);
         }
     }
@@ -166,7 +166,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         writeSettingsToStream(indexSettings, out);
         out.writeStringArray(ignoreIndexSettings);
         out.writeOptionalString(snapshotUuid);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
             out.writeEnum(storageType);
         }
     }

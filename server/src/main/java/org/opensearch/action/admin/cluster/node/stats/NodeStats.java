@@ -175,7 +175,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             weightedRoutingStats = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
             fileCacheStats = in.readOptionalWriteable(FileCacheStats::new);
         } else {
             fileCacheStats = null;
@@ -389,7 +389,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_2_6_0)) {
             out.writeOptionalWriteable(weightedRoutingStats);
         }
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
             out.writeOptionalWriteable(fileCacheStats);
         }
     }
