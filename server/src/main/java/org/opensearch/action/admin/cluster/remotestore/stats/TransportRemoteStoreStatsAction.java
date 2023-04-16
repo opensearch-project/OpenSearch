@@ -6,9 +6,8 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.node.stats;
+package org.opensearch.action.admin.cluster.remotestore.stats;
 
-import org.opensearch.action.admin.indices.stats.RemoteStoreStats;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
@@ -16,6 +15,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.routing.PlainShardsIterator;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardsIterator;
 import org.opensearch.cluster.service.ClusterService;
@@ -31,8 +31,13 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
+/**
+ *
+ */
 public class TransportRemoteStoreStatsAction extends TransportBroadcastByNodeAction<RemoteStoreStatsRequest, RemoteStoreStatsResponse, RemoteStoreStats> {
 
     private final IndicesService indicesService;
@@ -62,6 +67,18 @@ public class TransportRemoteStoreStatsAction extends TransportBroadcastByNodeAct
      */
     @Override
     protected ShardsIterator shards(ClusterState clusterState, RemoteStoreStatsRequest request, String[] concreteIndices) {
+        final List<ShardRouting> newShardRoutings = new ArrayList<>();
+        if (request.getShards().length > 0) {
+            clusterState.routingTable().allShards(concreteIndices).getShardRoutings().forEach(shardRouting -> {
+                if (Arrays.asList(request.getShards()).contains(Integer.toString(shardRouting.shardId().id()))) {
+                    newShardRoutings.add(shardRouting);
+                }
+            });
+            return new PlainShardsIterator(newShardRoutings);
+        } else {
+            newShardRoutings.addAll(clusterState.routingTable().allShards(concreteIndices).getShardRoutings());
+        }
+        newShardRoutings.stream().filter(shardRouting -> shardRouting.currentNodeId().equals(clusterState.getNodes().getLocalNodeId()));
         return clusterState.routingTable().allShards(concreteIndices);
     }
 

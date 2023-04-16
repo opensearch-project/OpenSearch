@@ -56,9 +56,9 @@ import org.opensearch.action.admin.cluster.node.liveness.TransportLivenessAction
 import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsAction;
 import org.opensearch.action.admin.cluster.node.reload.TransportNodesReloadSecureSettingsAction;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsAction;
-import org.opensearch.action.admin.cluster.node.stats.RemoteStoreStatsAction;
+import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsAction;
 import org.opensearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
-import org.opensearch.action.admin.cluster.node.stats.TransportRemoteStoreStatsAction;
+import org.opensearch.action.admin.cluster.remotestore.stats.TransportRemoteStoreStatsAction;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.opensearch.action.admin.cluster.node.tasks.get.GetTaskAction;

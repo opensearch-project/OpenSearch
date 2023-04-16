@@ -6,46 +6,27 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.node.stats;
+package org.opensearch.action.admin.cluster.remotestore.stats;
 
-import org.opensearch.action.FailedNodeException;
-import org.opensearch.action.admin.indices.stats.CommonStats;
-import org.opensearch.action.admin.indices.stats.IndexShardStats;
-import org.opensearch.action.admin.indices.stats.IndexStats;
-import org.opensearch.action.admin.indices.stats.RemoteStoreStats;
-import org.opensearch.action.admin.indices.stats.RemoteStoreStats;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.action.support.broadcast.BroadcastResponse;
-import org.opensearch.action.support.nodes.BaseNodesResponse;
-import org.opensearch.cluster.ClusterName;
-import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.index.Index;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-
-import static java.util.Collections.unmodifiableMap;
 
 public class RemoteStoreStatsResponse extends BroadcastResponse {
 
-    private RemoteStoreStats[] shards;
-
-    private Map<ShardRouting, RemoteStoreStats> shardStatsMap;
+    private final RemoteStoreStats[] shards;
 
     RemoteStoreStatsResponse(StreamInput in) throws IOException {
         super(in);
-        shards = in.readArray(RemoteStoreStats::new, (size) -> new RemoteStoreStats[size]);
+        shards = in.readArray(RemoteStoreStats::new, RemoteStoreStats[]::new);
     }
 
     RemoteStoreStatsResponse(
@@ -57,17 +38,6 @@ public class RemoteStoreStatsResponse extends BroadcastResponse {
     ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.shards = shards;
-    }
-
-    public Map<ShardRouting, RemoteStoreStats> asMap() {
-        if (this.shardStatsMap == null) {
-            Map<ShardRouting, RemoteStoreStats> shardStatsMap = new HashMap<>();
-            for (RemoteStoreStats ss : shards) {
-//                shardStatsMap.put(ss.getShardRouting(), ss);
-            }
-            this.shardStatsMap = unmodifiableMap(shardStatsMap);
-        }
-        return this.shardStatsMap;
     }
 
     public RemoteStoreStats[] getShards() {
@@ -93,7 +63,7 @@ public class RemoteStoreStatsResponse extends BroadcastResponse {
         if (!isLevelValid) {
             throw new IllegalArgumentException("level parameter must be one of [cluster] or [indices] or [shards] but was [" + level + "]");
         }
-
+        builder.startArray("stats");
         Arrays.stream(shards).forEach(shard -> {
             try {
                 shard.toXContent(builder, params);
@@ -101,6 +71,7 @@ public class RemoteStoreStatsResponse extends BroadcastResponse {
                 e.printStackTrace();
             }
         });
+        builder.endArray();
     }
 
     /**

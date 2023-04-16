@@ -6,14 +6,14 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.node.stats;
+package org.opensearch.action.admin.cluster.remotestore.stats;
 
 import org.opensearch.action.ActionType;
 
 public class RemoteStoreStatsAction extends ActionType<RemoteStoreStatsResponse> {
 
     public static final RemoteStoreStatsAction INSTANCE = new RemoteStoreStatsAction();
-    public static final String NAME = "cluster:monitor/_cat/remote_store";
+    public static final String NAME = "cluster:monitor/_remote_store/stats";
 
     private RemoteStoreStatsAction() {
         super(NAME, RemoteStoreStatsResponse::new);
