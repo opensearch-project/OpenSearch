@@ -195,8 +195,6 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
             capacity(),
             usage.usage(),
             stats.evictionWeight(),
-            stats.removeWeight(),
-            stats.replaceCount(),
             stats.hitCount(),
             stats.missCount()
         );
