@@ -217,7 +217,7 @@ public class RemoteSegmentUploadShardStatsTracker implements Writeable {
     }
 
     public double getUploadBytesAverage() {
-        return isUploadBytesAverageReady() ? uploadBytesMovingAverage.getAverage() : -1;
+        return uploadBytesMovingAverage.getAverage();
     }
 
     public void addUploadBytes(long bytes) {
@@ -236,8 +236,8 @@ public class RemoteSegmentUploadShardStatsTracker implements Writeable {
         return uploadBytesPerSecondMovingAverage.isReady();
     }
 
-    public double getUploadBytesPerSecondMovingAverage() {
-        return isUploadBytesPerSecondMovingAverageReady() ? uploadBytesPerSecondMovingAverage.getAverage() : -1;
+    public double getUploadBytesPerSecondAverage() {
+        return uploadBytesPerSecondMovingAverage.getAverage();
     }
 
     public void addUploadTime(long uploadTime) {
@@ -249,7 +249,7 @@ public class RemoteSegmentUploadShardStatsTracker implements Writeable {
     }
 
     public double getUploadTimeAverage() {
-        return isUploadTimeAverageReady() ? uploadTimeMovingAverage.getAverage() : -1;
+        return uploadTimeMovingAverage.getAverage();
     }
 
     public long getBytesBehind() {
