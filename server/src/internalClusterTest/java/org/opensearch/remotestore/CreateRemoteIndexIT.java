@@ -61,7 +61,6 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
         return Settings.builder()
             .put(super.featureFlagSettings())
             .put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL, "true")
-            .put(FeatureFlags.REPLICATION_TYPE, "true")
             .put(FeatureFlags.REMOTE_STORE, "true")
             .build();
     }
@@ -69,7 +68,6 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
     @Before
     public void setup() {
         FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
-        FeatureFlagSetter.set(FeatureFlags.REPLICATION_TYPE);
         internalCluster().startClusterManagerOnlyNode();
         assertAcked(
             clusterAdmin().preparePutRepository("my-segment-repo-1")
