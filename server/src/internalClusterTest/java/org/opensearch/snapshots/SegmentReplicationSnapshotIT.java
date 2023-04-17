@@ -17,7 +17,6 @@ import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.rest.RestStatus;
@@ -43,11 +42,6 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
 
     private static final String REPOSITORY_NAME = "test-segrep-repo";
     private static final String SNAPSHOT_NAME = "test-segrep-snapshot";
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REPLICATION_TYPE, "true").build();
-    }
 
     public Settings segRepEnableIndexSettings() {
         return getShardSettings().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
