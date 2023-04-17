@@ -85,6 +85,7 @@ public class TransportRemoteStoreStatsAction extends TransportBroadcastByNodeAct
         return new PlainShardsIterator(
             newShardRoutings.stream()
                 .filter(shardRouting -> shardRouting.currentNodeId().equals(clusterState.getNodes().getLocalNodeId()))
+                .filter(ShardRouting::primary)
                 .collect(Collectors.toList())
         );
     }
