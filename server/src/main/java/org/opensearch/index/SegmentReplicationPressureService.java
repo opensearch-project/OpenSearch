@@ -52,7 +52,7 @@ public class SegmentReplicationPressureService implements Closeable {
      */
     public static final Setting<Boolean> SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED = Setting.boolSetting(
         "segrep.pressure.enabled",
-        false,
+        true,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -233,6 +233,9 @@ public class SegmentReplicationPressureService implements Closeable {
                             stats.getShardStats().get(shardId).getReplicaStats()
                         );
                         final IndexService indexService = pressureService.indicesService.indexService(shardId.getIndex());
+                        if(indexService.getIndexSettings() != null && indexService.getIndexSettings().isSegRepEnabled() == false){
+                            return;
+                        }
                         final IndexShard primaryShard = indexService.getShard(shardId.getId());
                         for (SegmentReplicationShardStats staleReplica : staleReplicas) {
                             if (staleReplica.getCurrentReplicationTimeMillis() > 2 * pressureService.maxReplicationTime.millis()) {
