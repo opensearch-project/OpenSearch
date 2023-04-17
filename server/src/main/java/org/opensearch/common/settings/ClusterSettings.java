@@ -650,7 +650,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
     public static final Map<List<String>, List<Setting>> FEATURE_FLAGGED_CLUSTER_SETTINGS = Map.of(
         List.of(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL),
         List.of(IndicesService.CLUSTER_REPLICATION_TYPE_SETTING),
-        List.of(FeatureFlags.REMOTE_STORE, FeatureFlags.REPLICATION_TYPE),
+        List.of(FeatureFlags.REMOTE_STORE),
         List.of(
             IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING,
             IndicesService.CLUSTER_REMOTE_STORE_REPOSITORY_SETTING,
