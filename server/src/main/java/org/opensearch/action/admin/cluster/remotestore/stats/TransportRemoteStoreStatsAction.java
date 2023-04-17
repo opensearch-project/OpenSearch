@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  *
@@ -81,8 +82,11 @@ public class TransportRemoteStoreStatsAction extends TransportBroadcastByNodeAct
         } else {
             newShardRoutings.addAll(clusterState.routingTable().allShards(concreteIndices).getShardRoutings());
         }
-        newShardRoutings.stream().filter(shardRouting -> shardRouting.currentNodeId().equals(clusterState.getNodes().getLocalNodeId()));
-        return clusterState.routingTable().allShards(concreteIndices);
+        return new PlainShardsIterator(
+            newShardRoutings.stream()
+                .filter(shardRouting -> shardRouting.currentNodeId().equals(clusterState.getNodes().getLocalNodeId()))
+                .collect(Collectors.toList())
+        );
     }
 
     @Override
