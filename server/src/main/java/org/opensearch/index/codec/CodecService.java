@@ -77,7 +77,14 @@ public class CodecService {
     }
 
     public Codec codec(String name) {
-        Optional<String> key = codecs.keySet().stream().filter(k -> k.equalsIgnoreCase(name)).findAny();
+        return codecs
+            .entrySet()
+            .stream()
+            .filter(e -> e.getKey().equalsIgnoreCase(name))
+            .map(Map.Entry::getValue)
+            .findAny()
+            .orElseThrow(() -> new IllegalArgumentException("failed to find codec [" + name + "]"));
+
         if (!key.isPresent()) {
             throw new IllegalArgumentException("failed to find codec [" + name + "]");
         }
