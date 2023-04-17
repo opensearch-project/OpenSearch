@@ -97,9 +97,7 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
     }
 
     public void testIsSegrepLimitBreached_onlyCheckpointLimitBreached() throws Exception {
-        final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .build();
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
 
         try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
             shards.startAll();
@@ -123,9 +121,7 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
     }
 
     public void testIsSegrepLimitBreached_onlyTimeLimitBreached() throws Exception {
-        final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .build();
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
 
         try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
             shards.startAll();

@@ -233,7 +233,7 @@ public class SegmentReplicationPressureService implements Closeable {
                             stats.getShardStats().get(shardId).getReplicaStats()
                         );
                         final IndexService indexService = pressureService.indicesService.indexService(shardId.getIndex());
-                        if(indexService.getIndexSettings() != null && indexService.getIndexSettings().isSegRepEnabled() == false){
+                        if (indexService.getIndexSettings() != null && indexService.getIndexSettings().isSegRepEnabled() == false) {
                             return;
                         }
                         final IndexShard primaryShard = indexService.getShard(shardId.getId());
