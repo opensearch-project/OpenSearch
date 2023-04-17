@@ -234,7 +234,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         long timeTakenInNS = System.nanoTime() - startTimeInNS;
         if (bytesUploaded != 0) {
             statsTracker.addUploadBytes(bytesUploaded);
-            statsTracker.addUploadBytesPerSecond((bytesUploaded * 10 ^ 9L) / timeTakenInNS);
+            statsTracker.addUploadBytesPerSecond((bytesUploaded * (long) Math.pow(10, 9)) / timeTakenInNS);
             statsTracker.addUploadTime(timeTakenInNS);
         }
     }
