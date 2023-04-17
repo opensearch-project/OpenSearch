@@ -24,7 +24,7 @@ public class RemoteUploadPressureSettings {
         private static final double TIME_LAG_VARIANCE_THRESHOLD = 2.0;
         private static final int MIN_CONSECUTIVE_FAILURES_LIMIT = 10;
         private static final int UPLOAD_BYTES_MOVING_AVERAGE_WINDOW_SIZE = 20;
-        private static final int UPLOAD_BYTES_PER_SECOND_MOVING_AVERAGE_WINDOW_SIZE = 20;
+        private static final int UPLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE = 20;
         private static final int UPLOAD_TIME_MOVING_AVERAGE_WINDOW_SIZE = 20;
     }
 
@@ -75,9 +75,9 @@ public class RemoteUploadPressureSettings {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Integer> UPLOAD_BYTES_PER_SECOND_MOVING_AVERAGE_WINDOW_SIZE = Setting.intSetting(
+    public static final Setting<Integer> UPLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE = Setting.intSetting(
         "remote_store.segment_upload.pressure.upload_bytes_per_sec_moving_average_window_size",
-        Defaults.UPLOAD_BYTES_PER_SECOND_MOVING_AVERAGE_WINDOW_SIZE,
+        Defaults.UPLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE,
         0,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -136,13 +136,13 @@ public class RemoteUploadPressureSettings {
         );
         clusterSettings.addSettingsUpdateConsumer(UPLOAD_BYTES_MOVING_AVERAGE_WINDOW_SIZE, this::setUploadBytesMovingAverageWindowSize);
 
-        this.uploadBytesPerSecMovingAverageWindowSize = UPLOAD_BYTES_PER_SECOND_MOVING_AVERAGE_WINDOW_SIZE.get(settings);
+        this.uploadBytesPerSecMovingAverageWindowSize = UPLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE.get(settings);
         clusterSettings.addSettingsUpdateConsumer(
-            UPLOAD_BYTES_PER_SECOND_MOVING_AVERAGE_WINDOW_SIZE,
+            UPLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE,
             remoteUploadPressureService::updateUploadBytesPerSecMovingAverageWindowSize
         );
         clusterSettings.addSettingsUpdateConsumer(
-            UPLOAD_BYTES_PER_SECOND_MOVING_AVERAGE_WINDOW_SIZE,
+            UPLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE,
             this::setUploadBytesPerSecMovingAverageWindowSize
         );
 

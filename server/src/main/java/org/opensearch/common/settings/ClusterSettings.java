@@ -644,7 +644,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteUploadPressureSettings.MIN_SEQ_NO_LAG_LIMIT,
                 RemoteUploadPressureSettings.BYTES_LAG_VARIANCE_THRESHOLD,
                 RemoteUploadPressureSettings.TIME_LAG_VARIANCE_THRESHOLD,
-                RemoteUploadPressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT
+                RemoteUploadPressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT,
+                RemoteUploadPressureSettings.UPLOAD_BYTES_MOVING_AVERAGE_WINDOW_SIZE,
+                RemoteUploadPressureSettings.UPLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE,
+                RemoteUploadPressureSettings.UPLOAD_TIME_MOVING_AVERAGE_WINDOW_SIZE
             )
         )
     );
