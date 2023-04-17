@@ -41,7 +41,7 @@ import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.index.mapper.MapperService;
 
 import java.util.Map;
-import java.util.Optional;
+import java.util.TreeMap;
 
 /**
  * Since Lucene 4.0 low level index segments are read and written through a
@@ -73,22 +73,16 @@ public class CodecService {
         for (String codec : Codec.availableCodecs()) {
             codecs.put(codec, Codec.forName(codec));
         }
-        this.codecs = codecs.immutableMap();
+        this.codecs = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+        this.codecs.putAll(codecs.map());
     }
 
     public Codec codec(String name) {
-        return codecs
-            .entrySet()
-            .stream()
-            .filter(e -> e.getKey().equalsIgnoreCase(name))
-            .map(Map.Entry::getValue)
-            .findAny()
-            .orElseThrow(() -> new IllegalArgumentException("failed to find codec [" + name + "]"));
-
-        if (!key.isPresent()) {
+        Codec codec = codecs.get(name);
+        if (codec == null) {
             throw new IllegalArgumentException("failed to find codec [" + name + "]");
         }
-        return codecs.get(key.get());
+        return codec;
     }
 
     /**
