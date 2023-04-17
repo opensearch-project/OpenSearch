@@ -166,13 +166,13 @@ public final class SegmentFileTransferHandler {
             protected void executeChunkRequest(FileChunk request, ActionListener<Void> listener1) {
                 cancellableThreads.checkForCancel();
                 if (otelService != null) {
-                    otelService.emitResources(Span.current(), "StartExecuteChunkRequest");
+                    // OtelService.emitResources(Span.current(), "StartExecuteChunkRequest", otelService.otelEventListenerList);
                 }
 
                 ActionListener<Void> listener2 = ActionListener.runBefore(listener1, request::close);
                 ActionListener<Void> listener3 = ActionListener.runBefore(listener2, () -> {
                     if (otelService != null) {
-                        otelService.emitResources(Span.current(), "EndExecuteChunkRequest");
+                        // OtelService.emitResources(Span.current(), "EndExecuteChunkRequest", otelService.otelEventListenerList);
                     }
                 });
 

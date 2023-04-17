@@ -58,7 +58,6 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.otel.OtelService;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequestHandler;
@@ -71,8 +70,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 
-import static io.opentelemetry.api.common.AttributeKey.doubleKey;
 import static io.opentelemetry.api.common.AttributeKey.longKey;
 import static io.opentelemetry.api.common.AttributeKey.stringKey;
 
@@ -167,13 +166,11 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     }
 
     private void recover(StartRecoveryRequest request, ActionListener<RecoveryResponse> listener) {
-        listener = OtelService.startSpan("recover", listener);
         Span span = Span.current();
         span.setAttribute(stringKey("index-name"), request.shardId().getIndexName());
         span.setAttribute(longKey("shard-id"), request.shardId().id());
         span.setAttribute(stringKey("source-node"), request.sourceNode().getId());
         span.setAttribute(stringKey("target-node"), request.targetNode().getId());
-        otelService.emitResources(span, "resource-usage-start");
 
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard shard = indexService.getShard(request.shardId().id());
@@ -202,7 +199,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         );
 
         handler.recoverToTarget(ActionListener.runAfter(listener, () -> ongoingRecoveries.remove(shard, handler)));
-        otelService.emitResources(span, "resource-usage-end");
     }
 
     private void reestablish(ReestablishRecoveryRequest request, ActionListener<RecoveryResponse> listener) {
@@ -221,7 +217,12 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     class StartRecoveryTransportRequestHandler implements TransportRequestHandler<StartRecoveryRequest> {
         @Override
         public void messageReceived(final StartRecoveryRequest request, final TransportChannel channel, Task task) throws Exception {
-            recover(request, new ChannelActionListener<>(channel, Actions.START_RECOVERY, request));
+            BiFunction<Object[], ActionListener<?>, Void> recoverFunction = (args, actionListener) -> {
+                recover((StartRecoveryRequest) args[0], (ActionListener<RecoveryResponse>) actionListener);
+                return null;
+            };
+            OtelService.callFunctionAndStartSpan("recover", recoverFunction,
+                new ChannelActionListener<>(channel, Actions.START_RECOVERY, request), request);
         }
     }
 

@@ -34,7 +34,9 @@ import org.opensearch.transport.Transports;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.IntSupplier;
 
 /**
  * This handler is used for node-to-node peer recovery when the recovery target is a replica/ or a relocating primary
@@ -108,6 +110,7 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
             logger.trace("performing sequence numbers based recovery. starting at [{}]", request.startingSeqNo());
             startingSeqNo = request.startingSeqNo();
             if (retentionLeaseRef.get() == null) {
+
                 createRetentionLease(startingSeqNo, ActionListener.map(sendFileStep, ignored -> SendFileResult.EMPTY));
             } else {
                 sendFileStep.onResponse(SendFileResult.EMPTY);
@@ -146,15 +149,23 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
                         // If the target previously had a copy of this shard then a file-based recovery might move its global
                         // checkpoint backwards. We must therefore remove any existing retention lease so that we can create a
                         // new one later on in the recovery.
-                        shard.removePeerRecoveryRetentionLease(
-                            request.targetNode().getId(),
+                        BiFunction<Object[], ActionListener<?>, Void> removePeerRecoveryRetentionLeaseFun =
+                            (args, actionListener) -> {
+                                shard.removePeerRecoveryRetentionLease((String) args[0],
+                                    (ActionListener<ReplicationResponse>) actionListener);
+                                return null;
+                            };
+                        OtelService.callFunctionAndStartSpan(
+                            "removePeerRecoveryRetentionLease",
+                            removePeerRecoveryRetentionLeaseFun,
                             new ThreadedActionListener<>(
                                 logger,
                                 shard.getThreadPool(),
                                 ThreadPool.Names.GENERIC,
                                 deleteRetentionLeaseStep,
                                 false
-                            )
+                            ),
+                            request.targetNode().getId()
                         );
                     } catch (RetentionLeaseNotFoundException e) {
                         logger.debug("no peer-recovery retention lease for " + request.targetAllocationId());
@@ -164,7 +175,21 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
 
                 deleteRetentionLeaseStep.whenComplete(ignored -> {
                     assert Transports.assertNotTransportThread(this + "[phase1]");
-                    phase1(wrappedSafeCommit.get(), startingSeqNo, () -> estimateNumOps, sendFileStep, false);
+                    BiFunction<Object[], ActionListener<?>, Void> phase1Fun =
+                        (args, actionListener) -> {
+                            phase1((IndexCommit)args[0], (long) args[1], (IntSupplier) args[2],
+                                (ActionListener<SendFileResult>) actionListener, (boolean) args[3]);
+                            return null;
+                        };
+                    OtelService.callFunctionAndStartSpan(
+                        "phase1",
+                        phase1Fun,
+                        sendFileStep,
+                        wrappedSafeCommit.get(),
+                        startingSeqNo,
+                        (IntSupplier)(() -> estimateNumOps),
+                        false
+                    );
                 }, onFailure);
 
             } catch (final Exception e) {
@@ -176,7 +201,17 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
         sendFileStep.whenComplete(r -> {
             assert Transports.assertNotTransportThread(this + "[prepareTargetForTranslog]");
             // For a sequence based recovery, the target can keep its local translog
-            prepareTargetForTranslog(countNumberOfHistoryOperations(startingSeqNo), prepareEngineStep);
+            BiFunction<Object[], ActionListener<?>, Void> prepareTargetForTranslogFun =
+                (args, actionListener) -> {
+                    prepareTargetForTranslog((int)args[0], (ActionListener<TimeValue>) actionListener);
+                    return null;
+                };
+            OtelService.callFunctionAndStartSpan(
+                "prepareTargetForTranslog",
+                prepareTargetForTranslogFun,
+                prepareEngineStep,
+                countNumberOfHistoryOperations(startingSeqNo)
+            );
         }, onFailure);
 
         prepareEngineStep.whenComplete(prepareEngineTime -> {
@@ -215,18 +250,30 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
             final long maxSeqNoOfUpdatesOrDeletes = shard.getMaxSeqNoOfUpdatesOrDeletes();
             final RetentionLeases retentionLeases = shard.getRetentionLeases();
             final long mappingVersionOnPrimary = shard.indexSettings().getIndexMetadata().getMappingVersion();
-            phase2(
+            BiFunction<Object[], ActionListener<?>, Void> phase2Fun =
+                (args, actionListener) -> {
+                    try {
+                        phase2((long) args[0], (long) args[1], (Translog.Snapshot) args[2], (long)args[3], (long)args[4],
+                            (RetentionLeases)args[5], (long)args[6], (ActionListener<SendSnapshotResult>) actionListener);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                    return null;
+                };
+            OtelService.callFunctionAndStartSpan(
+                "phase2",
+                phase2Fun,
+                sendSnapshotStep,
                 startingSeqNo,
                 endingSeqNo,
                 phase2Snapshot,
                 maxSeenAutoIdTimestamp,
                 maxSeqNoOfUpdatesOrDeletes,
                 retentionLeases,
-                mappingVersionOnPrimary,
-                sendSnapshotStep
+                mappingVersionOnPrimary
             );
-
         }, onFailure);
+
         finalizeStepAndCompleteFuture(startingSeqNo, sendSnapshotStep, sendFileStep, prepareEngineStep, onFailure);
     }
 }

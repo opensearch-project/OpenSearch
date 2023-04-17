@@ -48,12 +48,14 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
+import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.Node;
 import org.opensearch.node.ReportingService;
+import org.opensearch.otel.OtelService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -202,6 +204,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     private final ScheduledThreadPoolExecutor scheduler;
 
+    private final OtelService otelService;
+
     public Collection<ExecutorBuilder> builders() {
         return Collections.unmodifiableCollection(builders.values());
     }
@@ -222,14 +226,23 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener,
         final ExecutorBuilder<?>... customBuilders
     ) {
-        assert Node.NODE_NAME_SETTING.exists(settings);
+        this(settings, runnableTaskListener, null, customBuilders);
+    }
 
+    public ThreadPool(
+        final Settings settings,
+        final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener,
+        OtelService otelService,
+        final ExecutorBuilder<?>... customBuilders
+    ) {
+        assert Node.NODE_NAME_SETTING.exists(settings);
+        this.otelService = otelService;
         final Map<String, ExecutorBuilder> builders = new HashMap<>();
         final int allocatedProcessors = OpenSearchExecutors.allocatedProcessors(settings);
         final int halfProcMaxAt5 = halfAllocatedProcessorsMaxFive(allocatedProcessors);
         final int halfProcMaxAt10 = halfAllocatedProcessorsMaxTen(allocatedProcessors);
         final int genericThreadPoolMax = boundedBy(4 * allocatedProcessors, 128, 512);
-        builders.put(Names.GENERIC, new ScalingExecutorBuilder(Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30)));
+        builders.put(Names.GENERIC, new ScalingExecutorBuilder(Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30), otelService.otelEventListenerList));
         builders.put(Names.WRITE, new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000));
         builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, allocatedProcessors, 1000));
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16));
@@ -413,7 +426,12 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         if (holder == null) {
             throw new IllegalArgumentException("no executor service found for [" + name + "]");
         }
-        return io.opentelemetry.context.Context.taskWrapping(holder.executor());
+        if (name.equals(Names.GENERIC)) {
+            if (otelService != null) {
+                return OtelService.taskWrapping(holder.executor(), otelService.otelEventListenerList);
+            }
+        }
+        return holder.executor();
     }
 
 
