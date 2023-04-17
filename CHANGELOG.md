@@ -37,7 +37,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.code.gson:gson` from 2.10 to 2.10.1
 - Bump `com.maxmind.geoip2:geoip2` from 4.0.0 to 4.0.1
 - Bump `com.networknt:json-schema-validator` from 1.0.76 to 1.0.78
-- Bump `com.netflix.nebula:gradle-info-plugin` from 12.0.0 to 12.0.1
+- Bump `com.netflix.nebula:gradle-info-plugin` from 12.0.0 to 12.1.0
 - Bump `com.avast.gradle:gradle-docker-compose-plugin` from 0.16.11 to 0.16.12
 - Bump `org.apache.commons:commons-compress` from 1.22 to 1.23.0
 - Bump `org.apache.commons:commons-configuration2` from 2.8.0 to 2.9.0
