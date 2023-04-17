@@ -178,7 +178,8 @@ public class MockNode extends Node {
             bigArrays,
             queryPhase,
             fetchPhase,
-            circuitBreakerService
+            circuitBreakerService,
+            indexSearcherExecutor
         );
     }
 
