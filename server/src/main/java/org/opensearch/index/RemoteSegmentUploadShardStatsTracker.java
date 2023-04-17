@@ -108,6 +108,9 @@ public class RemoteSegmentUploadShardStatsTracker implements Writeable {
 
     public RemoteSegmentUploadShardStatsTracker(ShardId shardId) {
         this.shardId = shardId;
+        long currentNanos = System.nanoTime();
+        this.localRefreshTime.set(currentNanos);
+        this.remoteRefreshTime.set(currentNanos);
     }
 
     public ShardId getShardId() {
