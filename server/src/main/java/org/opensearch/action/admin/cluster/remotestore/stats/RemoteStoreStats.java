@@ -43,6 +43,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
+            .field("shardId", remoteSegmentUploadShardStatsTracker.getShardId())
             .field("local_refresh_time", remoteSegmentUploadShardStatsTracker.getLocalRefreshTime())
             .field("local_refresh_seqno", remoteSegmentUploadShardStatsTracker.getLocalRefreshSeqNo())
             .field("remote_refresh_time", remoteSegmentUploadShardStatsTracker.getRemoteRefreshTime())
@@ -53,6 +54,12 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
             .field("total_upload_started", remoteSegmentUploadShardStatsTracker.getTotalUploadsStarted())
             .field("total_upload_succeeded", remoteSegmentUploadShardStatsTracker.getTotalUploadsSucceeded())
             .field("total_upload_failed", remoteSegmentUploadShardStatsTracker.getTotalUploadsFailed())
+            .field("upload_time_average", remoteSegmentUploadShardStatsTracker.getUploadTimeAverage())
+            .field("upload_bytes_per_sec_average", remoteSegmentUploadShardStatsTracker.getUploadBytesPerSecondAverage())
+            .field("upload_bytes_average", remoteSegmentUploadShardStatsTracker.getUploadBytesAverage())
+            .field("bytes_behind", remoteSegmentUploadShardStatsTracker.getBytesBehind())
+            .field("inflight_upload_bytes", remoteSegmentUploadShardStatsTracker.getInflightUploadBytes())
+            .field("inflight_uploads", remoteSegmentUploadShardStatsTracker.getInflightUploads())
             .endObject();
         return builder;
     }
