@@ -130,7 +130,7 @@ public final class EngineConfig {
             case "lucene_default":
                 return s;
             default:
-                if (!Codec.availableCodecs().stream().anyMatch(c -> c.equalsIgnoreCase(s))) { // we don't error message the not
+                if (Codec.availableCodecs().stream().anyMatch(c -> c.equalsIgnoreCase(s)) == false) { // we don't error message the not
                                                                                               // officially supported ones
                     throw new IllegalArgumentException(
                         "unknown value for [index.codec] must be one of [default, best_compression, lucene_default] or "
