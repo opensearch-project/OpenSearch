@@ -60,6 +60,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
             .field("bytes_lag", remoteSegmentUploadShardStatsTracker.getBytesLag())
             .field("inflight_upload_bytes", remoteSegmentUploadShardStatsTracker.getInflightUploadBytes())
             .field("inflight_uploads", remoteSegmentUploadShardStatsTracker.getInflightUploads())
+            .field("rejection_count", remoteSegmentUploadShardStatsTracker.getRejectionCount())
             .endObject();
         return builder;
     }

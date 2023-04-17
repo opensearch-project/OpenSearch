@@ -54,6 +54,9 @@ public class RemoteSegmentUploadShardStatsTracker implements Writeable {
     private final AtomicLong totalUploadsFailed = new AtomicLong();
 
     private final AtomicLong totalUploadsSucceeded = new AtomicLong();
+
+    private final AtomicLong rejectionCount = new AtomicLong();
+
     private ShardId shardId;
 
     /**
@@ -93,6 +96,7 @@ public class RemoteSegmentUploadShardStatsTracker implements Writeable {
         out.writeLong(getTotalUploadsStarted());
         out.writeLong(getTotalUploadsSucceeded());
         out.writeLong(getTotalUploadsFailed());
+        out.writeLong(getRejectionCount());
     }
 
     public RemoteSegmentUploadShardStatsTracker(StreamInput in) {
@@ -108,6 +112,7 @@ public class RemoteSegmentUploadShardStatsTracker implements Writeable {
             totalUploadsStarted.set(in.readLong());
             totalUploadsSucceeded.set(in.readLong());
             totalUploadsFailed.set(in.readLong());
+            rejectionCount.set(in.readLong());
             // TODO - Varun to replace this
         } catch (IOException e) {
             e.printStackTrace();
@@ -162,6 +167,14 @@ public class RemoteSegmentUploadShardStatsTracker implements Writeable {
 
     public long getTotalUploadsFailed() {
         return totalUploadsFailed.get();
+    }
+
+    public long getRejectionCount() {
+        return rejectionCount.get();
+    }
+
+    void incrementRejectionCount() {
+        rejectionCount.incrementAndGet();
     }
 
     public void incrementUploadBytesFailed(long bytes) {

@@ -13,16 +13,13 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Remote upload back pressure service.
@@ -34,8 +31,6 @@ public class RemoteUploadPressureService implements IndexEventListener {
     private static final Logger logger = LogManager.getLogger(RemoteUploadPressureService.class);
 
     private final RemoteUploadPressureSettings remoteUploadPressureSettings;
-
-    private final Map<ShardId, AtomicLong> rejectionCount = ConcurrentCollections.newConcurrentMap();
 
     @Inject
     public RemoteUploadPressureService(ClusterService clusterService, Settings settings) {
@@ -59,7 +54,6 @@ public class RemoteUploadPressureService implements IndexEventListener {
     @Override
     public void beforeIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
         RemoteUploadStatsTracker.INSTANCE.remove(shardId);
-        rejectionCount.remove(shardId);
     }
 
     public boolean isSegmentsUploadBackpressureEnabled() {
@@ -90,7 +84,8 @@ public class RemoteUploadPressureService implements IndexEventListener {
     private void validateSeqNoLag(RemoteSegmentUploadShardStatsTracker statsTracker, ShardId shardId) {
         // Check if the remote store seq no lag is above the min seq no lag limit
         if (statsTracker.getSeqNoLag() > remoteUploadPressureSettings.getMinSeqNoLagLimit()) {
-            rejectRequest(
+            statsTracker.incrementRejectionCount();
+            throw new OpenSearchRejectedExecutionException(
                 String.format(
                     Locale.ROOT,
                     "rejected execution on primary shard:%s due to remote segments lagging behind local segments."
@@ -98,8 +93,7 @@ public class RemoteUploadPressureService implements IndexEventListener {
                     shardId,
                     statsTracker.getRemoteRefreshSeqNo(),
                     statsTracker.getLocalRefreshSeqNo()
-                ),
-                shardId
+                )
             );
         }
     }
@@ -112,7 +106,8 @@ public class RemoteUploadPressureService implements IndexEventListener {
             .getBytesLagVarianceThreshold();
         long bytesLag = statsTracker.getBytesLag();
         if (bytesLag > dynamicBytesLagThreshold) {
-            rejectRequest(
+            statsTracker.incrementRejectionCount();
+            throw new OpenSearchRejectedExecutionException(
                 String.format(
                     Locale.ROOT,
                     "rejected execution on primary shard:%s due to remote segments lagging behind local segments."
@@ -120,8 +115,7 @@ public class RemoteUploadPressureService implements IndexEventListener {
                     shardId,
                     bytesLag,
                     dynamicBytesLagThreshold
-                ),
-                shardId
+                )
             );
         }
     }
@@ -133,7 +127,8 @@ public class RemoteUploadPressureService implements IndexEventListener {
         long timeLag = statsTracker.getTimeLag();
         double dynamicTimeLagThreshold = statsTracker.getUploadTimeAverage() * remoteUploadPressureSettings.getTimeLagVarianceThreshold();
         if (timeLag > dynamicTimeLagThreshold) {
-            rejectRequest(
+            statsTracker.incrementRejectionCount();
+            throw new OpenSearchRejectedExecutionException(
                 String.format(
                     Locale.ROOT,
                     "rejected execution on primary shard:%s due to remote segments lagging behind local segments."
@@ -141,8 +136,7 @@ public class RemoteUploadPressureService implements IndexEventListener {
                     shardId,
                     timeLag,
                     dynamicTimeLagThreshold
-                ),
-                shardId
+                )
             );
         }
     }
@@ -151,7 +145,8 @@ public class RemoteUploadPressureService implements IndexEventListener {
         int failureStreakCount = statsTracker.getConsecutiveFailureCount();
         int minConsecutiveFailureThreshold = remoteUploadPressureSettings.getMinConsecutiveFailuresLimit();
         if (failureStreakCount > minConsecutiveFailureThreshold) {
-            rejectRequest(
+            statsTracker.incrementRejectionCount();
+            throw new OpenSearchRejectedExecutionException(
                 String.format(
                     Locale.ROOT,
                     "rejected execution on primary shard:%s due to remote segments lagging behind local segments."
@@ -159,15 +154,9 @@ public class RemoteUploadPressureService implements IndexEventListener {
                     shardId,
                     failureStreakCount,
                     minConsecutiveFailureThreshold
-                ),
-                shardId
+                )
             );
         }
-    }
-
-    private void rejectRequest(String rejectionReason, ShardId shardId) {
-        rejectionCount.computeIfAbsent(shardId, k -> new AtomicLong()).incrementAndGet();
-        throw new OpenSearchRejectedExecutionException(rejectionReason, false);
     }
 
     void updateUploadBytesMovingAverageWindowSize(int updatedSize) {
