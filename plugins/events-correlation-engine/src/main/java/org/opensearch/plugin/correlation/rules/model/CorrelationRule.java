@@ -41,6 +41,7 @@ import java.util.Objects;
  * }
  *
  * @opensearch.api
+ * @opensearch.experimental
  */
 public class CorrelationRule implements Writeable, ToXContentObject {
 

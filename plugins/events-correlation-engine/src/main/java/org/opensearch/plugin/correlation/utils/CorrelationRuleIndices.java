@@ -64,7 +64,7 @@ public class CorrelationRuleIndices {
      * @throws IOException IOException
      */
     public void initCorrelationRuleIndex(ActionListener<CreateIndexResponse> actionListener) throws IOException {
-        if (!correlationRuleIndexExists()) {
+        if (correlationRuleIndexExists() == false) {
             CreateIndexRequest indexRequest = new CreateIndexRequest(CorrelationRule.CORRELATION_RULE_INDEX).mapping(
                 correlationRuleIndexMappings()
             ).settings(Settings.builder().put("index.hidden", true).build());

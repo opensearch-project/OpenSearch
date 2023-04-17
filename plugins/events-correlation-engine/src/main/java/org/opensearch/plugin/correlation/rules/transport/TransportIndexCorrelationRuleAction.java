@@ -82,7 +82,7 @@ public class TransportIndexCorrelationRuleAction extends HandledTransportAction<
         asyncAction.start();
     }
 
-    class AsyncIndexCorrelationRuleAction {
+    private class AsyncIndexCorrelationRuleAction {
         private final IndexCorrelationRuleRequest request;
 
         private final ActionListener<IndexCorrelationRuleResponse> listener;
