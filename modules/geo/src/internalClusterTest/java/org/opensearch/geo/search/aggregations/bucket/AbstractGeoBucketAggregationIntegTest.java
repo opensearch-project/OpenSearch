@@ -10,13 +10,14 @@ package org.opensearch.geo.search.aggregations.bucket;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.opensearch.Version;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoShapeDocValue;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.geo.GeoModulePluginIntegTestCase;
 import org.opensearch.geo.tests.common.RandomGeoGenerator;
 import org.opensearch.geo.tests.common.RandomGeoGeometryGenerator;
@@ -252,6 +253,19 @@ public abstract class AbstractGeoBucketAggregationIntegTest extends GeoModulePlu
      */
     protected double getRadiusOfBoundingBox() {
         return 5.0;
+    }
+
+    /**
+     * Encode and Decode the {@link GeoPoint} to get a {@link GeoPoint} which has the exact precision which is being
+     * stored.
+     * @param geoPoint {@link GeoPoint}
+     * @return {@link GeoPoint}
+     */
+    protected GeoPoint toStoragePrecision(final GeoPoint geoPoint) {
+        return new GeoPoint(
+            GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(geoPoint.getLat())),
+            GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(geoPoint.getLon()))
+        );
     }
 
 }
