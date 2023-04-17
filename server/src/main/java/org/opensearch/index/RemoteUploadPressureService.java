@@ -40,11 +40,21 @@ public class RemoteUploadPressureService implements IndexEventListener {
 
     @Inject
     public RemoteUploadPressureService(ClusterService clusterService, Settings settings) {
-        remoteUploadPressureSettings = new RemoteUploadPressureSettings(clusterService, settings);
+        remoteUploadPressureSettings = new RemoteUploadPressureSettings(clusterService, settings, this);
     }
 
     public RemoteSegmentUploadShardStatsTracker getStatsTracker(ShardId shardId) {
         return RemoteUploadStatsTracker.INSTANCE.getStatsTracker(shardId);
+    }
+
+    @Override
+    public void afterIndexShardCreated(IndexShard indexShard) {
+        RemoteUploadStatsTracker.INSTANCE.createStatsTracker(
+            indexShard.shardId(),
+            remoteUploadPressureSettings.getUploadBytesMovingAverageWindowSize(),
+            remoteUploadPressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
+            remoteUploadPressureSettings.getUploadTimeMovingAverageWindowSize()
+        );
     }
 
     @Override
@@ -167,5 +177,26 @@ public class RemoteUploadPressureService implements IndexEventListener {
     private void rejectRequest(String rejectionReason, ShardId shardId) {
         rejectionCount.computeIfAbsent(shardId, k -> new AtomicLong()).incrementAndGet();
         throw new OpenSearchRejectedExecutionException(rejectionReason, false);
+    }
+
+    void updateUploadBytesMovingAverageWindowSize(int updatedSize) {
+        Set<ShardId> shardIds = RemoteUploadStatsTracker.INSTANCE.getAllShardIds();
+        shardIds.forEach(shardId -> {
+            RemoteUploadStatsTracker.INSTANCE.getStatsTracker(shardId).updateUploadBytesMovingAverageWindowSize(updatedSize);
+        });
+    }
+
+    void updateUploadBytesPerSecMovingAverageWindowSize(int updatedSize) {
+        Set<ShardId> shardIds = RemoteUploadStatsTracker.INSTANCE.getAllShardIds();
+        shardIds.forEach(shardId -> {
+            RemoteUploadStatsTracker.INSTANCE.getStatsTracker(shardId).updateUploadBytesPerSecMovingAverageWindowSize(updatedSize);
+        });
+    }
+
+    void updateUploadTimeMovingAverageWindowSize(int updatedSize) {
+        Set<ShardId> shardIds = RemoteUploadStatsTracker.INSTANCE.getAllShardIds();
+        shardIds.forEach(shardId -> {
+            RemoteUploadStatsTracker.INSTANCE.getStatsTracker(shardId).updateUploadTimeMovingAverageWindowSize(updatedSize);
+        });
     }
 }

@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -67,9 +68,15 @@ public class RemoteSegmentUploadShardStatsTracker implements Writeable {
 
     private final Streak failures = new Streak();
 
+    private final AtomicReference<MovingAverage> uploadBytesMovingAverageReference;
+
     private final MovingAverage uploadBytesMovingAverage = new MovingAverage(UPLOAD_BYTES_WINDOW_SIZE);
 
+    private final AtomicReference<MovingAverage> uploadBytesPerSecMovingAverageReference;
+
     private final MovingAverage uploadBytesPerSecondMovingAverage = new MovingAverage(UPLOAD_BYTES_PER_SECOND_WINDOW_SIZE);
+
+    private final AtomicReference<MovingAverage> uploadTimeMovingAverageReference;
 
     private final MovingAverage uploadTimeMovingAverage = new MovingAverage(UPLOAD_TIME_WINDOW_SIZE);
 
@@ -101,16 +108,28 @@ public class RemoteSegmentUploadShardStatsTracker implements Writeable {
             totalUploadsStarted.set(in.readLong());
             totalUploadsSucceeded.set(in.readLong());
             totalUploadsFailed.set(in.readLong());
+            // TODO - Varun to replace this
         } catch (IOException e) {
             e.printStackTrace();
         }
+        uploadBytesMovingAverageReference = null;
+        uploadBytesPerSecMovingAverageReference = null;
+        uploadTimeMovingAverageReference = null;
     }
 
-    public RemoteSegmentUploadShardStatsTracker(ShardId shardId) {
+    public RemoteSegmentUploadShardStatsTracker(
+        ShardId shardId,
+        int uploadBytesMovingAverageWindowSize,
+        int uploadBytesPerSecMovingAverageWindowSize,
+        int uploadTimeMovingAverageWindowSize
+    ) {
         this.shardId = shardId;
         long currentNanos = System.nanoTime();
         this.localRefreshTime.set(currentNanos);
         this.remoteRefreshTime.set(currentNanos);
+        uploadBytesMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadBytesMovingAverageWindowSize));
+        uploadBytesPerSecMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadBytesPerSecMovingAverageWindowSize));
+        uploadTimeMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadTimeMovingAverageWindowSize));
     }
 
     public ShardId getShardId() {
@@ -274,4 +293,15 @@ public class RemoteSegmentUploadShardStatsTracker implements Writeable {
         return totalUploadsStarted.get() - totalUploadsFailed.get() - totalUploadsSucceeded.get();
     }
 
+    public void updateUploadBytesMovingAverageWindowSize(int updatedSize) {
+        this.uploadBytesMovingAverageReference.set(new MovingAverage(updatedSize));
+    }
+
+    public void updateUploadBytesPerSecMovingAverageWindowSize(int updatedSize) {
+        this.uploadBytesPerSecMovingAverageReference.set(new MovingAverage(updatedSize));
+    }
+
+    public void updateUploadTimeMovingAverageWindowSize(int updatedSize) {
+        this.uploadTimeMovingAverageReference.set(new MovingAverage(updatedSize));
+    }
 }

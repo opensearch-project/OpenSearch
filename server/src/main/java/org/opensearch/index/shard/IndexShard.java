@@ -3554,7 +3554,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
     }
 
-    private boolean isRemoteStoreEnabled() {
+    public boolean isRemoteStoreEnabled() {
         return (remoteStore != null && shardRouting.primary());
     }
 

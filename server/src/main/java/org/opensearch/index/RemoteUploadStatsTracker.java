@@ -12,6 +12,7 @@ import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.index.shard.ShardId;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Tracker responsible for computing Remote Upload Stats.
@@ -29,10 +30,31 @@ public class RemoteUploadStatsTracker {
     }
 
     public RemoteSegmentUploadShardStatsTracker getStatsTracker(ShardId shardId) {
-        return shardLevelStats.computeIfAbsent(shardId, k -> new RemoteSegmentUploadShardStatsTracker(shardId));
+        return shardLevelStats.get(shardId);
+    }
+
+    void createStatsTracker(
+        ShardId shardId,
+        int uploadBytesMovingAverageWindowSize,
+        int uploadBytesPerSecMovingAverageWindowSize,
+        int uploadTimeMovingAverageWindowSize
+    ) {
+        shardLevelStats.put(
+            shardId,
+            new RemoteSegmentUploadShardStatsTracker(
+                shardId,
+                uploadBytesMovingAverageWindowSize,
+                uploadBytesPerSecMovingAverageWindowSize,
+                uploadTimeMovingAverageWindowSize
+            )
+        );
     }
 
     void remove(ShardId shardId) {
         shardLevelStats.remove(shardId);
+    }
+
+    Set<ShardId> getAllShardIds() {
+        return shardLevelStats.keySet();
     }
 }

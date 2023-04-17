@@ -34,6 +34,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -86,6 +87,10 @@ public class TransportRemoteStoreStatsAction extends TransportBroadcastByNodeAct
             newShardRoutings.stream()
                 .filter(shardRouting -> shardRouting.currentNodeId().equals(clusterState.getNodes().getLocalNodeId()))
                 .filter(ShardRouting::primary)
+                .filter(shardRouting -> {
+                    IndexShard indexShard = indicesService.getShardOrNull(shardRouting.shardId());
+                    return indexShard != null && indexShard.isRemoteStoreEnabled();
+                })
                 .collect(Collectors.toList())
         );
     }
@@ -141,6 +146,7 @@ public class TransportRemoteStoreStatsAction extends TransportBroadcastByNodeAct
         RemoteSegmentUploadShardStatsTracker remoteSegmentUploadShardStatsTracker = RemoteUploadStatsTracker.INSTANCE.getStatsTracker(
             indexShard.shardId()
         );
+        assert Objects.nonNull(remoteSegmentUploadShardStatsTracker);
 
         return new RemoteStoreStats(remoteSegmentUploadShardStatsTracker);
     }
