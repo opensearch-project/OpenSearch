@@ -45,7 +45,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         builder.startObject()
             .field("shardId", remoteSegmentUploadShardStatsTracker.getShardId())
             .field("local_refresh_time", remoteSegmentUploadShardStatsTracker.getLocalRefreshTime())
-            .field("local_refresh_seqno", remoteSegmentUploadShardStatsTracker.getLocalRefreshSeqNo())
+            .field("local_refresh_seq_no", remoteSegmentUploadShardStatsTracker.getLocalRefreshSeqNo())
             .field("remote_refresh_time", remoteSegmentUploadShardStatsTracker.getRemoteRefreshTime())
             .field("remote_refresh_seqno", remoteSegmentUploadShardStatsTracker.getRemoteRefreshSeqNo())
             .field("upload_bytes_started", remoteSegmentUploadShardStatsTracker.getUploadBytesStarted())

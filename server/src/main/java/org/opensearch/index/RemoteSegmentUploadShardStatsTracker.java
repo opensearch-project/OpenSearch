@@ -253,12 +253,12 @@ public class RemoteSegmentUploadShardStatsTracker implements Writeable {
     }
 
     public long getBytesBehind() {
-        if (latestLocalFileNameLengthMap == null || latestLocalFileNameLengthMap.isEmpty() || latestUploadFiles.isEmpty()) {
+        if (latestLocalFileNameLengthMap == null || latestLocalFileNameLengthMap.isEmpty()) {
             return 0;
         }
         Set<String> filesNotYetUploaded = latestLocalFileNameLengthMap.keySet()
             .stream()
-            .filter(f -> latestUploadFiles.contains(f) == false)
+            .filter(f -> latestUploadFiles == null || latestUploadFiles.contains(f) == false)
             .collect(Collectors.toSet());
         return filesNotYetUploaded.stream().map(latestLocalFileNameLengthMap::get).mapToLong(Long::longValue).sum();
     }
