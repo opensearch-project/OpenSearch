@@ -37,11 +37,7 @@ import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
-import org.opensearch.search.aggregations.support.CoreValuesSourceType;
-import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.opensearch.search.aggregations.support.ValuesSourceConfig;
-import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
-import org.opensearch.search.aggregations.support.ValuesSource;
+import org.opensearch.search.aggregations.support.*;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -80,7 +76,13 @@ class SumAggregatorFactory extends ValuesSourceAggregatorFactory {
             return new SumNullAggregator(s, valuesSourceConfig, searchContext, aggregator, stringObjectMap);
         }
 
-        return new SumAggregator(s, valuesSourceConfig, searchContext, aggregator, stringObjectMap);
+        // use kahan summation for floating point numbers
+        if (((ValuesSource.Numeric) valuesSourceConfig.getValuesSource()).isFloatingPoint()) {
+            return new SumAggregator(s, valuesSourceConfig, searchContext, aggregator, stringObjectMap);
+        }
+
+        // use long for all integral numbers that fit within the data type
+        return new SumIntegralAggregator(s, valuesSourceConfig, searchContext, aggregator, stringObjectMap);
     }
 
     @Override
