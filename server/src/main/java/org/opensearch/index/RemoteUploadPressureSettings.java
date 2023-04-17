@@ -20,8 +20,8 @@ public class RemoteUploadPressureSettings {
 
     private static class Defaults {
         private static final long MIN_SEQ_NO_LAG_LIMIT = 5;
-        private static final double BYTES_BEHIND_VARIANCE_THRESHOLD = 2.0;
-        private static final double TIME_BEHIND_VARIANCE_THRESHOLD = 2.0;
+        private static final double BYTES_LAG_VARIANCE_THRESHOLD = 2.0;
+        private static final double TIME_LAG_VARIANCE_THRESHOLD = 2.0;
         private static final int MIN_CONSECUTIVE_FAILURES_LIMIT = 10;
         private static final int UPLOAD_BYTES_MOVING_AVERAGE_WINDOW_SIZE = 20;
         private static final int UPLOAD_BYTES_PER_SECOND_MOVING_AVERAGE_WINDOW_SIZE = 20;
@@ -36,24 +36,24 @@ public class RemoteUploadPressureSettings {
     );
 
     public static final Setting<Long> MIN_SEQ_NO_LAG_LIMIT = Setting.longSetting(
-        "remote_store.segment_upload.pressure.seq_no.lag.limit",
+        "remote_store.segment_upload.pressure.seq_no_lag.limit",
         Defaults.MIN_SEQ_NO_LAG_LIMIT,
         2L,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Double> BYTES_BEHIND_VARIANCE_THRESHOLD = Setting.doubleSetting(
-        "remote_store.segment_upload.pressure.bytes_behind.variance",
-        Defaults.BYTES_BEHIND_VARIANCE_THRESHOLD,
+    public static final Setting<Double> BYTES_LAG_VARIANCE_THRESHOLD = Setting.doubleSetting(
+        "remote_store.segment_upload.pressure.bytes_lag.variance",
+        Defaults.BYTES_LAG_VARIANCE_THRESHOLD,
         0.0,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Double> TIME_BEHIND_VARIANCE_THRESHOLD = Setting.doubleSetting(
-        "remote_store.segment_upload.pressure.time_behind.variance",
-        Defaults.TIME_BEHIND_VARIANCE_THRESHOLD,
+    public static final Setting<Double> TIME_LAG_VARIANCE_THRESHOLD = Setting.doubleSetting(
+        "remote_store.segment_upload.pressure.time_lag.variance",
+        Defaults.TIME_LAG_VARIANCE_THRESHOLD,
         0.0,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -95,9 +95,9 @@ public class RemoteUploadPressureSettings {
 
     private volatile long minSeqNoLagLimit;
 
-    private volatile double bytesBehindVarianceThreshold;
+    private volatile double bytesLagVarianceThreshold;
 
-    private volatile double timeBehindVarianceThreshold;
+    private volatile double timeLagVarianceThreshold;
 
     private volatile int minConsecutiveFailuresLimit;
 
@@ -120,11 +120,11 @@ public class RemoteUploadPressureSettings {
         this.minSeqNoLagLimit = MIN_SEQ_NO_LAG_LIMIT.get(settings);
         clusterSettings.addSettingsUpdateConsumer(MIN_SEQ_NO_LAG_LIMIT, this::setMinSeqNoLagLimit);
 
-        this.bytesBehindVarianceThreshold = BYTES_BEHIND_VARIANCE_THRESHOLD.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(BYTES_BEHIND_VARIANCE_THRESHOLD, this::setBytesBehindVarianceThreshold);
+        this.bytesLagVarianceThreshold = BYTES_LAG_VARIANCE_THRESHOLD.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(BYTES_LAG_VARIANCE_THRESHOLD, this::setBytesLagVarianceThreshold);
 
-        this.timeBehindVarianceThreshold = TIME_BEHIND_VARIANCE_THRESHOLD.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(TIME_BEHIND_VARIANCE_THRESHOLD, this::setTimeBehindVarianceThreshold);
+        this.timeLagVarianceThreshold = TIME_LAG_VARIANCE_THRESHOLD.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(TIME_LAG_VARIANCE_THRESHOLD, this::setTimeLagVarianceThreshold);
 
         this.minConsecutiveFailuresLimit = MIN_CONSECUTIVE_FAILURES_LIMIT.get(settings);
         clusterSettings.addSettingsUpdateConsumer(MIN_CONSECUTIVE_FAILURES_LIMIT, this::setMinConsecutiveFailuresLimit);
@@ -170,20 +170,20 @@ public class RemoteUploadPressureSettings {
         this.minSeqNoLagLimit = minSeqNoLagLimit;
     }
 
-    public double getBytesBehindVarianceThreshold() {
-        return bytesBehindVarianceThreshold;
+    public double getBytesLagVarianceThreshold() {
+        return bytesLagVarianceThreshold;
     }
 
-    public void setBytesBehindVarianceThreshold(double bytesBehindVarianceThreshold) {
-        this.bytesBehindVarianceThreshold = bytesBehindVarianceThreshold;
+    public void setBytesLagVarianceThreshold(double bytesLagVarianceThreshold) {
+        this.bytesLagVarianceThreshold = bytesLagVarianceThreshold;
     }
 
-    public double getTimeBehindVarianceThreshold() {
-        return timeBehindVarianceThreshold;
+    public double getTimeLagVarianceThreshold() {
+        return timeLagVarianceThreshold;
     }
 
-    public void setTimeBehindVarianceThreshold(double timeBehindVarianceThreshold) {
-        this.timeBehindVarianceThreshold = timeBehindVarianceThreshold;
+    public void setTimeLagVarianceThreshold(double timeLagVarianceThreshold) {
+        this.timeLagVarianceThreshold = timeLagVarianceThreshold;
     }
 
     public int getMinConsecutiveFailuresLimit() {

@@ -218,6 +218,14 @@ public class RemoteSegmentUploadShardStatsTracker implements Writeable {
         this.remoteRefreshTime.set(remoteRefreshTime);
     }
 
+    public long getSeqNoLag() {
+        return localRefreshSeqNo.get() - remoteRefreshSeqNo.get();
+    }
+
+    public long getTimeLag() {
+        return localRefreshTime.get() - remoteRefreshTime.get();
+    }
+
     public Map<String, Long> getLatestLocalFileNameLengthMap() {
         return latestLocalFileNameLengthMap;
     }
@@ -274,7 +282,7 @@ public class RemoteSegmentUploadShardStatsTracker implements Writeable {
         return uploadTimeMovingAverage.getAverage();
     }
 
-    public long getBytesBehind() {
+    public long getBytesLag() {
         if (latestLocalFileNameLengthMap == null || latestLocalFileNameLengthMap.isEmpty()) {
             return 0;
         }

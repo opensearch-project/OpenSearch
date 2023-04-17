@@ -23,7 +23,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
 
 /**
  * Remote upload back pressure service.
@@ -71,7 +70,7 @@ public class RemoteUploadPressureService implements IndexEventListener {
         RemoteSegmentUploadShardStatsTracker statsTracker = getStatsTracker(shardId);
         // Check if refresh checkpoint (a.k.a. seq number) lag is 2 or below - this is to handle segment merges that can
         // increase the bytes to upload almost suddenly.
-        if (statsTracker.getLocalRefreshSeqNo() - statsTracker.getRemoteRefreshSeqNo() <= 2) {
+        if (statsTracker.getSeqNoLag() <= 2) {
             return;
         }
 
@@ -79,19 +78,18 @@ public class RemoteUploadPressureService implements IndexEventListener {
         validateSeqNoLag(statsTracker, shardId);
 
         // Check if the remote store is lagging more than the upload bytes average multiplied by a variance factor
-        validateBytesBehindLag(statsTracker, shardId);
+        validateBytesLag(statsTracker, shardId);
 
         // Check if the remote store is lagging more than the upload time average multiplied by a variance factor
-        validateTimeBehindLag(statsTracker, shardId);
+        validateTimeLag(statsTracker, shardId);
 
         // Check if consecutive failure limit has been breached
         validateConsecutiveFailureLimitBreached(statsTracker, shardId);
     }
 
     private void validateSeqNoLag(RemoteSegmentUploadShardStatsTracker statsTracker, ShardId shardId) {
-        long seqNoLag = statsTracker.getLocalRefreshSeqNo() - statsTracker.getRemoteRefreshSeqNo();
         // Check if the remote store seq no lag is above the min seq no lag limit
-        if (seqNoLag > remoteUploadPressureSettings.getMinSeqNoLagLimit()) {
+        if (statsTracker.getSeqNoLag() > remoteUploadPressureSettings.getMinSeqNoLagLimit()) {
             rejectRequest(
                 String.format(
                     Locale.ROOT,
@@ -106,50 +104,43 @@ public class RemoteUploadPressureService implements IndexEventListener {
         }
     }
 
-    private void validateBytesBehindLag(RemoteSegmentUploadShardStatsTracker statsTracker, ShardId shardId) {
+    private void validateBytesLag(RemoteSegmentUploadShardStatsTracker statsTracker, ShardId shardId) {
         if (statsTracker.isUploadBytesAverageReady() == false) {
             return;
         }
-        Map<String, Long> localFileSizeMap = statsTracker.getLatestLocalFileNameLengthMap();
-        Set<String> remoteFiles = statsTracker.getLatestUploadFiles();
-        Set<String> filesNotYetUploaded = localFileSizeMap.keySet()
-            .stream()
-            .filter(f -> remoteFiles.contains(f) == false)
-            .collect(Collectors.toSet());
-        long bytesBehind = filesNotYetUploaded.stream().map(localFileSizeMap::get).mapToLong(Long::longValue).sum();
-        double dynamicBytesBehindThreshold = statsTracker.getUploadBytesAverage() * remoteUploadPressureSettings
-            .getBytesBehindVarianceThreshold();
-        if (bytesBehind > dynamicBytesBehindThreshold) {
+        double dynamicBytesLagThreshold = statsTracker.getUploadBytesAverage() * remoteUploadPressureSettings
+            .getBytesLagVarianceThreshold();
+        long bytesLag = statsTracker.getBytesLag();
+        if (bytesLag > dynamicBytesLagThreshold) {
             rejectRequest(
                 String.format(
                     Locale.ROOT,
                     "rejected execution on primary shard:%s due to remote segments lagging behind local segments."
-                        + "bytes_behind:%s dynamic_bytes_behind_threshold:%s",
+                        + "bytes_lag:%s dynamic_bytes_lag_threshold:%s",
                     shardId,
-                    bytesBehind,
-                    dynamicBytesBehindThreshold
+                    bytesLag,
+                    dynamicBytesLagThreshold
                 ),
                 shardId
             );
         }
     }
 
-    private void validateTimeBehindLag(RemoteSegmentUploadShardStatsTracker statsTracker, ShardId shardId) {
+    private void validateTimeLag(RemoteSegmentUploadShardStatsTracker statsTracker, ShardId shardId) {
         if (statsTracker.isUploadTimeAverageReady() == false) {
             return;
         }
-        long timeBehind = statsTracker.getLocalRefreshTime() - statsTracker.getRemoteRefreshTime();
-        double dynamicTimeBehindThreshold = statsTracker.getUploadTimeAverage() * remoteUploadPressureSettings
-            .getTimeBehindVarianceThreshold();
-        if (timeBehind > dynamicTimeBehindThreshold) {
+        long timeLag = statsTracker.getTimeLag();
+        double dynamicTimeLagThreshold = statsTracker.getUploadTimeAverage() * remoteUploadPressureSettings.getTimeLagVarianceThreshold();
+        if (timeLag > dynamicTimeLagThreshold) {
             rejectRequest(
                 String.format(
                     Locale.ROOT,
                     "rejected execution on primary shard:%s due to remote segments lagging behind local segments."
-                        + "time_behind:%s ns dynamic_time_behind_threshold:%s ns",
+                        + "time_lag:%s ns dynamic_time_lag_threshold:%s ns",
                     shardId,
-                    timeBehind,
-                    dynamicTimeBehindThreshold
+                    timeLag,
+                    dynamicTimeLagThreshold
                 ),
                 shardId
             );

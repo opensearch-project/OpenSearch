@@ -57,7 +57,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
             .field("upload_time_average", remoteSegmentUploadShardStatsTracker.getUploadTimeAverage())
             .field("upload_bytes_per_sec_average", remoteSegmentUploadShardStatsTracker.getUploadBytesPerSecondAverage())
             .field("upload_bytes_average", remoteSegmentUploadShardStatsTracker.getUploadBytesAverage())
-            .field("bytes_behind", remoteSegmentUploadShardStatsTracker.getBytesBehind())
+            .field("bytes_lag", remoteSegmentUploadShardStatsTracker.getBytesLag())
             .field("inflight_upload_bytes", remoteSegmentUploadShardStatsTracker.getInflightUploadBytes())
             .field("inflight_uploads", remoteSegmentUploadShardStatsTracker.getInflightUploads())
             .endObject();
