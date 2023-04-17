@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Dependencies
 - Bump `com.netflix.nebula:gradle-info-plugin` from 12.0.0 to 12.1.0
 - Bump `com.netflix.nebula:nebula-publishing-plugin` from 19.2.0 to 20.2.0
+- Bump `com.google.protobuf:protobuf-java` from 3.22.2 to 3.22.3
 
 ### Changed
 
