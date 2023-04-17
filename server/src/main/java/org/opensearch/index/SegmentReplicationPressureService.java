@@ -52,7 +52,7 @@ public class SegmentReplicationPressureService implements Closeable {
      */
     public static final Setting<Boolean> SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED = Setting.boolSetting(
         "segrep.pressure.enabled",
-        false,
+        true,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -130,9 +130,11 @@ public class SegmentReplicationPressureService implements Closeable {
 
     public void isSegrepLimitBreached(ShardId shardId) {
         final IndexService indexService = indicesService.indexService(shardId.getIndex());
-        final IndexShard shard = indexService.getShard(shardId.id());
-        if (isSegmentReplicationBackpressureEnabled && shard.indexSettings().isSegRepEnabled() && shard.routingEntry().primary()) {
-            validateReplicationGroup(shard);
+        if (indexService != null) {
+            final IndexShard shard = indexService.getShard(shardId.id());
+            if (isSegmentReplicationBackpressureEnabled && shard.indexSettings().isSegRepEnabled() && shard.routingEntry().primary()) {
+                validateReplicationGroup(shard);
+            }
         }
     }
 
@@ -235,6 +237,9 @@ public class SegmentReplicationPressureService implements Closeable {
                             stats.getShardStats().get(shardId).getReplicaStats()
                         );
                         final IndexService indexService = pressureService.indicesService.indexService(shardId.getIndex());
+                        if (indexService.getIndexSettings() != null && indexService.getIndexSettings().isSegRepEnabled() == false) {
+                            return;
+                        }
                         final IndexShard primaryShard = indexService.getShard(shardId.getId());
                         for (SegmentReplicationShardStats staleReplica : staleReplicas) {
                             if (staleReplica.getCurrentReplicationTimeMillis() > 2 * pressureService.maxReplicationTime.millis()) {
