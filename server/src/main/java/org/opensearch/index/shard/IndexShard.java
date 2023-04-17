@@ -1763,7 +1763,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void onCheckpointPublished(ReplicationCheckpoint checkpoint) {
-        replicationTracker.setLatestReplicationCheckpoint(checkpoint);
+        if(replicationTracker.isPrimaryMode()){
+            replicationTracker.setLatestReplicationCheckpoint(checkpoint);
+        }
     }
 
     /**
