@@ -72,6 +72,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.PosixPermissionsResetter;
+import org.opensearch.test.VersionUtils;
 import org.junit.After;
 import org.junit.Before;
 
@@ -262,6 +263,10 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     }
 
     static void writePlugin(String name, Path structure, String... additionalProps) throws IOException {
+	writePlugin(name, structure, Version.CURRENT, additionalProps);
+    }
+
+    static void writePlugin(String name, Path structure, Version coreVersion, String... additionalProps) throws IOException {
         String[] properties = Stream.concat(
             Stream.of(
                 "description",
@@ -271,7 +276,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
                 "version",
                 "1.0",
                 "opensearch.version",
-                Version.CURRENT.toString(),
+                coreVersion.toString(),
                 "java.version",
                 System.getProperty("java.specification.version"),
                 "classname",
@@ -282,6 +287,11 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         PluginTestUtil.writePluginProperties(structure, properties);
         String className = name.substring(0, 1).toUpperCase(Locale.ENGLISH) + name.substring(1) + "Plugin";
         writeJar(structure.resolve("plugin.jar"), className);
+    }
+
+    static Path createPlugin(String name, Path structure, Version coreVersion, String... additionalProps) throws IOException {
+	writePlugin(name, structure, coreVersion, additionalProps);
+	return writeZip(structure, null);
     }
 
     static void writePluginSecurityPolicy(Path pluginDir, String... permissions) throws IOException {
@@ -865,6 +875,26 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
 
         e = expectThrows(UserException.class, () -> installPlugin("unknown_plugin", env.v1()));
         assertThat(e.getMessage(), containsString("Unknown plugin unknown_plugin"));
+    }
+
+    public void testInstallPluginDifferingInPatchVersion() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        Version coreVersion = Version.CURRENT;
+        Version pluginVersion = VersionUtils.getVersion(coreVersion.major, coreVersion.minor, (byte)(coreVersion.revision + 1));
+        String pluginZip = createPlugin("fake", pluginDir, pluginVersion).toUri().toURL().toString();
+        skipJarHellCommand.execute(terminal, Collections.singletonList(pluginZip), false, env.v2());
+        assertThat(terminal.getOutput(), containsString("100%"));
+    }
+
+    public void testInstallPluginDifferingInMinorVersion() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        Version coreVersion = Version.CURRENT;
+        Version pluginVersion = VersionUtils.getVersion(coreVersion.major, (byte)(coreVersion.minor + 1), coreVersion.revision);
+        String pluginZip = createPlugin("fake", pluginDir, pluginVersion).toUri().toURL().toString();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> skipJarHellCommand.execute(terminal, Collections.singletonList(pluginZip), false, env.v2()));
+        assertThat(e.getMessage(), containsString("Plugin [fake] was built for OpenSearch version"));
     }
 
     public void testBatchFlag() throws Exception {

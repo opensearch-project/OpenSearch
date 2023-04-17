@@ -719,16 +719,28 @@ public class PluginsServiceTests extends OpenSearchTestCase {
     }
 
     public void testPluginDifferingWithCoreForPatchVersion() throws Exception {
-        // Get a version for plugin to use that is just before the core's version.
-        // We will use the plugin version for test only if it differs in patch version
-        Version pluginVersion = VersionUtils.getPreviousVersion(Version.CURRENT);
-        if (pluginVersion.major != Version.CURRENT.major || pluginVersion.minor != Version.CURRENT.minor) {
-            // Cannot fail the test as there is no version that differs with core's patch version
-            // but has the same major and minor version as core. Not a valid test in that case.
-            return;
-        }
+        // Validate that a plugin is allowed to have a different patch version than core
+        Version coreVersion = Version.CURRENT;
+        Version pluginVersion = VersionUtils.getVersion(coreVersion.major, coreVersion.minor, (byte)(coreVersion.revision + 1)); 
         PluginInfo info = new PluginInfo("my_plugin", "desc", "1.0", pluginVersion, "1.8", "FakePlugin", Collections.emptyList(), false);
         PluginsService.verifyCompatibility(info);
+    }
+
+    public void testIsPluginVersionCompatibile() {
+        // Compatible plugin and core versions
+        assertTrue(PluginsService.isPluginVersionCompatibile(Version.fromString("1.0.0"), Version.fromString("1.0.0")));
+        assertTrue(PluginsService.isPluginVersionCompatibile(Version.fromString("1.0.0"), Version.fromString("1.0.1")));
+        assertTrue(PluginsService.isPluginVersionCompatibile(Version.fromString("1.0.1"), Version.fromString("1.0.0")));
+
+        // Incompatible plugin and core versions
+        // Different minor versions
+        assertFalse(PluginsService.isPluginVersionCompatibile(Version.fromString("1.0.0"), Version.fromString("1.1.0")));
+        assertFalse(PluginsService.isPluginVersionCompatibile(Version.fromString("1.1.0"), Version.fromString("1.0.0")));
+        // Different major versions
+        assertFalse(PluginsService.isPluginVersionCompatibile(Version.fromString("1.0.0"), Version.fromString("2.0.0")));
+        assertFalse(PluginsService.isPluginVersionCompatibile(Version.fromString("2.0.0"), Version.fromString("1.0.0")));
+        // Different major and minor versions
+        assertFalse(PluginsService.isPluginVersionCompatibile(Version.fromString("1.2.0"), Version.fromString("2.1.0")));
     }
 
     public void testIncompatibleJavaVersion() throws Exception {

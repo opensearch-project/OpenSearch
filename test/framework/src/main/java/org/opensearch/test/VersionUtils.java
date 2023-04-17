@@ -237,6 +237,16 @@ public class VersionUtils {
     }
 
     /**
+     * Returns a {@link Version} with a given major, minor and revision version.
+     * Build version is skipped for the sake of simplicity.
+     */
+    public static Version getVersion(byte major, byte minor, byte revision) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(major).append('.').append(minor).append('.').append(revision);
+        return Version.fromString(sb.toString());
+    }
+
+    /**
      * Returns the released {@link Version} before the {@link Version#CURRENT}
      * where the minor version is less than the currents minor version.
      */
