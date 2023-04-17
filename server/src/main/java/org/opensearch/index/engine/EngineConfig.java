@@ -133,7 +133,7 @@ public final class EngineConfig {
                 if (!Codec.availableCodecs().stream().anyMatch(c -> c.equalsIgnoreCase(s))) { // we don't error message the not
                                                                                               // officially supported ones
                     throw new IllegalArgumentException(
-                        "unknown value for [index.codec] must be one of [default, best_compression] or "
+                        "unknown value for [index.codec] must be one of [default, best_compression, lucene_default] or "
                             + Codec.availableCodecs()
                             + " but was: "
                             + s
