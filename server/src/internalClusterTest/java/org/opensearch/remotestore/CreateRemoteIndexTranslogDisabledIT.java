@@ -35,10 +35,9 @@ public class CreateRemoteIndexTranslogDisabledIT extends CreateRemoteIndexIT {
     }
 
     public void testRemoteStoreEnabledByUserWithRemoteRepo() throws Exception {
-        final int numReplicas = internalCluster().numDataNodes();
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(SETTING_REMOTE_STORE_ENABLED, true)
             .put(SETTING_REMOTE_STORE_REPOSITORY, "my-custom-repo")
@@ -54,10 +53,9 @@ public class CreateRemoteIndexTranslogDisabledIT extends CreateRemoteIndexIT {
     }
 
     public void testDefaultRemoteStoreNoUserOverride() throws Exception {
-        final int numReplicas = internalCluster().numDataNodes();
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
         assertAcked(client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get());
         GetIndexResponse getIndexResponse = client().admin()

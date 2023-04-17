@@ -34,10 +34,9 @@ public class CreateRemoteIndexClusterDefaultDocRep extends CreateRemoteIndexIT {
 
     @Override
     public void testRemoteStoreTranslogDisabledByUser() throws Exception {
-        final int numReplicas = internalCluster().numDataNodes();
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put(SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false)
             .build();
@@ -52,10 +51,9 @@ public class CreateRemoteIndexClusterDefaultDocRep extends CreateRemoteIndexIT {
 
     @Override
     public void testDefaultRemoteStoreNoUserOverride() throws Exception {
-        final int numReplicas = internalCluster().numDataNodes();
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
         IllegalArgumentException exc = expectThrows(
             IllegalArgumentException.class,
@@ -68,10 +66,9 @@ public class CreateRemoteIndexClusterDefaultDocRep extends CreateRemoteIndexIT {
     }
 
     public void testDefaultRemoteStoreNoUserOverrideExceptReplicationTypeSegment() throws Exception {
-        final int numReplicas = internalCluster().numDataNodes();
         Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .build();
         assertAcked(client().admin().indices().prepareCreate("test-idx-1").setSettings(settings).get());
