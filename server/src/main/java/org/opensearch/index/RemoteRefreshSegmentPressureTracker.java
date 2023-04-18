@@ -229,24 +229,24 @@ public class RemoteRefreshSegmentPressureTracker {
         return bytesLag.get();
     }
 
-    AtomicLong getUploadBytesStarted() {
-        return uploadBytesStarted;
+    long getUploadBytesStarted() {
+        return uploadBytesStarted.get();
     }
 
     void addUploadBytesStarted(long size) {
         uploadBytesStarted.addAndGet(size);
     }
 
-    AtomicLong getUploadBytesFailed() {
-        return uploadBytesFailed;
+    long getUploadBytesFailed() {
+        return uploadBytesFailed.get();
     }
 
     void addUploadBytesFailed(long size) {
         uploadBytesFailed.addAndGet(size);
     }
 
-    AtomicLong getUploadBytesSucceeded() {
-        return uploadBytesSucceeded;
+    long getUploadBytesSucceeded() {
+        return uploadBytesSucceeded.get();
     }
 
     void addUploadBytesSucceeded(long size) {
@@ -257,16 +257,16 @@ public class RemoteRefreshSegmentPressureTracker {
         return uploadBytesStarted.get() - uploadBytesFailed.get() - uploadBytesSucceeded.get();
     }
 
-    AtomicLong getTotalUploadsStarted() {
-        return totalUploadsStarted;
+    long getTotalUploadsStarted() {
+        return totalUploadsStarted.get();
     }
 
     void incrementTotalUploadsStarted() {
         totalUploadsStarted.incrementAndGet();
     }
 
-    public AtomicLong getTotalUploadsFailed() {
-        return totalUploadsFailed;
+    long getTotalUploadsFailed() {
+        return totalUploadsFailed.get();
     }
 
     void incrementTotalUploadsFailed() {
@@ -274,8 +274,8 @@ public class RemoteRefreshSegmentPressureTracker {
         failures.record(true);
     }
 
-    AtomicLong getTotalUploadsSucceeded() {
-        return totalUploadsSucceeded;
+    long getTotalUploadsSucceeded() {
+        return totalUploadsSucceeded.get();
     }
 
     void incrementTotalUploadSucceeded() {
@@ -287,8 +287,8 @@ public class RemoteRefreshSegmentPressureTracker {
         return totalUploadsStarted.get() - totalUploadsFailed.get() - totalUploadsSucceeded.get();
     }
 
-    AtomicLong getRejectionCount() {
-        return rejectionCount;
+    long getRejectionCount() {
+        return rejectionCount.get();
     }
 
     void incrementRejectionCount() {
@@ -333,6 +333,10 @@ public class RemoteRefreshSegmentPressureTracker {
         return uploadBytesMovingAverageReference.get().getAverage();
     }
 
+    void addUploadBytes(long size) {
+        this.uploadBytesMovingAverageReference.get().record(size);
+    }
+
     /**
      * Updates the window size for data collection of upload bytes. This also resets any data collected so far.
      *
@@ -342,8 +346,16 @@ public class RemoteRefreshSegmentPressureTracker {
         this.uploadBytesMovingAverageReference.set(new MovingAverage(updatedSize));
     }
 
+    boolean isUploadBytesPerSecAverageReady() {
+        return uploadBytesPerSecMovingAverageReference.get().isReady();
+    }
+
     double getUploadBytesPerSecAverage() {
         return uploadBytesPerSecMovingAverageReference.get().getAverage();
+    }
+
+    void addUploadBytesPerSec(long bytesPerSec) {
+        this.uploadBytesPerSecMovingAverageReference.get().record(bytesPerSec);
     }
 
     /**
@@ -361,6 +373,10 @@ public class RemoteRefreshSegmentPressureTracker {
 
     double getUploadTimeMsAverage() {
         return uploadTimeMsMovingAverageReference.get().getAverage();
+    }
+
+    void addUploadTimeMs(long timeMs) {
+        this.uploadTimeMsMovingAverageReference.get().record(timeMs);
     }
 
     /**
