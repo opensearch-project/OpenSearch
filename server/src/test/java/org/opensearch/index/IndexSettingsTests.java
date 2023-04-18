@@ -855,7 +855,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.get(indexSettings)
         );
         assertEquals(
-            "Settings index.remote_store.translog.enabled can ont be set/enabled when index.remote_store.enabled is set to true",
+            "Settings index.remote_store.translog.enabled can only be set/enabled when index.remote_store.enabled is set to true",
             iae.getMessage()
         );
     }
@@ -869,10 +869,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             IllegalArgumentException.class,
             () -> IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings)
         );
-        assertEquals(
-            "To enable index.remote_store.enabled, index.replication.type should be set to SEGMENT or cluster.indices.replication.strategy should be set to true",
-            iae.getMessage()
-        );
+        assertEquals("To enable index.remote_store.enabled, index.replication.type should be set to SEGMENT", iae.getMessage());
     }
 
     public void testEnablingRemoteStoreFailsWhenReplicationTypeIsDefault() {
@@ -881,10 +878,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             IllegalArgumentException.class,
             () -> IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING.get(indexSettings)
         );
-        assertEquals(
-            "To enable index.remote_store.enabled, index.replication.type should be set to SEGMENT or cluster.indices.replication.strategy should be set to true",
-            iae.getMessage()
-        );
+        assertEquals("To enable index.remote_store.enabled, index.replication.type should be set to SEGMENT", iae.getMessage());
     }
 
     public void testRemoteRepositoryDefaultSetting() {
@@ -936,7 +930,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             () -> IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING.get(indexSettings)
         );
         assertEquals(
-            "Settings index.remote_store.repository can ont be set/enabled when index.remote_store.enabled is set to true",
+            "Settings index.remote_store.repository can only be set/enabled when index.remote_store.enabled is set to true",
             iae.getMessage()
         );
     }
