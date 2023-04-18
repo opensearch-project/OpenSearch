@@ -27,7 +27,7 @@
 
 package org.opensearch.gradle.testclusters;
 
-public class ExtensionProperties {
+public class ExtensionsProperties {
     private String name;
     private String uniqueId;
     private String hostAddress;
@@ -35,9 +35,16 @@ public class ExtensionProperties {
     private String version;
     private String opensearchVersion;
     private String minimumCompatibleVersion;
-    
-    public ExtensionProperties(String name, String uniqueId, String hostAddress, String port, String version,
-            String opensearchVersion, String minimumCompatibleVersion) {
+
+    public ExtensionsProperties(
+        String name,
+        String uniqueId,
+        String hostAddress,
+        String port,
+        String version,
+        String opensearchVersion,
+        String minimumCompatibleVersion
+    ) {
         this.name = name;
         this.uniqueId = uniqueId;
         this.hostAddress = hostAddress;
@@ -46,45 +53,59 @@ public class ExtensionProperties {
         this.opensearchVersion = opensearchVersion;
         this.minimumCompatibleVersion = minimumCompatibleVersion;
     }
+
     public String getName() {
         return name;
     }
+
     public void setName(String name) {
         this.name = name;
     }
+
     public String getUniqueId() {
         return uniqueId;
     }
+
     public void setUniqueId(String uniqueId) {
         this.uniqueId = uniqueId;
     }
+
     public String getHostAddress() {
         return hostAddress;
     }
+
     public void setHostAddress(String hostAddress) {
         this.hostAddress = hostAddress;
     }
+
     public String getPort() {
         return port;
     }
+
     public void setPort(String port) {
         this.port = port;
     }
+
     public String getVersion() {
         return version;
     }
+
     public void setVersion(String version) {
         this.version = version;
     }
+
     public String getOpensearchVersion() {
         return opensearchVersion;
     }
+
     public void setOpensearchVersion(String opensearchVersion) {
         this.opensearchVersion = opensearchVersion;
     }
+
     public String getMinimumCompatibleVersion() {
         return minimumCompatibleVersion;
     }
+
     public void setMinimumCompatibleVersion(String minimumCompatibleVersion) {
         this.minimumCompatibleVersion = minimumCompatibleVersion;
     }
