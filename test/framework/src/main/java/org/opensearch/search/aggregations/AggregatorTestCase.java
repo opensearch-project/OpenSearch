@@ -335,7 +335,8 @@ public abstract class AggregatorTestCase extends OpenSearchTestCase {
             queryCache,
             queryCachingPolicy,
             false,
-            null
+            null,
+            false
         );
 
         SearchContext searchContext = mock(SearchContext.class);

@@ -76,6 +76,7 @@ import org.opensearch.search.query.QuerySearchResult;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -98,15 +99,31 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private QueryProfiler profiler;
     private MutableQueryTimeout cancellable;
 
+    /**
+     * Certain queries can benefit if we reverse the segment read order,
+     * for example time series based queries if searched for desc sort order
+     */
+    private boolean reverseLeafReaderContexts;
+
     public ContextIndexSearcher(
         IndexReader reader,
         Similarity similarity,
         QueryCache queryCache,
         QueryCachingPolicy queryCachingPolicy,
         boolean wrapWithExitableDirectoryReader,
-        Executor executor
+        Executor executor,
+        boolean reverseLeafReaderContexts
     ) throws IOException {
-        this(reader, similarity, queryCache, queryCachingPolicy, new MutableQueryTimeout(), wrapWithExitableDirectoryReader, executor);
+        this(
+            reader,
+            similarity,
+            queryCache,
+            queryCachingPolicy,
+            new MutableQueryTimeout(),
+            wrapWithExitableDirectoryReader,
+            executor,
+            reverseLeafReaderContexts
+        );
     }
 
     private ContextIndexSearcher(
@@ -116,13 +133,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         QueryCachingPolicy queryCachingPolicy,
         MutableQueryTimeout cancellable,
         boolean wrapWithExitableDirectoryReader,
-        Executor executor
+        Executor executor,
+        boolean reverseLeafReaderContexts
     ) throws IOException {
         super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
         setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
         this.cancellable = cancellable;
+        this.reverseLeafReaderContexts = reverseLeafReaderContexts;
     }
 
     public void setProfiler(QueryProfiler profiler) {
@@ -246,6 +265,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+        if (reverseLeafReaderContexts) {
+            // reverse the segment search order if this flag is true.
+            // We need to make a copy, so we don't corrupt DirectoryReader leaves order
+            leaves = new ArrayList<>(leaves);
+            Collections.reverse(leaves);
+        }
         for (LeafReaderContext ctx : leaves) { // search each subreader
             searchLeaf(ctx, weight, collector);
         }

@@ -44,6 +44,7 @@ import org.opensearch.Version;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.search.Queries;
@@ -89,6 +90,8 @@ import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.search.sort.SortBuilder;
+import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
 import java.io.IOException;
@@ -210,7 +213,8 @@ final class DefaultSearchContext extends SearchContext {
             engineSearcher.getQueryCache(),
             engineSearcher.getQueryCachingPolicy(),
             lowLevelCancellation,
-            executor
+            executor,
+            shouldReverseLeafReaderContexts()
         );
         this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;
@@ -884,5 +888,20 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public ReaderContext readerContext() {
         return readerContext;
+    }
+
+    private boolean shouldReverseLeafReaderContexts() {
+        boolean reverseLeafReaderContexts = Booleans.parseBoolean(
+            System.getProperty("opensearch.reverse_segment_search_order", Boolean.TRUE.toString())
+        );
+        if (reverseLeafReaderContexts) {
+            // this is only applicable to sort queries,
+            // also for Asc queries, the default segment read order will be followed
+            List<SortBuilder<?>> sorts = this.request.source().sorts();
+            if (sorts != null && sorts.size() > 0 && sorts.get(0).order() == SortOrder.DESC) {
+                return true;
+            }
+        }
+        return false;
     }
 }

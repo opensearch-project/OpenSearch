@@ -96,7 +96,8 @@ public class QueryProfilerTests extends OpenSearchTestCase {
             IndexSearcher.getDefaultQueryCache(),
             ALWAYS_CACHE_POLICY,
             true,
-            executor
+            executor,
+            false
         );
     }
 
