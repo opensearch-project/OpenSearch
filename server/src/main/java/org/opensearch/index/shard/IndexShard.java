@@ -2357,6 +2357,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return true;
     }
 
+    // Returns true if shard routing is primary & replication tracker is in primary mode.
+    public boolean isPrimaryMode() {
+        if (shardRouting.primary() && replicationTracker.isPrimaryMode()) {
+            return true;
+        }
+        return false;
+    }
+
     private boolean assertReplicationTarget() {
         assert replicationTracker.isPrimaryMode() == false : "shard " + shardRouting + " in primary mode cannot be a replication target";
         return true;
@@ -2739,7 +2747,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public void updateVisibleCheckpointForShard(final String allocationId, final ReplicationCheckpoint visibleCheckpoint) {
         // Update target replication checkpoint only when in active primary mode
-        if (shardRouting.primary() && replicationTracker.isPrimaryMode()) {
+        if (this.isPrimaryMode()) {
             verifyNotClosed();
             replicationTracker.updateVisibleCheckpointForShard(allocationId, visibleCheckpoint);
         }
