@@ -140,7 +140,7 @@ public class FuzzinessTests extends OpenSearchTestCase {
     }
 
     public void testFuzzinessValidationWithStrings() throws IOException {
-        String[] invalidStrings = new String[] { "+++", "asdfghjkl", "2k23" };
+        String[] invalidStrings = new String[] { "+++", "asdfghjkl", "2k23", "-1.0", "-100" };
         XContentBuilder json = jsonBuilder().startObject().field(Fuzziness.X_FIELD_NAME, randomFrom(invalidStrings)).endObject();
         try (XContentParser parser = createParser(json)) {
             assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
