@@ -27,6 +27,7 @@ import java.util.function.BiConsumer;
  * Service used to validate if the incoming indexing request should be rejected based on the {@link RemoteRefreshSegmentPressureTracker}.
  */
 public class RemoteRefreshSegmentPressureService implements IndexEventListener {
+
     private static final Logger logger = LogManager.getLogger(RemoteRefreshSegmentPressureService.class);
 
     /**

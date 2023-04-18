@@ -21,7 +21,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
-public class RemoteRefreshSegmentPressureSettingsTest extends OpenSearchTestCase {
+public class RemoteRefreshSegmentPressureSettingsTests extends OpenSearchTestCase {
 
     private ClusterService clusterService;
 
@@ -223,7 +223,6 @@ public class RemoteRefreshSegmentPressureSettingsTest extends OpenSearchTestCase
         AtomicInteger updatedUploadBytesWindowSize = new AtomicInteger();
         AtomicInteger updatedUploadBytesPerSecWindowSize = new AtomicInteger();
         AtomicInteger updatedUploadTimeWindowSize = new AtomicInteger();
-
 
         RemoteRefreshSegmentPressureService pressureService = mock(RemoteRefreshSegmentPressureService.class);
 

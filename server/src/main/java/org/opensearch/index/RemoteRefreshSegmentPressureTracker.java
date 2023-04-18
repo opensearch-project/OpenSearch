@@ -10,6 +10,7 @@ package org.opensearch.index;
 
 import org.opensearch.common.util.MovingAverage;
 import org.opensearch.common.util.Streak;
+import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.index.shard.ShardId;
 
 import java.util.Map;
@@ -118,7 +119,7 @@ public class RemoteRefreshSegmentPressureTracker {
     /**
      * Set of names of segment files that were uploaded as part of the most recent remote refresh.
      */
-    private volatile Set<String> latestUploadFiles;
+    private final Set<String> latestUploadFiles = ConcurrentCollections.newConcurrentSet();
 
     /**
      * Keeps the bytes lag computed so that we do not compute it for every request.
@@ -152,38 +153,58 @@ public class RemoteRefreshSegmentPressureTracker {
         return shardId;
     }
 
-    AtomicLong getLocalRefreshSeqNo() {
-        return localRefreshSeqNo;
+    long getLocalRefreshSeqNo() {
+        return localRefreshSeqNo.get();
     }
 
     void updateLocalRefreshSeqNo(long localRefreshSeqNo) {
+        assert localRefreshSeqNo > this.localRefreshSeqNo.get() : "newLocalRefreshSeqNo="
+            + localRefreshSeqNo
+            + ">="
+            + "currentLocalRefreshSeqNo="
+            + this.localRefreshSeqNo.get();
         this.localRefreshSeqNo.set(localRefreshSeqNo);
         computeSeqNoLag();
     }
 
-    AtomicLong getLocalRefreshTimeMs() {
-        return localRefreshTimeMs;
+    long getLocalRefreshTimeMs() {
+        return localRefreshTimeMs.get();
     }
 
     void updateLocalRefreshTimeMs(long localRefreshTimeMs) {
+        assert localRefreshTimeMs > this.localRefreshTimeMs.get() : "newLocalRefreshTimeMs="
+            + localRefreshTimeMs
+            + ">="
+            + "currentLocalRefreshTimeMs="
+            + this.localRefreshTimeMs.get();
         this.localRefreshTimeMs.set(localRefreshTimeMs);
         computeTimeMsLag();
     }
 
-    AtomicLong getRemoteRefreshSeqNo() {
-        return remoteRefreshSeqNo;
+    long getRemoteRefreshSeqNo() {
+        return remoteRefreshSeqNo.get();
     }
 
     void updateRemoteRefreshSeqNo(long remoteRefreshSeqNo) {
+        assert remoteRefreshSeqNo > this.remoteRefreshSeqNo.get() : "newRemoteRefreshSeqNo="
+            + remoteRefreshSeqNo
+            + ">="
+            + "currentRemoteRefreshSeqNo="
+            + this.remoteRefreshSeqNo.get();
         this.remoteRefreshSeqNo.set(remoteRefreshSeqNo);
         computeSeqNoLag();
     }
 
-    AtomicLong getRemoteRefreshTimeMs() {
-        return remoteRefreshTimeMs;
+    long getRemoteRefreshTimeMs() {
+        return remoteRefreshTimeMs.get();
     }
 
     void updateRemoteRefreshTimeMs(long remoteRefreshTimeMs) {
+        assert remoteRefreshTimeMs > this.remoteRefreshTimeMs.get() : "newRemoteRefreshTimeMs="
+            + remoteRefreshTimeMs
+            + ">="
+            + "currentRemoteRefreshTimeMs="
+            + this.remoteRefreshTimeMs.get();
         this.remoteRefreshTimeMs.set(remoteRefreshTimeMs);
         computeTimeMsLag();
     }
@@ -294,7 +315,7 @@ public class RemoteRefreshSegmentPressureTracker {
         }
         Set<String> filesNotYetUploaded = latestLocalFileNameLengthMap.keySet()
             .stream()
-            .filter(f -> latestUploadFiles == null || latestUploadFiles.contains(f) == false)
+            .filter(f -> !latestUploadFiles.contains(f))
             .collect(Collectors.toSet());
         long bytesLag = filesNotYetUploaded.stream().map(latestLocalFileNameLengthMap::get).mapToLong(Long::longValue).sum();
         this.bytesLag.set(bytesLag);
