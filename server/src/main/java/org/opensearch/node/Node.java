@@ -487,7 +487,7 @@ public class Node implements Closeable {
                 .map(Plugin::getOtelEventListeners)
                 .flatMap(List::stream)
                 .collect(Collectors.toList());
-            this.otelService = new OtelService(otelEventListenerList);
+            this.otelService = new OtelService(OtelService.OtelEventListeners.getInstance(otelEventListenerList));
 
             final ThreadPool threadPool = new ThreadPool(settings, runnableTaskListener, otelService,
                 executorBuilders.toArray(new ExecutorBuilder[0]));

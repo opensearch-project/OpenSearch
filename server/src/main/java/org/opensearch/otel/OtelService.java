@@ -98,10 +98,10 @@ public class OtelService {
         Span span = startSpan(spanName);
         try(Scope ignored = span.makeCurrent()) {
             actionListener = new SpanPreservingActionListener<>(actionListener, beforeAttach, span.getSpanContext().getSpanId());
-            emitResources(span, spanName + "-Start", null);
+            emitResources(span, spanName + "-Start", OtelEventListeners.getInstance(null));
             function.apply(args, actionListener);
         } finally {
-            emitResources(span, spanName + "-End", null);
+            emitResources(span, spanName + "-End", OtelEventListeners.getInstance(null));
         }
     }
 
@@ -138,8 +138,22 @@ public class OtelService {
         }
     }
 
+    public static class OtelEventListeners {
+        static volatile List<OtelEventListener> INSTANCE;
+        public static List<OtelEventListener> getInstance(List<OtelEventListener> otelEventListenerList) {
+            if (INSTANCE == null) {
+                synchronized (OtelEventListeners.class) {
+                    if (INSTANCE == null) {
+                        INSTANCE = otelEventListenerList;
+                    }
+                }
+            }
+            return INSTANCE;
+        }
+    }
+
     public static ExecutorService taskWrapping(ExecutorService delegate) {
-        return new CurrentContextExecutorService(delegate);
+        return new CurrentContextExecutorService(delegate, OtelEventListeners.getInstance(null));
     }
 
     public static ExecutorService taskWrapping(ExecutorService delegate, List<OtelEventListener> otelEventListeners) {
