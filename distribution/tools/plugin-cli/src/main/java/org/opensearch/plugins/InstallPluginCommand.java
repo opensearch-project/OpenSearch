@@ -89,6 +89,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -100,7 +101,7 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
+import java.util.zip.ZipFile;
 
 import static org.opensearch.cli.Terminal.Verbosity.VERBOSE;
 
@@ -716,10 +717,12 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         final Path target = stagingDirectory(pluginsDir);
         pathsToDeleteOnShutdown.add(target);
 
-        try (ZipInputStream zipInput = new ZipInputStream(Files.newInputStream(zip))) {
+        try (ZipFile zipFile = new ZipFile(zip.toString())) {
+            final Enumeration<? extends ZipEntry> entries = zipFile.entries();
             ZipEntry entry;
             byte[] buffer = new byte[8192];
-            while ((entry = zipInput.getNextEntry()) != null) {
+            while (entries.hasMoreElements()) {
+                entry = entries.nextElement();
                 if (entry.getName().startsWith("opensearch/")) {
                     throw new UserException(
                         PLUGIN_MALFORMED,
@@ -749,12 +752,11 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 if (entry.isDirectory() == false) {
                     try (OutputStream out = Files.newOutputStream(targetFile)) {
                         int len;
-                        while ((len = zipInput.read(buffer)) >= 0) {
+                        while ((len = zipFile.getInputStream(entry).read(buffer)) >= 0) {
                             out.write(buffer, 0, len);
                         }
                     }
                 }
-                zipInput.closeEntry();
             }
         } catch (UserException e) {
             IOUtils.rm(target);
