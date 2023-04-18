@@ -322,6 +322,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                 remoteDirectory.copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
                 // Upload succeeded
                 statsTracker.incrementUploadBytesSucceeded(fileSize);
+                statsTracker.addToLatestUploadFiles(file);
                 success = true;
             } catch (IOException e) {
                 // ToDO: Handle transient and permanent un-availability of the remote store (GitHub #3397)

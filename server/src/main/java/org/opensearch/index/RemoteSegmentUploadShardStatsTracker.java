@@ -247,10 +247,6 @@ public class RemoteSegmentUploadShardStatsTracker implements Writeable {
         this.latestLocalFileNameLengthMap = latestLocalFileNameLengthMap;
     }
 
-    public Set<String> getLatestUploadFiles() {
-        return latestUploadFiles;
-    }
-
     public void updateLatestUploadFiles(Set<String> latestUploadFiles) {
         this.latestUploadFiles = latestUploadFiles;
     }
@@ -324,5 +320,9 @@ public class RemoteSegmentUploadShardStatsTracker implements Writeable {
 
     public void updateUploadTimeMovingAverageWindowSize(int updatedSize) {
         this.uploadTimeMovingAverageReference.set(new MovingAverage(updatedSize));
+    }
+
+    public void addToLatestUploadFiles(String file) {
+        this.latestUploadFiles.add(file);
     }
 }
