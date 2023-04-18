@@ -165,15 +165,15 @@ If we reject the PR, we will close the pull request with a comment explaining wh
 
 We have a lot of mechanisms to help expedite towards an accepted PR.  Here are some tips for success:
 1. *Minimize BWC guarantees*: First PR review heavily focuses on the public facing API. This is what we have to "guarantee" as non-breaking for bwc across major versions.
-2. *Do not copy ES code*: SSPL co-mingling will get rejected real fast.
+2. *Do not copy non-complient code*: Ensure that code is APLv2 compatible. This means that you have not copied any code from other sources unless that code is also APLv2 compatible.
 3. *Use feature flags*: New features that are guarded behind a feature flag have a higher chance of being merged and backported since... they're guarded by feature flag ([Feature PR](https://github.com/opensearch-project/OpenSearch/pull/4959)).
 4. *Use appropriate java tags*:
-   - Mark internal classes that may rapidly change w/ `@opensearch.internal`.
-   - Mark public facing API classes that provide bwc guarantees w/ `@opensearch.api`.
-   - Mark rapidly changing experimental code w/ `@opensearch.experimental`.
+   - `@opensearch.internal`: Marks internal classes that may change rapidly.
+   - `@opensearch.api`: Marks public facing API classes that provide bwc guarantees.
+   - `@opensearch.experimental`: Mark rapidly changing experimental code.
 5. *Use sandbox for big core changes*: Any new features or enhancements that make changes to core classes (e.g., search phases, codecs, specialized lucene APIs) are more quickly merged if they are sandboxed. This can only be enabled on the java CLI (`-Dsandbox.enabled=true`)
 6. *Micro-benchmark critical path*: This is a lesser known mechanism, but if you have critical path changes you're afraid will impact performance (gc, heap, direct memory, CPU) then including a [microbenchmark](https://github.com/opensearch-project/OpenSearch/tree/main/benchmarks) with your PR (and jfr or flamegraph results in the description) is a *GREAT IDEA* and will help expedite the review process.
-7. *test, test, test*: pretty self explanatory ([OpenSearchTestCase](./test/framework/src/main/java/org/opensearch/test/OpenSearchTestCase.java) for unit tests, [OpenSearchIntegTestCase](./test/framework/src/main/java/org/opensearch/test/OpenSearchIntegTestCase.java) for integration / cluster tests, [OpenSearchRestTestCase](./test/framework/src/main/java/org/opensearch/test/rest/OpenSearchRestTestCase.java) for testing REST endpoint interfaces, and yaml tests with [ClientYamlTestSuiteIT](./rest-api-spec/src/yamlRestTest/java/org/opensearch/test/rest/ClientYamlTestSuiteIT.java) for REST integration tests)
+7. *test, test, test*: pretty self explanatory ([OpenSearchTestCase](./test/framework/src/main/java/org/opensearch/test/OpenSearchTestCase.java) for unit tests, [OpenSearchIntegTestCase](./test/framework/src/main/java/org/opensearch/test/OpenSearchIntegTestCase.java) for integration & cluster tests, [OpenSearchRestTestCase](./test/framework/src/main/java/org/opensearch/test/rest/OpenSearchRestTestCase.java) for testing REST endpoint interfaces, and yaml tests with [ClientYamlTestSuiteIT](./rest-api-spec/src/yamlRestTest/java/org/opensearch/test/rest/ClientYamlTestSuiteIT.java) for REST integration tests)
 
 If you're bias towards liberal guardrails, you have a higher chance of the PR getting merged quickly. We can always relax these guard rails in smaller followup PRs. Reverting a GA feature is much more difficult. Check out the [DEVELOPER_GUIDE](./DEVELOPER_GUIDE.md#submitting-changes) for more useful tips.
 
