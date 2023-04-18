@@ -14,8 +14,8 @@ import org.opensearch.plugins.EnginePlugin;
 /**
  * A plugin that implements custom codecs. Supports these codecs:
  * <ul>
- * <li>ZSTD
- * <li>ZSTDNODICT
+ * <li>zstd
+ * <li>zstdnodict
  * </ul>
  *
  * @opensearch.internal
