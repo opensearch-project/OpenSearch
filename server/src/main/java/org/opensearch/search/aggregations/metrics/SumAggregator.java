@@ -47,12 +47,10 @@ import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.util.Map;
 
 /**
- * Aggregate all docs into a single sum value for floating point data types
+ * Aggregate all docs into a single sum value
  *
  * @opensearch.internal
  */
@@ -62,6 +60,7 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
     private final DocValueFormat format;
 
     private DoubleArray sums;
+    private DoubleArray compensations;
 
     SumAggregator(
         String name,
@@ -71,9 +70,12 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
+
         this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
         this.format = valuesSourceConfig.format();
+
         sums = context.bigArrays().newDoubleArray(1, true);
+        compensations = context.bigArrays().newDoubleArray(1, true);
     }
 
     @Override
@@ -85,28 +87,28 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
+        final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 sums = bigArrays.grow(sums, bucket + 1);
+                compensations = bigArrays.grow(compensations, bucket + 1);
 
                 if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
-                    double value = sums.get(bucket);
-                    BigInteger valueInteger = BigInteger.valueOf((long) value);
-                    double valueFloating = value - (long) value;
-
-                    BigDecimal sum = BigDecimal.valueOf(sums.get(bucket));
+                    // Compute the sum of double values with Kahan summation algorithm which is more
+                    // accurate than naive summation.
+                    double sum = sums.get(bucket);
+                    double compensation = compensations.get(bucket);
+                    kahanSummation.reset(sum, compensation);
 
                     for (int i = 0; i < valuesCount; i++) {
-                        value = values.nextValue();
-                        valueInteger = valueInteger.add(BigInteger.valueOf((long) value));
-                        valueFloating += value - (long) value;
-
-                        sum = sum.add(BigDecimal.valueOf(values.nextValue()));
+                        double value = values.nextValue();
+                        kahanSummation.add(value);
                     }
 
-                    sums.set(bucket, valueInteger.doubleValue() + valueFloating);
+                    compensations.set(bucket, kahanSummation.delta());
+                    sums.set(bucket, kahanSummation.value());
                 }
             }
         };
@@ -135,6 +137,6 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
 
     @Override
     public void doClose() {
-        Releasables.close(sums);
+        Releasables.close(sums, compensations);
     }
 }
