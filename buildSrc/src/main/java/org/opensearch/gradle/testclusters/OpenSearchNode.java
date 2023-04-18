@@ -367,7 +367,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
              * SnakeYaml creates a Yaml file with an unnecessary line at the top with the class name
              * This section of code removes that line while keeping everything else the same.
              */
-            
+
             Scanner scanner = new Scanner(destination);
             scanner.nextLine();
             StringBuilder extensionsString = new StringBuilder();
@@ -379,7 +379,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
             Path configDestination = getDistroDir().resolve("config").resolve("opensearch.yml");
             Files.write(
                 configDestination,
-                "\nopensearch.experimental.feature.extensions.enabled=true".getBytes(),
+                "\nopensearch.experimental.feature.extensions.enabled: true".getBytes(),
                 StandardOpenOption.APPEND
             );
 
