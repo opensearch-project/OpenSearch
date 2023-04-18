@@ -33,37 +33,14 @@ package org.opensearch.search.aggregations.metrics;
 
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.plugins.Plugin;
-import org.opensearch.script.Script;
-import org.opensearch.script.ScriptType;
-import org.opensearch.search.aggregations.BucketOrder;
-import org.opensearch.search.aggregations.InternalAggregation;
-import org.opensearch.search.aggregations.bucket.filter.Filter;
-import org.opensearch.search.aggregations.bucket.global.Global;
-import org.opensearch.search.aggregations.bucket.histogram.Histogram;
-import org.opensearch.search.aggregations.bucket.terms.Terms;
-import org.hamcrest.core.IsNull;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
-import static org.opensearch.index.query.QueryBuilders.termQuery;
-import static org.opensearch.search.aggregations.AggregationBuilders.filter;
-import static org.opensearch.search.aggregations.AggregationBuilders.global;
-import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
 import static org.opensearch.search.aggregations.AggregationBuilders.sum;
-import static org.opensearch.search.aggregations.AggregationBuilders.terms;
-import static org.opensearch.search.aggregations.metrics.MetricAggScriptPlugin.METRIC_SCRIPT_ENGINE;
-import static org.opensearch.search.aggregations.metrics.MetricAggScriptPlugin.RANDOM_SCRIPT;
-import static org.opensearch.search.aggregations.metrics.MetricAggScriptPlugin.VALUE_SCRIPT;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
