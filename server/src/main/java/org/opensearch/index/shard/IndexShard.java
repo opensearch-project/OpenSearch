@@ -2359,10 +2359,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     // Returns true if shard routing is primary & replication tracker is in primary mode.
     public boolean isPrimaryMode() {
-        if (shardRouting.primary() && replicationTracker.isPrimaryMode()) {
-            return true;
-        }
-        return false;
+        return shardRouting.primary() && replicationTracker.isPrimaryMode();
     }
 
     private boolean assertReplicationTarget() {
