@@ -37,6 +37,7 @@ import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -172,7 +173,11 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
                 for (IndexShard indexShard : indexService) {
                     if (indexShard.routingEntry().primary()) {
                         final IndexMetadata indexMetadata = indexService.getIndexSettings().getIndexMetadata();
-                        final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(indexShard.shardId().id());
+                        final Set<String> inSyncAllocationIds = new HashSet<>(indexMetadata.inSyncAllocationIds(indexShard.shardId().id()));
+                        if (indexShard.isPrimaryMode()) {
+                            final Set<String> shardTrackerInSyncIds = indexShard.getReplicationGroup().getInSyncAllocationIds();
+                            inSyncAllocationIds.addAll(shardTrackerInSyncIds);
+                        }
                         ongoingSegmentReplications.clearOutOfSyncIds(indexShard.shardId(), inSyncAllocationIds);
                     }
                 }
