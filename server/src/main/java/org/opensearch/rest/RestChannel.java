@@ -34,17 +34,23 @@ package org.opensearch.rest;
 
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.http.HttpChunk;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Flow.Publisher;
+import java.util.concurrent.Flow.Subscriber;
 
 /**
  * A channel used to construct bytes / builder based outputs, and send responses.
  *
  * @opensearch.api
  */
-public interface RestChannel {
+public interface RestChannel extends Publisher<HttpChunk> {
 
     XContentBuilder newBuilder() throws IOException;
 
@@ -64,5 +70,20 @@ public interface RestChannel {
      */
     boolean detailedErrorsEnabled();
 
-    void sendResponse(RestResponse response);
+    default void sendResponse(RestResponse response) {
+        throw new UnsupportedOperationException("The operation is not supported");
+    }
+
+    default void sendChunk(XContentBuilder chunk) {
+        throw new UnsupportedOperationException("The operation is not supported");
+    }
+
+    @Override
+    default void subscribe(Subscriber<? super HttpChunk> subscriber) {
+        throw new UnsupportedOperationException("The operation is not supported");
+    }
+
+    default void prepareResponse(RestStatus status, Map<String, List<String>> headers) {
+        throw new UnsupportedOperationException("The operation is not supported");
+    }
 }

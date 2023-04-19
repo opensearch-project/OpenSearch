@@ -36,13 +36,36 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.common.network.CloseableChannel;
 
 import java.net.InetSocketAddress;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Flow.Publisher;
+import java.util.concurrent.Flow.Subscriber;
 
 /**
  * Represents an HTTP comms channel
  *
  * @opensearch.internal
  */
-public interface HttpChannel extends CloseableChannel {
+public interface HttpChannel extends CloseableChannel, Publisher<HttpChunk> {
+    /**
+     * Sends an http response chunk to the channel.
+     * @param chunk response chunk to send to channel
+     */
+    default void sendChunk(HttpChunk chunk, ActionListener<Void> listener) {
+        throw new UnsupportedOperationException("The streaming responses are not supported");
+    }
+
+    default void receiveChunk(HttpChunk message) {
+        throw new UnsupportedOperationException("The streaming responses are not supported");
+    }
+
+    default void subscribe(Subscriber<? super HttpChunk> s) {
+        throw new UnsupportedOperationException("The streaming responses are not supported");
+    }
+
+    default void prepareResponse(int status, Map<String, List<String>> headers) {
+        throw new UnsupportedOperationException("The streaming responses are not supported");
+    }
 
     /**
      * Sends an http response to the channel. The listener will be executed once the send process has been

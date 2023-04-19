@@ -32,6 +32,8 @@
 
 package org.opensearch.rest;
 
+import reactor.core.publisher.Mono;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -52,6 +54,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.util.io.Streams;
+import org.opensearch.http.HttpChunk;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.identity.Subject;
@@ -59,6 +62,7 @@ import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.identity.tokens.RestTokenExtractor;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.usage.UsageService;
+import org.reactivestreams.FlowAdapters;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -70,6 +74,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -280,6 +285,32 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
+    @Override
+    public boolean dispatchAsStream(String uri, String rawPath, RestRequest.Method method, Map<String, String> params) {
+        // Loop through all possible handlers, attempting to dispatch the request
+        final Iterator<MethodHandlers> allHandlers = getAllHandlers(params, rawPath);
+
+        while (allHandlers.hasNext()) {
+            final RestHandler handler;
+            final MethodHandlers handlers = allHandlers.next();
+            if (handlers == null) {
+                handler = null;
+            } else {
+                handler = handlers.getHandler(method);
+            }
+            if (handler == null) {
+                final Set<RestRequest.Method> validMethodSet = getValidHandlerMethodSet(rawPath);
+                if (validMethodSet.contains(method) == false) {
+                    return false;
+                }
+            } else {
+                return handler.supportsStreaming();
+            }
+        }
+
+        return false;
+    }
+
     private void dispatchRequest(RestRequest request, RestChannel channel, RestHandler handler) throws Exception {
         final int contentLength = request.content().length();
         if (contentLength > 0) {
@@ -306,8 +337,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
             } else {
                 inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(contentLength);
             }
-            // iff we could reserve bytes for the request we need to send the response also over this channel
-            responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
+            if (handler.supportsStreaming()) {
+                responseChannel = new StreamHandlingHttpChannel(channel, circuitBreakerService, contentLength);
+            } else {
+                // iff we could reserve bytes for the request we need to send the response also over this channel
+                responseChannel = new ResourceHandlingHttpChannel(channel, circuitBreakerService, contentLength);
+            }
             // TODO: Count requests double in the circuit breaker if they need copying?
             if (handler.allowsUnsafeBuffers() == false) {
                 request.ensureSafeBuffers();
@@ -321,7 +356,15 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
             handler.handleRequest(request, responseChannel, client);
         } catch (Exception e) {
-            responseChannel.sendResponse(new BytesRestResponse(responseChannel, e));
+            final BytesRestResponse response = new BytesRestResponse(responseChannel, e);
+            if (handler.supportsStreaming()) {
+                // TODO: Look out for better solution, once subscribe() is called, the headers and status
+                // are going to be sent over so we need to populate those **before** that.
+                responseChannel.prepareResponse(response.status(), Map.of("Content-Type", List.of(response.contentType())));
+                Mono.ignoreElements(FlowAdapters.toPublisher(channel)).then(Mono.just(response)).subscribe(responseChannel::sendResponse);
+            } else {
+                responseChannel.sendResponse(response);
+            }
         }
     }
 
@@ -618,9 +661,19 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
+        public void sendChunk(XContentBuilder chunk) {
+            delegate.sendChunk(chunk);
+        }
+
+        @Override
         public void sendResponse(RestResponse response) {
             close();
             delegate.sendResponse(response);
+        }
+
+        @Override
+        public void subscribe(Subscriber<? super HttpChunk> subscriber) {
+            delegate.subscribe(subscriber);
         }
 
         private void close() {
@@ -631,6 +684,83 @@ public class RestController implements HttpServerTransport.Dispatcher {
             inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
         }
 
+    }
+
+    private static final class StreamHandlingHttpChannel implements RestChannel {
+        private final RestChannel delegate;
+        private final CircuitBreakerService circuitBreakerService;
+        private final int contentLength;
+        private final AtomicBoolean closed = new AtomicBoolean();
+
+        StreamHandlingHttpChannel(RestChannel delegate, CircuitBreakerService circuitBreakerService, int contentLength) {
+            this.delegate = delegate;
+            this.circuitBreakerService = circuitBreakerService;
+            this.contentLength = contentLength;
+        }
+
+        @Override
+        public XContentBuilder newBuilder() throws IOException {
+            return delegate.newBuilder();
+        }
+
+        @Override
+        public XContentBuilder newErrorBuilder() throws IOException {
+            return delegate.newErrorBuilder();
+        }
+
+        @Override
+        public XContentBuilder newBuilder(@Nullable MediaType xContentType, boolean useFiltering) throws IOException {
+            return delegate.newBuilder(xContentType, useFiltering);
+        }
+
+        @Override
+        public XContentBuilder newBuilder(MediaType xContentType, MediaType responseContentType, boolean useFiltering) throws IOException {
+            return delegate.newBuilder(xContentType, responseContentType, useFiltering);
+        }
+
+        @Override
+        public BytesStreamOutput bytesOutput() {
+            return delegate.bytesOutput();
+        }
+
+        @Override
+        public RestRequest request() {
+            return delegate.request();
+        }
+
+        @Override
+        public boolean detailedErrorsEnabled() {
+            return delegate.detailedErrorsEnabled();
+        }
+
+        @Override
+        public void sendResponse(RestResponse response) {
+            close();
+            delegate.sendResponse(response);
+        }
+
+        @Override
+        public void sendChunk(XContentBuilder chunk) {
+            delegate.sendChunk(chunk);
+        }
+
+        @Override
+        public void prepareResponse(RestStatus status, Map<String, List<String>> headers) {
+            delegate.prepareResponse(status, headers);
+        }
+
+        private void close() {
+            // attempt to close once atomically
+            if (closed.compareAndSet(false, true) == false) {
+                throw new IllegalStateException("Channel is already closed");
+            }
+            inFlightRequestsBreaker(circuitBreakerService).addWithoutBreaking(-contentLength);
+        }
+
+        @Override
+        public void subscribe(Subscriber<? super HttpChunk> subscriber) {
+            delegate.subscribe(subscriber);
+        }
     }
 
     private static CircuitBreaker inFlightRequestsBreaker(CircuitBreakerService circuitBreakerService) {

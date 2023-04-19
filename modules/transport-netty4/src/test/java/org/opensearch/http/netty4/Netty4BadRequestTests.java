@@ -48,6 +48,7 @@ import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -60,6 +61,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -98,6 +100,11 @@ public class Netty4BadRequestTests extends OpenSearchTestCase {
                 } catch (final IOException e) {
                     throw new UncheckedIOException(e);
                 }
+            }
+
+            @Override
+            public boolean dispatchAsStream(String uri, String path, Method method, Map<String, String> params) {
+                return false;
             }
         };
 

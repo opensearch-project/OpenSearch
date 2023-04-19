@@ -44,6 +44,7 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.AbstractRestChannel;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
@@ -52,6 +53,7 @@ import org.opensearch.core.rest.RestStatus;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Flow.Subscriber;
 
 import static org.opensearch.tasks.Task.X_OPAQUE_ID;
 
@@ -110,6 +112,42 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     @Override
     protected BytesStreamOutput newBytesOutput() {
         return new ReleasableBytesStreamOutput(bigArrays);
+    }
+
+    @Override
+    public void sendChunk(XContentBuilder builder) {
+        final HttpChunk chunk = new XContentHttpChunk(builder);
+
+        String opaque = null;
+        boolean success = false;
+        final ArrayList<Releasable> toClose = new ArrayList<>(3);
+        String contentLength = null;
+
+        try {
+            opaque = request.header(X_OPAQUE_ID);
+            contentLength = String.valueOf(chunk.content().length());
+
+            final BytesReference content = chunk.content();
+            if (content instanceof Releasable) {
+                toClose.add((Releasable) content);
+            }
+
+            BytesStreamOutput bytesStreamOutput = bytesOutputOrNull();
+            if (bytesStreamOutput instanceof ReleasableBytesStreamOutput) {
+                toClose.add((Releasable) bytesStreamOutput);
+            }
+
+            ActionListener<Void> listener = ActionListener.wrap(() -> Releasables.close(toClose));
+            httpChannel.sendChunk(chunk, listener);
+            success = true;
+        } finally {
+            if (success == false) {
+                Releasables.close(toClose);
+            }
+            if (tracerLog != null) {
+                tracerLog.traceChunk(chunk, httpChannel, contentLength, opaque, request.getRequestId(), success);
+            }
+        }
     }
 
     @Override
@@ -180,6 +218,16 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                 tracerLog.traceResponse(restResponse, httpChannel, contentLength, opaque, request.getRequestId(), success);
             }
         }
+    }
+
+    @Override
+    public void prepareResponse(RestStatus status, Map<String, List<String>> headers) {
+        httpChannel.prepareResponse(status.getStatus(), headers);
+    }
+
+    @Override
+    public void subscribe(Subscriber<? super HttpChunk> subscriber) {
+        httpChannel.subscribe(subscriber);
     }
 
     private void setHeaderField(HttpResponse response, String headerField, String value) {

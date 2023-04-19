@@ -35,7 +35,7 @@ package org.opensearch.repositories;
 import org.opensearch.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.common.io.stream.Writeable;;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;

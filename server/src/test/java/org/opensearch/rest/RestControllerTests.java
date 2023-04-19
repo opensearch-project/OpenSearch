@@ -45,9 +45,11 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.http.HttpChunk;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.http.HttpRequest;
 import org.opensearch.http.HttpResponse;
@@ -72,6 +74,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Flow.Subscriber;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -717,6 +720,12 @@ public class RestControllerTests extends OpenSearchTestCase {
             return getRestResponse() != null;
         }
 
+        @Override
+        public void sendChunk(XContentBuilder chunk) {}
+
+        @Override
+        public void subscribe(Subscriber<? super HttpChunk> subscriber) {}
+
     }
 
     private static final class ExceptionThrowingChannel extends AbstractRestChannel {
@@ -729,6 +738,12 @@ public class RestControllerTests extends OpenSearchTestCase {
         public void sendResponse(RestResponse response) {
             throw new IllegalStateException("always throwing an exception for testing");
         }
+
+        @Override
+        public void sendChunk(XContentBuilder chunk) {}
+
+        @Override
+        public void subscribe(Subscriber<? super HttpChunk> subscriber) {}
     }
 
     private static RestRequest testRestRequest(String path, String content, XContentType xContentType) {

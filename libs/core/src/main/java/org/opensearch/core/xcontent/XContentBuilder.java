@@ -60,6 +60,7 @@ import java.util.function.Function;
  * A utility to build XContent (ie json).
  */
 public final class XContentBuilder implements Closeable, Flushable {
+    public static final XContentBuilder NO_CONTENT = new XContentBuilder();
 
     /**
      * Create a new {@link XContentBuilder} using the given {@link XContent} content.
@@ -216,6 +217,11 @@ public final class XContentBuilder implements Closeable, Flushable {
     public XContentBuilder(XContent xContent, OutputStream os, Set<String> includes, Set<String> excludes) throws IOException {
         this.bos = os;
         this.generator = xContent.createGenerator(bos, includes, excludes);
+    }
+
+    private XContentBuilder() {
+        this.bos = null;
+        this.generator = null;
     }
 
     public MediaType contentType() {

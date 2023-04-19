@@ -45,6 +45,7 @@ import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.http.netty4.Netty4HttpServerTransport;
+import org.opensearch.http.reactor.ReactorNetty4HttpServerTransport;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
@@ -126,7 +127,7 @@ public class Netty4ModulePlugin extends Plugin implements NetworkPlugin {
     ) {
         return Collections.singletonMap(
             NETTY_HTTP_TRANSPORT_NAME,
-            () -> new Netty4HttpServerTransport(
+            () -> new ReactorNetty4HttpServerTransport(
                 settings,
                 networkService,
                 bigArrays,

@@ -39,6 +39,8 @@ import org.opensearch.node.ReportingService;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 
+import java.util.Map;
+
 /**
  * HTTP Transport server
  *
@@ -79,6 +81,18 @@ public interface HttpServerTransport extends LifecycleComponent, ReportingServic
          * @param cause         the cause of the bad request
          */
         void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause);
+
+        /**
+         * Indicates if the request and response have to be dispatched as streams.
+         * @param uri request's URI
+         * @param path request's path
+         * @param method request's HTTP method
+         * @param params request parameters
+         * @return "true" if the request and response have to be dispatched as streams, "false" otherwise
+         */
+        default boolean dispatchAsStream(String uri, String path, RestRequest.Method method, Map<String, String> params) {
+            return false;
+        }
 
     }
 }

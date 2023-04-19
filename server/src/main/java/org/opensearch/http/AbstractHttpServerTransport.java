@@ -345,6 +345,10 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         logger.trace(() -> new ParameterizedMessage("Http channel accepted: {}", httpChannel));
     }
 
+    public void incomingStream(HttpRequest httpRequest, final HttpChannel httpChannel) {
+        handleIncomingRequest(httpRequest, httpChannel, httpRequest.getInboundException());
+    }
+
     /**
      * This method handles an incoming http request.
      *

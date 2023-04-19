@@ -31,6 +31,8 @@
 
 package org.opensearch.test;
 
+import reactor.core.scheduler.Schedulers;
+
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
@@ -222,6 +224,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
 
     @Override
     public void tearDown() throws Exception {
+        Schedulers.shutdownNow();
         FeatureFlagSetter.clear();
         super.tearDown();
     }

@@ -46,6 +46,7 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.http.HttpChunk;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.search.SearchShardTarget;
@@ -57,6 +58,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.Flow.Subscriber;
 
 import static org.opensearch.OpenSearchExceptionTests.assertDeepEquals;
 import static org.hamcrest.Matchers.contains;
@@ -375,6 +377,12 @@ public class BytesRestResponseTests extends OpenSearchTestCase {
 
         @Override
         public void sendResponse(RestResponse response) {}
+
+        @Override
+        public void sendChunk(XContentBuilder chunk) {}
+
+        @Override
+        public void subscribe(Subscriber<? super HttpChunk> subscriber) {}
     }
 
     private static class DetailedExceptionRestChannel extends AbstractRestChannel {
@@ -385,5 +393,11 @@ public class BytesRestResponseTests extends OpenSearchTestCase {
 
         @Override
         public void sendResponse(RestResponse response) {}
+
+        @Override
+        public void sendChunk(XContentBuilder chunk) {}
+
+        @Override
+        public void subscribe(Subscriber<? super HttpChunk> subscriber) {}
     }
 }

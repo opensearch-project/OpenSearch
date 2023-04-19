@@ -53,6 +53,8 @@ public class CompressorFactory {
 
     public static final Compressor NONE_COMPRESSOR = new NoneCompressor();
 
+    public static final Compressor GZIP_COMPRESSOR = new GzipCompressor();
+
     public static boolean isCompressed(BytesReference bytes) {
         return compressor(bytes) != null;
     }
@@ -72,6 +74,9 @@ public class CompressorFactory {
         } else if (ZSTD_COMPRESSOR.isCompressed(bytes)) {
             assert XContentHelper.xContentType(bytes) == null;
             return ZSTD_COMPRESSOR;
+        } else if (GZIP_COMPRESSOR.isCompressed(bytes)) {
+            assert XContentHelper.xContentType(bytes) == null;
+            return GZIP_COMPRESSOR;
         }
 
         if (XContentHelper.xContentType(bytes) == null) {

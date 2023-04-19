@@ -316,6 +316,11 @@ public abstract class BaseRestHandler implements RestHandler {
         public boolean allowSystemIndexAccessByDefault() {
             return delegate.allowSystemIndexAccessByDefault();
         }
+
+        @Override
+        public boolean supportsStreaming() {
+            return delegate.supportsStreaming();
+        }
     }
 
     /**

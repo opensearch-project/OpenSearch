@@ -40,6 +40,7 @@ import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.io.entity.BufferedHttpEntity;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
@@ -66,7 +67,7 @@ final class RequestLogger {
     /**
      * Logs a request that yielded a response
      */
-    static void logResponse(Log logger, HttpUriRequest request, HttpHost host, ClassicHttpResponse httpResponse) {
+    static void logResponse(Log logger, HttpUriRequest request, HttpHost host, HttpResponse httpResponse) {
         if (logger.isDebugEnabled()) {
             logger.debug(
                 "request [" + request.getMethod() + " " + host + getUri(request) + "] returned [" + new StatusLine(httpResponse) + "]"
@@ -157,28 +158,31 @@ final class RequestLogger {
     /**
      * Creates curl output for given response
      */
-    static String buildTraceResponse(ClassicHttpResponse httpResponse) throws IOException {
+    static String buildTraceResponse(HttpResponse httpResponse) throws IOException {
         StringBuilder responseLine = new StringBuilder();
         responseLine.append("# ").append(new StatusLine(httpResponse));
         for (Header header : httpResponse.getHeaders()) {
             responseLine.append("\n# ").append(header.getName()).append(": ").append(header.getValue());
         }
         responseLine.append("\n#");
-        HttpEntity entity = httpResponse.getEntity();
-        if (entity != null) {
-            if (entity.isRepeatable() == false) {
-                entity = new BufferedHttpEntity(entity);
-            }
-            httpResponse.setEntity(entity);
-            ContentType contentType = ContentType.parse(entity.getContentType());
-            Charset charset = StandardCharsets.UTF_8;
-            if (contentType != null && contentType.getCharset() != null) {
-                charset = contentType.getCharset();
-            }
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(entity.getContent(), charset))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    responseLine.append("\n# ").append(line);
+        if (httpResponse instanceof ClassicHttpResponse) {
+            ClassicHttpResponse classicHttpResponse = (ClassicHttpResponse) httpResponse;
+            HttpEntity entity = classicHttpResponse.getEntity();
+            if (entity != null) {
+                if (entity.isRepeatable() == false) {
+                    entity = new BufferedHttpEntity(entity);
+                }
+                classicHttpResponse.setEntity(entity);
+                ContentType contentType = ContentType.parse(entity.getContentType());
+                Charset charset = StandardCharsets.UTF_8;
+                if (contentType != null && contentType.getCharset() != null) {
+                    charset = contentType.getCharset();
+                }
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(entity.getContent(), charset))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        responseLine.append("\n# ").append(line);
+                    }
                 }
             }
         }

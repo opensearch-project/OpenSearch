@@ -59,12 +59,12 @@ import static org.opensearch.core.xcontent.XContentParserUtils.throwUnknownToken
  * @opensearch.internal
  */
 public class BulkResponse extends ActionResponse implements Iterable<BulkItemResponse>, StatusToXContentObject {
-
     private static final String ITEMS = "items";
     private static final String ERRORS = "errors";
     private static final String TOOK = "took";
     private static final String INGEST_TOOK = "ingest_took";
 
+    public static final BulkResponse EMPTY = new BulkResponse(new BulkItemResponse[0], 0L);
     public static final long NO_INGEST_TOOK = -1L;
 
     private final BulkItemResponse[] responses;

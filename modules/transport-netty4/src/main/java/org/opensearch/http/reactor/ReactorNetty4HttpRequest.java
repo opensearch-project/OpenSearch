@@ -6,47 +6,24 @@
  * compatible open source license.
  */
 
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-/*
- * Modifications Copyright OpenSearch Contributors. See
- * GitHub history for details.
- */
-
-package org.opensearch.http.netty4;
+package org.opensearch.http.reactor;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultHttpHeaders;
-import io.netty.handler.codec.http.FullHttpRequest;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpHeaders;
+import io.netty.handler.codec.http.HttpMethod;
 import io.netty.handler.codec.http.cookie.Cookie;
 import io.netty.handler.codec.http.cookie.ServerCookieDecoder;
 import io.netty.handler.codec.http.cookie.ServerCookieEncoder;
+import reactor.netty.http.server.HttpServerRequest;
+
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.http.HttpConversionUtil;
 import org.opensearch.http.HttpRequest;
 import org.opensearch.rest.RestRequest;
-import org.opensearch.core.rest.RestStatus;
 import org.opensearch.transport.netty4.Netty4Utils;
 
 import java.util.AbstractMap;
@@ -58,55 +35,57 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
-public class Netty4HttpRequest implements HttpRequest {
-
-    private final FullHttpRequest request;
-    private final BytesReference content;
+public class ReactorNetty4HttpRequest implements HttpRequest {
+    private final String protocol;
+    private final HttpMethod method;
+    private final String uri;
+    private final ByteBuf content;
     private final HttpHeadersMap headers;
     private final AtomicBoolean released;
     private final Exception inboundException;
     private final boolean pooled;
 
-    Netty4HttpRequest(FullHttpRequest request) {
-        this(
-            request,
-            new HttpHeadersMap(request.headers()),
-            new AtomicBoolean(false),
-            true,
-            Netty4Utils.toBytesReference(request.content())
-        );
+    ReactorNetty4HttpRequest(HttpServerRequest request, ByteBuf content) {
+        this(request, new HttpHeadersMap(request.requestHeaders()), new AtomicBoolean(false), true, content);
     }
 
-    Netty4HttpRequest(FullHttpRequest request, Exception inboundException) {
+    ReactorNetty4HttpRequest(HttpServerRequest request, ByteBuf content, Exception inboundException) {
         this(
-            request,
-            new HttpHeadersMap(request.headers()),
+            request.protocol(),
+            request.method(),
+            request.uri(),
+            new HttpHeadersMap(request.requestHeaders()),
             new AtomicBoolean(false),
             true,
-            Netty4Utils.toBytesReference(request.content()),
+            content,
             inboundException
         );
     }
 
-    private Netty4HttpRequest(
-        FullHttpRequest request,
+    private ReactorNetty4HttpRequest(
+        HttpServerRequest request,
         HttpHeadersMap headers,
         AtomicBoolean released,
         boolean pooled,
-        BytesReference content
+        ByteBuf content
     ) {
-        this(request, headers, released, pooled, content, null);
+        this(request.protocol(), request.method(), request.uri(), headers, released, pooled, content, null);
     }
 
-    private Netty4HttpRequest(
-        FullHttpRequest request,
+    private ReactorNetty4HttpRequest(
+        String protocol,
+        HttpMethod method,
+        String uri,
         HttpHeadersMap headers,
         AtomicBoolean released,
         boolean pooled,
-        BytesReference content,
+        ByteBuf content,
         Exception inboundException
     ) {
-        this.request = request;
+
+        this.protocol = protocol;
+        this.method = method;
+        this.uri = uri;
         this.headers = headers;
         this.content = content;
         this.pooled = pooled;
@@ -116,24 +95,24 @@ public class Netty4HttpRequest implements HttpRequest {
 
     @Override
     public RestRequest.Method method() {
-        return HttpConversionUtil.convertMethod(request.method());
+        return HttpConversionUtil.convertMethod(method);
     }
 
     @Override
     public String uri() {
-        return request.uri();
+        return uri;
     }
 
     @Override
     public BytesReference content() {
         assert released.get() == false;
-        return content;
+        return Netty4Utils.toBytesReference(content);
     }
 
     @Override
     public void release() {
         if (pooled && released.compareAndSet(false, true)) {
-            request.release();
+            content.release();
         }
     }
 
@@ -144,21 +123,8 @@ public class Netty4HttpRequest implements HttpRequest {
             return this;
         }
         try {
-            final ByteBuf copiedContent = Unpooled.copiedBuffer(request.content());
-            return new Netty4HttpRequest(
-                new DefaultFullHttpRequest(
-                    request.protocolVersion(),
-                    request.method(),
-                    request.uri(),
-                    copiedContent,
-                    request.headers(),
-                    request.trailingHeaders()
-                ),
-                headers,
-                new AtomicBoolean(false),
-                false,
-                Netty4Utils.toBytesReference(copiedContent)
-            );
+            final ByteBuf copiedContent = Unpooled.copiedBuffer(content);
+            return new ReactorNetty4HttpRequest(protocol, method, uri, headers, new AtomicBoolean(false), false, copiedContent, null);
         } finally {
             release();
         }
@@ -171,7 +137,7 @@ public class Netty4HttpRequest implements HttpRequest {
 
     @Override
     public List<String> strictCookies() {
-        String cookieString = request.headers().get(HttpHeaderNames.COOKIE);
+        String cookieString = headers.httpHeaders.get(HttpHeaderNames.COOKIE);
         if (cookieString != null) {
             Set<Cookie> cookies = ServerCookieDecoder.STRICT.decode(cookieString);
             if (!cookies.isEmpty()) {
@@ -183,46 +149,46 @@ public class Netty4HttpRequest implements HttpRequest {
 
     @Override
     public HttpVersion protocolVersion() {
-        if (request.protocolVersion().equals(io.netty.handler.codec.http.HttpVersion.HTTP_1_0)) {
+        if (protocol.equals(io.netty.handler.codec.http.HttpVersion.HTTP_1_0.toString())) {
             return HttpRequest.HttpVersion.HTTP_1_0;
-        } else if (request.protocolVersion().equals(io.netty.handler.codec.http.HttpVersion.HTTP_1_1)) {
+        } else if (protocol.equals(io.netty.handler.codec.http.HttpVersion.HTTP_1_1.toString())) {
             return HttpRequest.HttpVersion.HTTP_1_1;
         } else {
-            throw new IllegalArgumentException("Unexpected http protocol version: " + request.protocolVersion());
+            throw new IllegalArgumentException("Unexpected http protocol version: " + protocol);
         }
     }
 
     @Override
     public HttpRequest removeHeader(String header) {
         HttpHeaders headersWithoutContentTypeHeader = new DefaultHttpHeaders();
-        headersWithoutContentTypeHeader.add(request.headers());
+        headersWithoutContentTypeHeader.add(headers.httpHeaders);
         headersWithoutContentTypeHeader.remove(header);
-        HttpHeaders trailingHeaders = new DefaultHttpHeaders();
-        trailingHeaders.add(request.trailingHeaders());
-        trailingHeaders.remove(header);
-        FullHttpRequest requestWithoutHeader = new DefaultFullHttpRequest(
-            request.protocolVersion(),
-            request.method(),
-            request.uri(),
-            request.content(),
-            headersWithoutContentTypeHeader,
-            trailingHeaders
+
+        return new ReactorNetty4HttpRequest(
+            protocol,
+            method,
+            uri,
+            new HttpHeadersMap(headersWithoutContentTypeHeader),
+            released,
+            pooled,
+            content,
+            null
         );
-        return new Netty4HttpRequest(requestWithoutHeader, new HttpHeadersMap(requestWithoutHeader.headers()), released, pooled, content);
     }
 
     @Override
-    public Netty4HttpResponse createResponse(RestStatus status, BytesReference content) {
-        return new Netty4HttpResponse(request.headers(), request.protocolVersion(), status, content);
+    public ReactorNetty4HttpResponse createResponse(RestStatus status, BytesReference content) {
+        return new ReactorNetty4HttpResponse(
+            headers.httpHeaders,
+            io.netty.handler.codec.http.HttpVersion.valueOf(protocol),
+            status,
+            content
+        );
     }
 
     @Override
     public Exception getInboundException() {
         return inboundException;
-    }
-
-    public FullHttpRequest nettyRequest() {
-        return request;
     }
 
     /**

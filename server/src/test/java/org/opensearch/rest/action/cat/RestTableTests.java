@@ -34,6 +34,8 @@ package org.opensearch.rest.action.cat;
 
 import org.opensearch.common.Table;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.http.HttpChunk;
 import org.opensearch.rest.AbstractRestChannel;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.test.OpenSearchTestCase;
@@ -45,6 +47,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Flow.Subscriber;
 
 import static org.opensearch.rest.action.cat.RestTable.buildDisplayHeaders;
 import static org.opensearch.rest.action.cat.RestTable.buildResponse;
@@ -274,6 +277,12 @@ public class RestTableTests extends OpenSearchTestCase {
         RestResponse response = buildResponse(table, new AbstractRestChannel(requestWithAcceptHeader, true) {
             @Override
             public void sendResponse(RestResponse response) {}
+
+            @Override
+            public void sendChunk(XContentBuilder chunk) {}
+
+            @Override
+            public void subscribe(Subscriber<? super HttpChunk> subscriber) {}
         });
 
         assertThat(response.contentType(), equalTo(mediaType));
