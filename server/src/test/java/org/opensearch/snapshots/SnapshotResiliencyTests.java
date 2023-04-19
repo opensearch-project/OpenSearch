@@ -1769,6 +1769,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     transportService,
                     Collections.singletonMap(FsRepository.TYPE, getRepoFactory(environment)),
                     emptyMap(),
+                    emptyMap(),
                     threadPool
                 );
                 final ActionFilters actionFilters = new ActionFilters(emptySet());

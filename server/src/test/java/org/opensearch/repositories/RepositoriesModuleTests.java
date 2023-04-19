@@ -34,9 +34,12 @@ package org.opensearch.repositories;
 
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.crypto.CryptoClient;
 import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.CryptoPlugin;
 import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -54,9 +57,13 @@ public class RepositoriesModuleTests extends OpenSearchTestCase {
     private Environment environment;
     private NamedXContentRegistry contentRegistry;
     private List<RepositoryPlugin> repoPlugins = new ArrayList<>();
+    private List<CryptoPlugin> cryptoPlugins = new ArrayList<>();
     private RepositoryPlugin plugin1;
     private RepositoryPlugin plugin2;
     private Repository.Factory factory;
+    private CryptoPlugin cryptoPlugin1;
+    private CryptoPlugin cryptoPlugin2;
+    private CryptoClient.Factory cryptoFactory;
     private ThreadPool threadPool;
     private ClusterService clusterService;
     private RecoverySettings recoverySettings;
@@ -74,6 +81,12 @@ public class RepositoriesModuleTests extends OpenSearchTestCase {
         factory = mock(Repository.Factory.class);
         repoPlugins.add(plugin1);
         repoPlugins.add(plugin2);
+        cryptoPlugin1 = mock(CryptoPlugin.class);
+        cryptoPlugin2 = mock(CryptoPlugin.class);
+        cryptoPlugins.add(cryptoPlugin1);
+        cryptoPlugins.add(cryptoPlugin2);
+        cryptoFactory = mock(CryptoClient.Factory.class);
+
         when(environment.settings()).thenReturn(Settings.EMPTY);
     }
 
@@ -89,6 +102,30 @@ public class RepositoriesModuleTests extends OpenSearchTestCase {
         new RepositoriesModule(
             environment,
             repoPlugins,
+            cryptoPlugins,
+            mock(TransportService.class),
+            mock(ClusterService.class),
+            threadPool,
+            contentRegistry,
+            recoverySettings
+        );
+    }
+
+    public void testCanRegisterTwoRepositoriesWithDifferentKeyProviderTypes() {
+        when(plugin1.getRepositories(environment, contentRegistry, clusterService, recoverySettings)).thenReturn(
+            Collections.singletonMap("type1", factory)
+        );
+        when(plugin2.getRepositories(environment, contentRegistry, clusterService, recoverySettings)).thenReturn(
+            Collections.singletonMap("type2", factory)
+        );
+
+        when(cryptoPlugin1.getKeyProviderTypes()).thenReturn(Sets.newHashSet("type1"));
+        when(cryptoPlugin2.getKeyProviderTypes()).thenReturn(Sets.newHashSet("type2"));
+
+        new RepositoriesModule(
+            environment,
+            repoPlugins,
+            cryptoPlugins,
             mock(TransportService.class),
             mock(ClusterService.class),
             threadPool,
@@ -110,6 +147,7 @@ public class RepositoriesModuleTests extends OpenSearchTestCase {
             () -> new RepositoriesModule(
                 environment,
                 repoPlugins,
+                cryptoPlugins,
                 mock(TransportService.class),
                 clusterService,
                 threadPool,
@@ -119,6 +157,32 @@ public class RepositoriesModuleTests extends OpenSearchTestCase {
         );
 
         assertEquals("Repository type [type1] is already registered", ex.getMessage());
+    }
+
+    public void testCanRegisterTwoRepositoriesWithSameKeyProviderTypes() {
+        when(plugin1.getRepositories(environment, contentRegistry, clusterService, recoverySettings)).thenReturn(
+            Collections.singletonMap("type1", factory)
+        );
+        when(plugin2.getRepositories(environment, contentRegistry, clusterService, recoverySettings)).thenReturn(
+            Collections.singletonMap("type2", factory)
+        );
+
+        when(cryptoPlugin1.getKeyProviderTypes()).thenReturn(Sets.newHashSet("type1"));
+        when(cryptoPlugin2.getKeyProviderTypes()).thenReturn(Sets.newHashSet("type1"));
+
+        // Would throw
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> new RepositoriesModule(
+            environment,
+            repoPlugins,
+            cryptoPlugins,
+            mock(TransportService.class),
+            mock(ClusterService.class),
+            threadPool,
+            contentRegistry,
+            recoverySettings
+        ));
     }
 
     public void testCannotRegisterTwoInternalRepositoriesWithSameTypes() {
@@ -134,6 +198,7 @@ public class RepositoriesModuleTests extends OpenSearchTestCase {
             () -> new RepositoriesModule(
                 environment,
                 repoPlugins,
+                cryptoPlugins,
                 mock(TransportService.class),
                 clusterService,
                 threadPool,
@@ -158,6 +223,7 @@ public class RepositoriesModuleTests extends OpenSearchTestCase {
             () -> new RepositoriesModule(
                 environment,
                 repoPlugins,
+                cryptoPlugins,
                 mock(TransportService.class),
                 clusterService,
                 threadPool,

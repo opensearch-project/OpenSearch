@@ -210,6 +210,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
             transportService,
             Collections.emptyMap(),
             Collections.emptyMap(),
+            Collections.emptyMap(),
             threadPool
         );
 

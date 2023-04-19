@@ -35,8 +35,10 @@ package org.opensearch.repositories;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.crypto.CryptoClient;
 import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.CryptoPlugin;
 import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.threadpool.ThreadPool;
@@ -59,6 +61,7 @@ public final class RepositoriesModule {
     public RepositoriesModule(
         Environment env,
         List<RepositoryPlugin> repoPlugins,
+        List<CryptoPlugin> cryptoPlugins,
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -105,15 +108,27 @@ public final class RepositoriesModule {
             }
         }
 
+        Map<String, CryptoClient.Factory> cryptoClientFactoriesMap = new HashMap<>();
+        for (CryptoPlugin cryptoPlugin : cryptoPlugins) {
+            for (String keyProviderType : cryptoPlugin.getKeyProviderTypes()) {
+                if (cryptoClientFactoriesMap.containsKey(keyProviderType)) {
+                    throw new IllegalArgumentException("Crypto plugin key provider type [" + keyProviderType + "] is already registered");
+                }
+                cryptoClientFactoriesMap.put(keyProviderType, cryptoPlugin.createClientFactory(keyProviderType));
+            }
+        }
+
         Settings settings = env.settings();
         Map<String, Repository.Factory> repositoryTypes = Collections.unmodifiableMap(factories);
         Map<String, Repository.Factory> internalRepositoryTypes = Collections.unmodifiableMap(internalFactories);
+        Map<String, CryptoClient.Factory> cryptoClientRegistry = Collections.unmodifiableMap(cryptoClientFactoriesMap);
         repositoriesService = new RepositoriesService(
             settings,
             clusterService,
             transportService,
             repositoryTypes,
             internalRepositoryTypes,
+            cryptoClientRegistry,
             threadPool
         );
     }

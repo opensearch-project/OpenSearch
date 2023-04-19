@@ -38,6 +38,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
+import org.opensearch.action.admin.cluster.crypto.CryptoSettings;
 import org.opensearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.opensearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
@@ -49,6 +50,7 @@ import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.SnapshotDeletionsInProgress;
 import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
@@ -65,6 +67,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.crypto.CryptoClient;
+import org.opensearch.crypto.CryptoClientMissingException;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -106,6 +110,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
     private final Map<String, Repository.Factory> typesRegistry;
     private final Map<String, Repository.Factory> internalTypesRegistry;
+    private final Map<String, CryptoClient.Factory> cryptoClientRegistry;
 
     private final ClusterService clusterService;
 
@@ -115,6 +120,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
     private final Map<String, Repository> internalRepositories = ConcurrentCollections.newConcurrentMap();
     private volatile Map<String, Repository> repositories = Collections.emptyMap();
+    private volatile Map<String, CryptoClient> cryptoClients = Collections.emptyMap();
     private final RepositoriesStatsArchive repositoriesStatsArchive;
     private final ClusterManagerTaskThrottler.ThrottlingKey putRepositoryTaskKey;
     private final ClusterManagerTaskThrottler.ThrottlingKey deleteRepositoryTaskKey;
@@ -125,10 +131,12 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         TransportService transportService,
         Map<String, Repository.Factory> typesRegistry,
         Map<String, Repository.Factory> internalTypesRegistry,
+        Map<String, CryptoClient.Factory> cryptoClientRegistry,
         ThreadPool threadPool
     ) {
         this.typesRegistry = typesRegistry;
         this.internalTypesRegistry = internalTypesRegistry;
+        this.cryptoClientRegistry = cryptoClientRegistry;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         // Doesn't make sense to maintain repositories on non-master and non-data nodes
@@ -161,9 +169,18 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     public void registerRepository(final PutRepositoryRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         assert lifecycle.started() : "Trying to register new repository but service is in state [" + lifecycle.state() + "]";
 
-        final RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(request.name(), request.type(), request.settings());
+        final RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(
+            request.name(),
+            request.type(),
+            request.settings(),
+            request.encrypted(),
+            CryptoMetadata.fromRequest(request.cryptoSettings())
+        );
         validate(request.name());
         validateRepositoryMetadataSettings(clusterService, request.name(), request.settings());
+        if (Boolean.TRUE.equals(newRepositoryMetadata.encrypted())) {
+            validate(newRepositoryMetadata.cryptoMetadata().keyProviderName());
+        }
 
         final ActionListener<ClusterStateUpdateResponse> registrationListener;
         if (request.verify()) {
@@ -193,6 +210,16 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             return;
         }
 
+        if (Boolean.TRUE.equals(newRepositoryMetadata.encrypted())) {
+            // Trying to create the new crypto client on cluster-manager to make sure it works
+            try {
+                closeCryptoClient(createCryptoClient(newRepositoryMetadata, cryptoClientRegistry));
+            } catch (Exception e) {
+                registrationListener.onFailure(e);
+                return;
+            }
+        }
+
         clusterService.submitStateUpdateTask(
             "put_repository [" + request.name() + "]",
             new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, registrationListener) {
@@ -210,7 +237,15 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     if (repositories == null) {
                         logger.info("put repository [{}]", request.name());
                         repositories = new RepositoriesMetadata(
-                            Collections.singletonList(new RepositoryMetadata(request.name(), request.type(), request.settings()))
+                            Collections.singletonList(
+                                new RepositoryMetadata(
+                                    request.name(),
+                                    request.type(),
+                                    request.settings(),
+                                    request.encrypted(),
+                                    CryptoMetadata.fromRequest(request.cryptoSettings())
+                                )
+                            )
                         );
                     } else {
                         boolean found = false;
@@ -222,6 +257,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                     // Previous version is the same as this one no update is needed.
                                     return currentState;
                                 }
+                                ensureCryptoSettingsAreSame(repositoryMetadata, request);
                                 found = true;
                                 repositoriesMetadata.add(newRepositoryMetadata);
                             } else {
@@ -230,7 +266,15 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         }
                         if (!found) {
                             logger.info("put repository [{}]", request.name());
-                            repositoriesMetadata.add(new RepositoryMetadata(request.name(), request.type(), request.settings()));
+                            repositoriesMetadata.add(
+                                new RepositoryMetadata(
+                                    request.name(),
+                                    request.type(),
+                                    request.settings(),
+                                    request.encrypted(),
+                                    CryptoMetadata.fromRequest(request.cryptoSettings())
+                                )
+                            );
                         } else {
                             logger.info("update repository [{}]", request.name());
                         }
@@ -406,16 +450,21 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     logger.debug("unregistering repository [{}]", entry.getKey());
                     Repository repository = entry.getValue();
                     closeRepository(repository);
+                    if (Boolean.TRUE.equals(repository.getMetadata().encrypted())) {
+                        closeCryptoClient(cryptoClients.get(getCryptoClientKey(repository.getMetadata())));
+                    }
                     archiveRepositoryStats(repository, state.version());
                 } else {
                     survivors.put(entry.getKey(), entry.getValue());
                 }
             }
 
+            Map<String, CryptoClient> cryptoClientBuilder = new HashMap<>();
             Map<String, Repository> builder = new HashMap<>();
             if (newMetadata != null) {
                 // Now go through all repositories and update existing or create missing
                 for (RepositoryMetadata repositoryMetadata : newMetadata.repositories()) {
+                    CryptoClient cryptoClient = null;
                     Repository repository = survivors.get(repositoryMetadata.name());
                     if (repository != null) {
                         // Found previous version of this repository
@@ -425,10 +474,16 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                             // Previous version is different from the version in settings
                             logger.debug("updating repository [{}]", repositoryMetadata.name());
                             closeRepository(repository);
+                            if (Boolean.TRUE.equals(repositoryMetadata.encrypted())) {
+                                closeCryptoClient(cryptoClients.get(getCryptoClientKey(repositoryMetadata)));
+                            }
                             archiveRepositoryStats(repository, state.version());
                             repository = null;
                             try {
                                 repository = createRepository(repositoryMetadata, typesRegistry);
+                                if (Boolean.TRUE.equals(repositoryMetadata.encrypted())) {
+                                    cryptoClient = createCryptoClient(repositoryMetadata, cryptoClientRegistry);
+                                }
                             } catch (RepositoryException ex) {
                                 // TODO: this catch is bogus, it means the old repo is already closed,
                                 // but we have nothing to replace it
@@ -437,10 +492,15 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                     ex
                                 );
                             }
+                        } else if (Boolean.TRUE.equals(previousMetadata.encrypted())) {
+                            cryptoClient = cryptoClients.get(getCryptoClientKey(previousMetadata));
                         }
                     } else {
                         try {
                             repository = createRepository(repositoryMetadata, typesRegistry);
+                            if (Boolean.TRUE.equals(repository.getMetadata().encrypted())) {
+                                cryptoClient = createCryptoClient(repositoryMetadata, cryptoClientRegistry);
+                            }
                         } catch (RepositoryException ex) {
                             logger.warn(() -> new ParameterizedMessage("failed to create repository [{}]", repositoryMetadata.name()), ex);
                         }
@@ -448,6 +508,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     if (repository != null) {
                         logger.debug("registering repository [{}]", repositoryMetadata.name());
                         builder.put(repositoryMetadata.name(), repository);
+                        if (cryptoClient != null) {
+                            cryptoClientBuilder.put(getCryptoClientKey(repositoryMetadata), cryptoClient);
+                        }
                     }
                 }
             }
@@ -455,10 +518,15 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 repo.updateState(state);
             }
             repositories = Collections.unmodifiableMap(builder);
+            cryptoClients = Collections.unmodifiableMap(cryptoClientBuilder);
         } catch (Exception ex) {
             assert false : new AssertionError(ex);
             logger.warn("failure updating cluster state ", ex);
         }
+    }
+
+    private String getCryptoClientKey(RepositoryMetadata repositoryMetadata) {
+        return repositoryMetadata.cryptoMetadata().keyProviderName() + "#" + repositoryMetadata.cryptoMetadata().keyProviderType();
     }
 
     /**
@@ -496,6 +564,25 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             return repository;
         }
         throw new RepositoryMissingException(repositoryName);
+    }
+
+    /**
+     * Returns registered crypto client
+     * @param repositoryMetadata repository metadata for which crypto client needs to be returned.
+     * @return crypto client
+     */
+    public CryptoClient cryptoClient(RepositoryMetadata repositoryMetadata) {
+        return cryptoClients.get(getCryptoClientKey(repositoryMetadata));
+    }
+
+    // For tests
+    public int totalCryptoClients() {
+        return cryptoClients.size();
+    }
+
+    // Used in tests
+    CryptoClient getCryptoClient(String clientKey) {
+        return cryptoClients.get(clientKey);
     }
 
     public List<RepositoryStatsSnapshot> repositoriesStats() {
@@ -555,6 +642,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             RepositoryMetadata metadata = repository.getMetadata();
             logger.debug(() -> new ParameterizedMessage("delete internal repository [{}][{}].", metadata.type(), name));
             closeRepository(repository);
+            if (Boolean.TRUE.equals(repository.getMetadata().encrypted())) {
+                closeCryptoClient(cryptoClients.get(getCryptoClientKey(metadata)));
+            }
         }
     }
 
@@ -562,6 +652,15 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private void closeRepository(Repository repository) {
         logger.debug("closing repository [{}][{}]", repository.getMetadata().type(), repository.getMetadata().name());
         repository.close();
+    }
+
+    /** Closes the given crypto client. */
+    private void closeCryptoClient(CryptoClient cryptoClient) {
+        if (cryptoClient == null) {
+            return;
+        }
+        logger.debug("closing crypto client [{}][{}]", cryptoClient.type(), cryptoClient.name());
+        cryptoClient.decRef();
     }
 
     private void archiveRepositoryStats(Repository repository, long clusterStateVersion) {
@@ -629,9 +728,61 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
     }
 
+    // package private for tests
+    CryptoClient createCryptoClient(RepositoryMetadata repositoryMetadata, Map<String, CryptoClient.Factory> cryptoClientRegistry) {
+        CryptoMetadata cryptoMetadata = repositoryMetadata.cryptoMetadata();
+        logger.debug("creating crypto client [{}][{}]", cryptoMetadata.keyProviderType(), cryptoMetadata.keyProviderName());
+        CryptoClient.Factory factory = cryptoClientRegistry.get(cryptoMetadata.keyProviderType());
+        if (factory == null) {
+            throw new CryptoClientMissingException(
+                repositoryMetadata.name(),
+                "Crypto client couldn't be created of type [" + cryptoMetadata.keyProviderType() + "]"
+            );
+        }
+
+        CryptoClient cryptoClient;
+        try {
+            cryptoClient = factory.create(cryptoMetadata.settings(), cryptoMetadata.keyProviderName());
+            return cryptoClient;
+        } catch (Exception e) {
+            logger.warn(
+                new ParameterizedMessage(
+                    "failed to create crypto client [{}][{}]",
+                    cryptoMetadata.keyProviderType(),
+                    cryptoMetadata.keyProviderName()
+                ),
+                e
+            );
+            throw new RepositoryException(repositoryMetadata.name(), "failed to create crypto client", e);
+        }
+    }
+
     private static void ensureRepositoryNotInUse(ClusterState clusterState, String repository) {
         if (isRepositoryInUse(clusterState, repository)) {
             throw new IllegalStateException("trying to modify or unregister repository that is currently used");
+        }
+    }
+
+    private static void ensureCryptoSettingsAreSame(RepositoryMetadata repositoryMetadata, PutRepositoryRequest request) {
+        if (repositoryMetadata.encrypted() == null && request.encrypted() == null) {
+            return;
+        }
+        if (repositoryMetadata.encrypted() == null || request.encrypted() == null) {
+            throw new IllegalArgumentException("Crypto settings changes found in the repository update request. This is not allowed");
+        }
+        boolean existingEncrypted = Boolean.TRUE.equals(repositoryMetadata.encrypted());
+        boolean changeEncrypted = Boolean.TRUE.equals(request.encrypted());
+        if (existingEncrypted == false && changeEncrypted == false) {
+            return;
+        }
+
+        CryptoMetadata cryptoMetadata = repositoryMetadata.cryptoMetadata();
+        CryptoSettings cryptoSettings = request.cryptoSettings();
+        if (existingEncrypted != changeEncrypted
+            || !cryptoMetadata.keyProviderName().equals(cryptoSettings.getKeyProviderName())
+            || !cryptoMetadata.keyProviderType().equals(cryptoSettings.getKeyProviderType())
+            || !cryptoMetadata.settings().toString().equals(cryptoSettings.getSettings().toString())) {
+            throw new IllegalArgumentException("Changes in crypto settings found in the repository update request. This is not allowed");
         }
     }
 

@@ -56,6 +56,7 @@ import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.plugins.ExtensionAwarePlugin;
 import org.opensearch.plugins.SearchPipelinePlugin;
+import org.opensearch.plugins.CryptoPlugin;
 import org.opensearch.search.backpressure.SearchBackpressureService;
 import org.opensearch.search.backpressure.settings.SearchBackpressureSettings;
 import org.opensearch.search.pipeline.SearchPipelineService;
@@ -896,6 +897,7 @@ public class Node implements Closeable {
             RepositoriesModule repositoriesModule = new RepositoriesModule(
                 this.environment,
                 pluginsService.filterPlugins(RepositoryPlugin.class),
+                pluginsService.filterPlugins(CryptoPlugin.class),
                 transportService,
                 clusterService,
                 threadPool,

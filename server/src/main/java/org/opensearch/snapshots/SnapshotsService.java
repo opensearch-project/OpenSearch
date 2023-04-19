@@ -267,6 +267,13 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             listener.onFailure(new RepositoryException(repository.getMetadata().name(), "cannot create snapshot in a readonly repository"));
             return;
         }
+        if (repository.getMetadata() != null
+            && (repository.getMetadata().encrypted() != null || repository.getMetadata().cryptoMetadata() != null)) {
+            listener.onFailure(
+                new RepositoryException(repository.getMetadata().name(), "Snapshot creation for an encrypted repository is not supported")
+            );
+            return;
+        }
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
         final Map<String, Object> userMeta = repository.adaptUserMetadata(request.userMetadata());
         repository.executeConsistentStateUpdate(repositoryData -> new ClusterStateUpdateTask() {

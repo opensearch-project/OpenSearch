@@ -1198,6 +1198,14 @@ public final class OpenSearchServerException {
         );
         registerExceptionHandle(
             new OpenSearchExceptionHandle(
+                org.opensearch.crypto.CryptoClientMissingException.class,
+                org.opensearch.crypto.CryptoClientMissingException::new,
+                171,
+                V_3_0_0
+            )
+        );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
                 org.opensearch.cluster.block.IndexCreateBlockException.class,
                 org.opensearch.cluster.block.IndexCreateBlockException::new,
                 CUSTOM_ELASTICSEARCH_EXCEPTIONS_BASE_ID + 1,

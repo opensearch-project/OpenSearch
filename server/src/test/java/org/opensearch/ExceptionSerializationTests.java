@@ -78,6 +78,7 @@ import org.opensearch.common.util.CancellableThreadsTests;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.XContentLocation;
+import org.opensearch.crypto.CryptoClientMissingException;
 import org.opensearch.discovery.MasterNotDiscoveredException;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.index.Index;
@@ -888,6 +889,7 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(168, PreferenceBasedSearchNotAllowedException.class);
         ids.put(169, NodeWeighedAwayException.class);
         ids.put(170, SearchPipelineProcessingException.class);
+        ids.put(171, CryptoClientMissingException.class);
         ids.put(10001, IndexCreateBlockException.class);
 
         Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();
