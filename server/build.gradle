@@ -171,6 +171,7 @@ tasks.named("internalClusterTest").configure {
 }
 
 tasks.named("forbiddenPatterns").configure {
+    dependsOn("generateProto")
     exclude '**/*.json'
     exclude '**/*.jmx'
     exclude '**/*.dic'
@@ -363,6 +364,7 @@ tasks.named("filepermissions").configure {
 }
 
 tasks.named("licenseHeaders").configure {
+    dependsOn("generateProto")
     // Ignore our vendored version of Google Guice
     excludes << 'org/opensearch/common/inject/**/*'
     // Ignore temporary copies of impending 8.7 Lucene classes
