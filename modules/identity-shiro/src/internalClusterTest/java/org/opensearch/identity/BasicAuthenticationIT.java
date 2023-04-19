@@ -32,6 +32,7 @@ public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
 
         assertThat(content, response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
         assertThat(content, containsString("green"));
+        System.out.println("Successfully passed assertions in basic auth success");
     }
 
     public void testBasicAuthUnauthorized_invalidHeader() throws Exception {
