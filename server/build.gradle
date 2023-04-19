@@ -348,13 +348,18 @@ tasks.named("missingJavadoc").configure {
   /*
    * Generated code doesn't follow javadocs formats.
    * Unfortunately the missingJavadoc task doesnt take *.
-   * TODO: Add support to missingJavadoc task to ignore all generated source codeß
+   * TODO: Add support to missingJavadoc task to ignore all generated source code
    */
+  dependsOn("generateProto")
   javadocMissingIgnore = [
     "org.opensearch.extensions.proto.ExtensionRequestProto",
     "org.opensearch.extensions.proto.ExtensionRequestProto.ExtensionRequestOrBuilder",
     "org.opensearch.extensions.proto"
   ]
+}
+
+tasks.named("filepermissions").configure {
+  mustRunAfter("generateProto")
 }
 
 tasks.named("licenseHeaders").configure {
