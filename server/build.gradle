@@ -344,6 +344,17 @@ tasks.named("dependencyLicenses").configure {
     }
 }
 
+tasks.named("missingJavadoc").configure {
+  /*
+   * Generated code doesn't follow javadocs formats.
+   */
+  javadocMissingIgnore = [
+    "org.opensearch.extensions.proto.ExtensionRequestProto",
+    "org.opensearch.extensions.proto.ExtensionRequestProto.ExtensionRequestOrBuilder",
+    "org.opensearch.extensions.proto"
+  ]
+}
+
 tasks.named("licenseHeaders").configure {
     // Ignore our vendored version of Google Guice
     excludes << 'org/opensearch/common/inject/**/*'
