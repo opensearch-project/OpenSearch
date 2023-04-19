@@ -51,7 +51,7 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
      * @param shardId shard id
      * @return the tracker if index is remote-backed, else null.
      */
-    public RemoteRefreshSegmentPressureTracker getStatsTracker(ShardId shardId) {
+    public RemoteRefreshSegmentPressureTracker getPressureTracker(ShardId shardId) {
         return trackerMap.get(shardId);
     }
 
@@ -84,7 +84,7 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
     }
 
     public void validateSegmentsUploadLag(ShardId shardId) {
-        RemoteRefreshSegmentPressureTracker pressureTracker = getStatsTracker(shardId);
+        RemoteRefreshSegmentPressureTracker pressureTracker = getPressureTracker(shardId);
         // Check if refresh checkpoint (a.k.a. seq number) lag is 2 or below - this is to handle segment merges that can
         // increase the bytes to upload almost suddenly.
         if (pressureTracker.getSeqNoLag() <= 2) {
