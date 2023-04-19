@@ -40,6 +40,8 @@ dependencies {
   testImplementation project(":test:framework")
   testImplementation 'com.google.jimfs:jimfs:1.2'
   testRuntimeOnly 'com.google.guava:guava:31.1-jre'
+
+  implementation 'org.apache.commons:commons-compress:1.23.0'
 }
 
 tasks.named("dependencyLicenses").configure {

@@ -34,6 +34,8 @@ package org.opensearch.plugins;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
+import org.apache.commons.compress.archivers.zip.ZipFile;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.Constants;
@@ -100,8 +102,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipFile;
 
 import static org.opensearch.cli.Terminal.Verbosity.VERBOSE;
 
@@ -718,8 +718,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         pathsToDeleteOnShutdown.add(target);
 
         try (ZipFile zipFile = new ZipFile(zip.toString())) {
-            final Enumeration<? extends ZipEntry> entries = zipFile.entries();
-            ZipEntry entry;
+            final Enumeration<? extends ZipArchiveEntry> entries = zipFile.getEntries();
+            ZipArchiveEntry entry;
             byte[] buffer = new byte[8192];
             while (entries.hasMoreElements()) {
                 entry = entries.nextElement();
@@ -751,8 +751,9 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 }
                 if (entry.isDirectory() == false) {
                     try (OutputStream out = Files.newOutputStream(targetFile)) {
+                        InputStream input = zipFile.getInputStream(entry);
                         int len;
-                        while ((len = zipFile.getInputStream(entry).read(buffer)) >= 0) {
+                        while ((len = input.read(buffer)) >= 0) {
                             out.write(buffer, 0, len);
                         }
                     }
