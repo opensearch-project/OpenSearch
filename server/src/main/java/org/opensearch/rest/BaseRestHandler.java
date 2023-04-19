@@ -128,7 +128,7 @@ public abstract class BaseRestHandler implements RestHandler {
         action.accept(channel);
     }
 
-    protected final String unrecognized(
+    public static String unrecognizedStrings(
         final RestRequest request,
         final Set<String> invalids,
         final Set<String> candidates,
@@ -171,6 +171,24 @@ public abstract class BaseRestHandler implements RestHandler {
         }
 
         return message.toString();
+    }
+
+    /**
+     * Returns a String message of the detail of any unrecognized error occurred. The string is intended for use in error messages to be returned to the user.
+     *
+     * @param request The request that caused the exception
+     * @param invalids Strings from the request which were unable to be understood.
+     * @param candidates A set of words that are most likely to be the valid strings determined invalid, to be suggested to the user.
+     * @param detail The parameter contains the details of the exception.
+     * @return a String that contains the message.
+     */
+    protected final String unrecognized(
+        final RestRequest request,
+        final Set<String> invalids,
+        final Set<String> candidates,
+        final String detail
+    ) {
+        return unrecognizedStrings(request, invalids, candidates, detail);
     }
 
     /**

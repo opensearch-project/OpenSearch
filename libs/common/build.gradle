@@ -32,6 +32,10 @@ dependencies {
   }
 }
 
+tasks.withType(JavaCompile).configureEach {
+  options.compilerArgs -= '-Xlint:unchecked'
+}
+
 tasks.named('forbiddenApisMain').configure {
   // :libs:opensearch-common does not depend on server
   // TODO: Need to decide how we want to handle for forbidden signatures with the changes to server

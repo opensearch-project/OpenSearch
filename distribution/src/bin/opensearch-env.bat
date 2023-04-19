@@ -3,18 +3,21 @@ set SCRIPT=%0
 rem determine OpenSearch home; to do this, we strip from the path until we
 rem find bin, and then strip bin (there is an assumption here that there is no
 rem nested directory under bin also named bin)
-if not defined OPENSEARCH_HOME (
-  for %%I in (%SCRIPT%) do set OPENSEARCH_HOME=%%~dpI
+if not defined OPENSEARCH_HOME goto opensearch_home_start_setup
+goto opensearch_home_done_setup
 
-  :opensearch_home_loop
-  for %%I in ("%OPENSEARCH_HOME:~1,-1%") do set DIRNAME=%%~nxI
-  if not "%DIRNAME%" == "bin" (
-    for %%I in ("%OPENSEARCH_HOME%..") do set OPENSEARCH_HOME=%%~dpfI
-    goto opensearch_home_loop
-  )
+:opensearch_home_start_setup
+for %%I in (%SCRIPT%) do set OPENSEARCH_HOME=%%~dpI
+
+:opensearch_home_loop
+for %%I in ("%OPENSEARCH_HOME:~1,-1%") do set DIRNAME=%%~nxI
+if not "%DIRNAME%" == "bin" (
   for %%I in ("%OPENSEARCH_HOME%..") do set OPENSEARCH_HOME=%%~dpfI
+  goto opensearch_home_loop
 )
+for %%I in ("%OPENSEARCH_HOME%..") do set OPENSEARCH_HOME=%%~dpfI
 
+:opensearch_home_done_setup
 rem now set the classpath
 set OPENSEARCH_CLASSPATH=!OPENSEARCH_HOME!\lib\*
 

@@ -9,7 +9,6 @@
 package org.opensearch.index.translog.transfer;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.apache.lucene.util.Constants;
 import org.mockito.Mockito;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -57,8 +56,6 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        // Muting this test on windows until https://github.com/opensearch-project/OpenSearch/issues/5923
-        assumeFalse("Test does not run on Windows", Constants.WINDOWS);
         primaryTerm = randomNonNegativeLong();
         generation = randomNonNegativeLong();
         minTranslogGeneration = randomLongBetween(0, generation);

@@ -8,7 +8,6 @@
 
 package org.opensearch.index.store.remote.filecache;
 
-import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.cache.RemovalReason;
 import org.opensearch.index.store.remote.utils.cache.SegmentedCache;
@@ -63,7 +62,7 @@ public class FileCacheFactory {
     private static SegmentedCache.Builder<Path, CachedIndexInput> createDefaultBuilder() {
         return SegmentedCache.<Path, CachedIndexInput>builder()
             // use length in bytes as the weight of the file item
-            .weigher(IndexInput::length)
+            .weigher(CachedIndexInput::length)
             .listener((removalNotification) -> {
                 RemovalReason removalReason = removalNotification.getRemovalReason();
                 CachedIndexInput value = removalNotification.getValue();

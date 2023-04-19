@@ -347,6 +347,8 @@ tasks.named("dependencyLicenses").configure {
 tasks.named("missingJavadoc").configure {
   /*
    * Generated code doesn't follow javadocs formats.
+   * Unfortunately the missingJavadoc task doesnt take *.
+   * TODO: Add support to missingJavadoc task to ignore all generated source codeß
    */
   javadocMissingIgnore = [
     "org.opensearch.extensions.proto.ExtensionRequestProto",

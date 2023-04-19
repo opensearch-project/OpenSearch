@@ -160,7 +160,8 @@ public class GeoTileGridIT extends AbstractGeoBucketAggregationIntegTest {
     protected Set<String> generateBucketsForGeoPoint(final GeoPoint geoPoint) {
         Set<String> buckets = new HashSet<>();
         for (int precision = GEOPOINT_MAX_PRECISION; precision > 0; precision--) {
-            final String tile = GeoTileUtils.stringEncode(geoPoint.getLon(), geoPoint.getLat(), precision);
+            final GeoPoint precisedGeoPoint = this.toStoragePrecision(geoPoint);
+            final String tile = GeoTileUtils.stringEncode(precisedGeoPoint.getLon(), precisedGeoPoint.getLat(), precision);
             buckets.add(tile);
         }
         return buckets;

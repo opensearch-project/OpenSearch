@@ -41,14 +41,12 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.times;
 import static org.opensearch.index.SegmentReplicationPressureService.MAX_REPLICATION_TIME_SETTING;
-import static org.opensearch.index.SegmentReplicationPressureService.SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED;
 
 public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevelReplicationTestCase {
 
     private static ShardStateAction shardStateAction = Mockito.mock(ShardStateAction.class);
     private static final Settings settings = Settings.builder()
         .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-        .put(SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED.getKey(), true)
         .put(MAX_REPLICATION_TIME_SETTING.getKey(), TimeValue.timeValueSeconds(5))
         .build();
 
@@ -99,10 +97,7 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
     }
 
     public void testIsSegrepLimitBreached_onlyCheckpointLimitBreached() throws Exception {
-        final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED.getKey(), true)
-            .build();
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
 
         try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
             shards.startAll();
@@ -126,10 +121,7 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
     }
 
     public void testIsSegrepLimitBreached_onlyTimeLimitBreached() throws Exception {
-        final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED.getKey(), true)
-            .build();
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
 
         try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
             shards.startAll();
@@ -194,7 +186,6 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
     public void testFailStaleReplicaTask() throws Exception {
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED.getKey(), true)
             .put(MAX_REPLICATION_TIME_SETTING.getKey(), TimeValue.timeValueMillis(10))
             .build();
 
