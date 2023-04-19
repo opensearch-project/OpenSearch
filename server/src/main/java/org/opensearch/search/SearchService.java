@@ -133,6 +133,7 @@ import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.MinAndMax;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.sort.SortBuilder;
+import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.completion.CompletionSuggestion;
 import org.opensearch.threadpool.Scheduler.Cancellable;
@@ -234,6 +235,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> SEARCH_SEGMENTS_REVERSE_ORDER_OPTIMIZATION = Setting.boolSetting(
+        "search.search_segments_reverse_order_optimization",
+        true,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     /**
      * This setting defines the maximum number of active PIT reader contexts in the node , since each PIT context
      * has a resource cost attached to it. This setting is less than scroll since users are
@@ -281,6 +289,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private volatile boolean lowLevelCancellation;
 
     private volatile int maxOpenScrollContext;
+
+    private volatile boolean searchSegmentOrderReversed;
 
     private volatile int maxOpenPitContext;
 
@@ -356,6 +366,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         lowLevelCancellation = LOW_LEVEL_CANCELLATION_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LOW_LEVEL_CANCELLATION_SETTING, this::setLowLevelCancellation);
+
+        searchSegmentOrderReversed = SEARCH_SEGMENTS_REVERSE_ORDER_OPTIMIZATION.get(settings);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_SEGMENTS_REVERSE_ORDER_OPTIMIZATION, this::setSearchSegmentOrderReversed);
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -430,6 +443,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setLowLevelCancellation(Boolean lowLevelCancellation) {
         this.lowLevelCancellation = lowLevelCancellation;
+    }
+
+    private void setSearchSegmentOrderReversed(boolean reversed) {
+        this.searchSegmentOrderReversed = reversed;
+    }
+
+    private boolean getSearchSegmentOrderReversed() {
+        return this.searchSegmentOrderReversed;
     }
 
     @Override
@@ -1038,7 +1059,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 lowLevelCancellation,
                 clusterService.state().nodes().getMinNodeVersion(),
                 validate,
-                indexSearcherExecutor
+                indexSearcherExecutor,
+                shouldReverseLeafReaderContexts(request)
             );
             // we clone the query shard context here just for rewriting otherwise we
             // might end up with incorrect state since we are using now() or script services
@@ -1056,6 +1078,23 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         return searchContext;
+    }
+
+    private boolean shouldReverseLeafReaderContexts(ShardSearchRequest request) {
+        // By default, if search query is on desc order, we will search leaves in reverse order.
+        // This is beneficial for desc order sort queries on time series based workload,
+        // where recent data is always on new segments which are in last.
+        // This won't regress or impact other type of workload where data is randomly distributed
+        // across segments. So turning it on by default.
+        // searchSegmentOrderReversed is true by default
+        if (searchSegmentOrderReversed) {
+            // Only reverse order for desc order sort queries
+            List<SortBuilder<?>> sorts = request.source().sorts();
+            if (sorts != null && sorts.size() > 0 && sorts.get(0).order() == SortOrder.DESC) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void freeAllContextForIndex(Index index) {

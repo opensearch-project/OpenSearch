@@ -213,7 +213,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 Version.CURRENT,
                 false,
-                executor
+                executor,
+                false
             );
             contextWithoutScroll.from(300);
             contextWithoutScroll.close();
@@ -255,7 +256,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 Version.CURRENT,
                 false,
-                executor
+                executor,
+                false
             );
             context1.from(300);
             exception = expectThrows(IllegalArgumentException.class, () -> context1.preProcess(false));
@@ -325,7 +327,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 Version.CURRENT,
                 false,
-                executor
+                executor,
+                false
             );
 
             SliceBuilder sliceBuilder = mock(SliceBuilder.class);
@@ -364,7 +367,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 Version.CURRENT,
                 false,
-                executor
+                executor,
+                false
             );
             ParsedQuery parsedQuery = ParsedQuery.parsedMatchAllQuery();
             context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess(false);
@@ -399,7 +403,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 Version.CURRENT,
                 false,
-                executor
+                executor,
+                false
             );
             context4.sliceBuilder(new SliceBuilder(1, 2)).parsedQuery(parsedQuery).preProcess(false);
             Query query1 = context4.query();
@@ -429,7 +434,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 Version.CURRENT,
                 false,
-                executor
+                executor,
+                false
             );
             int numSlicesForPit = maxSlicesPerPit + randomIntBetween(1, 100);
             when(sliceBuilder.getMax()).thenReturn(numSlicesForPit);
@@ -526,7 +532,8 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
                 false,
                 Version.CURRENT,
                 false,
-                executor
+                executor,
+                false
             );
             assertThat(context.searcher().hasCancellations(), is(false));
             context.searcher().addQueryCancellation(() -> {});

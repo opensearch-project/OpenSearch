@@ -191,7 +191,8 @@ final class DefaultSearchContext extends SearchContext {
         boolean lowLevelCancellation,
         Version minNodeVersion,
         boolean validate,
-        Executor executor
+        Executor executor,
+        boolean searchSegmentOrderReversed
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -214,7 +215,7 @@ final class DefaultSearchContext extends SearchContext {
             engineSearcher.getQueryCachingPolicy(),
             lowLevelCancellation,
             executor,
-            shouldReverseLeafReaderContexts()
+            searchSegmentOrderReversed
         );
         this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;
@@ -888,24 +889,5 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public ReaderContext readerContext() {
         return readerContext;
-    }
-
-    private boolean shouldReverseLeafReaderContexts() {
-        // By default, if search query is on desc order, we will search leaves in reverse order.
-        // This is beneficial for desc order sort queries on time series based workload,
-        // where recent data is always on new segments which are in last.
-        // This won't regress or impact other type of workload where data is randomly distributed
-        // across segments. So turning it on by default.
-        boolean reverseLeafReaderContexts = Booleans.parseBoolean(
-            System.getProperty("opensearch.reverse_segment_search_order", Boolean.TRUE.toString())
-        );
-        if (reverseLeafReaderContexts) {
-            // Only reverse order for desc order sort queries
-            List<SortBuilder<?>> sorts = this.request.source().sorts();
-            if (sorts != null && sorts.size() > 0 && sorts.get(0).order() == SortOrder.DESC) {
-                return true;
-            }
-        }
-        return false;
     }
 }
