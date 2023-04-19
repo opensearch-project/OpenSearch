@@ -76,7 +76,6 @@ import org.opensearch.search.query.QuerySearchResult;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
@@ -267,12 +266,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
         if (reverseLeafReaderContexts) {
             // reverse the segment search order if this flag is true.
-            // We need to make a copy, so we don't corrupt DirectoryReader leaves order
-            leaves = new ArrayList<>(leaves);
-            Collections.reverse(leaves);
-        }
-        for (LeafReaderContext ctx : leaves) { // search each subreader
-            searchLeaf(ctx, weight, collector);
+            for (int i = leaves.size() - 1; i >= 0; i--) {
+                searchLeaf(leaves.get(i), weight, collector);
+            }
+        } else {
+            for (int i = 0; i < leaves.size(); i++) {
+                searchLeaf(leaves.get(i), weight, collector);
+            }
         }
     }
 

@@ -578,6 +578,16 @@ public final class IndexSettings {
         Property.InternalIndex
     );
 
+    /**
+     * Setting to enable/disable desc leaf reader optimization
+     */
+    public static final Setting<Boolean> SEARCH_SEGMENTS_REVERSE_ORDER_OPTIMIZATION_SETTING = Setting.boolSetting(
+        "index.search_segments_reverse_order_optimization",
+        true,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -653,6 +663,7 @@ public final class IndexSettings {
     private volatile long mappingTotalFieldsLimit;
     private volatile long mappingDepthLimit;
     private volatile long mappingFieldNameLengthLimit;
+    private volatile boolean searchSegmentOrderReversed;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -822,6 +833,7 @@ public final class IndexSettings {
         maxFullFlushMergeWaitTime = scopedSettings.get(INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME);
         mergeOnFlushEnabled = scopedSettings.get(INDEX_MERGE_ON_FLUSH_ENABLED);
         setMergeOnFlushPolicy(scopedSettings.get(INDEX_MERGE_ON_FLUSH_POLICY));
+        searchSegmentOrderReversed = scopedSettings.get(SEARCH_SEGMENTS_REVERSE_ORDER_OPTIMIZATION_SETTING);
 
         scopedSettings.addSettingsUpdateConsumer(MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING, mergePolicyConfig::setNoCFSRatio);
         scopedSettings.addSettingsUpdateConsumer(
@@ -895,6 +907,11 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME, this::setMaxFullFlushMergeWaitTime);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_ENABLED, this::setMergeOnFlushEnabled);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MERGE_ON_FLUSH_POLICY, this::setMergeOnFlushPolicy);
+        scopedSettings.addSettingsUpdateConsumer(SEARCH_SEGMENTS_REVERSE_ORDER_OPTIMIZATION_SETTING, this::setSearchSegmentOrderReversed);
+    }
+
+    private void setSearchSegmentOrderReversed(boolean reversed) {
+        this.searchSegmentOrderReversed = reversed;
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1066,6 +1083,14 @@ public final class IndexSettings {
      */
     public Settings getNodeSettings() {
         return nodeSettings;
+    }
+
+    /**
+     * Returns true if index level setting for leaf reverse order search optimization is enabled
+     * @return
+     */
+    public boolean getSearchSegmentOrderReversed() {
+        return this.searchSegmentOrderReversed;
     }
 
     /**

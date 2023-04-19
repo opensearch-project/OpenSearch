@@ -89,6 +89,7 @@ import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
 import java.io.IOException;
@@ -188,8 +189,7 @@ final class DefaultSearchContext extends SearchContext {
         boolean lowLevelCancellation,
         Version minNodeVersion,
         boolean validate,
-        Executor executor,
-        boolean searchSegmentOrderReversed
+        Executor executor
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -212,7 +212,7 @@ final class DefaultSearchContext extends SearchContext {
             engineSearcher.getQueryCachingPolicy(),
             lowLevelCancellation,
             executor,
-            searchSegmentOrderReversed
+            shouldReverseLeafReaderContexts()
         );
         this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;
@@ -886,5 +886,25 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public ReaderContext readerContext() {
         return readerContext;
+    }
+
+    private boolean shouldReverseLeafReaderContexts() {
+        // By default, if search query is on desc order, we will search leaves in reverse order.
+        // This is beneficial for desc order sort queries on time series based workload,
+        // where recent data is always on new segments which are in last.
+        // This won't regress or impact other type of workload where data is randomly distributed
+        // across segments. So turning it on by default.
+        // searchSegmentOrderReversed is true by default
+        if (this.indexService.getIndexSettings().getSearchSegmentOrderReversed()) {
+            // Only reverse order for desc order sort queries
+            if (request != null
+                && request.source() != null
+                && request.source().sorts() != null
+                && request.source().sorts().size() > 0
+                && request.source().sorts().get(0).order() == SortOrder.DESC) {
+                return true;
+            }
+        }
+        return false;
     }
 }

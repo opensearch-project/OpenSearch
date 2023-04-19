@@ -202,6 +202,7 @@ import static org.opensearch.common.util.CollectionUtils.eagerPartition;
 import static org.opensearch.discovery.DiscoveryModule.DISCOVERY_SEED_PROVIDERS_SETTING;
 import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
 import static org.opensearch.index.IndexSettings.INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING;
+import static org.opensearch.index.IndexSettings.SEARCH_SEGMENTS_REVERSE_ORDER_OPTIMIZATION_SETTING;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.test.XContentTestUtils.convertToMap;
 import static org.opensearch.test.XContentTestUtils.differenceBetweenMapsIgnoringArrayOrder;
@@ -761,6 +762,10 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 ).getStringRep()
             );
         }
+
+        // Randomly disable desc sort optimizations to verify non-optimized flow
+        builder.put(SEARCH_SEGMENTS_REVERSE_ORDER_OPTIMIZATION_SETTING.getKey(), randomBoolean());
+
         return builder.build();
     }
 
