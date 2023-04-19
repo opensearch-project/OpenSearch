@@ -77,6 +77,11 @@ public class RolloverRequestBuilder extends ClusterManagerNodeOperationRequestBu
         return this;
     }
 
+    public RolloverRequestBuilder addMinIndexDocsCondition(long docs) {
+        this.request.addMinIndexDocsCondition(docs);
+        return this;
+    }
+
     public RolloverRequestBuilder dryRun(boolean dryRun) {
         this.request.dryRun(dryRun);
         return this;

@@ -127,6 +127,7 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(2));
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomIntBetween(10, 100), ByteSizeUnit.MB));
+        MinDocsCondition minDocsCondition = new MinDocsCondition(1L);
 
         long matchMaxDocs = randomIntBetween(100, 1000);
         long notMatchMaxDocs = randomIntBetween(0, 99);
@@ -141,19 +142,19 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
             .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(3).getMillis())
             .settings(settings)
             .build();
-        final Set<Condition<?>> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
+        final Set<Condition<?>> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition, minDocsCondition);
         Map<String, Boolean> results = evaluateConditions(
             conditions,
             new DocsStats(matchMaxDocs, 0L, ByteSizeUnit.MB.toBytes(120)),
             metadata
         );
-        assertThat(results.size(), equalTo(3));
+        assertThat(results.size(), equalTo(4));
         for (Boolean matched : results.values()) {
             assertThat(matched, equalTo(true));
         }
 
         results = evaluateConditions(conditions, new DocsStats(notMatchMaxDocs, 0, notMatchMaxSize.getBytes()), metadata);
-        assertThat(results.size(), equalTo(3));
+        assertThat(results.size(), equalTo(4));
         for (Map.Entry<String, Boolean> entry : results.entrySet()) {
             if (entry.getKey().equals(maxAgeCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(true));
@@ -161,6 +162,8 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
                 assertThat(entry.getValue(), equalTo(false));
             } else if (entry.getKey().equals(maxSizeCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(minDocsCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(notMatchMaxDocs > 0));
             } else {
                 fail("unknown condition result found " + entry.getKey());
             }
@@ -171,8 +174,9 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(randomNonNegativeLong());
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(randomIntBetween(1, 3)));
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
+        MinDocsCondition minDocsCondition = new MinDocsCondition(randomNonNegativeLong());
 
-        Set<Condition<?>> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
+        Set<Condition<?>> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition, minDocsCondition);
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
@@ -185,7 +189,7 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
             .settings(settings)
             .build();
         Map<String, Boolean> results = evaluateConditions(conditions, null, metadata);
-        assertThat(results.size(), equalTo(3));
+        assertThat(results.size(), equalTo(4));
 
         for (Map.Entry<String, Boolean> entry : results.entrySet()) {
             if (entry.getKey().equals(maxAgeCondition.toString())) {
@@ -194,7 +198,10 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
                 assertThat(entry.getValue(), equalTo(false));
             } else if (entry.getKey().equals(maxSizeCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
-            } else {
+            } else if (entry.getKey().equals(minDocsCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            }
+            {
                 fail("unknown condition result found " + entry.getKey());
             }
         }

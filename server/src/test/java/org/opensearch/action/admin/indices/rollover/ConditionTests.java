@@ -97,6 +97,20 @@ public class ConditionTests extends OpenSearchTestCase {
         assertThat(result.matched, equalTo(true));
     }
 
+    public void testMinDocs() {
+        MinDocsCondition minDocsCondition = new MinDocsCondition(100L);
+
+        long minDocsMatch = randomIntBetween(100, 1000);
+        Condition.Result evaluate = minDocsCondition.evaluate(new Condition.Stats(minDocsMatch, 0, randomByteSize()));
+        assertThat(evaluate.condition, equalTo(minDocsCondition));
+        assertThat(evaluate.matched, equalTo(true));
+
+        long minDocsNotMatch = randomIntBetween(0, 99);
+        evaluate = minDocsCondition.evaluate(new Condition.Stats(0, minDocsNotMatch, randomByteSize()));
+        assertThat(evaluate.condition, equalTo(minDocsCondition));
+        assertThat(evaluate.matched, equalTo(false));
+    }
+
     public void testEqualsAndHashCode() {
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(randomLong());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
@@ -117,6 +131,13 @@ public class ConditionTests extends OpenSearchTestCase {
             maxAgeCondition,
             condition -> new MaxAgeCondition(condition.value),
             condition -> new MaxAgeCondition(new TimeValue(randomNonNegativeLong()))
+        );
+
+        MinDocsCondition minDocsCondition = new MinDocsCondition(randomLong());
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            minDocsCondition,
+            condition -> new MinDocsCondition(condition.value),
+            condition -> new MinDocsCondition(randomLong())
         );
     }
 

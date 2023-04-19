@@ -185,7 +185,10 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
                     .stream()
                     .filter(condition -> conditionResults.get(condition.toString()))
                     .collect(Collectors.toList());
-                if (conditionResults.size() == 0 || metConditions.size() > 0) {
+                boolean metMinDocsCondition = rolloverRequest.getConditions().containsKey(MinDocsCondition.NAME)
+                    ? conditionResults.get(rolloverRequest.getConditions().get(MinDocsCondition.NAME))
+                    : true;
+                if (conditionResults.size() == 0 || (metConditions.size() > 0 && metMinDocsCondition)) {
                     clusterService.submitStateUpdateTask(
                         "rollover_index source [" + sourceIndexName + "] to target [" + rolloverIndexName + "]",
                         new ClusterStateUpdateTask() {

@@ -36,6 +36,7 @@ import org.opensearch.action.admin.indices.rollover.Condition;
 import org.opensearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.opensearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
+import org.opensearch.action.admin.indices.rollover.MinDocsCondition;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.test.OpenSearchTestCase;
@@ -61,10 +62,12 @@ public class RolloverRequestTests extends OpenSearchTestCase {
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(new TimeValue(10));
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(2000));
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(10000L);
-        Condition<?>[] expectedConditions = new Condition<?>[] { maxAgeCondition, maxSizeCondition, maxDocsCondition };
+        MinDocsCondition minDocsCondition = new MinDocsCondition(1L);
+        Condition<?>[] expectedConditions = new Condition<?>[] { maxAgeCondition, maxSizeCondition, maxDocsCondition, minDocsCondition };
         rolloverRequest.addMaxIndexAgeCondition(maxAgeCondition.value());
         rolloverRequest.addMaxIndexSizeCondition(maxSizeCondition.value());
         rolloverRequest.addMaxIndexDocsCondition(maxDocsCondition.value());
+        rolloverRequest.addMinIndexDocsCondition(minDocsCondition.value());
         List<Condition<?>> requestConditions = new ArrayList<>(rolloverRequest.getConditions().values());
         assertThat(requestConditions, containsInAnyOrder(expectedConditions));
     }

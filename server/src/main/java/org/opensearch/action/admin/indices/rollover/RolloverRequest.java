@@ -69,6 +69,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private static final ParseField MAX_AGE_CONDITION = new ParseField(MaxAgeCondition.NAME);
     private static final ParseField MAX_DOCS_CONDITION = new ParseField(MaxDocsCondition.NAME);
     private static final ParseField MAX_SIZE_CONDITION = new ParseField(MaxSizeCondition.NAME);
+    private static final ParseField MIN_DOCS_CONDITION = new ParseField(MinDocsCondition.NAME);
 
     static {
         CONDITION_PARSER.declareString(
@@ -85,6 +86,10 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
                 new MaxSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MaxSizeCondition.NAME))
             ),
             MAX_SIZE_CONDITION
+        );
+        CONDITION_PARSER.declareLong(
+            (conditions, value) -> conditions.put(MinDocsCondition.NAME, new MinDocsCondition(value)),
+            MIN_DOCS_CONDITION
         );
 
         PARSER.declareField(
@@ -237,6 +242,17 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             throw new IllegalArgumentException(maxSizeCondition + " condition is already set");
         }
         this.conditions.put(maxSizeCondition.name, maxSizeCondition);
+    }
+
+    /**
+     * Adds condition to check if the index has at least <code>numDocs</code>
+     */
+    public void addMinIndexDocsCondition(long numDocs) {
+        MinDocsCondition minDocsCondition = new MinDocsCondition(numDocs);
+        if (this.conditions.containsKey(minDocsCondition.name)) {
+            throw new IllegalArgumentException(minDocsCondition.name + " condition is already set");
+        }
+        this.conditions.put(minDocsCondition.name, minDocsCondition);
     }
 
     public boolean isDryRun() {

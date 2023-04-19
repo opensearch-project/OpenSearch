@@ -35,6 +35,7 @@ import org.opensearch.action.admin.indices.rollover.Condition;
 import org.opensearch.action.admin.indices.rollover.MaxAgeCondition;
 import org.opensearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.opensearch.action.admin.indices.rollover.MaxSizeCondition;
+import org.opensearch.action.admin.indices.rollover.MinDocsCondition;
 import org.opensearch.client.TimedRequest;
 import org.opensearch.client.indices.CreateIndexRequest;
 import org.opensearch.common.unit.ByteSizeValue;
@@ -128,6 +129,18 @@ public class RolloverRequest extends TimedRequest implements ToXContentObject {
             throw new IllegalArgumentException(maxSizeCondition + " condition is already set");
         }
         this.conditions.put(maxSizeCondition.name(), maxSizeCondition);
+        return this;
+    }
+
+    /**
+     * Adds condition to check if the index has at least <code>numDocs</code>
+     */
+    public RolloverRequest addMinIndexDocsCondition(long numDocs) {
+        MinDocsCondition minDocsCondition = new MinDocsCondition(numDocs);
+        if (this.conditions.containsKey(minDocsCondition.name())) {
+            throw new IllegalArgumentException(minDocsCondition.name() + " condition is already set");
+        }
+        this.conditions.put(minDocsCondition.name(), minDocsCondition);
         return this;
     }
 

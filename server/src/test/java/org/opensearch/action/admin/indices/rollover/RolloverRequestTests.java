@@ -82,17 +82,20 @@ public class RolloverRequestTests extends OpenSearchTestCase {
             .field("max_age", "10d")
             .field("max_docs", 100)
             .field("max_size", "45gb")
+            .field("min_docs", 1)
             .endObject()
             .endObject();
         request.fromXContent(createParser(builder));
         Map<String, Condition<?>> conditions = request.getConditions();
-        assertThat(conditions.size(), equalTo(3));
+        assertThat(conditions.size(), equalTo(4));
         MaxAgeCondition maxAgeCondition = (MaxAgeCondition) conditions.get(MaxAgeCondition.NAME);
         assertThat(maxAgeCondition.value.getMillis(), equalTo(TimeValue.timeValueHours(24 * 10).getMillis()));
         MaxDocsCondition maxDocsCondition = (MaxDocsCondition) conditions.get(MaxDocsCondition.NAME);
         assertThat(maxDocsCondition.value, equalTo(100L));
         MaxSizeCondition maxSizeCondition = (MaxSizeCondition) conditions.get(MaxSizeCondition.NAME);
         assertThat(maxSizeCondition.value.getBytes(), equalTo(ByteSizeUnit.GB.toBytes(45)));
+        MinDocsCondition minDocsCondition = (MinDocsCondition) conditions.get(MinDocsCondition.NAME);
+        assertThat(minDocsCondition.value, equalTo(1L));
     }
 
     public void testParsingWithIndexSettings() throws Exception {
@@ -212,6 +215,7 @@ public class RolloverRequestTests extends OpenSearchTestCase {
         conditionsGenerator.add((request) -> request.addMaxIndexDocsCondition(randomNonNegativeLong()));
         conditionsGenerator.add((request) -> request.addMaxIndexSizeCondition(new ByteSizeValue(randomNonNegativeLong())));
         conditionsGenerator.add((request) -> request.addMaxIndexAgeCondition(new TimeValue(randomNonNegativeLong())));
+        conditionsGenerator.add((request) -> request.addMinIndexDocsCondition(randomNonNegativeLong()));
     }
 
 }
