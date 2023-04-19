@@ -154,7 +154,7 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
                 String.format(
                     Locale.ROOT,
                     "rejected execution on primary shard:%s due to remote segments lagging behind local segments."
-                        + "time_lag:%s ns dynamic_time_lag_threshold:%s ns",
+                        + "time_lag:%s ms dynamic_time_lag_threshold:%s ms",
                     shardId,
                     timeLag,
                     dynamicTimeLagThreshold
