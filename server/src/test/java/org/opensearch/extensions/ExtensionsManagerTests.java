@@ -70,6 +70,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
+import org.opensearch.identity.IdentityService;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
@@ -166,7 +167,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             null,
             new NodeClient(Settings.EMPTY, threadPool),
             new NoneCircuitBreakerService(),
-            new UsageService()
+            new UsageService(),
+            new IdentityService(Settings.EMPTY, List.of())
         );
         when(actionModule.getRestController()).thenReturn(restController);
         settingsModule = new SettingsModule(Settings.EMPTY, emptyList(), emptyList(), emptySet());

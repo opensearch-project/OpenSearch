@@ -12,11 +12,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Dependencies
 - Bump `log4j-core` from 2.18.0 to 2.19.0
+- Bumps `reactor-netty-http` from 1.0.24 to 1.1.2
+- Bumps `reactor-netty-http` from 1.0.18 to 1.1.2
+- Bumps `jettison` from 1.5.0 to 1.5.3
 - Bump `forbiddenapis` from 3.3 to 3.4
 - Bump `avro` from 1.11.0 to 1.11.1
 - Bump `woodstox-core` from 6.3.0 to 6.3.1
 - Bump `xmlbeans` from 5.1.0 to 5.1.1 ([#4354](https://github.com/opensearch-project/OpenSearch/pull/4354))
 - Bump `azure-storage-common` from 12.18.0 to 12.18.1 ([#4164](https://github.com/opensearch-project/OpenSearch/pull/4664))
+- Bumps `org.gradle.test-retry` from 1.4.0 to 1.4.1 ([#4411](https://github.com/opensearch-project/OpenSearch/pull/4411))
+- Bumps `reactive-streams` from 1.0.3 to 1.0.4 ([#4488](https://github.com/opensearch-project/OpenSearch/pull/4488))
 - Bump `reactor-netty-core` from 1.0.19 to 1.0.22 ([#4447](https://github.com/opensearch-project/OpenSearch/pull/4447))
 - Bump `reactive-streams` from 1.0.3 to 1.0.4 ([#4488](https://github.com/opensearch-project/OpenSearch/pull/4488))
 - Bump `reactor-core` from 3.4.23 to 3.5.1 ([#5604](https://github.com/opensearch-project/OpenSearch/pull/5604))
@@ -24,8 +29,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `spock-core` from 2.1-groovy-3.0 to 2.3-groovy-3.0 ([#5315](https://github.com/opensearch-project/OpenSearch/pull/5315))
 - Update to Gradle 7.6 and JDK-19 ([#4973](https://github.com/opensearch-project/OpenSearch/pull/4973))
 - Update Apache Lucene to 9.5.0-snapshot-d5cef1c ([#5570](https://github.com/opensearch-project/OpenSearch/pull/5570))
+- Bump antlr4 from 4.9.3 to 4.11.1 ([#4546](https://github.com/opensearch-project/OpenSearch/pull/4546))
 - Bump `maven-model` from 3.6.2 to 3.8.6 ([#5599](https://github.com/opensearch-project/OpenSearch/pull/5599))
 - Bump `maxmind-db` from 2.1.0 to 3.0.0 ([#5601](https://github.com/opensearch-project/OpenSearch/pull/5601))
+- Bumps `protobuf-java` from 3.21.11 to 3.21.12 ([#5603](https://github.com/opensearch-project/OpenSearch/pull/5603))
+- Bumps `azure-core-http-netty` from 1.12.7 to 1.12.8
+- Bumps `wiremock-jre8-standalone` from 2.33.2 to 2.35.0
+- Bumps `gson` from 2.10 to 2.10.1
+- Bumps `json-schema-validator` from 1.0.73 to 1.0.76
+- Bumps `jna` from 5.11.0 to 5.13.0
+- Bumps `joni` from 2.1.44 to 2.1.45
+- Bumps `commons-io:commons-io` from 2.7 to 2.11.0
+- Bumps `org.jruby.joni:joni` from 2.1.45 to 2.1.48
+- Bumps `org.apache.ant:ant` from 1.10.12 to 1.10.13
+- Bumps `com.azure:azure-storage-common` from 12.18.1 to 12.19.3
 - Bump `wiremock-jre8-standalone` from 2.33.2 to 2.35.0
 - Bump `gson` from 2.10 to 2.10.1
 - Bump `json-schema-validator` from 1.0.73 to 1.0.76
@@ -51,6 +68,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Migrate client transports to Apache HttpClient / Core 5.x ([#4459](https://github.com/opensearch-project/OpenSearch/pull/4459))
 - Change http code on create index API with bad input raising NotXContentException from 500 to 400 ([#4773](https://github.com/opensearch-project/OpenSearch/pull/4773))
 - Change http code for DecommissioningFailedException from 500 to 400 ([#5283](https://github.com/opensearch-project/OpenSearch/pull/5283))
+- Require MediaType in Strings.toString API ([#6009](https://github.com/opensearch-project/OpenSearch/pull/6009))
 - Improve summary error message for invalid setting updates ([#4792](https://github.com/opensearch-project/OpenSearch/pull/4792))
 
 ### Deprecated
@@ -80,16 +98,45 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 2.x]
 ### Added
+- Adding index create block when all nodes have breached high disk watermark ([#5852](https://github.com/opensearch-project/OpenSearch/pull/5852))
+- Added cluster manager throttling stats in nodes/stats API ([#5790](https://github.com/opensearch-project/OpenSearch/pull/5790))
+- Added support for feature flags in opensearch.yml ([#4959](https://github.com/opensearch-project/OpenSearch/pull/4959))
+- Add query for initialized extensions ([#5658](https://github.com/opensearch-project/OpenSearch/pull/5658))
+- Add update-index-settings allowlist for searchable snapshot ([#5907](https://github.com/opensearch-project/OpenSearch/pull/5907))
+- Add new cat/segment_replication API to surface Segment Replication metrics ([#5718](https://github.com/opensearch-project/OpenSearch/pull/5718)).
+- Replace latches with CompletableFutures for extensions ([#5646](https://github.com/opensearch-project/OpenSearch/pull/5646))
+- Add GeoTile and GeoHash Grid aggregations on GeoShapes. ([#5589](https://github.com/opensearch-project/OpenSearch/pull/5589))
+- Add support to disallow search request with preference parameter with strict weighted shard routing([#5874](https://github.com/opensearch-project/OpenSearch/pull/5874))
+- Added support to apply index create block ([#4603](https://github.com/opensearch-project/OpenSearch/issues/4603))
+- Adds support for minimum compatible version for extensions ([#6003](https://github.com/opensearch-project/OpenSearch/pull/6003))
+- Add a guardrail to limit maximum number of shard on the cluster ([#6143](https://github.com/opensearch-project/OpenSearch/pull/6143))
+- Add cancellation of in-flight SearchTasks based on resource consumption ([#5606](https://github.com/opensearch-project/OpenSearch/pull/5605))
+- Add support for ppc64le architecture ([#5459](https://github.com/opensearch-project/OpenSearch/pull/5459))
+- [Segment Replication] Add primary weight factor for balanced primary distribution ([#6017](https://github.com/opensearch-project/OpenSearch/pull/6017))
+- Add a setting to control auto release of OpenSearch managed index creation block ([#6277](https://github.com/opensearch-project/OpenSearch/pull/6277))
+- Fix timeout error when adding a document to an index with extension running ([#6275](https://github.com/opensearch-project/OpenSearch/pull/6275))
+- Clean up temporary files created during segment merge incase segment merge fails ([#6324](https://github.com/opensearch-project/OpenSearch/pull/6324))
+- Add identity and access control extension point ([5925](https://github.com/opensearch-project/OpenSearch/pull/5925))
 
 ### Dependencies
 
 ### Changed
+- Use ReplicationFailedException instead of OpensearchException in ReplicationTarget ([#4725](https://github.com/opensearch-project/OpenSearch/pull/4725))
+- [Refactor] Use local opensearch.common.SetOnce instead of lucene's utility class ([#5947](https://github.com/opensearch-project/OpenSearch/pull/5947))
+- Cluster health call to throw decommissioned exception for local decommissioned node([#6008](https://github.com/opensearch-project/OpenSearch/pull/6008))
+- [Refactor] core.common to new opensearch-common library ([#5976](https://github.com/opensearch-project/OpenSearch/pull/5976))
+- Cluster local health call to throw exception if node is decommissioned or weighed away ([#6198](https://github.com/opensearch-project/OpenSearch/pull/6198))
+
 
 ### Deprecated
 
 ### Removed
 
 ### Fixed
+- [Segment Replication] Fix for peer recovery ([#5344](https://github.com/opensearch-project/OpenSearch/pull/5344))
+- Fix weighted shard routing state across search requests([#6004](https://github.com/opensearch-project/OpenSearch/pull/6004))
+- [Segment Replication] Fix bug where inaccurate sequence numbers are sent during replication ([#6122](https://github.com/opensearch-project/OpenSearch/pull/6122))
+- Enable numeric sort optimisation for few numerical sort types ([#6321](https://github.com/opensearch-project/OpenSearch/pull/6321))
 
 ### Security
 
