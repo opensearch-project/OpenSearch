@@ -200,8 +200,7 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
                 assertThat(entry.getValue(), equalTo(false));
             } else if (entry.getKey().equals(minDocsCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
-            }
-            {
+            } else {
                 fail("unknown condition result found " + entry.getKey());
             }
         }
