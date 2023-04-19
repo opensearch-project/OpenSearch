@@ -8,7 +8,7 @@
 
 package org.opensearch.identity.shiro.realm;
 
-import org.opensearch.identity.StringPrincipal;
+import org.opensearch.identity.NamedPrincipal;
 
 /**
  * A non-volatile and immutable object in the storage.
@@ -17,14 +17,14 @@ import org.opensearch.identity.StringPrincipal;
  */
 public class User {
 
-    private StringPrincipal username;
+    private NamedPrincipal username;
     private String bcryptHash;
 
-    public StringPrincipal getUsername() {
+    public NamedPrincipal getUsername() {
         return username;
     }
 
-    public void setUsername(StringPrincipal username) {
+    public void setUsername(NamedPrincipal username) {
         this.username = username;
     }
 

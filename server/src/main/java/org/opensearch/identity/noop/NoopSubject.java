@@ -11,9 +11,9 @@ package org.opensearch.identity.noop;
 import java.security.Principal;
 import java.util.Objects;
 
+import org.opensearch.identity.NativePrincipal;
 import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.identity.Subject;
-import org.opensearch.identity.Principals;
 
 /**
  * Implementation of subject that is always authenticated
@@ -26,7 +26,7 @@ public class NoopSubject implements Subject {
 
     @Override
     public Principal getPrincipal() {
-        return Principals.UNAUTHENTICATED.getPrincipal();
+        return NativePrincipal.UNAUTHENTICATED.getPrincipal();
     }
 
     @Override

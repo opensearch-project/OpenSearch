@@ -12,17 +12,17 @@ import java.security.Principal;
  *
  * @opensearch.experimental
  */
-public enum Principals {
+public class NativePrincipal {
 
     /**
      * Represents a principal which has not been authenticated
      */
-    UNAUTHENTICATED(new StringPrincipal("Unauthenticated"));
+    public static final NativePrincipal UNAUTHENTICATED = new NativePrincipal("Unauthenticated");
 
     private final Principal principal;
 
-    Principals(final Principal principal) {
-        this.principal = principal;
+    NativePrincipal(final String principal) {
+        this.principal = new NamedPrincipal(principal);
     }
 
     /**

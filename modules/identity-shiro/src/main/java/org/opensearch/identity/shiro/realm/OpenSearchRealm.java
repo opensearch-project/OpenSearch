@@ -19,7 +19,7 @@ import org.apache.shiro.authc.pam.UnsupportedTokenException;
 import org.apache.shiro.realm.AuthenticatingRealm;
 import org.apache.shiro.authc.UsernamePasswordToken;
 
-import org.opensearch.identity.StringPrincipal;
+import org.opensearch.identity.NamedPrincipal;
 
 import java.util.Objects;
 import java.util.Map;
@@ -56,7 +56,7 @@ public class OpenSearchRealm extends AuthenticatingRealm {
         public OpenSearchRealm build() {
             // TODO: Replace hardcoded admin user / user map with an external provider
             final User adminUser = new User();
-            adminUser.setUsername(new StringPrincipal("admin"));
+            adminUser.setUsername(new NamedPrincipal("admin"));
             adminUser.setBcryptHash("$2a$12$VcCDgh2NDk07JGN0rjGbM.Ad41qVR/YFJcgHp0UGns5JDymv..TOG"); // Password 'admin'
             final Map<String, User> internalUsers = Map.of("admin", adminUser);
             return new OpenSearchRealm(name, internalUsers);
