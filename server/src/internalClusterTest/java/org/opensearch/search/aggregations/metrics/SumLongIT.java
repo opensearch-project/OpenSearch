@@ -46,14 +46,11 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class SumLongIT extends OpenSearchIntegTestCase {
     public void testLargeLongValues() throws InterruptedException {
-        prepareCreate("longidx").setMapping(
-            "value",
-            "type=long"
-        ).get();
+        prepareCreate("longidx").setMapping("value", "type=long").get();
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex("longidx").setSource("value", 0L));
-        builders.add(client().prepareIndex("longidx").setSource("value", -1L));
+        builders.add(client().prepareIndex("longidx").setSource("value", -922337202685477588L));
+        builders.add(client().prepareIndex("longidx").setSource("value", 922337202685477587L));
         builders.add(client().prepareIndex("longidx").setSource("value", 1000L));
         builders.add(client().prepareIndex("longidx").setSource("value", -500L));
 
@@ -70,6 +67,6 @@ public class SumLongIT extends OpenSearchIntegTestCase {
         Sum sum = searchResponse.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getName(), equalTo("sum"));
-        assertThat(sum.getValue(), equalTo( (double) (-9223372026854775808L + 9223372026854775807L + 1000L - 500L)));
+        assertThat(sum.getValue(), equalTo((double) (-9223372026854775808L + 9223372026854775807L + 1000L - 500L)));
     }
 }

@@ -37,6 +37,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.DoubleArray;
+import org.opensearch.common.util.LongArray;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
@@ -59,7 +60,7 @@ public class SumIntegralAggregator extends NumericMetricsAggregator.SingleValue 
 
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat format;
-    private DoubleArray sums;
+    private LongArray sums;
 
     SumIntegralAggregator(
         String name,
@@ -71,7 +72,7 @@ public class SumIntegralAggregator extends NumericMetricsAggregator.SingleValue 
         super(name, context, parent, metadata);
         this.valuesSource = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
         this.format = valuesSourceConfig.format();
-        sums = context.bigArrays().newDoubleArray(1, true);
+        sums = context.bigArrays().newLongArray(1, true);
     }
 
     @Override
@@ -90,12 +91,12 @@ public class SumIntegralAggregator extends NumericMetricsAggregator.SingleValue 
 
                 if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
-                    BigInteger value = BigInteger.valueOf((long) sums.get(bucket));
+                    BigInteger value = BigInteger.valueOf(sums.get(bucket));
                     for (int i = 0; i < valuesCount; i++) {
                         value = value.add(BigInteger.valueOf(values.nextValue()));
                     }
 
-                    sums.set(bucket, value.doubleValue());
+                    sums.set(bucket, value.longValue());
                 }
             }
         };
