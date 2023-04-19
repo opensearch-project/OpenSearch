@@ -368,7 +368,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LOW_LEVEL_CANCELLATION_SETTING, this::setLowLevelCancellation);
 
         searchSegmentOrderReversed = SEARCH_SEGMENTS_REVERSE_ORDER_OPTIMIZATION.get(settings);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(SEARCH_SEGMENTS_REVERSE_ORDER_OPTIMIZATION, this::setSearchSegmentOrderReversed);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(SEARCH_SEGMENTS_REVERSE_ORDER_OPTIMIZATION, this::setSearchSegmentOrderReversed);
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {

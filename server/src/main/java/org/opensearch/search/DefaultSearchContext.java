@@ -44,7 +44,6 @@ import org.opensearch.Version;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.search.Queries;
@@ -90,8 +89,6 @@ import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortAndFormats;
-import org.opensearch.search.sort.SortBuilder;
-import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
 import java.io.IOException;
