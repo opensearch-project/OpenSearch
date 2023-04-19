@@ -197,7 +197,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         }
 
         for (TaskCancellation taskCancellation : getTaskCancellations(cancellableTasks)) {
-            logger.debug(
+            logger.warn(
                 "[{} mode] cancelling task [{}] due to high resource consumption [{}]",
                 mode.getName(),
                 taskCancellation.getTask().getId(),

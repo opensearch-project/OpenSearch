@@ -49,6 +49,7 @@ import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
+import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
@@ -599,6 +600,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IndexingPressure.MAX_INDEXING_BYTES,
                 TaskResourceTrackingService.TASK_RESOURCE_TRACKING_ENABLED,
                 TaskManager.TASK_RESOURCE_CONSUMERS_ENABLED,
+                TopNSearchTasksLogger.LOG_TOP_QUERIES_SIZE_SETTING,
+                TopNSearchTasksLogger.LOG_TOP_QUERIES_FREQUENCY_SETTING,
                 ClusterManagerTaskThrottler.THRESHOLD_SETTINGS,
                 ClusterManagerTaskThrottler.BASE_DELAY_SETTINGS,
                 ClusterManagerTaskThrottler.MAX_DELAY_SETTINGS,
