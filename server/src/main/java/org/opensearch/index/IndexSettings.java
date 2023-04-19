@@ -1087,7 +1087,6 @@ public final class IndexSettings {
 
     /**
      * Returns true if index level setting for leaf reverse order search optimization is enabled
-     * @return
      */
     public boolean getSearchSegmentOrderReversed() {
         return this.searchSegmentOrderReversed;
