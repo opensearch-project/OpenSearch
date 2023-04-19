@@ -3560,6 +3560,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * @return True if settings indicate this shard is backed by a remote snapshot, false otherwise.
+     */
+    public boolean isRemoteSnapshot() {
+        return indexSettings != null && indexSettings.isRemoteSnapshot();
+    }
+
+    /**
      * Acquire a primary operation permit whenever the shard is ready for indexing. If a permit is directly available, the provided
      * ActionListener will be called on the calling thread. During relocation hand-off, permit acquisition can be delayed. The provided
      * ActionListener will then be called using the provided executor.
