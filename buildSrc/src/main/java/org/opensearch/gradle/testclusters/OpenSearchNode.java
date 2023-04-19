@@ -836,6 +836,10 @@ public class OpenSearchNode implements TestClusterConfiguration {
         environment.clear();
         environment.putAll(getOpenSearchEnvironment());
 
+        if (!extensions.isEmpty()) {
+            environment.put("OPENSEARCH_JAVA_OPTS", "-Dopensearch.experimental.feature.extensions.enabled=true");
+        }
+
         // don't buffer all in memory, make sure we don't block on the default pipes
         processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(stderrFile.toFile()));
         processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(stdoutFile.toFile()));
