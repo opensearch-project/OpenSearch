@@ -102,7 +102,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * Certain queries can benefit if we reverse the segment read order,
      * for example time series based queries if searched for desc sort order
      */
-    private boolean reverseLeafReaderContexts;
+    private final boolean reverseLeafReaderContexts;
 
     public ContextIndexSearcher(
         IndexReader reader,

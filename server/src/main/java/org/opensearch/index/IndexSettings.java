@@ -582,7 +582,7 @@ public final class IndexSettings {
      * Setting to enable/disable desc leaf reader optimization
      */
     public static final Setting<Boolean> SEARCH_SEGMENTS_REVERSE_ORDER_OPTIMIZATION_SETTING = Setting.boolSetting(
-        "index.search_segments_reverse_order_optimization",
+        "index.search_segments_reverse_order_optimization.enabled",
         true,
         Property.Dynamic,
         Property.IndexScope
