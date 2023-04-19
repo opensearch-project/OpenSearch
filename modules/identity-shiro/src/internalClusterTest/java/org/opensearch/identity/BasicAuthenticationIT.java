@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.shiro;
+package org.opensearch.identity;
 
 import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.StringContains.containsString;
 import static org.junit.Assert.assertThat;
 
-@ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
+@OpenSearchIntegTestCase.ClusterScope(numDataNodes = 0, numClientNodes = 0, scope = OpenSearchIntegTestCase.Scope.TEST)
 public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
 
     public void testBasicAuthSuccess() throws Exception {
@@ -32,7 +32,6 @@ public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
 
         assertThat(content, response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
         assertThat(content, containsString("green"));
-        System.out.println("Successfully passed assertions in basic auth success");
     }
 
     public void testBasicAuthUnauthorized_invalidHeader() throws Exception {

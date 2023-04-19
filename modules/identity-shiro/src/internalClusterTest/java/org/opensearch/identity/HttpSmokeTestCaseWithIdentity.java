@@ -6,10 +6,11 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.shiro;
+package org.opensearch.identity;
 
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.identity.shiro.ShiroIdentityPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.Netty4ModulePlugin;
@@ -27,6 +28,7 @@ import java.util.Collection;
  *
  * @opensearch.experimental
  */
+@OpenSearchIntegTestCase.ClusterScope(numDataNodes = 0, numClientNodes = 0, scope = OpenSearchIntegTestCase.Scope.TEST)
 public abstract class HttpSmokeTestCaseWithIdentity extends OpenSearchIntegTestCase {
 
     private static String nodeTransportTypeKey;
