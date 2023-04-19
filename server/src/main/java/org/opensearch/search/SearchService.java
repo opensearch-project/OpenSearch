@@ -237,7 +237,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public static final Setting<Boolean> SEARCH_SEGMENTS_REVERSE_ORDER_OPTIMIZATION = Setting.boolSetting(
         "search.search_segments_reverse_order_optimization",
-        true,
+        false,
         Property.Dynamic,
         Property.NodeScope
     );
@@ -1090,8 +1090,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         // searchSegmentOrderReversed is true by default
         if (searchSegmentOrderReversed) {
             // Only reverse order for desc order sort queries
-            List<SortBuilder<?>> sorts = request.source().sorts();
-            if (sorts != null && sorts.size() > 0 && sorts.get(0).order() == SortOrder.DESC) {
+            if (request != null
+                && request.source() != null
+                && request.source().sorts() != null
+                && request.source().sorts().size() > 0
+                && request.source().sorts().get(0).order() == SortOrder.DESC) {
                 return true;
             }
         }
