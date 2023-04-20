@@ -8,7 +8,7 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.common.Nullable;
+import org.opensearch.common.NotNull;
 import org.opensearch.identity.Subject;
 
 /**
@@ -21,6 +21,6 @@ public interface IdentityPlugin {
     /**
      * Get the current subject
      * */
-    @Nullable
+    @NotNull
     public Subject getSubject();
 }

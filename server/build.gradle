@@ -92,6 +92,8 @@ dependencies {
   api project(':libs:opensearch-secure-sm')
   api project(':libs:opensearch-x-content')
   api project(":libs:opensearch-geo")
+    implementation 'org.jetbrains:annotations:23.0.0'
+  implementation 'org.jetbrains:annotations:23.0.0'
 
   compileOnly project(':libs:opensearch-plugin-classloader')
   testRuntimeOnly project(':libs:opensearch-plugin-classloader')
