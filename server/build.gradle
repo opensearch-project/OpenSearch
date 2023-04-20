@@ -147,7 +147,7 @@ dependencies {
   api "net.java.dev.jna:jna:${versions.jna}"
 
   // protobuf
-  api 'com.google.protobuf:protobuf-java:3.22.2'
+  api "com.google.protobuf:protobuf-java:${versions.protobuf}"
 
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
