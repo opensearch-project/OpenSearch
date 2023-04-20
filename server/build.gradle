@@ -31,13 +31,12 @@
 import org.opensearch.gradle.info.BuildParams
 
 plugins {
-  id('com.google.protobuf') version '0.8.19'
+  id('com.google.protobuf') version 'latest.release'
+  id('opensearch.build')
+  id('com.netflix.nebula.optional-base')
+  id('opensearch.publish')
+  id('opensearch.internal-cluster-test')
 }
-
-apply plugin: 'opensearch.build'
-apply plugin: 'com.netflix.nebula.optional-base'
-apply plugin: 'opensearch.publish'
-apply plugin: 'opensearch.internal-cluster-test'
 
 publishing {
   publications {
@@ -220,7 +219,7 @@ def generatePluginsList = tasks.register("generatePluginsList") {
 
 protobuf {
   protoc {
-    artifact = "com.google.protobuf:protoc:3.22.2"
+    artifact = "com.google.protobuf:protoc:${versions.protobuf}"
   }
 }
 
@@ -371,6 +370,7 @@ tasks.named("licenseHeaders").configure {
     excludes << 'org/apache/lucene/search/RegExp87*'
     excludes << 'org/apache/lucene/search/RegexpQuery87*'
     excludes << 'org/opensearch/client/documentation/placeholder.txt'
+    // Ignore for generated code
     excludes << 'org/opensearch/extensions/proto/*'
 }
 
