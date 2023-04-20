@@ -202,7 +202,7 @@ public class TaskManager implements ClusterStateApplier {
                 @Override
                 protected void innerOnResponse(Task task) {
                     // Stop tracking the task once the last thread has been marked inactive.
-                    if (taskResourceTrackingService.get() != null && task.supportsResourceTracking()) {
+                    if (taskResourceTrackingService.get() != null) {
                         taskResourceTrackingService.get().stopTracking(task);
                     }
                 }
@@ -285,6 +285,10 @@ public class TaskManager implements ClusterStateApplier {
                     logger.error("error encountered when updating the consumer", e);
                 }
             }
+        }
+        
+        if (task.supportsResourceTracking() && taskResourceTrackingService.get() != null) {
+            taskResourceTrackingService.get().cleanTracking(task);
         }
 
         if (task instanceof CancellableTask) {

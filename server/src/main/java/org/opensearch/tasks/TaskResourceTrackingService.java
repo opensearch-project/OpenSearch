@@ -115,8 +115,6 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
         } catch (Exception e) {
             logger.warn("Failed while trying to mark the task execution on current thread completed.", e);
             assert false;
-        } finally {
-            resourceAwareTasks.remove(task.getId());
         }
 
         List<Exception> exceptions = new ArrayList<>();
@@ -128,6 +126,14 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
             }
         }
         ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
+    }
+
+    /**
+     * clean sources using by Tracking
+     * @param task task which has finished and doesn't need resource tracking.
+     */
+    public void cleanTracking(Task task) {
+        resourceAwareTasks.remove(task.getId());
     }
 
     /**
