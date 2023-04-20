@@ -40,11 +40,8 @@ import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
-import java.util.HashSet;
-import java.util.Set;
 
 public class GetMappingsResponseTests extends AbstractResponseTestCase<
     org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse,
@@ -95,18 +92,5 @@ public class GetMappingsResponseTests extends AbstractResponseTestCase<
             mappings.put("index", Objects.toString(randomBoolean()));
         }
         return mappings;
-    }
-
-    protected static <T> void assertMapEquals(Map<String, T> expected, Map<String, T> actual) {
-        final Set<String> expectedKeys = new HashSet<>();
-        final Iterator<String> keysIt = expected.keySet().iterator();
-        while (keysIt.hasNext()) {
-            expectedKeys.add(keysIt.next());
-        }
-
-        assertEquals(expectedKeys, actual.keySet());
-        for (String key : expectedKeys) {
-            assertEquals(expected.get(key), actual.get(key));
-        }
     }
 }

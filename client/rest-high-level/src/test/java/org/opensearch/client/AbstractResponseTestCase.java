@@ -116,4 +116,17 @@ public abstract class AbstractResponseTestCase<S extends ToXContent, C> extends 
             assertEquals(expected.get(key), actual.get(key));
         }
     }
+
+    protected static <T> void assertMapEquals(final Map<String, T> expected, Map<String, T> actual) {
+        Set<String> expectedKeys = new HashSet<>();
+        Iterator<String> keysIt = expected.keySet().iterator();
+        while (keysIt.hasNext()) {
+            expectedKeys.add(keysIt.next());
+        }
+
+        assertEquals(expectedKeys, actual.keySet());
+        for (String key : expectedKeys) {
+            assertEquals(expected.get(key), actual.get(key));
+        }
+    }
 }

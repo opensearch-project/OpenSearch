@@ -50,13 +50,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 public class GetIndexResponseTests extends AbstractResponseTestCase<
     org.opensearch.action.admin.indices.get.GetIndexResponse,
@@ -171,18 +168,5 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<
             mappings.put("type", "keyword");
         }
         return mappings;
-    }
-
-    protected static <T> void assertMapEquals(final Map<String, T> expected, Map<String, T> actual) {
-        Set<String> expectedKeys = new HashSet<>();
-        Iterator<String> keysIt = expected.keySet().iterator();
-        while (keysIt.hasNext()) {
-            expectedKeys.add(keysIt.next());
-        }
-
-        assertEquals(expectedKeys, actual.keySet());
-        for (String key : expectedKeys) {
-            assertEquals(expected.get(key), actual.get(key));
-        }
     }
 }
