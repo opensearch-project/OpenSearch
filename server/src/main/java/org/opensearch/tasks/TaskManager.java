@@ -286,7 +286,7 @@ public class TaskManager implements ClusterStateApplier {
                 }
             }
         }
-        
+
         if (task.supportsResourceTracking() && taskResourceTrackingService.get() != null) {
             taskResourceTrackingService.get().cleanTracking(task);
         }
