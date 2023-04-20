@@ -29,4 +29,3 @@ import javax.annotation.meta.TypeQualifierNickname;
 @Target({ ElementType.METHOD })
 public @interface NotNull {
 }
-
