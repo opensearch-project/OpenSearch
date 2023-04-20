@@ -8,7 +8,6 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.common.NotNull;
 import org.opensearch.identity.Subject;
 
 /**
@@ -21,6 +20,5 @@ public interface IdentityPlugin {
     /**
      * Get the current subject
      * */
-    @NotNull
     public Subject getSubject();
 }
