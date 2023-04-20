@@ -38,8 +38,8 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.node.Node;
-import org.opensearch.otel.OtelEventListener;
-import org.opensearch.otel.OtelService;
+import org.opensearch.tracing.opentelemetry.OpenTelemetryContextWrapper;
+import org.opensearch.tracing.opentelemetry.OpenTelemetryService;
 
 import java.util.Arrays;
 import java.util.List;
@@ -59,7 +59,6 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
     private final Setting<Integer> maxSetting;
     private final Setting<TimeValue> keepAliveSetting;
 
-    private final List<OtelEventListener> otelEventListeners;
     /**
      * Construct a scaling executor builder; the settings will have the
      * key prefix "thread_pool." followed by the executor name.
@@ -73,15 +72,6 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
     public ScalingExecutorBuilder(final String name, final int core, final int max, final TimeValue keepAlive) {
         this(name, core, max, keepAlive, "thread_pool." + name);
     }
-    public ScalingExecutorBuilder(final String name, final int core, final int max, final TimeValue keepAlive,
-                                  List<OtelEventListener> otelEventListeners)  {
-        this(name, core, max, keepAlive, "thread_pool." + name, otelEventListeners);
-    }
-
-    public ScalingExecutorBuilder(final String name, final int core, final int max, final TimeValue keepAlive, final String prefix)  {
-        this(name, core, max, keepAlive, prefix, null);
-    }
-
 
     /**
      * Construct a scaling executor builder; the settings will have the
@@ -94,13 +84,11 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
      *                  threads will be kept alive
      * @param prefix    the prefix for the settings keys
      */
-    public ScalingExecutorBuilder(final String name, final int core, final int max, final TimeValue keepAlive, final String prefix,
-                                  List<OtelEventListener> otelEventListeners) {
+    public ScalingExecutorBuilder(final String name, final int core, final int max, final TimeValue keepAlive, final String prefix) {
         super(name);
         this.coreSetting = Setting.intSetting(settingsKey(prefix, "core"), core, Setting.Property.NodeScope);
         this.maxSetting = Setting.intSetting(settingsKey(prefix, "max"), max, Setting.Property.NodeScope);
         this.keepAliveSetting = Setting.timeSetting(settingsKey(prefix, "keep_alive"), keepAlive, Setting.Property.NodeScope);
-        this.otelEventListeners = otelEventListeners;
     }
 
     @Override
@@ -134,8 +122,8 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
             threadFactory,
             threadContext
         );
-        if (otelEventListeners != null) {
-            executor = OtelService.taskWrapping(executor, otelEventListeners);
+        if (OpenTelemetryService.isThreadPoolAllowed(name())) {
+            executor = OpenTelemetryContextWrapper.wrapTask(executor);
         }
         return new ThreadPool.ExecutorHolder(executor, info);
     }

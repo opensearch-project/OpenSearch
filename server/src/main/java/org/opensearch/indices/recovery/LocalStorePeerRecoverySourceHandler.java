@@ -28,7 +28,7 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.RunUnderPrimaryPermit;
-import org.opensearch.otel.OtelService;
+import org.opensearch.tracing.opentelemetry.OpenTelemetryService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transports;
 
@@ -53,10 +53,9 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
         StartRecoveryRequest request,
         int fileChunkSizeInBytes,
         int maxConcurrentFileChunks,
-        int maxConcurrentOperations,
-        OtelService otelService
+        int maxConcurrentOperations
     ) {
-        super(shard, recoveryTarget, threadPool, request, fileChunkSizeInBytes, maxConcurrentFileChunks, maxConcurrentOperations, otelService);
+        super(shard, recoveryTarget, threadPool, request, fileChunkSizeInBytes, maxConcurrentFileChunks, maxConcurrentOperations);
     }
 
     @Override
@@ -155,7 +154,7 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
                                     (ActionListener<ReplicationResponse>) actionListener);
                                 return null;
                             };
-                        OtelService.callFunctionAndStartSpan(
+                        OpenTelemetryService.callFunctionAndStartSpan(
                             "removePeerRecoveryRetentionLease",
                             removePeerRecoveryRetentionLeaseFun,
                             new ThreadedActionListener<>(
@@ -181,7 +180,7 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
                                 (ActionListener<SendFileResult>) actionListener, (boolean) args[3]);
                             return null;
                         };
-                    OtelService.callFunctionAndStartSpan(
+                    OpenTelemetryService.callFunctionAndStartSpan(
                         "phase1",
                         phase1Fun,
                         sendFileStep,
@@ -206,7 +205,7 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
                     prepareTargetForTranslog((int)args[0], (ActionListener<TimeValue>) actionListener);
                     return null;
                 };
-            OtelService.callFunctionAndStartSpan(
+            OpenTelemetryService.callFunctionAndStartSpan(
                 "prepareTargetForTranslog",
                 prepareTargetForTranslogFun,
                 prepareEngineStep,
@@ -260,7 +259,7 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
                     }
                     return null;
                 };
-            OtelService.callFunctionAndStartSpan(
+            OpenTelemetryService.callFunctionAndStartSpan(
                 "phase2",
                 phase2Fun,
                 sendSnapshotStep,

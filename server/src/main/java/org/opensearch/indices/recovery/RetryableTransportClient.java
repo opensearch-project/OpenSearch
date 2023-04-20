@@ -22,8 +22,8 @@ import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
-import org.opensearch.otel.OtelService;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.tracing.opentelemetry.OTelContextPreservingActionListener;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.SendRequestTransportException;
@@ -96,7 +96,7 @@ public final class RetryableTransportClient {
                     request,
                     options,
                     new ActionListenerResponseHandler<>(
-                        new OtelService.SpanPreservingActionListener<>(listener, Context.current()),
+                        new OTelContextPreservingActionListener<>(listener, Context.current()),
                         reader, ThreadPool.Names.GENERIC)
                 );
             }

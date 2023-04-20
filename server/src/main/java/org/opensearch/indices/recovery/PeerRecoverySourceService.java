@@ -56,9 +56,9 @@ import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.otel.OtelService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.tracing.opentelemetry.OpenTelemetryService;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
@@ -100,15 +100,12 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     private final RecoverySettings recoverySettings;
 
     final OngoingRecoveries ongoingRecoveries = new OngoingRecoveries();
-    private final OtelService otelService;
 
     @Inject
-    public PeerRecoverySourceService(TransportService transportService, IndicesService indicesService, RecoverySettings recoverySettings,
-                                     OtelService otelService) {
+    public PeerRecoverySourceService(TransportService transportService, IndicesService indicesService, RecoverySettings recoverySettings) {
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.recoverySettings = recoverySettings;
-        this.otelService = otelService;
         // When the target node wants to start a peer recovery it sends a START_RECOVERY request to the source
         // node. Upon receiving START_RECOVERY, the source node will initiate the peer recovery.
         transportService.registerRequestHandler(
@@ -221,7 +218,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 recover((StartRecoveryRequest) args[0], (ActionListener<RecoveryResponse>) actionListener);
                 return null;
             };
-            OtelService.callFunctionAndStartSpan("recover", recoverFunction,
+            OpenTelemetryService.callFunctionAndStartSpan("recover", recoverFunction,
                 new ChannelActionListener<>(channel, Actions.START_RECOVERY, request), request);
         }
     }
@@ -398,7 +395,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     recoverySettings,
                     throttleTime -> shard.recoveryStats().addThrottleTime(throttleTime)
                 );
-                handler = RecoverySourceHandlerFactory.create(shard, recoveryTarget, request, recoverySettings, otelService);
+                handler = RecoverySourceHandlerFactory.create(shard, recoveryTarget, request, recoverySettings);
                 return Tuple.tuple(handler, recoveryTarget);
             }
         }

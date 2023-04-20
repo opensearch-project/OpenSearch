@@ -32,7 +32,6 @@
 
 package org.opensearch.common.util.concurrent;
 
-import io.opentelemetry.context.Context;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -41,9 +40,9 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.node.Node;
-import org.opensearch.otel.OtelService;
 import org.opensearch.threadpool.RunnableTaskExecutionListener;
 import org.opensearch.threadpool.TaskAwareRunnable;
+import org.opensearch.tracing.opentelemetry.OpenTelemetryContextWrapper;
 
 import java.util.List;
 import java.util.Optional;
@@ -353,7 +352,7 @@ public class OpenSearchExecutors {
      * @return an {@link ExecutorService} that executes submitted tasks on the current thread
      */
     public static ExecutorService newDirectExecutorService() {
-        return OtelService.taskWrapping(DIRECT_EXECUTOR_SERVICE);
+        return OpenTelemetryContextWrapper.wrapTask(DIRECT_EXECUTOR_SERVICE);
     }
 
     public static String threadName(Settings settings, String namePrefix) {

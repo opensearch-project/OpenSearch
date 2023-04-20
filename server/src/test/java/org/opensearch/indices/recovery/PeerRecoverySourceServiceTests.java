@@ -40,8 +40,6 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.otel.OtelService;
-import org.opensearch.plugins.PluginsService;
 import org.opensearch.test.NodeRoles;
 import org.opensearch.transport.TransportService;
 
@@ -62,8 +60,7 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         PeerRecoverySourceService peerRecoverySourceService = new PeerRecoverySourceService(
             mock(TransportService.class),
             indicesService,
-            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-            new OtelService(mock(PluginsService.class))
+            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
         );
         StartRecoveryRequest startRecoveryRequest = new StartRecoveryRequest(
             primary.shardId(),

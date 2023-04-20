@@ -61,10 +61,10 @@ import org.opensearch.index.shard.IndexShardClosedException;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
-import org.opensearch.otel.OtelService;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskId;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.tracing.opentelemetry.OTelContextPreservingActionListener;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
@@ -133,7 +133,7 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
         RetentionLeases retentionLeases,
         ActionListener<ReplicationResponse> listener1
     ) {
-        final ActionListener<ReplicationResponse> listener = new OtelService.SpanPreservingActionListener<>(listener1, Context.current());
+        final ActionListener<ReplicationResponse> listener = new OTelContextPreservingActionListener<>(listener1, Context.current());
         final ThreadContext threadContext = threadPool.getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             // we have to execute under the system context so that if security is enabled the sync is authorized

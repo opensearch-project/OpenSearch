@@ -9,7 +9,6 @@
 package org.opensearch.indices.recovery;
 
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.otel.OtelService;
 
 /**
  * Factory that supplies {@link RecoverySourceHandler}.
@@ -22,8 +21,7 @@ public class RecoverySourceHandlerFactory {
         IndexShard shard,
         RecoveryTargetHandler recoveryTarget,
         StartRecoveryRequest request,
-        RecoverySettings recoverySettings,
-        OtelService otelService
+        RecoverySettings recoverySettings
     ) {
         boolean isReplicaRecoveryWithRemoteTranslog = request.isPrimaryRelocation() == false && shard.isRemoteTranslogEnabled();
         if (isReplicaRecoveryWithRemoteTranslog) {
@@ -34,8 +32,7 @@ public class RecoverySourceHandlerFactory {
                 request,
                 Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
                 recoverySettings.getMaxConcurrentFileChunks(),
-                recoverySettings.getMaxConcurrentOperations(),
-                otelService
+                recoverySettings.getMaxConcurrentOperations()
             );
         } else {
             return new LocalStorePeerRecoverySourceHandler(
@@ -45,8 +42,7 @@ public class RecoverySourceHandlerFactory {
                 request,
                 Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
                 recoverySettings.getMaxConcurrentFileChunks(),
-                recoverySettings.getMaxConcurrentOperations(),
-                otelService
+                recoverySettings.getMaxConcurrentOperations()
             );
         }
     }

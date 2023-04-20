@@ -32,7 +32,7 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.otel.OtelEventListener;
+import org.opensearch.tracing.TaskEventListener;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.client.Client;
@@ -207,7 +207,7 @@ public abstract class Plugin implements Closeable {
         return Collections.emptyList();
     }
 
-    public List<OtelEventListener> getOtelEventListeners() {
+    public List<TaskEventListener> getTaskEventListeners() {
         return Collections.emptyList();
     }
 
