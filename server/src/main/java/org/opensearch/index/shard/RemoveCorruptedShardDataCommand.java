@@ -144,8 +144,6 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
 
         final IndexMetadata indexMetadata;
         final int shardId;
-        final int fromNodeId;
-        final int toNodeId;
 
         if (options.has(folderOption)) {
             final Path path = getPath(folderOption.value(options)).getParent();
@@ -166,10 +164,7 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
                 && NodeEnvironment.NODES_FOLDER.equals(shardParentParent.getParent().getParent().getFileName().toString()) // `nodes` check
             ) {
                 shardId = Integer.parseInt(shardIdFileName);
-                fromNodeId = Integer.parseInt(nodeIdFileName);
-                toNodeId = fromNodeId + 1;
                 indexMetadata = StreamSupport.stream(clusterState.metadata().indices().values().spliterator(), false)
-                    .map(imd -> imd.value)
                     .filter(imd -> imd.getIndexUUID().equals(indexUUIDFolderName))
                     .findFirst()
                     .orElse(null);
@@ -249,11 +244,9 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
             );
         }
         String[] files = directory.listAll();
-        boolean found = false;
         for (String file : files) {
             if (file.startsWith(Store.CORRUPTED_MARKER_NAME_PREFIX)) {
                 directory.deleteFile(file);
-
                 terminal.println("Deleted corrupt marker " + file + " from " + path);
             }
         }

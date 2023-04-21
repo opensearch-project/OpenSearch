@@ -61,7 +61,6 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
     /**
      * This test verifies that the overall primary balance is attained during allocation. This test verifies primary
      * balance per index and across all indices is maintained.
-     * @throws Exception
      */
     public void testGlobalPrimaryAllocation() throws Exception {
         internalCluster().startClusterManagerOnlyNode();

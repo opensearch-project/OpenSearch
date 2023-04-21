@@ -294,8 +294,8 @@ public class AddIncrementallyTests extends OpenSearchAllocationTestCase {
 
         Metadata metadata = metadataBuilder.build();
 
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-            routingTableBuilder.addAsNew(cursor.value);
+        for (final IndexMetadata cursor : metadata.indices().values()) {
+            routingTableBuilder.addAsNew(cursor);
         }
 
         RoutingTable initialRoutingTable = routingTableBuilder.build();

@@ -655,8 +655,8 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         }
 
         Metadata metadata = metadataBuilder.build();
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-            routingTableBuilder.addAsNew(cursor.value);
+        for (final IndexMetadata cursor : metadata.indices().values()) {
+            routingTableBuilder.addAsNew(cursor);
         }
 
         RoutingTable initialRoutingTable = routingTableBuilder.build();
@@ -910,8 +910,8 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
             .numberOfReplicas(1);
         metadataBuilder = metadataBuilder.put(indexMeta);
         Metadata metadata = metadataBuilder.build();
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-            routingTableBuilder.addAsNew(cursor.value);
+        for (final IndexMetadata cursor : metadata.indices().values()) {
+            routingTableBuilder.addAsNew(cursor);
         }
         RoutingTable routingTable = routingTableBuilder.build();
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();

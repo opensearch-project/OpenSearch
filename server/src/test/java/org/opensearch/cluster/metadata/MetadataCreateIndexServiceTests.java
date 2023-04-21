@@ -59,7 +59,6 @@ import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDeci
 import org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
@@ -812,9 +811,9 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {
             builder.settings(Settings.builder().put("template_setting", "value1"));
         });
-        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templatesBuilder = ImmutableOpenMap.builder();
+        final Map<String, IndexTemplateMetadata> templatesBuilder = new HashMap<>();
         templatesBuilder.put("template_1", templateMetadata);
-        Metadata metadata = new Metadata.Builder().templates(templatesBuilder.build()).build();
+        Metadata metadata = new Metadata.Builder().templates(templatesBuilder).build();
         ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
             .build();

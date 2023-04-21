@@ -37,7 +37,6 @@ import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.Index;
@@ -47,6 +46,7 @@ import org.hamcrest.Matchers;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -233,9 +233,8 @@ public class DanglingIndicesStateTests extends OpenSearchTestCase {
             IndexMetadata existingIndex = IndexMetadata.builder("test_index").settings(existingSettings).build();
             metaStateService.writeIndex("test_write", existingIndex);
 
-            final ImmutableOpenMap<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder()
-                .fPut(dangledIndex.getIndex().getName(), existingIndex)
-                .build();
+            final Map<String, IndexMetadata> indices = new HashMap<>();
+            indices.put(dangledIndex.getIndex().getName(), existingIndex);
             final Metadata metadata = Metadata.builder().indices(indices).build();
 
             // All dangling indices should be found...
