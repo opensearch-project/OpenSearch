@@ -8,7 +8,10 @@
 
 package org.opensearch.identity;
 
-public class NoopIdentityService extends IdentityService{
+/**
+ * Placeholder created by node in case of extensions feature flag set to false. See {@link org.opensearch.common.util.FeatureFlags}
+ */
+public class NoopIdentityService extends IdentityService {
 
     public NoopIdentityService() {
         super();

@@ -12,6 +12,9 @@ import org.opensearch.common.settings.Settings;
 
 import java.nio.file.Path;
 
+/**
+ * ServiceAccountManager hooks into security plugin endpoint
+ */
 public class ServiceAccountManager {
 
     Settings settings;

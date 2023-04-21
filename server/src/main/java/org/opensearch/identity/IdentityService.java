@@ -12,6 +12,9 @@ import org.opensearch.common.settings.Settings;
 
 import java.nio.file.Path;
 
+/**
+ * IdentityService manages ServiceAccountManager
+ */
 public class IdentityService {
 
     Settings settings;
