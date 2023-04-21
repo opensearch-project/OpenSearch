@@ -31,11 +31,9 @@
 
 package org.opensearch.snapshots;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
@@ -162,7 +160,7 @@ public class SnapshotUtils {
      * @param repoName repo name for which the verification is being done
      */
     public static void validateSnapshotsBackingAnyIndex(
-        ImmutableOpenMap<String, IndexMetadata> metadata,
+        final Map<String, IndexMetadata> metadata,
         List<SnapshotId> snapshotIds,
         String repoName
     ) {
@@ -170,8 +168,7 @@ public class SnapshotUtils {
         final Set<String> snapshotsToBeNotDeleted = new HashSet<>();
         snapshotIds.forEach(snapshotId -> uuidToSnapshotId.put(snapshotId.getUUID(), snapshotId));
 
-        for (ObjectCursor<IndexMetadata> cursor : metadata.values()) {
-            IndexMetadata indexMetadata = cursor.value;
+        for (final IndexMetadata indexMetadata : metadata.values()) {
             String storeType = indexMetadata.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey());
             if (IndexModule.Type.REMOTE_SNAPSHOT.match(storeType)) {
                 String snapshotId = indexMetadata.getSettings().get(IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID.getKey());
