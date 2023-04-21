@@ -212,7 +212,7 @@ public class NumbersTests extends OpenSearchTestCase {
         e = expectThrows(IllegalArgumentException.class, () -> Numbers.toUnsignedLongExact(3.1f));
         assertEquals("3.1 is not an integer value", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> Numbers.toUnsignedLongExact(new AtomicInteger(3))); // not supported
-        assertEquals("Cannot check whether [3] of class [java.util.concurrent.atomic.AtomicInteger] is actually a long", e.getMessage());
+        assertEquals("Cannot convert [3] of class [java.util.concurrent.atomic.AtomicInteger] to a BigInteger", e.getMessage());
     }
 
     public void testToUnsignedBigInteger() {

@@ -31,7 +31,6 @@ import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.math.BigInteger;
-import java.util.function.Function;
 
 /**
  * Comparator source for unsigned long values.
@@ -41,7 +40,6 @@ import java.util.function.Function;
 public class UnsignedLongValuesComparatorSource extends IndexFieldData.XFieldComparatorSource {
 
     private final IndexNumericFieldData indexFieldData;
-    private final Function<SortedNumericDocValues, SortedNumericDocValues> converter;
 
     public UnsignedLongValuesComparatorSource(
         IndexNumericFieldData indexFieldData,
@@ -49,19 +47,8 @@ public class UnsignedLongValuesComparatorSource extends IndexFieldData.XFieldCom
         MultiValueMode sortMode,
         Nested nested
     ) {
-        this(indexFieldData, missingValue, sortMode, nested, null);
-    }
-
-    public UnsignedLongValuesComparatorSource(
-        IndexNumericFieldData indexFieldData,
-        @Nullable Object missingValue,
-        MultiValueMode sortMode,
-        Nested nested,
-        Function<SortedNumericDocValues, SortedNumericDocValues> converter
-    ) {
         super(missingValue, sortMode, nested);
         this.indexFieldData = indexFieldData;
-        this.converter = converter;
     }
 
     @Override
@@ -72,7 +59,7 @@ public class UnsignedLongValuesComparatorSource extends IndexFieldData.XFieldCom
     private SortedNumericDocValues loadDocValues(LeafReaderContext context) {
         final LeafNumericFieldData data = indexFieldData.load(context);
         SortedNumericDocValues values = data.getLongValues();
-        return converter != null ? converter.apply(values) : values;
+        return values;
     }
 
     private NumericDocValues getNumericDocValues(LeafReaderContext context, BigInteger missingValue) throws IOException {
@@ -104,14 +91,14 @@ public class UnsignedLongValuesComparatorSource extends IndexFieldData.XFieldCom
     public FieldComparator<?> newComparator(String fieldname, int numHits, boolean enableSkipping, boolean reversed) {
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
-        final BigInteger lMissingValue = (BigInteger) missingObject(missingValue, reversed);
+        final BigInteger ulMissingValue = (BigInteger) missingObject(missingValue, reversed);
         return new UnsignedLongComparator(numHits, null, null, reversed, false) {
             @Override
             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                 return new UnsignedLongLeafComparator(context) {
                     @Override
                     protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
-                        return UnsignedLongValuesComparatorSource.this.getNumericDocValues(context, lMissingValue);
+                        return UnsignedLongValuesComparatorSource.this.getNumericDocValues(context, ulMissingValue);
                     }
                 };
             }
@@ -127,12 +114,12 @@ public class UnsignedLongValuesComparatorSource extends IndexFieldData.XFieldCom
         BucketedSort.ExtraData extra
     ) {
         return new BucketedSort.ForUnsignedLongs(bigArrays, sortOrder, format, bucketSize, extra) {
-            private final BigInteger lMissingValue = (BigInteger) missingObject(missingValue, sortOrder == SortOrder.DESC);
+            private final BigInteger ulMissingValue = (BigInteger) missingObject(missingValue, sortOrder == SortOrder.DESC);
 
             @Override
             public Leaf forLeaf(LeafReaderContext ctx) throws IOException {
                 return new Leaf(ctx) {
-                    private final NumericDocValues docValues = getNumericDocValues(ctx, lMissingValue);
+                    private final NumericDocValues docValues = getNumericDocValues(ctx, ulMissingValue);
                     private long docValue;
 
                     @Override

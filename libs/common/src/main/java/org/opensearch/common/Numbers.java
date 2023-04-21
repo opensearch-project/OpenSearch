@@ -119,9 +119,7 @@ public final class Numbers {
         } else if (n instanceof BigInteger) {
             return ((BigInteger) n);
         } else {
-            throw new IllegalArgumentException(
-                "Cannot check whether [" + n + "] of class [" + n.getClass().getName() + "] is actually a long"
-            );
+            throw new IllegalArgumentException("Cannot convert [" + n + "] of class [" + n.getClass().getName() + "] to a BigInteger");
         }
     }
 
@@ -131,7 +129,7 @@ public final class Numbers {
     public static BigInteger toUnsignedLongExact(Number value) {
         final BigInteger v = Numbers.toBigIntegerExact(value);
 
-        if (v.compareTo(Numbers.MAX_UNSIGNED_LONG_VALUE) > 0 || v.compareTo(BigInteger.ZERO) < 0) {
+        if (v.compareTo(MAX_UNSIGNED_LONG_VALUE) > 0 || v.compareTo(MIN_UNSIGNED_LONG_VALUE) < 0) {
             throw new IllegalArgumentException("Value [" + value + "] is out of range for an unsigned long");
         }
 
@@ -192,7 +190,7 @@ public final class Numbers {
             throw new IllegalArgumentException("For input string: \"" + stringValue + "\"");
         }
 
-        if (bigIntegerValue.compareTo(MAX_UNSIGNED_LONG_VALUE) > 0 || bigIntegerValue.compareTo(BigInteger.ZERO) < 0) {
+        if (bigIntegerValue.compareTo(MAX_UNSIGNED_LONG_VALUE) > 0 || bigIntegerValue.compareTo(MIN_UNSIGNED_LONG_VALUE) < 0) {
             throw new IllegalArgumentException("Value [" + stringValue + "] is out of range for an unsigned long");
         }
 
