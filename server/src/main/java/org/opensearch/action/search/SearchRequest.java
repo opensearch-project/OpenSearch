@@ -42,7 +42,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -114,6 +114,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
     private TimeValue cancelAfterTimeInterval;
+
+    private String pipeline;
 
     public SearchRequest() {
         this.localClusterAlias = null;
@@ -248,6 +250,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         ccsMinimizeRoundtrips = in.readBoolean();
         cancelAfterTimeInterval = in.readOptionalTimeValue();
+        if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
+            pipeline = in.readOptionalString();
+        }
     }
 
     @Override
@@ -276,6 +281,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
         out.writeOptionalTimeValue(cancelAfterTimeInterval);
+        if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
+            out.writeOptionalString(pipeline);
+        }
     }
 
     @Override
@@ -654,6 +662,15 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return cancelAfterTimeInterval;
     }
 
+    public SearchRequest pipeline(String pipeline) {
+        this.pipeline = pipeline;
+        return this;
+    }
+
+    public String pipeline() {
+        return pipeline;
+    }
+
     @Override
     public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new SearchTask(id, type, action, this::buildDescription, parentTaskId, headers, cancelAfterTimeInterval);
@@ -700,7 +717,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             && Objects.equals(localClusterAlias, that.localClusterAlias)
             && absoluteStartMillis == that.absoluteStartMillis
             && ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips
-            && Objects.equals(cancelAfterTimeInterval, that.cancelAfterTimeInterval);
+            && Objects.equals(cancelAfterTimeInterval, that.cancelAfterTimeInterval)
+            && Objects.equals(pipeline, that.pipeline);
     }
 
     @Override
@@ -762,6 +780,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             + source
             + ", cancelAfterTimeInterval="
             + cancelAfterTimeInterval
+            + ", pipeline="
+            + pipeline
             + "}";
     }
 }

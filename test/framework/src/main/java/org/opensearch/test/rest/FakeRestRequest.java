@@ -35,7 +35,7 @@ package org.opensearch.test.rest;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpRequest;

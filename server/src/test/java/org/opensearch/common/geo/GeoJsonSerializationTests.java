@@ -35,12 +35,12 @@ package org.opensearch.common.geo;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.geo.GeometryTestUtils;
 import org.opensearch.geometry.Geometry;
@@ -102,7 +102,9 @@ public class GeoJsonSerializationTests extends OpenSearchTestCase {
         AbstractXContentTestCase.xContentTester(
             this::createParser,
             () -> new GeometryWrapper(instanceSupplier.get()),
-            (geometryWrapper, xContentBuilder) -> { geometryWrapper.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS); },
+            (geometryWrapper, xContentBuilder) -> {
+                geometryWrapper.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
+            },
             GeometryWrapper::fromXContent
         ).supportsUnknownFields(true).test();
     }

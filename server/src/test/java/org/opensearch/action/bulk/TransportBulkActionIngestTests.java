@@ -82,6 +82,7 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
@@ -245,32 +246,30 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         when(state.getNodes()).thenReturn(nodes);
         Metadata metadata = Metadata.builder()
             .indices(
-                ImmutableOpenMap.<String, IndexMetadata>builder()
-                    .putAll(
-                        MapBuilder.<String, IndexMetadata>newMapBuilder()
-                            .put(
-                                WITH_DEFAULT_PIPELINE,
-                                IndexMetadata.builder(WITH_DEFAULT_PIPELINE)
-                                    .settings(
-                                        settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline").build()
-                                    )
-                                    .putAlias(AliasMetadata.builder(WITH_DEFAULT_PIPELINE_ALIAS).build())
-                                    .numberOfShards(1)
-                                    .numberOfReplicas(1)
-                                    .build()
-                            )
-                            .put(
-                                ".system",
-                                IndexMetadata.builder(".system")
-                                    .settings(settings(Version.CURRENT))
-                                    .system(true)
-                                    .numberOfShards(1)
-                                    .numberOfReplicas(0)
-                                    .build()
-                            )
-                            .map()
-                    )
-                    .build()
+                new HashMap<>(
+                    MapBuilder.<String, IndexMetadata>newMapBuilder()
+                        .put(
+                            WITH_DEFAULT_PIPELINE,
+                            IndexMetadata.builder(WITH_DEFAULT_PIPELINE)
+                                .settings(
+                                    settings(Version.CURRENT).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "default_pipeline").build()
+                                )
+                                .putAlias(AliasMetadata.builder(WITH_DEFAULT_PIPELINE_ALIAS).build())
+                                .numberOfShards(1)
+                                .numberOfReplicas(1)
+                                .build()
+                        )
+                        .put(
+                            ".system",
+                            IndexMetadata.builder(".system")
+                                .settings(settings(Version.CURRENT))
+                                .system(true)
+                                .numberOfShards(1)
+                                .numberOfReplicas(0)
+                                .build()
+                        )
+                        .map()
+                )
             )
             .build();
         when(state.getMetadata()).thenReturn(metadata);
@@ -302,11 +301,9 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
     public void testSingleItemBulkActionIngestSkipped() throws Exception {
         IndexRequest indexRequest = new IndexRequest("index").id("id");
         indexRequest.source(emptyMap());
-        singleItemBulkWriteAction.execute(
-            null,
-            indexRequest,
-            ActionListener.wrap(response -> {}, exception -> { throw new AssertionError(exception); })
-        );
+        singleItemBulkWriteAction.execute(null, indexRequest, ActionListener.wrap(response -> {}, exception -> {
+            throw new AssertionError(exception);
+        }));
         assertTrue(action.isExecuted);
         verifyNoInteractions(ingestService);
     }
@@ -661,7 +658,7 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         Exception exception = new Exception("fake exception");
         ClusterState state = clusterService.state();
 
-        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templateMetadataBuilder = ImmutableOpenMap.builder();
+        final Map<String, IndexTemplateMetadata> templateMetadataBuilder = new HashMap<>();
         templateMetadataBuilder.put(
             "template1",
             IndexTemplateMetadata.builder("template1")
@@ -694,9 +691,9 @@ public class TransportBulkActionIngestTests extends OpenSearchTestCase {
         Metadata metadata = mock(Metadata.class);
         when(state.metadata()).thenReturn(metadata);
         when(state.getMetadata()).thenReturn(metadata);
-        when(metadata.templates()).thenReturn(templateMetadataBuilder.build());
-        when(metadata.getTemplates()).thenReturn(templateMetadataBuilder.build());
-        when(metadata.indices()).thenReturn(ImmutableOpenMap.of());
+        when(metadata.templates()).thenReturn(templateMetadataBuilder);
+        when(metadata.getTemplates()).thenReturn(templateMetadataBuilder);
+        when(metadata.indices()).thenReturn(Map.of());
 
         IndexRequest indexRequest = new IndexRequest("missing_index").id("id");
         indexRequest.source(emptyMap());

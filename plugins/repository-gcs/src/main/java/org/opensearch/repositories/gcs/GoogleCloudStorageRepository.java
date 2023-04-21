@@ -41,7 +41,7 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
@@ -115,12 +115,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
     }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
-        return org.opensearch.common.collect.Map.of(
-            "base_path",
-            BASE_PATH.get(metadata.settings()),
-            "bucket",
-            getSetting(BUCKET, metadata)
-        );
+        return Map.of("base_path", BASE_PATH.get(metadata.settings()), "bucket", getSetting(BUCKET, metadata));
     }
 
     @Override

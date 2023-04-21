@@ -38,15 +38,18 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
 import org.opensearch.bootstrap.jvm.DenyJvmVersionsParser;
 import org.opensearch.cluster.coordination.ClusterBootstrapService;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.discovery.DiscoveryModule;
+import org.opensearch.env.Environment;
 import org.opensearch.index.IndexModule;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.process.ProcessProbe;
+import org.opensearch.node.NodeRoleSettings;
 import org.opensearch.node.NodeValidationException;
 
 import java.io.BufferedReader;
@@ -228,6 +231,7 @@ final class BootstrapChecks {
         checks.add(new JavaVersionCheck());
         checks.add(new AllPermissionCheck());
         checks.add(new DiscoveryConfiguredCheck());
+        checks.add(new MultipleDataPathCheck());
         return Collections.unmodifiableList(checks);
     }
 
@@ -750,5 +754,26 @@ final class BootstrapChecks {
                 )
             );
         }
+    }
+
+    /**
+     * Bootstrap check that if a search node contains multiple data paths
+     */
+    static class MultipleDataPathCheck implements BootstrapCheck {
+
+        @Override
+        public BootstrapCheckResult check(BootstrapContext context) {
+            if (NodeRoleSettings.NODE_ROLES_SETTING.get(context.settings()).contains(DiscoveryNodeRole.SEARCH_ROLE)
+                && Environment.PATH_DATA_SETTING.get(context.settings()).size() > 1) {
+                return BootstrapCheckResult.failure("Multiple data paths are not allowed for search nodes");
+            }
+            return BootstrapCheckResult.success();
+        }
+
+        @Override
+        public final boolean alwaysEnforce() {
+            return true;
+        }
+
     }
 }

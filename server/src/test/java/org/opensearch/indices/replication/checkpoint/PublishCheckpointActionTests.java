@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.replication.checkpoint;
 
+import org.apache.lucene.codecs.Codec;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActionTestUtils;
@@ -17,7 +18,7 @@ import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
@@ -104,15 +105,13 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
             mockTargetService
         );
 
-        final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 1111, 111, 11, 1);
-
+        final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 1111, 11, 1, Codec.getDefault().getName());
         final PublishCheckpointRequest request = new PublishCheckpointRequest(checkpoint);
 
         action.shardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
             // we should forward the request containing the current publish checkpoint to the replica
             assertThat(result.replicaRequest(), sameInstance(request));
         }));
-
     }
 
     public void testPublishCheckpointActionOnReplica() {
@@ -141,7 +140,7 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
             mockTargetService
         );
 
-        final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 1111, 111, 11, 1);
+        final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 1111, 11, 1, Codec.getDefault().getName());
 
         final PublishCheckpointRequest request = new PublishCheckpointRequest(checkpoint);
 

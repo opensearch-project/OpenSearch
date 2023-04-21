@@ -40,6 +40,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -113,7 +114,7 @@ public class BulkItemRequest implements Writeable, Accountable {
             setPrimaryResponse(new BulkItemResponse(id, request.opType(), failure));
         } else {
             assert primaryResponse.isFailed() && primaryResponse.getFailure().isAborted() : "response ["
-                + Strings.toString(primaryResponse)
+                + Strings.toString(XContentType.JSON, primaryResponse)
                 + "]; cause ["
                 + cause
                 + "]";

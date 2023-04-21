@@ -116,7 +116,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -1437,8 +1437,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(
             exception.getMessage(),
             startsWith(
-                "OpenSearch exception [type=illegal_argument_exception, "
-                    + "reason=final index setting [index.number_of_shards], not updateable"
+                "OpenSearch exception [type=settings_exception, " + "reason=final index setting [index.number_of_shards], not updateable"
             )
         );
     }
@@ -1475,7 +1474,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(
             exception.getMessage(),
             equalTo(
-                "OpenSearch exception [type=illegal_argument_exception, "
+                "OpenSearch exception [type=settings_exception, "
                     + "reason=unknown setting [index.no_idea_what_you_are_talking_about] please check that any required plugins are installed, "
                     + "or check the breaking changes documentation for removed settings]"
             )
@@ -2032,8 +2031,8 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
         CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"host_name\":{\"type\":\"keyword\"}}}");
         AliasMetadata alias = AliasMetadata.builder("alias").writeIndex(true).build();
-        Template template = new Template(settings, mappings, org.opensearch.common.collect.Map.of("alias", alias));
-        List<String> pattern = org.opensearch.common.collect.List.of("pattern");
+        Template template = new Template(settings, mappings, Map.of("alias", alias));
+        List<String> pattern = List.of("pattern");
         ComposableIndexTemplate indexTemplate = new ComposableIndexTemplate(
             pattern,
             template,
@@ -2058,7 +2057,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         AliasMetadata simulationAlias = AliasMetadata.builder("simulation-alias").writeIndex(true).build();
         ComposableIndexTemplate simulationTemplate = new ComposableIndexTemplate(
             pattern,
-            new Template(null, null, org.opensearch.common.collect.Map.of("simulation-alias", simulationAlias)),
+            new Template(null, null, Map.of("simulation-alias", simulationAlias)),
             Collections.emptyList(),
             2L,
             1L,

@@ -22,6 +22,7 @@ import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.utils.TransferManager;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -42,9 +43,16 @@ public final class RemoteSnapshotDirectoryFactory implements IndexStorePlugin.Di
     private final Supplier<RepositoriesService> repositoriesService;
     private final ThreadPool threadPool;
 
-    public RemoteSnapshotDirectoryFactory(Supplier<RepositoriesService> repositoriesService, ThreadPool threadPool) {
+    private final FileCache remoteStoreFileCache;
+
+    public RemoteSnapshotDirectoryFactory(
+        Supplier<RepositoriesService> repositoriesService,
+        ThreadPool threadPool,
+        FileCache remoteStoreFileCache
+    ) {
         this.repositoriesService = repositoriesService;
         this.threadPool = threadPool;
+        this.remoteStoreFileCache = remoteStoreFileCache;
     }
 
     @Override
@@ -65,7 +73,8 @@ public final class RemoteSnapshotDirectoryFactory implements IndexStorePlugin.Di
         ShardPath localShardPath,
         BlobStoreRepository blobStoreRepository
     ) throws IOException {
-        final BlobPath blobPath = new BlobPath().add("indices")
+        final BlobPath blobPath = blobStoreRepository.basePath()
+            .add("indices")
             .add(IndexSettings.SEARCHABLE_SNAPSHOT_INDEX_ID.get(indexSettings.getSettings()))
             .add(Integer.toString(localShardPath.getShardId().getId()));
         final SnapshotId snapshotId = new SnapshotId(
@@ -81,7 +90,7 @@ public final class RemoteSnapshotDirectoryFactory implements IndexStorePlugin.Di
         return threadPool.executor(ThreadPool.Names.SNAPSHOT).submit(() -> {
             final BlobContainer blobContainer = blobStoreRepository.blobStore().blobContainer(blobPath);
             final BlobStoreIndexShardSnapshot snapshot = blobStoreRepository.loadShardSnapshot(blobContainer, snapshotId);
-            TransferManager transferManager = new TransferManager(blobContainer, threadPool.executor(ThreadPool.Names.SEARCH));
+            TransferManager transferManager = new TransferManager(blobContainer, remoteStoreFileCache);
             return new RemoteSnapshotDirectory(snapshot, localStoreDir, transferManager);
         });
     }

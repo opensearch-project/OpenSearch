@@ -132,7 +132,9 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
             settings,
             transportService,
             fcr -> { assert false : fcr; },
-            (node, reason) -> { assert false : node; },
+            (node, reason) -> {
+                assert false : node;
+            },
             () -> new StatusInfo(StatusInfo.Status.HEALTHY, "healthy-info")
         );
 
@@ -705,7 +707,9 @@ public class FollowersCheckerTests extends OpenSearchTestCase {
             Settings.EMPTY,
             transportService,
             fcr -> { assert false : fcr; },
-            (node, reason) -> { assert false : node; },
+            (node, reason) -> {
+                assert false : node;
+            },
             () -> new StatusInfo(HEALTHY, "healthy-info")
         );
         followersChecker.setCurrentNodes(discoveryNodes);

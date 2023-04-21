@@ -47,8 +47,9 @@ import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.tasks.Task;
@@ -514,7 +515,7 @@ public class PrimaryReplicaSyncer {
 
             @Override
             public String toString() {
-                return Strings.toString(this);
+                return Strings.toString(XContentType.JSON, this);
             }
 
             @Override

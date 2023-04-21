@@ -36,19 +36,24 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.opensearch.cluster.coordination.ClusterBootstrapService;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.discovery.SettingsBasedSeedHostsProvider;
+import org.opensearch.env.Environment;
 import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.node.NodeRoleSettings;
 import org.opensearch.node.NodeValidationException;
 import org.opensearch.test.AbstractBootstrapCheckTestCase;
 import org.hamcrest.Matcher;
 
 import java.lang.Runtime.Version;
 import java.net.InetAddress;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -773,5 +778,42 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
         version.set(Runtime.version());
         BootstrapChecks.check(emptyContext, true, Collections.singletonList(check));
+    }
+
+    public void testMultipleDataPathsForSearchNodeCheck() {
+        Path path = PathUtils.get(createTempDir().toString());
+        String[] paths = new String[] { path.resolve("a").toString(), path.resolve("b").toString() };
+
+        final NodeValidationException e = expectThrows(
+            NodeValidationException.class,
+            () -> performDataPathsCheck(paths, DiscoveryNodeRole.SEARCH_ROLE.roleName())
+        );
+        assertThat(e.getMessage(), containsString("Multiple data paths are not allowed for search nodes"));
+    }
+
+    public void testMultipleDataPathsForDataNodeCheck() throws NodeValidationException {
+        Path path = PathUtils.get(createTempDir().toString());
+        String[] paths = new String[] { path.resolve("a").toString(), path.resolve("b").toString() };
+
+        performDataPathsCheck(paths, DiscoveryNodeRole.DATA_ROLE.roleName());
+    }
+
+    public void testSingleDataPathForSearchNodeCheck() throws NodeValidationException {
+        Path path = PathUtils.get(createTempDir().toString());
+        String[] paths = new String[] { path.resolve("a").toString() };
+
+        performDataPathsCheck(paths, DiscoveryNodeRole.SEARCH_ROLE.roleName());
+    }
+
+    private void performDataPathsCheck(String[] paths, String roleName) throws NodeValidationException {
+        final BootstrapContext context = createTestContext(
+            Settings.builder()
+                .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), Collections.singletonList(roleName))
+                .putList(Environment.PATH_DATA_SETTING.getKey(), paths)
+                .build(),
+            Metadata.EMPTY_METADATA
+        );
+        final List<BootstrapCheck> checks = Collections.singletonList(new BootstrapChecks.MultipleDataPathCheck());
+        BootstrapChecks.check(context, true, checks);
     }
 }

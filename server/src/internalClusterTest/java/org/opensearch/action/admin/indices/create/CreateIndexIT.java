@@ -45,8 +45,8 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.IndexNotFoundException;
@@ -59,6 +59,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -82,7 +83,7 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
         try {
             prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_CREATION_DATE, 4L)).get();
             fail();
-        } catch (IllegalArgumentException ex) {
+        } catch (SettingsException ex) {
             assertEquals(
                 "unknown setting [index.creation_date] please check that any required plugins are installed, or check the "
                     + "breaking changes documentation for removed settings",
@@ -100,7 +101,7 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
         assertThat(state, notNullValue());
         Metadata metadata = state.getMetadata();
         assertThat(metadata, notNullValue());
-        ImmutableOpenMap<String, IndexMetadata> indices = metadata.getIndices();
+        final Map<String, IndexMetadata> indices = metadata.getIndices();
         assertThat(indices, notNullValue());
         assertThat(indices.size(), equalTo(1));
         IndexMetadata index = indices.get("test");
@@ -203,7 +204,7 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
         try {
             prepareCreate("test").setSettings(Settings.builder().put("index.unknown.value", "this must fail").build()).get();
             fail("should have thrown an exception about the shard count");
-        } catch (IllegalArgumentException e) {
+        } catch (SettingsException e) {
             assertEquals(
                 "unknown setting [index.unknown.value] please check that any required plugins are installed, or check the"
                     + " breaking changes documentation for removed settings",

@@ -36,6 +36,7 @@ public class ReplicaRecoveryWithRemoteTranslogOnPrimaryTests extends OpenSearchI
         .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true")
         .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, "true")
         .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY, "translog-repo")
+        .put(IndexMetadata.SETTING_REMOTE_TRANSLOG_BUFFER_INTERVAL, "100ms")
         .build();
 
     public void testStartSequenceForReplicaRecovery() throws Exception {

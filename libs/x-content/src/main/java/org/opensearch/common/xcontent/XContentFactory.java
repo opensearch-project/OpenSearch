@@ -38,13 +38,17 @@ import org.opensearch.common.xcontent.cbor.CborXContent;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.smile.SmileXContent;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
+import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.core.xcontent.XContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParseException;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
 /**
- * A one stop to use {@link org.opensearch.common.xcontent.XContent} and {@link XContentBuilder}.
+ * A one stop to use {@link XContent} and {@link XContentBuilder}.
  */
 public class XContentFactory {
 
@@ -123,6 +127,16 @@ public class XContentFactory {
     }
 
     /**
+     * Returns a binary content builder for the provided media type.
+     */
+    public static XContentBuilder contentBuilder(MediaType type) throws IOException {
+        if (type instanceof XContentType) {
+            return contentBuilder(XContentType.fromMediaType(type));
+        }
+        throw new IllegalArgumentException("Content type [" + type.getClass().getName() + "] not supported");
+    }
+
+    /**
      * Returns a binary content builder for the provided content type.
      */
     public static XContentBuilder contentBuilder(XContentType type) throws IOException {
@@ -139,9 +153,9 @@ public class XContentFactory {
     }
 
     /**
-     * Returns the {@link org.opensearch.common.xcontent.XContent} for the provided content type.
+     * Returns the {@link XContent} for the provided content type.
      */
-    public static XContent xContent(XContentType type) {
+    public static XContent xContent(MediaType type) {
         if (type == null) {
             throw new IllegalArgumentException("Cannot get xcontent for unknown type");
         }

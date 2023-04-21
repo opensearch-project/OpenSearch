@@ -34,8 +34,9 @@ package org.opensearch.action.admin.indices.create;
 
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
@@ -83,13 +84,13 @@ public class CreateIndexResponseTests extends AbstractSerializingTestCase<Create
 
     public void testToXContent() {
         CreateIndexResponse response = new CreateIndexResponse(true, false, "index_name");
-        String output = Strings.toString(response);
+        String output = Strings.toString(XContentType.JSON, response);
         assertEquals("{\"acknowledged\":true,\"shards_acknowledged\":false,\"index\":\"index_name\"}", output);
     }
 
     public void testToAndFromXContentIndexNull() throws IOException {
         CreateIndexResponse response = new CreateIndexResponse(true, false, null);
-        String output = Strings.toString(response);
+        String output = Strings.toString(XContentType.JSON, response);
         assertEquals("{\"acknowledged\":true,\"shards_acknowledged\":false,\"index\":null}", output);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, output)) {
             CreateIndexResponse parsedResponse = CreateIndexResponse.fromXContent(parser);

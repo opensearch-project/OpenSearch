@@ -20,7 +20,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.test.OpenSearchTestCase;
@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.singletonMap;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
@@ -41,6 +42,10 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREA
 public class FailAwareWeightedRoutingTests extends OpenSearchTestCase {
 
     private ClusterState setUpCluster() {
+        return setUpCluster(Settings.EMPTY);
+    }
+
+    private ClusterState setUpCluster(Settings transientSettings) {
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).build();
 
         // set up nodes
@@ -77,7 +82,7 @@ public class FailAwareWeightedRoutingTests extends OpenSearchTestCase {
         Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
         WeightedRouting weightedRouting = new WeightedRouting("zone", weights);
         WeightedRoutingMetadata weightedRoutingMetadata = new WeightedRoutingMetadata(weightedRouting, 0);
-        Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
+        Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata()).transientSettings(transientSettings);
         metadataBuilder.putCustom(WeightedRoutingMetadata.TYPE, weightedRoutingMetadata);
         clusterState = ClusterState.builder(clusterState).metadata(metadataBuilder).build();
 
@@ -88,7 +93,7 @@ public class FailAwareWeightedRoutingTests extends OpenSearchTestCase {
     public void testFindNextWithoutFailOpen() throws IOException {
 
         ClusterState clusterState = setUpCluster();
-
+        AtomicInteger shardSkipped = new AtomicInteger();
         // set up index
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(
@@ -137,8 +142,127 @@ public class FailAwareWeightedRoutingTests extends OpenSearchTestCase {
 
         // fail open is not executed since fail open conditions don't met
         SearchShardTarget next = FailAwareWeightedRouting.getInstance()
-            .findNext(searchShardIterator, clusterState, new OpenSearchRejectedExecutionException());
+            .findNext(searchShardIterator, clusterState, new OpenSearchRejectedExecutionException(), () -> shardSkipped.incrementAndGet());
         assertNull(next);
+        assertEquals(1, shardSkipped.get());
+    }
+
+    public void testFindNextWithJustOneShardInStandbyZone() throws IOException {
+        ClusterState clusterState = setUpCluster();
+
+        AtomicInteger shardSkipped = new AtomicInteger();
+        // set up index
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(
+                Settings.builder()
+                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 2)
+                    .put(SETTING_CREATION_DATE, System.currentTimeMillis())
+            )
+            .build();
+
+        ShardRouting shardRoutingA = TestShardRouting.newShardRouting("test", 0, "node_zone_a", true, ShardRoutingState.STARTED);
+        ShardRouting shardRoutingB = TestShardRouting.newShardRouting("test", 0, "node_zone_b", false, ShardRoutingState.STARTED);
+        ShardRouting shardRoutingC = TestShardRouting.newShardRouting("test", 0, "node_zone_c", false, ShardRoutingState.STARTED);
+
+        Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
+        metadataBuilder.put(indexMetadata, false).generateClusterUuidIfNeeded();
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
+
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+        indexShardRoutingBuilder.addShard(shardRoutingA);
+        indexShardRoutingBuilder.addShard(shardRoutingB);
+        indexShardRoutingBuilder.addShard(shardRoutingC);
+
+        indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        routingTableBuilder.add(indexRoutingTableBuilder.build());
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTableBuilder.build()).build();
+
+        List<ShardRouting> shardRoutings = new ArrayList<>();
+        shardRoutings.add(shardRoutingC);
+
+        String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
+        SearchShardIterator searchShardIterator = new SearchShardIterator(
+            clusterAlias,
+            shardId,
+            shardRoutings,
+            OriginalIndicesTests.randomOriginalIndices()
+        );
+
+        // fail open is not executed since fail open conditions don't met
+        SearchShardTarget next = FailAwareWeightedRouting.getInstance()
+            .findNext(searchShardIterator, clusterState, new OpenSearchRejectedExecutionException(), () -> shardSkipped.incrementAndGet());
+        assertNotNull(next);
+        next = FailAwareWeightedRouting.getInstance()
+            .findNext(searchShardIterator, clusterState, new OpenSearchRejectedExecutionException(), () -> shardSkipped.incrementAndGet());
+        assertNull(next);
+        assertEquals(0, shardSkipped.get());
+    }
+
+    public void testFindNextWithIgnoreWeightedRoutingTrue() throws IOException {
+        ClusterState clusterState = setUpCluster(Settings.builder().put("cluster.routing.ignore_weighted_routing", true).build());
+
+        AtomicInteger shardSkipped = new AtomicInteger();
+        // set up index
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(
+                Settings.builder()
+                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 2)
+                    .put(SETTING_CREATION_DATE, System.currentTimeMillis())
+            )
+            .build();
+
+        ShardRouting shardRoutingA = TestShardRouting.newShardRouting("test", 0, "node_zone_a", true, ShardRoutingState.STARTED);
+        ShardRouting shardRoutingB = TestShardRouting.newShardRouting("test", 0, "node_zone_b", false, ShardRoutingState.STARTED);
+        ShardRouting shardRoutingC = TestShardRouting.newShardRouting("test", 0, "node_zone_c", false, ShardRoutingState.STARTED);
+
+        Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
+        metadataBuilder.put(indexMetadata, false).generateClusterUuidIfNeeded();
+        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());
+
+        final ShardId shardId = new ShardId("test", "_na_", 0);
+        IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+        indexShardRoutingBuilder.addShard(shardRoutingA);
+        indexShardRoutingBuilder.addShard(shardRoutingB);
+        indexShardRoutingBuilder.addShard(shardRoutingC);
+
+        indexRoutingTableBuilder.addIndexShard(indexShardRoutingBuilder.build());
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        routingTableBuilder.add(indexRoutingTableBuilder.build());
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTableBuilder.build()).build();
+
+        List<ShardRouting> shardRoutings = new ArrayList<>();
+        shardRoutings.add(shardRoutingA);
+        shardRoutings.add(shardRoutingB);
+        shardRoutings.add(shardRoutingC);
+
+        String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
+        SearchShardIterator searchShardIterator = new SearchShardIterator(
+            clusterAlias,
+            shardId,
+            shardRoutings,
+            OriginalIndicesTests.randomOriginalIndices()
+        );
+
+        // fail open is not executed since fail open conditions don't met
+        SearchShardTarget next = FailAwareWeightedRouting.getInstance()
+            .findNext(searchShardIterator, clusterState, new OpenSearchRejectedExecutionException(), () -> shardSkipped.incrementAndGet());
+        assertNotNull(next);
+        next = FailAwareWeightedRouting.getInstance()
+            .findNext(searchShardIterator, clusterState, new OpenSearchRejectedExecutionException(), () -> shardSkipped.incrementAndGet());
+        assertNotNull(next);
+        next = FailAwareWeightedRouting.getInstance()
+            .findNext(searchShardIterator, clusterState, new OpenSearchRejectedExecutionException(), () -> shardSkipped.incrementAndGet());
+        assertNotNull(next);
+        next = FailAwareWeightedRouting.getInstance()
+            .findNext(searchShardIterator, clusterState, new OpenSearchRejectedExecutionException(), () -> shardSkipped.incrementAndGet());
+        assertNull(next);
+        assertEquals(0, shardSkipped.get());
     }
 
     public void testFindNextWithFailOpenDueTo5xx() throws IOException {
@@ -198,7 +322,7 @@ public class FailAwareWeightedRoutingTests extends OpenSearchTestCase {
         DiscoveryNode node = clusterState.nodes().get("node_zone_b");
         // fail open is executed and shard present in node with weighted routing weight zero is returned
         SearchShardTarget next = FailAwareWeightedRouting.getInstance()
-            .findNext(searchShardIterator, clusterState, new NodeNotConnectedException(node, "Node is not " + "connected"));
+            .findNext(searchShardIterator, clusterState, new NodeNotConnectedException(node, "Node is not " + "connected"), () -> {});
         assertNotNull(next);
         assertEquals("node_zone_c", next.getNodeId());
     }
@@ -206,7 +330,7 @@ public class FailAwareWeightedRoutingTests extends OpenSearchTestCase {
     public void testFindNextWithFailOpenDueToUnassignedShard() throws IOException {
 
         ClusterState clusterState = setUpCluster();
-
+        AtomicInteger shardsSkipped = new AtomicInteger();
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(
                 Settings.builder()
@@ -259,8 +383,9 @@ public class FailAwareWeightedRoutingTests extends OpenSearchTestCase {
         // since there is an unassigned shard in the cluster, fail open is executed and shard present in node with
         // weighted routing weight zero is returned
         SearchShardTarget next = FailAwareWeightedRouting.getInstance()
-            .findNext(searchShardIterator, clusterState, new OpenSearchRejectedExecutionException());
+            .findNext(searchShardIterator, clusterState, new OpenSearchRejectedExecutionException(), () -> shardsSkipped.incrementAndGet());
         assertNotNull(next);
         assertEquals("node_zone_c", next.getNodeId());
+        assertEquals(1, shardsSkipped.incrementAndGet());
     }
 }

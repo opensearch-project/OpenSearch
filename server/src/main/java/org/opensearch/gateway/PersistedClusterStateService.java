@@ -31,7 +31,6 @@
 
 package org.opensearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -60,13 +59,13 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.bytes.RecyclingBytesStreamOutput;
 import org.opensearch.common.io.Streams;
@@ -81,12 +80,12 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.ByteArray;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.NodeMetadata;
 import org.opensearch.index.Index;
@@ -745,8 +744,7 @@ public class PersistedClusterStateService {
                 }
 
                 final Map<String, Long> indexMetadataVersionByUUID = new HashMap<>(previouslyWrittenMetadata.indices().size());
-                for (ObjectCursor<IndexMetadata> cursor : previouslyWrittenMetadata.indices().values()) {
-                    final IndexMetadata indexMetadata = cursor.value;
+                for (final IndexMetadata indexMetadata : previouslyWrittenMetadata.indices().values()) {
                     final Long previousValue = indexMetadataVersionByUUID.putIfAbsent(
                         indexMetadata.getIndexUUID(),
                         indexMetadata.getVersion()
@@ -756,8 +754,7 @@ public class PersistedClusterStateService {
 
                 int numIndicesUpdated = 0;
                 int numIndicesUnchanged = 0;
-                for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-                    final IndexMetadata indexMetadata = cursor.value;
+                for (final IndexMetadata indexMetadata : metadata.indices().values()) {
                     final Long previousVersion = indexMetadataVersionByUUID.get(indexMetadata.getIndexUUID());
                     if (previousVersion == null || indexMetadata.getVersion() != previousVersion) {
                         logger.trace(
@@ -817,8 +814,7 @@ public class PersistedClusterStateService {
                     metadataIndexWriter.updateGlobalMetadata(globalMetadataDocument);
                 }
 
-                for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-                    final IndexMetadata indexMetadata = cursor.value;
+                for (final IndexMetadata indexMetadata : metadata.indices().values()) {
                     final Document indexMetadataDocument = makeIndexMetadataDocument(indexMetadata, documentBuffer);
                     for (MetadataIndexWriter metadataIndexWriter : metadataIndexWriters) {
                         metadataIndexWriter.updateIndexMetadataDocument(indexMetadataDocument, indexMetadata.getIndex());

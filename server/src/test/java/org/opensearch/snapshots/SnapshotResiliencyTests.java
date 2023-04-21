@@ -34,10 +34,10 @@ package org.opensearch.snapshots;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.RequestValidators;
 import org.opensearch.action.StepListener;
@@ -149,6 +149,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.cluster.service.FakeThreadPoolClusterManagerService;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.ClusterSettings;
@@ -161,7 +162,7 @@ import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.PrioritizedOpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.TestEnvironment;
@@ -169,11 +170,13 @@ import org.opensearch.gateway.MetaStateService;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexingPressureService;
+import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.PrimaryReplicaSyncer;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
+import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.ShardLimitValidator;
@@ -204,6 +207,7 @@ import org.opensearch.script.ScriptService;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.FetchPhase;
+import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.snapshots.mockstore.MockEventuallyConsistentRepository;
 import org.opensearch.tasks.TaskResourceTrackingService;
@@ -1799,6 +1803,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                 final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
                 final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
                 repositoriesServiceReference.set(repositoriesService);
+                FileCacheCleaner fileCacheCleaner = new FileCacheCleaner(nodeEnv, null);
                 if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
                     indicesService = new IndicesService(
                         settings,
@@ -1834,7 +1839,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         null,
                         emptyMap(),
                         new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService),
-                        repositoriesServiceReference::get
+                        repositoriesServiceReference::get,
+                        fileCacheCleaner
                     );
                 } else {
                     indicesService = new IndicesService(
@@ -1870,7 +1876,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         null,
                         emptyMap(),
                         new RemoteSegmentStoreDirectoryFactory(() -> repositoriesService),
-                        repositoriesServiceReference::get
+                        repositoriesServiceReference::get,
+                        fileCacheCleaner
                     );
                 }
                 final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
@@ -1978,6 +1985,13 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     new UpdateHelper(scriptService),
                     actionFilters,
                     new IndexingPressureService(settings, clusterService),
+                    new SegmentReplicationPressureService(
+                        settings,
+                        clusterService,
+                        mock(IndicesService.class),
+                        mock(ShardStateAction.class),
+                        mock(ThreadPool.class)
+                    ),
                     new SystemIndices(emptyMap())
                 );
                 actions.put(
@@ -2077,7 +2091,19 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         clusterService,
                         actionFilters,
                         indexNameExpressionResolver,
-                        namedWriteableRegistry
+                        namedWriteableRegistry,
+                        new SearchPipelineService(
+                            clusterService,
+                            threadPool,
+                            environment,
+                            scriptService,
+                            new AnalysisModule(environment, Collections.emptyList()).getAnalysisRegistry(),
+                            namedXContentRegistry,
+                            namedWriteableRegistry,
+                            List.of(),
+                            client,
+                            false
+                        )
                     )
                 );
                 actions.put(
@@ -2189,8 +2215,10 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         indexNameExpressionResolver
                     )
                 );
+                DynamicActionRegistry dynamicActionRegistry = new DynamicActionRegistry();
+                dynamicActionRegistry.registerUnmodifiableActionMap(actions);
                 client.initialize(
-                    actions,
+                    dynamicActionRegistry,
                     () -> clusterService.localNode().getId(),
                     transportService.getRemoteClusterService(),
                     new NamedWriteableRegistry(Collections.emptyList())

@@ -38,9 +38,9 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.common.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.IndexFieldMapper;
@@ -105,7 +105,7 @@ public class GetResultTests extends OpenSearchTestCase {
                 singletonMap("field1", new DocumentField("field1", singletonList("value1"))),
                 singletonMap("field1", new DocumentField("metafield", singletonList("metavalue")))
             );
-            String output = Strings.toString(getResult);
+            String output = Strings.toString(XContentType.JSON, getResult);
             assertEquals(
                 "{\"_index\":\"index\",\"_id\":\"id\",\"_version\":1,\"_seq_no\":0,\"_primary_term\":1,"
                     + "\"metafield\":\"metavalue\",\"found\":true,\"_source\":{ \"field1\" : \"value1\", \"field2\":\"value2\"},"
@@ -115,7 +115,7 @@ public class GetResultTests extends OpenSearchTestCase {
         }
         {
             GetResult getResult = new GetResult("index", "id", UNASSIGNED_SEQ_NO, 0, 1, false, null, null, null);
-            String output = Strings.toString(getResult);
+            String output = Strings.toString(XContentType.JSON, getResult);
             assertEquals("{\"_index\":\"index\",\"_id\":\"id\",\"found\":false}", output);
         }
     }

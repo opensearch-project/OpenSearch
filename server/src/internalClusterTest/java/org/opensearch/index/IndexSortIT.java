@@ -37,7 +37,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.io.IOException;
@@ -81,8 +81,8 @@ public class IndexSortIT extends OpenSearchIntegTestCase {
     public void testIndexSort() {
         SortField dateSort = new SortedNumericSortField("date", SortField.Type.LONG, false);
         dateSort.setMissingValue(Long.MAX_VALUE);
-        SortField numericSort = new SortedNumericSortField("numeric_dv", SortField.Type.LONG, false);
-        numericSort.setMissingValue(Long.MAX_VALUE);
+        SortField numericSort = new SortedNumericSortField("numeric_dv", SortField.Type.INT, false);
+        numericSort.setMissingValue(Integer.MAX_VALUE);
         SortField keywordSort = new SortedSetSortField("keyword_dv", false);
         keywordSort.setMissingValue(SortField.STRING_LAST);
         Sort indexSort = new Sort(dateSort, numericSort, keywordSort);

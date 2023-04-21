@@ -13,10 +13,11 @@ import org.mockito.Mockito;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
+import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.replication.TestReplicationSource;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.Store;
@@ -62,11 +63,12 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put("node.name", SegmentReplicationTargetServiceTests.class.getSimpleName())
             .build();
-        final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        CodecService codecService = new CodecService(null, null);
+        String defaultCodecName = codecService.codec(CodecService.DEFAULT_CODEC).getName();
         primaryShard = newStartedShard(true, settings);
         replicaShard = newShard(false, settings, new NRTReplicationEngineFactory());
-        recoverReplica(replicaShard, primaryShard, true);
-        checkpoint = new ReplicationCheckpoint(replicaShard.shardId(), 0L, 0L, 0L, 0L);
+        recoverReplica(replicaShard, primaryShard, true, getReplicationFunc(replicaShard));
+        checkpoint = new ReplicationCheckpoint(replicaShard.shardId(), 0L, 0L, 0L, defaultCodecName);
         SegmentReplicationSourceFactory replicationSourceFactory = mock(SegmentReplicationSourceFactory.class);
         replicationSource = mock(SegmentReplicationSource.class);
         when(replicationSourceFactory.get(replicaShard)).thenReturn(replicationSource);
@@ -77,15 +79,15 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
             initialCheckpoint.getShardId(),
             initialCheckpoint.getPrimaryTerm(),
             initialCheckpoint.getSegmentsGen(),
-            initialCheckpoint.getSeqNo(),
-            initialCheckpoint.getSegmentInfosVersion() + 1
+            initialCheckpoint.getSegmentInfosVersion() + 1,
+            defaultCodecName
         );
         newPrimaryCheckpoint = new ReplicationCheckpoint(
             initialCheckpoint.getShardId(),
             initialCheckpoint.getPrimaryTerm() + 1,
             initialCheckpoint.getSegmentsGen(),
-            initialCheckpoint.getSeqNo(),
-            initialCheckpoint.getSegmentInfosVersion() + 1
+            initialCheckpoint.getSegmentInfosVersion() + 1,
+            defaultCodecName
         );
     }
 
@@ -117,7 +119,7 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
     public void testReplicationFails() throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         final OpenSearchException expectedError = new OpenSearchException("Fail");
-        SegmentReplicationSource source = new SegmentReplicationSource() {
+        SegmentReplicationSource source = new TestReplicationSource() {
 
             @Override
             public void getCheckpointMetadata(

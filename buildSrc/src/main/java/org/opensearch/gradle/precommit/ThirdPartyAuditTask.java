@@ -79,9 +79,7 @@ import java.util.stream.Stream;
 @CacheableTask
 public class ThirdPartyAuditTask extends DefaultTask {
 
-    private static final Pattern MISSING_CLASS_PATTERN = Pattern.compile(
-        "WARNING: Class '(.*)' cannot be loaded \\(.*\\)\\. Please fix the classpath!"
-    );
+    private static final Pattern MISSING_CLASS_PATTERN = Pattern.compile("DEBUG: Class '(.*)' cannot be loaded \\(.*\\)\\.");
 
     private static final Pattern VIOLATION_PATTERN = Pattern.compile("\\s\\sin ([a-zA-Z0-9$.]+) \\(.*\\)");
     private static final int SIG_KILL_EXIT_VALUE = 137;
@@ -105,6 +103,8 @@ public class ThirdPartyAuditTask extends DefaultTask {
     private FileCollection jdkJarHellClasspath;
 
     private final Property<JavaVersion> targetCompatibility = getProject().getObjects().property(JavaVersion.class);
+
+    public boolean jarHellEnabled = true;
 
     @Input
     public Property<JavaVersion> getTargetCompatibility() {
@@ -234,7 +234,10 @@ public class ThirdPartyAuditTask extends DefaultTask {
             violationsClasses.add(violationMatcher.group(1));
         }
 
-        Set<String> jdkJarHellClasses = runJdkJarHellCheck();
+        Set<String> jdkJarHellClasses = null;
+        if (this.jarHellEnabled) {
+            jdkJarHellClasses = runJdkJarHellCheck();
+        }
 
         if (missingClassExcludes != null) {
             assertNoPointlessExclusions("are not missing", missingClassExcludes, missingClasses);
@@ -251,7 +254,9 @@ public class ThirdPartyAuditTask extends DefaultTask {
             missingClasses.removeAll(missingClassExcludes);
         }
         assertNoPointlessExclusions("have no violations", violationsExcludes, violationsClasses);
-        assertNoPointlessExclusions("do not generate jar hell with the JDK", jdkJarHellExcludes, jdkJarHellClasses);
+        if (this.jarHellEnabled) {
+            assertNoPointlessExclusions("do not generate jar hell with the JDK", jdkJarHellExcludes, jdkJarHellClasses);
+        }
 
         if (missingClassExcludes == null && (missingClasses.isEmpty() == false)) {
             getLogger().info("Found missing classes, but task is configured to ignore all of them:\n {}", formatClassList(missingClasses));
@@ -262,7 +267,6 @@ public class ThirdPartyAuditTask extends DefaultTask {
         if (missingClasses.isEmpty() && violationsClasses.isEmpty()) {
             getLogger().info("Third party audit passed successfully");
         } else {
-            logForbiddenAPIsOutput(forbiddenApisOutput);
             if (missingClasses.isEmpty() == false) {
                 getLogger().error("Missing classes:\n{}", formatClassList(missingClasses));
             }
@@ -272,7 +276,9 @@ public class ThirdPartyAuditTask extends DefaultTask {
             throw new IllegalStateException("Audit of third party dependencies failed");
         }
 
-        assertNoJarHell(jdkJarHellClasses);
+        if (this.jarHellEnabled) {
+            assertNoJarHell(jdkJarHellClasses);
+        }
 
         // Mark successful third party audit check
         getSuccessMarker().getParentFile().mkdirs();
@@ -359,7 +365,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
             spec.jvmArgs("-Xmx1g");
             spec.jvmArgs(LoggedExec.shortLivedArgs());
             spec.getMainClass().set("de.thetaphi.forbiddenapis.cli.CliMain");
-            spec.args("-f", getSignatureFile().getAbsolutePath(), "-d", getJarExpandDir(), "--allowmissingclasses");
+            spec.args("-f", getSignatureFile().getAbsolutePath(), "-d", getJarExpandDir(), "--debug", "--allowmissingclasses");
             spec.setErrorOutput(errorOut);
             if (getLogger().isInfoEnabled() == false) {
                 spec.setStandardOutput(new NullOutputStream());

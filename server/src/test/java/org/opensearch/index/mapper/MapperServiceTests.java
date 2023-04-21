@@ -38,7 +38,7 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexService;
@@ -340,10 +340,9 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             )
         );
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { mapperService.merge("type", mappingUpdate, updateOrPreflight()); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            mapperService.merge("type", mappingUpdate, updateOrPreflight());
+        });
 
         assertEquals("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters", e.getMessage());
     }
@@ -371,10 +370,9 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             )
         );
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { mapperService.merge("type", mapping, updateOrPreflight()); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            mapperService.merge("type", mapping, updateOrPreflight());
+        });
 
         assertEquals("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters", e.getMessage());
     }
@@ -406,10 +404,9 @@ public class MapperServiceTests extends OpenSearchSingleNodeTestCase {
             )
         );
 
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { mapperService.merge("type", mapping, updateOrPreflight()); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            mapperService.merge("type", mapping, updateOrPreflight());
+        });
 
         assertEquals("Field name [" + testString + "] is longer than the limit of [" + maxFieldNameLength + "] characters", e.getMessage());
     }

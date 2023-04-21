@@ -41,7 +41,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.DistanceUnit;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.geo.GeoModulePlugin;
@@ -436,10 +436,9 @@ public class PercolatorQuerySearchIT extends OpenSearchIntegTestCase {
         client().admin().indices().prepareRefresh().get();
 
         logger.info("percolating empty doc with source disabled");
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { client().prepareSearch().setQuery(new PercolateQueryBuilder("query", "test", "1", null, null, null)).get(); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            client().prepareSearch().setQuery(new PercolateQueryBuilder("query", "test", "1", null, null, null)).get();
+        });
         assertThat(e.getMessage(), containsString("source disabled"));
     }
 

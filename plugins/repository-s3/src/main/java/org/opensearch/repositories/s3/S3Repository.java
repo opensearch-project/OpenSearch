@@ -50,7 +50,7 @@ import org.opensearch.common.settings.SecureString;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.repositories.RepositoryData;
@@ -278,12 +278,7 @@ class S3Repository extends MeteredBlobStoreRepository {
     }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
-        return org.opensearch.common.collect.Map.of(
-            "base_path",
-            BASE_PATH_SETTING.get(metadata.settings()),
-            "bucket",
-            BUCKET_SETTING.get(metadata.settings())
-        );
+        return Map.of("base_path", BASE_PATH_SETTING.get(metadata.settings()), "bucket", BUCKET_SETTING.get(metadata.settings()));
     }
 
     /**

@@ -38,8 +38,8 @@ import org.apache.lucene.index.IndexableField;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Strings;
 import org.opensearch.common.network.InetAddresses;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 
@@ -68,12 +68,12 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     @Override
     protected Set<String> types() {
-        return org.opensearch.common.collect.Set.of("date_range", "ip_range", "float_range", "double_range", "integer_range", "long_range");
+        return Set.of("date_range", "ip_range", "float_range", "double_range", "integer_range", "long_range");
     }
 
     @Override
     protected Set<String> wholeTypes() {
-        return org.opensearch.common.collect.Set.of("integer_range", "long_range");
+        return Set.of("integer_range", "long_range");
     }
 
     @Override
@@ -97,7 +97,7 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     @Override
     protected void assertParseMaximalWarnings() {
-        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
+        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 3.0");
     }
 
     protected void registerParameters(ParameterChecker checker) throws IOException {

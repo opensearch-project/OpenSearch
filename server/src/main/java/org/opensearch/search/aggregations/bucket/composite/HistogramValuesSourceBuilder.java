@@ -36,9 +36,9 @@ import org.apache.lucene.index.IndexReader;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.xcontent.ObjectParser;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ObjectParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.bucket.histogram.Histogram;
@@ -51,6 +51,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceType;
 import org.opensearch.search.sort.SortOrder;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 import java.util.function.LongConsumer;
 
@@ -100,7 +101,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
     public static void register(ValuesSourceRegistry.Builder builder) {
         builder.register(
             REGISTRY_KEY,
-            org.opensearch.common.collect.List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
+            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
             (valuesSourceConfig, interval, name, hasScript, format, missingBucket, missingOrder, order) -> {
                 ValuesSource.Numeric numeric = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
                 final HistogramValuesSource vs = new HistogramValuesSource(numeric, interval);

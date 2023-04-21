@@ -32,9 +32,9 @@
 
 package org.opensearch.client.core;
 
-import org.opensearch.common.ParseField;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.util.Objects;
 
@@ -43,7 +43,9 @@ public class MainResponse {
     private static final ConstructingObjectParser<MainResponse, Void> PARSER = new ConstructingObjectParser<>(
         MainResponse.class.getName(),
         true,
-        args -> { return new MainResponse((String) args[0], (Version) args[1], (String) args[2], (String) args[3]); }
+        args -> {
+            return new MainResponse((String) args[0], (Version) args[1], (String) args[2], (String) args[3]);
+        }
     );
 
     static {

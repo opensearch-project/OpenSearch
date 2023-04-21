@@ -305,6 +305,36 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         Coordinator coordinator = (Coordinator) internalCluster().getInstance(Discovery.class, decommissionedNode);
         assertFalse(coordinator.localNodeCommissioned());
 
+        // Check cluster health API for decommissioned and active node
+        ClusterHealthResponse activeNodeLocalHealth = client(activeNode).admin()
+            .cluster()
+            .prepareHealth()
+            .setLocal(true)
+            .setEnsureNodeWeighedIn(true)
+            .execute()
+            .actionGet();
+        assertFalse(activeNodeLocalHealth.isTimedOut());
+
+        ClusterHealthResponse decommissionedNodeLocalHealth = client(decommissionedNode).admin()
+            .cluster()
+            .prepareHealth()
+            .setLocal(true)
+            .execute()
+            .actionGet();
+        assertFalse(decommissionedNodeLocalHealth.isTimedOut());
+
+        NodeDecommissionedException ex = expectThrows(
+            NodeDecommissionedException.class,
+            () -> client(decommissionedNode).admin()
+                .cluster()
+                .prepareHealth()
+                .setLocal(true)
+                .setEnsureNodeWeighedIn(true)
+                .execute()
+                .actionGet()
+        );
+        assertTrue(ex.getMessage().contains("local node is decommissioned"));
+
         // Recommissioning the zone back to gracefully succeed the test once above tests succeeds
         DeleteDecommissionStateResponse deleteDecommissionStateResponse = client(activeNode).execute(
             DeleteDecommissionStateAction.INSTANCE,

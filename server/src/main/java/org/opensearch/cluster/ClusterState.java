@@ -61,8 +61,8 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.VersionedNamedWriteable;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.discovery.Discovery;
 
 import java.io.IOException;
@@ -375,9 +375,9 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         }
         if (metadata.customs().isEmpty() == false) {
             sb.append("metadata customs:\n");
-            for (final ObjectObjectCursor<String, Metadata.Custom> cursor : metadata.customs()) {
-                final String type = cursor.key;
-                final Metadata.Custom custom = cursor.value;
+            for (final Map.Entry<String, Metadata.Custom> cursor : metadata.customs().entrySet()) {
+                final String type = cursor.getKey();
+                final Metadata.Custom custom = cursor.getValue();
                 sb.append(TAB).append(type).append(": ").append(custom);
             }
             sb.append("\n");

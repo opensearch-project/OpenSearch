@@ -21,12 +21,16 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.PreferenceBasedSearchNotAllowedException;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.WeightedRouting;
+import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.search.stats.SearchStats;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.search.aggregations.Aggregations;
@@ -45,6 +49,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Future;
@@ -509,6 +514,291 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         assertNoSearchInAZ("a");
     }
 
+    public void testStrictWeightedRoutingWithCustomString_FailOpenEnabled() throws Exception {
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .put("cluster.routing.weighted.fail_open", true)
+            .put("cluster.routing.weighted.strict", true)
+            .build();
+
+        int nodeCountPerAZ = 1;
+        Map<String, List<String>> nodeMap = setupCluster(nodeCountPerAZ, commonSettings);
+
+        int numShards = 10;
+        int numReplicas = 1;
+        setUpIndexing(numShards, numReplicas);
+
+        logger.info("--> creating network partition disruption");
+        final String clusterManagerNode1 = internalCluster().getClusterManagerName();
+        Set<String> nodesInOneSide = Stream.of(clusterManagerNode1, nodeMap.get("b").get(0)).collect(Collectors.toCollection(HashSet::new));
+        Set<String> nodesInOtherSide = Stream.of(nodeMap.get("a").get(0)).collect(Collectors.toCollection(HashSet::new));
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
+        setShardRoutingWeights(weights);
+
+        NetworkDisruption networkDisruption = new NetworkDisruption(
+            new NetworkDisruption.TwoPartitions(nodesInOneSide, nodesInOtherSide),
+            NetworkDisruption.UNRESPONSIVE
+        );
+        internalCluster().setDisruptionScheme(networkDisruption);
+
+        logger.info("--> network disruption is started");
+        networkDisruption.startDisrupting();
+
+        Set<String> hitNodes = new HashSet<>();
+        Future<SearchResponse>[] responses = new Future[50];
+        String customPreference = randomAlphaOfLength(10);
+        logger.info("--> making search requests");
+        for (int i = 0; i < 50; i++) {
+            responses[i] = internalCluster().client(nodeMap.get("b").get(0))
+                .prepareSearch("test")
+                .setPreference(customPreference)
+                .setSize(100)
+                .setQuery(QueryBuilders.matchAllQuery())
+                .execute();
+        }
+
+        logger.info("--> network disruption is stopped");
+        networkDisruption.stopDisrupting();
+
+        logger.info("--> shards should fail due to network disruption");
+        for (int i = 0; i < 50; i++) {
+            try {
+                SearchResponse searchResponse = responses[i].get();
+                assertEquals(searchResponse.getFailedShards(), 0);
+                for (int j = 0; j < searchResponse.getHits().getHits().length; j++) {
+                    hitNodes.add(searchResponse.getHits().getAt(j).getShard().getNodeId());
+                }
+            } catch (Exception t) {
+                fail("search should not fail");
+            }
+        }
+
+        try {
+            assertSearchInAZ("b");
+        } catch (AssertionError ae) {
+            assertSearchInAZ("c");
+        }
+        assertNoSearchInAZ("a");
+    }
+
+    public void testStrictWeightedRoutingWithCustomString_FailOpenDisabled() throws Exception {
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .put("cluster.routing.weighted.fail_open", false)
+            .put("cluster.routing.weighted.strict", true)
+            .build();
+
+        int nodeCountPerAZ = 1;
+        Map<String, List<String>> nodeMap = setupCluster(nodeCountPerAZ, commonSettings);
+
+        int numShards = 10;
+        int numReplicas = 1;
+        setUpIndexing(numShards, numReplicas);
+
+        logger.info("--> creating network partition disruption");
+        final String clusterManagerNode1 = internalCluster().getClusterManagerName();
+        Set<String> nodesInOneSide = Stream.of(clusterManagerNode1, nodeMap.get("b").get(0)).collect(Collectors.toCollection(HashSet::new));
+        Set<String> nodesInOtherSide = Stream.of(nodeMap.get("a").get(0)).collect(Collectors.toCollection(HashSet::new));
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
+        setShardRoutingWeights(weights);
+
+        NetworkDisruption networkDisruption = new NetworkDisruption(
+            new NetworkDisruption.TwoPartitions(nodesInOneSide, nodesInOtherSide),
+            NetworkDisruption.UNRESPONSIVE
+        );
+        internalCluster().setDisruptionScheme(networkDisruption);
+
+        logger.info("--> network disruption is started");
+        networkDisruption.startDisrupting();
+
+        Set<String> hitNodes = new HashSet<>();
+        Future<SearchResponse>[] responses = new Future[50];
+        String customPreference = randomAlphaOfLength(10);
+        logger.info("--> making search requests");
+        for (int i = 0; i < 50; i++) {
+            responses[i] = internalCluster().client(nodeMap.get("b").get(0))
+                .prepareSearch("test")
+                .setPreference(customPreference)
+                .setSize(100)
+                .setQuery(QueryBuilders.matchAllQuery())
+                .execute();
+        }
+
+        logger.info("--> network disruption is stopped");
+        networkDisruption.stopDisrupting();
+
+        logger.info("--> shards should fail due to network disruption");
+        for (int i = 0; i < 50; i++) {
+            try {
+                SearchResponse searchResponse = responses[i].get();
+                assertNotEquals(searchResponse.getFailedShards(), 0);
+                for (int j = 0; j < searchResponse.getHits().getHits().length; j++) {
+                    hitNodes.add(searchResponse.getHits().getAt(j).getShard().getNodeId());
+                }
+            } catch (Exception t) {
+                fail("search should not fail");
+            }
+        }
+
+        DiscoveryNodes dataNodes = internalCluster().clusterService().state().nodes();
+        Set<String> expectedHotNodes = new HashSet<>();
+        for (DiscoveryNode node : dataNodes) {
+            if (node.getAttributes().getOrDefault("zone", "").equals("b")) {
+                expectedHotNodes.add(node.getId());
+            }
+        }
+
+        assertEquals(expectedHotNodes, hitNodes);
+
+        assertSearchInAZ("b");
+        assertNoSearchInAZ("c");
+        assertNoSearchInAZ("a");
+    }
+
+    /**
+     * Should failopen shards even if failopen enabled with custom search preference.
+     */
+    public void testStrictWeightedRoutingWithShardPrefNetworkDisruption_FailOpenEnabled() throws Exception {
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .put("cluster.routing.weighted.fail_open", true)
+            .put("cluster.routing.weighted.strict", true)
+            .build();
+
+        int nodeCountPerAZ = 1;
+        Map<String, List<String>> nodeMap = setupCluster(nodeCountPerAZ, commonSettings);
+
+        int numShards = 10;
+        int numReplicas = 1;
+        setUpIndexing(numShards, numReplicas);
+
+        logger.info("--> creating network partition disruption");
+        final String clusterManagerNode1 = internalCluster().getClusterManagerName();
+        Set<String> nodesInOneSide = Stream.of(clusterManagerNode1, nodeMap.get("c").get(0)).collect(Collectors.toCollection(HashSet::new));
+        Set<String> nodesInOtherSide = Stream.of(nodeMap.get("a").get(0)).collect(Collectors.toCollection(HashSet::new));
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
+        setShardRoutingWeights(weights);
+
+        NetworkDisruption networkDisruption = new NetworkDisruption(
+            new NetworkDisruption.TwoPartitions(nodesInOneSide, nodesInOtherSide),
+            NetworkDisruption.UNRESPONSIVE
+        );
+        internalCluster().setDisruptionScheme(networkDisruption);
+
+        logger.info("--> network disruption is started");
+        networkDisruption.startDisrupting();
+
+        Future<SearchResponse>[] responses = new Future[50];
+        DiscoveryNodes dataNodes = internalCluster().clusterService().state().nodes();
+        ShardId shardId = internalCluster().clusterService()
+            .state()
+            .getRoutingTable()
+            .index("test")
+            .randomAllActiveShardsIt()
+            .getShardRoutings()
+            .stream()
+            .filter(shard -> {
+                return dataNodes.get(shard.currentNodeId()).getAttributes().getOrDefault("zone", "").equals("c");
+            })
+            .findFirst()
+            .get()
+            .shardId();
+
+        for (int i = 0; i < 50; i++) {
+            responses[i] = internalCluster().client(nodeMap.get("c").get(0))
+                .prepareSearch("test")
+                .setPreference(String.format(Locale.ROOT, "_shards:%s", shardId.getId()))
+                .setSize(100)
+                .setQuery(QueryBuilders.matchAllQuery())
+                .execute();
+        }
+
+        logger.info("--> network disruption is stopped");
+        networkDisruption.stopDisrupting();
+
+        for (int i = 0; i < 50; i++) {
+            try {
+                SearchResponse searchResponse = responses[i].get();
+                assertEquals(searchResponse.getFailedShards(), 0);
+            } catch (Exception t) {
+                fail("search should not fail");
+            }
+        }
+
+        assertNoSearchInAZ("a");
+        try {
+            assertSearchInAZ("c");
+        } catch (AssertionError ae) {
+            assertSearchInAZ("b");
+        }
+    }
+
+    public void testStrictWeightedRoutingWithShardPref() throws Exception {
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .put("cluster.routing.weighted.fail_open", true)
+            .put("cluster.routing.weighted.strict", true)
+            .build();
+
+        int nodeCountPerAZ = 1;
+        Map<String, List<String>> nodeMap = setupCluster(nodeCountPerAZ, commonSettings);
+
+        int numShards = 10;
+        int numReplicas = 1;
+        setUpIndexing(numShards, numReplicas);
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
+        setShardRoutingWeights(weights);
+
+        DiscoveryNodes dataNodes = internalCluster().clusterService().state().nodes();
+        ShardId shardId = internalCluster().clusterService()
+            .state()
+            .getRoutingTable()
+            .index("test")
+            .randomAllActiveShardsIt()
+            .getShardRoutings()
+            .stream()
+            .filter(shard -> {
+                return dataNodes.get(shard.currentNodeId()).getAttributes().getOrDefault("zone", "").equals("c");
+            })
+            .findFirst()
+            .get()
+            .shardId();
+
+        Future<SearchResponse>[] responses = new Future[50];
+        logger.info("--> making search requests");
+        for (int i = 0; i < 50; i++) {
+            responses[i] = internalCluster().client(nodeMap.get("b").get(0))
+                .prepareSearch("test")
+                .setPreference(String.format(Locale.ROOT, "_shards:%s", shardId.getId()))
+                .setSize(100)
+                .setQuery(QueryBuilders.matchAllQuery())
+                .execute();
+        }
+
+        for (int i = 0; i < 50; i++) {
+            try {
+                SearchResponse searchResponse = responses[i].get();
+                assertEquals(searchResponse.getFailedShards(), 0);
+                assertNotEquals(searchResponse.getHits().getTotalHits().value, 0);
+            } catch (Exception t) {
+                fail("search should not fail");
+            }
+        }
+        assertNoSearchInAZ("c");
+    }
+
     private void assertNoSearchInAZ(String az) {
         ImmutableOpenMap<String, DiscoveryNode> dataNodes = internalCluster().clusterService().state().nodes().getDataNodes();
         String dataNodeId = null;
@@ -799,11 +1089,9 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Assert that preference based search is not allowed with strict weighted shard routing
-     * @throws Exception throws exception
+     * Assert that preference search with custom string doesn't hit a node in weighed away az
      */
-    public void testStrictWeightedRouting() throws Exception {
-
+    public void testStrictWeightedRoutingWithCustomString() {
         Settings commonSettings = Settings.builder()
             .put("cluster.routing.allocation.awareness.attributes", "zone")
             .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
@@ -814,32 +1102,52 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         int nodeCountPerAZ = 1;
         Map<String, List<String>> nodeMap = setupCluster(nodeCountPerAZ, commonSettings);
 
-        int numShards = 10;
-        int numReplicas = 1;
+        int numShards = 20;
+        int numReplicas = 2;
         setUpIndexing(numShards, numReplicas);
 
         logger.info("--> setting shard routing weights for weighted round robin");
         Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
         setShardRoutingWeights(weights);
-        String nodeInZoneA = nodeMap.get("a").get(0);
         String customPreference = randomAlphaOfLength(10);
 
-        assertThrows(
-            PreferenceBasedSearchNotAllowedException.class,
-            () -> internalCluster().client(nodeMap.get("b").get(0))
-                .prepareSearch()
-                .setSize(0)
-                .setPreference(randomFrom("_local", "_only_nodes:" + nodeInZoneA, "_prefer_nodes:" + nodeInZoneA, customPreference))
-                .get()
-        );
+        SearchResponse searchResponse = internalCluster().client(nodeMap.get("b").get(0))
+            .prepareSearch()
+            .setSize(20)
+            .setPreference(customPreference)
+            .get();
+        assertEquals(RestStatus.OK.getStatus(), searchResponse.status().getStatus());
+        assertNoSearchInAZ("c");
+        assertSearchInAZ("a");
+        assertSearchInAZ("b");
+
+        // disable strict weighed routing
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put("cluster.routing.weighted.strict", false))
+            .get();
+
+        // make search requests with custom string
+        internalCluster().client(nodeMap.get("a").get(0))
+            .prepareSearch()
+            .setSize(20)
+            .setPreference(customPreference)
+            .setQuery(QueryBuilders.matchAllQuery())
+            .get();
+        // assert search on data nodes on az c (weighed away az)
+        try {
+            assertSearchInAZ("c");
+        } catch (AssertionError ae) {
+            assertSearchInAZ("a");
+        }
 
     }
 
     /**
      *  Assert that preference based search works with non-strict weighted shard routing
-     * @throws Exception
      */
-    public void testPreferenceSearchWithWeightedRouting() throws Exception {
+    public void testPreferenceSearchWithWeightedRouting() {
         Settings commonSettings = Settings.builder()
             .put("cluster.routing.allocation.awareness.attributes", "zone")
             .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
@@ -860,13 +1168,266 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
 
         String customPreference = randomAlphaOfLength(10);
         String nodeInZoneA = nodeMap.get("a").get(0);
+        String nodeInZoneB = nodeMap.get("b").get(0);
+        String nodeInZoneC = nodeMap.get("c").get(0);
+
+        Map<String, String> nodeIDMap = new HashMap<>();
+        DiscoveryNodes dataNodes = internalCluster().clusterService().state().nodes();
+        for (DiscoveryNode node : dataNodes) {
+            nodeIDMap.put(node.getName(), node.getId());
+        }
+
+        SearchResponse searchResponse = internalCluster().client(nodeMap.get("b").get(0))
+            .prepareSearch()
+            .setPreference(randomFrom("_local", "_prefer_nodes:" + "zone:a", customPreference))
+            .get();
+        assertEquals(RestStatus.OK.getStatus(), searchResponse.status().getStatus());
+
+        searchResponse = internalCluster().client(nodeMap.get("a").get(0))
+            .prepareSearch()
+            .setPreference(
+                "_only_nodes:" + nodeIDMap.get(nodeInZoneA) + "," + nodeIDMap.get(nodeInZoneB) + "," + nodeIDMap.get(nodeInZoneC)
+            )
+            .get();
+        assertEquals(RestStatus.OK.getStatus(), searchResponse.status().getStatus());
+    }
+
+    public void testPreferenceSearchWithIgnoreWeightedRouting() {
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .put("cluster.routing.weighted.fail_open", true)
+            .put("cluster.routing.weighted.strict", false)
+            .put("cluster.routing.ignore_weighted_routing", true)
+            .build();
+
+        int nodeCountPerAZ = 1;
+        Map<String, List<String>> nodeMap = setupCluster(nodeCountPerAZ, commonSettings);
+
+        int numShards = 10;
+        int numReplicas = 2;
+        setUpIndexing(numShards, numReplicas);
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
+        setShardRoutingWeights(weights);
+
+        String customPreference = randomAlphaOfLength(10);
+        String nodeInZoneA = nodeMap.get("a").get(0);
+        String nodeInZoneB = nodeMap.get("b").get(0);
+        String nodeInZoneC = nodeMap.get("c").get(0);
+
+        Map<String, String> nodeIDMap = new HashMap<>();
+        DiscoveryNodes dataNodes = internalCluster().clusterService().state().nodes();
+        for (DiscoveryNode node : dataNodes) {
+            nodeIDMap.put(node.getName(), node.getId());
+        }
+
+        SearchResponse searchResponse = internalCluster().client(nodeMap.get("b").get(0))
+            .prepareSearch()
+            .setPreference(randomFrom("_local", "_prefer_nodes:" + "zone:a", customPreference))
+            .get();
+        assertEquals(RestStatus.OK.getStatus(), searchResponse.status().getStatus());
+
+        searchResponse = internalCluster().client(nodeMap.get("a").get(0))
+            .prepareSearch()
+            .setPreference(
+                "_only_nodes:" + nodeIDMap.get(nodeInZoneA) + "," + nodeIDMap.get(nodeInZoneB) + "," + nodeIDMap.get(nodeInZoneC)
+            )
+            .get();
+        assertEquals(RestStatus.OK.getStatus(), searchResponse.status().getStatus());
+    }
+
+    /**
+     * Assert that preference based search with preference type is not allowed with strict weighted shard routing
+     */
+    public void testStrictWeightedRouting() {
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .put("cluster.routing.weighted.fail_open", true)
+            .put("cluster.routing.weighted.strict", true)
+            .build();
+
+        int nodeCountPerAZ = 1;
+        Map<String, List<String>> nodeMap = setupCluster(nodeCountPerAZ, commonSettings);
+
+        int numShards = 10;
+        int numReplicas = 1;
+        setUpIndexing(numShards, numReplicas);
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
+        setShardRoutingWeights(weights);
+        String nodeInZoneA = nodeMap.get("a").get(0);
+
+        assertThrows(
+            PreferenceBasedSearchNotAllowedException.class,
+            () -> internalCluster().client(nodeMap.get("b").get(0))
+                .prepareSearch()
+                .setSize(0)
+                .setPreference("_only_nodes:" + nodeInZoneA)
+                .get()
+        );
+
+        assertThrows(
+            PreferenceBasedSearchNotAllowedException.class,
+            () -> internalCluster().client(nodeMap.get("b").get(0))
+                .prepareSearch()
+                .setSize(0)
+                .setPreference("_prefer_nodes:" + nodeInZoneA)
+                .get()
+        );
+    }
+
+    public void testStrictWeightedRoutingAllowedForSomeSearchPrefs() {
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .put("cluster.routing.weighted.fail_open", true)
+            .put("cluster.routing.weighted.strict", true)
+            .build();
+
+        int nodeCountPerAZ = 1;
+        Map<String, List<String>> nodeMap = setupCluster(nodeCountPerAZ, commonSettings);
+
+        int numShards = 10;
+        int numReplicas = 1;
+        setUpIndexing(numShards, numReplicas);
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
+        setShardRoutingWeights(weights);
+        String nodeInZoneA = nodeMap.get("a").get(0);
+        String customPreference = randomAlphaOfLength(10);
 
         SearchResponse searchResponse = internalCluster().client(nodeMap.get("b").get(0))
             .prepareSearch()
             .setSize(0)
-            .setPreference(randomFrom("_local", "_only_nodes:" + nodeInZoneA, "_prefer_nodes:" + nodeInZoneA, customPreference))
+            .setPreference("_only_local:" + nodeInZoneA)
             .get();
         assertEquals(RestStatus.OK.getStatus(), searchResponse.status().getStatus());
+
+        searchResponse = internalCluster().client(nodeMap.get("b").get(0))
+            .prepareSearch()
+            .setSize(0)
+            .setPreference("_local:" + nodeInZoneA)
+            .get();
+        assertEquals(RestStatus.OK.getStatus(), searchResponse.status().getStatus());
+
+        searchResponse = internalCluster().client(nodeMap.get("b").get(0)).prepareSearch().setSize(0).setPreference("_shards:1").get();
+        assertEquals(RestStatus.OK.getStatus(), searchResponse.status().getStatus());
+
+        searchResponse = internalCluster().client(nodeMap.get("b").get(0)).prepareSearch().setSize(0).setPreference(customPreference).get();
+        assertEquals(RestStatus.OK.getStatus(), searchResponse.status().getStatus());
+    }
+
+    /**
+     * Shard routing request is served by data nodes in az with weight set as 0,
+     * in case shard copies are not available in other azs.(with fail open enabled)
+     * This is tested by setting up a 3 node cluster with one data node per az.
+     * Weighted shard routing weight is set as 0 for az-c.
+     * Indices are created with one replica copy and network disruption is introduced,
+     * which makes data node in zone-a unresponsive.
+     * Since there are two copies of a shard, there can be few shards for which copy doesn't exist in zone b.
+     * Assertions are put to make sure such shard search requests are served by data node in zone c.
+     * Asserts on fail open stats which captures number of times fail open is executed
+     * @throws IOException throws exception
+     */
+    public void testWeightedRoutingFailOpenStats() throws Exception {
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .put("cluster.routing.weighted.fail_open", true)
+            .build();
+
+        int nodeCountPerAZ = 1;
+        Map<String, List<String>> nodeMap = setupCluster(nodeCountPerAZ, commonSettings);
+
+        int numShards = 10;
+        int numReplicas = 1;
+        setUpIndexing(numShards, numReplicas);
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
+        setShardRoutingWeights(weights);
+        WeightedRoutingStats.getInstance().resetFailOpenCount();
+
+        logger.info("--> creating network partition disruption");
+        final String clusterManagerNode1 = internalCluster().getClusterManagerName();
+        Set<String> nodesInOneSide = Stream.of(clusterManagerNode1, nodeMap.get("b").get(0)).collect(Collectors.toCollection(HashSet::new));
+        Set<String> nodesInOtherSide = Stream.of(nodeMap.get("a").get(0)).collect(Collectors.toCollection(HashSet::new));
+
+        NetworkDisruption networkDisruption = new NetworkDisruption(
+            new NetworkDisruption.TwoPartitions(nodesInOneSide, nodesInOtherSide),
+            NetworkDisruption.UNRESPONSIVE
+        );
+        internalCluster().setDisruptionScheme(networkDisruption);
+
+        DiscoveryNodes dataNodes = internalCluster().clusterService().state().nodes();
+
+        Map<String, String> nodeIDMap = new HashMap<>();
+        for (DiscoveryNode node : dataNodes) {
+            nodeIDMap.put(node.getName(), node.getId());
+        }
+
+        List<ShardRouting> shardInNodeA = internalCluster().clusterService()
+            .state()
+            .getRoutingNodes()
+            .node(nodeIDMap.get(nodeMap.get("a").get(0)))
+            .shardsWithState(ShardRoutingState.STARTED);
+
+        List<ShardRouting> shardInNodeC = internalCluster().clusterService()
+            .state()
+            .getRoutingNodes()
+            .node(nodeIDMap.get(nodeMap.get("c").get(0)))
+            .shardsWithState(ShardRoutingState.STARTED);
+
+        // fail open will be called for shards in zone-a data node with replica in zone-c data node
+        Set<ShardId> result = new HashSet<>();
+        int failOpenShardCount = 0;
+        for (ShardRouting shardRouting : shardInNodeA) {
+            result.add(shardRouting.shardId());
+        }
+        for (ShardRouting shardRouting : shardInNodeC) {
+            if (result.contains(shardRouting.shardId())) {
+                failOpenShardCount++;
+            }
+        }
+
+        logger.info("--> network disruption is started");
+        networkDisruption.startDisrupting();
+
+        Set<String> hitNodes = new HashSet<>();
+        logger.info("--> making search requests");
+
+        Future<SearchResponse> response = internalCluster().client(nodeMap.get("b").get(0))
+            .prepareSearch("test")
+            .setSize(100)
+            .setQuery(QueryBuilders.matchAllQuery())
+            .execute();
+
+        logger.info("--> network disruption is stopped");
+        networkDisruption.stopDisrupting();
+
+        try {
+            SearchResponse searchResponse = response.get();
+            assertEquals(searchResponse.getFailedShards(), 0);
+            for (int j = 0; j < searchResponse.getHits().getHits().length; j++) {
+                hitNodes.add(searchResponse.getHits().getAt(j).getShard().getNodeId());
+            }
+        } catch (Exception t) {
+            fail("search should not fail");
+        }
+        assertSearchInAZ("b");
+        assertSearchInAZ("c");
+        assertNoSearchInAZ("a");
+
+        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().addMetric("weighted_routing").execute().actionGet();
+        Map<String, NodeStats> stats = nodeStats.getNodesMap();
+        NodeStats nodeStatsC = stats.get(nodeIDMap.get(nodeMap.get("c").get(0)));
+        assertEquals(failOpenShardCount, nodeStatsC.getWeightedRoutingStats().getFailOpenCount());
+        WeightedRoutingStats.getInstance().resetFailOpenCount();
     }
 
 }

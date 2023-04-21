@@ -8,9 +8,13 @@
 
 package org.opensearch.indices.replication;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.shard.IndexShard;
@@ -26,6 +30,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -37,6 +42,8 @@ import java.util.stream.Collectors;
  * @opensearch.internal
  */
 class OngoingSegmentReplications {
+
+    private static final Logger logger = LogManager.getLogger(OngoingSegmentReplications.class);
     private final RecoverySettings recoverySettings;
     private final IndicesService indicesService;
     private final Map<ReplicationCheckpoint, CopyState> copyStateMap;
@@ -74,7 +81,7 @@ class OngoingSegmentReplications {
         } else {
             // From the checkpoint's shard ID, fetch the IndexShard
             ShardId shardId = checkpoint.getShardId();
-            final IndexService indexService = indicesService.indexService(shardId.getIndex());
+            final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
             final IndexShard indexShard = indexService.getShard(shardId.id());
             // build the CopyState object and cache it before returning
             final CopyState copyState = new CopyState(checkpoint, indexShard);
@@ -115,6 +122,10 @@ class OngoingSegmentReplications {
                 }
             });
             if (request.getFilesToFetch().isEmpty()) {
+                // before completion, alert the primary of the replica's state.
+                handler.getCopyState()
+                    .getShard()
+                    .updateVisibleCheckpointForShard(request.getTargetAllocationId(), handler.getCopyState().getCheckpoint());
                 wrappedListener.onResponse(new GetSegmentFilesResponse(Collections.emptyList()));
             } else {
                 handler.sendFiles(request, wrappedListener);
@@ -137,16 +148,19 @@ class OngoingSegmentReplications {
      */
     CopyState prepareForReplication(CheckpointInfoRequest request, FileChunkWriter fileChunkWriter) throws IOException {
         final CopyState copyState = getCachedCopyState(request.getCheckpoint());
-        if (allocationIdToHandlers.putIfAbsent(
-            request.getTargetAllocationId(),
-            createTargetHandler(request.getTargetNode(), copyState, request.getTargetAllocationId(), fileChunkWriter)
-        ) != null) {
-            throw new OpenSearchException(
-                "Shard copy {} on node {} already replicating",
-                request.getCheckpoint().getShardId(),
-                request.getTargetNode()
+        if (copyState.getCheckpoint().getCodec().equals(request.getCheckpoint().getCodec()) == false) {
+            logger.trace("Requested unsupported codec version {}", request.getCheckpoint().getCodec());
+            throw new CancellableThreads.ExecutionCancelledException(
+                new ParameterizedMessage("Requested unsupported codec version {}", request.getCheckpoint().getCodec()).toString()
             );
         }
+        allocationIdToHandlers.compute(request.getTargetAllocationId(), (allocationId, segrepHandler) -> {
+            if (segrepHandler != null) {
+                logger.warn("Override handler for allocation id {}", request.getTargetAllocationId());
+                cancelHandlers(handler -> handler.getAllocationId().equals(request.getTargetAllocationId()), "cancel due to retry");
+            }
+            return createTargetHandler(request.getTargetNode(), copyState, request.getTargetAllocationId(), fileChunkWriter);
+        });
         return copyState;
     }
 
@@ -163,8 +177,8 @@ class OngoingSegmentReplications {
     /**
      * Cancel all Replication events for the given allocation ID, intended to be called when a primary is shutting down.
      *
-     * @param allocationId  {@link String} - Allocation ID.
-     * @param reason {@link String} - Reason for the cancel
+     * @param allocationId {@link String} - Allocation ID.
+     * @param reason       {@link String} - Reason for the cancel
      */
     synchronized void cancel(String allocationId, String reason) {
         final SegmentReplicationSourceHandler handler = allocationIdToHandlers.remove(allocationId);
@@ -193,6 +207,11 @@ class OngoingSegmentReplications {
 
     int size() {
         return allocationIdToHandlers.size();
+    }
+
+    // Visible for tests.
+    Map<String, SegmentReplicationSourceHandler> getHandlers() {
+        return allocationIdToHandlers;
     }
 
     int cachedCopyStateSize() {
@@ -254,8 +273,25 @@ class OngoingSegmentReplications {
             .filter(predicate)
             .map(SegmentReplicationSourceHandler::getAllocationId)
             .collect(Collectors.toList());
+        if (allocationIds.size() == 0) {
+            return;
+        }
+        logger.warn(() -> new ParameterizedMessage("Cancelling replications for allocationIds {}", allocationIds));
         for (String allocationId : allocationIds) {
             cancel(allocationId, reason);
         }
+    }
+
+    /**
+     * Clear copystate and target handlers for any non insync allocationIds.
+     * @param shardId {@link ShardId}
+     * @param inSyncAllocationIds {@link List} of in-sync allocation Ids.
+     */
+    public void clearOutOfSyncIds(ShardId shardId, Set<String> inSyncAllocationIds) {
+        cancelHandlers(
+            (handler) -> handler.getCopyState().getShard().shardId().equals(shardId)
+                && inSyncAllocationIds.contains(handler.getAllocationId()) == false,
+            "Shard is no longer in-sync with the primary"
+        );
     }
 }

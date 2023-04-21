@@ -38,13 +38,14 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.blobstore.BlobStoreTestUtil;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
 
+import java.nio.file.Path;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -52,7 +53,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class S3RepositoryTests extends OpenSearchTestCase {
+public class S3RepositoryTests extends OpenSearchTestCase implements ConfigPathSupport {
 
     private static class DummyS3Client extends AbstractAmazonS3 {
 
@@ -63,6 +64,10 @@ public class S3RepositoryTests extends OpenSearchTestCase {
     }
 
     private static class DummyS3Service extends S3Service {
+        DummyS3Service(final Path configPath) {
+            super(configPath);
+        }
+
         @Override
         public AmazonS3Reference client(RepositoryMetadata repositoryMetadata) {
             return new AmazonS3Reference(new DummyS3Client());
@@ -139,7 +144,7 @@ public class S3RepositoryTests extends OpenSearchTestCase {
         return new S3Repository(
             metadata,
             NamedXContentRegistry.EMPTY,
-            new DummyS3Service(),
+            new DummyS3Service(configPath()),
             BlobStoreTestUtil.mockClusterService(),
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
         ) {

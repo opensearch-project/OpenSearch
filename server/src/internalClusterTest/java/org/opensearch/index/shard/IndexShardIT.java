@@ -62,7 +62,7 @@ import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLock;
@@ -453,7 +453,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             final FlushStats flushStats = shard.flushStats();
             logger.info(
                 "--> translog stats [{}] gen [{}] commit_stats [{}] flush_stats [{}/{}]",
-                Strings.toString(translogStats),
+                Strings.toString(XContentType.JSON, translogStats),
                 translog.getGeneration().translogFileGeneration,
                 commitStats.getUserData(),
                 flushStats.getPeriodic(),

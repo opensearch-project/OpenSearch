@@ -35,7 +35,7 @@ package org.opensearch.index.mapper;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
-import org.opensearch.Assertions;
+import org.opensearch.core.Assertions;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
@@ -47,10 +47,10 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.AbstractIndexComponent;
 import org.opensearch.index.IndexSettings;
@@ -348,7 +348,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                         + "to be the same as new mapping ["
                         + newSource
                         + "]";
-                    final CompressedXContent mapperSource = new CompressedXContent(Strings.toString(mapper));
+                    final CompressedXContent mapperSource = new CompressedXContent(Strings.toString(XContentType.JSON, mapper));
                     assert currentSource.equals(mapperSource) : "expected current mapping ["
                         + currentSource
                         + "] for type ["

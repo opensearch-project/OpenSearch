@@ -61,6 +61,7 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.NodeMetadata;
@@ -143,8 +144,6 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
 
         final IndexMetadata indexMetadata;
         final int shardId;
-        final int fromNodeId;
-        final int toNodeId;
 
         if (options.has(folderOption)) {
             final Path path = getPath(folderOption.value(options)).getParent();
@@ -165,10 +164,7 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
                 && NodeEnvironment.NODES_FOLDER.equals(shardParentParent.getParent().getParent().getFileName().toString()) // `nodes` check
             ) {
                 shardId = Integer.parseInt(shardIdFileName);
-                fromNodeId = Integer.parseInt(nodeIdFileName);
-                toNodeId = fromNodeId + 1;
                 indexMetadata = StreamSupport.stream(clusterState.metadata().indices().values().spliterator(), false)
-                    .map(imd -> imd.value)
                     .filter(imd -> imd.getIndexUUID().equals(indexUUIDFolderName))
                     .findFirst()
                     .orElse(null);
@@ -248,11 +244,9 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
             );
         }
         String[] files = directory.listAll();
-        boolean found = false;
         for (String file : files) {
             if (file.startsWith(Store.CORRUPTED_MARKER_NAME_PREFIX)) {
                 directory.deleteFile(file);
-
                 terminal.println("Deleted corrupt marker " + file + " from " + path);
             }
         }
@@ -519,7 +513,7 @@ public class RemoveCorruptedShardDataCommand extends OpenSearchNodeCommand {
         );
 
         terminal.println("");
-        terminal.println("POST /_cluster/reroute\n" + Strings.toString(commands, true, true));
+        terminal.println("POST /_cluster/reroute\n" + Strings.toString(XContentType.JSON, commands, true, true));
         terminal.println("");
         terminal.println("You must accept the possibility of data loss by changing the `accept_data_loss` parameter to `true`.");
         terminal.println("");

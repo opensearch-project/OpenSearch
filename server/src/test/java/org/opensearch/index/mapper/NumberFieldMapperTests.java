@@ -36,7 +36,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.mapper.NumberFieldMapper.NumberType;
 import org.opensearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
@@ -55,12 +55,12 @@ public class NumberFieldMapperTests extends AbstractNumericFieldMapperTestCase {
 
     @Override
     protected Set<String> types() {
-        return org.opensearch.common.collect.Set.of("byte", "short", "integer", "long", "float", "double", "half_float");
+        return Set.of("byte", "short", "integer", "long", "float", "double", "half_float");
     }
 
     @Override
     protected Set<String> wholeTypes() {
-        return org.opensearch.common.collect.Set.of("byte", "short", "integer", "long");
+        return Set.of("byte", "short", "integer", "long");
     }
 
     @Override

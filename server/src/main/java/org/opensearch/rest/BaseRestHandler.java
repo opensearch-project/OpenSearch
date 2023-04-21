@@ -44,8 +44,10 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.rest.action.admin.cluster.RestNodesUsageAction;
+import org.opensearch.tasks.Task;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -126,7 +128,7 @@ public abstract class BaseRestHandler implements RestHandler {
         action.accept(channel);
     }
 
-    protected final String unrecognized(
+    public static String unrecognizedStrings(
         final RestRequest request,
         final Set<String> invalids,
         final Set<String> candidates,
@@ -169,6 +171,24 @@ public abstract class BaseRestHandler implements RestHandler {
         }
 
         return message.toString();
+    }
+
+    /**
+     * Returns a String message of the detail of any unrecognized error occurred. The string is intended for use in error messages to be returned to the user.
+     *
+     * @param request The request that caused the exception
+     * @param invalids Strings from the request which were unable to be understood.
+     * @param candidates A set of words that are most likely to be the valid strings determined invalid, to be suggested to the user.
+     * @param detail The parameter contains the details of the exception.
+     * @return a String that contains the message.
+     */
+    protected final String unrecognized(
+        final RestRequest request,
+        final Set<String> invalids,
+        final Set<String> candidates,
+        final String detail
+    ) {
+        return unrecognizedStrings(request, invalids, candidates, detail);
     }
 
     /**
@@ -295,5 +315,19 @@ public abstract class BaseRestHandler implements RestHandler {
         public boolean allowSystemIndexAccessByDefault() {
             return delegate.allowSystemIndexAccessByDefault();
         }
+    }
+
+    /**
+     * Return a task immediately when executing some long-running operations asynchronously, like reindex, resize, open, force merge
+     */
+    public RestChannelConsumer sendTask(String nodeId, Task task) {
+        return channel -> {
+            try (XContentBuilder builder = channel.newBuilder()) {
+                builder.startObject();
+                builder.field("task", nodeId + ":" + task.getId());
+                builder.endObject();
+                channel.sendResponse(new BytesRestResponse(RestStatus.OK, builder));
+            }
+        };
     }
 }

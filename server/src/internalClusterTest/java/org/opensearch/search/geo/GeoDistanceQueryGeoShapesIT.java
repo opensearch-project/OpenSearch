@@ -9,7 +9,7 @@
 package org.opensearch.search.geo;
 
 import org.junit.Before;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 

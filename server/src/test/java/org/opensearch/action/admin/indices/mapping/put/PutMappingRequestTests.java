@@ -45,8 +45,8 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.Index;
@@ -59,7 +59,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.opensearch.common.collect.Tuple.tuple;
-import static org.opensearch.common.xcontent.ToXContent.EMPTY_PARAMS;
+import static org.opensearch.core.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 
@@ -113,7 +113,7 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
         mapping.endObject();
         request.source(mapping);
 
-        String actualRequestBody = Strings.toString(request);
+        String actualRequestBody = Strings.toString(XContentType.JSON, request);
         String expectedRequestBody = "{\"properties\":{\"email\":{\"type\":\"text\"}}}";
         assertEquals(expectedRequestBody, actualRequestBody);
     }
@@ -121,7 +121,7 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
     public void testToXContentWithEmptySource() throws IOException {
         PutMappingRequest request = new PutMappingRequest("foo");
 
-        String actualRequestBody = Strings.toString(request);
+        String actualRequestBody = Strings.toString(XContentType.JSON, request);
         String expectedRequestBody = "{}";
         assertEquals(expectedRequestBody, actualRequestBody);
     }
@@ -164,21 +164,18 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
 
     public void testResolveIndicesWithWriteIndexOnlyAndDataStreamsAndWriteAliases() {
         String[] dataStreamNames = { "foo", "bar", "baz" };
-        List<Tuple<String, Integer>> dsMetadata = org.opensearch.common.collect.List.of(
+        List<Tuple<String, Integer>> dsMetadata = List.of(
             tuple(dataStreamNames[0], randomIntBetween(1, 3)),
             tuple(dataStreamNames[1], randomIntBetween(1, 3)),
             tuple(dataStreamNames[2], randomIntBetween(1, 3))
         );
 
-        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(
-            dsMetadata,
-            org.opensearch.common.collect.List.of("index1", "index2", "index3")
-        );
+        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(dsMetadata, List.of("index1", "index2", "index3"));
         cs = addAliases(
             cs,
-            org.opensearch.common.collect.List.of(
-                tuple("alias1", org.opensearch.common.collect.List.of(tuple("index1", false), tuple("index2", true))),
-                tuple("alias2", org.opensearch.common.collect.List.of(tuple("index2", false), tuple("index3", true)))
+            List.of(
+                tuple("alias1", List.of(tuple("index1", false), tuple("index2", true))),
+                tuple("alias2", List.of(tuple("index2", false), tuple("index3", true)))
             )
         );
         PutMappingRequest request = new PutMappingRequest().indices("foo", "alias1", "alias2").writeIndexOnly(true);
@@ -195,21 +192,18 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
 
     public void testResolveIndicesWithoutWriteIndexOnlyAndDataStreamsAndWriteAliases() {
         String[] dataStreamNames = { "foo", "bar", "baz" };
-        List<Tuple<String, Integer>> dsMetadata = org.opensearch.common.collect.List.of(
+        List<Tuple<String, Integer>> dsMetadata = List.of(
             tuple(dataStreamNames[0], randomIntBetween(1, 3)),
             tuple(dataStreamNames[1], randomIntBetween(1, 3)),
             tuple(dataStreamNames[2], randomIntBetween(1, 3))
         );
 
-        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(
-            dsMetadata,
-            org.opensearch.common.collect.List.of("index1", "index2", "index3")
-        );
+        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(dsMetadata, List.of("index1", "index2", "index3"));
         cs = addAliases(
             cs,
-            org.opensearch.common.collect.List.of(
-                tuple("alias1", org.opensearch.common.collect.List.of(tuple("index1", false), tuple("index2", true))),
-                tuple("alias2", org.opensearch.common.collect.List.of(tuple("index2", false), tuple("index3", true)))
+            List.of(
+                tuple("alias1", List.of(tuple("index1", false), tuple("index2", true))),
+                tuple("alias2", List.of(tuple("index2", false), tuple("index3", true)))
             )
         );
         PutMappingRequest request = new PutMappingRequest().indices("foo", "alias1", "alias2");
@@ -221,28 +215,25 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
         List<String> indexNames = Arrays.stream(indices).map(Index::getName).collect(Collectors.toList());
         IndexAbstraction expectedDs = cs.metadata().getIndicesLookup().get("foo");
         List<String> expectedIndices = expectedDs.getIndices().stream().map(im -> im.getIndex().getName()).collect(Collectors.toList());
-        expectedIndices.addAll(org.opensearch.common.collect.List.of("index1", "index2", "index3"));
+        expectedIndices.addAll(List.of("index1", "index2", "index3"));
         // should resolve the data stream and each alias to _all_ their respective indices
         assertThat(indexNames, containsInAnyOrder(expectedIndices.toArray()));
     }
 
     public void testResolveIndicesWithWriteIndexOnlyAndDataStreamAndIndex() {
         String[] dataStreamNames = { "foo", "bar", "baz" };
-        List<Tuple<String, Integer>> dsMetadata = org.opensearch.common.collect.List.of(
+        List<Tuple<String, Integer>> dsMetadata = List.of(
             tuple(dataStreamNames[0], randomIntBetween(1, 3)),
             tuple(dataStreamNames[1], randomIntBetween(1, 3)),
             tuple(dataStreamNames[2], randomIntBetween(1, 3))
         );
 
-        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(
-            dsMetadata,
-            org.opensearch.common.collect.List.of("index1", "index2", "index3")
-        );
+        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(dsMetadata, List.of("index1", "index2", "index3"));
         cs = addAliases(
             cs,
-            org.opensearch.common.collect.List.of(
-                tuple("alias1", org.opensearch.common.collect.List.of(tuple("index1", false), tuple("index2", true))),
-                tuple("alias2", org.opensearch.common.collect.List.of(tuple("index2", false), tuple("index3", true)))
+            List.of(
+                tuple("alias1", List.of(tuple("index1", false), tuple("index2", true))),
+                tuple("alias2", List.of(tuple("index2", false), tuple("index3", true)))
             )
         );
         PutMappingRequest request = new PutMappingRequest().indices("foo", "index3").writeIndexOnly(true);
@@ -254,28 +245,25 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
         List<String> indexNames = Arrays.stream(indices).map(Index::getName).collect(Collectors.toList());
         IndexAbstraction expectedDs = cs.metadata().getIndicesLookup().get("foo");
         List<String> expectedIndices = expectedDs.getIndices().stream().map(im -> im.getIndex().getName()).collect(Collectors.toList());
-        expectedIndices.addAll(org.opensearch.common.collect.List.of("index1", "index2", "index3"));
+        expectedIndices.addAll(List.of("index1", "index2", "index3"));
         // should resolve the data stream and each alias to _all_ their respective indices
         assertThat(indexNames, containsInAnyOrder(expectedDs.getWriteIndex().getIndex().getName(), "index3"));
     }
 
     public void testResolveIndicesWithWriteIndexOnlyAndNoSingleWriteIndex() {
         String[] dataStreamNames = { "foo", "bar", "baz" };
-        List<Tuple<String, Integer>> dsMetadata = org.opensearch.common.collect.List.of(
+        List<Tuple<String, Integer>> dsMetadata = List.of(
             tuple(dataStreamNames[0], randomIntBetween(1, 3)),
             tuple(dataStreamNames[1], randomIntBetween(1, 3)),
             tuple(dataStreamNames[2], randomIntBetween(1, 3))
         );
 
-        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(
-            dsMetadata,
-            org.opensearch.common.collect.List.of("index1", "index2", "index3")
-        );
+        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(dsMetadata, List.of("index1", "index2", "index3"));
         final ClusterState cs2 = addAliases(
             cs,
-            org.opensearch.common.collect.List.of(
-                tuple("alias1", org.opensearch.common.collect.List.of(tuple("index1", false), tuple("index2", true))),
-                tuple("alias2", org.opensearch.common.collect.List.of(tuple("index2", false), tuple("index3", true)))
+            List.of(
+                tuple("alias1", List.of(tuple("index1", false), tuple("index2", true))),
+                tuple("alias2", List.of(tuple("index2", false), tuple("index3", true)))
             )
         );
         PutMappingRequest request = new PutMappingRequest().indices("*").writeIndexOnly(true);
@@ -288,21 +276,18 @@ public class PutMappingRequestTests extends OpenSearchTestCase {
 
     public void testResolveIndicesWithWriteIndexOnlyAndAliasWithoutWriteIndex() {
         String[] dataStreamNames = { "foo", "bar", "baz" };
-        List<Tuple<String, Integer>> dsMetadata = org.opensearch.common.collect.List.of(
+        List<Tuple<String, Integer>> dsMetadata = List.of(
             tuple(dataStreamNames[0], randomIntBetween(1, 3)),
             tuple(dataStreamNames[1], randomIntBetween(1, 3)),
             tuple(dataStreamNames[2], randomIntBetween(1, 3))
         );
 
-        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(
-            dsMetadata,
-            org.opensearch.common.collect.List.of("index1", "index2", "index3")
-        );
+        ClusterState cs = DeleteDataStreamRequestTests.getClusterStateWithDataStreams(dsMetadata, List.of("index1", "index2", "index3"));
         final ClusterState cs2 = addAliases(
             cs,
-            org.opensearch.common.collect.List.of(
-                tuple("alias1", org.opensearch.common.collect.List.of(tuple("index1", false), tuple("index2", false))),
-                tuple("alias2", org.opensearch.common.collect.List.of(tuple("index2", false), tuple("index3", false)))
+            List.of(
+                tuple("alias1", List.of(tuple("index1", false), tuple("index2", false))),
+                tuple("alias2", List.of(tuple("index2", false), tuple("index3", false)))
             )
         );
         PutMappingRequest request = new PutMappingRequest().indices("alias2").writeIndexOnly(true);

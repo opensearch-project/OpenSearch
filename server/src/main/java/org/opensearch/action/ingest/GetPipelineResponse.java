@@ -38,9 +38,10 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.StatusToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentParser.Token;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.ingest.PipelineConfiguration;
 import org.opensearch.rest.RestStatus;
 
@@ -145,7 +146,12 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
             GetPipelineResponse otherResponse = (GetPipelineResponse) other;
             if (pipelines == null) {
                 return otherResponse.pipelines == null;
+            } else if (otherResponse.pipelines == null) {
+                return false;
             } else {
+                if (otherResponse.pipelines.size() != pipelines.size()) {
+                    return false;
+                }
                 // We need a map here because order does not matter for equality
                 Map<String, PipelineConfiguration> otherPipelineMap = new HashMap<>();
                 for (PipelineConfiguration pipeline : otherResponse.pipelines) {
@@ -166,7 +172,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
     @Override

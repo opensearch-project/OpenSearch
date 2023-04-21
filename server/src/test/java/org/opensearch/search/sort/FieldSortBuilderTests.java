@@ -55,8 +55,8 @@ import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.opensearch.common.xcontent.XContentParseException;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParseException;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -504,7 +504,7 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
 
                             case INTEGER:
                                 int v2 = randomInt();
-                                values[i] = (long) v2;
+                                values[i] = (int) v2;
                                 doc.add(new IntPoint(fieldName, v2));
                                 break;
 
@@ -528,13 +528,13 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
 
                             case BYTE:
                                 byte v6 = randomByte();
-                                values[i] = (long) v6;
+                                values[i] = (int) v6;
                                 doc.add(new IntPoint(fieldName, v6));
                                 break;
 
                             case SHORT:
                                 short v7 = randomShort();
-                                values[i] = (long) v7;
+                                values[i] = (int) v7;
                                 doc.add(new IntPoint(fieldName, v7));
                                 break;
 

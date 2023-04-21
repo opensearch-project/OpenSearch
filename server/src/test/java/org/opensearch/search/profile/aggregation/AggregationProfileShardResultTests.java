@@ -33,8 +33,8 @@
 package org.opensearch.search.profile.aggregation;
 
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentParserUtils;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.search.profile.ProfileResult;
@@ -87,7 +87,7 @@ public class AggregationProfileShardResultTests extends OpenSearchTestCase {
         breakdown.put("timing2", 4000L);
         Map<String, Object> debug = new LinkedHashMap<>();
         debug.put("stuff", "stuff");
-        debug.put("other_stuff", org.opensearch.common.collect.List.of("foo", "bar"));
+        debug.put("other_stuff", List.of("foo", "bar"));
         ProfileResult profileResult = new ProfileResult("someType", "someDescription", breakdown, debug, 6000L, Collections.emptyList());
         profileResults.add(profileResult);
         AggregationProfileShardResult aggProfileResults = new AggregationProfileShardResult(profileResults);

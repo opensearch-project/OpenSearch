@@ -57,7 +57,7 @@ import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.common.util.concurrent.ListenableFuture;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.engine.RecoveryEngineException;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.RetentionLeaseNotFoundException;
@@ -818,34 +818,29 @@ public abstract class RecoverySourceHandler {
                 logger
             );
 
-            final StepListener<Void> handoffListener = new StepListener<>();
             if (request.isPrimaryRelocation()) {
                 logger.trace("performing relocation hand-off");
-                final Consumer<StepListener> forceSegRepConsumer = shard.indexSettings().isSegRepEnabled()
+                final Runnable forceSegRepRunnable = shard.indexSettings().isSegRepEnabled()
                     ? recoveryTarget::forceSegmentFileSync
-                    : res -> res.onResponse(null);
+                    : () -> {};
                 // TODO: make relocated async
                 // this acquires all IndexShard operation permits and will thus delay new recoveries until it is done
                 cancellableThreads.execute(
-                    () -> shard.relocated(
-                        request.targetAllocationId(),
-                        recoveryTarget::handoffPrimaryContext,
-                        forceSegRepConsumer,
-                        handoffListener
-                    )
+                    () -> shard.relocated(request.targetAllocationId(), recoveryTarget::handoffPrimaryContext, forceSegRepRunnable)
                 );
                 /*
                  * if the recovery process fails after disabling primary mode on the source shard, both relocation source and
                  * target are failed (see {@link IndexShard#updateRoutingEntry}).
                  */
             } else {
-                handoffListener.onResponse(null);
+                // Force round of segment replication to update its checkpoint to primary's
+                if (shard.indexSettings().isSegRepEnabled()) {
+                    recoveryTarget.forceSegmentFileSync();
+                }
             }
-            handoffListener.whenComplete(res -> {
-                stopWatch.stop();
-                logger.trace("finalizing recovery took [{}]", stopWatch.totalTime());
-                listener.onResponse(null);
-            }, listener::onFailure);
+            stopWatch.stop();
+            logger.info("finalizing recovery took [{}]", stopWatch.totalTime());
+            listener.onResponse(null);
         }, listener::onFailure);
     }
 

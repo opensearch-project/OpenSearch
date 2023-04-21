@@ -9,6 +9,7 @@
 package org.opensearch.tasks;
 
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.action.ActionListener;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -54,7 +55,25 @@ public class TaskCancellation implements Comparable<TaskCancellation> {
         }
 
         task.cancel(getReasonString());
+        runOnCancelCallbacks();
+    }
 
+    /**
+     *  Cancels the task and its descendants and invokes all onCancelCallbacks.
+     */
+    public void cancelTaskAndDescendants(TaskManager taskManager) {
+        if (isEligibleForCancellation() == false) {
+            return;
+        }
+
+        taskManager.cancelTaskAndDescendants(task, getReasonString(), false, ActionListener.wrap(() -> {}));
+        runOnCancelCallbacks();
+    }
+
+    /**
+     * invokes all onCancelCallbacks.
+     */
+    private void runOnCancelCallbacks() {
         List<Exception> exceptions = new ArrayList<>();
         for (Runnable callback : onCancelCallbacks) {
             try {

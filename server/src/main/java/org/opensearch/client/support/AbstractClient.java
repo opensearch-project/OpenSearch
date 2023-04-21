@@ -260,6 +260,10 @@ import org.opensearch.action.admin.indices.rollover.RolloverAction;
 import org.opensearch.action.admin.indices.rollover.RolloverRequest;
 import org.opensearch.action.admin.indices.rollover.RolloverRequestBuilder;
 import org.opensearch.action.admin.indices.rollover.RolloverResponse;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsAction;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsRequest;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsRequestBuilder;
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentsRequest;
@@ -359,13 +363,20 @@ import org.opensearch.action.search.CreatePitResponse;
 import org.opensearch.action.search.DeletePitAction;
 import org.opensearch.action.search.DeletePitRequest;
 import org.opensearch.action.search.DeletePitResponse;
+import org.opensearch.action.search.DeleteSearchPipelineAction;
+import org.opensearch.action.search.DeleteSearchPipelineRequest;
 import org.opensearch.action.search.GetAllPitNodesRequest;
 import org.opensearch.action.search.GetAllPitNodesResponse;
+import org.opensearch.action.search.GetSearchPipelineAction;
+import org.opensearch.action.search.GetSearchPipelineRequest;
+import org.opensearch.action.search.GetSearchPipelineResponse;
 import org.opensearch.action.search.MultiSearchAction;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.MultiSearchRequestBuilder;
 import org.opensearch.action.search.MultiSearchResponse;
 import org.opensearch.action.search.GetAllPitsAction;
+import org.opensearch.action.search.PutSearchPipelineAction;
+import org.opensearch.action.search.PutSearchPipelineRequest;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchRequestBuilder;
@@ -1448,6 +1459,36 @@ public abstract class AbstractClient implements Client {
         public DeleteDecommissionStateRequestBuilder prepareDeleteDecommissionRequest() {
             return new DeleteDecommissionStateRequestBuilder(this, DeleteDecommissionStateAction.INSTANCE);
         }
+
+        @Override
+        public void putSearchPipeline(PutSearchPipelineRequest request, ActionListener<AcknowledgedResponse> listener) {
+            execute(PutSearchPipelineAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<AcknowledgedResponse> putSearchPipeline(PutSearchPipelineRequest request) {
+            return execute(PutSearchPipelineAction.INSTANCE, request);
+        }
+
+        @Override
+        public void getSearchPipeline(GetSearchPipelineRequest request, ActionListener<GetSearchPipelineResponse> listener) {
+            execute(GetSearchPipelineAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<GetSearchPipelineResponse> getSearchPipeline(GetSearchPipelineRequest request) {
+            return execute(GetSearchPipelineAction.INSTANCE, request);
+        }
+
+        @Override
+        public void deleteSearchPipeline(DeleteSearchPipelineRequest request, ActionListener<AcknowledgedResponse> listener) {
+            execute(DeleteSearchPipelineAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public ActionFuture<AcknowledgedResponse> deleteSearchPipeline(DeleteSearchPipelineRequest request) {
+            return execute(DeleteSearchPipelineAction.INSTANCE, request);
+        }
     }
 
     static class IndicesAdmin implements IndicesAdminClient {
@@ -1773,6 +1814,24 @@ public abstract class AbstractClient implements Client {
         @Override
         public RecoveryRequestBuilder prepareRecoveries(String... indices) {
             return new RecoveryRequestBuilder(this, RecoveryAction.INSTANCE).setIndices(indices);
+        }
+
+        @Override
+        public ActionFuture<SegmentReplicationStatsResponse> segmentReplicationStats(final SegmentReplicationStatsRequest request) {
+            return execute(SegmentReplicationStatsAction.INSTANCE, request);
+        }
+
+        @Override
+        public void segmentReplicationStats(
+            final SegmentReplicationStatsRequest request,
+            final ActionListener<SegmentReplicationStatsResponse> listener
+        ) {
+            execute(SegmentReplicationStatsAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public SegmentReplicationStatsRequestBuilder prepareSegmentReplicationStats(String... indices) {
+            return new SegmentReplicationStatsRequestBuilder(this, SegmentReplicationStatsAction.INSTANCE).setIndices(indices);
         }
 
         @Override

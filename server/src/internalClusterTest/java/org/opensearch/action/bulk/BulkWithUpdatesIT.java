@@ -105,18 +105,9 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
 
             scripts.put("ctx._source.field2 = 'value2'", vars -> srcScript(vars, source -> source.replace("field2", "value2")));
 
-            scripts.put(
-                "throw script exception on unknown var",
-                vars -> {
-                    throw new ScriptException(
-                        "message",
-                        null,
-                        Collections.emptyList(),
-                        "exception on unknown var",
-                        CustomScriptPlugin.NAME
-                    );
-                }
-            );
+            scripts.put("throw script exception on unknown var", vars -> {
+                throw new ScriptException("message", null, Collections.emptyList(), "exception on unknown var", CustomScriptPlugin.NAME);
+            });
 
             scripts.put("ctx.op = \"none\"", vars -> ((Map<String, Object>) vars.get("ctx")).put("op", "none"));
             scripts.put("ctx.op = \"delete\"", vars -> ((Map<String, Object>) vars.get("ctx")).put("op", "delete"));
@@ -741,13 +732,17 @@ public class BulkWithUpdatesIT extends OpenSearchIntegTestCase {
 
         final BulkItemResponse noopUpdate = bulkResponse.getItems()[0];
         assertThat(noopUpdate.getResponse().getResult(), equalTo(DocWriteResponse.Result.NOOP));
-        assertThat(Strings.toString(noopUpdate), noopUpdate.getResponse().getShardInfo().getSuccessful(), equalTo(2));
+        assertThat(Strings.toString(XContentType.JSON, noopUpdate), noopUpdate.getResponse().getShardInfo().getSuccessful(), equalTo(2));
 
         final BulkItemResponse notFoundUpdate = bulkResponse.getItems()[1];
         assertNotNull(notFoundUpdate.getFailure());
 
         final BulkItemResponse notFoundDelete = bulkResponse.getItems()[2];
         assertThat(notFoundDelete.getResponse().getResult(), equalTo(DocWriteResponse.Result.NOT_FOUND));
-        assertThat(Strings.toString(notFoundDelete), notFoundDelete.getResponse().getShardInfo().getSuccessful(), equalTo(2));
+        assertThat(
+            Strings.toString(XContentType.JSON, notFoundDelete),
+            notFoundDelete.getResponse().getShardInfo().getSuccessful(),
+            equalTo(2)
+        );
     }
 }

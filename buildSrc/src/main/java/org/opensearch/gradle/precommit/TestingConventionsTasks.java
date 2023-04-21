@@ -32,6 +32,8 @@
 package org.opensearch.gradle.precommit;
 
 import groovy.lang.Closure;
+
+import org.opensearch.gradle.jvm.JvmTestSuiteHelper;
 import org.opensearch.gradle.util.GradleUtils;
 import org.opensearch.gradle.util.Util;
 import org.gradle.api.DefaultTask;
@@ -39,6 +41,7 @@ import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Task;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.plugins.jvm.JvmTestSuite;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.OutputFile;
@@ -46,6 +49,9 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.testing.Test;
+import org.gradle.api.tasks.util.PatternFilterable;
+import org.gradle.api.tasks.util.PatternSet;
+import org.gradle.internal.Factory;
 
 import java.io.File;
 import java.io.IOException;
@@ -70,6 +76,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import javax.inject.Inject;
+
 public class TestingConventionsTasks extends DefaultTask {
 
     private static final String TEST_METHOD_PREFIX = "test";
@@ -85,13 +93,39 @@ public class TestingConventionsTasks extends DefaultTask {
         naming = getProject().container(TestingConventionRule.class);
     }
 
+    @Inject
+    protected Factory<PatternSet> getPatternSetFactory() {
+        throw new UnsupportedOperationException();
+    }
+
     @Input
     public Map<String, Set<File>> getClassFilesPerEnabledTask() {
         return getProject().getTasks()
             .withType(Test.class)
             .stream()
             .filter(Task::getEnabled)
-            .collect(Collectors.toMap(Task::getPath, task -> task.getCandidateClassFiles().getFiles()));
+            .collect(Collectors.toMap(Task::getPath, task -> {
+                // See please https://docs.gradle.org/8.1/userguide/upgrading_version_8.html#test_task_default_classpath
+                final JvmTestSuite jvmTestSuite = JvmTestSuiteHelper.getDefaultTestSuite(getProject()).orElse(null);
+                if (jvmTestSuite != null) {
+                    final PatternFilterable patternSet = getPatternSetFactory().create()
+                        .include(task.getIncludes())
+                        .exclude(task.getExcludes());
+
+                    final Set<File> files = jvmTestSuite.getSources()
+                        .getOutput()
+                        .getClassesDirs()
+                        .getAsFileTree()
+                        .matching(patternSet)
+                        .getFiles();
+
+                    if (!files.isEmpty()) {
+                        return files;
+                    }
+                }
+
+                return task.getCandidateClassFiles().getFiles();
+            }));
     }
 
     @Input

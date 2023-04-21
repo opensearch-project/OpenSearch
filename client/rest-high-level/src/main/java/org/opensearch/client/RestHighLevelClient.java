@@ -85,11 +85,11 @@ import org.opensearch.client.core.TermVectorsResponse;
 import org.opensearch.client.tasks.TaskSubmissionResponse;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.CheckedFunction;
-import org.opensearch.common.ParseField;
-import org.opensearch.common.xcontent.ContextParser;
-import org.opensearch.common.xcontent.DeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ContextParser;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.rankeval.RankEvalRequest;
 import org.opensearch.index.rankeval.RankEvalResponse;
@@ -268,6 +268,7 @@ public class RestHighLevelClient implements Closeable {
     private final IngestClient ingestClient = new IngestClient(this);
     private final SnapshotClient snapshotClient = new SnapshotClient(this);
     private final TasksClient tasksClient = new TasksClient(this);
+    private final SearchPipelineClient searchPipelineClient = new SearchPipelineClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -352,6 +353,10 @@ public class RestHighLevelClient implements Closeable {
      */
     public final TasksClient tasks() {
         return tasksClient;
+    }
+
+    public final SearchPipelineClient searchPipeline() {
+        return searchPipelineClient;
     }
 
     /**

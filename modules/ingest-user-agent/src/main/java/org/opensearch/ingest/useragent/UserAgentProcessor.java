@@ -352,7 +352,7 @@ public class UserAgentProcessor extends AbstractProcessor {
                 deprecationLogger.deprecate(
                     "ecs_false_non_common_schema",
                     "setting [ecs] to false for non-common schema "
-                        + "format is deprecated and will be removed in 8.0, set to true or remove to use the non-deprecated format"
+                        + "format is deprecated and will be removed in 3.0, set to true or remove to use the non-deprecated format"
                 );
             }
 

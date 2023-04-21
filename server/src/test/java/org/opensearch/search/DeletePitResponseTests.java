@@ -11,10 +11,10 @@ package org.opensearch.search;
 import org.opensearch.action.search.DeletePitInfo;
 import org.opensearch.action.search.DeletePitResponse;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.test.OpenSearchTestCase;
@@ -43,7 +43,7 @@ public class DeletePitResponseTests extends OpenSearchTestCase {
     public void testDeletePitResponseToAndFromXContent() throws IOException {
         XContentType xContentType = randomFrom(XContentType.values());
         DeletePitResponse originalResponse = createDeletePitResponseTestItem();
-        ;
+
         BytesReference originalBytes = toShuffledXContent(originalResponse, xContentType, ToXContent.EMPTY_PARAMS, randomBoolean());
         DeletePitResponse parsedResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {

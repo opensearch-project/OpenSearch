@@ -33,10 +33,10 @@
 package org.opensearch.index.reindex.remote;
 
 import org.opensearch.action.search.ShardSearchFailure;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.reindex.ScrollableHitSource;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;

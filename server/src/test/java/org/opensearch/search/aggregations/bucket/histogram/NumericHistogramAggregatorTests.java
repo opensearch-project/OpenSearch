@@ -303,10 +303,9 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
 
-                expectThrows(
-                    IllegalArgumentException.class,
-                    () -> { searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, keywordField("field")); }
-                );
+                expectThrows(IllegalArgumentException.class, () -> {
+                    searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, keywordField("field"));
+                });
             }
         }
 
@@ -420,7 +419,7 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
             List<List<IndexableField>> docs = new ArrayList<>();
             for (int n = 0; n < 10000; n++) {
                 docs.add(
-                    org.opensearch.common.collect.List.of(
+                    List.of(
                         new SortedNumericDocValuesField("outer", n % 100),
                         new SortedNumericDocValuesField("inner", n / 100),
                         new SortedNumericDocValuesField("n", n)

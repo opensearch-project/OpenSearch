@@ -49,11 +49,11 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.cbor.CborXContent;
 import org.opensearch.common.xcontent.smile.SmileXContent;
 import org.opensearch.index.rankeval.DiscountedCumulativeGain;
@@ -425,13 +425,9 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         {
             IOException ioe = expectThrows(
                 IOException.class,
-                () -> restHighLevelClient.performRequest(
-                    mainRequest,
-                    requestConverter,
-                    RequestOptions.DEFAULT,
-                    response -> { throw new IllegalStateException(); },
-                    Collections.emptySet()
-                )
+                () -> restHighLevelClient.performRequest(mainRequest, requestConverter, RequestOptions.DEFAULT, response -> {
+                    throw new IllegalStateException();
+                }, Collections.emptySet())
             );
             assertEquals(
                 "Unable to parse response body for Response{requestLine=GET / http/1.1, host=http://localhost:9200, "
@@ -573,13 +569,9 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         when(restClient.performRequest(any(Request.class))).thenThrow(responseException);
         OpenSearchException openSearchException = expectThrows(
             OpenSearchException.class,
-            () -> restHighLevelClient.performRequest(
-                mainRequest,
-                requestConverter,
-                RequestOptions.DEFAULT,
-                response -> { throw new IllegalStateException(); },
-                Collections.singleton(404)
-            )
+            () -> restHighLevelClient.performRequest(mainRequest, requestConverter, RequestOptions.DEFAULT, response -> {
+                throw new IllegalStateException();
+            }, Collections.singleton(404))
         );
         assertEquals(RestStatus.NOT_FOUND, openSearchException.status());
         assertSame(responseException, openSearchException.getCause());
@@ -596,13 +588,9 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
         when(restClient.performRequest(any(Request.class))).thenThrow(responseException);
         OpenSearchException openSearchException = expectThrows(
             OpenSearchException.class,
-            () -> restHighLevelClient.performRequest(
-                mainRequest,
-                requestConverter,
-                RequestOptions.DEFAULT,
-                response -> { throw new IllegalStateException(); },
-                Collections.singleton(404)
-            )
+            () -> restHighLevelClient.performRequest(mainRequest, requestConverter, RequestOptions.DEFAULT, response -> {
+                throw new IllegalStateException();
+            }, Collections.singleton(404))
         );
         assertEquals(RestStatus.NOT_FOUND, openSearchException.status());
         assertSame(responseException, openSearchException.getSuppressed()[0]);

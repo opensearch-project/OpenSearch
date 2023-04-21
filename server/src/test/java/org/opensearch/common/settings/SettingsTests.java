@@ -41,9 +41,9 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -605,19 +605,17 @@ public class SettingsTests extends OpenSearchTestCase {
 
     public void testIndentation() throws Exception {
         String yaml = "/org/opensearch/common/settings/loader/indentation-settings.yml";
-        OpenSearchParseException e = expectThrows(
-            OpenSearchParseException.class,
-            () -> { Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false); }
-        );
+        OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> {
+            Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false);
+        });
         assertTrue(e.getMessage(), e.getMessage().contains("malformed"));
     }
 
     public void testIndentationWithExplicitDocumentStart() throws Exception {
         String yaml = "/org/opensearch/common/settings/loader/indentation-with-explicit-document-start-settings.yml";
-        OpenSearchParseException e = expectThrows(
-            OpenSearchParseException.class,
-            () -> { Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false); }
-        );
+        OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> {
+            Settings.builder().loadFromStream(yaml, getClass().getResourceAsStream(yaml), false);
+        });
         assertTrue(e.getMessage(), e.getMessage().contains("malformed"));
     }
 

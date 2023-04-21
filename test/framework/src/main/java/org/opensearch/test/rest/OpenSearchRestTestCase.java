@@ -47,7 +47,6 @@ import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
 import org.apache.hc.core5.reactor.ssl.TlsDetails;
 import org.apache.hc.core5.ssl.SSLContexts;
 import org.apache.hc.core5.util.Timeout;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.opensearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -60,20 +59,21 @@ import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientBuilder;
 import org.opensearch.client.WarningsHandler;
 import org.opensearch.common.CheckedRunnable;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.xcontent.DeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.rest.RestStatus;
@@ -623,7 +623,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
             // We hit a version of ES that doesn't serialize DeleteDataStreamAction.Request#wildcardExpressionsOriginallySpecified field or
             // that doesn't support data streams so it's safe to ignore
             int statusCode = e.getResponse().getStatusLine().getStatusCode();
-            if (org.opensearch.common.collect.Set.of(404, 405, 500).contains(statusCode) == false) {
+            if (Set.of(404, 405, 500).contains(statusCode) == false) {
                 throw e;
             }
         }
@@ -973,7 +973,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
 
     protected static void createIndex(String name, Settings settings, String mapping, String aliases) throws IOException {
         Request request = new Request("PUT", "/" + name);
-        String entity = "{\"settings\": " + Strings.toString(settings);
+        String entity = "{\"settings\": " + Strings.toString(XContentType.JSON, settings);
         if (mapping != null) {
             entity += ",\"mappings\" : {" + mapping + "}";
         }
@@ -999,7 +999,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
 
     private static void updateIndexSettings(String index, Settings settings) throws IOException {
         Request request = new Request("PUT", "/" + index + "/_settings");
-        request.setJsonEntity(Strings.toString(settings));
+        request.setJsonEntity(Strings.toString(XContentType.JSON, settings));
         client().performRequest(request);
     }
 
@@ -1087,7 +1087,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     protected static void registerRepository(String repository, String type, boolean verify, Settings settings) throws IOException {
         final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository);
         request.addParameter("verify", Boolean.toString(verify));
-        request.setJsonEntity(Strings.toString(new PutRepositoryRequest(repository).type(type).settings(settings)));
+        request.setJsonEntity(Strings.toString(XContentType.JSON, new PutRepositoryRequest(repository).type(type).settings(settings)));
 
         final Response response = client().performRequest(request);
         assertAcked("Failed to create repository [" + repository + "] of type [" + type + "]: " + response, response);
@@ -1244,7 +1244,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
         final Builder options = RequestOptions.DEFAULT.toBuilder();
         // 8.0 kept in warning message for legacy purposes TODO: changge to 3.0
         final List<String> warningMessage = Arrays.asList(
-            "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead."
+            "Synced flush is deprecated and will be removed in 3.0. Use flush at _/flush or /{index}/_flush instead."
         );
         final List<String> expectedWarnings = Arrays.asList(
             "Synced flush was removed and a normal flush was performed instead. This transition will be removed in a future version."

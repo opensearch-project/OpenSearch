@@ -35,7 +35,7 @@ package org.opensearch.index.mapper.murmur3;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperTestCase;
 import org.opensearch.index.mapper.ParsedDocument;
@@ -45,6 +45,7 @@ import org.opensearch.plugins.Plugin;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 
 public class Murmur3FieldMapperTests extends MapperTestCase {
 
@@ -55,7 +56,7 @@ public class Murmur3FieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return org.opensearch.common.collect.List.of(new MapperMurmur3Plugin());
+        return List.of(new MapperMurmur3Plugin());
     }
 
     @Override

@@ -40,7 +40,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
-import org.opensearch.Assertions;
+import org.opensearch.core.Assertions;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
@@ -57,8 +57,8 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.AbstractAsyncTask;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLock;
 import org.opensearch.env.ShardLockObtainFailedException;
@@ -138,7 +138,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final NodeEnvironment nodeEnv;
     private final ShardStoreDeleter shardStoreDeleter;
     private final IndexStorePlugin.DirectoryFactory directoryFactory;
-    private final IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory;
+    private final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory;
     private final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory;
     private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
     private final IndexCache indexCache;
@@ -194,7 +194,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Client client,
         QueryCache queryCache,
         IndexStorePlugin.DirectoryFactory directoryFactory,
-        IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
         IndexEventListener eventListener,
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> wrapperFactory,
         MapperRegistry mapperRegistry,
@@ -458,53 +458,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         try {
             lock = nodeEnv.shardLock(shardId, "starting shard", TimeUnit.SECONDS.toMillis(5));
             eventListener.beforeIndexShardCreated(shardId, indexSettings);
-            ShardPath path;
-            try {
-                path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings.customDataPath());
-            } catch (IllegalStateException ex) {
-                logger.warn("{} failed to load shard path, trying to remove leftover", shardId);
-                try {
-                    ShardPath.deleteLeftoverShardDirectory(logger, nodeEnv, lock, this.indexSettings);
-                    path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings.customDataPath());
-                } catch (Exception inner) {
-                    ex.addSuppressed(inner);
-                    throw ex;
-                }
-            }
-
-            if (path == null) {
-                // TODO: we should, instead, hold a "bytes reserved" of how large we anticipate this shard will be, e.g. for a shard
-                // that's being relocated/replicated we know how large it will become once it's done copying:
-                // Count up how many shards are currently on each data path:
-                Map<Path, Integer> dataPathToShardCount = new HashMap<>();
-                for (IndexShard shard : this) {
-                    Path dataPath = shard.shardPath().getRootStatePath();
-                    Integer curCount = dataPathToShardCount.get(dataPath);
-                    if (curCount == null) {
-                        curCount = 0;
-                    }
-                    dataPathToShardCount.put(dataPath, curCount + 1);
-                }
-                path = ShardPath.selectNewPathForShard(
-                    nodeEnv,
-                    shardId,
-                    this.indexSettings,
-                    routing.getExpectedShardSize() == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
-                        ? getAvgShardSizeInBytes()
-                        : routing.getExpectedShardSize(),
-                    dataPathToShardCount
-                );
-                logger.debug("{} creating using a new path [{}]", shardId, path);
-            } else {
-                logger.debug("{} creating using an existing path [{}]", shardId, path);
-            }
-
-            if (shards.containsKey(shardId.id())) {
-                throw new IllegalStateException(shardId + " already exists");
-            }
-
+            ShardPath path = getShardPath(routing, shardId, lock);
             logger.debug("creating shard_id {}", shardId);
-            // if we are on a shared FS we only own the shard (ie. we can safely delete it) if we are the primary.
+            // if we are on a shared FS we only own the shard (i.e. we can safely delete it) if we are the primary.
             final Engine.Warmer engineWarmer = (reader) -> {
                 IndexShard shard = getShardOrNull(shardId.getId());
                 if (shard != null) {
@@ -514,11 +470,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
             Store remoteStore = null;
             if (this.indexSettings.isRemoteStoreEnabled()) {
-                Directory remoteDirectory = remoteDirectoryFactory.newDirectory(
-                    this.indexSettings.getRemoteStoreRepository(),
-                    this.indexSettings,
-                    path
-                );
+                Directory remoteDirectory = remoteDirectoryFactory.newDirectory(this.indexSettings, path);
                 remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY);
             }
 
@@ -571,6 +523,63 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 closeShard("initialization failed", shardId, indexShard, store, eventListener);
             }
         }
+    }
+
+    /*
+      Fetches the shard path based on the index type -
+      For a remote snapshot index, the cache path is used to initialize the shards.
+      For a local index, a local shard path is loaded or a new path is calculated.
+     */
+    private ShardPath getShardPath(ShardRouting routing, ShardId shardId, ShardLock lock) throws IOException {
+        ShardPath path;
+        if (this.indexSettings.isRemoteSnapshot()) {
+            path = ShardPath.loadFileCachePath(nodeEnv, shardId);
+        } else {
+            try {
+                path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings.customDataPath());
+            } catch (IllegalStateException ex) {
+                logger.warn("{} failed to load shard path, trying to remove leftover", shardId);
+                try {
+                    ShardPath.deleteLeftoverShardDirectory(logger, nodeEnv, lock, this.indexSettings);
+                    path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings.customDataPath());
+                } catch (Exception inner) {
+                    ex.addSuppressed(inner);
+                    throw ex;
+                }
+            }
+
+            if (path == null) {
+                // TODO: we should, instead, hold a "bytes reserved" of how large we anticipate this shard will be, e.g. for a shard
+                // that's being relocated/replicated we know how large it will become once it's done copying:
+                // Count up how many shards are currently on each data path:
+                Map<Path, Integer> dataPathToShardCount = new HashMap<>();
+                for (IndexShard shard : this) {
+                    Path dataPath = shard.shardPath().getRootStatePath();
+                    Integer curCount = dataPathToShardCount.get(dataPath);
+                    if (curCount == null) {
+                        curCount = 0;
+                    }
+                    dataPathToShardCount.put(dataPath, curCount + 1);
+                }
+                path = ShardPath.selectNewPathForShard(
+                    nodeEnv,
+                    shardId,
+                    this.indexSettings,
+                    routing.getExpectedShardSize() == ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE
+                        ? getAvgShardSizeInBytes()
+                        : routing.getExpectedShardSize(),
+                    dataPathToShardCount
+                );
+                logger.debug("{} creating using a new path [{}]", shardId, path);
+            } else {
+                logger.debug("{} creating using an existing path [{}]", shardId, path);
+            }
+        }
+
+        if (shards.containsKey(shardId.id())) {
+            throw new IllegalStateException(shardId + " already exists");
+        }
+        return path;
     }
 
     @Override

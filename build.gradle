@@ -46,8 +46,6 @@ import org.gradle.plugins.ide.eclipse.model.EclipseJdt
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 import org.gradle.api.Project;
 import org.gradle.process.ExecResult;
-import org.gradle.util.DistributionLocator
-import org.gradle.util.GradleVersion
 
 import static org.opensearch.gradle.util.GradleUtils.maybeConfigure
 
@@ -55,8 +53,8 @@ plugins {
   id 'lifecycle-base'
   id 'opensearch.docker-support'
   id 'opensearch.global-build-info'
-  id "com.diffplug.spotless" version "6.11.0" apply false
-  id "org.gradle.test-retry" version "1.4.1" apply false
+  id "com.diffplug.spotless" version "6.17.0" apply false
+  id "org.gradle.test-retry" version "1.5.2" apply false
   id "test-report-aggregation"
   id 'jacoco-report-aggregation'
 }
@@ -315,6 +313,10 @@ allprojects {
     // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
     javadoc.options.encoding = 'UTF8'
     javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
+    boolean failOnJavadocWarning = project.ext.has('failOnJavadocWarning') ? project.ext.get('failOnJavadocWarning') : true
+    if (failOnJavadocWarning) {
+      javadoc.options.addStringOption('Xwerror', '-quiet')
+    }
     javadoc.options.tags = ["opensearch.internal", "opensearch.api", "opensearch.experimental"]
     javadoc.options.addStringOption("-release", targetCompatibility.majorVersion)
   }
@@ -529,16 +531,12 @@ allprojects {
 wrapper {
   distributionType = 'ALL'
   doLast {
-    final DistributionLocator locator = new DistributionLocator()
-    final GradleVersion version = GradleVersion.version(wrapper.gradleVersion)
-    final URI distributionUri = locator.getDistributionFor(version, wrapper.distributionType.name().toLowerCase(Locale.ENGLISH))
-    final URI sha256Uri = new URI(distributionUri.toString() + ".sha256")
-    final String sha256Sum = new String(sha256Uri.toURL().bytes)
-    wrapper.getPropertiesFile() << "distributionSha256Sum=${sha256Sum}\n"
+    def sha256Sum = new String(new URL(getDistributionUrl() + ".sha256").bytes)
+    propertiesFile << "distributionSha256Sum=${sha256Sum}\n"
     println "Added checksum to wrapper properties"
     // Update build-tools to reflect the Gradle upgrade
     // TODO: we can remove this once we have tests to make sure older versions work.
-    project(':build-tools').file('src/main/resources/minimumGradleVersion').text = gradleVersion
+    project(':build-tools').file('src/main/resources/minimumGradleVersion').text = gradleVersion + "\n"
     println "Updated minimum Gradle Version"
   }
 }

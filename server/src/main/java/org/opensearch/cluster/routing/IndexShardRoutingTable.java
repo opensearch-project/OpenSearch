@@ -77,6 +77,8 @@ import static java.util.Collections.emptyMap;
 public class IndexShardRoutingTable implements Iterable<ShardRouting> {
 
     final ShardShuffler shuffler;
+    // Shuffler for weighted round-robin shard routing. This uses rotation to permute shards.
+    final ShardShuffler shufflerForWeightedRouting;
     final ShardId shardId;
 
     final ShardRouting primary;
@@ -105,6 +107,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     IndexShardRoutingTable(ShardId shardId, List<ShardRouting> shards) {
         this.shardId = shardId;
         this.shuffler = new RotationShardShuffler(Randomness.get().nextInt());
+        this.shufflerForWeightedRouting = new RotationShardShuffler(Randomness.get().nextInt());
         this.shards = Collections.unmodifiableList(shards);
 
         ShardRouting primary = null;
@@ -321,17 +324,13 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         WeightedRouting weightedRouting,
         DiscoveryNodes nodes,
         double defaultWeight,
-        boolean isFailOpenEnabled
+        boolean isFailOpenEnabled,
+        @Nullable Integer seed
     ) {
-        final int seed = shuffler.nextSeed();
-        List<ShardRouting> ordered = new ArrayList<>();
-        List<ShardRouting> orderedActiveShards = getActiveShardsByWeight(weightedRouting, nodes, defaultWeight);
-        List<ShardRouting> orderedListWithDistinctShards;
-        ordered.addAll(shuffler.shuffle(orderedActiveShards, seed));
-        if (!allInitializingShards.isEmpty()) {
-            List<ShardRouting> orderedInitializingShards = getInitializingShardsByWeight(weightedRouting, nodes, defaultWeight);
-            ordered.addAll(orderedInitializingShards);
+        if (seed == null) {
+            seed = shufflerForWeightedRouting.nextSeed();
         }
+        List<ShardRouting> ordered = activeInitializingShardsWithWeights(weightedRouting, nodes, defaultWeight, seed);
 
         // append shards for attribute value with weight zero, so that shard search requests can be tried on
         // shard copies in case of request failure from other attribute values.
@@ -354,8 +353,26 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                 logger.debug("no shard copies found for shard id [{}] for node attribute with weight zero", shardId);
             }
         }
+
+        return new PlainShardIterator(shardId, ordered);
+    }
+
+    private List<ShardRouting> activeInitializingShardsWithWeights(
+        WeightedRouting weightedRouting,
+        DiscoveryNodes nodes,
+        double defaultWeight,
+        int seed
+    ) {
+        List<ShardRouting> ordered = new ArrayList<>();
+        List<ShardRouting> orderedActiveShards = getActiveShardsByWeight(weightedRouting, nodes, defaultWeight);
+        ordered.addAll(shufflerForWeightedRouting.shuffle(orderedActiveShards, seed));
+        if (!allInitializingShards.isEmpty()) {
+            List<ShardRouting> orderedInitializingShards = getInitializingShardsByWeight(weightedRouting, nodes, defaultWeight);
+            ordered.addAll(orderedInitializingShards);
+        }
+        List<ShardRouting> orderedListWithDistinctShards;
         orderedListWithDistinctShards = ordered.stream().distinct().collect(Collectors.toList());
-        return new PlainShardIterator(shardId, orderedListWithDistinctShards);
+        return orderedListWithDistinctShards;
     }
 
     /**

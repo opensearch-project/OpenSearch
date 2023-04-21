@@ -18,11 +18,11 @@ import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersIndexInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.StepListener;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.index.shard.IndexShard;
@@ -38,8 +38,6 @@ import org.opensearch.indices.replication.common.ReplicationTarget;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.Map;
 
 /**
  * Represents the target of a replication event.
@@ -52,6 +50,8 @@ public class SegmentReplicationTarget extends ReplicationTarget {
     private final SegmentReplicationSource source;
     private final SegmentReplicationState state;
     protected final MultiFileWriter multiFileWriter;
+
+    public final static String REPLICATION_PREFIX = "replication.";
 
     public ReplicationCheckpoint getCheckpoint() {
         return this.checkpoint;
@@ -66,7 +66,13 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         super("replication_target", indexShard, new ReplicationLuceneIndex(), listener);
         this.checkpoint = checkpoint;
         this.source = source;
-        this.state = new SegmentReplicationState(stateIndex, getId());
+        this.state = new SegmentReplicationState(
+            indexShard.routingEntry(),
+            stateIndex,
+            getId(),
+            source.getDescription(),
+            indexShard.recoveryState().getTargetNode()
+        );
         this.multiFileWriter = new MultiFileWriter(indexShard.store(), stateIndex, getPrefix(), logger, this::ensureRefCount);
     }
 
@@ -81,7 +87,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     @Override
     protected String getPrefix() {
-        return "replication." + UUIDs.randomBase64UUID() + ".";
+        return REPLICATION_PREFIX + UUIDs.randomBase64UUID() + ".";
     }
 
     @Override
@@ -105,7 +111,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
 
     @Override
     public void notifyListener(ReplicationFailedException e, boolean sendShardFailure) {
-        // Cancellations still are passed to our SegmentReplicationListner as failures, if we have failed because of cancellation
+        // Cancellations still are passed to our SegmentReplicationListener as failures, if we have failed because of cancellation
         // update the stage.
         final Throwable cancelledException = ExceptionsHelper.unwrap(e, CancellableThreads.ExecutionCancelledException.class);
         if (cancelledException != null) {
@@ -173,20 +179,28 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         throws IOException {
         cancellableThreads.checkForCancel();
         state.setStage(SegmentReplicationState.Stage.FILE_DIFF);
-        final Store.RecoveryDiff diff = Store.segmentReplicationDiff(checkpointInfo.getMetadataMap(), getMetadataMap());
-        logger.trace("Replication diff {}", diff);
+        final Store.RecoveryDiff diff = Store.segmentReplicationDiff(checkpointInfo.getMetadataMap(), indexShard.getSegmentMetadataMap());
+        logger.trace("Replication diff for checkpoint {} {}", checkpointInfo.getCheckpoint(), diff);
         /*
          * Segments are immutable. So if the replica has any segments with the same name that differ from the one in the incoming
          * snapshot from source that means the local copy of the segment has been corrupted/changed in some way and we throw an
          * IllegalStateException to fail the shard
          */
         if (diff.different.isEmpty() == false) {
-            getFilesListener.onFailure(
-                new IllegalStateException(
-                    new ParameterizedMessage("Shard {} has local copies of segments that differ from the primary", indexShard.shardId())
-                        .getFormattedMessage()
-                )
+            IllegalStateException illegalStateException = new IllegalStateException(
+                new ParameterizedMessage(
+                    "Shard {} has local copies of segments that differ from the primary {}",
+                    indexShard.shardId(),
+                    diff.different
+                ).getFormattedMessage()
             );
+            ReplicationFailedException rfe = new ReplicationFailedException(
+                indexShard.shardId(),
+                "different segment files",
+                illegalStateException
+            );
+            fail(rfe, true);
+            throw rfe;
         }
 
         for (StoreFileMetadata file : diff.missing) {
@@ -202,10 +216,11 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         ActionListener.completeWith(listener, () -> {
             cancellableThreads.checkForCancel();
             state.setStage(SegmentReplicationState.Stage.FINALIZE_REPLICATION);
-            multiFileWriter.renameAllTempFiles();
-            final Store store = store();
-            store.incRef();
+            Store store = null;
             try {
+                multiFileWriter.renameAllTempFiles();
+                store = store();
+                store.incRef();
                 // Deserialize the new SegmentInfos object sent from the primary.
                 final ReplicationCheckpoint responseCheckpoint = checkpointInfoResponse.getCheckpoint();
                 SegmentInfos infos = SegmentInfos.readCommit(
@@ -214,8 +229,7 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                     responseCheckpoint.getSegmentsGen()
                 );
                 cancellableThreads.checkForCancel();
-                indexShard.finalizeReplication(infos, responseCheckpoint.getSeqNo());
-                store.cleanupAndPreserveLatestCommitPoint("finalize - clean with in memory infos", infos);
+                indexShard.finalizeReplication(infos);
             } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
                 // this is a fatal exception at this stage.
                 // this means we transferred files from the remote that have not be checksummed and they are
@@ -239,6 +253,13 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                 );
                 fail(rfe, true);
                 throw rfe;
+            } catch (OpenSearchException ex) {
+                /*
+                 Ignore closed replication target as it can happen due to index shard closed event in a separate thread.
+                 In such scenario, ignore the exception
+                 */
+                assert cancellableThreads.isCancelled() : "Replication target closed but segment replication not cancelled";
+                logger.info("Replication target closed", ex);
             } catch (Exception ex) {
                 ReplicationFailedException rfe = new ReplicationFailedException(
                     indexShard.shardId(),
@@ -248,7 +269,9 @@ public class SegmentReplicationTarget extends ReplicationTarget {
                 fail(rfe, true);
                 throw rfe;
             } finally {
-                store.decRef();
+                if (store != null) {
+                    store.decRef();
+                }
             }
             return null;
         });
@@ -264,18 +287,10 @@ public class SegmentReplicationTarget extends ReplicationTarget {
         );
     }
 
-    Map<String, StoreFileMetadata> getMetadataMap() throws IOException {
-        if (indexShard.getSegmentInfosSnapshot() == null) {
-            return Collections.emptyMap();
-        }
-        try (final GatedCloseable<SegmentInfos> snapshot = indexShard.getSegmentInfosSnapshot()) {
-            return store.getSegmentMetadataMap(snapshot.get());
-        }
-    }
-
     @Override
     protected void onCancel(String reason) {
         cancellableThreads.cancel(reason);
         source.cancel();
+        multiFileWriter.close();
     }
 }

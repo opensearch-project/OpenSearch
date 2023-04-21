@@ -34,7 +34,7 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.hamcrest.CoreMatchers;
 
@@ -56,7 +56,7 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
 
     @Override
     protected Set<String> unsupportedProperties() {
-        return org.opensearch.common.collect.Set.of("analyzer", "similarity", "doc_values");
+        return Set.of("analyzer", "similarity", "doc_values");
     }
 
     @Override

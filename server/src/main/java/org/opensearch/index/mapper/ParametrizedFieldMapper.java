@@ -38,7 +38,7 @@ import org.opensearch.common.Explicit;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.mapper.Mapper.TypeParser.ParserContext;
@@ -705,7 +705,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                 if (Objects.equals("boost", propName)) {
                     deprecationLogger.deprecate(
                         "boost_" + name,
-                        "Parameter [boost] on field [{}] is deprecated and will be removed in 8.0",
+                        "Parameter [boost] on field [{}] is deprecated and will be removed in 3.0",
                         name
                     );
                 }

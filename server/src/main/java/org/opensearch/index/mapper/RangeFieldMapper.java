@@ -32,6 +32,8 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.document.InvertableType;
+import org.apache.lucene.document.StoredValue;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -47,7 +49,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.util.LocaleUtils;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.BinaryIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
@@ -659,6 +661,16 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
             } catch (IOException e) {
                 throw new OpenSearchException("failed to encode ranges", e);
             }
+        }
+
+        @Override
+        public StoredValue storedValue() {
+            return null;
+        }
+
+        @Override
+        public InvertableType invertableType() {
+            return InvertableType.BINARY;
         }
     }
 }

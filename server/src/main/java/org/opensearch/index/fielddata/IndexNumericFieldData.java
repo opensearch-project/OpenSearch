@@ -42,6 +42,7 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.opensearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.opensearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
+import org.opensearch.index.fielddata.fieldcomparator.IntValuesComparatorSource;
 import org.opensearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
@@ -65,10 +66,10 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
      * @opensearch.internal
      */
     public enum NumericType {
-        BOOLEAN(false, SortField.Type.LONG, CoreValuesSourceType.BOOLEAN),
-        BYTE(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
-        SHORT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
-        INT(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
+        BOOLEAN(false, SortField.Type.INT, CoreValuesSourceType.BOOLEAN),
+        BYTE(false, SortField.Type.INT, CoreValuesSourceType.NUMERIC),
+        SHORT(false, SortField.Type.INT, CoreValuesSourceType.NUMERIC),
+        INT(false, SortField.Type.INT, CoreValuesSourceType.NUMERIC),
         LONG(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
         DATE(false, SortField.Type.LONG, CoreValuesSourceType.DATE),
         DATE_NANOSECONDS(false, SortField.Type.LONG, CoreValuesSourceType.DATE),
@@ -133,8 +134,6 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
             : SortedNumericSelector.Type.MIN;
         SortField sortField = new SortedNumericSortField(getFieldName(), getNumericType().sortFieldType, reverse, selectorType);
         sortField.setMissingValue(source.missingObject(missingValue, reverse));
-        // todo: remove since deprecated
-        sortField.setOptimizeSortWithPoints(false);
         return sortField;
     }
 
@@ -207,9 +206,11 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
                 return dateComparatorSource(missingValue, sortMode, nested);
             case DATE_NANOSECONDS:
                 return dateNanosComparatorSource(missingValue, sortMode, nested);
+            case LONG:
+                return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
             default:
                 assert !targetNumericType.isFloatingPoint();
-                return new LongValuesComparatorSource(this, missingValue, sortMode, nested);
+                return new IntValuesComparatorSource(this, missingValue, sortMode, nested);
         }
     }
 

@@ -48,6 +48,7 @@ import org.opensearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.function.Consumer;
 
 public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase {
@@ -63,7 +64,7 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
         throws IOException {
         CheckedBiConsumer<RandomIndexWriter, DateFieldMapper.DateFieldType, IOException> buildIndex = (iw, dft) -> {
             iw.addDocument(
-                org.opensearch.common.collect.List.of(
+                List.of(
                     new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2020-02-01T00:00:00Z")),
                     new SortedSetDocValuesField("k1", new BytesRef("a")),
                     new SortedSetDocValuesField("k2", new BytesRef("a")),
@@ -71,7 +72,7 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
                 )
             );
             iw.addDocument(
-                org.opensearch.common.collect.List.of(
+                List.of(
                     new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2020-03-01T00:00:00Z")),
                     new SortedSetDocValuesField("k1", new BytesRef("a")),
                     new SortedSetDocValuesField("k2", new BytesRef("a")),
@@ -79,7 +80,7 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
                 )
             );
             iw.addDocument(
-                org.opensearch.common.collect.List.of(
+                List.of(
                     new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2021-02-01T00:00:00Z")),
                     new SortedSetDocValuesField("k1", new BytesRef("a")),
                     new SortedSetDocValuesField("k2", new BytesRef("a")),
@@ -87,7 +88,7 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
                 )
             );
             iw.addDocument(
-                org.opensearch.common.collect.List.of(
+                List.of(
                     new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2021-03-01T00:00:00Z")),
                     new SortedSetDocValuesField("k1", new BytesRef("a")),
                     new SortedSetDocValuesField("k2", new BytesRef("b")),
@@ -95,7 +96,7 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
                 )
             );
             iw.addDocument(
-                org.opensearch.common.collect.List.of(
+                List.of(
                     new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2020-02-01T00:00:00Z")),
                     new SortedSetDocValuesField("k1", new BytesRef("b")),
                     new SortedSetDocValuesField("k2", new BytesRef("b")),

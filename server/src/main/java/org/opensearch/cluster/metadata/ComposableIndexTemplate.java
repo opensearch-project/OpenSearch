@@ -36,15 +36,16 @@ import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.metadata.DataStream.TimestampField;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.ParseField;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.ToXContentObject;
-import org.opensearch.common.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.ParseField;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.DataStreamFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 
@@ -56,7 +57,6 @@ import java.util.Objects;
 
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.opensearch.common.collect.Map.of;
 
 /**
  * An index template is comprised of a set of index patterns, an optional template, and a list of
@@ -278,7 +278,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toString(XContentType.JSON, this);
     }
 
     /**
@@ -324,7 +324,10 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         public Map<String, Object> getDataStreamMappingSnippet() {
             return singletonMap(
                 MapperService.SINGLE_MAPPING_NAME,
-                singletonMap("_data_stream_timestamp", unmodifiableMap(of("enabled", true, "timestamp_field", getTimestampField().toMap())))
+                singletonMap(
+                    "_data_stream_timestamp",
+                    unmodifiableMap(Map.of("enabled", true, "timestamp_field", getTimestampField().toMap()))
+                )
             );
         }
 

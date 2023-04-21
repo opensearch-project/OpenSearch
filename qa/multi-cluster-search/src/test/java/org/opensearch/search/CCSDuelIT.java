@@ -58,7 +58,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.query.InnerHitBuilder;
 import org.opensearch.index.query.MatchQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -726,7 +726,7 @@ public class CCSDuelIT extends OpenSearchRestTestCase {
         sourceBuilder.suggest(suggestBuilder);
         duelSearch(searchRequest, response -> {
             assertMultiClusterSearchResponse(response);
-            assertEquals(Strings.toString(response, true, true), 3, response.getSuggest().size());
+            assertEquals(Strings.toString(XContentType.JSON, response, true, true), 3, response.getSuggest().size());
             assertThat(response.getSuggest().getSuggestion("python").getEntries().size(), greaterThan(0));
             assertThat(response.getSuggest().getSuggestion("java").getEntries().size(), greaterThan(0));
             assertThat(response.getSuggest().getSuggestion("ruby").getEntries().size(), greaterThan(0));

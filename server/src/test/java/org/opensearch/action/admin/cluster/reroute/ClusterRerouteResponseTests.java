@@ -44,11 +44,10 @@ import org.opensearch.cluster.routing.allocation.RoutingExplanations;
 import org.opensearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.test.OpenSearchTestCase;
@@ -73,9 +72,9 @@ public class ClusterRerouteResponseTests extends OpenSearchTestCase {
                     .build()
             )
             .build();
-        ImmutableOpenMap.Builder<String, IndexMetadata> openMapBuilder = ImmutableOpenMap.builder();
+        final HashMap<String, IndexMetadata> openMapBuilder = new HashMap<>();
         openMapBuilder.put("index", indexMetadata);
-        Metadata metadata = Metadata.builder().indices(openMapBuilder.build()).build();
+        Metadata metadata = Metadata.builder().indices(openMapBuilder).build();
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(nodes).metadata(metadata).build();
 
         RoutingExplanations routingExplanations = new RoutingExplanations();

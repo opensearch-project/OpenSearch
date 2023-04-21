@@ -75,7 +75,7 @@ public abstract class SourceValueFetcher implements ValueFetcher {
         for (String path : sourcePaths) {
             Object sourceValue = lookup.extractValue(path, nullValue);
             if (sourceValue == null) {
-                return org.opensearch.common.collect.List.of();
+                return List.of();
             }
 
             // We allow source values to contain multiple levels of arrays, such as `"field": [[1, 2]]`.

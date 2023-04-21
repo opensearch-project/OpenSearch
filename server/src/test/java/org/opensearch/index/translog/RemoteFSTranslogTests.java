@@ -35,8 +35,8 @@ import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexSettings;
@@ -110,7 +110,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
     private final AtomicBoolean primaryMode = new AtomicBoolean(true);
     private final AtomicReference<LongConsumer> persistedSeqNoConsumer = new AtomicReference<>();
     private ThreadPool threadPool;
-
+    private final static String METADATA_DIR = "metadata";
     BlobStoreRepository repository;
 
     BlobStoreTransferService blobStoreTransferService;
@@ -159,10 +159,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         final TranslogConfig translogConfig = getTranslogConfig(path);
         final TranslogDeletionPolicy deletionPolicy = createTranslogDeletionPolicy(translogConfig.getIndexSettings());
         threadPool = new TestThreadPool(getClass().getName());
-        blobStoreTransferService = new BlobStoreTransferService(
-            repository.blobStore(),
-            threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER)
-        );
+        blobStoreTransferService = new BlobStoreTransferService(repository.blobStore(), threadPool);
         return new RemoteFsTranslog(
             translogConfig,
             translogUUID,
@@ -171,7 +168,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             primaryTerm::get,
             getPersistedSeqNoConsumer(),
             repository,
-            threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER),
+            threadPool,
             primaryMode::get
         );
 
@@ -465,7 +462,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         }
     }
 
-    public void testSimpleOperationsUpload() throws IOException {
+    public void testSimpleOperationsUpload() throws Exception {
         ArrayList<Translog.Operation> ops = new ArrayList<>();
         try (Translog.Snapshot snapshot = translog.newSnapshot()) {
             assertThat(snapshot, SnapshotMatchers.size(0));
@@ -477,18 +474,18 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             assertThat(snapshot.totalOperations(), equalTo(ops.size()));
         }
 
-        assertEquals(translog.allUploaded().size(), 2);
+        assertEquals(4, translog.allUploaded().size());
 
         addToTranslogAndListAndUpload(translog, ops, new Translog.Index("1", 1, primaryTerm.get(), new byte[] { 1 }));
-        assertEquals(translog.allUploaded().size(), 4);
+        assertEquals(6, translog.allUploaded().size());
 
         translog.rollGeneration();
-        assertEquals(translog.allUploaded().size(), 4);
+        assertEquals(6, translog.allUploaded().size());
 
         Set<String> mdFiles = blobStoreTransferService.listAll(
             repository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())).add("metadata")
         );
-        assertEquals(mdFiles.size(), 2);
+        assertEquals(2, mdFiles.size());
         logger.info("All md files {}", mdFiles);
 
         Set<String> tlogFiles = blobStoreTransferService.listAll(
@@ -529,33 +526,150 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
         translog.deletionPolicy.setLocalCheckpointOfSafeCommit(0);
         // simulating the remote segment upload .
         translog.setMinSeqNoToKeep(0);
-        // This should not trim anything
+        // This should not trim anything from local
         translog.trimUnreferencedReaders();
-        assertEquals(translog.allUploaded().size(), 4);
-        assertEquals(
-            blobStoreTransferService.listAll(
-                repository.basePath()
-                    .add(shardId.getIndex().getUUID())
-                    .add(String.valueOf(shardId.id()))
-                    .add(String.valueOf(primaryTerm.get()))
-            ).size(),
-            4
-        );
+        assertEquals(2, translog.readers.size());
+        assertBusy(() -> {
+            assertEquals(4, translog.allUploaded().size());
+            assertEquals(
+                4,
+                blobStoreTransferService.listAll(
+                    repository.basePath()
+                        .add(shardId.getIndex().getUUID())
+                        .add(String.valueOf(shardId.id()))
+                        .add(String.valueOf(primaryTerm.get()))
+                ).size()
+            );
+        });
 
-        // This should trim tlog-2.* files as it contains seq no 0
+        // This should trim tlog-2 from local
+        // This should not trim tlog-2.* files from remote as we not uploading any more translog to remote
         translog.setMinSeqNoToKeep(1);
+        translog.deletionPolicy.setLocalCheckpointOfSafeCommit(1);
         translog.trimUnreferencedReaders();
-        assertEquals(translog.allUploaded().size(), 2);
-        assertEquals(
-            blobStoreTransferService.listAll(
-                repository.basePath()
-                    .add(shardId.getIndex().getUUID())
-                    .add(String.valueOf(shardId.id()))
-                    .add(String.valueOf(primaryTerm.get()))
-            ).size(),
-            2
+        assertEquals(1, translog.readers.size());
+        assertBusy(() -> {
+            assertEquals(4, translog.allUploaded().size());
+            assertEquals(
+                4,
+                blobStoreTransferService.listAll(
+                    repository.basePath()
+                        .add(shardId.getIndex().getUUID())
+                        .add(String.valueOf(shardId.id()))
+                        .add(String.valueOf(primaryTerm.get()))
+                ).size()
+            );
+        });
+
+        // this should now trim as tlog-2 files from remote, but not tlog-3 and tlog-4
+        addToTranslogAndListAndUpload(translog, ops, new Translog.Index("2", 2, primaryTerm.get(), new byte[] { 1 }));
+        translog.deletionPolicy.setLocalCheckpointOfSafeCommit(1);
+        translog.setMinSeqNoToKeep(2);
+        translog.trimUnreferencedReaders();
+        assertEquals(1, translog.readers.size());
+        assertBusy(() -> assertEquals(4, translog.allUploaded().size()));
+    }
+
+    public void testMetadataFileDeletion() throws Exception {
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+        // Test deletion of metadata files
+        int numDocs = randomIntBetween(6, 10);
+        for (int i = 0; i < numDocs; i++) {
+            addToTranslogAndListAndUpload(translog, ops, new Translog.Index(String.valueOf(i), i, primaryTerm.get(), new byte[] { 1 }));
+            translog.deletionPolicy.setLocalCheckpointOfSafeCommit(i - 1);
+            translog.setMinSeqNoToKeep(i);
+            translog.trimUnreferencedReaders();
+            assertEquals(1, translog.readers.size());
+        }
+        assertBusy(() -> assertEquals(4, translog.allUploaded().size()));
+        assertBusy(
+            () -> assertEquals(
+                2,
+                blobStoreTransferService.listAll(
+                    repository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())).add(METADATA_DIR)
+                ).size()
+            )
+        );
+        int moreDocs = randomIntBetween(3, 10);
+        logger.info("numDocs={} moreDocs={}", numDocs, moreDocs);
+        for (int i = numDocs; i < numDocs + moreDocs; i++) {
+            addToTranslogAndListAndUpload(translog, ops, new Translog.Index(String.valueOf(i), i, primaryTerm.get(), new byte[] { 1 }));
+        }
+        translog.trimUnreferencedReaders();
+        assertEquals(1 + moreDocs, translog.readers.size());
+        assertBusy(() -> assertEquals(2 + 2L * moreDocs, translog.allUploaded().size()));
+        assertBusy(
+            () -> assertEquals(
+                1 + moreDocs,
+                blobStoreTransferService.listAll(
+                    repository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())).add(METADATA_DIR)
+                ).size()
+            )
         );
 
+        int totalDocs = numDocs + moreDocs;
+        translog.deletionPolicy.setLocalCheckpointOfSafeCommit(totalDocs - 2);
+        translog.setMinSeqNoToKeep(totalDocs - 1);
+        translog.trimUnreferencedReaders();
+
+        addToTranslogAndListAndUpload(
+            translog,
+            ops,
+            new Translog.Index(String.valueOf(totalDocs), totalDocs, primaryTerm.get(), new byte[] { 1 })
+        );
+        translog.deletionPolicy.setLocalCheckpointOfSafeCommit(totalDocs - 1);
+        translog.setMinSeqNoToKeep(totalDocs);
+        translog.trimUnreferencedReaders();
+        assertBusy(
+            () -> assertEquals(
+                2,
+                blobStoreTransferService.listAll(
+                    repository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())).add(METADATA_DIR)
+                ).size()
+            )
+        );
+
+        // Change primary term and test the deletion of older primaries
+        String translogUUID = translog.translogUUID;
+        try {
+            translog.getDeletionPolicy().assertNoOpenTranslogRefs();
+            translog.close();
+        } finally {
+            terminate(threadPool);
+        }
+
+        // Increase primary term
+        long oldPrimaryTerm = primaryTerm.get();
+        long newPrimaryTerm = primaryTerm.incrementAndGet();
+
+        // Check all metadata files corresponds to old primary term
+        Set<String> mdFileNames = blobStoreTransferService.listAll(
+            repository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())).add(METADATA_DIR)
+        );
+        assertTrue(mdFileNames.stream().allMatch(name -> name.startsWith(String.valueOf(oldPrimaryTerm).concat("__"))));
+
+        // Creating RemoteFsTranslog with the same location
+        Translog newTranslog = create(translogDir, repository, translogUUID);
+        int newPrimaryTermDocs = randomIntBetween(5, 10);
+        for (int i = totalDocs + 1; i <= totalDocs + newPrimaryTermDocs; i++) {
+            addToTranslogAndListAndUpload(newTranslog, ops, new Translog.Index(String.valueOf(i), i, primaryTerm.get(), new byte[] { 1 }));
+            newTranslog.deletionPolicy.setLocalCheckpointOfSafeCommit(i - 1);
+            newTranslog.setMinSeqNoToKeep(i);
+            newTranslog.trimUnreferencedReaders();
+        }
+
+        // Check that all metadata files are belonging now to the new primary
+        mdFileNames = blobStoreTransferService.listAll(
+            repository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())).add(METADATA_DIR)
+        );
+        assertTrue(mdFileNames.stream().allMatch(name -> name.startsWith(String.valueOf(newPrimaryTerm).concat("__"))));
+
+        try {
+            newTranslog.close();
+        } catch (Exception e) {
+            // Ignoring this exception for now. Once the download flow populates FileTracker,
+            // we can remove this try-catch block
+        }
     }
 
     private Long populateTranslogOps(boolean withMissingOps) throws IOException {
@@ -1149,7 +1263,7 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
                 primaryTerm::get,
                 persistedSeqNos::add,
                 repository,
-                threadPool.executor(ThreadPool.Names.TRANSLOG_TRANSFER),
+                threadPool,
                 () -> Boolean.TRUE
             ) {
                 @Override

@@ -36,7 +36,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.test.OpenSearchTestCase;

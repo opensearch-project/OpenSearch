@@ -77,7 +77,7 @@ import org.opensearch.cluster.routing.allocation.decider.SnapshotInProgressAlloc
 import org.opensearch.cluster.routing.allocation.decider.TargetPoolAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.ParseField;
+import org.opensearch.core.ParseField;
 import org.opensearch.common.inject.AbstractModule;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.io.stream.NamedWriteableRegistry.Entry;
@@ -86,16 +86,16 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.ingest.IngestMetadata;
 import org.opensearch.persistent.PersistentTasksCustomMetadata;
 import org.opensearch.persistent.PersistentTasksNodeService;
 import org.opensearch.plugins.ClusterPlugin;
 import org.opensearch.script.ScriptMetadata;
+import org.opensearch.search.pipeline.SearchPipelineMetadata;
 import org.opensearch.snapshots.SnapshotsInfoService;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskResultsService;
@@ -173,6 +173,7 @@ public class ClusterModule extends AbstractModule {
         // Metadata
         registerMetadataCustom(entries, RepositoriesMetadata.TYPE, RepositoriesMetadata::new, RepositoriesMetadata::readDiffFrom);
         registerMetadataCustom(entries, IngestMetadata.TYPE, IngestMetadata::new, IngestMetadata::readDiffFrom);
+        registerMetadataCustom(entries, SearchPipelineMetadata.TYPE, SearchPipelineMetadata::new, SearchPipelineMetadata::readDiffFrom);
         registerMetadataCustom(entries, ScriptMetadata.TYPE, ScriptMetadata::new, ScriptMetadata::readDiffFrom);
         registerMetadataCustom(entries, IndexGraveyard.TYPE, IndexGraveyard::new, IndexGraveyard::readDiffFrom);
         registerMetadataCustom(
@@ -229,7 +230,7 @@ public class ClusterModule extends AbstractModule {
             }
         });
         final Metadata.Builder metaBuilder = Metadata.builder(clusterState.metadata());
-        clusterState.metadata().customs().keysIt().forEachRemaining(name -> {
+        clusterState.metadata().customs().keySet().iterator().forEachRemaining(name -> {
             if (PRE_6_3_METADATA_CUSTOMS_WHITE_LIST.contains(name) == false) {
                 metaBuilder.removeCustom(name);
             }
@@ -249,6 +250,13 @@ public class ClusterModule extends AbstractModule {
         );
         entries.add(
             new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(IngestMetadata.TYPE), IngestMetadata::fromXContent)
+        );
+        entries.add(
+            new NamedXContentRegistry.Entry(
+                Metadata.Custom.class,
+                new ParseField(SearchPipelineMetadata.TYPE),
+                SearchPipelineMetadata::fromXContent
+            )
         );
         entries.add(
             new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(ScriptMetadata.TYPE), ScriptMetadata::fromXContent)
@@ -361,9 +369,7 @@ public class ClusterModule extends AbstractModule {
         addAllocationDecider(deciders, new ShardsLimitAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new AwarenessAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new NodeLoadAwareAllocationDecider(settings, clusterSettings));
-        if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT)) {
-            addAllocationDecider(deciders, new TargetPoolAllocationDecider());
-        }
+        addAllocationDecider(deciders, new TargetPoolAllocationDecider());
 
         clusterPlugins.stream()
             .flatMap(p -> p.createAllocationDeciders(settings, clusterSettings).stream())

@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.replication;
 
+import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.util.Version;
 import org.junit.Assert;
 import org.opensearch.action.ActionListener;
@@ -17,7 +18,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.Store;
@@ -50,6 +51,8 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
     private IndexShard indexShard;
     private DiscoveryNode sourceNode;
 
+    private RecoverySettings recoverySettings;
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
@@ -73,6 +76,7 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
 
         indexShard = newStartedShard(true);
 
+        this.recoverySettings = recoverySettings;
         replicationSource = new PrimaryShardReplicationSource(
             localNode,
             indexShard.routingEntry().allocationId().toString(),
@@ -94,8 +98,8 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
             indexShard.shardId(),
             PRIMARY_TERM,
             SEGMENTS_GEN,
-            SEQ_NO,
-            VERSION
+            VERSION,
+            Codec.getDefault().getName()
         );
         replicationSource.getCheckpointMetadata(REPLICATION_ID, checkpoint, mock(ActionListener.class));
         CapturingTransport.CapturedRequest[] requestList = transport.getCapturedRequestsAndClear();
@@ -111,8 +115,8 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
             indexShard.shardId(),
             PRIMARY_TERM,
             SEGMENTS_GEN,
-            SEQ_NO,
-            VERSION
+            VERSION,
+            Codec.getDefault().getName()
         );
         StoreFileMetadata testMetadata = new StoreFileMetadata("testFile", 1L, "checksum", Version.LATEST);
         replicationSource.getSegmentFiles(
@@ -130,14 +134,42 @@ public class PrimaryShardReplicationSourceTests extends IndexShardTestCase {
         assertTrue(capturedRequest.request instanceof GetSegmentFilesRequest);
     }
 
+    /**
+     * This test verifies the transport request timeout value for fetching the segment files.
+     */
+    public void testTransportTimeoutForGetSegmentFilesAction() {
+        long fileSize = (long) (Math.pow(10, 9));
+        final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(
+            indexShard.shardId(),
+            PRIMARY_TERM,
+            SEGMENTS_GEN,
+            VERSION,
+            Codec.getDefault().getName()
+        );
+        StoreFileMetadata testMetadata = new StoreFileMetadata("testFile", fileSize, "checksum", Version.LATEST);
+        replicationSource.getSegmentFiles(
+            REPLICATION_ID,
+            checkpoint,
+            Arrays.asList(testMetadata),
+            mock(Store.class),
+            mock(ActionListener.class)
+        );
+        CapturingTransport.CapturedRequest[] requestList = transport.getCapturedRequestsAndClear();
+        assertEquals(1, requestList.length);
+        CapturingTransport.CapturedRequest capturedRequest = requestList[0];
+        assertEquals(SegmentReplicationSourceService.Actions.GET_SEGMENT_FILES, capturedRequest.action);
+        assertEquals(sourceNode, capturedRequest.node);
+        assertEquals(recoverySettings.internalActionLongTimeout(), capturedRequest.options.timeout());
+    }
+
     public void testGetSegmentFiles_CancelWhileRequestOpen() throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
         final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(
             indexShard.shardId(),
             PRIMARY_TERM,
             SEGMENTS_GEN,
-            SEQ_NO,
-            VERSION
+            VERSION,
+            Codec.getDefault().getName()
         );
         StoreFileMetadata testMetadata = new StoreFileMetadata("testFile", 1L, "checksum", Version.LATEST);
         replicationSource.getSegmentFiles(

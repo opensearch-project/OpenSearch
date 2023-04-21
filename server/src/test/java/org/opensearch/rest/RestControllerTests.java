@@ -43,10 +43,10 @@ import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.yaml.YamlXContent;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.http.HttpRequest;
 import org.opensearch.http.HttpResponse;
@@ -119,11 +119,9 @@ public class RestControllerTests extends OpenSearchTestCase {
                 new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
             )
         );
-        restController.registerHandler(
-            RestRequest.Method.GET,
-            "/error",
-            (request, channel, client) -> { throw new IllegalArgumentException("test error"); }
-        );
+        restController.registerHandler(RestRequest.Method.GET, "/error", (request, channel, client) -> {
+            throw new IllegalArgumentException("test error");
+        });
 
         httpServerTransport.start();
     }

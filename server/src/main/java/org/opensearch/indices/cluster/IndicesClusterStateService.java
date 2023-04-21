@@ -37,7 +37,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.ResourceAlreadyExistsException;
 import org.opensearch.action.ActionListener;
-import org.opensearch.action.StepListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateApplier;
@@ -57,7 +56,6 @@ import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.env.ShardLockObtainFailedException;
@@ -83,11 +81,8 @@ import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
-import org.opensearch.indices.replication.SegmentReplicationState;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
-import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
-import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.search.SearchService;
@@ -218,11 +213,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final List<IndexEventListener> indexEventListeners = new ArrayList<>(
             Arrays.asList(peerRecoverySourceService, recoveryTargetService, searchService, snapshotShardsService)
         );
-        // if segrep feature flag is not enabled, don't wire the target serivce as an IndexEventListener.
-        if (FeatureFlags.isEnabled(FeatureFlags.REPLICATION_TYPE)) {
-            indexEventListeners.add(segmentReplicationTargetService);
-            indexEventListeners.add(segmentReplicationSourceService);
-        }
+        indexEventListeners.add(segmentReplicationTargetService);
+        indexEventListeners.add(segmentReplicationSourceService);
         this.segmentReplicationTargetService = segmentReplicationTargetService;
         this.builtInIndexListener = Collections.unmodifiableList(indexEventListeners);
         this.indicesService = indicesService;
@@ -781,78 +773,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     public void handleRecoveryDone(ReplicationState state, ShardRouting shardRouting, long primaryTerm) {
         RecoveryState recoveryState = (RecoveryState) state;
-        AllocatedIndex<? extends Shard> indexService = indicesService.indexService(shardRouting.shardId().getIndex());
-        StepListener<Void> forceSegRepListener = new StepListener<>();
-        // For Segment Replication enabled indices, we want replica shards to start a replication event to fetch latest segments before
-        // it is marked as Started.
-        if (indexService.getIndexSettings().isSegRepEnabled()) {
-            forceSegmentReplication(indexService, shardRouting, forceSegRepListener);
-        } else {
-            forceSegRepListener.onResponse(null);
-        }
-        forceSegRepListener.whenComplete(
-            v -> shardStateAction.shardStarted(
-                shardRouting,
-                primaryTerm,
-                "after " + recoveryState.getRecoverySource(),
-                SHARD_STATE_ACTION_LISTENER
-            ),
-            e -> handleRecoveryFailure(shardRouting, true, e)
-        );
-    }
-
-    /**
-     * Forces a round of Segment Replication with empty checkpoint, so that replicas could fetch latest segment files from primary.
-      */
-    private void forceSegmentReplication(
-        AllocatedIndex<? extends Shard> indexService,
-        ShardRouting shardRouting,
-        StepListener<Void> forceSegRepListener
-    ) {
-        IndexShard indexShard = (IndexShard) indexService.getShardOrNull(shardRouting.id());
-        if (indexShard != null && indexShard.isSegmentReplicationAllowed()) {
-            segmentReplicationTargetService.startReplication(
-                ReplicationCheckpoint.empty(shardRouting.shardId()),
-                indexShard,
-                new SegmentReplicationTargetService.SegmentReplicationListener() {
-                    @Override
-                    public void onReplicationDone(SegmentReplicationState state) {
-                        logger.trace(
-                            () -> new ParameterizedMessage(
-                                "[shardId {}] [replication id {}] Replication complete, timing data: {}",
-                                indexShard.shardId().getId(),
-                                state.getReplicationId(),
-                                state.getTimingData()
-                            )
-                        );
-                        forceSegRepListener.onResponse(null);
-                    }
-
-                    @Override
-                    public void onReplicationFailure(
-                        SegmentReplicationState state,
-                        ReplicationFailedException e,
-                        boolean sendShardFailure
-                    ) {
-                        logger.trace(
-                            () -> new ParameterizedMessage(
-                                "[shardId {}] [replication id {}] Replication failed, timing data: {}",
-                                indexShard.shardId().getId(),
-                                state.getReplicationId(),
-                                state.getTimingData()
-                            )
-                        );
-                        if (sendShardFailure == true) {
-                            logger.error("replication failure", e);
-                            indexShard.failShard("replication failure", e);
-                        }
-                        forceSegRepListener.onFailure(e);
-                    }
-                }
-            );
-        } else {
-            forceSegRepListener.onResponse(null);
-        }
+        shardStateAction.shardStarted(shardRouting, primaryTerm, "after " + recoveryState.getRecoverySource(), SHARD_STATE_ACTION_LISTENER);
     }
 
     private void failAndRemoveShard(

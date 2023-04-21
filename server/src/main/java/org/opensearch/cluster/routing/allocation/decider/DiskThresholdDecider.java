@@ -32,7 +32,6 @@
 
 package org.opensearch.cluster.routing.allocation.decider;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
@@ -49,7 +48,6 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -59,6 +57,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING;
@@ -168,7 +167,7 @@ public class DiskThresholdDecider extends AllocationDecider {
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         ClusterInfo clusterInfo = allocation.clusterInfo();
-        ImmutableOpenMap<String, DiskUsage> usages = clusterInfo.getNodeMostAvailableDiskUsages();
+        Map<String, DiskUsage> usages = clusterInfo.getNodeMostAvailableDiskUsages();
         final Decision decision = earlyTerminate(allocation, usages);
         if (decision != null) {
             return decision;
@@ -424,7 +423,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             throw new IllegalArgumentException("Shard [" + shardRouting + "] is not allocated on node: [" + node.nodeId() + "]");
         }
         final ClusterInfo clusterInfo = allocation.clusterInfo();
-        final ImmutableOpenMap<String, DiskUsage> usages = clusterInfo.getNodeLeastAvailableDiskUsages();
+        final Map<String, DiskUsage> usages = clusterInfo.getNodeLeastAvailableDiskUsages();
         final Decision decision = earlyTerminate(allocation, usages);
         if (decision != null) {
             return decision;
@@ -520,7 +519,7 @@ public class DiskThresholdDecider extends AllocationDecider {
     private DiskUsageWithRelocations getDiskUsage(
         RoutingNode node,
         RoutingAllocation allocation,
-        ImmutableOpenMap<String, DiskUsage> usages,
+        final Map<String, DiskUsage> usages,
         boolean subtractLeavingShards
     ) {
         DiskUsage usage = usages.get(node.nodeId());
@@ -566,15 +565,15 @@ public class DiskThresholdDecider extends AllocationDecider {
      * @param usages Map of nodeId to DiskUsage for all known nodes
      * @return DiskUsage representing given node using the average disk usage
      */
-    DiskUsage averageUsage(RoutingNode node, ImmutableOpenMap<String, DiskUsage> usages) {
+    DiskUsage averageUsage(RoutingNode node, final Map<String, DiskUsage> usages) {
         if (usages.size() == 0) {
             return new DiskUsage(node.nodeId(), node.node().getName(), "_na_", 0, 0);
         }
         long totalBytes = 0;
         long freeBytes = 0;
-        for (ObjectCursor<DiskUsage> du : usages.values()) {
-            totalBytes += du.value.getTotalBytes();
-            freeBytes += du.value.getFreeBytes();
+        for (DiskUsage du : usages.values()) {
+            totalBytes += du.getTotalBytes();
+            freeBytes += du.getFreeBytes();
         }
         return new DiskUsage(node.nodeId(), node.node().getName(), "_na_", totalBytes / usages.size(), freeBytes / usages.size());
     }
@@ -598,7 +597,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         return newUsage.getFreeDiskAsPercentage();
     }
 
-    private Decision earlyTerminate(RoutingAllocation allocation, ImmutableOpenMap<String, DiskUsage> usages) {
+    private Decision earlyTerminate(RoutingAllocation allocation, final Map<String, DiskUsage> usages) {
         // Always allow allocation if the decider is disabled
         if (diskThresholdSettings.isEnabled() == false) {
             return allocation.decision(Decision.YES, NAME, "the disk threshold decider is disabled");

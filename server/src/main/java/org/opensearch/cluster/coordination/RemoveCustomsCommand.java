@@ -31,7 +31,6 @@
 
 package org.opensearch.cluster.coordination;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.opensearch.cli.ExitCodes;
@@ -84,12 +83,11 @@ public class RemoveCustomsCommand extends OpenSearchNodeCommand {
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading cluster state");
         final Tuple<Long, ClusterState> termAndClusterState = loadTermAndClusterState(persistedClusterStateService, env);
         final ClusterState oldClusterState = termAndClusterState.v2();
-        terminal.println(Terminal.Verbosity.VERBOSE, "custom metadata names: " + oldClusterState.metadata().customs().keys());
+        terminal.println(Terminal.Verbosity.VERBOSE, "custom metadata names: " + oldClusterState.metadata().customs().keySet());
         final Metadata.Builder metadataBuilder = Metadata.builder(oldClusterState.metadata());
         for (String customToRemove : customsToRemove) {
             boolean matched = false;
-            for (ObjectCursor<String> customKeyCur : oldClusterState.metadata().customs().keys()) {
-                final String customKey = customKeyCur.value;
+            for (final String customKey : oldClusterState.metadata().customs().keySet()) {
                 if (Regex.simpleMatch(customToRemove, customKey)) {
                     metadataBuilder.removeCustom(customKey);
                     if (matched == false) {

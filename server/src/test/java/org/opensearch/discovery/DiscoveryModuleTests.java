@@ -43,7 +43,7 @@ import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.gateway.GatewayMetaState;
 import org.opensearch.plugins.DiscoveryPlugin;
 import org.opensearch.test.OpenSearchTestCase;
@@ -218,10 +218,9 @@ public class DiscoveryModuleTests extends OpenSearchTestCase {
     }
 
     public void testLazyConstructionSeedsProvider() {
-        DummyHostsProviderPlugin plugin = () -> Collections.singletonMap(
-            "custom",
-            () -> { throw new AssertionError("created hosts provider which was not selected"); }
-        );
+        DummyHostsProviderPlugin plugin = () -> Collections.singletonMap("custom", () -> {
+            throw new AssertionError("created hosts provider which was not selected");
+        });
         newModule(Settings.EMPTY, Collections.singletonList(plugin));
     }
 

@@ -44,7 +44,7 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.uid.Versions;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.get.GetResult;
@@ -245,10 +245,9 @@ public class PercolateQueryBuilderTests extends AbstractQueryTestCase<PercolateQ
     }
 
     public void testRequiredParameters() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> { new PercolateQueryBuilder(null, new BytesArray("{}"), XContentType.JSON); }
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            new PercolateQueryBuilder(null, new BytesArray("{}"), XContentType.JSON);
+        });
         assertThat(e.getMessage(), equalTo("[field] is a required argument"));
 
         e = expectThrows(

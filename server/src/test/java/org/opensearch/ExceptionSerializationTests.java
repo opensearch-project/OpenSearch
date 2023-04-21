@@ -54,6 +54,7 @@ import org.opensearch.cluster.decommission.DecommissioningFailedException;
 import org.opensearch.cluster.decommission.NodeDecommissionedException;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.IllegalShardRoutingStateException;
+import org.opensearch.cluster.routing.NodeWeighedAwayException;
 import org.opensearch.cluster.routing.PreferenceBasedSearchNotAllowedException;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
@@ -75,7 +76,8 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.CancellableThreadsTests;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.XContentLocation;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.discovery.MasterNotDiscoveredException;
 import org.opensearch.env.ShardLockObtainFailedException;
 import org.opensearch.index.Index;
@@ -105,6 +107,7 @@ import org.opensearch.search.SearchParseException;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.internal.ShardSearchContextId;
+import org.opensearch.search.pipeline.SearchPipelineProcessingException;
 import org.opensearch.snapshots.Snapshot;
 import org.opensearch.snapshots.SnapshotException;
 import org.opensearch.snapshots.SnapshotId;
@@ -248,7 +251,11 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         // Remove the deprecated exception classes from the unregistered list.
         assertTrue(notRegistered.remove(NotMasterException.class));
         assertTrue(notRegistered.remove(MasterNotDiscoveredException.class));
-        assertTrue("Classes subclassing OpenSearchException must be registered \n" + notRegistered.toString(), notRegistered.isEmpty());
+        assertTrue(
+            "Classes subclassing OpenSearchException must be registered in OpenSearchException.OpenSearchExceptionHandle \n"
+                + notRegistered,
+            notRegistered.isEmpty()
+        );
         assertTrue(registered.removeAll(OpenSearchException.getRegisteredKeys())); // check
         assertEquals(registered.toString(), 0, registered.size());
     }
@@ -530,9 +537,15 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
 
     public void testNotSerializableExceptionWrapper() throws IOException {
         NotSerializableExceptionWrapper ex = serialize(new NotSerializableExceptionWrapper(new NullPointerException()));
-        assertEquals("{\"type\":\"null_pointer_exception\",\"reason\":\"null_pointer_exception: null\"}", Strings.toString(ex));
+        assertEquals(
+            "{\"type\":\"null_pointer_exception\",\"reason\":\"null_pointer_exception: null\"}",
+            Strings.toString(XContentType.JSON, ex)
+        );
         ex = serialize(new NotSerializableExceptionWrapper(new IllegalArgumentException("nono!")));
-        assertEquals("{\"type\":\"illegal_argument_exception\",\"reason\":\"illegal_argument_exception: nono!\"}", Strings.toString(ex));
+        assertEquals(
+            "{\"type\":\"illegal_argument_exception\",\"reason\":\"illegal_argument_exception: nono!\"}",
+            Strings.toString(XContentType.JSON, ex)
+        );
 
         class UnknownException extends Exception {
             UnknownException(final String message) {
@@ -869,6 +882,8 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
         ids.put(166, SnapshotInUseDeletionException.class);
         ids.put(167, UnsupportedWeightedRoutingStateException.class);
         ids.put(168, PreferenceBasedSearchNotAllowedException.class);
+        ids.put(169, NodeWeighedAwayException.class);
+        ids.put(170, SearchPipelineProcessingException.class);
         ids.put(10001, IndexCreateBlockException.class);
 
         Map<Class<? extends OpenSearchException>, Integer> reverse = new HashMap<>();
@@ -880,6 +895,10 @@ public class ExceptionSerializationTests extends OpenSearchTestCase {
 
         for (final Tuple<Integer, Class<? extends OpenSearchException>> tuple : OpenSearchException.classes()) {
             assertNotNull(tuple.v1());
+            assertNotNull(
+                tuple.v2().getName() + " not found in ExceptionSerializationTests.testIds. Please add it.",
+                reverse.get(tuple.v2())
+            );
             assertEquals((int) reverse.get(tuple.v2()), (int) tuple.v1());
         }
 

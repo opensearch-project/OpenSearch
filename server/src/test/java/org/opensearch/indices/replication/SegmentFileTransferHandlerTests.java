@@ -16,7 +16,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.util.CancellableThreads;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.Store;
@@ -245,16 +245,13 @@ public class SegmentFileTransferHandlerTests extends IndexShardTestCase {
         );
 
         doNothing().when(shard).failShard(anyString(), any());
-        assertThrows(
-            CorruptIndexException.class,
-            () -> {
-                handler.handleErrorOnSendFiles(
-                    shard.store(),
-                    new CorruptIndexException("test", "test"),
-                    new StoreFileMetadata[] { SEGMENTS_FILE }
-                );
-            }
-        );
+        assertThrows(CorruptIndexException.class, () -> {
+            handler.handleErrorOnSendFiles(
+                shard.store(),
+                new CorruptIndexException("test", "test"),
+                new StoreFileMetadata[] { SEGMENTS_FILE }
+            );
+        });
 
         verify(shard, times(1)).failShard(any(), any());
     }

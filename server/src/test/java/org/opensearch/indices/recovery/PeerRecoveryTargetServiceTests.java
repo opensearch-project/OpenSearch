@@ -48,7 +48,7 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.NoOpEngine;
 import org.opensearch.index.mapper.SourceToParse;
@@ -148,7 +148,9 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
                             r.content(),
                             r.lastChunk(),
                             r.totalTranslogOps(),
-                            ActionListener.wrap(ignored -> {}, e -> { throw new AssertionError(e); })
+                            ActionListener.wrap(ignored -> {}, e -> {
+                                throw new AssertionError(e);
+                            })
                         );
                     }
                 } catch (Exception e) {

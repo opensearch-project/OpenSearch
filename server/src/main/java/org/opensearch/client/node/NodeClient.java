@@ -34,6 +34,7 @@ package org.opensearch.client.node;
 
 import org.opensearch.action.ActionType;
 import org.opensearch.action.ActionListener;
+import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.TransportAction;
@@ -47,7 +48,6 @@ import org.opensearch.tasks.TaskListener;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterService;
 
-import java.util.Map;
 import java.util.function.Supplier;
 
 /**
@@ -57,7 +57,7 @@ import java.util.function.Supplier;
  */
 public class NodeClient extends AbstractClient {
 
-    private Map<ActionType, TransportAction> actions;
+    private DynamicActionRegistry actionRegistry;
     /**
      * The id of the local {@link DiscoveryNode}. Useful for generating task ids from tasks returned by
      * {@link #executeLocally(ActionType, ActionRequest, TaskListener)}.
@@ -71,12 +71,12 @@ public class NodeClient extends AbstractClient {
     }
 
     public void initialize(
-        Map<ActionType, TransportAction> actions,
+        DynamicActionRegistry actionRegistry,
         Supplier<String> localNodeId,
         RemoteClusterService remoteClusterService,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
-        this.actions = actions;
+        this.actionRegistry = actionRegistry;
         this.localNodeId = localNodeId;
         this.remoteClusterService = remoteClusterService;
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -137,10 +137,10 @@ public class NodeClient extends AbstractClient {
     private <Request extends ActionRequest, Response extends ActionResponse> TransportAction<Request, Response> transportAction(
         ActionType<Response> action
     ) {
-        if (actions == null) {
+        if (actionRegistry == null) {
             throw new IllegalStateException("NodeClient has not been initialized");
         }
-        TransportAction<Request, Response> transportAction = actions.get(action);
+        TransportAction<Request, Response> transportAction = (TransportAction<Request, Response>) actionRegistry.get(action);
         if (transportAction == null) {
             throw new IllegalStateException("failed to find action [" + action + "] to execute");
         }

@@ -42,7 +42,7 @@ import com.carrotsearch.randomizedtesting.annotations.Timeout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.CheckedConsumer;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.packaging.util.Archives;
 import org.opensearch.packaging.util.Distribution;
 import org.opensearch.packaging.util.Docker;

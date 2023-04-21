@@ -44,8 +44,8 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -155,7 +155,9 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
             xContentRegistry(),
             similarityService,
             mapperRegistry,
-            () -> { throw new UnsupportedOperationException(); },
+            () -> {
+                throw new UnsupportedOperationException();
+            },
             () -> true,
             scriptService
         );
@@ -249,9 +251,9 @@ public abstract class MapperServiceTestCase extends OpenSearchTestCase {
             inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
         );
         when(queryShardContext.allowExpensiveQueries()).thenReturn(true);
-        when(queryShardContext.lookup()).thenReturn(
-            new SearchLookup(mapperService, (ft, s) -> { throw new UnsupportedOperationException("search lookup not available"); })
-        );
+        when(queryShardContext.lookup()).thenReturn(new SearchLookup(mapperService, (ft, s) -> {
+            throw new UnsupportedOperationException("search lookup not available");
+        }));
         return queryShardContext;
     }
 }

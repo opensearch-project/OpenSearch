@@ -48,7 +48,7 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.ReleasableLock;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.Engine;
@@ -2016,11 +2016,15 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
             EMPTY_TRANSLOG_BUFFER_SIZE,
             minTranslogGeneration,
             initialGlobalCheckpoint,
-            () -> { throw new UnsupportedOperationException(); },
+            () -> {
+                throw new UnsupportedOperationException();
+            },
             () -> { throw new UnsupportedOperationException(); },
             primaryTerm,
             new TragicExceptionHolder(),
-            seqNo -> { throw new UnsupportedOperationException(); },
+            seqNo -> {
+                throw new UnsupportedOperationException();
+            },
             BigArrays.NON_RECYCLING_INSTANCE
         );
         writer.close();

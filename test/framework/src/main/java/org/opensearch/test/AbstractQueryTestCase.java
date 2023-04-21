@@ -50,15 +50,15 @@ import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable.Reader;
 import org.opensearch.common.unit.Fuzziness;
-import org.opensearch.common.xcontent.DeprecationHandler;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.DeprecationHandler;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentGenerator;
+import org.opensearch.core.xcontent.XContentGenerator;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParseException;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParseException;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.query.AbstractQueryBuilder;
@@ -634,7 +634,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
             QB testQuery = createTestQueryBuilder();
             XContentType xContentType = XContentType.JSON;
-            String toString = Strings.toString(testQuery);
+            String toString = Strings.toString(XContentType.JSON, testQuery);
             assertParsedQuery(createParser(xContentType.xContent(), toString), testQuery);
             BytesReference bytes = XContentHelper.toXContent(testQuery, xContentType, false);
             assertParsedQuery(createParser(xContentType.xContent(), bytes), testQuery);
@@ -732,7 +732,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 .getPreferredName();
         } else {
             rewrite = randomFrom(QueryParsers.TOP_TERMS, QueryParsers.TOP_TERMS_BOOST, QueryParsers.TOP_TERMS_BLENDED_FREQS)
-                .getPreferredName() + "1";
+                .getPreferredName()
+                + "1";
         }
         return rewrite;
     }

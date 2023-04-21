@@ -39,7 +39,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.TextFieldMapper;
@@ -645,7 +645,9 @@ public final class AnalysisRegistry implements Closeable {
                     charFilterFactoryFactories,
                     tokenizerFactoryFactories
                 ),
-                (k, v) -> { throw new IllegalStateException("already registered analyzer with name: " + entry.getKey()); }
+                (k, v) -> {
+                    throw new IllegalStateException("already registered analyzer with name: " + entry.getKey());
+                }
             );
         }
         for (Map.Entry<String, AnalyzerProvider<?>> entry : normalizerProviders.entrySet()) {

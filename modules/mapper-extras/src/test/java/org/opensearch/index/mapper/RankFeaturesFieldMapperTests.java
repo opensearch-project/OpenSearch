@@ -35,13 +35,14 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.common.Strings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.Plugin;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 
 public class RankFeaturesFieldMapperTests extends MapperTestCase {
 
@@ -58,7 +59,7 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return org.opensearch.common.collect.List.of(new MapperExtrasModulePlugin());
+        return List.of(new MapperExtrasModulePlugin());
     }
 
     @Override

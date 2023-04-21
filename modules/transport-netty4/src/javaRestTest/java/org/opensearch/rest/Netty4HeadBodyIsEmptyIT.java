@@ -35,7 +35,7 @@ package org.opensearch.rest;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.common.Strings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.hamcrest.Matcher;
 

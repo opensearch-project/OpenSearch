@@ -39,7 +39,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.plugins.Plugin;
@@ -99,11 +99,9 @@ public class TemplateUpgradeServiceIT extends OpenSearchIntegTestCase {
             IndexNameExpressionResolver expressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier
         ) {
-            clusterService.getClusterSettings()
-                .addSettingsUpdateConsumer(
-                    UPDATE_TEMPLATE_DUMMY_SETTING,
-                    integer -> { logger.debug("the template dummy setting was updated to {}", integer); }
-                );
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(UPDATE_TEMPLATE_DUMMY_SETTING, integer -> {
+                logger.debug("the template dummy setting was updated to {}", integer);
+            });
             return super.createComponents(
                 client,
                 clusterService,

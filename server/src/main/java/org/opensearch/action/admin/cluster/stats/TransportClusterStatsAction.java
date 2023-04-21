@@ -145,7 +145,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
     @Override
     protected ClusterStatsNodeResponse nodeOperation(ClusterStatsNodeRequest nodeRequest) {
-        NodeInfo nodeInfo = nodeService.info(true, true, false, true, false, true, false, true, false, false, false);
+        NodeInfo nodeInfo = nodeService.info(true, true, false, true, false, true, false, true, false, false, false, false);
         NodeStats nodeStats = nodeService.stats(
             CommonStatsFlags.NONE,
             true,
@@ -159,6 +159,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             false,
             false,
             true,
+            false,
+            false,
             false,
             false,
             false,

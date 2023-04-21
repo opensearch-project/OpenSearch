@@ -45,7 +45,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Strings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.CharFilterFactory;
@@ -134,7 +134,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
         return new IndexAnalyzers(
             singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-            org.opensearch.common.collect.Map.of(
+            Map.of(
                 "lowercase",
                 new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()),
                 "other_lowercase",
@@ -173,7 +173,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void assertParseMaximalWarnings() {
-        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
+        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 3.0");
     }
 
     protected void registerParameters(ParameterChecker checker) throws IOException {
@@ -309,7 +309,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     public void testBoost() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword").field("boost", 2f)));
         assertThat(mapperService.fieldType("field").boost(), equalTo(2f));
-        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 8.0");
+        assertWarnings("Parameter [boost] on field [field] is deprecated and will be removed in 3.0");
     }
 
     public void testEnableNorms() throws IOException {

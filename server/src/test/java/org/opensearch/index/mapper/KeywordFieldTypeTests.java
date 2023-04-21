@@ -43,6 +43,7 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.search.TermInSetQuery;
@@ -72,6 +73,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
@@ -171,7 +173,10 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     public void testRegexpQuery() {
         MappedFieldType ft = new KeywordFieldType("field");
-        assertEquals(new RegexpQuery(new Term("field", "foo.*")), ft.regexpQuery("foo.*", 0, 0, 10, null, MOCK_QSC));
+        assertEquals(
+            new RegexpQuery(new Term("field", "foo.*")),
+            ft.regexpQuery("foo.*", 0, 0, 10, MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, MOCK_QSC)
+        );
 
         MappedFieldType unsearchable = new KeywordFieldType("field", false, true, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(
@@ -245,18 +250,12 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     private static IndexAnalyzers createIndexAnalyzers() {
         return new IndexAnalyzers(
-            org.opensearch.common.collect.Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-            org.opensearch.common.collect.Map.ofEntries(
-                org.opensearch.common.collect.Map.entry(
-                    "lowercase",
-                    new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())
-                ),
-                org.opensearch.common.collect.Map.entry(
-                    "other_lowercase",
-                    new NamedAnalyzer("other_lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())
-                )
+            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
+            Map.ofEntries(
+                Map.entry("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),
+                Map.entry("other_lowercase", new NamedAnalyzer("other_lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()))
             ),
-            org.opensearch.common.collect.Map.of(
+            Map.of(
                 "lowercase",
                 new NamedAnalyzer(
                     "lowercase",

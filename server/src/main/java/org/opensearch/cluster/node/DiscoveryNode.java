@@ -40,8 +40,8 @@ import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.common.xcontent.ToXContentFragment;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.Node;
 
 import java.io.IOException;
@@ -119,6 +119,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     public static boolean isRemoteClusterClient(final Settings settings) {
         return hasRole(settings, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
+    }
+
+    public static boolean isSearchNode(Settings settings) {
+        return hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
     }
 
     private final String nodeName;
@@ -281,10 +285,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             validateLegacySettings(settings, roleMap);
             return Collections.unmodifiableSet(new HashSet<>(NODE_ROLES_SETTING.get(settings)));
         } else {
-            return roleMap.values()
-                .stream()
-                .filter(s -> s.legacySetting() != null && s.legacySetting().get(settings))
-                .collect(Collectors.toSet());
+            return roleMap.values().stream().filter(s -> s.isEnabledByDefault(settings)).collect(Collectors.toSet());
         }
     }
 

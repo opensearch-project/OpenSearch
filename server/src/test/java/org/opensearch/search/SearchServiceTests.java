@@ -59,9 +59,10 @@ import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
@@ -740,13 +741,9 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
     public static class FailOnRewriteQueryPlugin extends Plugin implements SearchPlugin {
         @Override
         public List<QuerySpec<?>> getQueries() {
-            return singletonList(
-                new QuerySpec<>(
-                    "fail_on_rewrite_query",
-                    FailOnRewriteQueryBuilder::new,
-                    parseContext -> { throw new UnsupportedOperationException("No query parser for this plugin"); }
-                )
-            );
+            return singletonList(new QuerySpec<>("fail_on_rewrite_query", FailOnRewriteQueryBuilder::new, parseContext -> {
+                throw new UnsupportedOperationException("No query parser for this plugin");
+            }));
         }
     }
 
@@ -1071,15 +1068,15 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
             )
         ).actionGet();
 
-        IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
+        SettingsException se = expectThrows(
+            SettingsException.class,
             () -> client().admin()
                 .indices()
                 .prepareUpdateSettings("throttled_threadpool_index")
                 .setSettings(Settings.builder().put(IndexSettings.INDEX_SEARCH_THROTTLED.getKey(), false))
                 .get()
         );
-        assertEquals("can not update private setting [index.search.throttled]; this setting is managed by OpenSearch", iae.getMessage());
+        assertEquals("can not update private setting [index.search.throttled]; this setting is managed by OpenSearch", se.getMessage());
         assertFalse(service.getIndicesService().indexServiceSafe(index).getIndexSettings().isSearchThrottled());
         SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false);
         ShardSearchRequest req = new ShardSearchRequest(

@@ -50,8 +50,8 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ObjectPath;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ObjectPath;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MetadataFieldMapper;
 import org.opensearch.rest.RestStatus;
@@ -99,7 +99,9 @@ public class MetadataCreateDataStreamService {
                     new String[] { firstBackingIndexName },
                     ActiveShardCount.DEFAULT,
                     request.masterNodeTimeout(),
-                    shardsAcked -> { finalListener.onResponse(new AcknowledgedResponse(true)); },
+                    shardsAcked -> {
+                        finalListener.onResponse(new AcknowledgedResponse(true));
+                    },
                     finalListener::onFailure
                 );
             } else {

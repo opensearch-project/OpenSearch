@@ -34,7 +34,6 @@ package org.opensearch.indices.recovery;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -72,6 +71,7 @@ import org.opensearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAll
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.Strings;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.breaker.CircuitBreakingException;
@@ -80,7 +80,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.gateway.ReplicaShardAllocatorIT;
 import org.opensearch.index.Index;
@@ -1589,7 +1589,10 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
                         .getShard(0)
                         .getRetentionLeases();
                     throw new AssertionError(
-                        "expect an operation-based recovery:" + "retention leases" + Strings.toString(retentionLeases) + "]"
+                        "expect an operation-based recovery:"
+                            + "retention leases"
+                            + Strings.toString(XContentType.JSON, retentionLeases)
+                            + "]"
                     );
                 }
                 connection.sendRequest(requestId, action, request, options);

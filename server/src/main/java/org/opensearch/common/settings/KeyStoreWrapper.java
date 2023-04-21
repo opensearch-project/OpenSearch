@@ -40,10 +40,10 @@ import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.NIOFSDirectory;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.UserException;
 import org.opensearch.common.Randomness;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.hash.MessageDigests;
 
 import javax.crypto.AEADBadTagException;

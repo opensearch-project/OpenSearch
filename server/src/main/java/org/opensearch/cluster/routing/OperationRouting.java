@@ -93,16 +93,30 @@ public class OperationRouting {
 
     public static final Setting<Boolean> STRICT_WEIGHTED_SHARD_ROUTING_ENABLED = Setting.boolSetting(
         "cluster.routing.weighted.strict",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Boolean> IGNORE_WEIGHTED_SHARD_ROUTING = Setting.boolSetting(
+        "cluster.routing.ignore_weighted_routing",
         false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+    private static final List<Preference> WEIGHTED_ROUTING_RESTRICTED_PREFERENCES = Arrays.asList(
+        Preference.ONLY_NODES,
+        Preference.PREFER_NODES
+    );
+
     private volatile List<String> awarenessAttributes;
     private volatile boolean useAdaptiveReplicaSelection;
     private volatile boolean ignoreAwarenessAttr;
     private volatile double weightedRoutingDefaultWeight;
     private volatile boolean isFailOpenEnabled;
     private volatile boolean isStrictWeightedShardRouting;
+    private volatile boolean ignoreWeightedRouting;
 
     public OperationRouting(Settings settings, ClusterSettings clusterSettings) {
         // whether to ignore awareness attributes when routing requests
@@ -116,11 +130,13 @@ public class OperationRouting {
         this.weightedRoutingDefaultWeight = WEIGHTED_ROUTING_DEFAULT_WEIGHT.get(settings);
         this.isFailOpenEnabled = WEIGHTED_ROUTING_FAILOPEN_ENABLED.get(settings);
         this.isStrictWeightedShardRouting = STRICT_WEIGHTED_SHARD_ROUTING_ENABLED.get(settings);
+        this.ignoreWeightedRouting = IGNORE_WEIGHTED_SHARD_ROUTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(USE_ADAPTIVE_REPLICA_SELECTION_SETTING, this::setUseAdaptiveReplicaSelection);
         clusterSettings.addSettingsUpdateConsumer(IGNORE_AWARENESS_ATTRIBUTES_SETTING, this::setIgnoreAwarenessAttributes);
         clusterSettings.addSettingsUpdateConsumer(WEIGHTED_ROUTING_DEFAULT_WEIGHT, this::setWeightedRoutingDefaultWeight);
         clusterSettings.addSettingsUpdateConsumer(WEIGHTED_ROUTING_FAILOPEN_ENABLED, this::setFailOpenEnabled);
         clusterSettings.addSettingsUpdateConsumer(STRICT_WEIGHTED_SHARD_ROUTING_ENABLED, this::setStrictWeightedShardRouting);
+        clusterSettings.addSettingsUpdateConsumer(IGNORE_WEIGHTED_SHARD_ROUTING, this::setIgnoreWeightedRouting);
     }
 
     void setUseAdaptiveReplicaSelection(boolean useAdaptiveReplicaSelection) {
@@ -141,6 +157,10 @@ public class OperationRouting {
 
     void setStrictWeightedShardRouting(boolean strictWeightedShardRouting) {
         this.isStrictWeightedShardRouting = strictWeightedShardRouting;
+    }
+
+    void setIgnoreWeightedRouting(boolean isWeightedRoundRobinEnabled) {
+        this.ignoreWeightedRouting = isWeightedRoundRobinEnabled;
     }
 
     public boolean isIgnoreAwarenessAttr() {
@@ -281,11 +301,7 @@ public class OperationRouting {
         if (preference == null || preference.isEmpty()) {
             return shardRoutings(indexShard, nodes, collectorService, nodeCounts, weightedRoutingMetadata);
         }
-        if (weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting().isSet() && isStrictWeightedShardRouting) {
-            throw new PreferenceBasedSearchNotAllowedException(
-                "Preference based routing not allowed with strict weighted shard routing setting"
-            );
-        }
+
         if (preference.charAt(0) == '_') {
             Preference preferenceType = Preference.parse(preference);
             if (preferenceType == Preference.SHARDS) {
@@ -318,6 +334,7 @@ public class OperationRouting {
                 }
             }
             preferenceType = Preference.parse(preference);
+            checkPreferenceBasedRoutingAllowed(preferenceType, weightedRoutingMetadata);
             switch (preferenceType) {
                 case PREFER_NODES:
                     final Set<String> nodesIds = Arrays.stream(preference.substring(Preference.PREFER_NODES.type().length() + 1).split(","))
@@ -343,7 +360,19 @@ public class OperationRouting {
         // for a different element in the list by also incorporating the
         // shard ID into the hash of the user-supplied preference key.
         routingHash = 31 * routingHash + indexShard.shardId.hashCode();
-        if (ignoreAwarenessAttributes()) {
+        if (WeightedRoutingUtils.shouldPerformStrictWeightedRouting(
+            isStrictWeightedShardRouting,
+            ignoreWeightedRouting,
+            weightedRoutingMetadata
+        )) {
+            return indexShard.activeInitializingShardsWeightedIt(
+                weightedRoutingMetadata.getWeightedRouting(),
+                nodes,
+                getWeightedRoutingDefaultWeight(),
+                isFailOpenEnabled,
+                routingHash
+            );
+        } else if (ignoreAwarenessAttributes()) {
             return indexShard.activeInitializingShardsIt(routingHash);
         } else {
             return indexShard.preferAttributesActiveInitializingShardsIt(awarenessAttributes, nodes, routingHash);
@@ -357,12 +386,13 @@ public class OperationRouting {
         @Nullable Map<String, Long> nodeCounts,
         @Nullable WeightedRoutingMetadata weightedRoutingMetadata
     ) {
-        if (weightedRoutingMetadata != null && weightedRoutingMetadata.getWeightedRouting().isSet()) {
+        if (WeightedRoutingUtils.shouldPerformWeightedRouting(ignoreWeightedRouting, weightedRoutingMetadata)) {
             return indexShard.activeInitializingShardsWeightedIt(
                 weightedRoutingMetadata.getWeightedRouting(),
                 nodes,
                 getWeightedRoutingDefaultWeight(),
-                isFailOpenEnabled
+                isFailOpenEnabled,
+                null
             );
         } else if (ignoreAwarenessAttributes()) {
             if (useAdaptiveReplicaSelection) {
@@ -430,4 +460,15 @@ public class OperationRouting {
         return Math.floorMod(hash, indexMetadata.getRoutingNumShards()) / indexMetadata.getRoutingFactor();
     }
 
+    private void checkPreferenceBasedRoutingAllowed(Preference preference, @Nullable WeightedRoutingMetadata weightedRoutingMetadata) {
+        if (WeightedRoutingUtils.shouldPerformStrictWeightedRouting(
+            isStrictWeightedShardRouting,
+            ignoreWeightedRouting,
+            weightedRoutingMetadata
+        ) && WEIGHTED_ROUTING_RESTRICTED_PREFERENCES.contains(preference)) {
+            throw new PreferenceBasedSearchNotAllowedException(
+                "Preference type based routing not allowed with strict weighted shard routing enabled"
+            );
+        }
+    }
 }

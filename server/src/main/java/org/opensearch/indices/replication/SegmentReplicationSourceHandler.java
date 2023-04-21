@@ -19,10 +19,9 @@ import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.common.util.concurrent.ListenableFuture;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.StoreFileMetadata;
-import org.opensearch.indices.RunUnderPrimaryPermit;
 import org.opensearch.indices.recovery.DelayRecoveryException;
 import org.opensearch.indices.recovery.FileChunkWriter;
 import org.opensearch.indices.recovery.MultiChunkTransfer;
@@ -137,24 +136,13 @@ class SegmentReplicationSourceHandler {
                     timer.time()
                 );
             };
-
-            RunUnderPrimaryPermit.run(() -> {
-                final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
-                ShardRouting targetShardRouting = routingTable.getByAllocationId(request.getTargetAllocationId());
-                if (targetShardRouting == null) {
-                    logger.debug(
-                        "delaying replication of {} as it is not listed as assigned to target node {}",
-                        shard.shardId(),
-                        targetNode
-                    );
-                    throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
-                }
-            },
-                shard.shardId() + " validating recovery target [" + request.getTargetAllocationId() + "] registered ",
-                shard,
-                cancellableThreads,
-                logger
-            );
+            cancellableThreads.checkForCancel();
+            final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
+            ShardRouting targetShardRouting = routingTable.getByAllocationId(request.getTargetAllocationId());
+            if (targetShardRouting == null) {
+                logger.debug("delaying replication of {} as it is not listed as assigned to target node {}", shard.shardId(), targetNode);
+                throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
+            }
 
             final StepListener<Void> sendFileStep = new StepListener<>();
             Set<String> storeFiles = new HashSet<>(Arrays.asList(shard.store().directory().listAll()));
@@ -171,6 +159,7 @@ class SegmentReplicationSourceHandler {
 
             sendFileStep.whenComplete(r -> {
                 try {
+                    shard.updateVisibleCheckpointForShard(allocationId, copyState.getCheckpoint());
                     future.onResponse(new GetSegmentFilesResponse(List.of(storeFileMetadata)));
                 } finally {
                     IOUtils.close(resources);

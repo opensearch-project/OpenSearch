@@ -64,11 +64,12 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressureService;
+import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.VersionConflictEngineException;
@@ -1070,6 +1071,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(UpdateHelper.class),
             mock(ActionFilters.class),
             mock(IndexingPressureService.class),
+            mock(SegmentReplicationPressureService.class),
             mock(SystemIndices.class)
         );
         action.handlePrimaryTermValidationRequest(
@@ -1099,6 +1101,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(UpdateHelper.class),
             mock(ActionFilters.class),
             mock(IndexingPressureService.class),
+            mock(SegmentReplicationPressureService.class),
             mock(SystemIndices.class)
         );
         action.handlePrimaryTermValidationRequest(
@@ -1128,6 +1131,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(UpdateHelper.class),
             mock(ActionFilters.class),
             mock(IndexingPressureService.class),
+            mock(SegmentReplicationPressureService.class),
             mock(SystemIndices.class)
         );
         action.handlePrimaryTermValidationRequest(
@@ -1168,6 +1172,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             mock(UpdateHelper.class),
             mock(ActionFilters.class),
             mock(IndexingPressureService.class),
+            mock(SegmentReplicationPressureService.class),
             mock(SystemIndices.class)
         );
     }

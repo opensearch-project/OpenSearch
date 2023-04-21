@@ -8,11 +8,11 @@
 
 package org.opensearch.search.pit;
 
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.search.DeletePitRequest;
 import org.opensearch.action.search.DeletePitResponse;
 import org.opensearch.client.node.NodeClient;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.RestRequest;

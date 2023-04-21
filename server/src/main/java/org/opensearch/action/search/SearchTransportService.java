@@ -508,7 +508,9 @@ public class SearchTransportService {
             FREE_PIT_CONTEXT_ACTION_NAME,
             ThreadPool.Names.SAME,
             PitFreeContextsRequest::new,
-            (request, channel, task) -> { channel.sendResponse(searchService.freeReaderContextsIfFound(request.getContextIds())); }
+            (request, channel, task) -> {
+                channel.sendResponse(searchService.freeReaderContextsIfFound(request.getContextIds()));
+            }
         );
         TransportActionProxy.registerProxyAction(transportService, FREE_PIT_CONTEXT_ACTION_NAME, DeletePitResponse::new);
 

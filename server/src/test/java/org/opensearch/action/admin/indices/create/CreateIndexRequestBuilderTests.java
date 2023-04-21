@@ -34,7 +34,7 @@ package org.opensearch.action.admin.indices.create;
 
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.test.OpenSearchTestCase;
@@ -74,10 +74,9 @@ public class CreateIndexRequestBuilderTests extends OpenSearchTestCase {
     public void testSetSource() throws IOException {
         CreateIndexRequestBuilder builder = new CreateIndexRequestBuilder(this.testClient, CreateIndexAction.INSTANCE);
 
-        OpenSearchParseException e = expectThrows(
-            OpenSearchParseException.class,
-            () -> { builder.setSource("{\"" + KEY + "\" : \"" + VALUE + "\"}", XContentType.JSON); }
-        );
+        OpenSearchParseException e = expectThrows(OpenSearchParseException.class, () -> {
+            builder.setSource("{\"" + KEY + "\" : \"" + VALUE + "\"}", XContentType.JSON);
+        });
         assertEquals(String.format(Locale.ROOT, "unknown key [%s] for create index", KEY), e.getMessage());
 
         builder.setSource("{\"settings\" : {\"" + KEY + "\" : \"" + VALUE + "\"}}", XContentType.JSON);

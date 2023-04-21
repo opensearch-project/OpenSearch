@@ -82,11 +82,12 @@ import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.opensearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.opensearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
+import org.opensearch.index.fielddata.fieldcomparator.IntValuesComparatorSource;
 import org.opensearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.test.OpenSearchTestCase;
@@ -329,8 +330,6 @@ public class LuceneTests extends OpenSearchTestCase {
     /**
      * Tests whether old segments are readable and queryable based on the data documented
      * in the README <a href="file:../../../../../resources/indices/bwc/es-6.3.0/README.md">here</a>.
-     *
-     * @throws IOException
      */
     public void testReadSegmentInfosExtendedCompatibility() throws IOException {
         final String pathToTestIndex = "/indices/bwc/es-6.3.0/testIndex-es-6.3.0.zip";
@@ -755,7 +754,7 @@ public class LuceneTests extends OpenSearchTestCase {
         IndexFieldData.XFieldComparatorSource comparatorSource;
         boolean reverse = randomBoolean();
         Object missingValue = null;
-        switch (randomIntBetween(0, 3)) {
+        switch (randomIntBetween(0, 4)) {
             case 0:
                 comparatorSource = new LongValuesComparatorSource(
                     null,
@@ -784,6 +783,15 @@ public class LuceneTests extends OpenSearchTestCase {
                 comparatorSource = new BytesRefFieldComparatorSource(
                     null,
                     randomBoolean() ? "_first" : "_last",
+                    randomFrom(MultiValueMode.values()),
+                    null
+                );
+                missingValue = comparatorSource.missingValue(reverse);
+                break;
+            case 4:
+                comparatorSource = new IntValuesComparatorSource(
+                    null,
+                    randomBoolean() ? randomInt() : null,
                     randomFrom(MultiValueMode.values()),
                     null
                 );

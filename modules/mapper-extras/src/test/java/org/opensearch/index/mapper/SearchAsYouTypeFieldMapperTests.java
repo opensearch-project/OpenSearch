@@ -52,7 +52,8 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
 import org.opensearch.common.Strings;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;
 import org.opensearch.index.analysis.IndexAnalyzers;
@@ -75,6 +76,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -133,7 +135,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return org.opensearch.common.collect.List.of(new MapperExtrasModulePlugin());
+        return List.of(new MapperExtrasModulePlugin());
     }
 
     @Override
@@ -149,20 +151,9 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         NamedAnalyzer simple = new NamedAnalyzer("simple", AnalyzerScope.INDEX, new SimpleAnalyzer());
         NamedAnalyzer whitespace = new NamedAnalyzer("whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer());
         return new IndexAnalyzers(
-            org.opensearch.common.collect.Map.of(
-                "default",
-                dflt,
-                "standard",
-                standard,
-                "keyword",
-                keyword,
-                "simple",
-                simple,
-                "whitespace",
-                whitespace
-            ),
-            org.opensearch.common.collect.Map.of(),
-            org.opensearch.common.collect.Map.of()
+            Map.of("default", dflt, "standard", standard, "keyword", keyword, "simple", simple, "whitespace", whitespace),
+            Map.of(),
+            Map.of()
         );
     }
 
@@ -609,7 +600,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
             b.field("type", "search_as_you_type");
             b.field("analyzer", "simple");
         }));
-        String serialized = Strings.toString(ms.documentMapper());
+        String serialized = Strings.toString(XContentType.JSON, ms.documentMapper());
         assertEquals(
             serialized,
             "{\"_doc\":{\"properties\":{\"field\":"
@@ -617,7 +608,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         );
 
         merge(ms, mapping(b -> {}));
-        assertEquals(serialized, Strings.toString(ms.documentMapper()));
+        assertEquals(serialized, Strings.toString(XContentType.JSON, ms.documentMapper()));
     }
 
     private void documentParsingTestCase(Collection<String> values) throws IOException {

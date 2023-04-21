@@ -52,7 +52,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.Settings.Builder;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.discovery.DiscoveryModule;
 import org.opensearch.gateway.GatewayService;
 import org.opensearch.monitor.StatusInfo;
@@ -1232,11 +1232,9 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     nodes.stream().map(ClusterNode::getLocalNode).map(DiscoveryNode::getId).collect(Collectors.toSet())
                 ) == false,
                 () -> randomSubsetOf(cluster.clusterNodes)
-            ).forEach(
-                cn -> cn.extraJoinValidators.add(
-                    (discoveryNode, clusterState) -> { throw new IllegalArgumentException("join validation failed"); }
-                )
-            );
+            ).forEach(cn -> cn.extraJoinValidators.add((discoveryNode, clusterState) -> {
+                throw new IllegalArgumentException("join validation failed");
+            }));
             cluster.bootstrapIfNecessary();
             cluster.runFor(10000, "failing join validation");
             assertTrue(cluster.clusterNodes.stream().allMatch(cn -> cn.getLastAppliedClusterState().version() == 0));

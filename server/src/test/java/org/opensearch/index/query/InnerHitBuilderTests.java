@@ -35,11 +35,11 @@ import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.xcontent.NamedXContentRegistry;
-import org.opensearch.common.xcontent.ToXContent;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
@@ -237,12 +237,9 @@ public class InnerHitBuilderTests extends OpenSearchTestCase {
         });
         modifiers.add(() -> {
             if (randomBoolean()) {
-                copy.setScriptFields(
-                    randomValueOtherThan(
-                        copy.getScriptFields(),
-                        () -> { return new HashSet<>(randomListStuff(16, InnerHitBuilderTests::randomScript)); }
-                    )
-                );
+                copy.setScriptFields(randomValueOtherThan(copy.getScriptFields(), () -> {
+                    return new HashSet<>(randomListStuff(16, InnerHitBuilderTests::randomScript));
+                }));
             } else {
                 SearchSourceBuilder.ScriptField script = randomScript();
                 copy.addScriptField(script.fieldName(), script.script());

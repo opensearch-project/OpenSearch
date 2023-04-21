@@ -323,7 +323,7 @@ public class ValuesSourceConfig {
         if (!valid()) {
             // TODO: resolve no longer generates invalid configs. Once VSConfig is immutable, we can drop this check
             throw new IllegalStateException(
-                "value source config is invalid; must have either a field context or a script or marked as unwrapped"
+                "value source config is invalid; must have either a field context or a script or marked as unmapped"
             );
         }
         valuesSource = ConstructValuesSource(missing, format, nowSupplier);

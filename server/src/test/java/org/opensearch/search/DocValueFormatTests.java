@@ -76,6 +76,7 @@ public class DocValueFormatTests extends OpenSearchTestCase {
         DocValueFormat vf = in.readNamedWriteable(DocValueFormat.class);
         assertEquals(DocValueFormat.Decimal.class, vf.getClass());
         assertEquals("###.##", ((DocValueFormat.Decimal) vf).pattern);
+        assertEquals(decimalFormat, vf);
 
         DateFormatter formatter = DateFormatter.forPattern("epoch_second");
         DocValueFormat.DateTime dateFormat = new DocValueFormat.DateTime(formatter, ZoneOffset.ofHours(1), Resolution.MILLISECONDS);
@@ -87,6 +88,7 @@ public class DocValueFormatTests extends OpenSearchTestCase {
         assertEquals("epoch_second", ((DocValueFormat.DateTime) vf).formatter.pattern());
         assertEquals(ZoneOffset.ofHours(1), ((DocValueFormat.DateTime) vf).timeZone);
         assertEquals(Resolution.MILLISECONDS, ((DocValueFormat.DateTime) vf).resolution);
+        assertEquals(dateFormat, vf);
 
         DocValueFormat.DateTime nanosDateFormat = new DocValueFormat.DateTime(formatter, ZoneOffset.ofHours(1), Resolution.NANOSECONDS);
         out = new BytesStreamOutput();
@@ -97,6 +99,7 @@ public class DocValueFormatTests extends OpenSearchTestCase {
         assertEquals("epoch_second", ((DocValueFormat.DateTime) vf).formatter.pattern());
         assertEquals(ZoneOffset.ofHours(1), ((DocValueFormat.DateTime) vf).timeZone);
         assertEquals(Resolution.NANOSECONDS, ((DocValueFormat.DateTime) vf).resolution);
+        assertEquals(nanosDateFormat, vf);
 
         out = new BytesStreamOutput();
         out.writeNamedWriteable(DocValueFormat.GEOHASH);
@@ -229,5 +232,24 @@ public class DocValueFormatTests extends OpenSearchTestCase {
         assertEquals(859802.354d, parser.parseDouble("859,802.354", true, null), 0.0d);
         assertEquals(0.859d, parser.parseDouble("0.859", true, null), 0.0d);
         assertEquals(0.8598023539251286d, parser.parseDouble("0.8598023539251286", true, null), 0.0d);
+    }
+
+    public void testLongParse() {
+        assertEquals(DocValueFormat.RAW.format(0), 0L);
+        assertEquals(DocValueFormat.RAW.format(-1), -1L);
+        assertEquals(DocValueFormat.RAW.format(1), 1L);
+        assertEquals(DocValueFormat.RAW.format(0d), 0d);
+        assertEquals(DocValueFormat.RAW.format(9.5d), 9.5d);
+        assertEquals(DocValueFormat.RAW.format(-1d), -1d);
+    }
+
+    public void testGeoTileParse() {
+        assertEquals(DocValueFormat.GEOTILE.format(longEncode(0, 0, 0)), "0/0/0");
+        assertEquals(DocValueFormat.GEOTILE.format(longEncode(30, 70, 15)), "15/19114/7333");
+        assertEquals(DocValueFormat.GEOTILE.format(longEncode(179.999, 89.999, 29)), "29/536869420/0");
+        assertEquals(DocValueFormat.GEOTILE.format(longEncode(-179.999, -89.999, 29)), "29/1491/536870911");
+        assertEquals(DocValueFormat.GEOTILE.format(longEncode(1, 1, 2)), "2/2/1");
+        assertEquals(DocValueFormat.GEOTILE.format(longEncode(13, 95, 1)), "1/1/0");
+        assertEquals(DocValueFormat.GEOTILE.format(longEncode(13, -95, 1)), "1/1/1");
     }
 }

@@ -63,7 +63,7 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.node.Node;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
@@ -2108,7 +2108,9 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             "internal:action1",
             randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
             TestRequest::new,
-            (request, message, task) -> { throw new AssertionError("boom"); }
+            (request, message, task) -> {
+                throw new AssertionError("boom");
+            }
         );
         expectThrows(
             IllegalArgumentException.class,
@@ -2116,7 +2118,9 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
                 "internal:action1",
                 randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
                 TestRequest::new,
-                (request, message, task) -> { throw new AssertionError("boom"); }
+                (request, message, task) -> {
+                    throw new AssertionError("boom");
+                }
             )
         );
 
@@ -2124,7 +2128,9 @@ public abstract class AbstractSimpleTransportTestCase extends OpenSearchTestCase
             "internal:action1",
             randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC),
             TestRequest::new,
-            (request, message, task) -> { throw new AssertionError("boom"); }
+            (request, message, task) -> {
+                throw new AssertionError("boom");
+            }
         );
     }
 

@@ -38,7 +38,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -168,12 +168,9 @@ public class TransportActionProxyTests extends OpenSearchTestCase {
         });
         TransportActionProxy.registerProxyAction(serviceB, "internal:test", SimpleTestResponse::new);
         serviceB.connectToNode(nodeC);
-        serviceC.registerRequestHandler(
-            "internal:test",
-            ThreadPool.Names.SAME,
-            SimpleTestRequest::new,
-            (request, channel, task) -> { throw new OpenSearchException("greetings from TS_C"); }
-        );
+        serviceC.registerRequestHandler("internal:test", ThreadPool.Names.SAME, SimpleTestRequest::new, (request, channel, task) -> {
+            throw new OpenSearchException("greetings from TS_C");
+        });
         TransportActionProxy.registerProxyAction(serviceC, "internal:test", SimpleTestResponse::new);
 
         CountDownLatch latch = new CountDownLatch(1);

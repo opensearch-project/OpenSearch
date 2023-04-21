@@ -34,8 +34,8 @@ package org.opensearch.action.admin.indices.shrink;
 
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.xcontent.ConstructingObjectParser;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.ConstructingObjectParser;
+import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -66,5 +66,15 @@ public final class ResizeResponse extends CreateIndexResponse {
 
     public static ResizeResponse fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        builder.append(getClass().getSimpleName()).append("[");
+        builder.append("acknowledged=").append(isAcknowledged()).append(',');
+        builder.append("shards_acknowledged=").append(isShardsAcknowledged()).append(',');
+        builder.append("index=").append(index());
+        return builder.append(']').toString();
     }
 }

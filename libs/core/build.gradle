@@ -75,8 +75,12 @@ if (!isEclipse) {
 }
 
 dependencies {
-  // This dependency is used only by :libs:core for null-checking interop with other tools
-  compileOnly "com.google.code.findbugs:jsr305:3.0.2"
+  api project(':libs:opensearch-common')
+
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+
+  // lucene
+  api "org.apache.lucene:lucene-core:${versions.lucene}"
 
   testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   testImplementation "junit:junit:${versions.junit}"
@@ -93,15 +97,7 @@ tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-thirdPartyAudit.ignoreMissingClasses(
-  // from log4j
-  'org/osgi/framework/AdaptPermission',
-  'org/osgi/framework/AdminPermission',
-  'org/osgi/framework/Bundle',
-  'org/osgi/framework/BundleActivator',
-  'org/osgi/framework/BundleContext',
-  'org/osgi/framework/BundleEvent',
-  'org/osgi/framework/SynchronousBundleListener',
-  'org/osgi/framework/wiring/BundleWire',
-  'org/osgi/framework/wiring/BundleWiring'
-)
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /lucene-.*/, to: 'lucene'
+}

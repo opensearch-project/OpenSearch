@@ -48,9 +48,9 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.common.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.common.xcontent.XContentParser;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.index.Index;
 import org.opensearch.plugins.MapperPlugin;
@@ -659,19 +659,16 @@ public class MetadataTests extends OpenSearchTestCase {
             .build();
 
         {
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(Strings.EMPTY_ARRAY, MapperPlugin.NOOP_FIELD_FILTER);
+            final Map<String, MappingMetadata> mappings = metadata.findMappings(Strings.EMPTY_ARRAY, MapperPlugin.NOOP_FIELD_FILTER);
             assertEquals(0, mappings.size());
         }
         {
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
-                new String[] { "index1" },
-                MapperPlugin.NOOP_FIELD_FILTER
-            );
+            final Map<String, MappingMetadata> mappings = metadata.findMappings(new String[] { "index1" }, MapperPlugin.NOOP_FIELD_FILTER);
             assertEquals(1, mappings.size());
             assertIndexMappingsNotFiltered(mappings, "index1");
         }
         {
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            final Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1", "index2" },
                 MapperPlugin.NOOP_FIELD_FILTER
             );
@@ -701,15 +698,12 @@ public class MetadataTests extends OpenSearchTestCase {
             .build();
 
         {
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
-                new String[] { "index1" },
-                MapperPlugin.NOOP_FIELD_FILTER
-            );
+            final Map<String, MappingMetadata> mappings = metadata.findMappings(new String[] { "index1" }, MapperPlugin.NOOP_FIELD_FILTER);
             MappingMetadata mappingMetadata = mappings.get("index1");
             assertSame(originalMappingMetadata, mappingMetadata);
         }
         {
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            final Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1" },
                 index -> field -> randomBoolean()
             );
@@ -764,21 +758,18 @@ public class MetadataTests extends OpenSearchTestCase {
             .build();
 
         {
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
-                new String[] { "index1", "index2", "index3" },
-                index -> {
-                    if (index.equals("index1")) {
-                        return field -> field.startsWith("name.") == false
-                            && field.startsWith("properties.key.") == false
-                            && field.equals("age") == false
-                            && field.equals("address.location") == false;
-                    }
-                    if (index.equals("index2")) {
-                        return field -> false;
-                    }
-                    return MapperPlugin.NOOP_FIELD_PREDICATE;
+            final Map<String, MappingMetadata> mappings = metadata.findMappings(new String[] { "index1", "index2", "index3" }, index -> {
+                if (index.equals("index1")) {
+                    return field -> field.startsWith("name.") == false
+                        && field.startsWith("properties.key.") == false
+                        && field.equals("age") == false
+                        && field.equals("address.location") == false;
                 }
-            );
+                if (index.equals("index2")) {
+                    return field -> false;
+                }
+                return MapperPlugin.NOOP_FIELD_PREDICATE;
+            });
 
             assertIndexMappingsNoFields(mappings, "index2");
             assertIndexMappingsNotFiltered(mappings, "index3");
@@ -825,7 +816,7 @@ public class MetadataTests extends OpenSearchTestCase {
         }
 
         {
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            final Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1", "index2", "index3" },
                 index -> field -> (index.equals("index3") && field.endsWith("keyword"))
             );
@@ -860,7 +851,7 @@ public class MetadataTests extends OpenSearchTestCase {
         }
 
         {
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            final Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1", "index2", "index3" },
                 index -> field -> (index.equals("index2"))
             );
@@ -881,7 +872,7 @@ public class MetadataTests extends OpenSearchTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertIndexMappingsNoFields(ImmutableOpenMap<String, MappingMetadata> mappings, String index) {
+    private static void assertIndexMappingsNoFields(final Map<String, MappingMetadata> mappings, String index) {
         MappingMetadata docMapping = mappings.get(index);
         assertNotNull(docMapping);
         Map<String, Object> sourceAsMap = docMapping.getSourceAsMap();
@@ -893,7 +884,7 @@ public class MetadataTests extends OpenSearchTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertIndexMappingsNotFiltered(ImmutableOpenMap<String, MappingMetadata> mappings, String index) {
+    private static void assertIndexMappingsNotFiltered(final Map<String, MappingMetadata> mappings, String index) {
         MappingMetadata docMapping = mappings.get(index);
         assertNotNull(docMapping);
 
@@ -1050,10 +1041,9 @@ public class MetadataTests extends OpenSearchTestCase {
     public void testBuilderRejectsNullInCustoms() {
         final Metadata.Builder builder = Metadata.builder();
         final String key = randomAlphaOfLength(10);
-        final ImmutableOpenMap.Builder<String, Metadata.Custom> mapBuilder = ImmutableOpenMap.builder();
+        final Map<String, Metadata.Custom> mapBuilder = new HashMap<>();
         mapBuilder.put(key, null);
-        final ImmutableOpenMap<String, Metadata.Custom> map = mapBuilder.build();
-        assertThat(expectThrows(NullPointerException.class, () -> builder.customs(map)).getMessage(), containsString(key));
+        assertThat(expectThrows(NullPointerException.class, () -> builder.customs(mapBuilder)).getMessage(), containsString(key));
     }
 
     public void testBuilderRejectsDataStreamThatConflictsWithIndex() {
@@ -1065,7 +1055,7 @@ public class MetadataTests extends OpenSearchTestCase {
                 IndexMetadata.builder(dataStreamName).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1).build(),
                 false
             )
-            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), org.opensearch.common.collect.List.of(idx.getIndex())));
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(idx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(
@@ -1084,7 +1074,7 @@ public class MetadataTests extends OpenSearchTestCase {
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).putAlias(AliasMetadata.builder(dataStreamName).build()).build();
         Metadata.Builder b = Metadata.builder()
             .put(idx, false)
-            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), org.opensearch.common.collect.List.of(idx.getIndex())));
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(idx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(
@@ -1107,13 +1097,7 @@ public class MetadataTests extends OpenSearchTestCase {
         Metadata.Builder b = Metadata.builder()
             .put(validIdx, false)
             .put(invalidIdx, false)
-            .put(
-                new DataStream(
-                    dataStreamName,
-                    createTimestampField("@timestamp"),
-                    org.opensearch.common.collect.List.of(validIdx.getIndex())
-                )
-            );
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(validIdx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(
@@ -1134,7 +1118,7 @@ public class MetadataTests extends OpenSearchTestCase {
         IndexMetadata idx = createFirstBackingIndex(dataStreamName).putAlias(new AliasMetadata.Builder(conflictingName)).build();
         Metadata.Builder b = Metadata.builder()
             .put(idx, false)
-            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), org.opensearch.common.collect.List.of(idx.getIndex())));
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"), List.of(idx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(
@@ -1269,7 +1253,7 @@ public class MetadataTests extends OpenSearchTestCase {
         Index index = standaloneIndexConflictingWithBackingIndices.getIndex();
         indicesLookup.put(index.getName(), new IndexAbstraction.Index(standaloneIndexConflictingWithBackingIndices, null));
 
-        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(org.opensearch.common.collect.Map.of(dataStreamName, dataStream));
+        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(Map.of(dataStreamName, dataStream));
 
         IllegalStateException illegalStateException = expectThrows(
             IllegalStateException.class,
@@ -1362,7 +1346,7 @@ public class MetadataTests extends OpenSearchTestCase {
                 indicesLookup.put(indexMeta.getIndex().getName(), new IndexAbstraction.Index(indexMeta, dataStreamAbstraction));
             }
         }
-        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(org.opensearch.common.collect.Map.of(dataStreamName, dataStream));
+        DataStreamMetadata dataStreamMetadata = new DataStreamMetadata(Map.of(dataStreamName, dataStream));
 
         // prefixed indices with a lower generation than the data stream's generation are allowed even if the non-prefixed, matching the
         // data stream backing indices naming pattern, indices are already in the system

@@ -44,6 +44,7 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentType;
 
 import java.util.Arrays;
 
@@ -79,7 +80,7 @@ public class ClusterStateToStringTests extends OpenSearchAllocationTestCase {
         AllocationService strategy = createAllocationService();
         clusterState = ClusterState.builder(clusterState).routingTable(strategy.reroute(clusterState, "reroute").routingTable()).build();
 
-        String clusterStateString = Strings.toString(clusterState);
+        String clusterStateString = Strings.toString(XContentType.JSON, clusterState);
         assertNotNull(clusterStateString);
 
         assertThat(clusterStateString, containsString("test_idx"));

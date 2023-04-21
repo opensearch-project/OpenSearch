@@ -32,9 +32,9 @@
 package org.opensearch.indices;
 
 import org.apache.lucene.search.ReferenceManager;
-import org.apache.lucene.util.SetOnce;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;

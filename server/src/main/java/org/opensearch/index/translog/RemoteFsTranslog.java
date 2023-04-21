@@ -8,11 +8,12 @@
 
 package org.opensearch.index.translog;
 
+import org.opensearch.common.SetOnce;
 import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.ReleasableLock;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.FileTransferTracker;
@@ -22,13 +23,15 @@ import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Semaphore;
 import java.util.function.BooleanSupplier;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
@@ -51,6 +54,17 @@ public class RemoteFsTranslog extends Translog {
 
     private volatile long minSeqNoToKeep;
 
+    // min generation referred by last uploaded translog
+    private volatile long minRemoteGenReferenced;
+
+    // clean up translog folder uploaded by previous primaries once
+    private final SetOnce<Boolean> olderPrimaryCleaned = new SetOnce<>();
+
+    private static final int REMOTE_DELETION_PERMITS = 2;
+
+    // Semaphore used to allow only single remote generation to happen at a time
+    private final Semaphore remoteGenerationDeletionPermits = new Semaphore(REMOTE_DELETION_PERMITS);
+
     public RemoteFsTranslog(
         TranslogConfig config,
         String translogUUID,
@@ -59,14 +73,14 @@ public class RemoteFsTranslog extends Translog {
         LongSupplier primaryTermSupplier,
         LongConsumer persistedSequenceNumberConsumer,
         BlobStoreRepository blobStoreRepository,
-        ExecutorService executorService,
+        ThreadPool threadPool,
         BooleanSupplier primaryModeSupplier
     ) throws IOException {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
         this.blobStoreRepository = blobStoreRepository;
         this.primaryModeSupplier = primaryModeSupplier;
         fileTransferTracker = new FileTransferTracker(shardId);
-        this.translogTransferManager = buildTranslogTransferManager(blobStoreRepository, executorService, shardId, fileTransferTracker);
+        this.translogTransferManager = buildTranslogTransferManager(blobStoreRepository, threadPool, shardId, fileTransferTracker);
 
         try {
             download(translogTransferManager, location);
@@ -129,12 +143,12 @@ public class RemoteFsTranslog extends Translog {
 
     public static TranslogTransferManager buildTranslogTransferManager(
         BlobStoreRepository blobStoreRepository,
-        ExecutorService executorService,
+        ThreadPool threadPool,
         ShardId shardId,
         FileTransferTracker fileTransferTracker
     ) {
         return new TranslogTransferManager(
-            new BlobStoreTransferService(blobStoreRepository.blobStore(), executorService),
+            new BlobStoreTransferService(blobStoreRepository.blobStore(), threadPool),
             blobStoreRepository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())),
             fileTransferTracker
         );
@@ -230,6 +244,7 @@ public class RemoteFsTranslog extends Translog {
                     transferReleasable.close();
                     closeFilesIfNoPendingRetentionLocks();
                     maxRemoteTranslogGenerationUploaded = generation;
+                    minRemoteGenReferenced = getMinFileGeneration();
                     logger.trace("uploaded translog for {} {} ", primaryTerm, generation);
                 }
 
@@ -328,12 +343,63 @@ public class RemoteFsTranslog extends Translog {
     }
 
     @Override
-    void deleteReaderFiles(TranslogReader reader) {
-        try {
-            translogTransferManager.deleteTranslog(primaryTermSupplier.getAsLong(), reader.generation);
-        } catch (IOException ignored) {
-            logger.error("Exception {} while deleting generation {}", ignored, reader.generation);
+    public void trimUnreferencedReaders() throws IOException {
+        // clean up local translog files and updates readers
+        super.trimUnreferencedReaders();
+
+        // Since remote generation deletion is async, this ensures that only one generation deletion happens at a time.
+        // Remote generations involves 2 async operations - 1) Delete translog generation files 2) Delete metadata files
+        // We try to acquire 2 permits and if we can not, we return from here itself.
+        if (remoteGenerationDeletionPermits.tryAcquire(REMOTE_DELETION_PERMITS) == false) {
+            return;
         }
-        super.deleteReaderFiles(reader);
+
+        // cleans up remote translog files not referenced in latest uploaded metadata.
+        // This enables us to restore translog from the metadata in case of failover or relocation.
+        Set<Long> generationsToDelete = new HashSet<>();
+        for (long generation = minRemoteGenReferenced - 1; generation >= 0; generation--) {
+            if (fileTransferTracker.uploaded(Translog.getFilename(generation)) == false) {
+                break;
+            }
+            generationsToDelete.add(generation);
+        }
+        if (generationsToDelete.isEmpty() == false) {
+            deleteRemoteGeneration(generationsToDelete);
+            deleteStaleRemotePrimaryTermsAndMetadataFiles();
+        } else {
+            remoteGenerationDeletionPermits.release(REMOTE_DELETION_PERMITS);
+        }
+    }
+
+    /**
+     * Deletes remote translog and metadata files asynchronously corresponding to the generations.
+     * @param generations generations to be deleted.
+     */
+    private void deleteRemoteGeneration(Set<Long> generations) {
+        translogTransferManager.deleteGenerationAsync(
+            primaryTermSupplier.getAsLong(),
+            generations,
+            remoteGenerationDeletionPermits::release
+        );
+    }
+
+    /**
+     * This method must be called only after there are valid generations to delete in trimUnreferencedReaders as it ensures
+     * implicitly that minimum primary term in latest translog metadata in remote store is the current primary term.
+     * <br>
+     * This will also delete all stale translog metadata files from remote except the latest basis the metadata file comparator.
+     */
+    private void deleteStaleRemotePrimaryTermsAndMetadataFiles() {
+        // The deletion of older translog files in remote store is on best-effort basis, there is a possibility that there
+        // are older files that are no longer needed and should be cleaned up. In here, we delete all files that are part
+        // of older primary term.
+        if (olderPrimaryCleaned.trySet(Boolean.TRUE)) {
+            // First we delete all stale primary terms folders from remote store
+            assert readers.isEmpty() == false : "Expected non-empty readers";
+            long minimumReferencedPrimaryTerm = readers.stream().map(BaseTranslogReader::getPrimaryTerm).min(Long::compare).get();
+            translogTransferManager.deletePrimaryTermsAsync(minimumReferencedPrimaryTerm);
+            // Second we delete all stale metadata files from remote store
+            translogTransferManager.deleteStaleTranslogMetadataFilesAsync();
+        }
     }
 }

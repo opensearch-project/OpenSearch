@@ -87,7 +87,7 @@ import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLockObtainFailedException;
@@ -217,6 +217,8 @@ public final class InternalTestCluster extends TestCluster {
     private static final Predicate<NodeAndClient> CLUSTER_MANAGER_NODE_PREDICATE = nodeAndClient -> DiscoveryNode.isClusterManagerNode(
         nodeAndClient.node.settings()
     );
+
+    private static final ByteSizeValue DEFAULT_SEARCH_CACHE_SIZE = new ByteSizeValue(2, ByteSizeUnit.GB);
 
     public static final int DEFAULT_LOW_NUM_CLUSTER_MANAGER_NODES = 1;
     public static final int DEFAULT_HIGH_NUM_CLUSTER_MANAGER_NODES = 3;
@@ -684,11 +686,7 @@ public final class InternalTestCluster extends TestCluster {
         int size = numSearchNodes();
         if (size < n) {
             logger.info("increasing cluster size from {} to {}", size, n);
-            if (numSharedDedicatedClusterManagerNodes > 0) {
-                startSearchOnlyNodes(n - size);
-            } else {
-                startNodes(n - size, Settings.builder().put(onlyRole(Settings.EMPTY, DiscoveryNodeRole.SEARCH_ROLE)).build());
-            }
+            startNodes(n - size, Settings.builder().put(onlyRole(Settings.EMPTY, DiscoveryNodeRole.SEARCH_ROLE)).build());
             validateClusterFormed();
         }
     }
@@ -702,14 +700,12 @@ public final class InternalTestCluster extends TestCluster {
         int size = numSearchAndDataNodes();
         if (size < n) {
             logger.info("increasing cluster size from {} to {}", size, n);
-            if (numSharedDedicatedClusterManagerNodes > 0) {
-                startDataAndSearchNodes(n - size);
-            } else {
-                Set<DiscoveryNodeRole> searchAndDataRoles = new HashSet<>();
-                searchAndDataRoles.add(DiscoveryNodeRole.DATA_ROLE);
-                searchAndDataRoles.add(DiscoveryNodeRole.SEARCH_ROLE);
-                startNodes(n - size, Settings.builder().put(onlyRoles(Settings.EMPTY, searchAndDataRoles)).build());
-            }
+            Set<DiscoveryNodeRole> searchAndDataRoles = Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.SEARCH_ROLE);
+            Settings settings = Settings.builder()
+                .put(Settings.EMPTY)
+                .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), DEFAULT_SEARCH_CACHE_SIZE)
+                .build();
+            startNodes(n - size, Settings.builder().put(onlyRoles(settings, searchAndDataRoles)).build());
             validateClusterFormed();
         }
     }
@@ -2671,6 +2667,8 @@ public final class InternalTestCluster extends TestCluster {
                 CommonStatsFlags flags = new CommonStatsFlags(Flag.FieldData, Flag.QueryCache, Flag.Segments);
                 NodeStats stats = nodeService.stats(
                     flags,
+                    false,
+                    false,
                     false,
                     false,
                     false,

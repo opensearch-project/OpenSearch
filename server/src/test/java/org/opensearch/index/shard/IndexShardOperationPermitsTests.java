@@ -36,7 +36,7 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.test.OpenSearchTestCase;
@@ -226,18 +226,12 @@ public class IndexShardOperationPermitsTests extends OpenSearchTestCase {
 
     public void testBlockIfClosed() {
         permits.close();
-        expectThrows(
-            IndexShardClosedException.class,
-            () -> permits.blockOperations(randomInt(10), TimeUnit.MINUTES, () -> { throw new IllegalArgumentException("fake error"); })
-        );
-        expectThrows(
-            IndexShardClosedException.class,
-            () -> permits.asyncBlockOperations(
-                wrap(() -> { throw new IllegalArgumentException("fake error"); }),
-                randomInt(10),
-                TimeUnit.MINUTES
-            )
-        );
+        expectThrows(IndexShardClosedException.class, () -> permits.blockOperations(randomInt(10), TimeUnit.MINUTES, () -> {
+            throw new IllegalArgumentException("fake error");
+        }));
+        expectThrows(IndexShardClosedException.class, () -> permits.asyncBlockOperations(wrap(() -> {
+            throw new IllegalArgumentException("fake error");
+        }), randomInt(10), TimeUnit.MINUTES));
     }
 
     public void testOperationsDelayedIfBlock() throws ExecutionException, InterruptedException, TimeoutException {
