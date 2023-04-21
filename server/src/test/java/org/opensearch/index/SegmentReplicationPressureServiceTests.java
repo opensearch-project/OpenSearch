@@ -8,7 +8,9 @@
 
 package org.opensearch.index;
 
+import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
+import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
@@ -21,6 +23,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Iterator;
 import java.util.List;
@@ -29,16 +32,21 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Arrays.asList;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.opensearch.index.SegmentReplicationPressureService.MAX_REPLICATION_TIME_SETTING;
-import static org.opensearch.index.SegmentReplicationPressureService.SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED;
 
 public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevelReplicationTestCase {
 
+    private static ShardStateAction shardStateAction = Mockito.mock(ShardStateAction.class);
     private static final Settings settings = Settings.builder()
         .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-        .put(SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED.getKey(), true)
         .put(MAX_REPLICATION_TIME_SETTING.getKey(), TimeValue.timeValueSeconds(5))
         .build();
 
@@ -89,10 +97,7 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
     }
 
     public void testIsSegrepLimitBreached_onlyCheckpointLimitBreached() throws Exception {
-        final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED.getKey(), true)
-            .build();
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
 
         try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
             shards.startAll();
@@ -116,10 +121,7 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
     }
 
     public void testIsSegrepLimitBreached_onlyTimeLimitBreached() throws Exception {
-        final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .put(SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED.getKey(), true)
-            .build();
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
 
         try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
             shards.startAll();
@@ -181,6 +183,35 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
         }
     }
 
+    public void testFailStaleReplicaTask() throws Exception {
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(MAX_REPLICATION_TIME_SETTING.getKey(), TimeValue.timeValueMillis(10))
+            .build();
+
+        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            final IndexShard primaryShard = shards.getPrimary();
+            SegmentReplicationPressureService service = buildPressureService(settings, primaryShard);
+
+            // index docs in batches without refreshing
+            indexInBatches(5, shards, primaryShard);
+
+            // assert that replica shard is few checkpoints behind primary
+            Set<SegmentReplicationShardStats> replicationStats = primaryShard.getReplicationStats();
+            assertEquals(1, replicationStats.size());
+            SegmentReplicationShardStats shardStats = replicationStats.stream().findFirst().get();
+            assertEquals(5, shardStats.getCheckpointsBehindCount());
+
+            // call the background task
+            service.getFailStaleReplicaTask().runInternal();
+
+            // verify that remote shard failed method is called which fails the replica shards falling behind.
+            verify(shardStateAction, times(1)).remoteShardFailed(any(), anyString(), anyLong(), anyBoolean(), anyString(), any(), any());
+            replicateSegments(primaryShard, shards.getReplicas());
+        }
+    }
+
     private int indexInBatches(int count, ReplicationGroup shards, IndexShard primaryShard) throws Exception {
         int totalDocs = 0;
         for (int i = 0; i < count; i++) {
@@ -202,6 +233,6 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
 
-        return new SegmentReplicationPressureService(settings, clusterService, indicesService);
+        return new SegmentReplicationPressureService(settings, clusterService, indicesService, shardStateAction, mock(ThreadPool.class));
     }
 }

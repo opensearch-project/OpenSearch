@@ -60,7 +60,6 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -99,6 +98,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -983,7 +983,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    private ImmutableOpenMap<String, Long> getSegmentFileSizes(SegmentReader segmentReader) {
+    private Map<String, Long> getSegmentFileSizes(SegmentReader segmentReader) {
         Directory directory = null;
         SegmentCommitInfo segmentCommitInfo = segmentReader.getSegmentInfo();
         boolean useCompoundFile = segmentCommitInfo.info.getUseCompoundFile();
@@ -1002,7 +1002,7 @@ public abstract class Engine implements Closeable {
                     e
                 );
 
-                return ImmutableOpenMap.of();
+                return Map.of();
             }
         } else {
             directory = segmentReader.directory();
@@ -1017,7 +1017,7 @@ public abstract class Engine implements Closeable {
             } catch (IOException e) {
                 final Directory finalDirectory = directory;
                 logger.warn(() -> new ParameterizedMessage("Couldn't list Compound Reader Directory [{}]", finalDirectory), e);
-                return ImmutableOpenMap.of();
+                return Map.of();
             }
         } else {
             try {
@@ -1031,11 +1031,11 @@ public abstract class Engine implements Closeable {
                     ),
                     e
                 );
-                return ImmutableOpenMap.of();
+                return Map.of();
             }
         }
 
-        ImmutableOpenMap.Builder<String, Long> map = ImmutableOpenMap.builder();
+        Map<String, Long> map = new HashMap<>();
         for (String file : files) {
             String extension = IndexFileNames.getExtension(file);
             long length = 0L;
@@ -1066,7 +1066,7 @@ public abstract class Engine implements Closeable {
             }
         }
 
-        return map.build();
+        return Collections.unmodifiableMap(map);
     }
 
     protected void writerSegmentStats(SegmentsStats stats) {

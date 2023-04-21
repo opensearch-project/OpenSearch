@@ -419,7 +419,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
         String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("GET /foo", "PUT /bar", "POST /baz");
-        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList);
+        List<String> deprecatedActionsList = List.of("GET /deprecated/foo", "It's deprecated!");
+        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList, deprecatedActionsList);
         TransportResponse response = extensionsManager.getRestActionsRequestHandler()
             .handleRegisterRestActionsRequest(registerActionsRequest);
         assertEquals(AcknowledgedResponse.class, response.getClass());
@@ -449,7 +450,22 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
         String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("FOO /foo", "PUT /bar", "POST /baz");
-        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList);
+        List<String> deprecatedActionsList = List.of("GET /deprecated/foo", "It's deprecated!");
+        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList, deprecatedActionsList);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> extensionsManager.getRestActionsRequestHandler().handleRegisterRestActionsRequest(registerActionsRequest)
+        );
+    }
+
+    public void testHandleRegisterRestActionsRequestWithInvalidDeprecatedMethod() throws Exception {
+        ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
+        initialize(extensionsManager);
+
+        String uniqueIdStr = "uniqueid1";
+        List<String> actionsList = List.of("GET /foo", "PUT /bar", "POST /baz");
+        List<String> deprecatedActionsList = List.of("FOO /deprecated/foo", "It's deprecated!");
+        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList, deprecatedActionsList);
         expectThrows(
             IllegalArgumentException.class,
             () -> extensionsManager.getRestActionsRequestHandler().handleRegisterRestActionsRequest(registerActionsRequest)
@@ -461,7 +477,21 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         initialize(extensionsManager);
         String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("GET", "PUT /bar", "POST /baz");
-        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList);
+        List<String> deprecatedActionsList = List.of("GET /deprecated/foo", "It's deprecated!");
+        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList, deprecatedActionsList);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> extensionsManager.getRestActionsRequestHandler().handleRegisterRestActionsRequest(registerActionsRequest)
+        );
+    }
+
+    public void testHandleRegisterRestActionsRequestWithInvalidDeprecatedUri() throws Exception {
+        ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
+        initialize(extensionsManager);
+        String uniqueIdStr = "uniqueid1";
+        List<String> actionsList = List.of("GET /foo", "PUT /bar", "POST /baz");
+        List<String> deprecatedActionsList = List.of("GET", "It's deprecated!");
+        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList, deprecatedActionsList);
         expectThrows(
             IllegalArgumentException.class,
             () -> extensionsManager.getRestActionsRequestHandler().handleRegisterRestActionsRequest(registerActionsRequest)

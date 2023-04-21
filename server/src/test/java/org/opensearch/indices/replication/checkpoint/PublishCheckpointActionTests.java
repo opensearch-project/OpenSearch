@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.replication.checkpoint;
 
+import org.apache.lucene.codecs.Codec;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActionTestUtils;
@@ -104,7 +105,7 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
             mockTargetService
         );
 
-        final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 1111, 11, 1);
+        final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 1111, 11, 1, Codec.getDefault().getName());
         final PublishCheckpointRequest request = new PublishCheckpointRequest(checkpoint);
 
         action.shardOperationOnPrimary(request, indexShard, ActionTestUtils.assertNoFailureListener(result -> {
@@ -139,7 +140,7 @@ public class PublishCheckpointActionTests extends OpenSearchTestCase {
             mockTargetService
         );
 
-        final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 1111, 11, 1);
+        final ReplicationCheckpoint checkpoint = new ReplicationCheckpoint(indexShard.shardId(), 1111, 11, 1, Codec.getDefault().getName());
 
         final PublishCheckpointRequest request = new PublishCheckpointRequest(checkpoint);
 

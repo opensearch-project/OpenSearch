@@ -60,7 +60,6 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.ConcurrentMapLong;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TcpChannel;
 
@@ -69,6 +68,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -148,7 +148,11 @@ public class TaskManager implements ClusterStateApplier {
         this.taskHeaders = new ArrayList<>(taskHeaders);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         this.taskResourceConsumersEnabled = TASK_RESOURCE_CONSUMERS_ENABLED.get(settings);
-        this.taskResourceConsumer = Set.of(new TopNSearchTasksLogger(settings));
+        taskResourceConsumer = new HashSet<>();
+    }
+
+    public void registerTaskResourceConsumer(Consumer<Task> consumer) {
+        taskResourceConsumer.add(consumer);
     }
 
     public void setTaskResultsService(TaskResultsService taskResultsService) {

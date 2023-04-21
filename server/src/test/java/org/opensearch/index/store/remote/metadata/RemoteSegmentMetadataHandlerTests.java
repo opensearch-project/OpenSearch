@@ -59,11 +59,27 @@ public class RemoteSegmentMetadataHandlerTests extends OpenSearchTestCase {
         String prefix = "_0";
         expectedOutput.put(
             prefix + ".cfe",
-            prefix + ".cfe::" + prefix + ".cfe__" + UUIDs.base64UUID() + "::" + randomIntBetween(1000, 5000)
+            prefix
+                + ".cfe::"
+                + prefix
+                + ".cfe__"
+                + UUIDs.base64UUID()
+                + "::"
+                + randomIntBetween(1000, 5000)
+                + "::"
+                + randomIntBetween(1024, 2048)
         );
         expectedOutput.put(
             prefix + ".cfs",
-            prefix + ".cfs::" + prefix + ".cfs__" + UUIDs.base64UUID() + "::" + randomIntBetween(1000, 5000)
+            prefix
+                + ".cfs::"
+                + prefix
+                + ".cfs__"
+                + UUIDs.base64UUID()
+                + "::"
+                + randomIntBetween(1000, 5000)
+                + "::"
+                + randomIntBetween(1024, 2048)
         );
         return expectedOutput;
     }

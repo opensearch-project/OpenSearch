@@ -2317,7 +2317,13 @@ public class InternalEngine extends Engine {
         } catch (IOException e) {
             throw new EngineException(shardId, e.getMessage(), e);
         }
-        return new GatedCloseable<>(segmentInfos, () -> indexWriter.decRefDeleter(segmentInfos));
+        return new GatedCloseable<>(segmentInfos, () -> {
+            try {
+                indexWriter.decRefDeleter(segmentInfos);
+            } catch (AlreadyClosedException e) {
+                logger.warn("Engine is already closed.", e);
+            }
+        });
     }
 
     @Override
