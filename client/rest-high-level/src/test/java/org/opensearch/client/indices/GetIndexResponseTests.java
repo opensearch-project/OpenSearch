@@ -113,7 +113,7 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<
         GetIndexResponse clientInstance
     ) {
         assertArrayEquals(serverTestInstance.getIndices(), clientInstance.getIndices());
-        assertMapEquals(serverTestInstance.getMappings(), clientInstance.getMappings());
+        assertEquals(serverTestInstance.getMappings(), clientInstance.getMappings());
         assertMapEquals(serverTestInstance.getSettings(), clientInstance.getSettings());
         assertMapEquals(serverTestInstance.defaultSettings(), clientInstance.getDefaultSettings());
         assertMapEquals(serverTestInstance.getAliases(), clientInstance.getAliases());

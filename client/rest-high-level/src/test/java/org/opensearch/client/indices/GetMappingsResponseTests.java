@@ -67,7 +67,7 @@ public class GetMappingsResponseTests extends AbstractResponseTestCase<
         org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse serverTestInstance,
         GetMappingsResponse clientInstance
     ) {
-        assertMapEquals(serverTestInstance.getMappings(), clientInstance.mappings());
+        assertEquals(serverTestInstance.getMappings(), clientInstance.mappings());
     }
 
     public static MappingMetadata randomMappingMetadata() {
