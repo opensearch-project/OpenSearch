@@ -113,12 +113,6 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /hadoop-.*/, to: 'hadoop'
 }
 
-thirdPartyAudit {
-  ignoreViolations(
-
-  )
-}
-
 tasks.named("integTest").configure {
   it.dependsOn(project.tasks.named("bundlePlugin"))
 }
