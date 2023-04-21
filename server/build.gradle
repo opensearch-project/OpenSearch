@@ -30,10 +30,13 @@
 
 import org.opensearch.gradle.info.BuildParams
 
-apply plugin: 'opensearch.build'
-apply plugin: 'com.netflix.nebula.optional-base'
-apply plugin: 'opensearch.publish'
-apply plugin: 'opensearch.internal-cluster-test'
+plugins {
+  id('com.google.protobuf') version 'latest.release'
+  id('opensearch.build')
+  id('com.netflix.nebula.optional-base')
+  id('opensearch.publish')
+  id('opensearch.internal-cluster-test')
+}
 
 publishing {
   publications {
@@ -45,6 +48,13 @@ publishing {
 
 archivesBaseName = 'opensearch'
 
+sourceSets {
+  main {
+    java {
+      srcDir "${buildDir}/generated/source/proto/main/java"
+    }
+  }
+}
 // we want to keep the JDKs in our IDEs set to JDK 8 until minimum JDK is bumped to 11 so we do not include this source set in our IDEs
 if (!isEclipse) {
   sourceSets {
@@ -136,6 +146,9 @@ dependencies {
   // jna
   api "net.java.dev.jna:jna:${versions.jna}"
 
+  // protobuf
+  api "com.google.protobuf:protobuf-java:${versions.protobuf}"
+
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
     exclude group: 'org.opensearch', module: 'server'
@@ -157,6 +170,7 @@ tasks.named("internalClusterTest").configure {
 }
 
 tasks.named("forbiddenPatterns").configure {
+    dependsOn("generateProto")
     exclude '**/*.json'
     exclude '**/*.jmx'
     exclude '**/*.dic'
@@ -201,6 +215,12 @@ def generatePluginsList = tasks.register("generatePluginsList") {
         pluginsFile.parentFile.mkdirs()
         pluginsFile.setText(plugins.join('\n'), 'UTF-8')
     }
+}
+
+protobuf {
+  protoc {
+    artifact = "com.google.protobuf:protoc:${versions.protobuf}"
+  }
 }
 
 tasks.named("processResources").configure {
@@ -303,6 +323,15 @@ tasks.named("thirdPartyAudit").configure {
             'com.google.common.geometry.S2$Metric',
             'com.google.common.geometry.S2LatLng'
     )
+    ignoreViolations(
+            'com.google.protobuf.MessageSchema',
+            'com.google.protobuf.UnsafeUtil',
+            'com.google.protobuf.UnsafeUtil$1',
+            'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
+            'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
+            'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
+            'com.google.protobuf.UnsafeUtil$MemoryAccessor'
+    )
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -315,17 +344,46 @@ tasks.named("dependencyLicenses").configure {
     }
 }
 
+tasks.named("missingJavadoc").configure {
+  /*
+   * Generated code doesn't follow javadocs formats.
+   * Unfortunately the missingJavadoc task doesnt take *.
+   * TODO: Add support to missingJavadoc task to ignore all generated source code
+   *  https://github.com/opensearch-project/OpenSearch/issues/7264
+   */
+  dependsOn("generateProto")
+  javadocMissingIgnore = [
+    "org.opensearch.extensions.proto.ExtensionRequestProto",
+    "org.opensearch.extensions.proto.ExtensionRequestProto.ExtensionRequestOrBuilder",
+    "org.opensearch.extensions.proto"
+  ]
+}
+
+tasks.named("filepermissions").configure {
+  mustRunAfter("generateProto")
+}
+
 tasks.named("licenseHeaders").configure {
+    dependsOn("generateProto")
     // Ignore our vendored version of Google Guice
     excludes << 'org/opensearch/common/inject/**/*'
     // Ignore temporary copies of impending 8.7 Lucene classes
     excludes << 'org/apache/lucene/search/RegExp87*'
     excludes << 'org/apache/lucene/search/RegexpQuery87*'
     excludes << 'org/opensearch/client/documentation/placeholder.txt'
+    // Ignore for protobuf generated code
+    excludes << 'org/opensearch/extensions/proto/*'
 }
 
 tasks.test {
     if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
         jvmArgs += ["--add-opens", "java.base/java.nio.file=ALL-UNNAMED"]
     }
+}
+
+tasks.named("sourcesJar").configure {
+  // Ignore duplicates for protobuf generated code (main and generatedSources).
+  filesMatching("**/proto/*") {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+  }
 }
