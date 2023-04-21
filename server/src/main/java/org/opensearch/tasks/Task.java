@@ -36,7 +36,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.core.action.ActionResponse;
-import org.opensearch.core.action.NotifyOnceListener;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.tasks.resourcetracker.ResourceStats;
@@ -58,6 +57,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 /**
  * Current task information
@@ -95,7 +95,7 @@ public class Task {
 
     private final Map<Long, List<ThreadResourceInfo>> resourceStats;
 
-    private final List<NotifyOnceListener<Task>> resourceTrackingCompletionListeners;
+    private final List<Consumer<Task>> resourceTrackingCompletionCallback;
 
     /**
      * Keeps track of the number of active resource tracking threads for this task. It is initialized to 1 to track
@@ -139,7 +139,7 @@ public class Task {
         long startTimeNanos,
         Map<String, String> headers,
         ConcurrentHashMap<Long, List<ThreadResourceInfo>> resourceStats,
-        List<NotifyOnceListener<Task>> resourceTrackingCompletionListeners
+        List<Consumer<Task>> resourceTrackingCompletionCallback
     ) {
         this.id = id;
         this.type = type;
@@ -150,7 +150,7 @@ public class Task {
         this.startTimeNanos = startTimeNanos;
         this.headers = headers;
         this.resourceStats = resourceStats;
-        this.resourceTrackingCompletionListeners = resourceTrackingCompletionListeners;
+        this.resourceTrackingCompletionCallback = resourceTrackingCompletionCallback;
     }
 
     /**
@@ -527,9 +527,9 @@ public class Task {
      * Registers a task resource tracking completion listener on this task if resource tracking is still active.
      * Returns true on successful subscription, false otherwise.
      */
-    public boolean addResourceTrackingCompletionListener(NotifyOnceListener<Task> listener) {
+    public boolean addResourceTrackingCompletionCallback(Consumer<Task> callback) {
         if (numActiveResourceTrackingThreads.get() > 0) {
-            resourceTrackingCompletionListeners.add(listener);
+            resourceTrackingCompletionCallback.add(callback);
             return true;
         }
 
@@ -564,19 +564,15 @@ public class Task {
         int count = numActiveResourceTrackingThreads.decrementAndGet();
 
         if (count == 0) {
-            List<Exception> listenerExceptions = new ArrayList<>();
-            resourceTrackingCompletionListeners.forEach(listener -> {
+            List<Exception> callbackExceptions = new ArrayList<>();
+            resourceTrackingCompletionCallback.forEach(callback -> {
                 try {
-                    listener.onResponse(this);
-                } catch (Exception e1) {
-                    try {
-                        listener.onFailure(e1);
-                    } catch (Exception e2) {
-                        listenerExceptions.add(e2);
-                    }
+                    callback.accept(this);
+                } catch (Exception e) {
+                    callbackExceptions.add(e);
                 }
             });
-            ExceptionsHelper.maybeThrowRuntimeAndSuppress(listenerExceptions);
+            ExceptionsHelper.maybeThrowRuntimeAndSuppress(callbackExceptions);
         }
 
         return count;

@@ -56,7 +56,6 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
-import org.opensearch.core.action.NotifyOnceListener;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.core.tasks.TaskId;
@@ -211,18 +210,9 @@ public class TaskManager implements ClusterStateApplier {
         }
 
         if (task.supportsResourceTracking()) {
-            boolean success = task.addResourceTrackingCompletionListener(new NotifyOnceListener<>() {
-                @Override
-                protected void innerOnResponse(Task task) {
-                    // Stop tracking the task once the last thread has been marked inactive.
-                    if (taskResourceTrackingService.get() != null && task.supportsResourceTracking()) {
-                        taskResourceTrackingService.get().stopTracking(task);
-                    }
-                }
-
-                @Override
-                protected void innerOnFailure(Exception e) {
-                    ExceptionsHelper.reThrowIfNotNull(e);
+            boolean success = task.addResourceTrackingCompletionCallback(t -> {
+                if (taskResourceTrackingService.get() != null) {
+                    taskResourceTrackingService.get().stopTracking(t);
                 }
             });
 

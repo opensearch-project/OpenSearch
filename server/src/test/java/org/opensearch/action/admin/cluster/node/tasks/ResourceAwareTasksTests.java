@@ -22,7 +22,6 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.action.NotifyOnceListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.tasks.TaskCancelledException;
@@ -189,16 +188,8 @@ public class ResourceAwareTasksTests extends TaskManagerTestCase {
                     // operationFinishedValidator will be called just after all task threads are marked inactive and
                     // the task is unregistered.
                     if (taskTestContext.operationFinishedValidator != null) {
-                        boolean success = task.addResourceTrackingCompletionListener(new NotifyOnceListener<>() {
-                            @Override
-                            protected void innerOnResponse(Task task) {
-                                taskTestContext.operationFinishedValidator.accept(task, threadId.get());
-                            }
-
-                            @Override
-                            protected void innerOnFailure(Exception e) {
-                                ExceptionsHelper.reThrowIfNotNull(e);
-                            }
+                        boolean success = task.addResourceTrackingCompletionCallback(t -> {
+                            taskTestContext.operationFinishedValidator.accept(task, threadId.get());
                         });
 
                         if (success == false) {
