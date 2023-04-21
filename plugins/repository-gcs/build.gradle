@@ -65,8 +65,6 @@ dependencies {
   api 'com.google.api:api-common:1.8.1'
   api 'com.google.api:gax:1.54.0'
   api 'org.threeten:threetenbp:1.4.4'
-  api 'com.google.protobuf:protobuf-java-util:3.22.2'
-  api 'com.google.protobuf:protobuf-java:3.22.2'
   api 'com.google.code.gson:gson:2.9.0'
   api 'com.google.api.grpc:proto-google-common-protos:2.10.0'
   api 'com.google.api.grpc:proto-google-iam-v1:0.12.0'
@@ -105,13 +103,6 @@ tasks.named("dependencyLicenses").configure {
 thirdPartyAudit {
   ignoreViolations(
     // uses internal java api: sun.misc.Unsafe
-    'com.google.protobuf.UnsafeUtil',
-    'com.google.protobuf.UnsafeUtil$1',
-    'com.google.protobuf.UnsafeUtil$JvmMemoryAccessor',
-    'com.google.protobuf.UnsafeUtil$MemoryAccessor',
-    'com.google.protobuf.MessageSchema',
-    'com.google.protobuf.UnsafeUtil$Android32MemoryAccessor',
-    'com.google.protobuf.UnsafeUtil$Android64MemoryAccessor',
     'com.google.common.cache.Striped64',
     'com.google.common.cache.Striped64$1',
     'com.google.common.cache.Striped64$Cell',
@@ -150,6 +141,7 @@ thirdPartyAudit {
     'com.google.appengine.api.urlfetch.HTTPResponse',
     'com.google.appengine.api.urlfetch.URLFetchService',
     'com.google.appengine.api.urlfetch.URLFetchServiceFactory',
+    'com.google.protobuf.util.Timestamps',
     // commons-logging optional dependencies
     'org.apache.avalon.framework.logger.Logger',
     'org.apache.log.Hierarchy',
