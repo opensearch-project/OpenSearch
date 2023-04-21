@@ -20,7 +20,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 import static org.hamcrest.core.StringContains.containsString;
 
-@OpenSearchIntegTestCase.ClusterScope(numDataNodes = 0, numClientNodes = 0, scope = OpenSearchIntegTestCase.Scope.TEST)
 public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
 
     public void testBasicAuthSuccess() throws Exception {

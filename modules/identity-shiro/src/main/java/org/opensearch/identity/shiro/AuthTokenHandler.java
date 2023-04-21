@@ -10,8 +10,6 @@ package org.opensearch.identity.shiro;
 
 import java.util.Optional;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.shiro.authc.AuthenticationToken;
 import org.apache.shiro.authc.UsernamePasswordToken;
 import org.opensearch.identity.tokens.BasicAuthToken;
@@ -22,8 +20,6 @@ import org.opensearch.identity.tokens.BasicAuthToken;
  * @opensearch.experimental
  */
 class AuthTokenHandler {
-
-    private static final Logger logger = LogManager.getLogger(AuthTokenHandler.class);
 
     /**
      * Translates into shiro auth token from the given header token

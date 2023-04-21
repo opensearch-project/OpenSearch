@@ -19,6 +19,8 @@ public interface IdentityPlugin {
 
     /**
      * Get the current subject
+     *
+     * Should never return null
      * */
     public Subject getSubject();
 }

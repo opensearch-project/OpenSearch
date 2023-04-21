@@ -20,6 +20,10 @@ import org.opensearch.identity.Subject;
  */
 public class NoopIdentityPlugin implements IdentityPlugin {
 
+    /**
+     * Get the currect subject
+     * @return Must never return null
+     */
     @Override
     public Subject getSubject() {
         return new NoopSubject();

@@ -15,6 +15,11 @@ import java.util.Objects;
  */
 public class NamedPrincipal implements Principal {
 
+    /**
+     * Represents a principal which has not been authenticated
+     */
+    public static final NamedPrincipal UNAUTHENTICATED = new NamedPrincipal("Unauthenticated");
+
     private final String name;
 
     /**
@@ -47,4 +52,14 @@ public class NamedPrincipal implements Principal {
     public String toString() {
         return "NamedPrincipal(" + "name=" + name + ")";
     }
+
+    /**
+     * Returns the NamedPrincipal instanced, should only be used for UNAUTHENTICATED
+     *
+     * @return The specific principal instance
+     */
+    public Principal getPrincipal() {
+        return this;
+    }
+
 }

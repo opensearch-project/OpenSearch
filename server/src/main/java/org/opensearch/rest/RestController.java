@@ -519,7 +519,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     /**
-     * Attempts to extracts auth token and login.
+     * Attempts to extract auth token and login.
      *
      * @returns false if there was an error and the request should not continue being dispatched
      * */
@@ -543,7 +543,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 );
                 channel.sendResponse(bytesRestResponse);
             } catch (final Exception _ignored) {
-                // TODO: clean this up
+                final BytesRestResponse bytesRestResponse = new BytesRestResponse(RestStatus.UNAUTHORIZED, _ignored.getMessage());
+                channel.sendResponse(bytesRestResponse);
             }
             return false;
         }

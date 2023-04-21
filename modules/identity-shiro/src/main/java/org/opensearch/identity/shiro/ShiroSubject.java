@@ -23,6 +23,12 @@ public class ShiroSubject implements Subject {
     private final AuthTokenHandler authTokenHandler;
     private final org.apache.shiro.subject.Subject shiroSubject;
 
+    /**
+     * Creates a new shiro subject for use with the IdentityPlugin
+     * Cannot return null
+     * @param authTokenHandler Used to extract auth header info
+     * @param subject The specific subject being authc/z'd
+     */
     public ShiroSubject(final AuthTokenHandler authTokenHandler, final org.apache.shiro.subject.Subject subject) {
         this.authTokenHandler = Objects.requireNonNull(authTokenHandler);
         this.shiroSubject = Objects.requireNonNull(subject);
