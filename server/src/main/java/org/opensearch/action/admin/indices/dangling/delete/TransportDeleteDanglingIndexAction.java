@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.indices.dangling.delete;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
@@ -186,8 +185,8 @@ public class TransportDeleteDanglingIndexAction extends TransportClusterManagerN
     private ClusterState deleteDanglingIndex(ClusterState currentState, Index indexToDelete) {
         final Metadata metaData = currentState.getMetadata();
 
-        for (ObjectObjectCursor<String, IndexMetadata> each : metaData.indices()) {
-            if (indexToDelete.getUUID().equals(each.value.getIndexUUID())) {
+        for (final IndexMetadata each : metaData.indices().values()) {
+            if (indexToDelete.getUUID().equals(each.getIndexUUID())) {
                 throw new IllegalArgumentException(
                     "Refusing to delete dangling index "
                         + indexToDelete

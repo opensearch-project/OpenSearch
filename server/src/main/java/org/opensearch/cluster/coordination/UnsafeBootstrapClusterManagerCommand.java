@@ -31,7 +31,6 @@
 
 package org.opensearch.cluster.coordination;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.opensearch.OpenSearchException;
@@ -151,8 +150,7 @@ public class UnsafeBootstrapClusterManagerCommand extends OpenSearchNodeCommand 
             .clusterUUIDCommitted(true)
             .persistentSettings(persistentSettings)
             .coordinationMetadata(newCoordinationMetadata);
-        for (ObjectCursor<IndexMetadata> idx : metadata.indices().values()) {
-            IndexMetadata indexMetadata = idx.value;
+        for (final IndexMetadata indexMetadata : metadata.indices().values()) {
             newMetadata.put(
                 IndexMetadata.builder(indexMetadata)
                     .settings(

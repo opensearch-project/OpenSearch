@@ -30,6 +30,7 @@
 
 import org.opensearch.gradle.Architecture
 import org.opensearch.gradle.VersionProperties
+import org.opensearch.gradle.test.TestTask
 
 apply plugin: 'war'
 apply plugin: 'opensearch.build'
@@ -81,7 +82,7 @@ dockerCompose {
   useComposeFiles = ['docker-compose.yml']
 }
 
-tasks.register("integTest", Test) {
+tasks.register("integTest", TestTask) {
   outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
   maxParallelForks = '1'
   include '**/*IT.class'

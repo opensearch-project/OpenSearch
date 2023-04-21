@@ -33,7 +33,6 @@
 package org.opensearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.IntHashSet;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
@@ -774,9 +773,9 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
         Snapshot snapshot = new Snapshot("repo", new SnapshotId("snap", "randomId"));
         Set<String> snapshotIndices = new HashSet<>();
         String restoreUUID = UUIDs.randomBase64UUID();
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-            Index index = cursor.value.getIndex();
-            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(cursor.value);
+        for (final IndexMetadata cursor : metadata.indices().values()) {
+            Index index = cursor.getIndex();
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(cursor);
 
             final int recoveryType = inputRecoveryType == null ? randomInt(5) : inputRecoveryType.intValue();
             if (recoveryType <= 4) {

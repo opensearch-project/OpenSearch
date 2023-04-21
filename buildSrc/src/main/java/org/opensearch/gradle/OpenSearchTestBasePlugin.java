@@ -35,6 +35,7 @@ package org.opensearch.gradle;
 import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
 import org.opensearch.gradle.info.BuildParams;
 import org.opensearch.gradle.info.GlobalBuildInfoPlugin;
+import org.opensearch.gradle.jvm.JvmTestSuiteHelper;
 import org.opensearch.gradle.test.ErrorReportingTestListener;
 import org.opensearch.gradle.util.Util;
 import org.gradle.api.Action;
@@ -223,7 +224,15 @@ public class OpenSearchTestBasePlugin implements Plugin<Project> {
                 // Add the shadow JAR artifact itself
                 FileCollection shadowJar = project.files(project.getTasks().named("shadowJar"));
 
-                test.setClasspath(test.getClasspath().minus(mainRuntime).plus(shadowConfig).plus(shadowJar));
+                // See please https://docs.gradle.org/8.1/userguide/upgrading_version_8.html#test_task_default_classpath
+                test.setClasspath(
+                    JvmTestSuiteHelper.getDefaultTestSuite(project)
+                        .map(suite -> suite.getSources().getRuntimeClasspath())
+                        .orElseGet(() -> test.getClasspath())
+                        .minus(mainRuntime)
+                        .plus(shadowConfig)
+                        .plus(shadowJar)
+                );
             });
         });
     }
