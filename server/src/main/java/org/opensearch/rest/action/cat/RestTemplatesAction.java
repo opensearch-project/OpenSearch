@@ -32,7 +32,6 @@
 
 package org.opensearch.rest.action.cat;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
@@ -112,8 +111,7 @@ public class RestTemplatesAction extends AbstractCatAction {
     private Table buildTable(RestRequest request, ClusterStateResponse clusterStateResponse, String patternString) {
         Table table = getTableWithHeader(request);
         Metadata metadata = clusterStateResponse.getState().metadata();
-        for (ObjectObjectCursor<String, IndexTemplateMetadata> entry : metadata.templates()) {
-            IndexTemplateMetadata indexData = entry.value;
+        for (final IndexTemplateMetadata indexData : metadata.templates().values()) {
             if (patternString == null || Regex.simpleMatch(patternString, indexData.name())) {
                 table.startRow();
                 table.addCell(indexData.name());

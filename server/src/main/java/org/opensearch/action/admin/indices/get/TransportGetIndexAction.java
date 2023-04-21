@@ -53,6 +53,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -104,7 +105,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         final ClusterState state,
         final ActionListener<GetIndexResponse> listener
     ) {
-        ImmutableOpenMap<String, MappingMetadata> mappingsResult = ImmutableOpenMap.of();
+        Map<String, MappingMetadata> mappingsResult = Map.of();
         ImmutableOpenMap<String, List<AliasMetadata>> aliasesResult = ImmutableOpenMap.of();
         ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
         ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
