@@ -31,6 +31,7 @@
 
 import org.opensearch.gradle.info.BuildParams
 import org.opensearch.gradle.test.RestIntegTestTask
+import org.opensearch.gradle.test.TestTask
 import org.opensearch.gradle.test.rest.JavaRestTestPlugin
 import org.opensearch.gradle.test.InternalClusterTestPlugin
 
@@ -91,13 +92,13 @@ javaRestTest {
   systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
 }
 
-TaskProvider<Test> pooledTest = tasks.register("pooledTest", Test) {
+TaskProvider<Test> pooledTest = tasks.register("pooledTest", TestTask) {
   include '**/*Tests.class'
   systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
   systemProperty 'opensearch.use_unpooled_allocator', 'false'
 }
 
-TaskProvider<Test> pooledInternalClusterTest = tasks.register("pooledInternalClusterTest", Test) {
+TaskProvider<Test> pooledInternalClusterTest = tasks.register("pooledInternalClusterTest", TestTask) {
   include '**/*IT.class'
   systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
   systemProperty 'opensearch.use_unpooled_allocator', 'false'
