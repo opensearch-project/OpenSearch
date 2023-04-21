@@ -32,7 +32,7 @@ public class BasicAuthenticationIT extends HttpSmokeTestCaseWithIdentity {
     }
 
     public void testBasicAuthUnauthorized_invalidHeader() throws Exception {
-        final Response response = createHealthRequest("Basic aaaa"); // invalid
+        final Response response = createHealthRequest("Basic aaaa"); // invalid username password
         final String content = new String(response.getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8);
 
         assertThat(content, response.getStatusLine().getStatusCode(), equalTo(RestStatus.UNAUTHORIZED.getStatus()));
