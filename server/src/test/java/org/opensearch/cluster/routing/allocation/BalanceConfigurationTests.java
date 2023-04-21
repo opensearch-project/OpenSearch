@@ -364,7 +364,7 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
 
     /**
      * This test verifies global balance by creating indices iteratively and verify primary shards do not pile up on one
-     * node.
+     * @throws Exception generic exception
      */
     public void testGlobalPrimaryBalance() throws Exception {
         AllocationService strategy = createAllocationService(getSettingsBuilderForPrimaryBalance().build(), new TestGatewayAllocator());
@@ -654,8 +654,8 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
         }
 
         Metadata metadata = metadataBuilder.build();
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-            routingTableBuilder.addAsNew(cursor.value);
+        for (final IndexMetadata cursor : metadata.indices().values()) {
+            routingTableBuilder.addAsNew(cursor);
         }
 
         RoutingTable initialRoutingTable = routingTableBuilder.build();
@@ -909,8 +909,8 @@ public class BalanceConfigurationTests extends OpenSearchAllocationTestCase {
             .numberOfReplicas(1);
         metadataBuilder = metadataBuilder.put(indexMeta);
         Metadata metadata = metadataBuilder.build();
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-            routingTableBuilder.addAsNew(cursor.value);
+        for (final IndexMetadata cursor : metadata.indices().values()) {
+            routingTableBuilder.addAsNew(cursor);
         }
         RoutingTable routingTable = routingTableBuilder.build();
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
