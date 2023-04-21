@@ -12,7 +12,6 @@ import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
-import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.rest.RestStatus;
 
 import java.nio.charset.StandardCharsets;
