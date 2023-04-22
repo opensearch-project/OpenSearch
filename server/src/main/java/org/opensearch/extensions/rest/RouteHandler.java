@@ -10,8 +10,6 @@ package org.opensearch.extensions.rest;
 
 import java.util.function.Function;
 
-import org.opensearch.extensions.rest.ExtensionRestRequest;
-import org.opensearch.extensions.rest.ExtensionRestResponse;
 import org.opensearch.rest.RestHandler.Route;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
@@ -61,7 +59,6 @@ public class RouteHandler extends Route {
     public ExtensionRestResponse handleRequest(RestRequest request) {
         return responseHandler.apply(request);
     }
-
 
     /**
      * The name of the RouteHandler. Must be unique across route handlers.

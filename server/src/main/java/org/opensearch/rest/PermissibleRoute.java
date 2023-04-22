@@ -16,6 +16,7 @@ package org.opensearch.rest;
 public class PermissibleRoute extends RestHandler.Route {
 
     private final String name;
+
     public PermissibleRoute(RestRequest.Method method, String path, String name) {
         super(method, path);
         this.name = name;
