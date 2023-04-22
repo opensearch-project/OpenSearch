@@ -855,7 +855,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.get(indexSettings)
         );
         assertEquals(
-            "Settings index.remote_store.translog.enabled can ont be set/enabled when index.remote_store.enabled is set to true",
+            "Settings index.remote_store.translog.enabled can only be set/enabled when index.remote_store.enabled is set to true",
             iae.getMessage()
         );
     }
@@ -930,7 +930,7 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             () -> IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING.get(indexSettings)
         );
         assertEquals(
-            "Settings index.remote_store.repository can ont be set/enabled when index.remote_store.enabled is set to true",
+            "Settings index.remote_store.repository can only be set/enabled when index.remote_store.enabled is set to true",
             iae.getMessage()
         );
     }

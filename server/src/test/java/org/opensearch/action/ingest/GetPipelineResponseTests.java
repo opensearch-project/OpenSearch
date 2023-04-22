@@ -99,6 +99,16 @@ public class GetPipelineResponseTests extends AbstractSerializingTestCase<GetPip
         }
     }
 
+    public void testSubsetNotEqual() throws IOException {
+        PipelineConfiguration pipeline1 = createRandomPipeline("pipe1");
+        PipelineConfiguration pipeline2 = createRandomPipeline("pipe2");
+
+        GetPipelineResponse response1 = new GetPipelineResponse(List.of(pipeline1));
+        GetPipelineResponse response2 = new GetPipelineResponse(List.of(pipeline1, pipeline2));
+        assertNotEquals(response1, response2);
+        assertNotEquals(response2, response1);
+    }
+
     @Override
     protected GetPipelineResponse doParseInstance(XContentParser parser) throws IOException {
         return GetPipelineResponse.fromXContent(parser);
@@ -133,4 +143,5 @@ public class GetPipelineResponseTests extends AbstractSerializingTestCase<GetPip
             throw new UncheckedIOException(e);
         }
     }
+
 }

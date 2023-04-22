@@ -62,7 +62,7 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<
     @Override
     protected org.opensearch.action.admin.indices.get.GetIndexResponse createServerTestInstance(XContentType xContentType) {
         String[] indices = generateRandomStringArray(5, 5, false, false);
-        ImmutableOpenMap.Builder<String, MappingMetadata> mappings = ImmutableOpenMap.builder();
+        final Map<String, MappingMetadata> mappings = new HashMap<>();
         ImmutableOpenMap.Builder<String, List<AliasMetadata>> aliases = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> settings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> defaultSettings = ImmutableOpenMap.builder();
@@ -94,7 +94,7 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<
         }
         return new org.opensearch.action.admin.indices.get.GetIndexResponse(
             indices,
-            mappings.build(),
+            mappings,
             aliases.build(),
             settings.build(),
             defaultSettings.build(),
@@ -113,7 +113,7 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<
         GetIndexResponse clientInstance
     ) {
         assertArrayEquals(serverTestInstance.getIndices(), clientInstance.getIndices());
-        assertMapEquals(serverTestInstance.getMappings(), clientInstance.getMappings());
+        assertEquals(serverTestInstance.getMappings(), clientInstance.getMappings());
         assertMapEquals(serverTestInstance.getSettings(), clientInstance.getSettings());
         assertMapEquals(serverTestInstance.defaultSettings(), clientInstance.getDefaultSettings());
         assertMapEquals(serverTestInstance.getAliases(), clientInstance.getAliases());

@@ -46,6 +46,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_METADATA_BLOCK;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
@@ -271,7 +272,7 @@ public class GetIndexIT extends OpenSearchIntegTestCase {
     }
 
     private void assertMappings(GetIndexResponse response, String indexName) {
-        ImmutableOpenMap<String, MappingMetadata> mappings = response.mappings();
+        final Map<String, MappingMetadata> mappings = response.mappings();
         assertThat(mappings, notNullValue());
         assertThat(mappings.size(), equalTo(1));
         MappingMetadata indexMappings = mappings.get(indexName);
@@ -279,7 +280,7 @@ public class GetIndexIT extends OpenSearchIntegTestCase {
     }
 
     private void assertEmptyOrOnlyDefaultMappings(GetIndexResponse response, String indexName) {
-        ImmutableOpenMap<String, MappingMetadata> mappings = response.mappings();
+        final Map<String, MappingMetadata> mappings = response.mappings();
         assertThat(mappings, notNullValue());
         assertThat(mappings.size(), equalTo(1));
         MappingMetadata indexMappings = mappings.get(indexName);

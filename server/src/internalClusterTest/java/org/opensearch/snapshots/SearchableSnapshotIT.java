@@ -12,6 +12,7 @@ import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.opensearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
+import org.opensearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.opensearch.action.index.IndexRequestBuilder;
@@ -26,7 +27,6 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
@@ -36,7 +36,6 @@ import org.opensearch.node.Node;
 import org.opensearch.repositories.fs.FsRepository;
 
 import java.io.IOException;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -59,11 +58,6 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
     @Override
     protected boolean addMockInternalEngine() {
         return false;
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(FeatureFlags.SEARCHABLE_SNAPSHOT, "true").build();
     }
 
     @Override
@@ -111,6 +105,74 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertDocCount(restoredIndexName1, 100L);
         assertDocCount(restoredIndexName2, 100L);
         assertIndexDirectoryDoesNotExist(restoredIndexName1, restoredIndexName2);
+    }
+
+    public void testSnapshottingSearchableSnapshots() throws Exception {
+        final String repoName = "test-repo";
+        final String indexName = "test-idx";
+        final Client client = client();
+
+        // create an index, add data, snapshot it, then delete it
+        internalCluster().ensureAtLeastNumDataNodes(1);
+        createIndexWithDocsAndEnsureGreen(0, 100, indexName);
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, "initial-snapshot", repoName, indexName);
+        deleteIndicesAndEnsureGreen(client, indexName);
+
+        // restore the index as a searchable snapshot
+        internalCluster().ensureAtLeastNumSearchNodes(1);
+        client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(repoName, "initial-snapshot")
+            .setRenamePattern("(.+)")
+            .setRenameReplacement("$1-copy-0")
+            .setStorageType(RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT)
+            .setWaitForCompletion(true)
+            .execute()
+            .actionGet();
+        ensureGreen();
+        assertDocCount(indexName + "-copy-0", 100L);
+        assertIndexDirectoryDoesNotExist(indexName + "-copy-0");
+
+        // Test that the searchable snapshot index can continue to be snapshotted and restored
+        for (int i = 0; i < 4; i++) {
+            final String repeatedSnapshotName = "test-repeated-snap-" + i;
+            takeSnapshot(client, repeatedSnapshotName, repoName);
+            deleteIndicesAndEnsureGreen(client, "_all");
+            client.admin()
+                .cluster()
+                .prepareRestoreSnapshot(repoName, repeatedSnapshotName)
+                .setRenamePattern("([a-z-]+).*")
+                .setRenameReplacement("$1" + (i + 1))
+                .setWaitForCompletion(true)
+                .execute()
+                .actionGet();
+            ensureGreen();
+            final String restoredIndexName = indexName + "-copy-" + (i + 1);
+            assertDocCount(restoredIndexName, 100L);
+            assertIndexDirectoryDoesNotExist(restoredIndexName);
+        }
+        // Assert all the snapshots exist. Note that AbstractSnapshotIntegTestCase::assertRepoConsistency
+        // will run after this test (and all others) and assert on the consistency of the data in the repo.
+        final GetSnapshotsResponse response = client.admin().cluster().prepareGetSnapshots(repoName).execute().actionGet();
+        final Map<String, List<String>> snapshotInfoMap = response.getSnapshots()
+            .stream()
+            .collect(Collectors.toMap(s -> s.snapshotId().getName(), SnapshotInfo::indices));
+        assertEquals(
+            Map.of(
+                "initial-snapshot",
+                List.of("test-idx"),
+                "test-repeated-snap-0",
+                List.of("test-idx-copy-0"),
+                "test-repeated-snap-1",
+                List.of("test-idx-copy-1"),
+                "test-repeated-snap-2",
+                List.of("test-idx-copy-2"),
+                "test-repeated-snap-3",
+                List.of("test-idx-copy-3")
+            ),
+            snapshotInfoMap
+        );
     }
 
     /**
@@ -595,12 +657,8 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         for (Path fileCachePath : searchNodeFileCachePaths) {
             assertTrue(Files.exists(fileCachePath));
             assertTrue(Files.isDirectory(fileCachePath));
-            try (DirectoryStream<Path> cachePathStream = Files.newDirectoryStream(fileCachePath)) {
-                Path nodeLockIdPath = cachePathStream.iterator().next();
-                assertTrue(Files.isDirectory(nodeLockIdPath));
-                try (Stream<Path> dataPathStream = Files.list(nodeLockIdPath)) {
-                    assertEquals(numIndexCount, dataPathStream.count());
-                }
+            try (Stream<Path> dataPathStream = Files.list(fileCachePath)) {
+                assertEquals(numIndexCount, dataPathStream.count());
             }
         }
         // Verifies if all the shards (primary and replica) have been deleted

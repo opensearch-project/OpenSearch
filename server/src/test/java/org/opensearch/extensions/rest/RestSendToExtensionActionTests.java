@@ -100,7 +100,8 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
     public void testRestSendToExtensionAction() throws Exception {
         RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
             "uniqueid1",
-            List.of("GET /foo", "PUT /bar", "POST /baz")
+            List.of("GET /foo", "PUT /bar", "POST /baz"),
+            List.of("GET /deprecated/foo", "It's deprecated!")
         );
         RestSendToExtensionAction restSendToExtensionAction = new RestSendToExtensionAction(
             registerRestActionRequest,
@@ -130,7 +131,8 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
     public void testRestSendToExtensionActionFilterHeaders() throws Exception {
         RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
             "uniqueid1",
-            List.of("GET /foo", "PUT /bar", "POST /baz")
+            List.of("GET /foo", "PUT /bar", "POST /baz"),
+            List.of("GET /deprecated/foo", "It's deprecated!")
         );
         RestSendToExtensionAction restSendToExtensionAction = new RestSendToExtensionAction(
             registerRestActionRequest,
@@ -156,7 +158,20 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
     public void testRestSendToExtensionActionBadMethod() throws Exception {
         RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
             "uniqueid1",
-            List.of("/foo", "PUT /bar", "POST /baz")
+            List.of("/foo", "PUT /bar", "POST /baz"),
+            List.of("GET /deprecated/foo", "It's deprecated!")
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService)
+        );
+    }
+
+    public void testRestSendToExtensionActionBadDeprecatedMethod() throws Exception {
+        RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
+            "uniqueid1",
+            List.of("GET /foo", "PUT /bar", "POST /baz"),
+            List.of("/deprecated/foo", "It's deprecated!")
         );
         expectThrows(
             IllegalArgumentException.class,
@@ -167,7 +182,20 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
     public void testRestSendToExtensionActionMissingUri() throws Exception {
         RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
             "uniqueid1",
-            List.of("GET", "PUT /bar", "POST /baz")
+            List.of("GET", "PUT /bar", "POST /baz"),
+            List.of("GET /deprecated/foo", "It's deprecated!")
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService)
+        );
+    }
+
+    public void testRestSendToExtensionActionMissingDeprecatedUri() throws Exception {
+        RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
+            "uniqueid1",
+            List.of("GET /foo", "PUT /bar", "POST /baz"),
+            List.of("GET", "It's deprecated!")
         );
         expectThrows(
             IllegalArgumentException.class,

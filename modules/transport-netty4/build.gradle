@@ -31,6 +31,7 @@
 
 import org.opensearch.gradle.info.BuildParams
 import org.opensearch.gradle.test.RestIntegTestTask
+import org.opensearch.gradle.test.TestTask
 import org.opensearch.gradle.test.rest.JavaRestTestPlugin
 import org.opensearch.gradle.test.InternalClusterTestPlugin
 
@@ -92,13 +93,13 @@ javaRestTest {
   systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
 }
 
-TaskProvider<Test> pooledTest = tasks.register("pooledTest", Test) {
+TaskProvider<Test> pooledTest = tasks.register("pooledTest", TestTask) {
   include '**/*Tests.class'
   systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
   systemProperty 'opensearch.use_unpooled_allocator', 'false'
 }
 
-TaskProvider<Test> pooledInternalClusterTest = tasks.register("pooledInternalClusterTest", Test) {
+TaskProvider<Test> pooledInternalClusterTest = tasks.register("pooledInternalClusterTest", TestTask) {
   include '**/*IT.class'
   systemProperty 'opensearch.set.netty.runtime.available.processors', 'false'
   systemProperty 'opensearch.use_unpooled_allocator', 'false'
@@ -130,12 +131,6 @@ thirdPartyAudit {
     'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
     'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
     // classes are missing
-
-    // from io.netty.handler.codec.protobuf.ProtobufDecoder (netty)
-    'com.google.protobuf.ExtensionRegistry',
-    'com.google.protobuf.MessageLite$Builder',
-    'com.google.protobuf.MessageLite',
-    'com.google.protobuf.Parser',
 
     // from io.netty.logging.CommonsLoggerFactory (netty)
     'org.apache.commons.logging.Log',
@@ -191,8 +186,6 @@ thirdPartyAudit {
     'org.slf4j.spi.LocationAwareLogger',
 
     'com.github.luben.zstd.Zstd',
-    'com.google.protobuf.ExtensionRegistryLite',
-    'com.google.protobuf.MessageLiteOrBuilder',
     'com.google.protobuf.nano.CodedOutputByteBufferNano',
     'com.google.protobuf.nano.MessageNano',
     'com.jcraft.jzlib.Deflater',
