@@ -107,27 +107,10 @@ public class FileCacheBenchmark {
     /**
      * Stubbed out IndexInput that does nothing but report a fixed size
      */
-    private static class FixedSizeStubIndexInput extends CachedIndexInput {
-        private FixedSizeStubIndexInput() {
-            super(FixedSizeStubIndexInput.class.getSimpleName());
-        }
-
+    private static class FixedSizeStubIndexInput implements CachedIndexInput {
         @Override
-        public boolean isClosed() {
-            return false;
-        }
-
-        @Override
-        public void close() {}
-
-        @Override
-        public long getFilePointer() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void seek(long pos) {
-            throw new UnsupportedOperationException();
+        public IndexInput getIndexInput() {
+            return null;
         }
 
         @Override
@@ -136,18 +119,13 @@ public class FileCacheBenchmark {
         }
 
         @Override
-        public IndexInput slice(String sliceDescription, long offset, long length) {
-            throw new UnsupportedOperationException();
+        public boolean isClosed() {
+            return false;
         }
 
         @Override
-        public byte readByte() {
-            throw new UnsupportedOperationException();
-        }
+        public void close() throws Exception {
 
-        @Override
-        public void readBytes(byte[] b, int offset, int len) {
-            throw new UnsupportedOperationException();
         }
     }
 }

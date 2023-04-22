@@ -38,6 +38,7 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.profile.aggregation.ProfilingAggregator;
 import org.opensearch.search.profile.query.CollectorResult;
 import org.opensearch.search.profile.query.InternalProfileCollector;
 import org.opensearch.search.query.QueryPhaseExecutionException;
@@ -67,7 +68,7 @@ public class AggregationPhase {
                 AggregatorFactories factories = context.aggregations().factories();
                 aggregators = factories.createTopLevelAggregators(context);
                 for (int i = 0; i < aggregators.length; i++) {
-                    if (aggregators[i] instanceof GlobalAggregator == false) {
+                    if (!isGlobalAggregator(context, aggregators[i])) {
                         collectors.add(aggregators[i]);
                     }
                 }
@@ -106,7 +107,7 @@ public class AggregationPhase {
         Aggregator[] aggregators = context.aggregations().aggregators();
         List<Aggregator> globals = new ArrayList<>();
         for (int i = 0; i < aggregators.length; i++) {
-            if (aggregators[i] instanceof GlobalAggregator) {
+            if (isGlobalAggregator(context, aggregators[i])) {
                 globals.add(aggregators[i]);
             }
         }
@@ -167,5 +168,17 @@ public class AggregationPhase {
             );
         }
         return collector;
+    }
+
+    /**
+     * Checks if passed in aggregator is of type {@link GlobalAggregator}. This method takes care of Aggregator wrapped in
+     * {@link ProfilingAggregator} too
+     * @param context {@link SearchContext}
+     * @param aggregator input {@link Aggregator} instance to evaluate
+     * @return true input is {@link GlobalAggregator} instance or false otherwise
+     */
+    private boolean isGlobalAggregator(SearchContext context, Aggregator aggregator) {
+        return (aggregator instanceof GlobalAggregator
+            || (context.getProfilers() != null && ProfilingAggregator.unwrap(aggregator) instanceof GlobalAggregator));
     }
 }

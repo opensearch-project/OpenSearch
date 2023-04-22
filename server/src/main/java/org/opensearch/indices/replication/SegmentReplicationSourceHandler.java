@@ -136,7 +136,7 @@ class SegmentReplicationSourceHandler {
                     timer.time()
                 );
             };
-
+            cancellableThreads.checkForCancel();
             final IndexShardRoutingTable routingTable = shard.getReplicationGroup().getRoutingTable();
             ShardRouting targetShardRouting = routingTable.getByAllocationId(request.getTargetAllocationId());
             if (targetShardRouting == null) {

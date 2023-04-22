@@ -50,10 +50,10 @@
   - length: { hits.hits: 3 }
   - match: { hits.hits.0._index: test_2 }
   - match: { hits.hits.0._source.counter: 1223372036854775800.23 }
-  - match: { hits.hits.0.sort: [1223372036854775800.23] }
+  - match: { hits.hits.0.sort.0: 1223372036854775800.23 }
   - match: { hits.hits.1._index: test_1 }
   - match: { hits.hits.1._source.counter: 223372036854775800 }
-  - match: { hits.hits.1.sort: [223372036854775800] }
+  - match: { hits.hits.1.sort.0: 223372036854775800  }
 
   - do:
       search:
@@ -65,7 +65,7 @@
   - length: { hits.hits: 3 }
   - match: { hits.hits.0._index: test_2 }
   - match: { hits.hits.0._source.counter: 184.4 }
-  - match: { hits.hits.0.sort: [184.4] }
+  - match: { hits.hits.0.sort.0: 184.4 }
   - match: { hits.hits.1._index: test_1 }
   - match: { hits.hits.1._source.counter: 223372036854775800 }
-  - match: { hits.hits.1.sort: [223372036854775800] }
+  - match: { hits.hits.1.sort.0: 223372036854775800 }

@@ -101,6 +101,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexMetadata.INDEX_DATA_PATH_SETTING,
                 IndexMetadata.INDEX_FORMAT_SETTING,
                 IndexMetadata.INDEX_HIDDEN_SETTING,
+                IndexMetadata.INDEX_REPLICATION_TYPE_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN_SETTING,
                 SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO_SETTING,
@@ -197,6 +198,12 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME,
                 IndexSettings.INDEX_MERGE_ON_FLUSH_POLICY,
 
+                // Settings for Searchable Snapshots
+                IndexSettings.SEARCHABLE_SNAPSHOT_REPOSITORY,
+                IndexSettings.SEARCHABLE_SNAPSHOT_INDEX_ID,
+                IndexSettings.SEARCHABLE_SNAPSHOT_ID_NAME,
+                IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID,
+
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
                     Map<String, Settings> groups = s.getAsGroups();
@@ -220,8 +227,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
      * setting should be moved to {@link #BUILT_IN_INDEX_SETTINGS}.
      */
     public static final Map<String, List<Setting>> FEATURE_FLAGGED_INDEX_SETTINGS = Map.of(
-        FeatureFlags.REPLICATION_TYPE,
-        List.of(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING),
         FeatureFlags.REMOTE_STORE,
         List.of(
             IndexMetadata.INDEX_REMOTE_STORE_ENABLED_SETTING,
@@ -229,13 +234,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             IndexMetadata.INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING,
             IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
             IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING
-        ),
-        FeatureFlags.SEARCHABLE_SNAPSHOT,
-        List.of(
-            IndexSettings.SEARCHABLE_SNAPSHOT_REPOSITORY,
-            IndexSettings.SEARCHABLE_SNAPSHOT_INDEX_ID,
-            IndexSettings.SEARCHABLE_SNAPSHOT_ID_NAME,
-            IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID
         )
     );
 

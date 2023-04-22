@@ -32,12 +32,10 @@
 
 package org.opensearch.action.admin.indices.mapping.get;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.Version;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.XContentType;
@@ -47,6 +45,9 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Transport response to get field mappings.
@@ -57,16 +58,16 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
 
     private static final ParseField MAPPINGS = new ParseField("mappings");
 
-    private final ImmutableOpenMap<String, MappingMetadata> mappings;
+    private final Map<String, MappingMetadata> mappings;
 
-    public GetMappingsResponse(ImmutableOpenMap<String, MappingMetadata> mappings) {
-        this.mappings = mappings;
+    public GetMappingsResponse(final Map<String, MappingMetadata> mappings) {
+        this.mappings = Collections.unmodifiableMap(mappings);
     }
 
     GetMappingsResponse(StreamInput in) throws IOException {
         super(in);
         int size = in.readVInt();
-        ImmutableOpenMap.Builder<String, MappingMetadata> indexMapBuilder = ImmutableOpenMap.builder();
+        final Map<String, MappingMetadata> indexMapBuilder = new HashMap<>();
         for (int i = 0; i < size; i++) {
             String index = in.readString();
             if (in.getVersion().before(Version.V_2_0_0)) {
@@ -87,40 +88,40 @@ public class GetMappingsResponse extends ActionResponse implements ToXContentFra
                 indexMapBuilder.put(index, hasMapping ? new MappingMetadata(in) : MappingMetadata.EMPTY_MAPPINGS);
             }
         }
-        mappings = indexMapBuilder.build();
+        mappings = Collections.unmodifiableMap(indexMapBuilder);
     }
 
-    public ImmutableOpenMap<String, MappingMetadata> mappings() {
+    public Map<String, MappingMetadata> mappings() {
         return mappings;
     }
 
-    public ImmutableOpenMap<String, MappingMetadata> getMappings() {
+    public Map<String, MappingMetadata> getMappings() {
         return mappings();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(mappings.size());
-        for (ObjectObjectCursor<String, MappingMetadata> indexEntry : mappings) {
-            out.writeString(indexEntry.key);
+        for (Map.Entry<String, MappingMetadata> indexEntry : mappings.entrySet()) {
+            out.writeString(indexEntry.getKey());
             if (out.getVersion().before(Version.V_2_0_0)) {
-                out.writeVInt(indexEntry.value == MappingMetadata.EMPTY_MAPPINGS ? 0 : 1);
-                if (indexEntry.value != MappingMetadata.EMPTY_MAPPINGS) {
+                out.writeVInt(indexEntry.getValue() == MappingMetadata.EMPTY_MAPPINGS ? 0 : 1);
+                if (indexEntry.getValue() != MappingMetadata.EMPTY_MAPPINGS) {
                     out.writeString(MapperService.SINGLE_MAPPING_NAME);
-                    indexEntry.value.writeTo(out);
+                    indexEntry.getValue().writeTo(out);
                 }
             } else {
-                out.writeOptionalWriteable(indexEntry.value);
+                out.writeOptionalWriteable(indexEntry.getValue());
             }
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        for (final ObjectObjectCursor<String, MappingMetadata> indexEntry : getMappings()) {
-            builder.startObject(indexEntry.key);
-            if (indexEntry.value != null) {
-                builder.field(MAPPINGS.getPreferredName(), indexEntry.value.sourceAsMap());
+        for (final Map.Entry<String, MappingMetadata> indexEntry : getMappings().entrySet()) {
+            builder.startObject(indexEntry.getKey());
+            if (indexEntry.getValue() != null) {
+                builder.field(MAPPINGS.getPreferredName(), indexEntry.getValue().sourceAsMap());
             } else {
                 builder.startObject(MAPPINGS.getPreferredName()).endObject();
             }

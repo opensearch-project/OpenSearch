@@ -663,7 +663,6 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
 
     /**
      * Should failopen shards even if failopen enabled with custom search preference.
-     * @throws Exception
      */
     public void testStrictWeightedRoutingWithShardPrefNetworkDisruption_FailOpenEnabled() throws Exception {
         Settings commonSettings = Settings.builder()
