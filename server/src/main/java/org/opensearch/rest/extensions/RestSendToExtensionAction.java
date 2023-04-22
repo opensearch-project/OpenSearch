@@ -91,8 +91,6 @@ public class RestSendToExtensionAction extends BaseRestHandler {
 
         List<Route> restActionsAsRoutes = new ArrayList<>();
         for (String restAction : restActionsRequest.getRestActions()) {
-            RestRequest.Method method;
-            String path;
             Optional<String> name = Optional.empty();
             try {
                 String[] parts = restAction.split(" ");
@@ -104,8 +102,6 @@ public class RestSendToExtensionAction extends BaseRestHandler {
                 if (parts.length > 2) {
                     name = Optional.of(parts[2].trim());
                 }
-                method = RestRequest.Method.valueOf(restAction.substring(0, delim));
-                path = pathPrefix + restAction.substring(delim).trim();
             } catch (IndexOutOfBoundsException | IllegalArgumentException e) {
                 throw new IllegalArgumentException(restAction + " does not begin with a valid REST method");
             }
