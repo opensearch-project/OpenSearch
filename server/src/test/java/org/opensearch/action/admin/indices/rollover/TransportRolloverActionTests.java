@@ -127,10 +127,12 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(2));
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomIntBetween(10, 100), ByteSizeUnit.MB));
-        MinDocsCondition minDocsCondition = new MinDocsCondition(1L);
+        MinDocsCondition minDocsCondition = new MinDocsCondition(10L);
 
-        long matchMaxDocs = randomIntBetween(100, 1000);
-        long notMatchMaxDocs = randomIntBetween(0, 99);
+        long matchMaxDocsAndMatchMinDocs = randomIntBetween(100, 1000);
+        long notMatchMaxDocsAndMatchMinDocs = randomIntBetween(10, 99);
+        long notMatchMaxDocsAndNotMatchMinDocs = randomIntBetween(0, 9);
+
         ByteSizeValue notMatchMaxSize = new ByteSizeValue(randomIntBetween(0, 9), ByteSizeUnit.MB);
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -145,7 +147,7 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
         final Set<Condition<?>> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition, minDocsCondition);
         Map<String, Boolean> results = evaluateConditions(
             conditions,
-            new DocsStats(matchMaxDocs, 0L, ByteSizeUnit.MB.toBytes(120)),
+            new DocsStats(matchMaxDocsAndMatchMinDocs, 0L, ByteSizeUnit.MB.toBytes(120)),
             metadata
         );
         assertThat(results.size(), equalTo(4));
@@ -153,7 +155,7 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
             assertThat(matched, equalTo(true));
         }
 
-        results = evaluateConditions(conditions, new DocsStats(notMatchMaxDocs, 0, notMatchMaxSize.getBytes()), metadata);
+        results = evaluateConditions(conditions, new DocsStats(notMatchMaxDocsAndMatchMinDocs, 0, notMatchMaxSize.getBytes()), metadata);
         assertThat(results.size(), equalTo(4));
         for (Map.Entry<String, Boolean> entry : results.entrySet()) {
             if (entry.getKey().equals(maxAgeCondition.toString())) {
@@ -163,7 +165,23 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
             } else if (entry.getKey().equals(maxSizeCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
             } else if (entry.getKey().equals(minDocsCondition.toString())) {
-                assertThat(entry.getValue(), equalTo(notMatchMaxDocs > 0));
+                assertThat(entry.getValue(), equalTo(true));
+            } else {
+                fail("unknown condition result found " + entry.getKey());
+            }
+        }
+
+        results = evaluateConditions(conditions, new DocsStats(notMatchMaxDocsAndNotMatchMinDocs, 0, notMatchMaxSize.getBytes()), metadata);
+        assertThat(results.size(), equalTo(4));
+        for (Map.Entry<String, Boolean> entry : results.entrySet()) {
+            if (entry.getKey().equals(maxAgeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(true));
+            } else if (entry.getKey().equals(maxSizeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(maxDocsCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(minDocsCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
             } else {
                 fail("unknown condition result found " + entry.getKey());
             }
