@@ -5,6 +5,7 @@
 
 package org.opensearch.index;
 
+import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
@@ -101,6 +102,23 @@ public class SegmentReplicationPressureIT extends SegmentReplicationBaseIT {
                     totalDocs.incrementAndGet();
                 });
             });
+            // Try to index one more doc.
+            expectThrows(OpenSearchRejectedExecutionException.class, () -> {
+                indexDoc();
+                totalDocs.incrementAndGet();
+                refresh(INDEX_NAME);
+            });
+
+            // Verify the rejected doc count.
+            SegmentReplicationStatsResponse segmentReplicationStatsResponse = dataNodeClient().admin()
+                .indices()
+                .prepareSegmentReplicationStats(INDEX_NAME)
+                .setDetailed(true)
+                .execute()
+                .actionGet();
+            SegmentReplicationPerGroupStats perGroupStats = segmentReplicationStatsResponse.getReplicationStats().get(INDEX_NAME).get(0);
+
+            assertEquals(perGroupStats.getRejectedRequestCount(), 2L);
         }
         refresh(INDEX_NAME);
         // wait for the replicas to catch up after block is released.

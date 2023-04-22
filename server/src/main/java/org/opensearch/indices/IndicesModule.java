@@ -42,6 +42,7 @@ import org.opensearch.common.inject.AbstractModule;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.mapper.BinaryFieldMapper;
 import org.opensearch.index.mapper.BooleanFieldMapper;
 import org.opensearch.index.mapper.CompletionFieldMapper;
@@ -284,6 +285,7 @@ public class IndicesModule extends AbstractModule {
         bind(RetentionLeaseBackgroundSyncAction.class).asEagerSingleton();
         bind(RetentionLeaseSyncer.class).asEagerSingleton();
         bind(SegmentReplicationCheckpointPublisher.class).asEagerSingleton();
+        bind(SegmentReplicationPressureService.class).asEagerSingleton();
     }
 
     /**
