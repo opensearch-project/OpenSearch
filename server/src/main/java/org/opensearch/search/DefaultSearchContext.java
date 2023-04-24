@@ -889,19 +889,17 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     private boolean shouldReverseLeafReaderContexts() {
-        // By default, if search query is on desc order, we will search leaves in reverse order.
-        // This is beneficial for desc order sort queries on time series based workload,
-        // where recent data is always on new segments which are in last.
-        // This won't regress or impact other type of workload where data is randomly distributed
-        // across segments. So turning it on by default.
-        // searchSegmentOrderReversed is true by default
+        // Time series based workload by default traverses segments in desc order i.e. latest to the oldest order.
+        // This is actually beneficial for search queries to start search on latest segments first for time series workload.
+        // That can slow down ASC order queries on timestamp workload. So to avoid that slowdown, we will reverse leaf
+        // reader order here.
         if (this.indexShard.isTimeSeriesIndex()) {
-            // Only reverse order for desc order sort queries
+            // Only reverse order for asc order sort queries
             if (request != null
                 && request.source() != null
                 && request.source().sorts() != null
                 && request.source().sorts().size() > 0
-                && request.source().sorts().get(0).order() == SortOrder.DESC) {
+                && request.source().sorts().get(0).order() == SortOrder.ASC) {
                 return true;
             }
         }
