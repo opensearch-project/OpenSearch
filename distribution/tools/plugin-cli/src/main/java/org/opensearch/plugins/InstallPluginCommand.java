@@ -756,6 +756,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                         while ((len = input.read(buffer)) >= 0) {
                             out.write(buffer, 0, len);
                         }
+                        input.close();
                     }
                 }
             }
