@@ -543,7 +543,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 );
                 channel.sendResponse(bytesRestResponse);
             } catch (final Exception ex) {
-                final BytesRestResponse bytesRestResponse = new BytesRestResponse(RestStatus.UNAUTHORIZED, _ignored.getMessage());
+                final BytesRestResponse bytesRestResponse = new BytesRestResponse(RestStatus.UNAUTHORIZED, ex.getMessage());
                 channel.sendResponse(bytesRestResponse);
             }
             return false;

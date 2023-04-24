@@ -23,7 +23,7 @@ import java.util.Arrays;
 import java.util.Collection;
 
 /**
- * Abstract Rest Test Case  installs and enables ShiroIdentityPlugin and removes mock
+ * Abstract Rest Test Case installs and enables ShiroIdentityPlugin and removes mock
  * http transport to enable REST requests against a test cluster
  *
  * @opensearch.experimental
