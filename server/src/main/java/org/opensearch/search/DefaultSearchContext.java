@@ -895,7 +895,7 @@ final class DefaultSearchContext extends SearchContext {
         // This won't regress or impact other type of workload where data is randomly distributed
         // across segments. So turning it on by default.
         // searchSegmentOrderReversed is true by default
-        if (this.indexService.getIndexSettings() != null && this.indexService.getIndexSettings().getSearchSegmentOrderReversed()) {
+        if (this.indexShard.isTimeSeriesIndex()) {
             // Only reverse order for desc order sort queries
             if (request != null
                 && request.source() != null
