@@ -331,7 +331,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
             counts.getFailingIndexReplicas()
         );
 
-        Index[] indices = Arrays.stream(state.metadata().indices().values().toArray(IndexMetadata.class))
+        Index[] indices = Arrays.stream(state.metadata().indices().values().toArray(new IndexMetadata[0]))
             .map(IndexMetadata::getIndex)
             .collect(Collectors.toList())
             .toArray(new Index[2]);
@@ -373,7 +373,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
             counts.getFailingIndexReplicas()
         );
 
-        Index[] indices = Arrays.stream(state.metadata().indices().values().toArray(IndexMetadata.class))
+        Index[] indices = Arrays.stream(state.metadata().indices().values().toArray(new IndexMetadata[0]))
             .map(IndexMetadata::getIndex)
             .collect(Collectors.toList())
             .toArray(new Index[2]);
@@ -401,7 +401,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
             counts.getFailingIndexReplicas()
         );
 
-        Index[] indices = Arrays.stream(state.metadata().indices().values().toArray(IndexMetadata.class))
+        Index[] indices = Arrays.stream(state.metadata().indices().values().toArray(new IndexMetadata[0]))
             .map(IndexMetadata::getIndex)
             .collect(Collectors.toList())
             .toArray(new Index[2]);
@@ -429,7 +429,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
             counts.getFailingIndexReplicas()
         );
 
-        Index[] indices = Arrays.stream(state.metadata().indices().values().toArray(IndexMetadata.class))
+        Index[] indices = Arrays.stream(state.metadata().indices().values().toArray(new IndexMetadata[0]))
             .map(IndexMetadata::getIndex)
             .collect(Collectors.toList())
             .toArray(new Index[2]);
@@ -472,7 +472,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
             counts.getFailingIndexReplicas()
         );
 
-        Index[] indices = Arrays.stream(state.metadata().indices().values().toArray(IndexMetadata.class))
+        Index[] indices = Arrays.stream(state.metadata().indices().values().toArray(new IndexMetadata[0]))
             .map(IndexMetadata::getIndex)
             .collect(Collectors.toList())
             .toArray(new Index[2]);
