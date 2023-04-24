@@ -151,6 +151,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -1122,6 +1123,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             final long seqNo = shard.seqNoStats().getMaxSeqNo() + 1;
             shard.advanceMaxSeqNoOfUpdatesOrDeletes(seqNo); // manually replicate max_seq_no_of_updates
             result = shard.applyIndexOperationOnReplica(
+                UUID.randomUUID().toString(),
                 seqNo,
                 shard.getOperationPrimaryTerm(),
                 0,
