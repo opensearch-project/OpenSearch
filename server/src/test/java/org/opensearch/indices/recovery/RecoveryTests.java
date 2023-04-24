@@ -78,6 +78,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
@@ -181,6 +182,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             orgReplica.flush(new FlushRequest().force(true)); // isolate delete#1 in its own translog generation and lucene segment
             // index #0
             orgReplica.applyIndexOperationOnReplica(
+                UUID.randomUUID().toString(),
                 0,
                 primaryTerm,
                 1,
@@ -190,6 +192,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             );
             // index #3
             orgReplica.applyIndexOperationOnReplica(
+                UUID.randomUUID().toString(),
                 3,
                 primaryTerm,
                 1,
@@ -201,6 +204,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             orgReplica.flush(new FlushRequest().force(true).waitIfOngoing(true));
             // index #2
             orgReplica.applyIndexOperationOnReplica(
+                UUID.randomUUID().toString(),
                 2,
                 primaryTerm,
                 1,
@@ -212,6 +216,7 @@ public class RecoveryTests extends OpenSearchIndexLevelReplicationTestCase {
             orgReplica.updateGlobalCheckpointOnReplica(3L, "test");
             // index #5 -> force NoOp #4.
             orgReplica.applyIndexOperationOnReplica(
+                UUID.randomUUID().toString(),
                 5,
                 primaryTerm,
                 1,
