@@ -1164,8 +1164,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
             true,
-            executor,
-            false
+            executor
         );
     }
 
@@ -1177,8 +1176,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
             true,
-            executor,
-            false
+            executor
         ) {
 
             @Override

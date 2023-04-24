@@ -110,6 +110,26 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         QueryCache queryCache,
         QueryCachingPolicy queryCachingPolicy,
         boolean wrapWithExitableDirectoryReader,
+        Executor executor
+    ) throws IOException {
+        this(
+            reader,
+            similarity,
+            queryCache,
+            queryCachingPolicy,
+            new MutableQueryTimeout(),
+            wrapWithExitableDirectoryReader,
+            executor,
+            false
+        );
+    }
+
+    public ContextIndexSearcher(
+        IndexReader reader,
+        Similarity similarity,
+        QueryCache queryCache,
+        QueryCachingPolicy queryCachingPolicy,
+        boolean wrapWithExitableDirectoryReader,
         Executor executor,
         boolean reverseLeafReaderContexts
     ) throws IOException {
