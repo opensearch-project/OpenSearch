@@ -78,7 +78,7 @@ dependencies {
   api 'com.google.http-client:google-http-client-gson:1.41.4'
   api 'com.google.api:gax-httpjson:0.103.1'
   api 'io.grpc:grpc-context:1.46.0'
-  api 'io.opencensus:opencensus-api:0.18.0'
+  api 'io.opencensus:opencensus-api:0.31.1'
   api 'io.opencensus:opencensus-contrib-http-util:0.31.1'
   api 'com.google.apis:google-api-services-storage:v1-rev20220608-1.32.1'
 
