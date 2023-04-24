@@ -1026,7 +1026,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 request.getClusterAlias(),
                 OriginalIndices.NONE
             );
-            request.source().sorts().searchContext = new DefaultSearchContext(
+            searchContext = new DefaultSearchContext(
                 reader,
                 request,
                 shardTarget,
