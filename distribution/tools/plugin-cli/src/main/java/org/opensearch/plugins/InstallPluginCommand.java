@@ -35,6 +35,7 @@ package org.opensearch.plugins;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
+import org.apache.commons.compress.archivers.zip.ZipEncodingHelper;
 import org.apache.commons.compress.archivers.zip.ZipFile;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
@@ -717,7 +718,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         final Path target = stagingDirectory(pluginsDir);
         pathsToDeleteOnShutdown.add(target);
 
-        try (ZipFile zipFile = new ZipFile(zip.toString())) {
+        try (ZipFile zipFile = new ZipFile(zip, "UTF8", true, false)) {
             final Enumeration<? extends ZipArchiveEntry> entries = zipFile.getEntries();
             ZipArchiveEntry entry;
             byte[] buffer = new byte[8192];
