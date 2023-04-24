@@ -152,6 +152,7 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
             final IndexShard remainingReplica = shards.getReplicas().get(1);
             // slip the extra document into the replica
             remainingReplica.applyIndexOperationOnReplica(
+                "id",
                 remainingReplica.getLocalCheckpoint() + 1,
                 remainingReplica.getOperationPrimaryTerm(),
                 1,
