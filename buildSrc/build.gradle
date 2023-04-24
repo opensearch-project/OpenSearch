@@ -61,7 +61,7 @@ Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('ver
 version = props.getProperty("opensearch")
 
 def generateVersionProperties = tasks.register("generateVersionProperties", WriteProperties) {
-  outputFile = "${buildDir}/version.properties"
+  destinationFile = file("${buildDir}/version.properties")
   comment = 'Generated version properties'
   properties(props)
 }

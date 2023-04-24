@@ -213,7 +213,8 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
             .resolve("ports")
         }
         nonInputProperties.systemProperty "test.hdfs-fixture.ports", file("$portsFileDir/ports")
-        classpath += files(portsFileDir)
+        // See please https://docs.gradle.org/8.1/userguide/upgrading_version_8.html#test_task_default_classpath
+        classpath = testing.suites.test.sources.runtimeClasspath + files(portsFileDir)
         // Copy ports file to separate location which is placed on the test classpath
         doFirst {
           mkdir(portsFileDir)
