@@ -52,7 +52,7 @@ public class SegmentReplicationPressureService implements Closeable {
      */
     public static final Setting<Boolean> SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED = Setting.boolSetting(
         "segrep.pressure.enabled",
-        true,
+        false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
