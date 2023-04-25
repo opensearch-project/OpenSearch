@@ -19,6 +19,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `woodstox-core` from 6.3.0 to 6.3.1
 - Bump `xmlbeans` from 5.1.0 to 5.1.1 ([#4354](https://github.com/opensearch-project/OpenSearch/pull/4354))
 - Bump `org.gradle.test-retry` from 1.4.0 to 1.4.1 ([#4411](https://github.com/opensearch-project/OpenSearch/pull/4411))
+- Bump `reactor-netty-core` from 1.0.19 to 1.0.22 ([#4447](https://github.com/opensearch-project/OpenSearch/pull/4447))
 - Bump `reactive-streams` from 1.0.3 to 1.0.4 ([#4488](https://github.com/opensearch-project/OpenSearch/pull/4488))
 - Bump `antlr4` from 4.9.3 to 4.11.1 ([#4546](https://github.com/opensearch-project/OpenSearch/pull/4546))
 - Bump `jempbox` from 1.8.16 to 1.8.17 ([#4550](https://github.com/opensearch-project/OpenSearch/pull/4550))
@@ -32,12 +33,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `gson` from 2.10 to 2.10.1
 - Bump `jna` from 5.11.0 to 5.13.0
 - Bump `commons-io:commons-io` from 2.7 to 2.11.0
-- Bump `org.jruby.joni:joni` from 2.1.45 to 2.1.48
+- Bump `org.jruby.joni:joni` from 2.1.44 to 2.1.48
 - Bump `org.apache.ant:ant` from 1.10.12 to 1.10.13
-- Bump `com.azure:azure-storage-common` from 12.18.1 to 12.19.3
+- Bump `com.azure:azure-storage-common` from 12.18.0 to 12.19.3
 - Bump `wiremock-jre8-standalone` from 2.33.2 to 2.35.0
 - Bump `com.maxmind.geoip2:geoip2` from 4.0.0 to 4.0.1
-- Bump `com.networknt:json-schema-validator` from 1.0.76 to 1.0.78
+- Bump `com.networknt:json-schema-validator` from 1.0.73 to 1.0.78
 - Bump `com.netflix.nebula:gradle-info-plugin` from 12.0.0 to 12.1.0
 - Bump `com.avast.gradle:gradle-docker-compose-plugin` from 0.16.11 to 0.16.12
 - Bump `org.apache.commons:commons-compress` from 1.22 to 1.23.0

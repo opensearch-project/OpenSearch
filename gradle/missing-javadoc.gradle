@@ -6,7 +6,6 @@
  * compatible open source license.
  */
 
-import javax.annotation.Nullable
 import org.gradle.api.tasks.PathSensitive;
 import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.internal.jvm.Jvm
@@ -107,7 +106,6 @@ configure([
   project(":modules:aggs-matrix-stats"),
   project(":modules:analysis-common"),
   project(":modules:geo"),
-  project(":modules:identity-shiro"),
   project(":modules:ingest-common"),
   project(":modules:ingest-geoip"),
   project(":modules:ingest-user-agent"),
