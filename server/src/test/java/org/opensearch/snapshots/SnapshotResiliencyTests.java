@@ -168,6 +168,7 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.gateway.MetaStateService;
 import org.opensearch.gateway.TransportNodesListGatewayStartedShards;
+import org.opensearch.identity.IdentityService;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationPressureService;
@@ -1809,6 +1810,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         settings,
                         mock(PluginsService.class),
                         mock(ExtensionsManager.class),
+                        mock(IdentityService.class),
                         nodeEnv,
                         namedXContentRegistry,
                         new AnalysisRegistry(
