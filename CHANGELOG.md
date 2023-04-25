@@ -81,6 +81,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ## [Unreleased 2.x]
 ### Added
 - [Extensions] Moving Extensions APIs to protobuf serialization. ([#6960](https://github.com/opensearch-project/OpenSearch/pull/6960))
+- [Extensions] Moving RestActions APIs to protobuf serialization. ([#7302](https://github.com/opensearch-project/OpenSearch/pull/7302))
 
 ### Dependencies
 
