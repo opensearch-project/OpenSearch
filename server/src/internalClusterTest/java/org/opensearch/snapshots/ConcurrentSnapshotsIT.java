@@ -31,8 +31,6 @@
 
 package org.opensearch.snapshots;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.ActionListener;
@@ -1428,8 +1426,8 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
     private static boolean snapshotHasCompletedShard(String snapshot, SnapshotsInProgress snapshotsInProgress) {
         for (SnapshotsInProgress.Entry entry : snapshotsInProgress.entries()) {
             if (entry.snapshot().getSnapshotId().getName().equals(snapshot)) {
-                for (ObjectCursor<SnapshotsInProgress.ShardSnapshotStatus> shard : entry.shards().values()) {
-                    if (shard.value.state().completed()) {
+                for (final SnapshotsInProgress.ShardSnapshotStatus shard : entry.shards().values()) {
+                    if (shard.state().completed()) {
                         return true;
                     }
                 }

@@ -69,7 +69,9 @@ import org.opensearch.test.gateway.TestGatewayAllocator;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -828,10 +830,10 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
 
         final RoutingTable routingTable = routingTableBuilder.build();
 
-        final ImmutableOpenMap.Builder<String, ClusterState.Custom> restores = ImmutableOpenMap.builder();
+        final Map<String, ClusterState.Custom> restores = new HashMap<>();
         if (snapshotIndices.isEmpty() == false) {
             // Some indices are restored from snapshot, the RestoreInProgress must be set accordingly
-            ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> restoreShards = ImmutableOpenMap.builder();
+            final Map<ShardId, RestoreInProgress.ShardRestoreStatus> restoreShards = new HashMap<>();
             for (ShardRouting shard : routingTable.allShards()) {
                 if (shard.primary() && shard.recoverySource().getType() == RecoverySource.Type.SNAPSHOT) {
                     final ShardId shardId = shard.shardId();
@@ -848,7 +850,7 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
                 snapshot,
                 RestoreInProgress.State.INIT,
                 new ArrayList<>(snapshotIndices),
-                restoreShards.build()
+                restoreShards
             );
             restores.put(RestoreInProgress.TYPE, new RestoreInProgress.Builder().add(restore).build());
         }
@@ -857,7 +859,7 @@ public class ThrottlingAllocationTests extends OpenSearchAllocationTestCase {
             .nodes(DiscoveryNodes.builder().add(node1))
             .metadata(metadataBuilder.build())
             .routingTable(routingTable)
-            .customs(restores.build())
+            .customs(restores)
             .build();
     }
 

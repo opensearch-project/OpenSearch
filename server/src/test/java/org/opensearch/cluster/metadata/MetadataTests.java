@@ -93,7 +93,7 @@ public class MetadataTests extends OpenSearchTestCase {
             .build();
 
         {
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(new GetAliasesRequest(), Strings.EMPTY_ARRAY);
+            final Map<String, List<AliasMetadata>> aliases = metadata.findAliases(new GetAliasesRequest(), Strings.EMPTY_ARRAY);
             assertThat(aliases.size(), equalTo(0));
         }
         {
@@ -105,7 +105,7 @@ public class MetadataTests extends OpenSearchTestCase {
                 // replacing with empty aliases behaves as if aliases were unspecified at request building
                 request.replaceAliases(Strings.EMPTY_ARRAY);
             }
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(new GetAliasesRequest(), new String[] { "index" });
+            final Map<String, List<AliasMetadata>> aliases = metadata.findAliases(new GetAliasesRequest(), new String[] { "index" });
             assertThat(aliases.size(), equalTo(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
             assertThat(aliasMetadataList.size(), equalTo(2));
@@ -113,7 +113,7 @@ public class MetadataTests extends OpenSearchTestCase {
             assertThat(aliasMetadataList.get(1).alias(), equalTo("alias2"));
         }
         {
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(
+            final Map<String, List<AliasMetadata>> aliases = metadata.findAliases(
                 new GetAliasesRequest("alias*"),
                 new String[] { "index" }
             );
@@ -124,7 +124,7 @@ public class MetadataTests extends OpenSearchTestCase {
             assertThat(aliasMetadataList.get(1).alias(), equalTo("alias2"));
         }
         {
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(
+            final Map<String, List<AliasMetadata>> aliases = metadata.findAliases(
                 new GetAliasesRequest("alias1"),
                 new String[] { "index" }
             );
@@ -134,7 +134,7 @@ public class MetadataTests extends OpenSearchTestCase {
             assertThat(aliasMetadataList.get(0).alias(), equalTo("alias1"));
         }
         {
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAllAliases(new String[] { "index" });
+            final Map<String, List<AliasMetadata>> aliases = metadata.findAllAliases(new String[] { "index" });
             assertThat(aliases.size(), equalTo(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
             assertThat(aliasMetadataList.size(), equalTo(2));
@@ -142,7 +142,7 @@ public class MetadataTests extends OpenSearchTestCase {
             assertThat(aliasMetadataList.get(1).alias(), equalTo("alias2"));
         }
         {
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAllAliases(Strings.EMPTY_ARRAY);
+            final Map<String, List<AliasMetadata>> aliases = metadata.findAllAliases(Strings.EMPTY_ARRAY);
             assertThat(aliases.size(), equalTo(0));
         }
     }
