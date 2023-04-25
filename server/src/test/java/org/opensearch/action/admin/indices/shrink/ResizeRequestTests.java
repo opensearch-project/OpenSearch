@@ -137,8 +137,7 @@ public class ResizeRequestTests extends OpenSearchTestCase {
             "Validation Failed: 1: target index ["
                 + createIndexRequest.index()
                 + "] will be blocked by [index.blocks.read_only=true],"
-                + " this will disable metadata writes and cause the shards to be unassigned,"
-                + " please set \"index.blocks.read_only=false\" or \"index.blocks.read_only=null\";",
+                + " this will disable metadata writes and cause the shards to be unassigned;",
             e.getMessage()
         );
 
@@ -150,8 +149,7 @@ public class ResizeRequestTests extends OpenSearchTestCase {
             "Validation Failed: 1: target index ["
                 + createIndexRequest.index()
                 + "] will be blocked by [index.blocks.metadata=true],"
-                + " this will disable metadata writes and cause the shards to be unassigned,"
-                + " please set \"index.blocks.metadata=false\" or \"index.blocks.metadata=null\";",
+                + " this will disable metadata writes and cause the shards to be unassigned;",
             e.getMessage()
         );
 

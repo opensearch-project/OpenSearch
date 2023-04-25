@@ -152,8 +152,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
             validationException = addValidationError(
                 "target index ["
                     + targetIndexRequest.index()
-                    + "] will be blocked by [index.blocks.read_only=true], this will disable metadata writes and cause the shards to be unassigned,"
-                    + " please set \"index.blocks.read_only=false\" or \"index.blocks.read_only=null\"",
+                    + "] will be blocked by [index.blocks.read_only=true], this will disable metadata writes and cause the shards to be unassigned",
                 validationException
             );
         }
@@ -164,8 +163,7 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
             validationException = addValidationError(
                 "target index ["
                     + targetIndexRequest.index()
-                    + "] will be blocked by [index.blocks.metadata=true], this will disable metadata writes and cause the shards to be unassigned,"
-                    + " please set \"index.blocks.metadata=false\" or \"index.blocks.metadata=null\"",
+                    + "] will be blocked by [index.blocks.metadata=true], this will disable metadata writes and cause the shards to be unassigned",
                 validationException
             );
         }

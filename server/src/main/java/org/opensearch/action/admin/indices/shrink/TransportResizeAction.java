@@ -192,8 +192,7 @@ public class TransportResizeAction extends TransportClusterManagerNodeAction<Res
                     + targetIndexName
                     + "] will be blocked by [index.blocks.read_only=true] which is copied from the source index ["
                     + sourceIndexName
-                    + "], this will disable metadata writes and cause the shards to be unassigned,"
-                    + " please set \"index.blocks.read_only=false\" or \"index.blocks.read_only=null\""
+                    + "], this will disable metadata writes and cause the shards to be unassigned"
             );
         }
 
