@@ -16,6 +16,7 @@ import org.opensearch.common.util.Streak;
 import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
@@ -34,6 +35,10 @@ public class RemoteSegmentUploadShardStatsTracker implements Writeable {
     public static final int UPLOAD_BYTES_PER_SECOND_WINDOW_SIZE = 2000;
 
     public static final int UPLOAD_TIME_WINDOW_SIZE = 2000;
+
+    private final AtomicLong seqNoLag = new AtomicLong();
+
+    private final AtomicLong timeMsLag = new AtomicLong();
 
     private final AtomicLong localRefreshSeqNo = new AtomicLong();
 
@@ -67,7 +72,7 @@ public class RemoteSegmentUploadShardStatsTracker implements Writeable {
     /**
      * Keeps list of filename of the most recent segments uploaded as part of refresh.
      */
-    private volatile Set<String> latestUploadFiles;
+    private volatile Set<String> latestUploadFiles = new HashSet<>();
 
     private final Streak failures = new Streak();
 
@@ -209,10 +214,12 @@ public class RemoteSegmentUploadShardStatsTracker implements Writeable {
 
     public void updateLocalRefreshSeqNo(long localRefreshSeqNo) {
         this.localRefreshSeqNo.set(localRefreshSeqNo);
+        computeSeqNoLag();
     }
 
     public void updateLocalRefreshTime(long localRefreshTime) {
         this.localRefreshTime.set(localRefreshTime);
+        computeTimeLag();
     }
 
     public long getRemoteRefreshSeqNo() {
@@ -221,6 +228,7 @@ public class RemoteSegmentUploadShardStatsTracker implements Writeable {
 
     public void updateRemoteRefreshSeqNo(long remoteRefreshSeqNo) {
         this.remoteRefreshSeqNo.set(remoteRefreshSeqNo);
+        computeSeqNoLag();
     }
 
     public long getRemoteRefreshTime() {
@@ -229,14 +237,23 @@ public class RemoteSegmentUploadShardStatsTracker implements Writeable {
 
     public void updateRemoteRefreshTime(long remoteRefreshTime) {
         this.remoteRefreshTime.set(remoteRefreshTime);
+        computeTimeLag();
+    }
+
+    private void computeSeqNoLag() {
+        seqNoLag.set(localRefreshSeqNo.get() - remoteRefreshSeqNo.get());
     }
 
     public long getSeqNoLag() {
-        return localRefreshSeqNo.get() - remoteRefreshSeqNo.get();
+        return seqNoLag.get();
+    }
+
+    private void computeTimeLag() {
+        timeMsLag.set(localRefreshTime.get() - remoteRefreshTime.get());
     }
 
     public long getTimeLag() {
-        return localRefreshTime.get() - remoteRefreshTime.get();
+        return timeMsLag.get();
     }
 
     public Map<String, Long> getLatestLocalFileNameLengthMap() {
@@ -245,11 +262,15 @@ public class RemoteSegmentUploadShardStatsTracker implements Writeable {
 
     public void updateLatestLocalFileNameLengthMap(Map<String, Long> latestLocalFileNameLengthMap) {
         this.latestLocalFileNameLengthMap = latestLocalFileNameLengthMap;
+        computeBytesLag();
     }
 
     public void updateLatestUploadFiles(Set<String> latestUploadFiles) {
-        this.latestUploadFiles = latestUploadFiles;
+        this.latestUploadFiles = new HashSet<>(latestUploadFiles);
+        computeBytesLag();
     }
+
+    private final AtomicLong bytesLag = new AtomicLong();
 
     public int getConsecutiveFailureCount() {
         return failures.length();
@@ -291,15 +312,20 @@ public class RemoteSegmentUploadShardStatsTracker implements Writeable {
         return uploadTimeMovingAverage.getAverage();
     }
 
-    public long getBytesLag() {
+    private void computeBytesLag() {
         if (latestLocalFileNameLengthMap == null || latestLocalFileNameLengthMap.isEmpty()) {
-            return 0;
+            return;
         }
         Set<String> filesNotYetUploaded = latestLocalFileNameLengthMap.keySet()
             .stream()
-            .filter(f -> latestUploadFiles == null || latestUploadFiles.contains(f) == false)
+            .filter(f -> !latestUploadFiles.contains(f))
             .collect(Collectors.toSet());
-        return filesNotYetUploaded.stream().map(latestLocalFileNameLengthMap::get).mapToLong(Long::longValue).sum();
+        long bytesLag = filesNotYetUploaded.stream().map(latestLocalFileNameLengthMap::get).mapToLong(Long::longValue).sum();
+        this.bytesLag.set(bytesLag);
+    }
+
+    public long getBytesLag() {
+        return bytesLag.get();
     }
 
     public long getInflightUploadBytes() {
@@ -324,5 +350,6 @@ public class RemoteSegmentUploadShardStatsTracker implements Writeable {
 
     public void addToLatestUploadFiles(String file) {
         this.latestUploadFiles.add(file);
+        computeBytesLag();
     }
 }

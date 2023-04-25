@@ -43,6 +43,7 @@ public class RemoteUploadPressureService implements IndexEventListener {
 
     @Override
     public void afterIndexShardCreated(IndexShard indexShard) {
+        logger.info("creating tracker for shard={}", indexShard);
         RemoteUploadStatsTracker.INSTANCE.createStatsTracker(
             indexShard.shardId(),
             remoteUploadPressureSettings.getUploadBytesMovingAverageWindowSize(),
@@ -52,7 +53,8 @@ public class RemoteUploadPressureService implements IndexEventListener {
     }
 
     @Override
-    public void beforeIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+    public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+        logger.info("deleting tracker for shard={}", indexShard);
         RemoteUploadStatsTracker.INSTANCE.remove(shardId);
     }
 
