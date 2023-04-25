@@ -471,7 +471,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
     private String[] buildWeightOrderedIndices() {
 
         final List<String> localIndices = new ArrayList<>();
-        for (String index : allocation.routingTable().indicesRouting().keys().toArray(String.class)) {
+        for (String index : allocation.routingTable().indicesRouting().keySet().toArray(new String[0])) {
             if (RoutingPool.LOCAL_ONLY.equals(RoutingPool.getIndexPool(metadata.index(index)))) {
                 localIndices.add(index);
             }

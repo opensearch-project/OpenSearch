@@ -33,7 +33,6 @@ package org.opensearch.test;
 
 import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
@@ -1492,8 +1491,8 @@ public final class InternalTestCluster extends TestCluster {
     public void assertSeqNos() throws Exception {
         assertBusy(() -> {
             final ClusterState state = clusterService().state();
-            for (ObjectObjectCursor<String, IndexRoutingTable> indexRoutingTable : state.routingTable().indicesRouting()) {
-                for (IntObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : indexRoutingTable.value.shards()) {
+            for (final IndexRoutingTable indexRoutingTable : state.routingTable().indicesRouting().values()) {
+                for (IntObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : indexRoutingTable.shards()) {
                     ShardRouting primaryShardRouting = indexShardRoutingTable.value.primaryShard();
                     final IndexShard primaryShard = getShardOrNull(state, primaryShardRouting);
                     if (primaryShard == null) {
@@ -1542,8 +1541,8 @@ public final class InternalTestCluster extends TestCluster {
     public void assertSameDocIdsOnShards() throws Exception {
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
-            for (ObjectObjectCursor<String, IndexRoutingTable> indexRoutingTable : state.routingTable().indicesRouting()) {
-                for (IntObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : indexRoutingTable.value.shards()) {
+            for (final IndexRoutingTable indexRoutingTable : state.routingTable().indicesRouting().values()) {
+                for (IntObjectCursor<IndexShardRoutingTable> indexShardRoutingTable : indexRoutingTable.shards()) {
                     ShardRouting primaryShardRouting = indexShardRoutingTable.value.primaryShard();
                     IndexShard primaryShard = getShardOrNull(state, primaryShardRouting);
                     if (primaryShard == null) {
