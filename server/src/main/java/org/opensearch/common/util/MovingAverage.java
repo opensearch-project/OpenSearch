@@ -22,12 +22,36 @@ public class MovingAverage {
     private double average = 0;
 
     public MovingAverage(int windowSize) {
-        if (windowSize <= 0) {
-            throw new IllegalArgumentException("window size must be greater than zero");
-        }
-
+        checkWindowSize(windowSize);
         this.windowSize = windowSize;
         this.observations = new long[windowSize];
+    }
+
+    public MovingAverage(int newWindowSize, MovingAverage oldMovingAverage) {
+        checkWindowSize(newWindowSize);
+        windowSize = newWindowSize;
+        observations = new long[newWindowSize];
+
+        // Start is inclusive, but end is exclusive
+        long start, end = oldMovingAverage.count;
+        if (oldMovingAverage.isReady() == false) {
+            start = 0;
+        } else {
+            start = end - oldMovingAverage.windowSize;
+        }
+        // If the newWindow Size is smaller than the elements eligible to be copied over, then we adjust the start value
+        if (end - start > newWindowSize) {
+            start = end - newWindowSize;
+        }
+        for (int i = (int) start; i < end; i++) {
+            record(oldMovingAverage.observations[i % oldMovingAverage.observations.length]);
+        }
+    }
+
+    private void checkWindowSize(int size) {
+        if (size <= 0) {
+            throw new IllegalArgumentException("window size must be greater than zero");
+        }
     }
 
     /**

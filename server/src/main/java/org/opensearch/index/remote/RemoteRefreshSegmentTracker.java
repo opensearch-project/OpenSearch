@@ -137,16 +137,25 @@ public class RemoteRefreshSegmentTracker {
     private final AtomicReference<MovingAverage> uploadBytesMovingAverageReference;
 
     /**
+     * This lock object is used for making sure we do not miss any data
+     */
+    private final Object uploadBytesMutex = new Object();
+
+    /**
      * Provides moving average over the last N upload speed (in bytes/s) of segment files uploaded as part of remote refresh.
      * N is window size. Wrapped with {@code AtomicReference} for dynamic changes in window size.
      */
     private final AtomicReference<MovingAverage> uploadBytesPerSecMovingAverageReference;
+
+    private final Object uploadBytesPerSecMutex = new Object();
 
     /**
      * Provides moving average over the last N overall upload time (in nanos) as part of remote refresh.N is window size.
      * Wrapped with {@code AtomicReference} for dynamic changes in window size.
      */
     private final AtomicReference<MovingAverage> uploadTimeMsMovingAverageReference;
+
+    private final Object uploadTimeMsMutex = new Object();
 
     ShardId getShardId() {
         return shardId;
@@ -333,7 +342,9 @@ public class RemoteRefreshSegmentTracker {
     }
 
     void addUploadBytes(long size) {
-        this.uploadBytesMovingAverageReference.get().record(size);
+        synchronized (uploadBytesMutex) {
+            this.uploadBytesMovingAverageReference.get().record(size);
+        }
     }
 
     /**
@@ -342,7 +353,9 @@ public class RemoteRefreshSegmentTracker {
      * @param updatedSize the updated size
      */
     void updateUploadBytesMovingAverageWindowSize(int updatedSize) {
-        this.uploadBytesMovingAverageReference.set(new MovingAverage(updatedSize));
+        synchronized (uploadBytesMutex) {
+            this.uploadBytesMovingAverageReference.set(new MovingAverage(updatedSize, this.uploadBytesMovingAverageReference.get()));
+        }
     }
 
     boolean isUploadBytesPerSecAverageReady() {
@@ -354,7 +367,9 @@ public class RemoteRefreshSegmentTracker {
     }
 
     void addUploadBytesPerSec(long bytesPerSec) {
-        this.uploadBytesPerSecMovingAverageReference.get().record(bytesPerSec);
+        synchronized (uploadBytesPerSecMutex) {
+            this.uploadBytesPerSecMovingAverageReference.get().record(bytesPerSec);
+        }
     }
 
     /**
@@ -363,7 +378,11 @@ public class RemoteRefreshSegmentTracker {
      * @param updatedSize the updated size
      */
     void updateUploadBytesPerSecMovingAverageWindowSize(int updatedSize) {
-        this.uploadBytesPerSecMovingAverageReference.set(new MovingAverage(updatedSize));
+        synchronized (uploadBytesPerSecMutex) {
+            this.uploadBytesPerSecMovingAverageReference.set(
+                new MovingAverage(updatedSize, this.uploadBytesPerSecMovingAverageReference.get())
+            );
+        }
     }
 
     boolean isUploadTimeMsAverageReady() {
@@ -375,7 +394,9 @@ public class RemoteRefreshSegmentTracker {
     }
 
     void addUploadTimeMs(long timeMs) {
-        this.uploadTimeMsMovingAverageReference.get().record(timeMs);
+        synchronized (uploadTimeMsMutex) {
+            this.uploadTimeMsMovingAverageReference.get().record(timeMs);
+        }
     }
 
     /**
@@ -384,6 +405,8 @@ public class RemoteRefreshSegmentTracker {
      * @param updatedSize the updated size
      */
     void updateUploadTimeMsMovingAverageWindowSize(int updatedSize) {
-        this.uploadTimeMsMovingAverageReference.set(new MovingAverage(updatedSize));
+        synchronized (uploadTimeMsMutex) {
+            this.uploadTimeMsMovingAverageReference.set(new MovingAverage(updatedSize, this.uploadTimeMsMovingAverageReference.get()));
+        }
     }
 }
