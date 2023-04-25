@@ -17,9 +17,15 @@ import java.util.Locale;
 import java.util.Map;
 
 import org.apache.lucene.util.ArrayUtil;
+
+import org.opensearch.common.bytes.BytesArray;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 
+/**
+ * A class for additional methods to read from a {@link CodedInputStream}.
+ */
 public class ProtobufStreamInput {
 
     private Version version = Version.CURRENT;
@@ -49,7 +55,8 @@ public class ProtobufStreamInput {
     /**
      * If the returned map contains any entries it will be mutable. If it is empty it might be immutable.
      */
-    public <K, V> Map<K, V> readMap(ProtobufWriteable.Reader<K> keyReader, ProtobufWriteable.Reader<V> valueReader, CodedInputStream in) throws IOException {
+    public <K, V> Map<K, V> readMap(ProtobufWriteable.Reader<K> keyReader, ProtobufWriteable.Reader<V> valueReader, CodedInputStream in)
+        throws IOException {
         int size = readArraySize(in);
         if (size == 0) {
             return Collections.emptyMap();
@@ -64,7 +71,8 @@ public class ProtobufStreamInput {
     }
 
     @Nullable
-    public <T extends ProtobufWriteable> T readOptionalWriteable(ProtobufWriteable.Reader<T> reader, CodedInputStream in) throws IOException {
+    public <T extends ProtobufWriteable> T readOptionalWriteable(ProtobufWriteable.Reader<T> reader, CodedInputStream in)
+        throws IOException {
         if (readBoolean(in)) {
             T t = reader.read(in);
             if (t == null) {
@@ -126,6 +134,32 @@ public class ProtobufStreamInput {
      */
     public final boolean readBoolean(CodedInputStream in) throws IOException {
         return readBoolean(in.readRawByte());
+    }
+
+    /**
+     * Reads an optional bytes reference from this stream. It might hold an actual reference to the underlying bytes of the stream. Use this
+     * only if you must differentiate null from empty.
+     */
+    @Nullable
+    public BytesReference readOptionalBytesReference(CodedInputStream in) throws IOException {
+        int length = readVInt(in) - 1;
+        if (length < 0) {
+            return null;
+        }
+        return readBytesReference(length, in);
+    }
+
+    /**
+     * Reads a bytes reference from this stream, might hold an actual reference to the underlying
+     * bytes of the stream.
+     */
+    public BytesReference readBytesReference(int length, CodedInputStream in) throws IOException {
+        if (length == 0) {
+            return BytesArray.EMPTY;
+        }
+        byte[] bytes = new byte[length];
+        bytes = in.readByteArray();
+        return new BytesArray(bytes, 0, length);
     }
 
     private boolean readBoolean(final byte value) {

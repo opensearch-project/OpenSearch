@@ -355,7 +355,13 @@ tasks.named("missingJavadoc").configure {
   javadocMissingIgnore = [
     "org.opensearch.extensions.proto.ExtensionRequestProto",
     "org.opensearch.extensions.proto.ExtensionRequestProto.ExtensionRequestOrBuilder",
-    "org.opensearch.extensions.proto"
+    "org.opensearch.extensions.proto",
+    "org.opensearch.tasks.proto.TaskResourceStatsProto",
+    "org.opensearch.tasks.proto.TaskResourceStatsProto.TaskResourceStatsOrBuilder",
+    "org.opensearch.tasks.proto.TaskResourceStatsProto.TaskResourceStats.TaskResourceUsageOrBuilder",
+    "org.opensearch.tasks.proto.TaskIdProto",
+    "org.opensearch.tasks.proto.TaskIdProto.TaskIdOrBuilder",
+    "org.opensearch.tasks.proto"
   ]
 }
 
@@ -373,6 +379,7 @@ tasks.named("licenseHeaders").configure {
     excludes << 'org/opensearch/client/documentation/placeholder.txt'
     // Ignore for protobuf generated code
     excludes << 'org/opensearch/extensions/proto/*'
+    excludes << 'org/opensearch/tasks/proto/*'
 }
 
 tasks.test {

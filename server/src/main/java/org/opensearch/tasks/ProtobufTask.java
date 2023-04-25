@@ -4,6 +4,9 @@
 * The OpenSearch Contributors require contributions made to
 * this file be licensed under the Apache-2.0 license or a
 * compatible open source license.
+*
+* Modifications Copyright OpenSearch Contributors. See
+* GitHub history for details.
 */
 
 package org.opensearch.tasks;
@@ -17,6 +20,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
+import org.opensearch.tasks.proto.TaskResourceStatsProto;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -28,7 +32,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Current task information
+ * Current protobuf task information
 *
 * @opensearch.internal
 */
@@ -167,7 +171,12 @@ public class ProtobufTask {
     /**
      * Build a proper {@link ProtobufTaskInfo} for this task.
     */
-    protected final ProtobufTaskInfo taskInfo(String localNodeId, String description, Status status, TaskResourceStats resourceStats) {
+    protected final ProtobufTaskInfo taskInfo(
+        String localNodeId,
+        String description,
+        Status status,
+        ProtobufTaskResourceStats resourceStats
+    ) {
         return new ProtobufTaskInfo(
             new ProtobufTaskId(localNodeId, getId()),
             getType(),
@@ -255,8 +264,11 @@ public class ProtobufTask {
     * Currently, this method is only called on demand, during get and listing of tasks.
     * In the future, these values can be cached as an optimization.
     */
-    public TaskResourceUsage getTotalResourceStats() {
-        return new TaskResourceUsage(getTotalResourceUtilization(ResourceStats.CPU), getTotalResourceUtilization(ResourceStats.MEMORY));
+    public TaskResourceStatsProto.TaskResourceStats.TaskResourceUsage getTotalResourceStats() {
+        return TaskResourceStatsProto.TaskResourceStats.TaskResourceUsage.newBuilder()
+            .setCpuTimeInNanos(getTotalResourceUtilization(ResourceStats.CPU))
+            .setMemoryInBytes(getTotalResourceUtilization(ResourceStats.MEMORY))
+            .build();
     }
 
     /**

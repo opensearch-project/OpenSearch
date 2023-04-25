@@ -21,7 +21,7 @@ public interface BaseWriteable<T, S> {
      * Write this into the stream output.
     */
     void writeTo(T out) throws IOException;
-    
+
     /**
      * Reference to a method that can write some object to a given type.
      */
@@ -42,7 +42,7 @@ public interface BaseWriteable<T, S> {
      */
     @FunctionalInterface
     interface Reader<S, V> {
- 
+
         /**
          * Read {@code V}-type value from a {@code T}-type stream.
         *
