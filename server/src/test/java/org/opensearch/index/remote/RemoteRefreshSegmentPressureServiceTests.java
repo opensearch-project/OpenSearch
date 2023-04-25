@@ -6,13 +6,14 @@
  * compatible open source license.
  */
 
-package org.opensearch.index;
+package org.opensearch.index.remote;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.IndexSettingsModule;
@@ -119,7 +120,7 @@ public class RemoteRefreshSegmentPressureServiceTests extends OpenSearchTestCase
         pressureService.afterIndexShardCreated(indexShard);
 
         // 1. Seq no - add data points to the pressure tracker
-        RemoteRefreshSegmentPressureTracker pressureTracker = pressureService.getPressureTracker(testShardId);
+        RemoteRefreshSegmentTracker pressureTracker = pressureService.getPressureTracker(testShardId);
         pressureTracker.updateLocalRefreshSeqNo(6);
         Exception e = assertThrows(
             OpenSearchRejectedExecutionException.class,

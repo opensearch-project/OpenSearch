@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index;
+package org.opensearch.index.remote;
 
 import org.opensearch.common.util.MovingAverage;
 import org.opensearch.common.util.Streak;
@@ -22,23 +22,22 @@ import java.util.stream.Collectors;
 /**
  * Keeps track of remote refresh which happens in {@link org.opensearch.index.shard.RemoteStoreRefreshListener}. This consist of multiple critical metrics.
  */
-public class RemoteRefreshSegmentPressureTracker {
+public class RemoteRefreshSegmentTracker {
 
-    RemoteRefreshSegmentPressureTracker(ShardId shardId, RemoteRefreshSegmentPressureSettings remoteUploadPressureSettings) {
+    public RemoteRefreshSegmentTracker(
+        ShardId shardId,
+        int uploadBytesMovingAverageWindowSize,
+        int uploadBytesPerSecMovingAverageWindowSize,
+        int uploadTimeMsMovingAverageWindowSize
+    ) {
         this.shardId = shardId;
         // Both the local refresh time and remote refresh time are set with current time to give consistent view of time lag when it arises.
         long currentTimeMs = System.nanoTime() / 1_000_000L;
         localRefreshTimeMs.set(currentTimeMs);
         remoteRefreshTimeMs.set(currentTimeMs);
-        uploadBytesMovingAverageReference = new AtomicReference<>(
-            new MovingAverage(remoteUploadPressureSettings.getUploadBytesMovingAverageWindowSize())
-        );
-        uploadBytesPerSecMovingAverageReference = new AtomicReference<>(
-            new MovingAverage(remoteUploadPressureSettings.getUploadBytesPerSecMovingAverageWindowSize())
-        );
-        uploadTimeMsMovingAverageReference = new AtomicReference<>(
-            new MovingAverage(remoteUploadPressureSettings.getUploadTimeMovingAverageWindowSize())
-        );
+        this.uploadBytesMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadBytesMovingAverageWindowSize));
+        this.uploadBytesPerSecMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadBytesPerSecMovingAverageWindowSize));
+        this.uploadTimeMsMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadTimeMsMovingAverageWindowSize));
     }
 
     /**

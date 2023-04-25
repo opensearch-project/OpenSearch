@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.index;
+package org.opensearch.index.remote;
 
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
@@ -20,12 +20,16 @@ public class RemoteRefreshSegmentPressureSettings {
 
     private static class Defaults {
         private static final long MIN_SEQ_NO_LAG_LIMIT = 5;
-        private static final double BYTES_LAG_VARIANCE_THRESHOLD = 2.0;
-        private static final double TIME_LAG_VARIANCE_THRESHOLD = 2.0;
+        private static final long MIN_SEQ_NO_LAG_LIMIT_MIN_VALUE = 2;
+        private static final double BYTES_LAG_VARIANCE_FACTOR = 2.0;
+        private static final double UPLOAD_TIME_LAG_VARIANCE_FACTOR = 2.0;
+        private static final double VARIANCE_FACTOR_MIN_VALUE = 1.0;
         private static final int MIN_CONSECUTIVE_FAILURES_LIMIT = 10;
+        private static final int MIN_CONSECUTIVE_FAILURES_LIMIT_MIN_VALUE = 1;
         private static final int UPLOAD_BYTES_MOVING_AVERAGE_WINDOW_SIZE = 20;
         private static final int UPLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE = 20;
         private static final int UPLOAD_TIME_MOVING_AVERAGE_WINDOW_SIZE = 20;
+        private static final int MOVING_AVERAGE_WINDOW_SIZE_MIN_VALUE = 5;
     }
 
     public static final Setting<Boolean> REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED = Setting.boolSetting(
@@ -38,23 +42,23 @@ public class RemoteRefreshSegmentPressureSettings {
     public static final Setting<Long> MIN_SEQ_NO_LAG_LIMIT = Setting.longSetting(
         "remote_store.segment.pressure.seq_no_lag.limit",
         Defaults.MIN_SEQ_NO_LAG_LIMIT,
-        2L,
+        Defaults.MIN_SEQ_NO_LAG_LIMIT_MIN_VALUE,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Double> BYTES_LAG_VARIANCE_THRESHOLD = Setting.doubleSetting(
-        "remote_store.segment.pressure.bytes_lag.variance",
-        Defaults.BYTES_LAG_VARIANCE_THRESHOLD,
-        0.0,
+    public static final Setting<Double> BYTES_LAG_VARIANCE_FACTOR = Setting.doubleSetting(
+        "remote_store.segment.pressure.bytes_lag.variance_factor",
+        Defaults.BYTES_LAG_VARIANCE_FACTOR,
+        Defaults.VARIANCE_FACTOR_MIN_VALUE,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Double> TIME_LAG_VARIANCE_THRESHOLD = Setting.doubleSetting(
-        "remote_store.segment.pressure.time_lag.variance",
-        Defaults.TIME_LAG_VARIANCE_THRESHOLD,
-        0.0,
+    public static final Setting<Double> UPLOAD_TIME_LAG_VARIANCE_FACTOR = Setting.doubleSetting(
+        "remote_store.segment.pressure.time_lag.variance_factor",
+        Defaults.UPLOAD_TIME_LAG_VARIANCE_FACTOR,
+        Defaults.VARIANCE_FACTOR_MIN_VALUE,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -62,7 +66,7 @@ public class RemoteRefreshSegmentPressureSettings {
     public static final Setting<Integer> MIN_CONSECUTIVE_FAILURES_LIMIT = Setting.intSetting(
         "remote_store.segment.pressure.consecutive_failures.limit",
         Defaults.MIN_CONSECUTIVE_FAILURES_LIMIT,
-        1,
+        Defaults.MIN_CONSECUTIVE_FAILURES_LIMIT_MIN_VALUE,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -70,7 +74,7 @@ public class RemoteRefreshSegmentPressureSettings {
     public static final Setting<Integer> UPLOAD_BYTES_MOVING_AVERAGE_WINDOW_SIZE = Setting.intSetting(
         "remote_store.segment.pressure.upload_bytes_moving_average_window_size",
         Defaults.UPLOAD_BYTES_MOVING_AVERAGE_WINDOW_SIZE,
-        0,
+        Defaults.MOVING_AVERAGE_WINDOW_SIZE_MIN_VALUE,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -78,7 +82,7 @@ public class RemoteRefreshSegmentPressureSettings {
     public static final Setting<Integer> UPLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE = Setting.intSetting(
         "remote_store.segment.pressure.upload_bytes_per_sec_moving_average_window_size",
         Defaults.UPLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE,
-        0,
+        Defaults.MOVING_AVERAGE_WINDOW_SIZE_MIN_VALUE,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -86,7 +90,7 @@ public class RemoteRefreshSegmentPressureSettings {
     public static final Setting<Integer> UPLOAD_TIME_MOVING_AVERAGE_WINDOW_SIZE = Setting.intSetting(
         "remote_store.segment.pressure.upload_time_moving_average_window_size",
         Defaults.UPLOAD_TIME_MOVING_AVERAGE_WINDOW_SIZE,
-        0,
+        Defaults.MOVING_AVERAGE_WINDOW_SIZE_MIN_VALUE,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -95,9 +99,9 @@ public class RemoteRefreshSegmentPressureSettings {
 
     private volatile long minSeqNoLagLimit;
 
-    private volatile double bytesLagVarianceThreshold;
+    private volatile double bytesLagVarianceFactor;
 
-    private volatile double timeLagVarianceThreshold;
+    private volatile double uploadTimeLagVarianceFactor;
 
     private volatile int minConsecutiveFailuresLimit;
 
@@ -120,11 +124,11 @@ public class RemoteRefreshSegmentPressureSettings {
         this.minSeqNoLagLimit = MIN_SEQ_NO_LAG_LIMIT.get(settings);
         clusterSettings.addSettingsUpdateConsumer(MIN_SEQ_NO_LAG_LIMIT, this::setMinSeqNoLagLimit);
 
-        this.bytesLagVarianceThreshold = BYTES_LAG_VARIANCE_THRESHOLD.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(BYTES_LAG_VARIANCE_THRESHOLD, this::setBytesLagVarianceThreshold);
+        this.bytesLagVarianceFactor = BYTES_LAG_VARIANCE_FACTOR.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(BYTES_LAG_VARIANCE_FACTOR, this::setBytesLagVarianceFactor);
 
-        this.timeLagVarianceThreshold = TIME_LAG_VARIANCE_THRESHOLD.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(TIME_LAG_VARIANCE_THRESHOLD, this::setTimeLagVarianceThreshold);
+        this.uploadTimeLagVarianceFactor = UPLOAD_TIME_LAG_VARIANCE_FACTOR.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(UPLOAD_TIME_LAG_VARIANCE_FACTOR, this::setUploadTimeLagVarianceFactor);
 
         this.minConsecutiveFailuresLimit = MIN_CONSECUTIVE_FAILURES_LIMIT.get(settings);
         clusterSettings.addSettingsUpdateConsumer(MIN_CONSECUTIVE_FAILURES_LIMIT, this::setMinConsecutiveFailuresLimit);
@@ -170,20 +174,20 @@ public class RemoteRefreshSegmentPressureSettings {
         this.minSeqNoLagLimit = minSeqNoLagLimit;
     }
 
-    public double getBytesLagVarianceThreshold() {
-        return bytesLagVarianceThreshold;
+    public double getBytesLagVarianceFactor() {
+        return bytesLagVarianceFactor;
     }
 
-    public void setBytesLagVarianceThreshold(double bytesLagVarianceThreshold) {
-        this.bytesLagVarianceThreshold = bytesLagVarianceThreshold;
+    public void setBytesLagVarianceFactor(double bytesLagVarianceFactor) {
+        this.bytesLagVarianceFactor = bytesLagVarianceFactor;
     }
 
-    public double getTimeLagVarianceThreshold() {
-        return timeLagVarianceThreshold;
+    public double getUploadTimeLagVarianceFactor() {
+        return uploadTimeLagVarianceFactor;
     }
 
-    public void setTimeLagVarianceThreshold(double timeLagVarianceThreshold) {
-        this.timeLagVarianceThreshold = timeLagVarianceThreshold;
+    public void setUploadTimeLagVarianceFactor(double uploadTimeLagVarianceFactor) {
+        this.uploadTimeLagVarianceFactor = uploadTimeLagVarianceFactor;
     }
 
     public int getMinConsecutiveFailuresLimit() {
