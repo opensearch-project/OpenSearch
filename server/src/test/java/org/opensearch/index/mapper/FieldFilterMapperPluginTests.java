@@ -40,7 +40,6 @@ import org.opensearch.action.fieldcaps.FieldCapabilities;
 import org.opensearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.opensearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.opensearch.cluster.metadata.MappingMetadata;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.plugins.MapperPlugin;
@@ -166,7 +165,7 @@ public class FieldFilterMapperPluginTests extends OpenSearchSingleNodeTestCase {
         assertEquals("Some unexpected fields were returned: " + fields.keySet(), 0, fields.size());
     }
 
-    private void assertExpectedMappings(ImmutableOpenMap<String, MappingMetadata> mappings) {
+    private void assertExpectedMappings(Map<String, MappingMetadata> mappings) {
         assertEquals(2, mappings.size());
         assertNotFiltered(mappings.get("index1"));
         MappingMetadata filtered = mappings.get("filtered");
