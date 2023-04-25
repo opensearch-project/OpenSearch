@@ -64,7 +64,7 @@ import java.util.Objects;
 public class GetIndexResponse extends ActionResponse implements ToXContentObject {
 
     private Map<String, MappingMetadata> mappings = Map.of();
-    private ImmutableOpenMap<String, List<AliasMetadata>> aliases = ImmutableOpenMap.of();
+    private Map<String, List<AliasMetadata>> aliases = Map.of();
     private ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
     private ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
     private ImmutableOpenMap<String, String> dataStreams = ImmutableOpenMap.of();
@@ -73,7 +73,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
     public GetIndexResponse(
         String[] indices,
         Map<String, MappingMetadata> mappings,
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases,
+        final Map<String, List<AliasMetadata>> aliases,
         ImmutableOpenMap<String, Settings> settings,
         ImmutableOpenMap<String, Settings> defaultSettings,
         ImmutableOpenMap<String, String> dataStreams
@@ -85,7 +85,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             this.mappings = mappings;
         }
         if (aliases != null) {
-            this.aliases = aliases;
+            this.aliases = Collections.unmodifiableMap(aliases);
         }
         if (settings != null) {
             this.settings = settings;
@@ -127,7 +127,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         mappings = Collections.unmodifiableMap(mappingsMapBuilder);
 
         int aliasesSize = in.readVInt();
-        ImmutableOpenMap.Builder<String, List<AliasMetadata>> aliasesMapBuilder = ImmutableOpenMap.builder();
+        final Map<String, List<AliasMetadata>> aliasesMapBuilder = new HashMap<>();
         for (int i = 0; i < aliasesSize; i++) {
             String key = in.readString();
             int valueSize = in.readVInt();
@@ -137,7 +137,7 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             }
             aliasesMapBuilder.put(key, Collections.unmodifiableList(aliasEntryBuilder));
         }
-        aliases = aliasesMapBuilder.build();
+        aliases = Collections.unmodifiableMap(aliasesMapBuilder);
 
         int settingsSize = in.readVInt();
         ImmutableOpenMap.Builder<String, Settings> settingsMapBuilder = ImmutableOpenMap.builder();
@@ -178,11 +178,11 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         return mappings();
     }
 
-    public ImmutableOpenMap<String, List<AliasMetadata>> aliases() {
+    public Map<String, List<AliasMetadata>> aliases() {
         return aliases;
     }
 
-    public ImmutableOpenMap<String, List<AliasMetadata>> getAliases() {
+    public Map<String, List<AliasMetadata>> getAliases() {
         return aliases();
     }
 
@@ -255,10 +255,10 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             }
         }
         out.writeVInt(aliases.size());
-        for (ObjectObjectCursor<String, List<AliasMetadata>> indexEntry : aliases) {
-            out.writeString(indexEntry.key);
-            out.writeVInt(indexEntry.value.size());
-            for (AliasMetadata aliasEntry : indexEntry.value) {
+        for (final Map.Entry<String, List<AliasMetadata>> indexEntry : aliases.entrySet()) {
+            out.writeString(indexEntry.getKey());
+            out.writeVInt(indexEntry.getValue().size());
+            for (AliasMetadata aliasEntry : indexEntry.getValue()) {
                 aliasEntry.writeTo(out);
             }
         }
