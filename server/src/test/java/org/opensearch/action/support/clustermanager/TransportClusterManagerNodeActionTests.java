@@ -669,7 +669,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         assertFalse(listener.isDone());
 
         // waiting for retry to trigger
-        Thread.sleep(100);
+        Thread.sleep(10000);
 
         // Retry for above throttling exception
         capturedRequests = transport.getCapturedRequestsAndClear();

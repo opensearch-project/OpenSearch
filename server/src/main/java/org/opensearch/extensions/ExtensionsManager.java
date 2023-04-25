@@ -24,6 +24,7 @@ import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
+import java.util.Arrays;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -88,31 +89,12 @@ public class ExtensionsManager {
     public static final String REQUEST_EXTENSION_REGISTER_CUSTOM_SETTINGS = "internal:discovery/registercustomsettings";
     public static final String REQUEST_EXTENSION_REGISTER_REST_ACTIONS = "internal:discovery/registerrestactions";
     public static final String REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS = "internal:discovery/registertransportactions";
-    public static final String REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE = "internal:discovery/parsenamedwriteable";
     public static final String REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION = "internal:extensions/restexecuteonextensiontaction";
     public static final String REQUEST_EXTENSION_HANDLE_TRANSPORT_ACTION = "internal:extensions/handle-transportaction";
     public static final String REQUEST_EXTENSION_HANDLE_REMOTE_TRANSPORT_ACTION = "internal:extensions/handle-remote-transportaction";
     public static final String TRANSPORT_ACTION_REQUEST_FROM_EXTENSION = "internal:extensions/request-transportaction-from-extension";
     public static final int EXTENSION_REQUEST_WAIT_TIMEOUT = 10;
-
     private static final Logger logger = LogManager.getLogger(ExtensionsManager.class);
-
-    /**
-     * Enum for Extension Requests
-     *
-     * @opensearch.internal
-     */
-    public static enum RequestType {
-        REQUEST_EXTENSION_CLUSTER_STATE,
-        REQUEST_EXTENSION_CLUSTER_SETTINGS,
-        REQUEST_EXTENSION_REGISTER_REST_ACTIONS,
-        REQUEST_EXTENSION_REGISTER_SETTINGS,
-        REQUEST_EXTENSION_ENVIRONMENT_SETTINGS,
-        REQUEST_EXTENSION_DEPENDENCY_INFORMATION,
-        CREATE_COMPONENT,
-        ON_INDEX_MODULE,
-        GET_SETTINGS
-    };
 
     /**
      * Enum for OpenSearch Requests
@@ -429,7 +411,7 @@ public class ExtensionsManager {
     /**
      * Handles an {@link ExtensionRequest}.
      *
-     * @param extensionRequest  The request to handle, of a type defined in the {@link RequestType} enum.
+     * @param extensionRequest  The request to handle, of a type defined in the {@link org.opensearch.extensions.proto.ExtensionRequestProto.RequestType} enum.
      * @return  an Response matching the request.
      * @throws Exception if the request is not handled properly.
      */
@@ -442,7 +424,7 @@ public class ExtensionsManager {
             case REQUEST_EXTENSION_ENVIRONMENT_SETTINGS:
                 return new EnvironmentSettingsResponse(this.environmentSettings);
             case REQUEST_EXTENSION_DEPENDENCY_INFORMATION:
-                String uniqueId = extensionRequest.getUniqueId().orElse(null);
+                String uniqueId = extensionRequest.getUniqueId();
                 if (uniqueId == null) {
                     return new ExtensionDependencyResponse(extensions);
                 } else {
@@ -586,34 +568,55 @@ public class ExtensionsManager {
             List<HashMap<String, ?>> unreadExtensions = new ArrayList<>((Collection<HashMap<String, ?>>) obj.get("extensions"));
             List<Extension> readExtensions = new ArrayList<Extension>();
             for (HashMap<String, ?> extensionMap : unreadExtensions) {
-                // Parse extension dependencies
-                List<ExtensionDependency> extensionDependencyList = new ArrayList<ExtensionDependency>();
-                if (extensionMap.get("dependencies") != null) {
-                    List<HashMap<String, ?>> extensionDependencies = new ArrayList<>(
-                        (Collection<HashMap<String, ?>>) extensionMap.get("dependencies")
-                    );
-                    for (HashMap<String, ?> dependency : extensionDependencies) {
-                        extensionDependencyList.add(
-                            new ExtensionDependency(
-                                dependency.get("uniqueId").toString(),
-                                Version.fromString(dependency.get("version").toString())
-                            )
-                        );
+                try {
+                    // checking to see whether any required fields are missing from extension.yml file or not
+                    String[] requiredFields = {
+                        "name",
+                        "uniqueId",
+                        "hostAddress",
+                        "port",
+                        "version",
+                        "opensearchVersion",
+                        "minimumCompatibleVersion" };
+                    List<String> missingFields = Arrays.stream(requiredFields)
+                        .filter(field -> !extensionMap.containsKey(field))
+                        .collect(Collectors.toList());
+                    if (!missingFields.isEmpty()) {
+                        throw new IOException("Extension is missing these required fields : " + missingFields);
                     }
+
+                    // Parse extension dependencies
+                    List<ExtensionDependency> extensionDependencyList = new ArrayList<ExtensionDependency>();
+                    if (extensionMap.get("dependencies") != null) {
+                        List<HashMap<String, ?>> extensionDependencies = new ArrayList<>(
+                            (Collection<HashMap<String, ?>>) extensionMap.get("dependencies")
+                        );
+                        for (HashMap<String, ?> dependency : extensionDependencies) {
+                            extensionDependencyList.add(
+                                new ExtensionDependency(
+                                    dependency.get("uniqueId").toString(),
+                                    Version.fromString(dependency.get("version").toString())
+                                )
+                            );
+                        }
+                    }
+
+                    // Create extension read from yml config
+                    readExtensions.add(
+                        new Extension(
+                            extensionMap.get("name").toString(),
+                            extensionMap.get("uniqueId").toString(),
+                            extensionMap.get("hostAddress").toString(),
+                            extensionMap.get("port").toString(),
+                            extensionMap.get("version").toString(),
+                            extensionMap.get("opensearchVersion").toString(),
+                            extensionMap.get("minimumCompatibleVersion").toString(),
+                            extensionDependencyList
+                        )
+                    );
+                } catch (IOException e) {
+                    logger.warn("loading extension has been failed because of exception : " + e.getMessage());
                 }
-                // Create extension read from yml config
-                readExtensions.add(
-                    new Extension(
-                        extensionMap.get("name").toString(),
-                        extensionMap.get("uniqueId").toString(),
-                        extensionMap.get("hostAddress").toString(),
-                        extensionMap.get("port").toString(),
-                        extensionMap.get("version").toString(),
-                        extensionMap.get("opensearchVersion").toString(),
-                        extensionMap.get("minimumCompatibleVersion").toString(),
-                        extensionDependencyList
-                    )
-                );
             }
             inputStream.close();
             return new ExtensionsSettings(readExtensions);
@@ -662,10 +665,6 @@ public class ExtensionsManager {
 
     public static String getRequestExtensionRegisterRestActions() {
         return REQUEST_EXTENSION_REGISTER_REST_ACTIONS;
-    }
-
-    public static String getRequestOpensearchParseNamedWriteable() {
-        return REQUEST_OPENSEARCH_PARSE_NAMED_WRITEABLE;
     }
 
     public static String getRequestRestExecuteOnExtensionAction() {

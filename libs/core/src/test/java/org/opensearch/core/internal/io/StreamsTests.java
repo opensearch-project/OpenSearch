@@ -32,6 +32,7 @@
 
 package org.opensearch.core.internal.io;
 
+import org.opensearch.common.util.io.Streams;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.ByteArrayInputStream;

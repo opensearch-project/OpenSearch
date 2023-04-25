@@ -32,7 +32,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -68,6 +67,7 @@ import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
+import org.opensearch.extensions.proto.ExtensionRequestProto;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
 import org.opensearch.index.IndexModule;
@@ -281,6 +281,58 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         assertTrue(expectedExtensions.containsAll(emptyList()));
     }
 
+    public void testMissingRequiredFieldsInExtensionDiscovery() throws Exception {
+        Path emptyExtensionDir = createTempDir();
+        ExtensionsManager extensionsManager;
+        List<String> requiredFieldMissingYmlLines = extensionsYmlLines.stream()
+            .map(s -> s.replace("     minimumCompatibleVersion: '2.0.0'", ""))
+            .collect(Collectors.toList());
+        Files.write(emptyExtensionDir.resolve("extensions.yml"), requiredFieldMissingYmlLines, StandardCharsets.UTF_8);
+
+        try (MockLogAppender mockLogAppender = MockLogAppender.createForLoggers(LogManager.getLogger(ExtensionsManager.class))) {
+
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "Required field is missing in extensions.yml",
+                    "org.opensearch.extensions.ExtensionsManager",
+                    Level.WARN,
+                    "loading extension has been failed because of exception : Extension is missing these required fields : [minimumCompatibleVersion]"
+                )
+            );
+
+            extensionsManager = new ExtensionsManager(settings, emptyExtensionDir);
+
+            mockLogAppender.assertAllExpectationsMatched();
+        }
+
+        List<DiscoveryExtensionNode> expectedExtensions = new ArrayList<DiscoveryExtensionNode>();
+
+        expectedExtensions.add(
+            new DiscoveryExtensionNode(
+                "firstExtension",
+                "uniqueid1",
+                new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
+                new HashMap<String, String>(),
+                Version.fromString("3.0.0"),
+                Version.fromString("3.0.0"),
+                Collections.emptyList()
+            )
+        );
+        assertEquals(expectedExtensions.size(), extensionsManager.getExtensionIdMap().values().size());
+        for (DiscoveryExtensionNode extension : expectedExtensions) {
+            DiscoveryExtensionNode initializedExtension = extensionsManager.getExtensionIdMap().get(extension.getId());
+            assertEquals(extension.getName(), initializedExtension.getName());
+            assertEquals(extension.getId(), initializedExtension.getId());
+            assertEquals(extension.getAddress(), initializedExtension.getAddress());
+            assertEquals(extension.getAttributes(), initializedExtension.getAttributes());
+            assertEquals(extension.getVersion(), initializedExtension.getVersion());
+            assertEquals(extension.getMinimumCompatibleVersion(), initializedExtension.getMinimumCompatibleVersion());
+            assertEquals(extension.getDependencies(), initializedExtension.getDependencies());
+        }
+        assertTrue(expectedExtensions.containsAll(emptyList()));
+        assertTrue(expectedExtensions.containsAll(emptyList()));
+    }
+
     public void testDiscoveryExtension() throws Exception {
         String expectedId = "test id";
         Version expectedVersion = Version.fromString("2.0.0");
@@ -419,7 +471,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
         String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("GET /foo", "PUT /bar", "POST /baz");
-        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList);
+        List<String> deprecatedActionsList = List.of("GET /deprecated/foo", "It's deprecated!");
+        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList, deprecatedActionsList);
         TransportResponse response = extensionsManager.getRestActionsRequestHandler()
             .handleRegisterRestActionsRequest(registerActionsRequest);
         assertEquals(AcknowledgedResponse.class, response.getClass());
@@ -449,7 +502,22 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
         String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("FOO /foo", "PUT /bar", "POST /baz");
-        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList);
+        List<String> deprecatedActionsList = List.of("GET /deprecated/foo", "It's deprecated!");
+        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList, deprecatedActionsList);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> extensionsManager.getRestActionsRequestHandler().handleRegisterRestActionsRequest(registerActionsRequest)
+        );
+    }
+
+    public void testHandleRegisterRestActionsRequestWithInvalidDeprecatedMethod() throws Exception {
+        ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
+        initialize(extensionsManager);
+
+        String uniqueIdStr = "uniqueid1";
+        List<String> actionsList = List.of("GET /foo", "PUT /bar", "POST /baz");
+        List<String> deprecatedActionsList = List.of("FOO /deprecated/foo", "It's deprecated!");
+        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList, deprecatedActionsList);
         expectThrows(
             IllegalArgumentException.class,
             () -> extensionsManager.getRestActionsRequestHandler().handleRegisterRestActionsRequest(registerActionsRequest)
@@ -461,7 +529,21 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         initialize(extensionsManager);
         String uniqueIdStr = "uniqueid1";
         List<String> actionsList = List.of("GET", "PUT /bar", "POST /baz");
-        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList);
+        List<String> deprecatedActionsList = List.of("GET /deprecated/foo", "It's deprecated!");
+        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList, deprecatedActionsList);
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> extensionsManager.getRestActionsRequestHandler().handleRegisterRestActionsRequest(registerActionsRequest)
+        );
+    }
+
+    public void testHandleRegisterRestActionsRequestWithInvalidDeprecatedUri() throws Exception {
+        ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
+        initialize(extensionsManager);
+        String uniqueIdStr = "uniqueid1";
+        List<String> actionsList = List.of("GET /foo", "PUT /bar", "POST /baz");
+        List<String> deprecatedActionsList = List.of("GET", "It's deprecated!");
+        RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList, deprecatedActionsList);
         expectThrows(
             IllegalArgumentException.class,
             () -> extensionsManager.getRestActionsRequestHandler().handleRegisterRestActionsRequest(registerActionsRequest)
@@ -472,18 +554,18 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         ExtensionsManager extensionsManager = new ExtensionsManager(settings, extensionDir);
         initialize(extensionsManager);
 
-        ExtensionRequest clusterStateRequest = new ExtensionRequest(ExtensionsManager.RequestType.REQUEST_EXTENSION_CLUSTER_STATE);
+        ExtensionRequest clusterStateRequest = new ExtensionRequest(ExtensionRequestProto.RequestType.REQUEST_EXTENSION_CLUSTER_STATE);
         assertEquals(ClusterStateResponse.class, extensionsManager.handleExtensionRequest(clusterStateRequest).getClass());
 
-        ExtensionRequest clusterSettingRequest = new ExtensionRequest(ExtensionsManager.RequestType.REQUEST_EXTENSION_CLUSTER_SETTINGS);
+        ExtensionRequest clusterSettingRequest = new ExtensionRequest(ExtensionRequestProto.RequestType.REQUEST_EXTENSION_CLUSTER_SETTINGS);
         assertEquals(ClusterSettingsResponse.class, extensionsManager.handleExtensionRequest(clusterSettingRequest).getClass());
 
         ExtensionRequest environmentSettingsRequest = new ExtensionRequest(
-            ExtensionsManager.RequestType.REQUEST_EXTENSION_ENVIRONMENT_SETTINGS
+            ExtensionRequestProto.RequestType.REQUEST_EXTENSION_ENVIRONMENT_SETTINGS
         );
         assertEquals(EnvironmentSettingsResponse.class, extensionsManager.handleExtensionRequest(environmentSettingsRequest).getClass());
 
-        ExtensionRequest exceptionRequest = new ExtensionRequest(ExtensionsManager.RequestType.GET_SETTINGS);
+        ExtensionRequest exceptionRequest = new ExtensionRequest(ExtensionRequestProto.RequestType.GET_SETTINGS);
         Exception exception = expectThrows(
             IllegalArgumentException.class,
             () -> extensionsManager.handleExtensionRequest(exceptionRequest)
@@ -492,13 +574,13 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     }
 
     public void testExtensionRequest() throws Exception {
-        ExtensionsManager.RequestType expectedRequestType = ExtensionsManager.RequestType.REQUEST_EXTENSION_DEPENDENCY_INFORMATION;
+        ExtensionRequestProto.RequestType expectedRequestType = ExtensionRequestProto.RequestType.REQUEST_EXTENSION_DEPENDENCY_INFORMATION;
 
         // Test ExtensionRequest 2 arg constructor
         String expectedUniqueId = "test uniqueid";
         ExtensionRequest extensionRequest = new ExtensionRequest(expectedRequestType, expectedUniqueId);
         assertEquals(expectedRequestType, extensionRequest.getRequestType());
-        assertEquals(Optional.of(expectedUniqueId), extensionRequest.getUniqueId());
+        assertEquals(expectedUniqueId, extensionRequest.getUniqueId());
 
         // Test ExtensionRequest StreamInput constructor
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -507,14 +589,14 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 extensionRequest = new ExtensionRequest(in);
                 assertEquals(expectedRequestType, extensionRequest.getRequestType());
-                assertEquals(Optional.of(expectedUniqueId), extensionRequest.getUniqueId());
+                assertEquals(expectedUniqueId, extensionRequest.getUniqueId());
             }
         }
 
         // Test ExtensionRequest 1 arg constructor
         extensionRequest = new ExtensionRequest(expectedRequestType);
         assertEquals(expectedRequestType, extensionRequest.getRequestType());
-        assertEquals(Optional.empty(), extensionRequest.getUniqueId());
+        assertTrue(extensionRequest.getUniqueId().isEmpty());
 
         // Test ExtensionRequest StreamInput constructor
         try (BytesStreamOutput out = new BytesStreamOutput()) {
@@ -523,7 +605,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             try (BytesStreamInput in = new BytesStreamInput(BytesReference.toBytes(out.bytes()))) {
                 extensionRequest = new ExtensionRequest(in);
                 assertEquals(expectedRequestType, extensionRequest.getRequestType());
-                assertEquals(Optional.empty(), extensionRequest.getUniqueId());
+                assertTrue(extensionRequest.getUniqueId().isEmpty());
             }
         }
     }

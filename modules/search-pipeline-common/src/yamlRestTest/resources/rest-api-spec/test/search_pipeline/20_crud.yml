@@ -1,0 +1,47 @@
+---
+teardown:
+ - do:
+     search_pipeline.delete:
+       id: "my_pipeline"
+       ignore: 404
+
+---
+"Test basic pipeline crud":
+  - do:
+      search_pipeline.put:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "request_processors": [
+              {
+                "filter_query" : {
+                  "query" : {
+                    "term" : {
+                      "field" : "value"
+                    }
+                  }
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      search_pipeline.get:
+        id: "my_pipeline"
+  - match: { my_pipeline.description: "_description" }
+
+  - do:
+      search_pipeline.get: {}
+  - match: { my_pipeline.description: "_description" }
+
+  - do:
+      search_pipeline.delete:
+        id: "my_pipeline"
+  - match: { acknowledged: true }
+
+  - do:
+      catch: missing
+      search_pipeline.get:
+        id: "my_pipeline"

@@ -42,7 +42,6 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
@@ -146,7 +145,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         indexSettings = readSettingsFromStream(in);
         ignoreIndexSettings = in.readStringArray();
         snapshotUuid = in.readOptionalString();
-        if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT) && in.getVersion().onOrAfter(Version.V_2_4_0)) {
+        if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
             storageType = in.readEnum(StorageType.class);
         }
     }
@@ -167,7 +166,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
         writeSettingsToStream(indexSettings, out);
         out.writeStringArray(ignoreIndexSettings);
         out.writeOptionalString(snapshotUuid);
-        if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT) && out.getVersion().onOrAfter(Version.V_2_4_0)) {
+        if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
             out.writeEnum(storageType);
         }
     }
@@ -580,17 +579,13 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
                     throw new IllegalArgumentException("malformed ignore_index_settings section, should be an array of strings");
                 }
             } else if (name.equals("storage_type")) {
-                if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT)) {
-                    if (entry.getValue() instanceof String) {
-                        storageType(StorageType.fromString((String) entry.getValue()));
-                    } else {
-                        throw new IllegalArgumentException("malformed storage_type");
-                    }
+
+                if (entry.getValue() instanceof String) {
+                    storageType(StorageType.fromString((String) entry.getValue()));
                 } else {
-                    throw new IllegalArgumentException(
-                        "Unsupported parameter " + name + ". Feature flag is not enabled for this experimental feature"
-                    );
+                    throw new IllegalArgumentException("malformed storage_type");
                 }
+
             } else {
                 if (IndicesOptions.isIndicesOptions(name) == false) {
                     throw new IllegalArgumentException("Unknown parameter " + name);
@@ -633,7 +628,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
             builder.value(ignoreIndexSetting);
         }
         builder.endArray();
-        if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT) && storageType != null) {
+        if (storageType != null) {
             storageType.toXContent(builder);
         }
         builder.endObject();

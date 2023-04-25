@@ -31,7 +31,7 @@
 
 package org.opensearch.index.analysis;
 
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;

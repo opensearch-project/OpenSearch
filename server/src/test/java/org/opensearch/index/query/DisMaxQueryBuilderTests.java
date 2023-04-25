@@ -35,6 +35,7 @@ package org.opensearch.index.query;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.test.AbstractQueryTestCase;
@@ -103,7 +104,10 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
             + "    }\n"
             + "}";
         Query query = parseQuery(queryAsString).toQuery(createShardContext());
-        Query expected = new DisjunctionMaxQuery(List.of(new BoostQuery(new PrefixQuery(new Term(TEXT_FIELD_NAME, "sh")), 1.2f)), 0);
+        Query expected = new DisjunctionMaxQuery(
+            List.of(new BoostQuery(new PrefixQuery(new Term(TEXT_FIELD_NAME, "sh"), MultiTermQuery.CONSTANT_SCORE_REWRITE), 1.2f)),
+            0
+        );
         assertEquals(expected, query);
     }
 
