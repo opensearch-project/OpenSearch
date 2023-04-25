@@ -56,7 +56,6 @@ import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
@@ -283,7 +282,7 @@ public class ClusterStateDiffIT extends OpenSearchIntegTestCase {
         if (numberOfIndices > 0) {
             List<String> randomIndices = randomSubsetOf(
                 randomInt(numberOfIndices - 1),
-                clusterState.routingTable().indicesRouting().keys().toArray(String.class)
+                clusterState.routingTable().indicesRouting().keySet().toArray(new String[0])
             );
             for (String index : randomIndices) {
                 if (randomBoolean()) {
@@ -413,7 +412,7 @@ public class ClusterStateDiffIT extends OpenSearchIntegTestCase {
         /**
          * Returns list of parts from metadata
          */
-        ImmutableOpenMap<String, T> parts(ClusterState clusterState);
+        Map<String, T> parts(ClusterState clusterState);
 
         /**
          * Puts the part back into metadata
@@ -443,12 +442,12 @@ public class ClusterStateDiffIT extends OpenSearchIntegTestCase {
      */
     private <T> ClusterState randomClusterStateParts(ClusterState clusterState, String prefix, RandomClusterPart<T> randomPart) {
         ClusterState.Builder builder = ClusterState.builder(clusterState);
-        ImmutableOpenMap<String, T> parts = randomPart.parts(clusterState);
+        final Map<String, T> parts = randomPart.parts(clusterState);
         int partCount = parts.size();
         if (partCount > 0) {
             List<String> randomParts = randomSubsetOf(
                 randomInt(partCount - 1),
-                randomPart.parts(clusterState).keys().toArray(String.class)
+                randomPart.parts(clusterState).keySet().toArray(new String[0])
             );
             for (String part : randomParts) {
                 if (randomBoolean()) {
@@ -745,7 +744,7 @@ public class ClusterStateDiffIT extends OpenSearchIntegTestCase {
         return ClusterState.builder(randomClusterStateParts(clusterState, "custom", new RandomClusterPart<ClusterState.Custom>() {
 
             @Override
-            public ImmutableOpenMap<String, ClusterState.Custom> parts(ClusterState clusterState) {
+            public Map<String, ClusterState.Custom> parts(ClusterState clusterState) {
                 return clusterState.customs();
             }
 
@@ -769,12 +768,12 @@ public class ClusterStateDiffIT extends OpenSearchIntegTestCase {
                                     new Snapshot(randomName("repo"), new SnapshotId(randomName("snap"), UUIDs.randomBase64UUID())),
                                     randomBoolean(),
                                     randomBoolean(),
-                                    SnapshotsInProgressSerializationTests.randomState(ImmutableOpenMap.of()),
+                                    SnapshotsInProgressSerializationTests.randomState(Map.of()),
                                     Collections.emptyList(),
                                     Collections.emptyList(),
                                     Math.abs(randomLong()),
                                     randomIntBetween(0, 1000),
-                                    ImmutableOpenMap.of(),
+                                    Map.of(),
                                     null,
                                     SnapshotInfoTests.randomUserMetadata(),
                                     randomVersion(random())
@@ -788,7 +787,7 @@ public class ClusterStateDiffIT extends OpenSearchIntegTestCase {
                                 new Snapshot(randomName("repo"), new SnapshotId(randomName("snap"), UUIDs.randomBase64UUID())),
                                 RestoreInProgress.State.fromValue((byte) randomIntBetween(0, 3)),
                                 emptyList(),
-                                ImmutableOpenMap.of()
+                                Map.of()
                             )
                         ).build();
                     default:

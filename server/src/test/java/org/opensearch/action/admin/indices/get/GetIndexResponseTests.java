@@ -63,7 +63,7 @@ public class GetIndexResponseTests extends AbstractWireSerializingTestCase<GetIn
     protected GetIndexResponse createTestInstance() {
         String[] indices = generateRandomStringArray(5, 5, false, false);
         final Map<String, MappingMetadata> mappings = new HashMap<>();
-        ImmutableOpenMap.Builder<String, List<AliasMetadata>> aliases = ImmutableOpenMap.builder();
+        final Map<String, List<AliasMetadata>> aliases = new HashMap<>();
         ImmutableOpenMap.Builder<String, Settings> settings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, Settings> defaultSettings = ImmutableOpenMap.builder();
         ImmutableOpenMap.Builder<String, String> dataStreams = ImmutableOpenMap.builder();
@@ -92,6 +92,6 @@ public class GetIndexResponseTests extends AbstractWireSerializingTestCase<GetIn
                 dataStreams.put(index, randomAlphaOfLength(5).toLowerCase(Locale.ROOT));
             }
         }
-        return new GetIndexResponse(indices, mappings, aliases.build(), settings.build(), defaultSettings.build(), dataStreams.build());
+        return new GetIndexResponse(indices, mappings, aliases, settings.build(), defaultSettings.build(), dataStreams.build());
     }
 }
