@@ -4,6 +4,9 @@
 * The OpenSearch Contributors require contributions made to
 * this file be licensed under the Apache-2.0 license or a
 * compatible open source license.
+*
+* Modifications Copyright OpenSearch Contributors. See
+* GitHub history for details.
 */
 
 package org.opensearch.tasks;
@@ -17,7 +20,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.opensearch.search.SearchService.NO_TIMEOUT;
 
 /**
- * A task that can be canceled
+ * A protobuf task that can be canceled
 *
 * @opensearch.internal
 */
@@ -27,7 +30,14 @@ public abstract class ProtobufCancellableTask extends ProtobufTask {
     private final AtomicBoolean cancelled = new AtomicBoolean(false);
     private final TimeValue cancelAfterTimeInterval;
 
-    public ProtobufCancellableTask(long id, String type, String action, String description, ProtobufTaskId parentTaskId, Map<String, String> headers) {
+    public ProtobufCancellableTask(
+        long id,
+        String type,
+        String action,
+        String description,
+        ProtobufTaskId parentTaskId,
+        Map<String, String> headers
+    ) {
         this(id, type, action, description, parentTaskId, headers, NO_TIMEOUT);
     }
 

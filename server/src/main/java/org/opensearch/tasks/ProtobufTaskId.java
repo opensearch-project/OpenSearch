@@ -4,13 +4,15 @@
 * The OpenSearch Contributors require contributions made to
 * this file be licensed under the Apache-2.0 license or a
 * compatible open source license.
+*
+* Modifications Copyright OpenSearch Contributors. See
+* GitHub history for details.
 */
 
 package org.opensearch.tasks;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
-import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.tasks.proto.TaskIdProto;
@@ -74,7 +76,7 @@ public final class ProtobufTaskId implements ProtobufWriteable {
     }
 
     @Override
-    public void writeTo(com.google.protobuf.CodedOutputStream out) throws IOException {
+    public void writeTo(CodedOutputStream out) throws IOException {
         this.taskId.writeTo(out);
     }
 

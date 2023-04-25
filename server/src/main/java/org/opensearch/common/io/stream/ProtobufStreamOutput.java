@@ -16,6 +16,9 @@ import java.util.Map;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 
+/**
+ * A class for additional methods to write to a {@link CodedOutputStream}.
+ */
 public class ProtobufStreamOutput {
 
     private Version version = Version.CURRENT;
@@ -44,7 +47,12 @@ public class ProtobufStreamOutput {
      * @param keyWriter The key writer
      * @param valueWriter The value writer
      */
-    public final <K, V> void writeMap(final Map<K, V> map, final ProtobufWriteable.Writer<K> keyWriter, final ProtobufWriteable.Writer<V> valueWriter, CodedOutputStream out) throws IOException {
+    public final <K, V> void writeMap(
+        final Map<K, V> map,
+        final ProtobufWriteable.Writer<K> keyWriter,
+        final ProtobufWriteable.Writer<V> valueWriter,
+        CodedOutputStream out
+    ) throws IOException {
         for (final Map.Entry<K, V> entry : map.entrySet()) {
             keyWriter.write(out, entry.getKey());
             valueWriter.write(out, entry.getValue());
@@ -53,10 +61,10 @@ public class ProtobufStreamOutput {
 
     public void writeOptionalWriteable(@Nullable ProtobufWriteable writeable, CodedOutputStream out) throws IOException {
         if (writeable != null) {
-            out.writeBool(1, true);
+            out.writeBoolNoTag(true);
             writeable.writeTo(out);
         } else {
-            out.writeBool(1, false);
+            out.writeBoolNoTag(false);
         }
     }
 

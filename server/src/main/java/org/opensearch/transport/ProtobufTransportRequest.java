@@ -4,14 +4,15 @@
 * The OpenSearch Contributors require contributions made to
 * this file be licensed under the Apache-2.0 license or a
 * compatible open source license.
+*
+* Modifications Copyright OpenSearch Contributors. See
+* GitHub history for details.
 */
 
 package org.opensearch.transport;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.tasks.ProtobufTaskId;
 import org.opensearch.tasks.ProtobufTaskAwareRequest;
 import org.opensearch.tasks.TaskId;
@@ -32,7 +33,7 @@ public abstract class ProtobufTransportRequest extends ProtobufTransportMessage 
 
     public ProtobufTransportRequest() {}
 
-    public ProtobufTransportRequest(com.google.protobuf.CodedInputStream in) throws IOException {
+    public ProtobufTransportRequest(CodedInputStream in) throws IOException {
         parentTaskId = ProtobufTaskId.readFromStream(in);
     }
 
@@ -53,7 +54,7 @@ public abstract class ProtobufTransportRequest extends ProtobufTransportMessage 
     }
 
     @Override
-    public void writeTo(com.google.protobuf.CodedOutputStream out) throws IOException {
+    public void writeTo(CodedOutputStream out) throws IOException {
         parentTaskId.writeTo(out);
     }
 }

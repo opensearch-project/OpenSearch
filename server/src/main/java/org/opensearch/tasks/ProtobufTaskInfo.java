@@ -4,6 +4,9 @@
 * The OpenSearch Contributors require contributions made to
 * this file be licensed under the Apache-2.0 license or a
 * compatible open source license.
+*
+* Modifications Copyright OpenSearch Contributors. See
+* GitHub history for details.
 */
 
 package org.opensearch.tasks;
@@ -11,22 +14,16 @@ package org.opensearch.tasks;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 import org.opensearch.Version;
-import org.opensearch.common.Strings;
-import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.ProtobufStreamInput;
 import org.opensearch.common.io.stream.ProtobufStreamOutput;
 import org.opensearch.common.io.stream.ProtobufWriteable;
-import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-
-import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorArg;
-import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Information about a currently running task.
@@ -38,7 +35,7 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.optionalCons
 *
 * @opensearch.internal
 */
-public final class ProtobufTaskInfo implements ProtobufWriteable {
+public final class ProtobufTaskInfo implements ProtobufWriteable, ToXContentFragment {
     private final ProtobufTaskId taskId;
 
     private final String type;
@@ -108,7 +105,7 @@ public final class ProtobufTaskInfo implements ProtobufWriteable {
         type = in.readString();
         action = in.readString();
         description = protobufStreamInput.readOptionalString(in);
-        //TODO: fix this
+        // TODO: fix this
         status = null;
         startTime = in.readInt64();
         runningTimeNanos = in.readInt64();
@@ -134,21 +131,21 @@ public final class ProtobufTaskInfo implements ProtobufWriteable {
     public void writeTo(CodedOutputStream out) throws IOException {
         protobufStreamOutput = new ProtobufStreamOutput();
         taskId.writeTo(out);
-        out.writeString(1, type);
-        out.writeString(2, action);
-        out.writeString(3, description);
-        //TODO: fix this
+        out.writeStringNoTag(type);
+        out.writeStringNoTag(action);
+        out.writeStringNoTag(description);
+        // TODO: fix this
         // out.writeOptionalNamedWriteable(status);
-        out.writeInt64(4, startTime);
-        out.writeInt64(5, runningTimeNanos);
-        out.writeBool(6, cancellable);
+        out.writeInt64NoTag(startTime);
+        out.writeInt64NoTag(runningTimeNanos);
+        out.writeBoolNoTag(cancellable);
         if (protobufStreamOutput.getVersion().onOrAfter(Version.V_2_0_0)) {
-            out.writeBool(7, cancelled);
+            out.writeBoolNoTag(cancelled);
         }
         parentTaskId.writeTo(out);
-        protobufStreamOutput.writeMap(headers, CodedOutputStream::writeString, CodedOutputStream::writeString, out);
+        protobufStreamOutput.writeMap(headers, CodedOutputStream::writeStringNoTag, CodedOutputStream::writeStringNoTag, out);
         if (protobufStreamOutput.getVersion().onOrAfter(Version.V_2_1_0)) {
-            out.writeOptionalWriteable(resourceStats, out);
+            protobufStreamOutput.writeOptionalWriteable(resourceStats, out);
         }
     }
 
@@ -227,5 +224,40 @@ public final class ProtobufTaskInfo implements ProtobufWriteable {
     */
     public ProtobufTaskResourceStats getResourceStats() {
         return resourceStats;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field("node", taskId.getNodeId());
+        builder.field("id", taskId.getId());
+        builder.field("type", type);
+        builder.field("action", action);
+        if (status != null) {
+            builder.field("status", status, params);
+        }
+        if (description != null) {
+            builder.field("description", description);
+        }
+        builder.timeField("start_time_in_millis", "start_time", startTime);
+        if (builder.humanReadable()) {
+            builder.field("running_time", new TimeValue(runningTimeNanos, TimeUnit.NANOSECONDS).toString());
+        }
+        builder.field("running_time_in_nanos", runningTimeNanos);
+        builder.field("cancellable", cancellable);
+        builder.field("cancelled", cancelled);
+        if (parentTaskId.isSet()) {
+            builder.field("parent_task_id", parentTaskId.toString());
+        }
+        builder.startObject("headers");
+        for (Map.Entry<String, String> attribute : headers.entrySet()) {
+            builder.field(attribute.getKey(), attribute.getValue());
+        }
+        builder.endObject();
+        if (resourceStats != null) {
+            builder.startObject("resource_stats");
+            resourceStats.toXContent(builder, params);
+            builder.endObject();
+        }
+        return builder;
     }
 }
