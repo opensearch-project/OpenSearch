@@ -74,7 +74,7 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
     }
 
     @Override
-    public void beforeIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
+    public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
         if (indexShard.indexSettings().isRemoteStoreEnabled() == false) {
             return;
         }
