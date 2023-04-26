@@ -532,7 +532,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 return true;
             }
             final Subject currentSubject = identityService.getSubject();
-            currentSubject.login(token);
+            currentSubject.authenticate(token);
             logger.debug("Logged in as user " + currentSubject);
         } catch (final Exception e) {
             try {
