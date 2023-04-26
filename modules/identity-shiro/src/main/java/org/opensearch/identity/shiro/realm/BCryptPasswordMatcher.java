@@ -25,7 +25,7 @@ public class BCryptPasswordMatcher implements CredentialsMatcher {
      * Check if the provided authentication token and authentication info match one another
      * @param token   the {@code AuthenticationToken} submitted during the authentication attempt
      * @param info the {@code AuthenticationInfo} stored in the system.
-     * @return
+     * @return A boolean showing whether the token credentials match the info or not.
      */
     @Override
     public boolean doCredentialsMatch(AuthenticationToken token, AuthenticationInfo info) {
