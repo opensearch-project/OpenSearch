@@ -63,6 +63,7 @@ public abstract class TaskBatcher {
     private final PrioritizedOpenSearchThreadPoolExecutor threadExecutor;
     // package visible for tests
     final Map<Object, LinkedHashSet<BatchedTask>> tasksPerBatchingKey = new ConcurrentHashMap<>();
+    final Map<Object, LinkedHashSet<Object>> taskIdentityPerBatchingKey = new ConcurrentHashMap<>();
     private final TaskBatcherListener taskBatcherListener;
 
     public TaskBatcher(Logger logger, PrioritizedOpenSearchThreadPoolExecutor threadExecutor, TaskBatcherListener taskBatcherListener) {
@@ -90,20 +91,33 @@ public abstract class TaskBatcher {
                     throw new IllegalStateException("cannot add duplicate task: " + a);
                 }, IdentityHashMap::new));
             LinkedHashSet<BatchedTask> newTasks = new LinkedHashSet<>(tasks);
-            tasksPerBatchingKey.merge(firstTask.batchingKey, newTasks, (existingTasks, updatedTasks) -> {
-                for (BatchedTask existing : existingTasks) {
-                    // check that there won't be two tasks with the same identity for the same batching key
-                    BatchedTask duplicateTask = tasksIdentity.get(existing.getTask());
-                    if (duplicateTask != null) {
-                        throw new IllegalStateException(
-                            "task ["
-                                + duplicateTask.describeTasks(Collections.singletonList(existing))
-                                + "] with source ["
-                                + duplicateTask.source
-                                + "] is already queued"
-                        );
+            taskIdentityPerBatchingKey.merge(
+                firstTask.batchingKey,
+                new LinkedHashSet<>(tasksIdentity.keySet()),
+                (existingIdentity, updatedIdentity) -> {
+                    LinkedHashSet<Object> existingIdentities = taskIdentityPerBatchingKey.computeIfAbsent(
+                        firstTask.batchingKey,
+                        k -> new LinkedHashSet<>(tasksIdentity.keySet().size())
+                    );
+                    for (Object newIdentity : tasksIdentity.keySet()) {
+                        // check that there won't be two tasks with the same identity for the same batching key
+                        if (existingIdentities.contains(newIdentity)) {
+                            BatchedTask duplicateTask = tasksIdentity.get(newIdentity);
+                            throw new IllegalStateException(
+                                "task ["
+                                    + duplicateTask.describeTasks(Collections.singletonList(duplicateTask))
+                                    + "] with source ["
+                                    + duplicateTask.source
+                                    + "] is already queued"
+                            );
+                        }
                     }
+                    existingIdentity.addAll(updatedIdentity);
+                    return existingIdentity;
                 }
+            );
+            // since we have checked for dup tasks in above map, we can add all new task in map.
+            tasksPerBatchingKey.merge(firstTask.batchingKey, newTasks, (existingTasks, updatedTasks) -> {
                 existingTasks.addAll(updatedTasks);
                 return existingTasks;
             });
@@ -121,10 +135,12 @@ public abstract class TaskBatcher {
 
     private void onTimeoutInternal(List<? extends BatchedTask> tasks, TimeValue timeout) {
         final ArrayList<BatchedTask> toRemove = new ArrayList<>();
+        final ArrayList<Object> toRemoveIdentities = new ArrayList<>();
         for (BatchedTask task : tasks) {
             if (task.processed.getAndSet(true) == false) {
                 logger.debug("task [{}] timed out after [{}]", task.source, timeout);
                 toRemove.add(task);
+                toRemoveIdentities.add(task.getTask());
             }
         }
         if (toRemove.isEmpty() == false) {
@@ -138,6 +154,13 @@ public abstract class TaskBatcher {
                     return null;
                 }
                 return existingTasks;
+            });
+            taskIdentityPerBatchingKey.computeIfPresent(batchingKey, (tasksKey, existingIdentities) -> {
+                existingIdentities.removeAll(toRemoveIdentities);
+                if (existingIdentities.isEmpty()) {
+                    return null;
+                }
+                return existingIdentities;
             });
             taskBatcherListener.onTimeout(toRemove);
             onTimeout(toRemove, timeout);
@@ -157,6 +180,7 @@ public abstract class TaskBatcher {
             final List<BatchedTask> toExecute = new ArrayList<>();
             final Map<String, List<BatchedTask>> processTasksBySource = new HashMap<>();
             LinkedHashSet<BatchedTask> pending = tasksPerBatchingKey.remove(updateTask.batchingKey);
+            taskIdentityPerBatchingKey.remove(updateTask.batchingKey);
             if (pending != null) {
                 for (BatchedTask task : pending) {
                     if (task.processed.getAndSet(true) == false) {
