@@ -27,34 +27,40 @@ import static org.opensearch.rest.RestStatus.NOT_FOUND;
  * ServiceAccountManager hooks into security plugin endpoint
  */
 public class ServiceAccountManager {
-
-    private final String url;
     private Settings settings;
     private Path extensionsPath;
+    private final String url;
+    public HttpClient httpClient;
 
     public ServiceAccountManager(Settings settings, Path extensionsPath) {
         this.settings = settings;
         this.extensionsPath = extensionsPath;
         this.url = buildUrl(settings);
+        this.httpClient = HttpClient.newHttpClient();
+    }
+
+    public ServiceAccountManager(Settings settings, Path extensionsPath, HttpClient httpClient) {
+        this.settings = settings;
+        this.extensionsPath = extensionsPath;
+        this.url = buildUrl(settings);
+        this.httpClient = httpClient;
     }
 
     public String getOrCreateServiceAccount(String extensionId, String authenticationString) throws IOException, InterruptedException {
-        HttpClient client = HttpClient.newHttpClient();
-
         HttpRequest request = HttpRequest.newBuilder(URI.create(url + extensionId))
             .GET()
             .header("Content-Type", "application/json")
             .header("Authorization", "Basic " + authenticationString)
             .build();
 
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() == NOT_FOUND.getStatus()) {
             request = HttpRequest.newBuilder(URI.create(url + extensionId))
                 .PUT(ofString(createServiceAccountRequest(extensionId)))
                 .header("Content-Type", "application/json")
                 .header("Authorization", "Basic " + authenticationString)
                 .build();
-            response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
         }
 
         return response.body();
