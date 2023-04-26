@@ -32,7 +32,6 @@
 
 package org.opensearch.discovery;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -318,8 +317,8 @@ public abstract class PeerFinder {
         }
 
         logger.trace("probing cluster-manager nodes from cluster state: {}", lastAcceptedNodes);
-        for (ObjectCursor<DiscoveryNode> discoveryNodeObjectCursor : lastAcceptedNodes.getClusterManagerNodes().values()) {
-            startProbe(discoveryNodeObjectCursor.value.getAddress());
+        for (final DiscoveryNode discoveryNodeObjectCursor : lastAcceptedNodes.getClusterManagerNodes().values()) {
+            startProbe(discoveryNodeObjectCursor.getAddress());
         }
 
         configuredHostsResolver.resolveConfiguredHosts(providedAddresses -> {

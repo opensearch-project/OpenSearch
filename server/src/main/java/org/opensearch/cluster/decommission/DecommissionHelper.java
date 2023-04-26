@@ -75,8 +75,8 @@ public class DecommissionHelper {
     ) {
         Set<DiscoveryNode> nodesWithDecommissionAttribute = new HashSet<>();
         Iterator<DiscoveryNode> nodesIter = onlyClusterManagerNodes
-            ? clusterState.nodes().getClusterManagerNodes().valuesIt()
-            : clusterState.nodes().getNodes().valuesIt();
+            ? clusterState.nodes().getClusterManagerNodes().values().iterator()
+            : clusterState.nodes().getNodes().values().iterator();
 
         while (nodesIter.hasNext()) {
             final DiscoveryNode node = nodesIter.next();

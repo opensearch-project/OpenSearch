@@ -32,13 +32,11 @@
 
 package org.opensearch.action.admin.indices.get;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.Version;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
@@ -65,18 +63,18 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
 
     private Map<String, MappingMetadata> mappings = Map.of();
     private Map<String, List<AliasMetadata>> aliases = Map.of();
-    private ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
-    private ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
-    private ImmutableOpenMap<String, String> dataStreams = ImmutableOpenMap.of();
+    private Map<String, Settings> settings = Map.of();
+    private Map<String, Settings> defaultSettings = Map.of();
+    private Map<String, String> dataStreams = Map.of();
     private final String[] indices;
 
     public GetIndexResponse(
         String[] indices,
         Map<String, MappingMetadata> mappings,
         final Map<String, List<AliasMetadata>> aliases,
-        ImmutableOpenMap<String, Settings> settings,
-        ImmutableOpenMap<String, Settings> defaultSettings,
-        ImmutableOpenMap<String, String> dataStreams
+        final Map<String, Settings> settings,
+        final Map<String, Settings> defaultSettings,
+        final Map<String, String> dataStreams
     ) {
         this.indices = indices;
         // to have deterministic order
@@ -88,13 +86,13 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             this.aliases = Collections.unmodifiableMap(aliases);
         }
         if (settings != null) {
-            this.settings = settings;
+            this.settings = Collections.unmodifiableMap(settings);
         }
         if (defaultSettings != null) {
-            this.defaultSettings = defaultSettings;
+            this.defaultSettings = Collections.unmodifiableMap(defaultSettings);
         }
         if (dataStreams != null) {
-            this.dataStreams = dataStreams;
+            this.dataStreams = Collections.unmodifiableMap(dataStreams);
         }
     }
 
@@ -140,26 +138,26 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         aliases = Collections.unmodifiableMap(aliasesMapBuilder);
 
         int settingsSize = in.readVInt();
-        ImmutableOpenMap.Builder<String, Settings> settingsMapBuilder = ImmutableOpenMap.builder();
+        final Map<String, Settings> settingsMapBuilder = new HashMap<>();
         for (int i = 0; i < settingsSize; i++) {
             String key = in.readString();
             settingsMapBuilder.put(key, Settings.readSettingsFromStream(in));
         }
-        settings = settingsMapBuilder.build();
+        settings = Collections.unmodifiableMap(settingsMapBuilder);
 
-        ImmutableOpenMap.Builder<String, Settings> defaultSettingsMapBuilder = ImmutableOpenMap.builder();
+        final Map<String, Settings> defaultSettingsMapBuilder = new HashMap<>();
         int defaultSettingsSize = in.readVInt();
         for (int i = 0; i < defaultSettingsSize; i++) {
             defaultSettingsMapBuilder.put(in.readString(), Settings.readSettingsFromStream(in));
         }
-        defaultSettings = defaultSettingsMapBuilder.build();
+        defaultSettings = Collections.unmodifiableMap(defaultSettingsMapBuilder);
 
-        ImmutableOpenMap.Builder<String, String> dataStreamsMapBuilder = ImmutableOpenMap.builder();
+        final Map<String, String> dataStreamsMapBuilder = new HashMap<>();
         int dataStreamsSize = in.readVInt();
         for (int i = 0; i < dataStreamsSize; i++) {
             dataStreamsMapBuilder.put(in.readString(), in.readOptionalString());
         }
-        dataStreams = dataStreamsMapBuilder.build();
+        dataStreams = Collections.unmodifiableMap(dataStreamsMapBuilder);
     }
 
     public String[] indices() {
@@ -186,15 +184,15 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
         return aliases();
     }
 
-    public ImmutableOpenMap<String, Settings> settings() {
+    public Map<String, Settings> settings() {
         return settings;
     }
 
-    public ImmutableOpenMap<String, String> dataStreams() {
+    public Map<String, String> dataStreams() {
         return dataStreams;
     }
 
-    public ImmutableOpenMap<String, String> getDataStreams() {
+    public Map<String, String> getDataStreams() {
         return dataStreams();
     }
 
@@ -206,11 +204,11 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
      * via {@link #settings()}.
      * See also {@link GetIndexRequest#includeDefaults(boolean)}
      */
-    public ImmutableOpenMap<String, Settings> defaultSettings() {
+    public Map<String, Settings> defaultSettings() {
         return defaultSettings;
     }
 
-    public ImmutableOpenMap<String, Settings> getSettings() {
+    public Map<String, Settings> getSettings() {
         return settings();
     }
 
@@ -263,19 +261,19 @@ public class GetIndexResponse extends ActionResponse implements ToXContentObject
             }
         }
         out.writeVInt(settings.size());
-        for (ObjectObjectCursor<String, Settings> indexEntry : settings) {
-            out.writeString(indexEntry.key);
-            Settings.writeSettingsToStream(indexEntry.value, out);
+        for (final Map.Entry<String, Settings> indexEntry : settings.entrySet()) {
+            out.writeString(indexEntry.getKey());
+            Settings.writeSettingsToStream(indexEntry.getValue(), out);
         }
         out.writeVInt(defaultSettings.size());
-        for (ObjectObjectCursor<String, Settings> indexEntry : defaultSettings) {
-            out.writeString(indexEntry.key);
-            Settings.writeSettingsToStream(indexEntry.value, out);
+        for (final Map.Entry<String, Settings> indexEntry : defaultSettings.entrySet()) {
+            out.writeString(indexEntry.getKey());
+            Settings.writeSettingsToStream(indexEntry.getValue(), out);
         }
         out.writeVInt(dataStreams.size());
-        for (ObjectObjectCursor<String, String> indexEntry : dataStreams) {
-            out.writeString(indexEntry.key);
-            out.writeOptionalString(indexEntry.value);
+        for (final Map.Entry<String, String> indexEntry : dataStreams.entrySet()) {
+            out.writeString(indexEntry.getKey());
+            out.writeOptionalString(indexEntry.getValue());
         }
     }
 
