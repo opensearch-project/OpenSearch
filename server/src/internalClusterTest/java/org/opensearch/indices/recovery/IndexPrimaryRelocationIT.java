@@ -83,7 +83,7 @@ public class IndexPrimaryRelocationIT extends OpenSearchIntegTestCase {
         indexingThread.start();
 
         ClusterState initialState = client().admin().cluster().prepareState().get().getState();
-        DiscoveryNode[] dataNodes = initialState.getNodes().getDataNodes().values().toArray(DiscoveryNode.class);
+        DiscoveryNode[] dataNodes = initialState.getNodes().getDataNodes().values().toArray(new DiscoveryNode[0]);
         DiscoveryNode relocationSource = initialState.getNodes()
             .getDataNodes()
             .get(initialState.getRoutingTable().shardRoutingTable("test", 0).primaryShard().currentNodeId());

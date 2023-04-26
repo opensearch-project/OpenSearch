@@ -8,7 +8,6 @@
 
 package org.opensearch.action.search;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.junit.Assert;
 import org.opensearch.Version;
 import org.opensearch.action.ActionFuture;
@@ -104,8 +103,7 @@ public class PitTestsUtil {
         clusterStateRequest.clear().nodes(true).routingTable(true).indices("*");
         ClusterStateResponse clusterStateResponse = client.admin().cluster().state(clusterStateRequest).get();
         final List<DiscoveryNode> nodes = new LinkedList<>();
-        for (ObjectCursor<DiscoveryNode> cursor : clusterStateResponse.getState().nodes().getDataNodes().values()) {
-            DiscoveryNode node = cursor.value;
+        for (final DiscoveryNode node : clusterStateResponse.getState().nodes().getDataNodes().values()) {
             nodes.add(node);
         }
         DiscoveryNode[] disNodesArr = new DiscoveryNode[nodes.size()];
@@ -123,8 +121,7 @@ public class PitTestsUtil {
         clusterStateRequest.clear().nodes(true).routingTable(true).indices("*");
         ClusterStateResponse clusterStateResponse = client.admin().cluster().state(clusterStateRequest).get();
         final List<DiscoveryNode> nodes = new LinkedList<>();
-        for (ObjectCursor<DiscoveryNode> cursor : clusterStateResponse.getState().nodes().getDataNodes().values()) {
-            DiscoveryNode node = cursor.value;
+        for (final DiscoveryNode node : clusterStateResponse.getState().nodes().getDataNodes().values()) {
             nodes.add(node);
         }
         DiscoveryNode[] disNodesArr = new DiscoveryNode[nodes.size()];

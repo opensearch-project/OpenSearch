@@ -43,7 +43,6 @@ import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.common.collect.ImmutableOpenIntMap;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
@@ -151,8 +150,7 @@ public class IndicesShardStoreRequestIT extends OpenSearchIntegTestCase {
             .indices()
             .shardStores(Requests.indicesShardStoresRequest().shardStatuses("all"))
             .get();
-        ImmutableOpenMap<String, ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>>> shardStatuses = response
-            .getStoreStatuses();
+        Map<String, ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>>> shardStatuses = response.getStoreStatuses();
         assertThat(shardStatuses.containsKey(index1), equalTo(true));
         assertThat(shardStatuses.containsKey(index2), equalTo(true));
         assertThat(shardStatuses.get(index1).size(), equalTo(2));

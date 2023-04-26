@@ -33,7 +33,6 @@
 package org.opensearch.cluster.routing;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.core.Assertions;
@@ -110,9 +109,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         final RoutingTable routingTable = clusterState.routingTable();
 
         // fill in the nodeToShards with the "live" nodes
-        for (ObjectCursor<DiscoveryNode> cursor : clusterState.nodes().getDataNodes().values()) {
-            String nodeId = cursor.value.getId();
-            this.nodesToShards.put(cursor.value.getId(), new RoutingNode(nodeId, clusterState.nodes().get(nodeId)));
+        for (final DiscoveryNode cursor : clusterState.nodes().getDataNodes().values()) {
+            String nodeId = cursor.getId();
+            this.nodesToShards.put(cursor.getId(), new RoutingNode(nodeId, clusterState.nodes().get(nodeId)));
         }
 
         // fill in the inverse of node -> shards allocated
