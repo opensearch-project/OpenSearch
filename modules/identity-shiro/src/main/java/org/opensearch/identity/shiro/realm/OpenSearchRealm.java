@@ -39,6 +39,12 @@ public class OpenSearchRealm extends AuthenticatingRealm {
 
     private Map<String, User> internalUsers;
 
+    /**
+     * Instantiate a new OpenSearchRealm
+     *
+     * @param realmName The name of the realm
+     * @param internalUsers A map of internal users
+     */
     private OpenSearchRealm(final String realmName, final Map<String, User> internalUsers) {
         super(new BCryptPasswordMatcher());
         this.realmName = realmName;
@@ -46,13 +52,26 @@ public class OpenSearchRealm extends AuthenticatingRealm {
         setAuthenticationTokenClass(UsernamePasswordToken.class);
     }
 
+    /**
+     * An internal class representing a realm builder
+     *
+     */
     public static final class Builder {
         private final String name;
 
+        /**
+         *  Instantiate a realm builder
+         * @param name The name of the realm builder
+         */
         public Builder(final String name) {
             this.name = Objects.requireNonNull(name);
         }
 
+        /**
+         * Create a new OpenSearchRealm
+         *
+         * @return A new realm
+         */
         public OpenSearchRealm build() {
             // TODO: Replace hardcoded admin user / user map with an external provider
             final User adminUser = new User();
@@ -63,6 +82,13 @@ public class OpenSearchRealm extends AuthenticatingRealm {
         }
     }
 
+    /**
+     * Return an internal user given a principalIdentifier
+     *
+     * @param principalIdentifier The string of the identifier
+     * @return The associated user
+     * @throws UnknownAccountException when the principal identifier has no user match
+     */
     public User getInternalUser(final String principalIdentifier) throws UnknownAccountException {
         final User userRecord = internalUsers.get(principalIdentifier);
         if (userRecord == null) {
@@ -71,6 +97,13 @@ public class OpenSearchRealm extends AuthenticatingRealm {
         return userRecord;
     }
 
+    /**
+     * Gets the authentication info associated with a specific authentication token
+     *
+     * @param token the authentication token containing the user's principal and credentials.
+     * @return Authentication info associated with the auth token
+     * @throws AuthenticationException When the auth token has no valid info 
+     */
     @Override
     protected AuthenticationInfo doGetAuthenticationInfo(final AuthenticationToken token) throws AuthenticationException {
         if (token instanceof UsernamePasswordToken) {

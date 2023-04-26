@@ -28,6 +28,11 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
     private final Settings settings;
     private final AuthTokenHandler authTokenHandler;
 
+    /**
+     * Create a new instance of the Shiro Identity Plugin
+     *
+     * @param settings settings being used in the configuration
+     */
     public ShiroIdentityPlugin(final Settings settings) {
         this.settings = settings;
         authTokenHandler = new AuthTokenHandler();
@@ -36,6 +41,11 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
         SecurityUtils.setSecurityManager(securityManager);
     }
 
+    /**
+     * Return a Shiro Subject based on the provided authTokenHandler and current subject
+     *
+     * @return The current subject
+     */
     @Override
     public Subject getSubject() {
         return new ShiroSubject(authTokenHandler, SecurityUtils.getSubject());

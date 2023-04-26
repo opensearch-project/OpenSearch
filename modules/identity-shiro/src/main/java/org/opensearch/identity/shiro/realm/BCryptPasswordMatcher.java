@@ -21,6 +21,12 @@ import org.bouncycastle.crypto.generators.OpenBSDBCrypt;
  */
 public class BCryptPasswordMatcher implements CredentialsMatcher {
 
+    /**
+     * Check if the provided authentication token and authentication info match one another
+     * @param token   the {@code AuthenticationToken} submitted during the authentication attempt
+     * @param info the {@code AuthenticationInfo} stored in the system.
+     * @return
+     */
     @Override
     public boolean doCredentialsMatch(AuthenticationToken token, AuthenticationInfo info) {
         final UsernamePasswordToken userToken = (UsernamePasswordToken) token;

@@ -34,6 +34,11 @@ public class ShiroSubject implements Subject {
         this.shiroSubject = Objects.requireNonNull(subject);
     }
 
+    /**
+     * Return the current principal
+     *
+     * @return The current principal
+     */
     @Override
     public Principal getPrincipal() {
         final Object o = shiroSubject.getPrincipal();
@@ -42,6 +47,12 @@ public class ShiroSubject implements Subject {
         return () -> o.toString();
     }
 
+    /**
+     * Check if another object is equal to this object
+     *
+     * @param obj The object to be compared against this
+     * @return Whether the two objects are equal
+     */
     @Override
     public boolean equals(Object obj) {
         if (this == obj) return true;
@@ -50,11 +61,19 @@ public class ShiroSubject implements Subject {
         return Objects.equals(getPrincipal(), that.getPrincipal());
     }
 
+    /**
+     * Return this Subject's principal as a hash
+     * @return An int hash code
+     */
     @Override
     public int hashCode() {
         return Objects.hash(getPrincipal());
     }
 
+    /**
+     * Convert this ShiroSubject's principal to a string
+     * @return A string of the subject's principal
+     */
     @Override
     public String toString() {
         return "ShiroSubject(principal=" + getPrincipal() + ")";
