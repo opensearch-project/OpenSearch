@@ -22,11 +22,11 @@ public interface Subject {
     Principal getPrincipal();
 
     /**
-     * Login through an authentication token
+     * Authenticate via an auth token
      * throws UnsupportedAuthenticationMethod
      * throws InvalidAuthenticationToken
      * throws SubjectNotFound
      * throws SubjectDisabled
      */
-    void login(final AuthToken token);
+    void authenticate(final AuthToken token);
 }

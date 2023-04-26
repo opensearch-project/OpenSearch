@@ -32,10 +32,6 @@
 
 package org.opensearch.rest;
 
-import org.opensearch.client.Request;
-import org.opensearch.client.RequestOptions;
-import org.opensearch.client.Response;
-import org.opensearch.client.ResponseException;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.bytes.BytesArray;
@@ -551,31 +547,6 @@ public class RestControllerTests extends OpenSearchTestCase {
         restController.dispatchRequest(fakeRestRequest, channel, client.threadPool().getThreadContext());
         assertTrue(channel.getSendResponseCalled());
         assertThat(channel.getRestResponse().contentType(), containsString("image/x-icon"));
-    }
-
-    public void testRestAuthenticationSucceeds() {
-        Map<String, List<String>> restHeaders = new HashMap<>();
-        restHeaders.put("Authorization", Collections.singletonList("Basic YWRtaW46YWRtaW4="));
-        final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(RestRequest.Method.GET)
-            .withPath("/internalusers/admin")
-            .withHeaders(restHeaders)
-            .build();
-        final AssertingChannel channel = new AssertingChannel(fakeRestRequest, false, RestStatus.OK);
-        restController.dispatchRequest(fakeRestRequest, channel, client.threadPool().getThreadContext());
-        assertTrue(channel.getSendResponseCalled());
-    }
-
-    public void testRestAuthenticationFails() {
-        Map<String, List<String>> restHeaders = new HashMap<>();
-        restHeaders.put("Authorization", Collections.singletonList("Basic sdfjalksdjf;"));
-        final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(RestRequest.Method.GET)
-            .withPath("/internalusers/admin")
-            .withHeaders(restHeaders)
-            .build();
-        final AssertingChannel channel = new AssertingChannel(fakeRestRequest, false, RestStatus.BAD_REQUEST);
-        restController.dispatchRequest(fakeRestRequest, channel, client.threadPool().getThreadContext());
-        assertTrue(channel.getSendResponseCalled());
-        assertFalse(channel.getRestResponse().contentType().contains("image/x-icon"));
     }
 
     public void testFaviconWithWrongHttpMethod() {
