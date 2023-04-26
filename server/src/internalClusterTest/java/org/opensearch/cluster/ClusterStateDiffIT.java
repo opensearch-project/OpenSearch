@@ -621,7 +621,7 @@ public class ClusterStateDiffIT extends OpenSearchIntegTestCase {
                         break;
                     case 1:
                         if (randomBoolean() && part.getAliases().isEmpty() == false) {
-                            builder.removeAlias(randomFrom(part.getAliases().keys().toArray(String.class)));
+                            builder.removeAlias(randomFrom(part.getAliases().keySet().toArray(new String[0])));
                         } else {
                             builder.putAlias(AliasMetadata.builder(randomAlphaOfLength(10)));
                         }
