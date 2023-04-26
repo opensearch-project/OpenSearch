@@ -403,7 +403,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
             .indices()
             .getSettings(new GetSettingsRequest().indices(snapshotIndexNames))
             .actionGet();
-        assertEquals(snapshotIndexNames.length, settingsResponse.getIndexToSettings().keys().size());
+        assertEquals(snapshotIndexNames.length, settingsResponse.getIndexToSettings().keySet().size());
         for (String snapshotIndexName : snapshotIndexNames) {
             assertEquals(
                 IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey(),

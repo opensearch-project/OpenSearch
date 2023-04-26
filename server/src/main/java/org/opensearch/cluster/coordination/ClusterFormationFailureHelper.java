@@ -187,7 +187,7 @@ public class ClusterFormationFailureHelper {
             final List<String> clusterStateNodes = StreamSupport.stream(
                 clusterState.nodes().getClusterManagerNodes().values().spliterator(),
                 false
-            ).map(n -> n.value.toString()).collect(Collectors.toList());
+            ).map(n -> n.toString()).collect(Collectors.toList());
 
             final String discoveryWillContinueDescription = String.format(
                 Locale.ROOT,

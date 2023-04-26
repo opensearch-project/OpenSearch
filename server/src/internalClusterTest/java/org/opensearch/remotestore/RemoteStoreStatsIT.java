@@ -55,7 +55,7 @@ public class RemoteStoreStatsIT extends RemoteStoreBaseIntegTestCase {
         // each of the node in the cluster and check that the response is coming as expected.
         ClusterState state = getClusterState();
         List<String> nodes = StreamSupport.stream(state.nodes().getNodes().values().spliterator(), false)
-            .map(x -> x.value.getName())
+            .map(x -> x.getName())
             .collect(Collectors.toList());
         String shardId = "0";
         for (String node : nodes) {
