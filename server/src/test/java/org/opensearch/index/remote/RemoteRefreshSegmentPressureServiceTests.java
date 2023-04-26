@@ -93,7 +93,7 @@ public class RemoteRefreshSegmentPressureServiceTests extends OpenSearchTestCase
         assertNull(pressureService.getPressureTracker(testShardId));
     }
 
-    public void testBeforeIndexShardClosed() {
+    public void testAfterIndexShardClosed() {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, "true").build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test_index", settings);
         ShardId testShardId = new ShardId("index", "uuid", 0);
@@ -104,7 +104,7 @@ public class RemoteRefreshSegmentPressureServiceTests extends OpenSearchTestCase
         pressureService.afterIndexShardCreated(indexShard);
         assertNotNull(pressureService.getPressureTracker(testShardId));
 
-        pressureService.beforeIndexShardClosed(testShardId, indexShard, settings);
+        pressureService.afterIndexShardClosed(testShardId, indexShard, settings);
         assertNull(pressureService.getPressureTracker(testShardId));
     }
 
