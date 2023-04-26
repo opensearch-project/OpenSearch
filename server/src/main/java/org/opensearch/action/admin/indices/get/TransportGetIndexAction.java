@@ -54,6 +54,7 @@ import org.opensearch.transport.TransportService;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Spliterators;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -111,8 +112,8 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
         ImmutableOpenMap<String, String> dataStreams = ImmutableOpenMap.<String, String>builder()
             .putAll(
-                StreamSupport.stream(state.metadata().findDataStreams(concreteIndices).spliterator(), false)
-                    .collect(Collectors.toMap(k -> k.key, v -> v.value.getName()))
+                StreamSupport.stream(Spliterators.spliterator(state.metadata().findDataStreams(concreteIndices).entrySet(), 0), false)
+                    .collect(Collectors.toMap(k -> k.getKey(), v -> v.getValue().getName()))
             )
             .build();
         GetIndexRequest.Feature[] features = request.features();
