@@ -26,7 +26,7 @@ public class NoopSubject implements Subject {
 
     @Override
     public Principal getPrincipal() {
-        return NamedPrincipal.UNAUTHENTICATED.getPrincipal();
+        return NamedPrincipal.UNAUTHENTICATED;
     }
 
     @Override

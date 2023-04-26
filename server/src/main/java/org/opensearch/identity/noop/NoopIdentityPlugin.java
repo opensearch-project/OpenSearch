@@ -21,7 +21,7 @@ import org.opensearch.identity.Subject;
 public class NoopIdentityPlugin implements IdentityPlugin {
 
     /**
-     * Get the currect subject
+     * Get the current subject
      * @return Must never return null
      */
     @Override

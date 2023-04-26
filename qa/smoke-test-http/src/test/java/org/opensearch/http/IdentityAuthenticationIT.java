@@ -16,7 +16,6 @@ import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.identity.shiro.ShiroIdentityPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.rest.RestStatus;
@@ -33,7 +32,6 @@ public class IdentityAuthenticationIT extends HttpSmokeTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(FeatureFlags.IDENTITY, true)
             .build();
     }
 

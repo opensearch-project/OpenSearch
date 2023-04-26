@@ -38,9 +38,6 @@ public class IdentityService {
                     + identityPlugins.stream().map(Object::getClass).map(Class::getName).collect(Collectors.joining(","))
             );
         }
-
-        logger.info("Identity module loaded with " + identityPlugin.getClass().getName());
-        logger.info("Current subject " + getSubject());
     }
 
     /**

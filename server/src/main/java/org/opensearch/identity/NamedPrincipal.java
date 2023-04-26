@@ -52,14 +52,4 @@ public class NamedPrincipal implements Principal {
     public String toString() {
         return "NamedPrincipal(" + "name=" + name + ")";
     }
-
-    /**
-     * Returns the NamedPrincipal instanced, should only be used for UNAUTHENTICATED
-     *
-     * @return The specific principal instance
-     */
-    public Principal getPrincipal() {
-        return this;
-    }
-
 }
