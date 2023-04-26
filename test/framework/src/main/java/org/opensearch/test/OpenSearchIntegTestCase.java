@@ -761,6 +761,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 ).getStringRep()
             );
         }
+
         return builder.build();
     }
 

@@ -1344,11 +1344,11 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             )
             .build();
 
-        final ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shards = ImmutableOpenMap.builder();
+        final Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = new HashMap<>();
         shards.put(shardId, new RestoreInProgress.ShardRestoreStatus("node1"));
 
         final RestoreInProgress.Builder restores = new RestoreInProgress.Builder().add(
-            new RestoreInProgress.Entry("_restore_uuid", snapshot, RestoreInProgress.State.INIT, singletonList("test"), shards.build())
+            new RestoreInProgress.Entry("_restore_uuid", snapshot, RestoreInProgress.State.INIT, singletonList("test"), shards)
         );
 
         ClusterState clusterState = ClusterState.builder(new ClusterName(getTestName()))

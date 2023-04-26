@@ -117,8 +117,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
         // fill in the inverse of node -> shards allocated
         // also fill replicaSet information
-        for (ObjectCursor<IndexRoutingTable> indexRoutingTable : routingTable.indicesRouting().values()) {
-            for (IndexShardRoutingTable indexShard : indexRoutingTable.value) {
+        for (final IndexRoutingTable indexRoutingTable : routingTable.indicesRouting().values()) {
+            for (IndexShardRoutingTable indexShard : indexRoutingTable) {
                 assert indexShard.primary != null;
                 for (ShardRouting shard : indexShard) {
                     // to get all the shards belonging to an index, including the replicas,

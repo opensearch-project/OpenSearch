@@ -106,7 +106,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
         final ActionListener<GetIndexResponse> listener
     ) {
         Map<String, MappingMetadata> mappingsResult = Map.of();
-        ImmutableOpenMap<String, List<AliasMetadata>> aliasesResult = ImmutableOpenMap.of();
+        Map<String, List<AliasMetadata>> aliasesResult = Map.of();
         ImmutableOpenMap<String, Settings> settings = ImmutableOpenMap.of();
         ImmutableOpenMap<String, Settings> defaultSettings = ImmutableOpenMap.of();
         ImmutableOpenMap<String, String> dataStreams = ImmutableOpenMap.<String, String>builder()
@@ -133,7 +133,7 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                     }
                     break;
                 case ALIASES:
-                    if (!doneAliases) {
+                    if (doneAliases == false) {
                         aliasesResult = state.metadata().findAllAliases(concreteIndices);
                         doneAliases = true;
                     }

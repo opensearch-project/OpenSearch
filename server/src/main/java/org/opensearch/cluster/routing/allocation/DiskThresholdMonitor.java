@@ -60,6 +60,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Spliterators;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
@@ -351,8 +352,11 @@ public class DiskThresholdMonitor {
             logger.trace("no reroute required");
             listener.onResponse(null);
         }
-        final Set<String> indicesToAutoRelease = StreamSupport.stream(state.routingTable().indicesRouting().spliterator(), false)
-            .map(c -> c.key)
+        final Set<String> indicesToAutoRelease = StreamSupport.stream(
+            Spliterators.spliterator(state.routingTable().indicesRouting().entrySet(), 0),
+            false
+        )
+            .map(c -> c.getKey())
             .filter(index -> indicesNotToAutoRelease.contains(index) == false)
             .filter(index -> state.getBlocks().hasIndexBlock(index, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK))
             .collect(Collectors.toSet());

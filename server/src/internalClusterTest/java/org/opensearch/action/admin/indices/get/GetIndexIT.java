@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.indices.get;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.opensearch.action.support.IndicesOptions;
@@ -288,7 +287,7 @@ public class GetIndexIT extends OpenSearchIntegTestCase {
     }
 
     private void assertAliases(GetIndexResponse response, String indexName) {
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases = response.aliases();
+        final Map<String, List<AliasMetadata>> aliases = response.aliases();
         assertThat(aliases, notNullValue());
         assertThat(aliases.size(), equalTo(1));
         List<AliasMetadata> indexAliases = aliases.get(indexName);
@@ -311,8 +310,8 @@ public class GetIndexIT extends OpenSearchIntegTestCase {
 
     private void assertEmptyAliases(GetIndexResponse response) {
         assertThat(response.aliases(), notNullValue());
-        for (final ObjectObjectCursor<String, List<AliasMetadata>> entry : response.getAliases()) {
-            assertTrue(entry.value.isEmpty());
+        for (final List<AliasMetadata> entry : response.getAliases().values()) {
+            assertTrue(entry.isEmpty());
         }
     }
 }
