@@ -33,7 +33,6 @@ package org.opensearch.snapshots;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -507,8 +506,8 @@ public class RestoreService implements ClusterStateApplier {
                                         // Remove all aliases - they shouldn't be restored
                                         indexMdBuilder.removeAllAliases();
                                     } else {
-                                        for (ObjectCursor<String> alias : snapshotIndexMetadata.getAliases().keys()) {
-                                            aliases.add(alias.value);
+                                        for (final String alias : snapshotIndexMetadata.getAliases().keySet()) {
+                                            aliases.add(alias);
                                         }
                                     }
                                     IndexMetadata updatedIndexMetadata = indexMdBuilder.build();
@@ -550,12 +549,12 @@ public class RestoreService implements ClusterStateApplier {
                                             indexMdBuilder.removeAllAliases();
                                         }
                                         /// Add existing aliases
-                                        for (ObjectCursor<AliasMetadata> alias : currentIndexMetadata.getAliases().values()) {
-                                            indexMdBuilder.putAlias(alias.value);
+                                        for (final AliasMetadata alias : currentIndexMetadata.getAliases().values()) {
+                                            indexMdBuilder.putAlias(alias);
                                         }
                                     } else {
-                                        for (ObjectCursor<String> alias : snapshotIndexMetadata.getAliases().keys()) {
-                                            aliases.add(alias.value);
+                                        for (final String alias : snapshotIndexMetadata.getAliases().keySet()) {
+                                            aliases.add(alias);
                                         }
                                     }
                                     final Settings.Builder indexSettingsBuilder = Settings.builder()
