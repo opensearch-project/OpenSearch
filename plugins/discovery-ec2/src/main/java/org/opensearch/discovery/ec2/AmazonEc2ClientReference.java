@@ -32,16 +32,16 @@
 
 package org.opensearch.discovery.ec2;
 
-import com.amazonaws.services.ec2.AmazonEC2;
 import org.opensearch.common.concurrent.RefCountedReleasable;
+import software.amazon.awssdk.services.ec2.Ec2Client;
 
 /**
- * Handles the shutdown of the wrapped {@link AmazonEC2} using reference
+ * Handles the shutdown of the wrapped {@link Ec2Client} using reference
  * counting.
  */
-public class AmazonEc2Reference extends RefCountedReleasable<AmazonEC2> {
+public class AmazonEc2ClientReference extends RefCountedReleasable<Ec2Client> {
 
-    AmazonEc2Reference(AmazonEC2 client) {
-        super("AWS_EC2_CLIENT", client, client::shutdown);
+    AmazonEc2ClientReference(Ec2Client client) {
+        super("AWS_EC2_CLIENT", client, null);
     }
 }

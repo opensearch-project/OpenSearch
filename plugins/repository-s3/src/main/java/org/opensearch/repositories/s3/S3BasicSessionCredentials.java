@@ -31,7 +31,7 @@
 
 package org.opensearch.repositories.s3;
 
-import com.amazonaws.auth.AWSSessionCredentials;
+import software.amazon.awssdk.auth.AWSSessionCredentials;
 
 import java.util.Objects;
 

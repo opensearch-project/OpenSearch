@@ -32,19 +32,19 @@
 
 package org.opensearch.repositories.s3;
 
-import com.amazonaws.AmazonClientException;
-import com.amazonaws.services.s3.model.AbortMultipartUploadRequest;
-import com.amazonaws.services.s3.model.CompleteMultipartUploadRequest;
-import com.amazonaws.services.s3.model.DeleteObjectsRequest;
-import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
-import com.amazonaws.services.s3.model.ListObjectsRequest;
-import com.amazonaws.services.s3.model.MultiObjectDeleteException;
-import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.PartETag;
-import com.amazonaws.services.s3.model.PutObjectRequest;
-import com.amazonaws.services.s3.model.UploadPartRequest;
-import com.amazonaws.services.s3.model.UploadPartResult;
+import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
+import software.amazon.awssdk.services.s3.model.InitiateMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsRequest;
+import software.amazon.awssdk.services.s3.model.MultiObjectDeleteException;
+import software.amazon.awssdk.services.s3.model.ObjectListing;
+import software.amazon.awssdk.services.s3.model.ObjectMetadata;
+import software.amazon.awssdk.services.s3.model.PartETag;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.UploadPartRequest;
+import software.amazon.awssdk.services.s3.model.UploadPartResult;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -193,7 +193,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     break;
                 }
             }
-        } catch (final AmazonClientException e) {
+        } catch (final SdkException e) {
             throw new IOException("Exception when deleting blob container [" + keyPath + "]", e);
         }
         return new DeleteResult(deletedBlobs.get(), deletedBytes.get());
@@ -229,7 +229,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 deleteRequests.add(bulkDelete(blobStore.bucket(), partition));
             }
             SocketAccess.doPrivilegedVoid(() -> {
-                AmazonClientException aex = null;
+                SdkException aex = null;
                 for (DeleteObjectsRequest deleteRequest : deleteRequests) {
                     List<String> keysInRequest = deleteRequest.getKeys()
                         .stream()
@@ -256,7 +256,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                             e
                         );
                         aex = ExceptionsHelper.useOrSuppress(aex, e);
-                    } catch (AmazonClientException e) {
+                    } catch (SdkException e) {
                         // The AWS client threw any unexpected exception and did not execute the request at all so we do not
                         // remove any keys from the outstanding deletes set.
                         aex = ExceptionsHelper.useOrSuppress(aex, e);
@@ -283,7 +283,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 .flatMap(listing -> listing.getObjectSummaries().stream())
                 .map(summary -> new PlainBlobMetadata(summary.getKey().substring(keyPath.length()), summary.getSize()))
                 .collect(Collectors.toMap(PlainBlobMetadata::name, Function.identity()));
-        } catch (final AmazonClientException e) {
+        } catch (final SdkException e) {
             throw new IOException("Exception when listing blobs by prefix [" + blobNamePrefix + "]", e);
         }
     }
@@ -312,7 +312,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 // Stripping the trailing slash off of the common prefix
                 .map(name -> name.substring(0, name.length() - 1))
                 .collect(Collectors.toMap(Function.identity(), name -> blobStore.blobContainer(path().add(name))));
-        } catch (final AmazonClientException e) {
+        } catch (final SdkException e) {
             throw new IOException("Exception when listing children of [" + path().buildAsString() + ']', e);
         }
     }
@@ -375,7 +375,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             SocketAccess.doPrivilegedVoid(() -> { clientReference.get().putObject(putRequest); });
-        } catch (final AmazonClientException e) {
+        } catch (final SdkException e) {
             throw new IOException("Unable to upload object [" + blobName + "] using a single upload", e);
         }
     }
@@ -459,7 +459,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             SocketAccess.doPrivilegedVoid(() -> clientReference.get().completeMultipartUpload(complRequest));
             success = true;
 
-        } catch (final AmazonClientException e) {
+        } catch (final SdkException e) {
             throw new IOException("Unable to upload object [" + blobName + "] using multipart upload", e);
         } finally {
             if ((success == false) && Strings.hasLength(uploadId.get())) {

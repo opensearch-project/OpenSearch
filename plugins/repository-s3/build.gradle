@@ -46,10 +46,10 @@ opensearchplugin {
 }
 
 dependencies {
-  api "com.amazonaws:aws-java-sdk-s3:${versions.aws}"
-  api "com.amazonaws:aws-java-sdk-core:${versions.aws}"
-  api "com.amazonaws:aws-java-sdk-sts:${versions.aws}"
-  api "com.amazonaws:jmespath-java:${versions.aws}"
+  api "software.amazon.awssdk:s3:${versions.aws}"
+  api "software.amazon.awssdk:core:${versions.aws}"
+  api "software.amazon.awssdk:sts:${versions.aws}"
+  api "software.amazon.awssdk:codegen:${versions.aws}"
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
@@ -75,8 +75,6 @@ restResources {
 }
 
 tasks.named("dependencyLicenses").configure {
-  mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
-  mapping from: /jmespath-java.*/, to: 'aws-java-sdk'
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /jaxb-.*/, to: 'jaxb'
 }
@@ -241,9 +239,9 @@ testClusters.yamlRestTest {
     setting 's3.client.integration_test_eks.region', { "us-east-2" }, IGNORE_VALUE
 
     // to redirect InstanceProfileCredentialsProvider to custom auth point
-    systemProperty "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ec2', '80')}" }, IGNORE_VALUE
+    systemProperty "software.amazon.awssdk.sdk.ec2MetadataServiceEndpointOverride", { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-ec2', '80')}" }, IGNORE_VALUE
     // to redirect AWSSecurityTokenServiceClient to custom auth point
-    systemProperty "com.amazonaws.sdk.stsEndpointOverride", { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-eks', '80')}/eks_credentials_endpoint" }, IGNORE_VALUE
+    systemProperty "software.amazon.awssdk.sdk.stsEndpointOverride", { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-eks', '80')}/eks_credentials_endpoint" }, IGNORE_VALUE
   } else {
     println "Using an external service to test the repository-s3 plugin"
   }
@@ -337,7 +335,7 @@ if (useFixture) {
     plugin tasks.bundlePlugin.archiveFile
 
     // to redirect AWSSecurityTokenServiceClient to custom auth point
-    systemProperty "com.amazonaws.sdk.stsEndpointOverride", { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-eks', '80')}/eks_credentials_endpoint" }, IGNORE_VALUE
+    systemProperty "software.amazon.awssdk.sdk.stsEndpointOverride", { "${-> fixtureAddress('s3-fixture', 's3-fixture-with-eks', '80')}/eks_credentials_endpoint" }, IGNORE_VALUE
   }
 }
 
@@ -376,15 +374,15 @@ thirdPartyAudit.ignoreMissingClasses(
   'software.amazon.ion.system.IonTextWriterBuilder',
   'software.amazon.ion.system.IonWriterBuilder',
   // We don't use the kms dependency
-  'com.amazonaws.services.kms.AWSKMS',
-  'com.amazonaws.services.kms.AWSKMSClient',
-  'com.amazonaws.services.kms.model.DecryptRequest',
-  'com.amazonaws.services.kms.model.DecryptResult',
-  'com.amazonaws.services.kms.model.EncryptRequest',
-  'com.amazonaws.services.kms.model.EncryptResult',
-  'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
-  'com.amazonaws.services.kms.model.GenerateDataKeyResult',
-  'com.amazonaws.services.kms.AWSKMSClientBuilder'
+  'software.amazon.awssdk.services.kms.AWSKMS',
+  'software.amazon.awssdk.services.kms.AWSKMSClient',
+  'software.amazon.awssdk.services.kms.model.DecryptRequest',
+  'software.amazon.awssdk.services.kms.model.DecryptResult',
+  'software.amazon.awssdk.services.kms.model.EncryptRequest',
+  'software.amazon.awssdk.services.kms.model.EncryptResult',
+  'software.amazon.awssdk.services.kms.model.GenerateDataKeyRequest',
+  'software.amazon.awssdk.services.kms.model.GenerateDataKeyResult',
+  'software.amazon.awssdk.services.kms.AWSKMSClientBuilder'
 )
 
 // jarhell with jdk (intentionally, because jaxb was removed from default modules in java 9)

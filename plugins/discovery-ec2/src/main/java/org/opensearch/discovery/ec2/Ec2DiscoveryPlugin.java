@@ -32,8 +32,6 @@
 
 package org.opensearch.discovery.ec2;
 
-import com.amazonaws.util.EC2MetadataUtils;
-import com.amazonaws.util.json.Jackson;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.SpecialPermission;
@@ -76,10 +74,10 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             try {
                 // kick jackson to do some static caching of declared members info
-                Jackson.jsonNodeOf("{}");
+                // JacksonUtils.jsonNodeOf("{}");
                 // ClientConfiguration clinit has some classloader problems
                 // TODO: fix that
-                Class.forName("com.amazonaws.ClientConfiguration");
+                Class.forName("software.amazon.awssdk.http.apache.ApacheHttpClient");
             } catch (final ClassNotFoundException e) {
                 throw new RuntimeException(e);
             }
@@ -143,9 +141,9 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
         final Settings.Builder builder = Settings.builder();
 
         // Adds a node attribute for the ec2 availability zone
-        final String azMetadataUrl = EC2MetadataUtils.getHostAddressForEC2MetadataService()
-            + "/latest/meta-data/placement/availability-zone";
-        builder.put(getAvailabilityZoneNodeAttributes(settings, azMetadataUrl));
+        // final String azMetadataUrl = EC2MetadataUtils.getHostAddressForEC2MetadataService()
+        // + "/latest/meta-data/placement/availability-zone";
+        // builder.put(getAvailabilityZoneNodeAttributes(settings, azMetadataUrl));
         return builder.build();
     }
 

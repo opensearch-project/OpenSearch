@@ -55,7 +55,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.function.BiConsumer;
 
-import static com.amazonaws.SDKGlobalConfiguration.EC2_METADATA_SERVICE_OVERRIDE_SYSTEM_PROPERTY;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
@@ -97,7 +96,7 @@ public class Ec2NetworkTests extends OpenSearchTestCase {
         // redirect EC2 metadata service to httpServer
         AccessController.doPrivileged(
             (PrivilegedAction<String>) () -> System.setProperty(
-                EC2_METADATA_SERVICE_OVERRIDE_SYSTEM_PROPERTY,
+                "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride",
                 "http://" + httpServer.getAddress().getHostName() + ":" + httpServer.getAddress().getPort()
             )
         );
@@ -122,7 +121,7 @@ public class Ec2NetworkTests extends OpenSearchTestCase {
     public void testNetworkHostUnableToResolveEc2() {
         // redirect EC2 metadata service to unknown location
         AccessController.doPrivileged(
-            (PrivilegedAction<String>) () -> System.setProperty(EC2_METADATA_SERVICE_OVERRIDE_SYSTEM_PROPERTY, "http://127.0.0.1/")
+            (PrivilegedAction<String>) () -> System.setProperty("com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", "http://127.0.0.1/")
         );
 
         try {

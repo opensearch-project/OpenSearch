@@ -42,4 +42,5 @@ grant {
   permission java.net.SocketPermission "*", "connect";
 
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+
 };

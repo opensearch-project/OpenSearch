@@ -31,11 +31,11 @@
 
 package org.opensearch.repositories.s3;
 
-import com.amazonaws.auth.AWSCredentials;
+import software.amazon.awssdk.auth.AwsCredentials;
 
 import java.util.Objects;
 
-class S3BasicCredentials implements AWSCredentials {
+class S3BasicCredentials implements AwsCredentials {
 
     private final String accessKey;
 

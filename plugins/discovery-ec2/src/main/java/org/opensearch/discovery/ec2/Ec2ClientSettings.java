@@ -32,11 +32,6 @@
 
 package org.opensearch.discovery.ec2;
 
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.Protocol;
-import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.BasicSessionCredentials;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -47,6 +42,9 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 
 import java.util.Locale;
 
@@ -78,11 +76,12 @@ final class Ec2ClientSettings {
         Property.NodeScope
     );
 
-    /** The protocol to use to connect to to ec2. */
-    static final Setting<Protocol> PROTOCOL_SETTING = new Setting<>(
+    /** The protocol to use to connect to ec2. */
+    // TODO: AWS SDKv2 only enables HTTPs, deprecate
+    static final Setting<String> PROTOCOL_SETTING = new Setting<>(
         "discovery.ec2.protocol",
         "https",
-        s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)),
+        s -> s.toUpperCase(Locale.ROOT),
         Property.NodeScope
     );
 
@@ -95,7 +94,7 @@ final class Ec2ClientSettings {
     /** The socket timeout for connecting to s3. */
     static final Setting<TimeValue> READ_TIMEOUT_SETTING = Setting.timeSetting(
         "discovery.ec2.read_timeout",
-        TimeValue.timeValueMillis(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT),
+        TimeValue.timeValueMillis(50000),
         Property.NodeScope
     );
 
@@ -104,7 +103,7 @@ final class Ec2ClientSettings {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Ec2ClientSettings.class);
 
     /** Credentials to authenticate with ec2. */
-    final AWSCredentials credentials;
+    final AwsCredentials credentials;
 
     /**
      * The ec2 endpoint the client should talk to, or empty string to use the
@@ -113,7 +112,7 @@ final class Ec2ClientSettings {
     final String endpoint;
 
     /** The protocol to use to talk to ec2. Defaults to https. */
-    final Protocol protocol;
+    final String protocol;
 
     /** An optional proxy host that requests to ec2 should be made through. */
     final String proxyHost;
@@ -134,9 +133,9 @@ final class Ec2ClientSettings {
     final int readTimeoutMillis;
 
     protected Ec2ClientSettings(
-        AWSCredentials credentials,
+        AwsCredentials credentials,
         String endpoint,
-        Protocol protocol,
+        String protocol,
         String proxyHost,
         int proxyPort,
         String proxyUsername,
@@ -153,7 +152,7 @@ final class Ec2ClientSettings {
         this.readTimeoutMillis = readTimeoutMillis;
     }
 
-    static AWSCredentials loadCredentials(Settings settings) {
+    static AwsCredentials loadCredentials(Settings settings) {
         try (
             SecureString key = ACCESS_KEY_SETTING.get(settings);
             SecureString secret = SECRET_KEY_SETTING.get(settings);
@@ -189,13 +188,13 @@ final class Ec2ClientSettings {
                     );
                 }
 
-                final AWSCredentials credentials;
+                final AwsCredentials credentials;
                 if (sessionToken.length() == 0) {
                     logger.debug("Using basic key/secret credentials");
-                    credentials = new BasicAWSCredentials(key.toString(), secret.toString());
+                    credentials = AwsBasicCredentials.create(key.toString(), secret.toString());
                 } else {
                     logger.debug("Using basic session credentials");
-                    credentials = new BasicSessionCredentials(key.toString(), secret.toString(), sessionToken.toString());
+                    credentials = AwsSessionCredentials.create(key.toString(), secret.toString(), sessionToken.toString());
                 }
                 return credentials;
             }
@@ -205,7 +204,7 @@ final class Ec2ClientSettings {
     // pkg private for tests
     /** Parse settings for a single client. */
     static Ec2ClientSettings getClientSettings(Settings settings) {
-        final AWSCredentials credentials = loadCredentials(settings);
+        final AwsCredentials credentials = loadCredentials(settings);
         try (
             SecureString proxyUsername = PROXY_USERNAME_SETTING.get(settings);
             SecureString proxyPassword = PROXY_PASSWORD_SETTING.get(settings)

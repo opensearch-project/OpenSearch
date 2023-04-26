@@ -101,7 +101,7 @@ yamlRestTest.enabled = false
     setting 'network.host', '_ec2_'
     setting 'discovery.ec2.endpoint', { "http://${-> fixture.addressAndPort}" }, IGNORE_VALUE
 
-    systemProperty "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", { "http://${-> fixture.addressAndPort}" }, IGNORE_VALUE
+    systemProperty "software.amazon.awssdk.sdk.ec2MetadataServiceEndpointOverride", { "http://${-> fixture.addressAndPort}" }, IGNORE_VALUE
   }
 }
 
