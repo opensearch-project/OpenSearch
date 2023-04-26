@@ -225,8 +225,16 @@ tasks.register("verifyVersions") {
  */
 
 boolean bwc_tests_enabled = true
+
 /* place an issue link here when committing bwc changes */
-final String bwc_tests_disabled_issue = ""
+String bwc_tests_disabled_issue = ""
+
+/* there's no existing MacOS release, therefore disable bcw tests */
+if (Os.isFamily(Os.FAMILY_MAC)) {
+  bwc_tests_enabled = false
+  bwc_tests_disabled_issue = "https://github.com/opensearch-project/OpenSearch/issues/4173"
+}
+
 if (bwc_tests_enabled == false) {
   if (bwc_tests_disabled_issue.isEmpty()) {
     throw new GradleException("bwc_tests_disabled_issue must be set when bwc_tests_enabled == false")
