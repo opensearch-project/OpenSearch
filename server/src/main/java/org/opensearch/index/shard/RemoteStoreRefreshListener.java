@@ -21,12 +21,14 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.RemoteSegmentUploadShardStatsTracker;
 import org.opensearch.index.RemoteUploadPressureService;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -37,9 +39,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -73,7 +76,8 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     private final AtomicLong refreshSeqNo = new AtomicLong();
     private final Map<String, Long> fileSizeMap = new HashMap<>();
 
-    private final Random random = new Random();
+    private final Semaphore semaphore = new Semaphore(1);
+    private final AtomicInteger count = new AtomicInteger();
 
     public RemoteStoreRefreshListener(IndexShard indexShard) {
         this.indexShard = indexShard;
@@ -105,10 +109,21 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
      */
     @Override
     public void afterRefresh(boolean didRefresh) {
-        RemoteSegmentUploadShardStatsTracker statsTracker = remoteUploadPressureService.getStatsTracker(indexShard.shardId());
-        if (didRefresh) {
-            updateRefreshStats(statsTracker, false, updateAndGetRefreshTime(), updateAndGetRefreshSeqNo());
+        afterRefresh(didRefresh, true);
+    }
+
+    private void afterRefresh(boolean didRefresh, boolean fail) {
+        synchronized (this) {
+            RemoteSegmentUploadShardStatsTracker statsTracker = remoteUploadPressureService.getStatsTracker(indexShard.shardId());
+            if (didRefresh) {
+                updateRefreshStats(statsTracker, false, updateAndGetRefreshTime(), updateAndGetRefreshSeqNo());
+            }
         }
+
+        if (semaphore.tryAcquire() == false) {
+            return;
+        }
+        RemoteSegmentUploadShardStatsTracker statsTracker = remoteUploadPressureService.getStatsTracker(indexShard.shardId());
         try {
             if (indexShard.getReplicationTracker().isPrimaryMode()) {
                 if (this.primaryTerm != indexShard.getOperationPrimaryTerm()) {
@@ -156,13 +171,10 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                             // Start tracking total uploads started
                             statsTracker.incrementTotalUploadsStarted();
 
-                            // For test purpose
-                            // Step 1 - Injection artificial delay of 1s to 100s
-                            Thread.sleep(random.nextInt(100) + 1);
-
-                            // Step 2 - Fail 30% of requests by throwing exception
-                            if (random.nextInt(100) < 30) {
-                                throw new RuntimeException("Failing upload for test purpose");
+                            if (fail) {
+                                if (count.get() % 100 >= 50) {
+                                    throw new RuntimeException("Failing upload for test purpose");
+                                }
                             }
 
                             // Start the segments upload
@@ -213,6 +225,12 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                         } catch (IOException e) {
                             logger.warn("Exception while deleting: " + segmentInfoSnapshotFilename, e);
                         }
+
+                        // Retry
+                        if (metadataUploadStatus != UploadStatus.SUCCEEDED) {
+                            indexShard.getThreadPool()
+                                .schedule(() -> this.afterRefresh(false, false), TimeValue.timeValueSeconds(2), ThreadPool.Names.GENERIC);
+                        }
                     }
                 } catch (IOException e) {
                     // We don't want to fail refresh if upload of new segments fails. The missed segments will be re-tried
@@ -223,6 +241,8 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         } catch (Throwable t) {
             logger.error("Exception in RemoteStoreRefreshListener.afterRefresh()", t);
         }
+        count.incrementAndGet();
+        semaphore.release();
     }
 
     private void updateTotalUploadTerminalStats(
