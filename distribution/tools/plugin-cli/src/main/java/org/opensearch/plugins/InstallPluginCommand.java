@@ -750,13 +750,9 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                     Files.createDirectories(targetFile.getParent());
                 }
                 if (entry.isDirectory() == false) {
-                    try (OutputStream out = Files.newOutputStream(targetFile)) {
-                        InputStream input = zipFile.getInputStream(entry);
-                        int len;
-                        while ((len = input.read(buffer)) >= 0) {
-                            out.write(buffer, 0, len);
-                        }
-                        input.close();
+                    // streams will be auto-closed with try-with-resources
+                    try (OutputStream out = Files.newOutputStream(targetFile); InputStream input = zipFile.getInputStream(entry)) {
+                        input.transferTo(out);
                     }
                 }
             }
