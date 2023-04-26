@@ -33,6 +33,9 @@ import java.util.Optional;
 public class OpenSearchRealm extends AuthenticatingRealm {
     private static final String DEFAULT_REALM_NAME = "internal";
 
+    /**
+     * The instance of the realm to be constructed through the builder method
+     */
     public static final OpenSearchRealm INSTANCE = new OpenSearchRealm.Builder(DEFAULT_REALM_NAME).build();
 
     private final String realmName;
@@ -102,7 +105,7 @@ public class OpenSearchRealm extends AuthenticatingRealm {
      *
      * @param token the authentication token containing the user's principal and credentials.
      * @return Authentication info associated with the auth token
-     * @throws AuthenticationException When the auth token has no valid info 
+     * @throws AuthenticationException When the auth token has no valid info
      */
     @Override
     protected AuthenticationInfo doGetAuthenticationInfo(final AuthenticationToken token) throws AuthenticationException {
