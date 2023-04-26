@@ -57,6 +57,8 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.opensearch.Assertions;
+import org.opensearch.cluster.metadata.DataStream;
+import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
@@ -328,6 +330,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Store remoteStore;
     private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
 
+    private final boolean isTimeSeriesIndex;
+
     public IndexShard(
         final ShardRouting shardRouting,
         final IndexSettings indexSettings,
@@ -443,6 +447,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.checkpointPublisher = checkpointPublisher;
         this.remoteStore = remoteStore;
         this.translogFactorySupplier = translogFactorySupplier;
+        this.isTimeSeriesIndex = (mapperService == null || mapperService.documentMapper() == null)
+            ? false
+            : mapperService.documentMapper().mappers().containsTimeStampField();
     }
 
     public ThreadPool getThreadPool() {
@@ -3589,7 +3596,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             tombstoneDocSupplier(),
             isReadOnlyReplica,
             replicationTracker::isPrimaryMode,
-            translogFactorySupplier.apply(indexSettings, shardRouting)
+            translogFactorySupplier.apply(indexSettings, shardRouting),
+            isTimeSeriesIndex ? DataStream.TIMESERIES_LEAF_SORTER : null // DESC @timestamp default order for timeseries
         );
     }
 
@@ -4600,5 +4608,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
         return getEngine().getSegmentInfosSnapshot();
+    }
+
+    /**
+     * If index is time series (if it contains @timestamp field)
+     * @return true or false based on above condition
+     */
+    public boolean isTimeSeriesIndex() {
+        return this.isTimeSeriesIndex;
     }
 }
