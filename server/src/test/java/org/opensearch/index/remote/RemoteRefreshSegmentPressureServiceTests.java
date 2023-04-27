@@ -78,7 +78,7 @@ public class RemoteRefreshSegmentPressureServiceTests extends OpenSearchTestCase
         when(indexShard.shardId()).thenReturn(testShardId);
         pressureService = new RemoteRefreshSegmentPressureService(clusterService, Settings.EMPTY);
         pressureService.afterIndexShardCreated(indexShard);
-        assertNotNull(pressureService.getPressureTracker(testShardId));
+        assertNotNull(pressureService.getRemoteRefreshSegmentTracker(testShardId));
     }
 
     public void testAfterIndexShardCreatedForNonRemoteBackedIndex() {
@@ -90,7 +90,7 @@ public class RemoteRefreshSegmentPressureServiceTests extends OpenSearchTestCase
         when(indexShard.shardId()).thenReturn(testShardId);
         pressureService = new RemoteRefreshSegmentPressureService(clusterService, Settings.EMPTY);
         pressureService.afterIndexShardCreated(indexShard);
-        assertNull(pressureService.getPressureTracker(testShardId));
+        assertNull(pressureService.getRemoteRefreshSegmentTracker(testShardId));
     }
 
     public void testAfterIndexShardClosed() {
@@ -102,10 +102,10 @@ public class RemoteRefreshSegmentPressureServiceTests extends OpenSearchTestCase
         when(indexShard.shardId()).thenReturn(testShardId);
         pressureService = new RemoteRefreshSegmentPressureService(clusterService, Settings.EMPTY);
         pressureService.afterIndexShardCreated(indexShard);
-        assertNotNull(pressureService.getPressureTracker(testShardId));
+        assertNotNull(pressureService.getRemoteRefreshSegmentTracker(testShardId));
 
         pressureService.afterIndexShardClosed(testShardId, indexShard, settings);
-        assertNull(pressureService.getPressureTracker(testShardId));
+        assertNull(pressureService.getRemoteRefreshSegmentTracker(testShardId));
     }
 
     public void testValidateSegmentUploadLag() {
@@ -120,7 +120,7 @@ public class RemoteRefreshSegmentPressureServiceTests extends OpenSearchTestCase
         pressureService.afterIndexShardCreated(indexShard);
 
         // 1. Seq no - add data points to the pressure tracker
-        RemoteRefreshSegmentTracker pressureTracker = pressureService.getPressureTracker(testShardId);
+        RemoteRefreshSegmentTracker pressureTracker = pressureService.getRemoteRefreshSegmentTracker(testShardId);
         pressureTracker.updateLocalRefreshSeqNo(6);
         Exception e = assertThrows(
             OpenSearchRejectedExecutionException.class,

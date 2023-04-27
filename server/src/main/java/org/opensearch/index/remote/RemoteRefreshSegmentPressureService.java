@@ -19,6 +19,8 @@ import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardId;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -40,9 +42,17 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
      */
     private final RemoteRefreshSegmentPressureSettings pressureSettings;
 
+    private final List<LagValidator> lagValidators;
+
     @Inject
     public RemoteRefreshSegmentPressureService(ClusterService clusterService, Settings settings) {
         pressureSettings = new RemoteRefreshSegmentPressureSettings(clusterService, settings, this);
+        lagValidators = Arrays.asList(
+            new RefreshSeqNoLagValidator(pressureSettings),
+            new BytesLagValidator(pressureSettings),
+            new TimeLagValidator(pressureSettings),
+            new ConsecutiveFailureValidator(pressureSettings)
+        );
     }
 
     /**
@@ -51,7 +61,7 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
      * @param shardId shard id
      * @return the tracker if index is remote-backed, else null.
      */
-    public RemoteRefreshSegmentTracker getPressureTracker(ShardId shardId) {
+    public RemoteRefreshSegmentTracker getRemoteRefreshSegmentTracker(ShardId shardId) {
         return trackerMap.get(shardId);
     }
 
@@ -92,102 +102,18 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
     }
 
     public void validateSegmentsUploadLag(ShardId shardId) {
-        RemoteRefreshSegmentTracker pressureTracker = getPressureTracker(shardId);
+        RemoteRefreshSegmentTracker remoteRefreshSegmentTracker = getRemoteRefreshSegmentTracker(shardId);
         // Check if refresh checkpoint (a.k.a. seq number) lag is 2 or below - this is to handle segment merges that can
         // increase the bytes to upload almost suddenly.
-        if (pressureTracker.getSeqNoLag() <= 2) {
+        if (remoteRefreshSegmentTracker.getSeqNoLag() <= 1) {
             return;
         }
 
-        // Check if the remote store seq no lag is above the min seq no lag limit
-        validateSeqNoLag(pressureTracker, shardId);
-
-        // Check if the remote store is lagging more than the upload bytes average multiplied by a variance factor
-        validateBytesLag(pressureTracker, shardId);
-
-        // Check if the remote store is lagging more than the upload time average multiplied by a variance factor
-        validateTimeLag(pressureTracker, shardId);
-
-        // Check if consecutive failure limit has been breached
-        validateConsecutiveFailureLimitBreached(pressureTracker, shardId);
-    }
-
-    private void validateSeqNoLag(RemoteRefreshSegmentTracker pressureTracker, ShardId shardId) {
-        // Check if the remote store seq no lag is above the min seq no lag limit
-        if (pressureTracker.getSeqNoLag() > pressureSettings.getMinSeqNoLagLimit()) {
-            pressureTracker.incrementRejectionCount();
-            throw new OpenSearchRejectedExecutionException(
-                String.format(
-                    Locale.ROOT,
-                    "rejected execution on primary shard:%s due to remote segments lagging behind local segments."
-                        + "remote_refresh_seq_no:%s local_refresh_seq_no:%s",
-                    shardId,
-                    pressureTracker.getRemoteRefreshSeqNo(),
-                    pressureTracker.getLocalRefreshSeqNo()
-                )
-            );
-        }
-    }
-
-    private void validateBytesLag(RemoteRefreshSegmentTracker pressureTracker, ShardId shardId) {
-        if (pressureTracker.isUploadBytesAverageReady() == false) {
-            logger.trace("upload bytes moving average is not ready");
-            return;
-        }
-        double dynamicBytesLagThreshold = pressureTracker.getUploadBytesAverage() * pressureSettings.getBytesLagVarianceFactor();
-        long bytesLag = pressureTracker.getBytesLag();
-        if (bytesLag > dynamicBytesLagThreshold) {
-            pressureTracker.incrementRejectionCount();
-            throw new OpenSearchRejectedExecutionException(
-                String.format(
-                    Locale.ROOT,
-                    "rejected execution on primary shard:%s due to remote segments lagging behind local segments."
-                        + "bytes_lag:%s dynamic_bytes_lag_threshold:%s",
-                    shardId,
-                    bytesLag,
-                    dynamicBytesLagThreshold
-                )
-            );
-        }
-    }
-
-    private void validateTimeLag(RemoteRefreshSegmentTracker pressureTracker, ShardId shardId) {
-        if (pressureTracker.isUploadTimeMsAverageReady() == false) {
-            logger.trace("upload time moving average is not ready");
-            return;
-        }
-        long timeLag = pressureTracker.getTimeMsLag();
-        double dynamicTimeLagThreshold = pressureTracker.getUploadTimeMsAverage() * pressureSettings.getUploadTimeLagVarianceFactor();
-        if (timeLag > dynamicTimeLagThreshold) {
-            pressureTracker.incrementRejectionCount();
-            throw new OpenSearchRejectedExecutionException(
-                String.format(
-                    Locale.ROOT,
-                    "rejected execution on primary shard:%s due to remote segments lagging behind local segments."
-                        + "time_lag:%s ms dynamic_time_lag_threshold:%s ms",
-                    shardId,
-                    timeLag,
-                    dynamicTimeLagThreshold
-                )
-            );
-        }
-    }
-
-    private void validateConsecutiveFailureLimitBreached(RemoteRefreshSegmentTracker pressureTracker, ShardId shardId) {
-        int failureStreakCount = pressureTracker.getConsecutiveFailureCount();
-        int minConsecutiveFailureThreshold = pressureSettings.getMinConsecutiveFailuresLimit();
-        if (failureStreakCount > minConsecutiveFailureThreshold) {
-            pressureTracker.incrementRejectionCount();
-            throw new OpenSearchRejectedExecutionException(
-                String.format(
-                    Locale.ROOT,
-                    "rejected execution on primary shard:%s due to remote segments lagging behind local segments."
-                        + "failure_streak_count:%s min_consecutive_failure_threshold:%s",
-                    shardId,
-                    failureStreakCount,
-                    minConsecutiveFailureThreshold
-                )
-            );
+        for (LagValidator lagValidator : lagValidators) {
+            if (lagValidator.validate(remoteRefreshSegmentTracker, shardId) == false) {
+                remoteRefreshSegmentTracker.incrementRejectionCount(lagValidator.name());
+                throw new OpenSearchRejectedExecutionException(lagValidator.rejectionMessage(remoteRefreshSegmentTracker, shardId));
+            }
         }
     }
 
@@ -205,5 +131,162 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
 
     void updateMovingAverageWindowSize(BiConsumer<RemoteRefreshSegmentTracker, Integer> biConsumer, int updatedSize) {
         trackerMap.values().forEach(tracker -> biConsumer.accept(tracker, updatedSize));
+    }
+
+    /**
+     * Abstract class for validating if lag is acceptable or not.
+     */
+    private static abstract class LagValidator {
+
+        final RemoteRefreshSegmentPressureSettings pressureSettings;
+
+        private LagValidator(RemoteRefreshSegmentPressureSettings pressureSettings) {
+            this.pressureSettings = pressureSettings;
+        }
+
+        /**
+         * Validates the lag and returns value accordingly.
+         *
+         * @param pressureTracker tracker which holds information about the shard.
+         * @param shardId         shard id of the {@code IndexShard} currently being validated.
+         * @return true if successfully validated that lag is acceptable.
+         */
+        abstract boolean validate(RemoteRefreshSegmentTracker pressureTracker, ShardId shardId);
+
+        /**
+         * Returns the name of the lag validator.
+         *
+         * @return the name using class name.
+         */
+        final String name() {
+            return this.getClass().getSimpleName();
+        }
+
+        abstract String rejectionMessage(RemoteRefreshSegmentTracker pressureTracker, ShardId shardId);
+    }
+
+    /**
+     * Check if the remote store seq no lag is above the min seq no lag limit
+     */
+    private static class RefreshSeqNoLagValidator extends LagValidator {
+
+        private RefreshSeqNoLagValidator(RemoteRefreshSegmentPressureSettings pressureSettings) {
+            super(pressureSettings);
+        }
+
+        @Override
+        public boolean validate(RemoteRefreshSegmentTracker pressureTracker, ShardId shardId) {
+            // Check if the remote store seq no lag is above the min seq no lag limit
+            return pressureTracker.getSeqNoLag() <= pressureSettings.getMinSeqNoLagLimit();
+        }
+
+        @Override
+        String rejectionMessage(RemoteRefreshSegmentTracker pressureTracker, ShardId shardId) {
+            return String.format(
+                Locale.ROOT,
+                "rejected execution on primary shard:%s due to remote segments lagging behind local segments."
+                    + "remote_refresh_seq_no:%s local_refresh_seq_no:%s",
+                shardId,
+                pressureTracker.getRemoteRefreshSeqNo(),
+                pressureTracker.getLocalRefreshSeqNo()
+            );
+        }
+    }
+
+    /**
+     * Check if the remote store is lagging more than the upload bytes average multiplied by a variance factor
+     */
+    private static class BytesLagValidator extends LagValidator {
+
+        private BytesLagValidator(RemoteRefreshSegmentPressureSettings pressureSettings) {
+            super(pressureSettings);
+        }
+
+        @Override
+        public boolean validate(RemoteRefreshSegmentTracker pressureTracker, ShardId shardId) {
+            if (pressureTracker.isUploadBytesAverageReady() == false) {
+                logger.trace("upload bytes moving average is not ready");
+                return true;
+            }
+            double dynamicBytesLagThreshold = pressureTracker.getUploadBytesAverage() * pressureSettings.getBytesLagVarianceFactor();
+            long bytesLag = pressureTracker.getBytesLag();
+            return bytesLag <= dynamicBytesLagThreshold;
+        }
+
+        @Override
+        public String rejectionMessage(RemoteRefreshSegmentTracker pressureTracker, ShardId shardId) {
+            double dynamicBytesLagThreshold = pressureTracker.getUploadBytesAverage() * pressureSettings.getBytesLagVarianceFactor();
+            return String.format(
+                Locale.ROOT,
+                "rejected execution on primary shard:%s due to remote segments lagging behind local segments."
+                    + "bytes_lag:%s dynamic_bytes_lag_threshold:%s",
+                shardId,
+                pressureTracker.getBytesLag(),
+                dynamicBytesLagThreshold
+            );
+        }
+    }
+
+    /**
+     * Check if the remote store is lagging more than the upload time average multiplied by a variance factor
+     */
+    private static class TimeLagValidator extends LagValidator {
+
+        private TimeLagValidator(RemoteRefreshSegmentPressureSettings pressureSettings) {
+            super(pressureSettings);
+        }
+
+        @Override
+        public boolean validate(RemoteRefreshSegmentTracker pressureTracker, ShardId shardId) {
+            if (pressureTracker.isUploadTimeMsAverageReady() == false) {
+                logger.trace("upload time moving average is not ready");
+                return true;
+            }
+            long timeLag = pressureTracker.getTimeMsLag();
+            double dynamicTimeLagThreshold = pressureTracker.getUploadTimeMsAverage() * pressureSettings.getUploadTimeLagVarianceFactor();
+            return timeLag <= dynamicTimeLagThreshold;
+        }
+
+        @Override
+        public String rejectionMessage(RemoteRefreshSegmentTracker pressureTracker, ShardId shardId) {
+            double dynamicTimeLagThreshold = pressureTracker.getUploadTimeMsAverage() * pressureSettings.getUploadTimeLagVarianceFactor();
+            return String.format(
+                Locale.ROOT,
+                "rejected execution on primary shard:%s due to remote segments lagging behind local segments."
+                    + "time_lag:%s ms dynamic_time_lag_threshold:%s ms",
+                shardId,
+                pressureTracker.getTimeMsLag(),
+                dynamicTimeLagThreshold
+            );
+        }
+    }
+
+    /**
+     * Check if consecutive failure limit has been breached
+     */
+    private static class ConsecutiveFailureValidator extends LagValidator {
+
+        private ConsecutiveFailureValidator(RemoteRefreshSegmentPressureSettings pressureSettings) {
+            super(pressureSettings);
+        }
+
+        @Override
+        public boolean validate(RemoteRefreshSegmentTracker pressureTracker, ShardId shardId) {
+            int failureStreakCount = pressureTracker.getConsecutiveFailureCount();
+            int minConsecutiveFailureThreshold = pressureSettings.getMinConsecutiveFailuresLimit();
+            return failureStreakCount <= minConsecutiveFailureThreshold;
+        }
+
+        @Override
+        public String rejectionMessage(RemoteRefreshSegmentTracker pressureTracker, ShardId shardId) {
+            return String.format(
+                Locale.ROOT,
+                "rejected execution on primary shard:%s due to remote segments lagging behind local segments."
+                    + "failure_streak_count:%s min_consecutive_failure_threshold:%s",
+                shardId,
+                pressureTracker.getConsecutiveFailureCount(),
+                pressureSettings.getMinConsecutiveFailuresLimit()
+            );
+        }
     }
 }

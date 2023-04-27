@@ -111,6 +111,11 @@ public class RemoteRefreshSegmentTracker {
     private final AtomicLong rejectionCount = new AtomicLong();
 
     /**
+     * Keeps track of rejection count with each rejection reason.
+     */
+    private final Map<String, AtomicLong> rejectionCountMap = ConcurrentCollections.newConcurrentMap();
+
+    /**
      * Map of name to size of the segment files created as part of the most recent refresh.
      */
     private volatile Map<String, Long> latestLocalFileNameLengthMap;
@@ -301,6 +306,14 @@ public class RemoteRefreshSegmentTracker {
 
     void incrementRejectionCount() {
         rejectionCount.incrementAndGet();
+    }
+
+    void incrementRejectionCount(String rejectionReason) {
+        rejectionCountMap.computeIfAbsent(rejectionReason, k -> new AtomicLong()).incrementAndGet();
+    }
+
+    long getRejectionCount(String rejectionReason) {
+        return rejectionCountMap.get(rejectionReason).get();
     }
 
     Map<String, Long> getLatestLocalFileNameLengthMap() {
