@@ -8,21 +8,22 @@
 
 package org.opensearch.identity;
 
+import org.hamcrest.MatcherAssert;
 import org.hamcrest.core.StringStartsWith;
-import org.junit.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Base64;
 import java.util.List;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -31,15 +32,15 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class ServiceAccountManagerTest {
+public class ServiceAccountManagerTests extends OpenSearchTestCase {
     private Settings setting = Settings.builder().put("http.port", "9200").build();
     private String defaultAuthString = "admin:admin";
     private Path path = Path.of("");
     private HttpClient httpClient = Mockito.mock(HttpClient.class);
+    @SuppressWarnings("unchecked")
     private HttpResponse<String> httpResponse = Mockito.mock(HttpResponse.class);
 
-    @Test
-    public void shouldReturnServiceWhenFound() throws IOException, InterruptedException {
+    public void testShouldReturnServiceWhenFound() throws IOException, InterruptedException {
         ServiceAccountManager serviceAccountManager = new ServiceAccountManager(setting, path, httpClient);
         doReturn(httpResponse).when(httpClient).send(any(), any());
         when(httpResponse.statusCode()).thenReturn(200);
@@ -47,18 +48,20 @@ public class ServiceAccountManagerTest {
 
         serviceAccountManager.getOrCreateServiceAccount(
             "existingService",
-            Base64.getEncoder().encodeToString(defaultAuthString.getBytes())
+            Base64.getEncoder().encodeToString(defaultAuthString.getBytes(StandardCharsets.UTF_8))
         );
 
         verify(httpClient).send(argument.capture(), any());
         verify(httpClient, times(1)).send(any(), any());
-        assertThat(argument.getValue().headers().firstValue("Content-Type").orElse(""), equalTo("application/json"));
-        assertThat(argument.getValue().headers().firstValue("Authorization").orElse(""), StringStartsWith.startsWith("Basic "));
-        assertThat(argument.getValue().method(), equalTo("GET"));
+        MatcherAssert.assertThat(argument.getValue().headers().firstValue("Content-Type").orElse(""), equalTo("application/json"));
+        MatcherAssert.assertThat(
+            argument.getValue().headers().firstValue("Authorization").orElse(""),
+            StringStartsWith.startsWith("Basic ")
+        );
+        MatcherAssert.assertThat(argument.getValue().method(), equalTo("GET"));
     }
 
-    @Test
-    public void shouldCreateServiceWhenNotFound() throws IOException, InterruptedException {
+    public void testShouldCreateServiceWhenNotFound() throws IOException, InterruptedException {
         ServiceAccountManager serviceAccountManager = new ServiceAccountManager(setting, path, httpClient);
         doReturn(httpResponse).when(httpClient).send(any(), any());
         when(httpResponse.statusCode()).thenReturn(404).thenReturn(200);
@@ -66,21 +69,20 @@ public class ServiceAccountManagerTest {
 
         serviceAccountManager.getOrCreateServiceAccount(
             "nonExistingService",
-            Base64.getEncoder().encodeToString(defaultAuthString.getBytes())
+            Base64.getEncoder().encodeToString(defaultAuthString.getBytes(StandardCharsets.UTF_8))
         );
 
         verify(httpClient, times(2)).send(argument.capture(), any());
         List<HttpRequest> httpRequests = argument.getAllValues();
         HttpRequest firstRequest = httpRequests.get(0);
-        assertThat(firstRequest.headers().firstValue("Content-Type").orElse(""), equalTo("application/json"));
-        assertThat(firstRequest.headers().firstValue("Authorization").orElse(""), StringStartsWith.startsWith("Basic "));
-        assertThat(firstRequest.method(), equalTo("GET"));
+        MatcherAssert.assertThat(firstRequest.headers().firstValue("Content-Type").orElse(""), equalTo("application/json"));
+        MatcherAssert.assertThat(firstRequest.headers().firstValue("Authorization").orElse(""), StringStartsWith.startsWith("Basic "));
+        MatcherAssert.assertThat(firstRequest.method(), equalTo("GET"));
 
         HttpRequest secondRequest = httpRequests.get(1);
-        assertThat(secondRequest.headers().firstValue("Content-Type").orElse(""), equalTo("application/json"));
-        assertThat(secondRequest.headers().firstValue("Authorization").orElse(""), StringStartsWith.startsWith("Basic "));
-        assertThat(secondRequest.method(), equalTo("PUT"));
-        assertThat(secondRequest.bodyPublisher().map(HttpRequest.BodyPublisher::contentLength).orElse(0L), is(65L));
+        MatcherAssert.assertThat(secondRequest.headers().firstValue("Content-Type").orElse(""), equalTo("application/json"));
+        MatcherAssert.assertThat(secondRequest.headers().firstValue("Authorization").orElse(""), StringStartsWith.startsWith("Basic "));
+        MatcherAssert.assertThat(secondRequest.method(), equalTo("PUT"));
+        MatcherAssert.assertThat(secondRequest.bodyPublisher().map(HttpRequest.BodyPublisher::contentLength).orElse(0L), is(65L));
     }
-
 }
