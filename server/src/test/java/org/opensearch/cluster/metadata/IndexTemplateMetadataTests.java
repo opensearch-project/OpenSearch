@@ -33,7 +33,6 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -48,6 +47,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.contains;
@@ -109,8 +109,8 @@ public class IndexTemplateMetadataTests extends OpenSearchTestCase {
                 randomInt(),
                 Collections.emptyList(),
                 Settings.EMPTY,
-                ImmutableOpenMap.of(),
-                ImmutableOpenMap.of()
+                Map.of(),
+                Map.of()
             );
         });
         assertThat(emptyPatternError.getMessage(), equalTo("Index patterns must not be null or empty; got []"));
@@ -122,8 +122,8 @@ public class IndexTemplateMetadataTests extends OpenSearchTestCase {
                 randomInt(),
                 null,
                 Settings.EMPTY,
-                ImmutableOpenMap.of(),
-                ImmutableOpenMap.of()
+                Map.of(),
+                Map.of()
             );
         });
         assertThat(nullPatternError.getMessage(), equalTo("Index patterns must not be null or empty; got null"));

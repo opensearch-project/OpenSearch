@@ -207,6 +207,14 @@ updates:
     labels:
       - "dependabot"
       - "dependencies"
+  - directory: /distribution/archives/darwin-arm64-tar/
+    open-pull-requests-limit: 1
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /distribution/archives/integ-test-zip/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
