@@ -31,6 +31,6 @@ public class IdentityPluginTests extends OpenSearchTestCase {
         IdentityPlugin identityPlugin3 = new NoopIdentityPlugin();
         List<IdentityPlugin> pluginList = List.of(identityPlugin1, identityPlugin2, identityPlugin3);
         Exception ex = assertThrows(OpenSearchException.class, () -> new IdentityService(Settings.EMPTY, pluginList));
-        assert(ex.getMessage().contains("Multiple identity plugins are not supported,"));
+        assert (ex.getMessage().contains("Multiple identity plugins are not supported,"));
     }
 }
