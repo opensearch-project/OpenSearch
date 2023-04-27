@@ -38,7 +38,6 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.ImmutableOpenIntMap;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -50,6 +49,7 @@ import org.opensearch.transport.NodeDisconnectedException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -59,8 +59,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class IndicesShardStoreResponseTests extends OpenSearchTestCase {
     public void testBasicSerialization() throws Exception {
-        ImmutableOpenMap.Builder<String, ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>>> indexStoreStatuses =
-            ImmutableOpenMap.builder();
+        final Map<String, ImmutableOpenIntMap<List<IndicesShardStoresResponse.StoreStatus>>> indexStoreStatuses = new HashMap<>();
 
         List<IndicesShardStoresResponse.Failure> failures = new ArrayList<>();
         ImmutableOpenIntMap.Builder<List<IndicesShardStoresResponse.StoreStatus>> storeStatuses = ImmutableOpenIntMap.builder();
@@ -96,7 +95,7 @@ public class IndicesShardStoreResponseTests extends OpenSearchTestCase {
         failures.add(new IndicesShardStoresResponse.Failure("node1", "test", 3, new NodeDisconnectedException(node1, "")));
 
         IndicesShardStoresResponse storesResponse = new IndicesShardStoresResponse(
-            indexStoreStatuses.build(),
+            indexStoreStatuses,
             Collections.unmodifiableList(failures)
         );
         XContentBuilder contentBuilder = XContentFactory.jsonBuilder();

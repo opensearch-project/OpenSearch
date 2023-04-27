@@ -32,7 +32,6 @@
 
 package org.opensearch.rest.action.admin.indices;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.opensearch.action.support.IndicesOptions;
@@ -40,7 +39,6 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -55,6 +53,7 @@ import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -95,16 +94,16 @@ public class RestGetAliasesAction extends BaseRestHandler {
     static RestResponse buildRestResponse(
         boolean aliasesExplicitlyRequested,
         String[] requestedAliases,
-        ImmutableOpenMap<String, List<AliasMetadata>> responseAliasMap,
+        final Map<String, List<AliasMetadata>> responseAliasMap,
         XContentBuilder builder
     ) throws Exception {
         final Set<String> indicesToDisplay = new HashSet<>();
         final Set<String> returnedAliasNames = new HashSet<>();
-        for (final ObjectObjectCursor<String, List<AliasMetadata>> cursor : responseAliasMap) {
-            for (final AliasMetadata aliasMetadata : cursor.value) {
+        for (final Map.Entry<String, List<AliasMetadata>> cursor : responseAliasMap.entrySet()) {
+            for (final AliasMetadata aliasMetadata : cursor.getValue()) {
                 if (aliasesExplicitlyRequested) {
                     // only display indices that have aliases
-                    indicesToDisplay.add(cursor.key);
+                    indicesToDisplay.add(cursor.getKey());
                 }
                 returnedAliasNames.add(aliasMetadata.alias());
             }
@@ -165,13 +164,13 @@ public class RestGetAliasesAction extends BaseRestHandler {
                 builder.field("status", status.getStatus());
             }
 
-            for (final ObjectObjectCursor<String, List<AliasMetadata>> entry : responseAliasMap) {
-                if (aliasesExplicitlyRequested == false || (aliasesExplicitlyRequested && indicesToDisplay.contains(entry.key))) {
-                    builder.startObject(entry.key);
+            for (final Map.Entry<String, List<AliasMetadata>> entry : responseAliasMap.entrySet()) {
+                if (aliasesExplicitlyRequested == false || (aliasesExplicitlyRequested && indicesToDisplay.contains(entry.getKey()))) {
+                    builder.startObject(entry.getKey());
                     {
                         builder.startObject("aliases");
                         {
-                            for (final AliasMetadata alias : entry.value) {
+                            for (final AliasMetadata alias : entry.getValue()) {
                                 AliasMetadata.Builder.toXContent(alias, builder, ToXContent.EMPTY_PARAMS);
                             }
                         }

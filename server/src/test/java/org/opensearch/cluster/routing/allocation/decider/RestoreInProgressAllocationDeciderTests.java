@@ -52,7 +52,6 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.snapshots.Snapshot;
@@ -60,6 +59,8 @@ import org.opensearch.snapshots.SnapshotId;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static java.util.Collections.singletonList;
 
@@ -157,7 +158,7 @@ public class RestoreInProgressAllocationDeciderTests extends OpenSearchAllocatio
             routingTable = RoutingTable.builder(routingTable).add(newIndexRoutingTable).build();
         }
 
-        ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shards = ImmutableOpenMap.builder();
+        final Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = new HashMap<>();
         shards.put(primary.shardId(), new RestoreInProgress.ShardRestoreStatus(clusterState.getNodes().getLocalNodeId(), shardState));
 
         Snapshot snapshot = recoverySource.snapshot();
@@ -167,7 +168,7 @@ public class RestoreInProgressAllocationDeciderTests extends OpenSearchAllocatio
             snapshot,
             restoreState,
             singletonList("test"),
-            shards.build()
+            shards
         );
 
         clusterState = ClusterState.builder(clusterState)

@@ -507,7 +507,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
         assertEquals(clusterState.nodes().getDataNodes().size(), 8);
         assertEquals(clusterState.nodes().getClusterManagerNodes().size(), 2);
 
-        Iterator<DiscoveryNode> discoveryNodeIterator = clusterState.nodes().getNodes().valuesIt();
+        Iterator<DiscoveryNode> discoveryNodeIterator = clusterState.nodes().getNodes().values().iterator();
         while (discoveryNodeIterator.hasNext()) {
             // assert no node has decommissioned attribute
             DiscoveryNode node = discoveryNodeIterator.next();
@@ -717,7 +717,7 @@ public class AwarenessAttributeDecommissionIT extends OpenSearchIntegTestCase {
 
         logger.info("--> Got cluster state with 4 nodes.");
         // assert status on nodes that are part of cluster currently
-        Iterator<DiscoveryNode> discoveryNodeIterator = clusterState.nodes().getNodes().valuesIt();
+        Iterator<DiscoveryNode> discoveryNodeIterator = clusterState.nodes().getNodes().values().iterator();
         DiscoveryNode clusterManagerNodeAfterDecommission = null;
         while (discoveryNodeIterator.hasNext()) {
             // assert no node has decommissioned attribute
