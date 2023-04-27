@@ -15,6 +15,8 @@ import org.opensearch.common.settings.Settings;
 
 /**
  * Settings related to back pressure on account of segments upload failures / lags.
+ *
+ * @opensearch.internal
  */
 public class RemoteRefreshSegmentPressureSettings {
 

@@ -27,6 +27,8 @@ import java.util.function.BiConsumer;
 
 /**
  * Service used to validate if the incoming indexing request should be rejected based on the {@link RemoteRefreshSegmentTracker}.
+ *
+ * @opensearch.internal
  */
 public class RemoteRefreshSegmentPressureService implements IndexEventListener {
 
@@ -135,6 +137,8 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
 
     /**
      * Abstract class for validating if lag is acceptable or not.
+     *
+     * @opensearch.internal
      */
     private static abstract class LagValidator {
 
@@ -167,6 +171,8 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
 
     /**
      * Check if the remote store seq no lag is above the min seq no lag limit
+     *
+     * @opensearch.internal
      */
     private static class RefreshSeqNoLagValidator extends LagValidator {
 
@@ -195,6 +201,8 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
 
     /**
      * Check if the remote store is lagging more than the upload bytes average multiplied by a variance factor
+     *
+     * @opensearch.internal
      */
     private static class BytesLagValidator extends LagValidator {
 
@@ -229,6 +237,8 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
 
     /**
      * Check if the remote store is lagging more than the upload time average multiplied by a variance factor
+     *
+     * @opensearch.internal
      */
     private static class TimeLagValidator extends LagValidator {
 
@@ -263,6 +273,8 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
 
     /**
      * Check if consecutive failure limit has been breached
+     *
+     * @opensearch.internal
      */
     private static class ConsecutiveFailureValidator extends LagValidator {
 

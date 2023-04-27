@@ -27,25 +27,29 @@ public class MovingAverage {
         this.observations = new long[windowSize];
     }
 
-    public MovingAverage(int newWindowSize, MovingAverage oldMovingAverage) {
-        checkWindowSize(newWindowSize);
-        windowSize = newWindowSize;
-        observations = new long[newWindowSize];
-
+    /**
+     * Used for changing the window size of {@code MovingAverage}.
+     *
+     * @param newWindowSize new window size.
+     * @return copy of original object with updated size.
+     */
+    public MovingAverage copyWithSize(int newWindowSize) {
+        MovingAverage copy = new MovingAverage(newWindowSize);
         // Start is inclusive, but end is exclusive
-        long start, end = oldMovingAverage.count;
-        if (oldMovingAverage.isReady() == false) {
+        long start, end = count;
+        if (isReady() == false) {
             start = 0;
         } else {
-            start = end - oldMovingAverage.windowSize;
+            start = end - windowSize;
         }
         // If the newWindow Size is smaller than the elements eligible to be copied over, then we adjust the start value
         if (end - start > newWindowSize) {
             start = end - newWindowSize;
         }
         for (int i = (int) start; i < end; i++) {
-            record(oldMovingAverage.observations[i % oldMovingAverage.observations.length]);
+            copy.record(observations[i % observations.length]);
         }
+        return copy;
     }
 
     private void checkWindowSize(int size) {

@@ -21,24 +21,10 @@ import java.util.stream.Collectors;
 
 /**
  * Keeps track of remote refresh which happens in {@link org.opensearch.index.shard.RemoteStoreRefreshListener}. This consist of multiple critical metrics.
+ *
+ * @opensearch.internal
  */
 public class RemoteRefreshSegmentTracker {
-
-    public RemoteRefreshSegmentTracker(
-        ShardId shardId,
-        int uploadBytesMovingAverageWindowSize,
-        int uploadBytesPerSecMovingAverageWindowSize,
-        int uploadTimeMsMovingAverageWindowSize
-    ) {
-        this.shardId = shardId;
-        // Both the local refresh time and remote refresh time are set with current time to give consistent view of time lag when it arises.
-        long currentTimeMs = System.nanoTime() / 1_000_000L;
-        localRefreshTimeMs.set(currentTimeMs);
-        remoteRefreshTimeMs.set(currentTimeMs);
-        this.uploadBytesMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadBytesMovingAverageWindowSize));
-        this.uploadBytesPerSecMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadBytesPerSecMovingAverageWindowSize));
-        this.uploadTimeMsMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadTimeMsMovingAverageWindowSize));
-    }
 
     /**
      * ShardId for which this instance tracks the remote segment upload metadata.
@@ -161,6 +147,22 @@ public class RemoteRefreshSegmentTracker {
     private final AtomicReference<MovingAverage> uploadTimeMsMovingAverageReference;
 
     private final Object uploadTimeMsMutex = new Object();
+
+    public RemoteRefreshSegmentTracker(
+        ShardId shardId,
+        int uploadBytesMovingAverageWindowSize,
+        int uploadBytesPerSecMovingAverageWindowSize,
+        int uploadTimeMsMovingAverageWindowSize
+    ) {
+        this.shardId = shardId;
+        // Both the local refresh time and remote refresh time are set with current time to give consistent view of time lag when it arises.
+        long currentTimeMs = System.nanoTime() / 1_000_000L;
+        localRefreshTimeMs.set(currentTimeMs);
+        remoteRefreshTimeMs.set(currentTimeMs);
+        this.uploadBytesMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadBytesMovingAverageWindowSize));
+        this.uploadBytesPerSecMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadBytesPerSecMovingAverageWindowSize));
+        this.uploadTimeMsMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadTimeMsMovingAverageWindowSize));
+    }
 
     ShardId getShardId() {
         return shardId;
@@ -367,7 +369,7 @@ public class RemoteRefreshSegmentTracker {
      */
     void updateUploadBytesMovingAverageWindowSize(int updatedSize) {
         synchronized (uploadBytesMutex) {
-            this.uploadBytesMovingAverageReference.set(new MovingAverage(updatedSize, this.uploadBytesMovingAverageReference.get()));
+            this.uploadBytesMovingAverageReference.set(this.uploadBytesMovingAverageReference.get().copyWithSize(updatedSize));
         }
     }
 
@@ -392,9 +394,7 @@ public class RemoteRefreshSegmentTracker {
      */
     void updateUploadBytesPerSecMovingAverageWindowSize(int updatedSize) {
         synchronized (uploadBytesPerSecMutex) {
-            this.uploadBytesPerSecMovingAverageReference.set(
-                new MovingAverage(updatedSize, this.uploadBytesPerSecMovingAverageReference.get())
-            );
+            this.uploadBytesPerSecMovingAverageReference.set(this.uploadBytesPerSecMovingAverageReference.get().copyWithSize(updatedSize));
         }
     }
 
@@ -419,7 +419,7 @@ public class RemoteRefreshSegmentTracker {
      */
     void updateUploadTimeMsMovingAverageWindowSize(int updatedSize) {
         synchronized (uploadTimeMsMutex) {
-            this.uploadTimeMsMovingAverageReference.set(new MovingAverage(updatedSize, this.uploadTimeMsMovingAverageReference.get()));
+            this.uploadTimeMsMovingAverageReference.set(this.uploadTimeMsMovingAverageReference.get().copyWithSize(updatedSize));
         }
     }
 }
