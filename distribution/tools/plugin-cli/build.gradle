@@ -40,6 +40,8 @@ dependencies {
   testImplementation project(":test:framework")
   testImplementation 'com.google.jimfs:jimfs:1.2'
   testRuntimeOnly 'com.google.guava:guava:31.1-jre'
+
+  implementation 'org.apache.commons:commons-compress:1.23.0'
 }
 
 tasks.named("dependencyLicenses").configure {
@@ -77,4 +79,29 @@ thirdPartyAudit.ignoreViolations(
   'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSRsaPreMasterSecretGenerator$2',
   'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator',
   'org.bouncycastle.jcajce.provider.ProvSunTLSKDF$TLSExtendedMasterSecretGenerator$2'
+)
+
+thirdPartyAudit.ignoreMissingClasses(
+  'com.github.luben.zstd.BufferPool',
+  'com.github.luben.zstd.ZstdInputStream',
+  'com.github.luben.zstd.ZstdOutputStream',
+  'org.brotli.dec.BrotliInputStream',
+  'org.objectweb.asm.AnnotationVisitor',
+  'org.objectweb.asm.Attribute',
+  'org.objectweb.asm.ClassReader',
+  'org.objectweb.asm.ClassVisitor',
+  'org.objectweb.asm.FieldVisitor',
+  'org.objectweb.asm.Label',
+  'org.objectweb.asm.MethodVisitor',
+  'org.objectweb.asm.Type',
+  'org.tukaani.xz.DeltaOptions',
+  'org.tukaani.xz.FilterOptions',
+  'org.tukaani.xz.LZMA2InputStream',
+  'org.tukaani.xz.LZMA2Options',
+  'org.tukaani.xz.LZMAInputStream',
+  'org.tukaani.xz.LZMAOutputStream',
+  'org.tukaani.xz.MemoryLimitException',
+  'org.tukaani.xz.UnsupportedOptionsException',
+  'org.tukaani.xz.XZ',
+  'org.tukaani.xz.XZOutputStream'
 )
