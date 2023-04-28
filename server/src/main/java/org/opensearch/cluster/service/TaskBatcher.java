@@ -91,6 +91,11 @@ public abstract class TaskBatcher {
                     throw new IllegalStateException("cannot add duplicate task: " + a);
                 }, IdentityHashMap::new));
             LinkedHashSet<BatchedTask> newTasks = new LinkedHashSet<>(tasks);
+            // Need to maintain below order in which task identity map and task map are updated.
+            // For insert: First insert identity in taskIdentity map with dup check and then insert task in taskMap.
+            // For remove: First remove task from taskMap and then remove identity from taskIdentity map.
+            // We are inserting identity first and removing at last to ensure no duplicate tasks are enqueued.
+            // Changing this order might lead to duplicate tasks in queue.
             taskIdentityPerBatchingKey.merge(
                 firstTask.batchingKey,
                 new LinkedHashSet<>(tasksIdentity.keySet()),
@@ -99,17 +104,20 @@ public abstract class TaskBatcher {
                         firstTask.batchingKey,
                         k -> new LinkedHashSet<>(tasksIdentity.keySet().size())
                     );
-                    for (Object newIdentity : tasksIdentity.keySet()) {
-                        // check that there won't be two tasks with the same identity for the same batching key
-                        if (existingIdentities.contains(newIdentity)) {
-                            BatchedTask duplicateTask = tasksIdentity.get(newIdentity);
-                            throw new IllegalStateException(
-                                "task ["
-                                    + duplicateTask.describeTasks(Collections.singletonList(duplicateTask))
-                                    + "] with source ["
-                                    + duplicateTask.source
-                                    + "] is already queued"
-                            );
+                    if (!existingIdentities.isEmpty()) {
+                        // check for duplicate tasks if existing identities are not empty.
+                        for (Object newIdentity : tasksIdentity.keySet()) {
+                            // check that there won't be two tasks with the same identity for the same batching key
+                            if (existingIdentities.contains(newIdentity)) {
+                                BatchedTask duplicateTask = tasksIdentity.get(newIdentity);
+                                throw new IllegalStateException(
+                                    "task ["
+                                        + duplicateTask.describeTasks(Collections.singletonList(duplicateTask))
+                                        + "] with source ["
+                                        + duplicateTask.source
+                                        + "] is already queued"
+                                );
+                            }
                         }
                     }
                     existingIdentity.addAll(updatedIdentity);
@@ -148,6 +156,8 @@ public abstract class TaskBatcher {
             Object batchingKey = firstTask.batchingKey;
             assert tasks.stream().allMatch(t -> t.batchingKey == batchingKey)
                 : "tasks submitted in a batch should share the same batching key: " + tasks;
+            // While removing task, need to remove task first from taskMap and then remove identity from identityMap.
+            // Changing this order might lead to duplicate task during submission.
             tasksPerBatchingKey.computeIfPresent(batchingKey, (tasksKey, existingTasks) -> {
                 existingTasks.removeAll(toRemove);
                 if (existingTasks.isEmpty()) {
@@ -179,6 +189,8 @@ public abstract class TaskBatcher {
         if (updateTask.processed.get() == false) {
             final List<BatchedTask> toExecute = new ArrayList<>();
             final Map<String, List<BatchedTask>> processTasksBySource = new HashMap<>();
+            // While removing task, need to remove task first from taskMap and then remove identity from identityMap.
+            // Changing this order might lead to duplicate task during submission.
             LinkedHashSet<BatchedTask> pending = tasksPerBatchingKey.remove(updateTask.batchingKey);
             taskIdentityPerBatchingKey.remove(updateTask.batchingKey);
             if (pending != null) {

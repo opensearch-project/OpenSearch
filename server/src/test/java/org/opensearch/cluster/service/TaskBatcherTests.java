@@ -397,7 +397,7 @@ public class TaskBatcherTests extends TaskExecutorTests {
             submitTask("blocking", blockingTask);
 
             TestExecutor<SimpleTask> executor = tasks -> {};
-            SimpleTask task = new SimpleTask(1);
+            SimpleTask task1 = new SimpleTask(1);
             TestListener listener = new TestListener() {
                 @Override
                 public void processed(String source) {
@@ -410,14 +410,22 @@ public class TaskBatcherTests extends TaskExecutorTests {
                 }
             };
 
-            submitTask("first time", task, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
+            submitTask("first time", task1, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
 
+            // submitting same task1 again, it should throw exception.
             final IllegalStateException e = expectThrows(
                 IllegalStateException.class,
-                () -> submitTask("second time", task, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener)
+                () -> submitTask("second time", task1, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener)
             );
             assertThat(e, hasToString(containsString("task [1] with source [second time] is already queued")));
 
+            // inserting new task with same data, this should pass as it is new object and reference is different.
+            SimpleTask task2 = new SimpleTask(1);
+            // equals method returns true for both task
+            assertTrue(task1.equals(task2));
+            // references of both tasks are different.
+            assertFalse(task1 == task2);
+            // submitting this task should be allowed, as it is new object.
             submitTask("third time a charm", new SimpleTask(1), ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
 
             assertThat(latch.getCount(), equalTo(2L));
@@ -463,7 +471,11 @@ public class TaskBatcherTests extends TaskExecutorTests {
 
         @Override
         public boolean equals(Object obj) {
-            return super.equals(obj);
+            return ((SimpleTask) obj).getId() == this.id;
+        }
+
+        public int getId() {
+            return id;
         }
 
         @Override
