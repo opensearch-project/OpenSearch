@@ -1583,7 +1583,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             } else {
                 initialRecoveryFilters = DiscoveryNodeFilters.buildOrUpdateFromKeyValue(null, OR, initialRecoveryMap);
             }
-            Version indexCreatedVersion = Version.indexCreated(settings);
+            Version indexCreatedVersion = indexCreated(settings);
             Version indexUpgradedVersion = settings.getAsVersion(IndexMetadata.SETTING_VERSION_UPGRADED, indexCreatedVersion);
 
             if (primaryTerms == null) {
@@ -1879,7 +1879,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 }
             }
 
-            final Version indexCreatedVersion = Version.indexCreated(builder.settings);
+            final Version indexCreatedVersion = indexCreated(builder.settings);
             // Reference:
             // https://github.com/opensearch-project/OpenSearch/blob/4dde0f2a3b445b2fc61dab29c5a2178967f4a3e3/server/src/main/java/org/opensearch/cluster/metadata/IndexMetadata.java#L1620-L1628
             if (Assertions.ENABLED && indexCreatedVersion.onOrAfter(LegacyESVersion.V_6_5_0)) {
@@ -1926,9 +1926,28 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     }
 
     /**
+     * Return the version the index was created from the provided index settings
+     *
+     * This looks for the presence of the {@link Version} object with key {@link IndexMetadata#SETTING_VERSION_CREATED}
+     */
+    public static Version indexCreated(final Settings indexSettings) {
+        final Version indexVersion = SETTING_INDEX_VERSION_CREATED.get(indexSettings);
+        if (indexVersion.equals(Version.V_EMPTY)) {
+            final String message = String.format(
+                Locale.ROOT,
+                "[%s] is not present in the index settings for index with UUID [%s]",
+                SETTING_INDEX_VERSION_CREATED.getKey(),
+                indexSettings.get(IndexMetadata.SETTING_INDEX_UUID)
+            );
+            throw new IllegalStateException(message);
+        }
+        return indexVersion;
+    }
+
+    /**
      * State format for {@link IndexMetadata} to write to and load from disk
      */
-    public static final MetadataStateFormat<IndexMetadata> FORMAT = new MetadataStateFormat<IndexMetadata>(INDEX_STATE_FILE_PREFIX) {
+    public static final MetadataStateFormat<IndexMetadata> FORMAT = new MetadataStateFormat<>(INDEX_STATE_FILE_PREFIX) {
 
         @Override
         public void toXContent(XContentBuilder builder, IndexMetadata state) throws IOException {

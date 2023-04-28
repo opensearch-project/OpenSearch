@@ -30,10 +30,11 @@
  * GitHub history for details.
  */
 
-package org.opensearch.common.io;
+package org.opensearch.core.util;
 
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressFileSystems;
+import org.opensearch.common.io.PathUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
