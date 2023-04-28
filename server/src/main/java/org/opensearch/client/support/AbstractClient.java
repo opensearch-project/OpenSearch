@@ -59,6 +59,9 @@ import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.cluster.node.filecache.clear.ClearNodesFileCacheAction;
+import org.opensearch.action.admin.cluster.node.filecache.clear.ClearNodesFileCacheRequest;
+import org.opensearch.action.admin.cluster.node.filecache.clear.ClearNodesFileCacheResponse;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
@@ -1488,6 +1491,17 @@ public abstract class AbstractClient implements Client {
         @Override
         public ActionFuture<AcknowledgedResponse> deleteSearchPipeline(DeleteSearchPipelineRequest request) {
             return execute(DeleteSearchPipelineAction.INSTANCE, request);
+        }
+
+        @Override
+        public ActionFuture<ClearNodesFileCacheResponse> clearFileCache(ClearNodesFileCacheRequest request) {
+            ActionFuture<ClearNodesFileCacheResponse> responseActionFuture = execute(ClearNodesFileCacheAction.INSTANCE, request);
+            return responseActionFuture;
+        }
+
+        @Override
+        public void clearFileCache(ClearNodesFileCacheRequest request, ActionListener<ClearNodesFileCacheResponse> listener) {
+            execute(ClearNodesFileCacheAction.INSTANCE, request, listener);
         }
     }
 

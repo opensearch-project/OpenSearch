@@ -49,6 +49,8 @@ import org.opensearch.action.admin.cluster.decommission.awareness.put.Decommissi
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.admin.cluster.node.filecache.clear.ClearNodesFileCacheRequest;
+import org.opensearch.action.admin.cluster.node.filecache.clear.ClearNodesFileCacheResponse;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequest;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRequestBuilder;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
@@ -933,4 +935,14 @@ public interface ClusterAdminClient extends OpenSearchClient {
      * Deletes a stored search pipeline
      */
     ActionFuture<AcknowledgedResponse> deleteSearchPipeline(DeleteSearchPipelineRequest request);
+
+    /**
+     * Clears file cache on {@link org.opensearch.cluster.node.DiscoveryNodeRole#SEARCH_ROLE} nodes.
+     */
+    ActionFuture<ClearNodesFileCacheResponse> clearFileCache(ClearNodesFileCacheRequest request);
+
+    /**
+     * Clears file cache on {@link org.opensearch.cluster.node.DiscoveryNodeRole#SEARCH_ROLE} nodes.
+     */
+    void clearFileCache(ClearNodesFileCacheRequest request, ActionListener<ClearNodesFileCacheResponse> listener);
 }

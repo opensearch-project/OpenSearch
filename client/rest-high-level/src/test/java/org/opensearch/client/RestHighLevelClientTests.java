@@ -870,6 +870,7 @@ public class RestHighLevelClientTests extends OpenSearchTestCase {
             "ingest.processor_grok",
             "nodes.info",
             "nodes.stats",
+            "nodes.clear_filecache",
             "nodes.hot_threads",
             "nodes.usage",
             "nodes.reload_secure_settings",

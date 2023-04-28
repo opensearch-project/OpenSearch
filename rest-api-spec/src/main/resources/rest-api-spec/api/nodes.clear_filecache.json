@@ -1,0 +1,19 @@
+{
+  "nodes.clear_filecache":{
+    "documentation":{
+      "url": "https://opensearch.org/docs/latest/opensearch/rest-api/filecache#clear",
+      "description":"Clears all file caches for one or more search capable nodes."
+    },
+    "stability":"experimental",
+    "url":{
+      "paths":[
+        {
+          "path":"/_filecache/clear",
+          "methods":[
+            "POST"
+          ]
+        }
+      ]
+    }
+  }
+}

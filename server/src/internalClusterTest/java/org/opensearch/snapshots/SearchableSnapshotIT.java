@@ -7,6 +7,9 @@ package org.opensearch.snapshots;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.hamcrest.MatcherAssert;
+import org.opensearch.action.admin.cluster.node.filecache.clear.ClearNodeFileCacheResponse;
+import org.opensearch.action.admin.cluster.node.filecache.clear.ClearNodesFileCacheRequest;
+import org.opensearch.action.admin.cluster.node.filecache.clear.ClearNodesFileCacheResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -662,6 +665,41 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         // The index count will be 0 since the only restored index "test-idx-copy" was deleted
         assertCacheDirectoryReplicaAndIndexCount(numShards, 0);
         logger.info("--> validated that the cache file path doesn't exist");
+    }
+
+    /**
+     * Test scenario that calls the clear filecache API which prunes the file cache
+     * Ensures that the filecache was pruned on all the search capable nodes.
+     */
+    public void testFileCacheClearAPI() throws Exception {
+        final int numReplicas = randomIntBetween(1, 4);
+        final int numShards = numReplicas + 1;
+        final String indexName = "test-idx";
+        final String restoredIndexName = indexName + "-copy";
+        final String repoName = "test-repo";
+        final String snapshotName = "test-snap";
+        final Client client = client();
+
+        internalCluster().ensureAtLeastNumSearchAndDataNodes(numShards);
+        createIndexWithDocsAndEnsureGreen(numReplicas, 100, indexName);
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName, repoName, indexName);
+        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
+        assertDocCount(restoredIndexName, 100L);
+        assertRemoteSnapshotIndexSettings(client, restoredIndexName);
+
+        ClearNodesFileCacheResponse nodesResponse = client.admin().cluster().clearFileCache(new ClearNodesFileCacheRequest()).actionGet();
+        int nodesClearedCount = 0;
+        for (ClearNodeFileCacheResponse nodeResponse : nodesResponse.getNodes()) {
+            if (nodeResponse.getNode().isSearchNode()) {
+                nodesClearedCount++;
+                assertTrue(nodeResponse.isCleared());
+                assertTrue(nodeResponse.getCount() >= 0);
+            }
+        }
+
+        assertEquals(nodesClearedCount, numShards);
+        deleteIndicesAndEnsureGreen(client, restoredIndexName);
     }
 
     /**
