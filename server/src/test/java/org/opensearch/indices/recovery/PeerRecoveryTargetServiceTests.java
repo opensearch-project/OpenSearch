@@ -65,6 +65,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CyclicBarrier;
@@ -182,6 +183,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         Randomness.shuffle(seqNos);
         for (long seqNo : seqNos) {
             shard.applyIndexOperationOnReplica(
+                UUID.randomUUID().toString(),
                 seqNo,
                 1,
                 shard.getOperationPrimaryTerm(),

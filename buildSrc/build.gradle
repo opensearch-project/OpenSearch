@@ -61,7 +61,7 @@ Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('ver
 version = props.getProperty("opensearch")
 
 def generateVersionProperties = tasks.register("generateVersionProperties", WriteProperties) {
-  outputFile = "${buildDir}/version.properties"
+  destinationFile = file("${buildDir}/version.properties")
   comment = 'Generated version properties'
   properties(props)
 }
@@ -107,7 +107,7 @@ dependencies {
   api 'org.apache.ant:ant:1.10.13'
   api 'com.netflix.nebula:gradle-extra-configurations-plugin:9.0.0'
   api 'com.netflix.nebula:nebula-publishing-plugin:20.2.0'
-  api 'com.netflix.nebula:gradle-info-plugin:12.0.1'
+  api 'com.netflix.nebula:gradle-info-plugin:12.1.0'
   api 'org.apache.rat:apache-rat:0.15'
   api 'commons-io:commons-io:2.11.0'
   api "net.java.dev.jna:jna:5.13.0"
@@ -187,6 +187,7 @@ if (project != rootProject) {
   dependencies {
     reaper project('reaper')
     distribution project(':distribution:archives:darwin-tar')
+    distribution project(':distribution:archives:darwin-arm64-tar')
     distribution project(':distribution:archives:linux-arm64-tar')
     distribution project(':distribution:archives:linux-tar')
     distribution project(':distribution:archives:windows-zip')

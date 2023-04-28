@@ -32,8 +32,6 @@
 
 package org.opensearch.cluster.routing.allocation;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
@@ -238,8 +236,8 @@ public class AddIncrementallyTests extends OpenSearchAllocationTestCase {
     }
 
     private void assertNumIndexShardsPerNode(ClusterState state, Matcher<Integer> matcher) {
-        for (ObjectCursor<String> index : state.routingTable().indicesRouting().keys()) {
-            assertNumIndexShardsPerNode(state, index.value, matcher);
+        for (final String index : state.routingTable().indicesRouting().keySet()) {
+            assertNumIndexShardsPerNode(state, index, matcher);
         }
     }
 
@@ -250,10 +248,10 @@ public class AddIncrementallyTests extends OpenSearchAllocationTestCase {
     }
 
     private void assertAtLeastOneIndexShardPerNode(ClusterState state) {
-        for (ObjectCursor<String> index : state.routingTable().indicesRouting().keys()) {
+        for (final String index : state.routingTable().indicesRouting().keySet()) {
 
             for (RoutingNode node : state.getRoutingNodes()) {
-                assertThat(node.shardsWithState(index.value, STARTED).size(), Matchers.greaterThanOrEqualTo(1));
+                assertThat(node.shardsWithState(index, STARTED).size(), Matchers.greaterThanOrEqualTo(1));
             }
         }
 
@@ -294,8 +292,8 @@ public class AddIncrementallyTests extends OpenSearchAllocationTestCase {
 
         Metadata metadata = metadataBuilder.build();
 
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-            routingTableBuilder.addAsNew(cursor.value);
+        for (final IndexMetadata cursor : metadata.indices().values()) {
+            routingTableBuilder.addAsNew(cursor);
         }
 
         RoutingTable initialRoutingTable = routingTableBuilder.build();

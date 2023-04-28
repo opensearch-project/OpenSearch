@@ -66,7 +66,6 @@ import org.opensearch.cluster.routing.allocation.command.AllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
@@ -113,17 +112,15 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.8)
             .build();
 
-        ImmutableOpenMap.Builder<String, DiskUsage> usagesBuilder = ImmutableOpenMap.builder();
-        usagesBuilder.put("node1", new DiskUsage("node1", "node1", "/dev/null", 100, 10)); // 90% used
-        usagesBuilder.put("node2", new DiskUsage("node2", "node2", "/dev/null", 100, 35)); // 65% used
-        usagesBuilder.put("node3", new DiskUsage("node3", "node3", "/dev/null", 100, 60)); // 40% used
-        usagesBuilder.put("node4", new DiskUsage("node4", "node4", "/dev/null", 100, 80)); // 20% used
-        ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
+        final Map<String, DiskUsage> usages = new HashMap<>();
+        usages.put("node1", new DiskUsage("node1", "node1", "/dev/null", 100, 10)); // 90% used
+        usages.put("node2", new DiskUsage("node2", "node2", "/dev/null", 100, 35)); // 65% used
+        usages.put("node3", new DiskUsage("node3", "node3", "/dev/null", 100, 60)); // 40% used
+        usages.put("node4", new DiskUsage("node4", "node4", "/dev/null", 100, 80)); // 20% used
 
-        ImmutableOpenMap.Builder<String, Long> shardSizesBuilder = ImmutableOpenMap.builder();
-        shardSizesBuilder.put("[test][0][p]", 10L); // 10 bytes
-        shardSizesBuilder.put("[test][0][r]", 10L);
-        ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
+        final Map<String, Long> shardSizes = new HashMap<>();
+        shardSizes.put("[test][0][p]", 10L); // 10 bytes
+        shardSizes.put("[test][0][r]", 10L);
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -294,18 +291,16 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "5b")
             .build();
 
-        ImmutableOpenMap.Builder<String, DiskUsage> usagesBuilder = ImmutableOpenMap.builder();
-        usagesBuilder.put("node1", new DiskUsage("node1", "n1", "/dev/null", 100, 10)); // 90% used
-        usagesBuilder.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 10)); // 90% used
-        usagesBuilder.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 60)); // 40% used
-        usagesBuilder.put("node4", new DiskUsage("node4", "n4", "/dev/null", 100, 80)); // 20% used
-        usagesBuilder.put("node5", new DiskUsage("node5", "n5", "/dev/null", 100, 85)); // 15% used
-        ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
+        final Map<String, DiskUsage> usages = new HashMap<>();
+        usages.put("node1", new DiskUsage("node1", "n1", "/dev/null", 100, 10)); // 90% used
+        usages.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 10)); // 90% used
+        usages.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 60)); // 40% used
+        usages.put("node4", new DiskUsage("node4", "n4", "/dev/null", 100, 80)); // 20% used
+        usages.put("node5", new DiskUsage("node5", "n5", "/dev/null", 100, 85)); // 15% used
 
-        ImmutableOpenMap.Builder<String, Long> shardSizesBuilder = ImmutableOpenMap.builder();
-        shardSizesBuilder.put("[test][0][p]", 10L); // 10 bytes
-        shardSizesBuilder.put("[test][0][r]", 10L);
-        ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
+        final Map<String, Long> shardSizes = new HashMap<>();
+        shardSizes.put("[test][0][p]", 10L); // 10 bytes
+        shardSizes.put("[test][0][r]", 10L);
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -360,9 +355,7 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
         logger.info("--> nodeWithoutPrimary: {}", nodeWithoutPrimary);
 
         // Make node without the primary now habitable to replicas
-        usagesBuilder = ImmutableOpenMap.builder(usages);
-        usagesBuilder.put(nodeWithoutPrimary, new DiskUsage(nodeWithoutPrimary, "", "/dev/null", 100, 35)); // 65% used
-        usages = usagesBuilder.build();
+        usages.put(nodeWithoutPrimary, new DiskUsage(nodeWithoutPrimary, "", "/dev/null", 100, 35)); // 65% used
         final ClusterInfo clusterInfo2 = new DevNullClusterInfo(usages, usages, shardSizes);
         cis = () -> {
             logger.info("--> calling fake getClusterInfo");
@@ -540,14 +533,15 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "71%")
             .build();
 
-        ImmutableOpenMap.Builder<String, DiskUsage> usagesBuilder = ImmutableOpenMap.builder();
-        usagesBuilder.put("node1", new DiskUsage("node1", "n1", "/dev/null", 100, 31)); // 69% used
-        usagesBuilder.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 1));  // 99% used
-        ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
+        final Map<String, DiskUsage> usages = Map.of(
+            "node1",
+            new DiskUsage("node1", "n1", "/dev/null", 100, 31), // 69% used
+            "node2",
+            new DiskUsage("node2", "n2", "/dev/null", 100, 1)
+        );  // 99% used
 
-        ImmutableOpenMap.Builder<String, Long> shardSizesBuilder = ImmutableOpenMap.builder();
-        shardSizesBuilder.put("[test][0][p]", 10L); // 10 bytes
-        ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
+        final Map<String, Long> shardSizes = new HashMap<>();
+        shardSizes.put("[test][0][p]", 10L); // 10 bytes
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
         AllocationDeciders deciders = new AllocationDeciders(
@@ -612,15 +606,13 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.85)
             .build();
 
-        ImmutableOpenMap.Builder<String, DiskUsage> usagesBuilder = ImmutableOpenMap.builder();
-        usagesBuilder.put("node2", new DiskUsage("node2", "node2", "/dev/null", 100, 50)); // 50% used
-        usagesBuilder.put("node3", new DiskUsage("node3", "node3", "/dev/null", 100, 0));  // 100% used
-        ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
+        final Map<String, DiskUsage> usages = new HashMap<>();
+        usages.put("node2", new DiskUsage("node2", "node2", "/dev/null", 100, 50)); // 50% used
+        usages.put("node3", new DiskUsage("node3", "node3", "/dev/null", 100, 0));  // 100% used
 
-        ImmutableOpenMap.Builder<String, Long> shardSizesBuilder = ImmutableOpenMap.builder();
-        shardSizesBuilder.put("[test][0][p]", 10L); // 10 bytes
-        shardSizesBuilder.put("[test][0][r]", 10L); // 10 bytes
-        ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
+        final Map<String, Long> shardSizes = new HashMap<>();
+        shardSizes.put("[test][0][p]", 10L); // 10 bytes
+        shardSizes.put("[test][0][r]", 10L); // 10 bytes
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
         AllocationDeciders deciders = new AllocationDeciders(
@@ -688,11 +680,11 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
         RoutingNode rn = new RoutingNode("node1", newNode("node1"));
         DiskThresholdDecider decider = makeDecider(Settings.EMPTY);
 
-        ImmutableOpenMap.Builder<String, DiskUsage> usages = ImmutableOpenMap.builder();
+        final Map<String, DiskUsage> usages = new HashMap<>();
         usages.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 50)); // 50% used
         usages.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 0));  // 100% used
 
-        DiskUsage node1Usage = decider.averageUsage(rn, usages.build());
+        DiskUsage node1Usage = decider.averageUsage(rn, usages);
         assertThat(node1Usage.getTotalBytes(), equalTo(100L));
         assertThat(node1Usage.getFreeBytes(), equalTo(25L));
     }
@@ -718,18 +710,16 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), 0.8)
             .build();
 
-        ImmutableOpenMap.Builder<String, DiskUsage> usagesBuilder = ImmutableOpenMap.builder();
-        usagesBuilder.put("node1", new DiskUsage("node1", "n1", "/dev/null", 100, 40)); // 60% used
-        usagesBuilder.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 40)); // 60% used
-        usagesBuilder.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 40)); // 60% used
-        ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
+        final Map<String, DiskUsage> usages = new HashMap<>();
+        usages.put("node1", new DiskUsage("node1", "n1", "/dev/null", 100, 40)); // 60% used
+        usages.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 40)); // 60% used
+        usages.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 40)); // 60% used
 
-        ImmutableOpenMap.Builder<String, Long> shardSizesBuilder = ImmutableOpenMap.builder();
-        shardSizesBuilder.put("[test][0][p]", 14L); // 14 bytes
-        shardSizesBuilder.put("[test][0][r]", 14L);
-        shardSizesBuilder.put("[test2][0][p]", 1L); // 1 bytes
-        shardSizesBuilder.put("[test2][0][r]", 1L);
-        ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
+        final Map<String, Long> shardSizes = new HashMap<>();
+        shardSizes.put("[test][0][p]", 14L); // 14 bytes
+        shardSizes.put("[test][0][r]", 14L);
+        shardSizes.put("[test2][0][p]", 1L); // 1 bytes
+        shardSizes.put("[test2][0][r]", 1L);
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
         DiskThresholdDecider decider = makeDecider(diskSettings);
@@ -801,18 +791,16 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             logShardStates(clusterState);
         }
 
-        final ImmutableOpenMap.Builder<String, DiskUsage> overfullUsagesBuilder = ImmutableOpenMap.builder();
-        overfullUsagesBuilder.put("node1", new DiskUsage("node1", "n1", "/dev/null", 100, 40)); // 60% used
-        overfullUsagesBuilder.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 40)); // 60% used
-        overfullUsagesBuilder.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 0));  // 100% used
-        final ImmutableOpenMap<String, DiskUsage> overfullUsages = overfullUsagesBuilder.build();
+        final Map<String, DiskUsage> overfullUsages = new HashMap<>();
+        overfullUsages.put("node1", new DiskUsage("node1", "n1", "/dev/null", 100, 40)); // 60% used
+        overfullUsages.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 40)); // 60% used
+        overfullUsages.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 0));  // 100% used
 
-        final ImmutableOpenMap.Builder<String, Long> largerShardSizesBuilder = ImmutableOpenMap.builder();
-        largerShardSizesBuilder.put("[test][0][p]", 14L);
-        largerShardSizesBuilder.put("[test][0][r]", 14L);
-        largerShardSizesBuilder.put("[test2][0][p]", 2L);
-        largerShardSizesBuilder.put("[test2][0][r]", 2L);
-        final ImmutableOpenMap<String, Long> largerShardSizes = largerShardSizesBuilder.build();
+        final Map<String, Long> largerShardSizes = new HashMap<>();
+        largerShardSizes.put("[test][0][p]", 14L);
+        largerShardSizes.put("[test][0][r]", 14L);
+        largerShardSizes.put("[test2][0][p]", 2L);
+        largerShardSizes.put("[test2][0][r]", 2L);
 
         final ClusterInfo overfullClusterInfo = new DevNullClusterInfo(overfullUsages, overfullUsages, largerShardSizes);
 
@@ -872,10 +860,10 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
                     usages,
                     usages,
                     shardSizes,
-                    (new ImmutableOpenMap.Builder<ClusterInfo.NodeAndPath, ClusterInfo.ReservedSpace>()).fPut(
+                    Map.of(
                         new ClusterInfo.NodeAndPath("node1", "/dev/null"),
                         new ClusterInfo.ReservedSpace.Builder().add(new ShardId("", "", 0), between(51, 200)).build()
-                    ).build()
+                    )
                 )
             );
             clusterState = applyStartedShardsUntilNoChange(clusterState, strategy);
@@ -896,16 +884,14 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             .build();
 
         // We have an index with 2 primary shards each taking 40 bytes. Each node has 100 bytes available
-        ImmutableOpenMap.Builder<String, DiskUsage> usagesBuilder = ImmutableOpenMap.builder();
-        usagesBuilder.put("node1", new DiskUsage("node1", "n1", "/dev/null", 100, 20)); // 80% used
-        usagesBuilder.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 100)); // 0% used
-        ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
+        final Map<String, DiskUsage> usages = new HashMap<>();
+        usages.put("node1", new DiskUsage("node1", "n1", "/dev/null", 100, 20)); // 80% used
+        usages.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 100)); // 0% used
 
-        ImmutableOpenMap.Builder<String, Long> shardSizesBuilder = ImmutableOpenMap.builder();
-        shardSizesBuilder.put("[test][0][p]", 40L);
-        shardSizesBuilder.put("[test][1][p]", 40L);
-        shardSizesBuilder.put("[foo][0][p]", 10L);
-        ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
+        final Map<String, Long> shardSizes = new HashMap<>();
+        shardSizes.put("[test][0][p]", 40L);
+        shardSizes.put("[test][1][p]", 40L);
+        shardSizes.put("[foo][0][p]", 10L);
 
         final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
@@ -1053,17 +1039,16 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "70%")
             .build();
 
-        ImmutableOpenMap.Builder<String, DiskUsage> usagesBuilder = ImmutableOpenMap.builder();
-        usagesBuilder.put("node1", new DiskUsage("node1", "n1", "/dev/null", 100, 100)); // 0% used
-        usagesBuilder.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 20));  // 80% used
-        usagesBuilder.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 100)); // 0% used
-        ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
+        final Map<String, DiskUsage> usages = new HashMap<>();
+        usages.put("node1", new DiskUsage("node1", "n1", "/dev/null", 100, 100)); // 0% used
+        usages.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 20));  // 80% used
+        usages.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 100)); // 0% used
 
         // We have an index with 1 primary shards each taking 40 bytes. Each node has 100 bytes available
-        ImmutableOpenMap.Builder<String, Long> shardSizes = ImmutableOpenMap.builder();
+        final Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][p]", 40L);
         shardSizes.put("[test][1][p]", 40L);
-        final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes.build());
+        final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
         DiskThresholdDecider diskThresholdDecider = makeDecider(diskSettings);
         Metadata metadata = Metadata.builder()
@@ -1207,14 +1192,13 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "70%")
             .build();
 
-        ImmutableOpenMap.Builder<String, DiskUsage> usagesBuilder = ImmutableOpenMap.builder();
-        usagesBuilder.put("data", new DiskUsage("data", "data", "/dev/null", 100, 20));  // 80% used
-        ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
+        final Map<String, DiskUsage> usages = new HashMap<>();
+        usages.put("data", new DiskUsage("data", "data", "/dev/null", 100, 20));  // 80% used
 
         // We have an index with 1 primary shard, taking 40 bytes. The single data node has only 20 bytes free.
-        ImmutableOpenMap.Builder<String, Long> shardSizes = ImmutableOpenMap.builder();
+        final Map<String, Long> shardSizes = new HashMap<>();
         shardSizes.put("[test][0][p]", 40L);
-        final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes.build());
+        final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
         DiskThresholdDecider diskThresholdDecider = makeDecider(diskSettings);
         Metadata metadata = Metadata.builder()
@@ -1319,11 +1303,10 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "95%")
             .build();
 
-        final ImmutableOpenMap.Builder<String, DiskUsage> usagesBuilder = ImmutableOpenMap.builder();
-        usagesBuilder.put("node1", new DiskUsage("node1", "n1", "/dev/null", 100, 21));  // 79% used
-        usagesBuilder.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 1)); // 99% used
-        final ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
-        final ClusterInfoService clusterInfoService = () -> new DevNullClusterInfo(usages, usages, ImmutableOpenMap.of());
+        final Map<String, DiskUsage> usages = new HashMap<>();
+        usages.put("node1", new DiskUsage("node1", "n1", "/dev/null", 100, 21));  // 79% used
+        usages.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 1)); // 99% used
+        final ClusterInfoService clusterInfoService = () -> new DevNullClusterInfo(usages, usages, Map.of());
 
         final AllocationDeciders deciders = new AllocationDeciders(
             new HashSet<>(
@@ -1360,11 +1343,11 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             )
             .build();
 
-        final ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shards = ImmutableOpenMap.builder();
+        final Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = new HashMap<>();
         shards.put(shardId, new RestoreInProgress.ShardRestoreStatus("node1"));
 
         final RestoreInProgress.Builder restores = new RestoreInProgress.Builder().add(
-            new RestoreInProgress.Entry("_restore_uuid", snapshot, RestoreInProgress.State.INIT, singletonList("test"), shards.build())
+            new RestoreInProgress.Entry("_restore_uuid", snapshot, RestoreInProgress.State.INIT, singletonList("test"), shards)
         );
 
         ClusterState clusterState = ClusterState.builder(new ClusterName(getTestName()))
@@ -1420,7 +1403,7 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(1));
 
         final SnapshotShard snapshotShard = new SnapshotShard(snapshot, indexId, shardId);
-        final ImmutableOpenMap.Builder<SnapshotShard, Long> snapshotShardSizes = ImmutableOpenMap.builder();
+        final Map<SnapshotShard, Long> snapshotShardSizes = new HashMap<>();
 
         final boolean shouldAllocate;
         if (randomBoolean()) {
@@ -1434,7 +1417,7 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             logger.info("--> shard is always allocated when its size could not be retrieved");
             shouldAllocate = true;
         }
-        snapshotShardSizeInfoRef.set(new SnapshotShardSizeInfo(snapshotShardSizes.build()));
+        snapshotShardSizeInfoRef.set(new SnapshotShardSizeInfo(snapshotShardSizes));
 
         // reroute uses the previous snapshot shard size
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);
@@ -1468,18 +1451,18 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
      */
     static class DevNullClusterInfo extends ClusterInfo {
         DevNullClusterInfo(
-            ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage,
-            ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage,
-            ImmutableOpenMap<String, Long> shardSizes
+            final Map<String, DiskUsage> leastAvailableSpaceUsage,
+            final Map<String, DiskUsage> mostAvailableSpaceUsage,
+            final Map<String, Long> shardSizes
         ) {
-            this(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, ImmutableOpenMap.of());
+            this(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, Map.of());
         }
 
         DevNullClusterInfo(
-            ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage,
-            ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage,
-            ImmutableOpenMap<String, Long> shardSizes,
-            ImmutableOpenMap<NodeAndPath, ReservedSpace> reservedSpace
+            final Map<String, DiskUsage> leastAvailableSpaceUsage,
+            final Map<String, DiskUsage> mostAvailableSpaceUsage,
+            final Map<String, Long> shardSizes,
+            Map<NodeAndPath, ReservedSpace> reservedSpace
         ) {
             super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, reservedSpace);
         }

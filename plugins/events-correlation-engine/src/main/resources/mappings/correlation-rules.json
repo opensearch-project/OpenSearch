@@ -1,0 +1,60 @@
+{
+  "_meta" : {
+    "schema_version": 1
+  },
+  "properties": {
+    "name": {
+      "type": "text",
+      "analyzer" : "whitespace",
+      "fields": {
+        "keyword": {
+          "type": "keyword",
+          "ignore_above": 256
+        }
+      }
+    },
+    "correlate": {
+      "type": "nested",
+      "properties": {
+        "index": {
+          "type": "text",
+          "analyzer" : "whitespace",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "query": {
+          "type": "text",
+          "analyzer" : "whitespace",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        },
+        "tags": {
+          "type": "text",
+          "fields" : {
+            "keyword" : {
+              "type" : "keyword"
+            }
+          }
+        },
+        "timestampField": {
+          "type": "text",
+          "analyzer" : "whitespace",
+          "fields": {
+            "keyword": {
+              "type": "keyword",
+              "ignore_above": 256
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -43,7 +43,6 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.snapshots.RestoreService.RestoreInProgressUpdater;
 import org.opensearch.snapshots.SnapshotShardSizeInfo;
@@ -75,7 +74,7 @@ public class RoutingAllocation {
 
     private final DiscoveryNodes nodes;
 
-    private final ImmutableOpenMap<String, ClusterState.Custom> customs;
+    private final Map<String, ClusterState.Custom> customs;
 
     private final ClusterInfo clusterInfo;
 
@@ -183,7 +182,7 @@ public class RoutingAllocation {
         return (T) customs.get(key);
     }
 
-    public ImmutableOpenMap<String, ClusterState.Custom> getCustoms() {
+    public Map<String, ClusterState.Custom> getCustoms() {
         return customs;
     }
 

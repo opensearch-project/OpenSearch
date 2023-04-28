@@ -8,7 +8,6 @@
 
 package org.opensearch.indices.replication;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
@@ -25,6 +24,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -61,7 +61,6 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
     /**
      * This test verifies that the overall primary balance is attained during allocation. This test verifies primary
      * balance per index and across all indices is maintained.
-     * @throws Exception
      */
     public void testGlobalPrimaryAllocation() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
@@ -232,11 +231,11 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
         assertBusy(() -> {
             final ClusterState currentState = client().admin().cluster().prepareState().execute().actionGet().getState();
             RoutingNodes nodes = currentState.getRoutingNodes();
-            for (ObjectObjectCursor<String, IndexRoutingTable> index : currentState.getRoutingTable().indicesRouting()) {
-                final int totalPrimaryShards = index.value.primaryShardsActive();
+            for (final Map.Entry<String, IndexRoutingTable> index : currentState.getRoutingTable().indicesRouting().entrySet()) {
+                final int totalPrimaryShards = index.getValue().primaryShardsActive();
                 final int avgPrimaryShardsPerNode = (int) Math.ceil(totalPrimaryShards * 1f / currentState.getRoutingNodes().size());
                 for (RoutingNode node : nodes) {
-                    final int primaryCount = node.shardsWithState(index.key, STARTED)
+                    final int primaryCount = node.shardsWithState(index.getKey(), STARTED)
                         .stream()
                         .filter(ShardRouting::primary)
                         .collect(Collectors.toList())
@@ -244,7 +243,7 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
                     if (primaryCount > avgPrimaryShardsPerNode) {
                         logger.info(
                             "--> Primary shard balance assertion failure for index {} on node {} {} <= {}",
-                            index.key,
+                            index.getKey(),
                             node.node().getName(),
                             primaryCount,
                             avgPrimaryShardsPerNode
@@ -261,8 +260,8 @@ public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
             final ClusterState currentState = client().admin().cluster().prepareState().execute().actionGet().getState();
             RoutingNodes nodes = currentState.getRoutingNodes();
             int totalPrimaryShards = 0;
-            for (ObjectObjectCursor<String, IndexRoutingTable> index : currentState.getRoutingTable().indicesRouting()) {
-                totalPrimaryShards += index.value.primaryShardsActive();
+            for (final IndexRoutingTable index : currentState.getRoutingTable().indicesRouting().values()) {
+                totalPrimaryShards += index.primaryShardsActive();
             }
             final int avgPrimaryShardsPerNode = (int) Math.ceil(totalPrimaryShards * 1f / currentState.getRoutingNodes().size());
             for (RoutingNode node : nodes) {

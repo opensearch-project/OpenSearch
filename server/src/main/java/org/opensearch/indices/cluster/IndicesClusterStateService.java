@@ -56,7 +56,6 @@ import org.opensearch.common.component.AbstractLifecycleComponent;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.env.ShardLockObtainFailedException;
@@ -214,11 +213,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final List<IndexEventListener> indexEventListeners = new ArrayList<>(
             Arrays.asList(peerRecoverySourceService, recoveryTargetService, searchService, snapshotShardsService)
         );
-        // if segrep feature flag is not enabled, don't wire the target serivce as an IndexEventListener.
-        if (FeatureFlags.isEnabled(FeatureFlags.REPLICATION_TYPE)) {
-            indexEventListeners.add(segmentReplicationTargetService);
-            indexEventListeners.add(segmentReplicationSourceService);
-        }
+        indexEventListeners.add(segmentReplicationTargetService);
+        indexEventListeners.add(segmentReplicationSourceService);
         this.segmentReplicationTargetService = segmentReplicationTargetService;
         this.builtInIndexListener = Collections.unmodifiableList(indexEventListeners);
         this.indicesService = indicesService;

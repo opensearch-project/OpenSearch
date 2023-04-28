@@ -29,6 +29,7 @@ public class ZstdNoDictCodec extends Lucene95CustomCodec {
         super(Mode.ZSTDNODICT, compressionLevel);
     }
 
+    /** The name for this codec. */
     @Override
     public String toString() {
         return getClass().getSimpleName();

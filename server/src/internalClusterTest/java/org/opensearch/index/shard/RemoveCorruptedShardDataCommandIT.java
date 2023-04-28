@@ -31,7 +31,6 @@
 
 package org.opensearch.index.shard;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
@@ -235,10 +234,10 @@ public class RemoveCorruptedShardDataCommandIT extends OpenSearchIntegTestCase {
         String nodeId = null;
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final DiscoveryNodes nodes = state.nodes();
-        for (ObjectObjectCursor<String, DiscoveryNode> cursor : nodes.getNodes()) {
-            final String name = cursor.value.getName();
+        for (final Map.Entry<String, DiscoveryNode> cursor : nodes.getNodes().entrySet()) {
+            final String name = cursor.getValue().getName();
             if (name.equals(node)) {
-                nodeId = cursor.key;
+                nodeId = cursor.getKey();
                 break;
             }
         }
@@ -423,10 +422,10 @@ public class RemoveCorruptedShardDataCommandIT extends OpenSearchIntegTestCase {
         String primaryNodeId = null;
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final DiscoveryNodes nodes = state.nodes();
-        for (ObjectObjectCursor<String, DiscoveryNode> cursor : nodes.getNodes()) {
-            final String name = cursor.value.getName();
+        for (final Map.Entry<String, DiscoveryNode> cursor : nodes.getNodes().entrySet()) {
+            final String name = cursor.getValue().getName();
             if (name.equals(node1)) {
-                primaryNodeId = cursor.key;
+                primaryNodeId = cursor.getKey();
                 break;
             }
         }
@@ -630,8 +629,8 @@ public class RemoveCorruptedShardDataCommandIT extends OpenSearchIntegTestCase {
         final Map<String, String> nodeNameToNodeId = new HashMap<>();
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
         final DiscoveryNodes nodes = state.nodes();
-        for (ObjectObjectCursor<String, DiscoveryNode> cursor : nodes.getNodes()) {
-            nodeNameToNodeId.put(cursor.value.getName(), cursor.key);
+        for (final Map.Entry<String, DiscoveryNode> cursor : nodes.getNodes().entrySet()) {
+            nodeNameToNodeId.put(cursor.getValue().getName(), cursor.getKey());
         }
 
         final GroupShardsIterator shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(new String[] { indexName }, false);

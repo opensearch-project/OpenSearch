@@ -32,8 +32,6 @@
 
 package org.opensearch.cluster;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
@@ -53,7 +51,6 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
@@ -66,12 +63,14 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.discovery.Discovery;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.Spliterators;
 import java.util.stream.StreamSupport;
 
 import static org.opensearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
@@ -172,7 +171,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
     private final ClusterBlocks blocks;
 
-    private final ImmutableOpenMap<String, Custom> customs;
+    private final Map<String, Custom> customs;
 
     private final ClusterName clusterName;
 
@@ -206,7 +205,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         RoutingTable routingTable,
         DiscoveryNodes nodes,
         ClusterBlocks blocks,
-        ImmutableOpenMap<String, Custom> customs,
+        final Map<String, Custom> customs,
         int minimumClusterManagerNodesOnPublishingClusterManager,
         boolean wasReadFromDiff
     ) {
@@ -217,7 +216,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         this.routingTable = routingTable;
         this.nodes = nodes;
         this.blocks = blocks;
-        this.customs = customs;
+        this.customs = Collections.unmodifiableMap(customs);
         this.minimumClusterManagerNodesOnPublishingClusterManager = minimumClusterManagerNodesOnPublishingClusterManager;
         this.wasReadFromDiff = wasReadFromDiff;
     }
@@ -285,11 +284,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         return blocks;
     }
 
-    public ImmutableOpenMap<String, Custom> customs() {
+    public Map<String, Custom> customs() {
         return this.customs;
     }
 
-    public ImmutableOpenMap<String, Custom> getCustoms() {
+    public Map<String, Custom> getCustoms() {
         return this.customs;
     }
 
@@ -375,9 +374,9 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         }
         if (metadata.customs().isEmpty() == false) {
             sb.append("metadata customs:\n");
-            for (final ObjectObjectCursor<String, Metadata.Custom> cursor : metadata.customs()) {
-                final String type = cursor.key;
-                final Metadata.Custom custom = cursor.value;
+            for (final Map.Entry<String, Metadata.Custom> cursor : metadata.customs().entrySet()) {
+                final String type = cursor.getKey();
+                final Metadata.Custom custom = cursor.getValue();
                 sb.append(TAB).append(type).append(": ").append(custom);
             }
             sb.append("\n");
@@ -388,9 +387,9 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         sb.append(getRoutingNodes());
         if (customs.isEmpty() == false) {
             sb.append("customs:\n");
-            for (ObjectObjectCursor<String, Custom> cursor : customs) {
-                final String type = cursor.key;
-                final Custom custom = cursor.value;
+            for (final Map.Entry<String, Custom> cursor : customs.entrySet()) {
+                final String type = cursor.getKey();
+                final Custom custom = cursor.getValue();
                 sb.append(TAB).append(type).append(": ").append(custom);
             }
         }
@@ -496,7 +495,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         if (metrics.contains(Metric.BLOCKS)) {
             builder.startObject("blocks");
 
-            if (!blocks().global().isEmpty()) {
+            if (blocks().global().isEmpty() == false) {
                 builder.startObject("global");
                 for (ClusterBlock block : blocks().global()) {
                     block.toXContent(builder, params);
@@ -504,11 +503,11 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 builder.endObject();
             }
 
-            if (!blocks().indices().isEmpty()) {
+            if (blocks().indices().isEmpty() == false) {
                 builder.startObject("indices");
-                for (ObjectObjectCursor<String, Set<ClusterBlock>> entry : blocks().indices()) {
-                    builder.startObject(entry.key);
-                    for (ClusterBlock block : entry.value) {
+                for (final Map.Entry<String, Set<ClusterBlock>> entry : blocks().indices().entrySet()) {
+                    builder.startObject(entry.getKey());
+                    for (ClusterBlock block : entry.getValue()) {
                         block.toXContent(builder, params);
                     }
                     builder.endObject();
@@ -576,9 +575,9 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             builder.endObject();
         }
         if (metrics.contains(Metric.CUSTOMS)) {
-            for (ObjectObjectCursor<String, Custom> cursor : customs) {
-                builder.startObject(cursor.key);
-                cursor.value.toXContent(builder, params);
+            for (final Map.Entry<String, Custom> cursor : customs.entrySet()) {
+                builder.startObject(cursor.getKey());
+                cursor.getValue().toXContent(builder, params);
                 builder.endObject();
             }
         }
@@ -608,7 +607,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         private RoutingTable routingTable = RoutingTable.EMPTY_ROUTING_TABLE;
         private DiscoveryNodes nodes = DiscoveryNodes.EMPTY_NODES;
         private ClusterBlocks blocks = ClusterBlocks.EMPTY_CLUSTER_BLOCK;
-        private final ImmutableOpenMap.Builder<String, Custom> customs;
+        private final Map<String, Custom> customs;
         private boolean fromDiff;
         private int minimumClusterManagerNodesOnPublishingClusterManager = -1;
 
@@ -620,13 +619,13 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             this.routingTable = state.routingTable();
             this.metadata = state.metadata();
             this.blocks = state.blocks();
-            this.customs = ImmutableOpenMap.builder(state.customs());
+            this.customs = new HashMap<>(state.customs());
             this.minimumClusterManagerNodesOnPublishingClusterManager = state.minimumClusterManagerNodesOnPublishingClusterManager;
             this.fromDiff = false;
         }
 
         public Builder(ClusterName clusterName) {
-            customs = ImmutableOpenMap.builder();
+            customs = new HashMap<>();
             this.clusterName = clusterName;
         }
 
@@ -697,8 +696,9 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             return this;
         }
 
-        public Builder customs(ImmutableOpenMap<String, Custom> customs) {
-            StreamSupport.stream(customs.spliterator(), false).forEach(cursor -> Objects.requireNonNull(cursor.value, cursor.key));
+        public Builder customs(final Map<String, Custom> customs) {
+            StreamSupport.stream(Spliterators.spliterator(customs.entrySet(), 0), false)
+                .forEach(cursor -> Objects.requireNonNull(cursor.getValue(), cursor.getKey()));
             this.customs.putAll(customs);
             return this;
         }
@@ -720,7 +720,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
                 routingTable,
                 nodes,
                 blocks,
-                customs.build(),
+                customs,
                 minimumClusterManagerNodesOnPublishingClusterManager,
                 fromDiff
             );
@@ -781,15 +781,15 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         blocks.writeTo(out);
         // filter out custom states not supported by the other node
         int numberOfCustoms = 0;
-        for (final ObjectCursor<Custom> cursor : customs.values()) {
-            if (FeatureAware.shouldSerialize(out, cursor.value)) {
+        for (final Custom custom : customs.values()) {
+            if (FeatureAware.shouldSerialize(out, custom)) {
                 numberOfCustoms++;
             }
         }
         out.writeVInt(numberOfCustoms);
-        for (final ObjectCursor<Custom> cursor : customs.values()) {
-            if (FeatureAware.shouldSerialize(out, cursor.value)) {
-                out.writeNamedWriteable(cursor.value);
+        for (final Custom custom : customs.values()) {
+            if (FeatureAware.shouldSerialize(out, custom)) {
+                out.writeNamedWriteable(custom);
             }
         }
         out.writeVInt(minimumClusterManagerNodesOnPublishingClusterManager);
@@ -818,7 +818,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
 
         private final Diff<ClusterBlocks> blocks;
 
-        private final Diff<ImmutableOpenMap<String, Custom>> customs;
+        private final Diff<Map<String, Custom>> customs;
 
         private final int minimumClusterManagerNodesOnPublishingClusterManager;
 
@@ -844,7 +844,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
             nodes = DiscoveryNodes.readDiffFrom(in, localNode);
             metadata = Metadata.readDiffFrom(in);
             blocks = ClusterBlocks.readDiffFrom(in);
-            customs = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
+            customs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
             minimumClusterManagerNodesOnPublishingClusterManager = in.readVInt();
         }
 

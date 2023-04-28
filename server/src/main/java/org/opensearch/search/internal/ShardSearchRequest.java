@@ -45,7 +45,6 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -567,7 +566,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             return null;
         }
         Index index = metadata.getIndex();
-        ImmutableOpenMap<String, AliasMetadata> aliases = metadata.getAliases();
+        final Map<String, AliasMetadata> aliases = metadata.getAliases();
         Function<AliasMetadata, QueryBuilder> parserFunction = (alias) -> {
             if (alias.filter() == null) {
                 return null;

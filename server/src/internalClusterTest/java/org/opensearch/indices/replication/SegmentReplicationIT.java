@@ -359,7 +359,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
     /**
      * This test validates the primary node drop does not result in shard failure on replica.
-     * @throws Exception
      */
     public void testNodeDropWithOngoingReplication() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
@@ -869,7 +868,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
     /**
      * Tests a scroll query on the replica
-     * @throws Exception
      */
     public void testScrollCreatedOnReplica() throws Exception {
         // create the cluster with one primary node containing primary shard and replica node containing replica shard
@@ -957,8 +955,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     /**
      * Tests that when scroll query is cleared, it does not delete the temporary replication files, which are part of
      * ongoing round of segment replication
-     *
-     * @throws Exception
      */
     public void testScrollWithOngoingSegmentReplication() throws Exception {
         // create the cluster with one primary node containing primary shard and replica node containing replica shard

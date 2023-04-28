@@ -22,12 +22,6 @@ import org.opensearch.common.settings.Settings;
 public class FeatureFlags {
 
     /**
-     * Gates the visibility of the index setting that allows changing of replication type.
-     * Once the feature is ready for production release, this feature flag can be removed.
-     */
-    public static final String REPLICATION_TYPE = "opensearch.experimental.feature.replication_type.enabled";
-
-    /**
      * Gates the visibility of the segment replication experimental features that allows users to test unreleased beta features.
      */
     public static final String SEGMENT_REPLICATION_EXPERIMENTAL =
@@ -38,14 +32,6 @@ public class FeatureFlags {
      * Once the feature is ready for production release, this feature flag can be removed.
      */
     public static final String REMOTE_STORE = "opensearch.experimental.feature.remote_store.enabled";
-
-    /**
-     * Gates the functionality of a new parameter to the snapshot restore API
-     * that allows for creation of a new index type that searches a snapshot
-     * directly in a remote repository without restoring all index data to disk
-     * ahead of time.
-     */
-    public static final String SEARCHABLE_SNAPSHOT = "opensearch.experimental.feature.searchable_snapshot.enabled";
 
     /**
      * Gates the ability for Searchable Snapshots to read snapshots that are older than the
@@ -94,8 +80,6 @@ public class FeatureFlags {
         return settings != null && settings.getAsBoolean(featureFlagName, false);
     }
 
-    public static final Setting<Boolean> REPLICATION_TYPE_SETTING = Setting.boolSetting(REPLICATION_TYPE, false, Property.NodeScope);
-
     public static final Setting<Boolean> SEGMENT_REPLICATION_EXPERIMENTAL_SETTING = Setting.boolSetting(
         SEGMENT_REPLICATION_EXPERIMENTAL,
         false,
@@ -103,8 +87,6 @@ public class FeatureFlags {
     );
 
     public static final Setting<Boolean> REMOTE_STORE_SETTING = Setting.boolSetting(REMOTE_STORE, false, Property.NodeScope);
-
-    public static final Setting<Boolean> SEARCHABLE_SNAPSHOT_SETTING = Setting.boolSetting(SEARCHABLE_SNAPSHOT, false, Property.NodeScope);
 
     public static final Setting<Boolean> EXTENSIONS_SETTING = Setting.boolSetting(EXTENSIONS, false, Property.NodeScope);
 

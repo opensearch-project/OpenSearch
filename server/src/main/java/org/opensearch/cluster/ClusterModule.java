@@ -86,7 +86,6 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -225,13 +224,13 @@ public class ClusterModule extends AbstractModule {
      */
     public static ClusterState filterCustomsForPre63Clients(ClusterState clusterState) {
         final ClusterState.Builder builder = ClusterState.builder(clusterState);
-        clusterState.customs().keysIt().forEachRemaining(name -> {
+        clusterState.customs().keySet().iterator().forEachRemaining(name -> {
             if (PRE_6_3_CLUSTER_CUSTOMS_WHITE_LIST.contains(name) == false) {
                 builder.removeCustom(name);
             }
         });
         final Metadata.Builder metaBuilder = Metadata.builder(clusterState.metadata());
-        clusterState.metadata().customs().keysIt().forEachRemaining(name -> {
+        clusterState.metadata().customs().keySet().iterator().forEachRemaining(name -> {
             if (PRE_6_3_METADATA_CUSTOMS_WHITE_LIST.contains(name) == false) {
                 metaBuilder.removeCustom(name);
             }
@@ -370,9 +369,7 @@ public class ClusterModule extends AbstractModule {
         addAllocationDecider(deciders, new ShardsLimitAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new AwarenessAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new NodeLoadAwareAllocationDecider(settings, clusterSettings));
-        if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT)) {
-            addAllocationDecider(deciders, new TargetPoolAllocationDecider());
-        }
+        addAllocationDecider(deciders, new TargetPoolAllocationDecider());
 
         clusterPlugins.stream()
             .flatMap(p -> p.createAllocationDeciders(settings, clusterSettings).stream())
