@@ -35,11 +35,13 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskListener;
+import org.opensearch.cluster.CompressionHelper;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.coordination.Coordinator.Mode;
 import org.opensearch.cluster.decommission.NodeDecommissionedException;
@@ -49,15 +51,23 @@ import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterManagerService;
 import org.opensearch.common.Priority;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.compress.Compressor;
+import org.opensearch.common.compress.CompressorFactory;
+import org.opensearch.common.io.stream.InputStreamStreamInput;
+import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.threadpool.ThreadPool.Names;
+import org.opensearch.transport.BytesTransportRequest;
 import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
@@ -78,6 +88,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -122,6 +133,17 @@ public class JoinHelper {
 
     private final Supplier<JoinTaskExecutor> joinTaskExecutorGenerator;
     private final Consumer<Boolean> nodeCommissioned;
+    private final NamedWriteableRegistry namedWriteableRegistry;
+    private final Map<Version, BytesReference> serializedStates = new HashMap<>();
+    private long lastRefreshTime = 0L;
+    public static final Setting<TimeValue> CLUSTER_MANAGER_JOIN_STATE_REFRESH_INTERVAL = Setting.timeSetting(
+        "cluster_manager.join.state.refresh_interval",
+        TimeValue.timeValueMillis(30000),
+        TimeValue.timeValueMillis(0),
+        TimeValue.timeValueMillis(60000),
+        Setting.Property.NodeScope
+    );
+    private final long clusterStateRefreshInterval;
 
     JoinHelper(
         Settings settings,
@@ -135,13 +157,16 @@ public class JoinHelper {
         Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators,
         RerouteService rerouteService,
         NodeHealthService nodeHealthService,
-        Consumer<Boolean> nodeCommissioned
+        Consumer<Boolean> nodeCommissioned,
+        NamedWriteableRegistry namedWriteableRegistry
     ) {
         this.clusterManagerService = clusterManagerService;
         this.transportService = transportService;
         this.nodeHealthService = nodeHealthService;
         this.joinTimeout = JOIN_TIMEOUT_SETTING.get(settings);
         this.nodeCommissioned = nodeCommissioned;
+        this.namedWriteableRegistry = namedWriteableRegistry;
+        this.clusterStateRefreshInterval = CLUSTER_MANAGER_JOIN_STATE_REFRESH_INTERVAL.get(settings).getMillis();
         this.joinTaskExecutorGenerator = () -> new JoinTaskExecutor(settings, allocationService, logger, rerouteService) {
 
             private final long term = currentTermSupplier.getAsLong();
@@ -206,24 +231,53 @@ public class JoinHelper {
         transportService.registerRequestHandler(
             VALIDATE_JOIN_ACTION_NAME,
             ThreadPool.Names.GENERIC,
-            ValidateJoinRequest::new,
+            BytesTransportRequest::new,
             (request, channel, task) -> {
+                handleValidateJoinRequest(currentStateSupplier, joinValidators, request);
+                channel.sendResponse(Empty.INSTANCE);
+            }
+        );
+    }
+
+    private void handleValidateJoinRequest(Supplier<ClusterState> currentStateSupplier,
+                                           Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators,
+                                           BytesTransportRequest request) throws IOException {
+        final Compressor compressor = CompressorFactory.compressor(request.bytes());
+        StreamInput in = request.bytes().streamInput();
+        final ClusterState incomingState;
+        try {
+            if (compressor != null) {
+                in = new InputStreamStreamInput(compressor.threadLocalInputStream(in));
+            }
+            in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
+            in.setVersion(request.version());
+            // If true we received full cluster state - otherwise diffs
+            if (in.readBoolean()) {
+                // Close early to release resources used by the de-compression as early as possible
+                try (StreamInput input = in) {
+                    incomingState = ClusterState.readFrom(input, transportService.getLocalNode());
+                } catch (Exception e) {
+                    logger.warn("unexpected error while deserializing an incoming cluster state", e);
+                    throw e;
+                }
+
                 final ClusterState localState = currentStateSupplier.get();
                 if (localState.metadata().clusterUUIDCommitted()
-                    && localState.metadata().clusterUUID().equals(request.getState().metadata().clusterUUID()) == false) {
+                    && localState.metadata().clusterUUID().equals(incomingState.metadata().clusterUUID()) == false) {
                     throw new CoordinationStateRejectedException(
                         "join validation on cluster state"
                             + " with a different cluster uuid "
-                            + request.getState().metadata().clusterUUID()
+                            + incomingState.metadata().clusterUUID()
                             + " than local cluster uuid "
                             + localState.metadata().clusterUUID()
                             + ", rejecting"
                     );
                 }
-                joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), request.getState()));
-                channel.sendResponse(Empty.INSTANCE);
+                joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), incomingState));
             }
-        );
+        } finally {
+            IOUtils.close(in);
+        }
     }
 
     private JoinCallback transportJoinCallback(TransportRequest request, TransportChannel channel) {
@@ -407,12 +461,37 @@ public class JoinHelper {
     }
 
     public void sendValidateJoinRequest(DiscoveryNode node, ClusterState state, ActionListener<TransportResponse.Empty> listener) {
-        transportService.sendRequest(
-            node,
-            VALIDATE_JOIN_ACTION_NAME,
-            new ValidateJoinRequest(state),
-            new ActionListenerResponseHandler<>(listener, i -> Empty.INSTANCE, ThreadPool.Names.GENERIC)
-        );
+        try {
+            BytesReference bytes = serializedStates.get(node.getVersion());
+            // Refresh serializedStates map every time if clusterStateRefreshInterval is 0
+            if (bytes == null || (System.currentTimeMillis() >= lastRefreshTime + clusterStateRefreshInterval)) {
+                try {
+                    // Re-getting current cluster state for validate join request
+                    bytes = CompressionHelper.serializedWrite(state,
+                        node.getVersion(), true);
+                    serializedStates.put(node.getVersion(), bytes);
+                    lastRefreshTime = System.currentTimeMillis();
+                } catch (Exception e) {
+                    logger.warn(
+                        () -> new ParameterizedMessage("failed to serialize cluster state during validateJoin" +
+                            " {}", node),
+                        e
+                    );
+                    listener.onFailure(e);
+                    return;
+                }
+            }
+            final BytesTransportRequest request = new BytesTransportRequest(bytes, node.getVersion());
+            transportService.sendRequest(
+                node,
+                VALIDATE_JOIN_ACTION_NAME,
+                request,
+                new ActionListenerResponseHandler<>(listener, i -> Empty.INSTANCE, ThreadPool.Names.GENERIC)
+            );
+        } catch (Exception e) {
+            logger.warn(() -> new ParameterizedMessage("error sending cluster state to {}", node), e);
+            listener.onFailure(e);
+        }
     }
 
     /**

@@ -37,20 +37,25 @@ import org.opensearch.action.ActionListenerResponseHandler;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.CompressionHelper;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.test.transport.CapturingTransport.CapturedRequest;
 import org.opensearch.test.transport.MockTransport;
+import org.opensearch.transport.BytesTransportRequest;
 import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponse;
 import org.opensearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
@@ -63,6 +68,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
 
 public class JoinHelperTests extends OpenSearchTestCase {
+    private final NamedWriteableRegistry namedWriteableRegistry = DEFAULT_NAMED_WRITABLE_REGISTRY;
 
     public void testJoinDeduplication() {
         DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
@@ -93,7 +99,8 @@ public class JoinHelperTests extends OpenSearchTestCase {
             Collections.emptyList(),
             (s, p, r) -> {},
             () -> new StatusInfo(HEALTHY, "info"),
-            nodeCommissioned -> {}
+            nodeCommissioned -> {},
+            namedWriteableRegistry
         );
         transportService.start();
 
@@ -195,14 +202,14 @@ public class JoinHelperTests extends OpenSearchTestCase {
         );
     }
 
-    public void testJoinValidationRejectsMismatchedClusterUUID() {
+    public void testJoinValidationRejectsMismatchedClusterUUID() throws IOException {
         assertJoinValidationRejectsMismatchedClusterUUID(
             JoinHelper.VALIDATE_JOIN_ACTION_NAME,
             "join validation on cluster state with a different cluster uuid"
         );
     }
 
-    private void assertJoinValidationRejectsMismatchedClusterUUID(String actionName, String expectedMessage) {
+    private void assertJoinValidationRejectsMismatchedClusterUUID(String actionName, String expectedMessage) throws IOException {
         DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
             Settings.builder().put(NODE_NAME_SETTING.getKey(), "node0").build(),
             random()
@@ -224,7 +231,8 @@ public class JoinHelperTests extends OpenSearchTestCase {
         );
         new JoinHelper(Settings.EMPTY, null, null, transportService, () -> 0L, () -> localClusterState, (joinRequest, joinCallback) -> {
             throw new AssertionError();
-        }, startJoinRequest -> { throw new AssertionError(); }, Collections.emptyList(), (s, p, r) -> {}, null, nodeCommissioned -> {}); // registers
+        }, startJoinRequest -> { throw new AssertionError(); }, Collections.emptyList(), (s, p, r) -> {}, null,
+            nodeCommissioned -> {}, namedWriteableRegistry); // registers
                                                                                                                                          // request
                                                                                                                                          // handler
         transportService.start();
@@ -235,10 +243,12 @@ public class JoinHelperTests extends OpenSearchTestCase {
             .build();
 
         final PlainActionFuture<TransportResponse.Empty> future = new PlainActionFuture<>();
+        BytesReference bytes = CompressionHelper.serializedWrite(otherClusterState, localNode.getVersion(), true);
+        final BytesTransportRequest request = new BytesTransportRequest(bytes, localNode.getVersion());
         transportService.sendRequest(
             localNode,
             actionName,
-            new ValidateJoinRequest(otherClusterState),
+            request,
             new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE)
         );
         deterministicTaskQueue.runAllTasks();
@@ -282,7 +292,8 @@ public class JoinHelperTests extends OpenSearchTestCase {
             Collections.emptyList(),
             (s, p, r) -> {},
             () -> nodeHealthServiceStatus.get(),
-            nodeCommissioned -> {}
+            nodeCommissioned -> {},
+            namedWriteableRegistry
         );
         transportService.start();
 

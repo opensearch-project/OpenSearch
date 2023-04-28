@@ -649,7 +649,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 RemoteRefreshSegmentPressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT,
                 RemoteRefreshSegmentPressureSettings.UPLOAD_BYTES_MOVING_AVERAGE_WINDOW_SIZE,
                 RemoteRefreshSegmentPressureSettings.UPLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE,
-                RemoteRefreshSegmentPressureSettings.UPLOAD_TIME_MOVING_AVERAGE_WINDOW_SIZE
+                RemoteRefreshSegmentPressureSettings.UPLOAD_TIME_MOVING_AVERAGE_WINDOW_SIZE,
+
+                // Settings related to node join
+                JoinHelper.CLUSTER_MANAGER_JOIN_STATE_REFRESH_INTERVAL
             )
         )
     );

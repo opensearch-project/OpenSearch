@@ -39,6 +39,7 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.CompressionHelper;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.IncompatibleClusterStateVersionException;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -309,7 +310,8 @@ public class PublicationTransportHandler {
                 try {
                     if (sendFullVersion || previousState.nodes().nodeExists(node) == false) {
                         if (serializedStates.containsKey(node.getVersion()) == false) {
-                            serializedStates.put(node.getVersion(), serializeFullClusterState(newState, node.getVersion()));
+                            serializedStates.put(node.getVersion(), CompressionHelper.serializedWrite(newState,
+                                node.getVersion(), true));
                         }
                     } else {
                         // will send a diff
@@ -317,7 +319,8 @@ public class PublicationTransportHandler {
                             diff = newState.diff(previousState);
                         }
                         if (serializedDiffs.containsKey(node.getVersion()) == false) {
-                            final BytesReference serializedDiff = serializeDiffClusterState(diff, node.getVersion());
+                            final BytesReference serializedDiff = CompressionHelper.serializedWrite(newState,
+                                node.getVersion(), false);
                             serializedDiffs.put(node.getVersion(), serializedDiff);
                             logger.trace(
                                 "serialized cluster state diff for version [{}] in for node version [{}] with size [{}]",
@@ -413,7 +416,7 @@ public class PublicationTransportHandler {
             BytesReference bytes = serializedStates.get(destination.getVersion());
             if (bytes == null) {
                 try {
-                    bytes = serializeFullClusterState(newState, destination.getVersion());
+                    bytes = CompressionHelper.serializedWrite(newState, destination.getVersion(), true);
                     serializedStates.put(destination.getVersion(), bytes);
                 } catch (Exception e) {
                     logger.warn(
