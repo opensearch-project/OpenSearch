@@ -17,9 +17,9 @@ public class MovingAverage {
     private final int windowSize;
     private final long[] observations;
 
-    private long count = 0;
-    private long sum = 0;
-    private double average = 0;
+    private volatile long count = 0;
+    private volatile long sum = 0;
+    private volatile double average = 0;
 
     public MovingAverage(int windowSize) {
         checkWindowSize(windowSize);
