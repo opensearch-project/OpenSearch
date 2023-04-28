@@ -84,7 +84,7 @@ public class TransferManager {
             try {
                 if (Files.exists(request.getFilePath()) == false) {
                     try (
-                        InputStream snapshotFileInputStream = blobContainer.readBlob(
+                        InputStream inputStream = blobContainer.readBlob(
                             request.getBlobName(),
                             request.getPosition(),
                             request.getLength()
@@ -92,7 +92,7 @@ public class TransferManager {
                         OutputStream fileOutputStream = Files.newOutputStream(request.getFilePath());
                         OutputStream localFileOutputStream = new BufferedOutputStream(fileOutputStream)
                     ) {
-                        snapshotFileInputStream.transferTo(localFileOutputStream);
+                        inputStream.transferTo(localFileOutputStream);
                     }
                 }
                 final IndexInput luceneIndexInput = request.getDirectory().openInput(request.getFileName(), IOContext.READ);

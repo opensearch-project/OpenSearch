@@ -71,6 +71,7 @@ import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.FsDirectoryFactory;
+import org.opensearch.index.store.remote.directory.RemoteSearchDirectoryFactory;
 import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.translog.TranslogFactory;
@@ -407,7 +408,8 @@ public final class IndexModule {
         MMAPFS("mmapfs"),
         SIMPLEFS("simplefs"),
         FS("fs"),
-        REMOTE_SNAPSHOT("remote_snapshot");
+        REMOTE_SNAPSHOT("remote_snapshot"),
+        REMOTE_SEARCH("remote_search");
 
         private final String settingsKey;
         private final boolean deprecated;
@@ -681,6 +683,12 @@ public final class IndexModule {
                     factories.put(
                         type.getSettingsKey(),
                         new RemoteSnapshotDirectoryFactory(repositoriesService, threadPool, remoteStoreFileCache)
+                    );
+                    break;
+                case REMOTE_SEARCH:
+                    factories.put(
+                        type.getSettingsKey(),
+                        new RemoteSearchDirectoryFactory(repositoriesService, remoteStoreFileCache)
                     );
                     break;
                 default:
