@@ -53,6 +53,7 @@ import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.search.RescoreDocIds;
 import org.opensearch.search.SearchExtBuilder;
 import org.opensearch.search.SearchShardTarget;
+import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.SearchContextAggregations;
 import org.opensearch.search.collapse.CollapseContext;
 import org.opensearch.search.dfs.DfsSearchResult;
@@ -429,4 +430,6 @@ public abstract class SearchContext implements Releasable {
     }
 
     public abstract ReaderContext readerContext();
+
+    public abstract InternalAggregation.ReduceContext aggregationReduceContext();
 }
