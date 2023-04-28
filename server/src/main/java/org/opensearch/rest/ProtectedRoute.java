@@ -13,11 +13,11 @@ package org.opensearch.rest;
  *
  * @opensearch.api
  */
-public class PermissibleRoute extends RestHandler.Route {
+public class ProtectedRoute extends RestHandler.Route {
 
     private final String name;
 
-    public PermissibleRoute(RestRequest.Method method, String path, String name) {
+    public ProtectedRoute(RestRequest.Method method, String path, String name) {
         super(method, path);
         this.name = name;
     }
