@@ -760,4 +760,3 @@ setup:
   - match: { aggregations.histo.buckets.2.key_as_string: "2022-03-25T00:00:00.000Z" }
   - match: { aggregations.histo.buckets.2.m_terms.buckets.0.key: [ "a", "127.0.0.1" ] }
   - match: { aggregations.histo.buckets.2.m_terms.buckets.1.key: [ "b", "127.0.0.1" ] }
-
