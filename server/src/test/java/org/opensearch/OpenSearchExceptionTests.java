@@ -121,7 +121,7 @@ public class OpenSearchExceptionTests extends OpenSearchTestCase {
         exception = new RemoteTransportException("test", new IllegalStateException("foobar"));
         assertThat(exception.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
 
-        exception = new ConcurrentSnapshotExecutionException("testRepo","testSnap","test");
+        exception = new ConcurrentSnapshotExecutionException("testRepo", "testSnap", "test");
         assertSame(exception.status(), RestStatus.TOO_MANY_REQUESTS);
     }
 
