@@ -58,7 +58,6 @@ import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.env.ShardLockObtainFailedException;
@@ -709,19 +708,12 @@ public class PrimaryShardAllocatorTests extends OpenSearchAllocationTestCase {
             .routingTable(routingTable)
             .nodes(DiscoveryNodes.builder().add(node1).add(node2).add(node3))
             .build();
-        return new RoutingAllocation(
-            allocationDeciders,
-            new RoutingNodes(state, false),
-            state,
-            null,
-            new SnapshotShardSizeInfo(ImmutableOpenMap.of()) {
-                @Override
-                public Long getShardSize(ShardRouting shardRouting) {
-                    return shardSize;
-                }
-            },
-            System.nanoTime()
-        );
+        return new RoutingAllocation(allocationDeciders, new RoutingNodes(state, false), state, null, new SnapshotShardSizeInfo(Map.of()) {
+            @Override
+            public Long getShardSize(ShardRouting shardRouting) {
+                return shardSize;
+            }
+        }, System.nanoTime());
     }
 
     private RoutingAllocation routingAllocationWithOnePrimaryNoReplicas(

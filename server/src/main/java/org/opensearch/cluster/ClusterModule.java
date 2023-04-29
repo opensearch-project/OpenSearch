@@ -224,7 +224,7 @@ public class ClusterModule extends AbstractModule {
      */
     public static ClusterState filterCustomsForPre63Clients(ClusterState clusterState) {
         final ClusterState.Builder builder = ClusterState.builder(clusterState);
-        clusterState.customs().keysIt().forEachRemaining(name -> {
+        clusterState.customs().keySet().iterator().forEachRemaining(name -> {
             if (PRE_6_3_CLUSTER_CUSTOMS_WHITE_LIST.contains(name) == false) {
                 builder.removeCustom(name);
             }

@@ -39,7 +39,6 @@ import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.SnapshotsInProgress.Entry;
 import org.opensearch.cluster.SnapshotsInProgress.ShardState;
 import org.opensearch.cluster.SnapshotsInProgress.State;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.index.Index;
@@ -50,7 +49,10 @@ import org.opensearch.test.VersionUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireSerializationTestCase<Custom> {
@@ -76,7 +78,7 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
         }
         long startTime = randomLong();
         long repositoryStateId = randomLong();
-        ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = ImmutableOpenMap.builder();
+        Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = new HashMap<>();
         final List<Index> esIndices = indices.stream()
             .map(i -> new Index(i.getName(), randomAlphaOfLength(10)))
             .collect(Collectors.toList());
@@ -100,7 +102,7 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                 );
             }
         }
-        ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = builder.build();
+        Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards = Collections.unmodifiableMap(builder);
         return new Entry(
             snapshot,
             includeGlobalState,
@@ -172,7 +174,7 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
         return SnapshotsInProgress.of(entries);
     }
 
-    public static State randomState(ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards) {
+    public static State randomState(final Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards) {
         return SnapshotsInProgress.completed(shards.values())
             ? randomFrom(State.SUCCESS, State.FAILED)
             : randomFrom(State.STARTED, State.INIT, State.ABORTED);

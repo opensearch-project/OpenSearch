@@ -50,7 +50,6 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
@@ -66,6 +65,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -162,7 +162,7 @@ public class ClusterSerializationTests extends OpenSearchAllocationTestCase {
                         new Snapshot("repo2", new SnapshotId("snap2", UUIDs.randomBase64UUID())),
                         RestoreInProgress.State.STARTED,
                         Collections.singletonList("index_name"),
-                        ImmutableOpenMap.of()
+                        Map.of()
                     )
                 ).build()
             );
