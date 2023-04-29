@@ -1099,7 +1099,7 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    /** Writes the OpenSearch {@Version} to the output stream */
+    /** Writes the OpenSearch {@link Version} to the output stream */
     public void writeVersion(final Version version) throws IOException {
         writeVInt(version.id);
     }
