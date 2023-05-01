@@ -376,15 +376,8 @@ public class OpenSearchNode implements TestClusterConfiguration {
             }
             Files.write(destination, extensionsString.toString().getBytes());
 
-            Path configDestination = getDistroDir().resolve("config").resolve("opensearch.yml");
-            Files.write(
-                configDestination,
-                "\nopensearch.experimental.feature.extensions.enabled: true".getBytes(),
-                StandardOpenOption.APPEND
-            );
-
         } catch (IOException e) {
-            throw new UncheckedIOException(e.toString(), e);
+            throw new UncheckedIOException("Failed to write to extensions.yml", e);
         }
     }
 
