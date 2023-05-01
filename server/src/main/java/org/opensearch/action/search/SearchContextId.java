@@ -90,7 +90,7 @@ public class SearchContextId {
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setVersion(version);
-            Version.writeVersion(version, out);
+            out.writeVersion(version);
             out.writeMap(shards, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
             out.writeMap(aliasFilter, StreamOutput::writeString, (o, v) -> v.writeTo(o));
             return Base64.getUrlEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
@@ -107,7 +107,7 @@ public class SearchContextId {
             throw new IllegalArgumentException("invalid id: [" + id + "]", e);
         }
         try (StreamInput in = new NamedWriteableAwareStreamInput(new ByteBufferStreamInput(byteBuffer), namedWriteableRegistry)) {
-            final Version version = Version.readVersion(in);
+            final Version version = in.readVersion();
             in.setVersion(version);
             final Map<ShardId, SearchContextIdForNode> shards = in.readMap(ShardId::new, SearchContextIdForNode::new);
             final Map<String, AliasFilter> aliasFilters = in.readMap(StreamInput::readString, AliasFilter::new);
