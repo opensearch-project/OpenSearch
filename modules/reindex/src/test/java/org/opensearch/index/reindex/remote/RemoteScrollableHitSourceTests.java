@@ -59,7 +59,7 @@ import org.opensearch.client.HeapBufferedAsyncResponseConsumer;
 import org.opensearch.client.RestClient;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.bytes.BytesArray;
-import org.opensearch.common.io.FileSystemUtils;
+import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;

@@ -114,7 +114,7 @@ public class LegacyESVersionTests extends OpenSearchTestCase {
     }
 
     public void testVersionNoPresentInSettings() {
-        Exception e = expectThrows(IllegalStateException.class, () -> LegacyESVersion.indexCreated(Settings.builder().build()));
+        Exception e = expectThrows(IllegalStateException.class, () -> IndexMetadata.indexCreated(Settings.builder().build()));
         assertThat(e.getMessage(), containsString("[index.version.created] is not present"));
     }
 
@@ -123,7 +123,7 @@ public class LegacyESVersionTests extends OpenSearchTestCase {
         final LegacyESVersion version = (LegacyESVersion) LegacyESVersion.fromId(6000026);
         assertEquals(
             version,
-            LegacyESVersion.indexCreated(
+            IndexMetadata.indexCreated(
                 Settings.builder().put(IndexMetadata.SETTING_INDEX_UUID, "foo").put(IndexMetadata.SETTING_VERSION_CREATED, version).build()
             )
         );

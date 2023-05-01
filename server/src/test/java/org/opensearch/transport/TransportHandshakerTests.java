@@ -124,7 +124,7 @@ public class TransportHandshakerTests extends OpenSearchTestCase {
         TaskId.EMPTY_TASK_ID.writeTo(lengthCheckingHandshake);
         TaskId.EMPTY_TASK_ID.writeTo(futureHandshake);
         try (BytesStreamOutput internalMessage = new BytesStreamOutput()) {
-            Version.writeVersion(Version.CURRENT, internalMessage);
+            internalMessage.writeVersion(Version.CURRENT);
             lengthCheckingHandshake.writeBytesReference(internalMessage.bytes());
             internalMessage.write(new byte[1024]);
             futureHandshake.writeBytesReference(internalMessage.bytes());

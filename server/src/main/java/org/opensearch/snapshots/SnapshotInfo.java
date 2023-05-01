@@ -420,7 +420,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         totalShards = in.readVInt();
         successfulShards = in.readVInt();
         shardFailures = Collections.unmodifiableList(in.readList(SnapshotShardFailure::new));
-        version = in.readBoolean() ? Version.readVersion(in) : null;
+        version = in.readBoolean() ? in.readVersion() : null;
         includeGlobalState = in.readOptionalBoolean();
         if (in.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
             userMetadata = in.readMap();
@@ -875,7 +875,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         out.writeList(shardFailures);
         if (version != null) {
             out.writeBoolean(true);
-            Version.writeVersion(version, out);
+            out.writeVersion(version);
         } else {
             out.writeBoolean(false);
         }

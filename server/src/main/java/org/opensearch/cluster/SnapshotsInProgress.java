@@ -308,7 +308,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 userMetadata = null;
             }
             if (in.getVersion().onOrAfter(VERSION_IN_SNAPSHOT_VERSION)) {
-                version = Version.readVersion(in);
+                version = in.readVersion();
             } else if (in.getVersion().onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
                 // If an older cluster-manager informs us that shard generations are supported
                 // we use the minimum shard generation compatible version.
@@ -764,7 +764,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 out.writeMap(userMetadata);
             }
             if (out.getVersion().onOrAfter(VERSION_IN_SNAPSHOT_VERSION)) {
-                Version.writeVersion(version, out);
+                out.writeVersion(version);
             } else if (out.getVersion().onOrAfter(SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION)) {
                 out.writeBoolean(SnapshotsService.useShardGenerations(version));
             }

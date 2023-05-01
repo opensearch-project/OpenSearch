@@ -82,8 +82,8 @@ public class NodeInfo extends BaseNodeResponse {
 
     public NodeInfo(StreamInput in) throws IOException {
         super(in);
-        version = Version.readVersion(in);
-        build = Build.readBuild(in);
+        version = in.readVersion();
+        build = in.readBuild();
         if (in.readBoolean()) {
             totalIndexingBuffer = new ByteSizeValue(in.readLong());
         } else {
@@ -209,7 +209,7 @@ public class NodeInfo extends BaseNodeResponse {
         } else {
             out.writeVInt(version.id);
         }
-        Build.writeBuild(build, out);
+        out.writeBuild(build);
         if (totalIndexingBuffer == null) {
             out.writeBoolean(false);
         } else {

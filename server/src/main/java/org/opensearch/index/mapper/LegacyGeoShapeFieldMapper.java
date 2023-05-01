@@ -44,6 +44,7 @@ import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Explicit;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.geo.GeoUtils;
@@ -520,7 +521,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         CopyTo copyTo
     ) {
         super(simpleName, fieldType, mappedFieldType, ignoreMalformed, coerce, ignoreZValue, orientation, multiFields, copyTo);
-        this.indexCreatedVersion = Version.indexCreated(indexSettings);
+        this.indexCreatedVersion = IndexMetadata.indexCreated(indexSettings);
     }
 
     @Override
