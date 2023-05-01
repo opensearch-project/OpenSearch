@@ -91,8 +91,8 @@ public class SettingsModule implements Module {
             registerSetting(setting);
         }
 
-        for (Map.Entry<String, List<Setting>> featureFlaggedSetting : ClusterSettings.FEATURE_FLAGGED_CLUSTER_SETTINGS.entrySet()) {
-            if (FeatureFlags.isEnabled(featureFlaggedSetting.getKey())) {
+        for (Map.Entry<List<String>, List<Setting>> featureFlaggedSetting : ClusterSettings.FEATURE_FLAGGED_CLUSTER_SETTINGS.entrySet()) {
+            if (featureFlaggedSetting.getKey().stream().allMatch(FeatureFlags::isEnabled)) {
                 featureFlaggedSetting.getValue().forEach(this::registerSetting);
             }
         }

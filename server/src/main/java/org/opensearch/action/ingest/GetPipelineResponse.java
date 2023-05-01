@@ -146,7 +146,12 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
             GetPipelineResponse otherResponse = (GetPipelineResponse) other;
             if (pipelines == null) {
                 return otherResponse.pipelines == null;
+            } else if (otherResponse.pipelines == null) {
+                return false;
             } else {
+                if (otherResponse.pipelines.size() != pipelines.size()) {
+                    return false;
+                }
                 // We need a map here because order does not matter for equality
                 Map<String, PipelineConfiguration> otherPipelineMap = new HashMap<>();
                 for (PipelineConfiguration pipeline : otherResponse.pipelines) {

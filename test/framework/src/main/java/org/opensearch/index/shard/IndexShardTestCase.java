@@ -151,6 +151,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -1122,6 +1123,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
             final long seqNo = shard.seqNoStats().getMaxSeqNo() + 1;
             shard.advanceMaxSeqNoOfUpdatesOrDeletes(seqNo); // manually replicate max_seq_no_of_updates
             result = shard.applyIndexOperationOnReplica(
+                UUID.randomUUID().toString(),
                 seqNo,
                 shard.getOperationPrimaryTerm(),
                 0,
@@ -1299,7 +1301,10 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 ActionListener<CheckpointInfoResponse> listener
             ) {
                 try {
-                    final CopyState copyState = new CopyState(ReplicationCheckpoint.empty(primaryShard.shardId), primaryShard);
+                    final CopyState copyState = new CopyState(
+                        ReplicationCheckpoint.empty(primaryShard.shardId, primaryShard.getDefaultCodecName()),
+                        primaryShard
+                    );
                     listener.onResponse(
                         new CheckpointInfoResponse(copyState.getCheckpoint(), copyState.getMetadataMap(), copyState.getInfosBytes())
                     );
@@ -1353,7 +1358,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         for (IndexShard replica : replicaShards) {
             final SegmentReplicationTargetService targetService = prepareForReplication(primaryShard, replica);
             final SegmentReplicationTarget target = targetService.startReplication(
-                ReplicationCheckpoint.empty(replica.shardId),
+                ReplicationCheckpoint.empty(replica.shardId, replica.getDefaultCodecName()),
                 replica,
                 new SegmentReplicationTargetService.SegmentReplicationListener() {
                     @Override

@@ -8,27 +8,32 @@
 
 package org.opensearch.index.store.remote.filecache;
 
+import java.io.IOException;
+
 import org.apache.lucene.store.IndexInput;
 
 /**
- * Base IndexInput whose instances will be maintained in cache.
+ * Interface for an entry in the {@link FileCache} that can return an
+ * {@link IndexInput}. Exactly how the IndexInput is created is determined by
+ * the implementations.
  *
  * @opensearch.internal
  */
-public abstract class CachedIndexInput extends IndexInput {
+public interface CachedIndexInput extends AutoCloseable {
+    /**
+     * Gets the {@link IndexInput} this cache entry represents.
+     * @return The IndexInput
+     * @throws IOException if any I/O error occurs
+     */
+    IndexInput getIndexInput() throws IOException;
 
     /**
-     * resourceDescription should be a non-null, opaque string
-     * describing this resource; it's returned from
-     * {@link #toString}.
+     * @return length in bytes
      */
-    protected CachedIndexInput(String resourceDescription) {
-        super(resourceDescription);
-    }
+    long length();
 
     /**
-     * return true this index input is closed, false if not
-     * @return true this index input is closed, false if not
+     * @return true if the entry is closed, false otherwise
      */
-    public abstract boolean isClosed();
+    boolean isClosed();
 }

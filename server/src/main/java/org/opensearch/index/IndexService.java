@@ -138,7 +138,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final NodeEnvironment nodeEnv;
     private final ShardStoreDeleter shardStoreDeleter;
     private final IndexStorePlugin.DirectoryFactory directoryFactory;
-    private final IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory;
+    private final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory;
     private final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory;
     private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
     private final IndexCache indexCache;
@@ -194,7 +194,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         Client client,
         QueryCache queryCache,
         IndexStorePlugin.DirectoryFactory directoryFactory,
-        IndexStorePlugin.RemoteDirectoryFactory remoteDirectoryFactory,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
         IndexEventListener eventListener,
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> wrapperFactory,
         MapperRegistry mapperRegistry,
@@ -470,11 +470,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
             Store remoteStore = null;
             if (this.indexSettings.isRemoteStoreEnabled()) {
-                Directory remoteDirectory = remoteDirectoryFactory.newDirectory(
-                    this.indexSettings.getRemoteStoreRepository(),
-                    this.indexSettings,
-                    path
-                );
+                Directory remoteDirectory = remoteDirectoryFactory.newDirectory(this.indexSettings, path);
                 remoteStore = new Store(shardId, this.indexSettings, remoteDirectory, lock, Store.OnClose.EMPTY);
             }
 

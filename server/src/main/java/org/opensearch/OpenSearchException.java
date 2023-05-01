@@ -55,6 +55,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.search.SearchException;
 import org.opensearch.search.aggregations.MultiBucketConsumerService;
+import org.opensearch.search.pipeline.SearchPipelineProcessingException;
 import org.opensearch.snapshots.SnapshotInUseDeletionException;
 import org.opensearch.transport.TcpTransport;
 
@@ -77,6 +78,7 @@ import static org.opensearch.Version.V_2_3_0;
 import static org.opensearch.Version.V_2_4_0;
 import static org.opensearch.Version.V_2_5_0;
 import static org.opensearch.Version.V_2_6_0;
+import static org.opensearch.Version.V_2_7_0;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.opensearch.common.xcontent.XContentParserUtils.ensureFieldName;
@@ -1657,6 +1659,7 @@ public class OpenSearchException extends RuntimeException implements ToXContentF
             V_2_6_0
         ),
         NODE_WEIGHED_AWAY_EXCEPTION(NodeWeighedAwayException.class, NodeWeighedAwayException::new, 169, V_2_6_0),
+        SEARCH_PIPELINE_PROCESSING_EXCEPTION(SearchPipelineProcessingException.class, SearchPipelineProcessingException::new, 170, V_2_7_0),
         INDEX_CREATE_BLOCK_EXCEPTION(
             org.opensearch.cluster.block.IndexCreateBlockException.class,
             org.opensearch.cluster.block.IndexCreateBlockException::new,

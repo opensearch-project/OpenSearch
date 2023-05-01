@@ -41,9 +41,11 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedSet;
@@ -83,6 +85,32 @@ public class CollectionUtilsTests extends OpenSearchTestCase {
                 assertEquals(list, CollectionUtils.rotate(CollectionUtils.rotate(list, distance), -distance));
             }
         }
+    }
+
+    private <T> void assertDeduped(List<T> array, Comparator<T> cmp, int expectedLength) {
+        // test the dedup w/ ArrayLists and LinkedLists
+        List<List<T>> types = List.of(new ArrayList<T>(array), new LinkedList<>(array));
+        for (List<T> clone : types) {
+            // dedup the list
+            CollectionUtils.sortAndDedup(clone, cmp);
+            // verify unique elements
+            for (int i = 0; i < clone.size() - 1; ++i) {
+                assertNotEquals(cmp.compare(clone.get(i), clone.get(i + 1)), 0);
+            }
+            assertEquals(expectedLength, clone.size());
+        }
+    }
+
+    public void testSortAndDedup() {
+        // test no elements in a string array
+        assertDeduped(List.<String>of(), Comparator.naturalOrder(), 0);
+        // test no elements in an integer array
+        assertDeduped(List.<Integer>of(), Comparator.naturalOrder(), 0);
+        // test unsorted array
+        assertDeduped(List.of(-1, 0, 2, 1, -1, 19, -1), Comparator.naturalOrder(), 5);
+        // test sorted array
+        assertDeduped(List.of(-1, 0, 1, 2, 19, 19), Comparator.naturalOrder(), 5);
+        // test sorted
     }
 
     public void testSortAndDedupByteRefArray() {

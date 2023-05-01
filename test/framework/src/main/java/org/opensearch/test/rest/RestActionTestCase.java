@@ -122,7 +122,7 @@ public abstract class RestActionTestCase extends OpenSearchTestCase {
          * @param verifier A function which is called in place of {@link #doExecute(ActionType, ActionRequest, ActionListener)}
          */
         public <Request extends ActionRequest, Response extends ActionResponse> void setExecuteVerifier(
-            BiFunction<ActionType<Response>, Request, Void> verifier
+            BiFunction<ActionType<Response>, Request, Response> verifier
         ) {
             executeVerifier.set(verifier);
         }
@@ -142,7 +142,7 @@ public abstract class RestActionTestCase extends OpenSearchTestCase {
          * @param verifier A function which is called in place of {@link #executeLocally(ActionType, ActionRequest, TaskListener)}
          */
         public <Request extends ActionRequest, Response extends ActionResponse> void setExecuteLocallyVerifier(
-            BiFunction<ActionType<Response>, Request, Void> verifier
+            BiFunction<ActionType<Response>, Request, Response> verifier
         ) {
             executeLocallyVerifier.set(verifier);
         }

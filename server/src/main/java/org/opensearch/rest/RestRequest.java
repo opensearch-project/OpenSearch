@@ -382,7 +382,7 @@ public class RestRequest implements ToXContent.Params {
      *
      * @return the list of currently consumed parameters.
      */
-    List<String> consumedParams() {
+    public List<String> consumedParams() {
         return new ArrayList<>(consumedParams);
     }
 

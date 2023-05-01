@@ -391,7 +391,7 @@ public class NodeRepurposeCommandTests extends OpenSearchTestCase {
 
             if (cacheMode) {
                 Path cachePath = env.fileCacheNodePath().fileCachePath;
-                cachePath = cachePath.resolve(String.valueOf(env.getNodeLockId())).resolve(INDEX.getUUID());
+                cachePath = cachePath.resolve(INDEX.getUUID());
                 for (int i = 0; i < shardCount; ++i) {
                     Files.createDirectories(cachePath.resolve(Integer.toString(shardDataDirNumber)));
                     shardDataDirNumber += randomIntBetween(1, 10);
