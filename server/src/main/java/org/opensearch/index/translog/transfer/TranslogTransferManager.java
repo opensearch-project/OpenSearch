@@ -17,6 +17,7 @@ import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.crypto.CryptoClient;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 import org.opensearch.threadpool.ThreadPool;
@@ -53,6 +54,7 @@ public class TranslogTransferManager {
     private final BlobPath remoteBaseTransferPath;
     private final BlobPath remoteMetadataTransferPath;
     private final FileTransferTracker fileTransferTracker;
+    private final CryptoClient cryptoClient;
 
     private static final long TRANSFER_TIMEOUT_IN_MILLIS = 30000;
 
@@ -63,11 +65,13 @@ public class TranslogTransferManager {
     public TranslogTransferManager(
         ShardId shardId,
         TransferService transferService,
+        CryptoClient cryptoClient,
         BlobPath remoteBaseTransferPath,
         FileTransferTracker fileTransferTracker
     ) {
         this.shardId = shardId;
         this.transferService = transferService;
+        this.cryptoClient = cryptoClient;
         this.remoteBaseTransferPath = remoteBaseTransferPath;
         this.remoteMetadataTransferPath = remoteBaseTransferPath.add(METADATA_DIR);
         this.fileTransferTracker = fileTransferTracker;
@@ -110,8 +114,10 @@ public class TranslogTransferManager {
                 fileSnapshot -> transferService.uploadBlobAsync(
                     ThreadPool.Names.TRANSLOG_TRANSFER,
                     fileSnapshot,
+                    cryptoClient,
                     remoteBaseTransferPath.add(String.valueOf(fileSnapshot.getPrimaryTerm())),
-                    latchedActionListener
+                    latchedActionListener,
+                    TransferContentType.DATA
                 )
             );
             try {
@@ -150,14 +156,15 @@ public class TranslogTransferManager {
         );
         // Download Checkpoint file from remote to local FS
         String ckpFileName = Translog.getCommitCheckpointFileName(Long.parseLong(generation));
-        downloadToFS(ckpFileName, location, primaryTerm);
+        downloadToFS(ckpFileName, location, primaryTerm, TransferContentType.DATA);
         // Download translog file from remote to local FS
         String translogFilename = Translog.getFilename(Long.parseLong(generation));
-        downloadToFS(translogFilename, location, primaryTerm);
+        downloadToFS(translogFilename, location, primaryTerm, TransferContentType.DATA);
         return true;
     }
 
-    private void downloadToFS(String fileName, Path location, String primaryTerm) throws IOException {
+    private void downloadToFS(String fileName, Path location, String primaryTerm, TransferContentType transferContentType)
+        throws IOException {
         Path filePath = location.resolve(fileName);
         // Here, we always override the existing file if present.
         // We need to change this logic when we introduce incremental download
@@ -165,7 +172,11 @@ public class TranslogTransferManager {
             Files.delete(filePath);
         }
         try (InputStream inputStream = transferService.downloadBlob(remoteBaseTransferPath.add(primaryTerm), fileName)) {
-            Files.copy(inputStream, filePath);
+            InputStream transferInputStream = inputStream;
+            if (transferContentType == TransferContentType.DATA && cryptoClient != null) {
+                transferInputStream = cryptoClient.createDecryptingStream(inputStream);
+            }
+            Files.copy(transferInputStream, filePath);
         }
         // Mark in FileTransferTracker so that the same files are not uploaded at the time of translog sync
         fileTransferTracker.add(fileName, true);

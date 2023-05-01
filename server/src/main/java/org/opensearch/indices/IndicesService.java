@@ -52,6 +52,7 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -90,6 +91,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.crypto.CryptoClient;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLock;
 import org.opensearch.env.ShardLockObtainFailedException;
@@ -181,7 +183,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -328,7 +329,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final boolean nodeWriteDanglingIndicesInfo;
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final IndexStorePlugin.DirectoryFactory remoteDirectoryFactory;
-    private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
+    private final TranslogFactorySupplier translogFactorySupplier;
 
     private final FileCacheCleaner fileCacheCleaner;
 
@@ -455,20 +456,51 @@ public class IndicesService extends AbstractLifecycleComponent
         this.translogFactorySupplier = getTranslogFactorySupplier(repositoriesServiceSupplier, threadPool);
     }
 
-    private static BiFunction<IndexSettings, ShardRouting, TranslogFactory> getTranslogFactorySupplier(
+    private static TranslogFactorySupplier getTranslogFactorySupplier(
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         ThreadPool threadPool
     ) {
-        return (indexSettings, shardRouting) -> {
-            if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
-                return new RemoteBlobStoreInternalTranslogFactory(
-                    repositoriesServiceSupplier,
-                    threadPool,
-                    indexSettings.getRemoteStoreTranslogRepository()
-                );
+        return new TranslogFactorySupplier() {
+            @Override
+            public TranslogFactory createTranslogFactory(IndexSettings indexSettings, ShardRouting shardRouting) {
+                if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
+                    return new RemoteBlobStoreInternalTranslogFactory(
+                        repositoriesServiceSupplier,
+                        threadPool,
+                        indexSettings.getRemoteStoreTranslogRepository()
+                    );
+                }
+                return new InternalTranslogFactory();
             }
-            return new InternalTranslogFactory();
+
+            @Override
+            public CryptoClient createCryptoClient(RepositoryMetadata repositoryMetadata) {
+                if (Boolean.TRUE.equals(repositoryMetadata.encrypted())) {
+                    return repositoriesServiceSupplier.get().cryptoClient(repositoryMetadata);
+                }
+                return null;
+            }
         };
+    }
+
+    /**
+     * Factory supplier to provide translog factory and other clients used during translog creation
+     */
+    public interface TranslogFactorySupplier {
+        /**
+         * Translog factory supplier for translog creation
+         * @param indexSettings Required to determine type of repository.
+         * @param shardRouting To determine shard type
+         * @return Translog Factory instance
+         */
+        TranslogFactory createTranslogFactory(IndexSettings indexSettings, ShardRouting shardRouting);
+
+        /**
+         * Create crypto client for a repository
+         * @param repositoryMetadata Metadata of repository for which crypto client needs to be created.
+         * @return Crypto client instance
+         */
+        CryptoClient createCryptoClient(RepositoryMetadata repositoryMetadata);
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";

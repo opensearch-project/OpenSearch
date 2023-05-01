@@ -13,8 +13,10 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRunnable;
+import org.opensearch.common.Stream;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.crypto.CryptoClient;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -44,15 +46,24 @@ public class BlobStoreTransferService implements TransferService {
     public void uploadBlobAsync(
         String threadpoolName,
         final TransferFileSnapshot fileSnapshot,
+        final CryptoClient cryptoClient,
         Iterable<String> remoteTransferPath,
-        ActionListener<TransferFileSnapshot> listener
+        ActionListener<TransferFileSnapshot> listener,
+        TransferContentType transferContentType
     ) {
         assert remoteTransferPath instanceof BlobPath;
         BlobPath blobPath = (BlobPath) remoteTransferPath;
         threadPool.executor(threadpoolName).execute(ActionRunnable.wrap(listener, l -> {
             try (InputStream inputStream = fileSnapshot.inputStream()) {
-                blobStore.blobContainer(blobPath)
-                    .writeBlobAtomic(fileSnapshot.getName(), inputStream, fileSnapshot.getContentLength(), true);
+                InputStream finalInputStream = inputStream;
+                long contentLength = fileSnapshot.getContentLength();
+                if (cryptoClient != null && transferContentType == TransferContentType.DATA) {
+                    Object cryptoContext = cryptoClient.initCryptoContext();
+                    Stream stream = cryptoClient.createEncryptingStream(cryptoContext, new Stream(inputStream, contentLength, 0));
+                    finalInputStream = stream.getInputStream();
+                    contentLength = stream.getContentLength();
+                }
+                blobStore.blobContainer(blobPath).writeBlobAtomic(fileSnapshot.getName(), finalInputStream, contentLength, true);
                 l.onResponse(fileSnapshot);
             } catch (Exception e) {
                 logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", fileSnapshot.getName()), e);

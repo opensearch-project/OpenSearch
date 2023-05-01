@@ -8,12 +8,15 @@
 
 package org.opensearch.index.translog.transfer;
 
+import org.mockito.stubbing.Answer;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.Stream;
+import org.opensearch.crypto.CryptoClient;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -32,6 +35,13 @@ import java.nio.file.StandardOpenOption;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
 
@@ -74,6 +84,7 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
         transferService.uploadBlobAsync(
             ThreadPool.Names.TRANSLOG_TRANSFER,
             transferFileSnapshot,
+            null,
             repository.basePath(),
             new LatchedActionListener<>(new ActionListener<>() {
                 @Override
@@ -87,10 +98,48 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
                 public void onFailure(Exception e) {
                     throw new AssertionError("Failed to perform uploadBlobAsync", e);
                 }
-            }, latch)
+            }, latch),
+            TransferContentType.DATA
         );
         assertTrue(latch.await(1000, TimeUnit.MILLISECONDS));
         assertTrue(succeeded.get());
+    }
+
+    public void testUploadBlobAsyncWithEncryptionEnabled() throws IOException, InterruptedException {
+        BlobStoreRepository repository = createRepository(true);
+        Path testFile = createTempFile();
+        Files.write(testFile, randomByteArrayOfLength(128), StandardOpenOption.APPEND);
+        AtomicBoolean succeeded = new AtomicBoolean(false);
+        FileSnapshot.TransferFileSnapshot transferFileSnapshot = new FileSnapshot.TransferFileSnapshot(testFile, randomNonNegativeLong());
+        CountDownLatch latch = new CountDownLatch(1);
+        TransferService transferService = new BlobStoreTransferService(repository.blobStore(), threadPool);
+        CryptoClient cryptoClient = mock(CryptoClient.class);
+        when(cryptoClient.initCryptoContext()).thenReturn(mock(Object.class));
+        doAnswer((Answer<Stream>) invocation -> (Stream) invocation.getArgument(1)).when(cryptoClient)
+            .createEncryptingStream(any(), any(Stream.class));
+        transferService.uploadBlobAsync(
+            ThreadPool.Names.TRANSLOG_TRANSFER,
+            transferFileSnapshot,
+            cryptoClient,
+            repository.basePath(),
+            new LatchedActionListener<>(new ActionListener<>() {
+                @Override
+                public void onResponse(FileSnapshot.TransferFileSnapshot fileSnapshot) {
+                    assert succeeded.compareAndSet(false, true);
+                    assertEquals(transferFileSnapshot.getPrimaryTerm(), fileSnapshot.getPrimaryTerm());
+                    assertEquals(transferFileSnapshot.getName(), fileSnapshot.getName());
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError("Failed to perform uploadBlobAsync", e);
+                }
+            }, latch),
+            TransferContentType.DATA
+        );
+        assertTrue(latch.await(1000, TimeUnit.MILLISECONDS));
+        assertTrue(succeeded.get());
+        verify(cryptoClient, times(1)).createEncryptingStream(any(), any(Stream.class));
     }
 
     @Override
@@ -100,10 +149,14 @@ public class BlobStoreTransferServiceTests extends OpenSearchTestCase {
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
-    /** Create a {@link Repository} with a random name **/
     private BlobStoreRepository createRepository() {
+        return createRepository(null);
+    }
+
+    /** Create a {@link Repository} with a random name **/
+    private BlobStoreRepository createRepository(Boolean encrypted) {
         Settings settings = Settings.builder().put("location", randomAlphaOfLength(10)).build();
-        RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings);
+        RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings, encrypted);
         final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetadata);
         final FsRepository repository = new FsRepository(
             repositoryMetadata,

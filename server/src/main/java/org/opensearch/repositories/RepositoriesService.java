@@ -64,6 +64,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.crypto.CryptoClient;
 import org.opensearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -492,6 +493,16 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             return repository;
         }
         throw new RepositoryMissingException(repositoryName);
+    }
+
+    /**
+     * Returns registered crypto client
+     * @param repositoryMetadata repository metadata for which crypto client needs to be returned.
+     * @return crypto client
+     */
+    public CryptoClient cryptoClient(RepositoryMetadata repositoryMetadata) {
+        // TODO: Return registered crypto client
+        return null;
     }
 
     public List<RepositoryStatsSnapshot> repositoriesStats() {

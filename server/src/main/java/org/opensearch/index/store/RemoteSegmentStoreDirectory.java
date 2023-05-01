@@ -16,6 +16,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.opensearch.common.Stream;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.index.store.lockmanager.RemoteStoreCommitLevelLockManager;
@@ -24,8 +25,12 @@ import org.opensearch.index.store.lockmanager.FileLockInfo;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
+import org.opensearch.common.lucene.store.InputStreamIndexInput;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.crypto.CryptoClient;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.Map;
 import java.util.HashSet;
@@ -78,6 +83,11 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     private String commonFilenameSuffix;
 
     /**
+     * To encrypt or decrypt segment data of an encrypted repo before transfer.
+     */
+    private final CryptoClient cryptoClient;
+
+    /**
      * Keeps track of local segment filename to uploaded filename along with other attributes like checksum.
      * This map acts as a cache layer for uploaded segment filenames which helps avoid calling listAll() each time.
      * It is important to initialize this map on creation of RemoteSegmentStoreDirectory and update it on each upload and delete.
@@ -95,12 +105,14 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     public RemoteSegmentStoreDirectory(
         RemoteDirectory remoteDataDirectory,
         RemoteDirectory remoteMetadataDirectory,
-        RemoteStoreLockManager mdLockManager
+        RemoteStoreLockManager mdLockManager,
+        CryptoClient cryptoClient
     ) throws IOException {
         super(remoteDataDirectory);
         this.remoteDataDirectory = remoteDataDirectory;
         this.remoteMetadataDirectory = remoteMetadataDirectory;
         this.mdLockManager = mdLockManager;
+        this.cryptoClient = cryptoClient;
         init();
     }
 
@@ -392,21 +404,80 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         return metadataFiles.iterator().next();
     }
 
-    public void copyFrom(Directory from, String src, String dest, IOContext context, boolean useCommonSuffix, String checksum)
-        throws IOException {
+    public void copyFilesFrom(Directory from, Collection<String> files, IOContext context) throws Exception {
+        for (String src : files) {
+            uploadFile(from, src, src, context);
+        }
+    }
+
+    private void uploadFile(Directory from, String src, String dest, IOContext context) throws IOException {
+        try (
+            IndexInput indexInput = from.openInput(src, context);
+            InputStream inputStream = new InputStreamIndexInput(indexInput, indexInput.length())
+        ) {
+            String remoteFileName = createRemoteFileName(dest, false);
+            long contentLength = indexInput.length();
+            InputStream transferInputStream = inputStream;
+            if (cryptoClient != null) {
+                Object cryptoContext = cryptoClient.initCryptoContext();
+                Stream stream = cryptoClient.createEncryptingStream(cryptoContext, new Stream(transferInputStream, indexInput.length(), 0));
+                transferInputStream = stream.getInputStream();
+                contentLength = stream.getContentLength();
+            }
+            remoteDataDirectory.blobContainer.writeBlob(remoteFileName, transferInputStream, contentLength, false);
+            postUpload(from, src, remoteFileName);
+        }
+    }
+
+    private String createRemoteFileName(String dest, boolean useCommonSuffix) {
         String remoteFilename;
         if (useCommonSuffix) {
             remoteFilename = dest + SEGMENT_NAME_UUID_SEPARATOR + this.commonFilenameSuffix;
         } else {
             remoteFilename = getNewRemoteSegmentFilename(dest);
         }
-        remoteDataDirectory.copyFrom(from, src, remoteFilename, context);
+
+        return remoteFilename;
+    }
+
+    private void postUpload(Directory from, String src, String remoteFilename) throws IOException {
+        String checksum = getChecksumOfLocalFile(from, src);
         UploadedSegmentMetadata segmentMetadata = new UploadedSegmentMetadata(src, remoteFilename, checksum, from.fileLength(src));
         segmentsUploadedToRemoteStore.put(src, segmentMetadata);
     }
 
     public void copyFrom(Directory from, String src, String dest, IOContext context, boolean useCommonSuffix) throws IOException {
-        copyFrom(from, src, dest, context, useCommonSuffix, getChecksumOfLocalFile(from, src));
+        String remoteFilename = createRemoteFileName(dest, useCommonSuffix);
+        remoteDataDirectory.copyFrom(from, src, remoteFilename, context);
+        postUpload(from, src, remoteFilename);
+    }
+
+    /**
+     * This method shouldn't be used to download metadata files because it performs decryption if remote directory
+     * is an encrypted dir. Metadata files are never encrypted.
+     * @param to Directory to which file needs to be downloaded
+     * @param file Name by which new file needs to be downloaded in "to" directory.
+     * @param context File context
+     * @throws IOException when there is an issue in download.
+     */
+    public void downloadDataFile(Directory to, String file, IOContext context) throws IOException {
+
+        try (IndexOutput indexOutput = to.createOutput(file, context); InputStream inputStream = createRemoteInputStream(file)) {
+            byte[] buffer = new byte[(int) ByteSizeUnit.KB.toBytes(10)];
+            int len;
+            while ((len = inputStream.read(buffer, 0, buffer.length)) > 0) {
+                indexOutput.writeBytes(buffer, 0, len);
+            }
+        }
+    }
+
+    private InputStream createRemoteInputStream(String file) throws IOException {
+        String remoteFilename = getExistingRemoteFilename(file);
+        InputStream inputStream = remoteDataDirectory.blobContainer.readBlob(remoteFilename);
+        if (cryptoClient != null) {
+            inputStream = cryptoClient.createDecryptingStream(inputStream);
+        }
+        return inputStream;
     }
 
     /**

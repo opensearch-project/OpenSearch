@@ -45,6 +45,7 @@ import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.InternalClusterInfoService;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -63,6 +64,7 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.crypto.CryptoClient;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLock;
@@ -81,6 +83,7 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.TestTranslog;
 import org.opensearch.index.translog.Translog;
+import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.breaker.CircuitBreakerService;
@@ -699,7 +702,17 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             () -> {},
             RetentionLeaseSyncer.EMPTY,
             cbs,
-            (indexSettings, shardRouting) -> new InternalTranslogFactory(),
+            new IndicesService.TranslogFactorySupplier() {
+                @Override
+                public TranslogFactory createTranslogFactory(IndexSettings indexSettings, ShardRouting shardRouting) {
+                    return new InternalTranslogFactory();
+                }
+
+                @Override
+                public CryptoClient createCryptoClient(RepositoryMetadata repositoryMetadata) {
+                    return null;
+                }
+            },
             SegmentReplicationCheckpointPublisher.EMPTY,
             null
         );

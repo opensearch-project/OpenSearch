@@ -10,11 +10,13 @@ package org.opensearch.index.translog.transfer;
 
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.mockito.Mockito;
+import org.mockito.stubbing.Answer;
 import org.opensearch.action.ActionListener;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.util.set.Sets;
+import org.opensearch.crypto.CryptoClient;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.transfer.FileSnapshot.CheckpointFileSnapshot;
@@ -27,6 +29,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,11 +38,12 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.mockito.Mockito.any;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -48,6 +52,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
 
     private TransferService transferService;
     private ShardId shardId;
+    private CryptoClient cryptoClient;
     private BlobPath remoteBaseTransferPath;
     private ThreadPool threadPool;
     private long primaryTerm;
@@ -63,6 +68,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         minTranslogGeneration = randomLongBetween(0, generation);
         remoteBaseTransferPath = new BlobPath().add("base_path");
         transferService = mock(TransferService.class);
+        cryptoClient = mock(CryptoClient.class);
         threadPool = new TestThreadPool(getClass().getName());
     }
 
@@ -82,11 +88,18 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         doNothing().when(transferService)
             .uploadBlob(any(TransferFileSnapshot.class), Mockito.eq(remoteBaseTransferPath.add(String.valueOf(primaryTerm))));
         doAnswer(invocationOnMock -> {
-            ActionListener<TransferFileSnapshot> listener = (ActionListener<TransferFileSnapshot>) invocationOnMock.getArguments()[3];
+            ActionListener<TransferFileSnapshot> listener = (ActionListener<TransferFileSnapshot>) invocationOnMock.getArguments()[4];
             listener.onResponse((TransferFileSnapshot) invocationOnMock.getArguments()[1]);
             return null;
         }).when(transferService)
-            .uploadBlobAsync(any(String.class), any(TransferFileSnapshot.class), any(BlobPath.class), any(ActionListener.class));
+            .uploadBlobAsync(
+                any(String.class),
+                any(TransferFileSnapshot.class),
+                any(CryptoClient.class),
+                any(BlobPath.class),
+                any(ActionListener.class),
+                any(TransferContentType.class)
+            );
 
         FileTransferTracker fileTransferTracker = new FileTransferTracker(new ShardId("index", "indexUUid", 0)) {
             @Override
@@ -106,6 +119,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
+            cryptoClient,
             remoteBaseTransferPath,
             fileTransferTracker
         );
@@ -183,6 +197,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
+            null,
             remoteBaseTransferPath,
             null
         );
@@ -195,6 +210,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
+            null,
             remoteBaseTransferPath,
             null
         );
@@ -214,6 +230,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
+            null,
             remoteBaseTransferPath,
             null
         );
@@ -232,6 +249,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
+            null,
             remoteBaseTransferPath,
             null
         );
@@ -253,6 +271,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
+            null,
             remoteBaseTransferPath,
             new FileTransferTracker(new ShardId("index", "indexUuid", 0))
         );
@@ -272,6 +291,35 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         assertTrue(Files.exists(location.resolve("translog-23.ckp")));
     }
 
+    public void testDownloadAndDecryptTranslog() throws IOException {
+        Path location = createTempDir();
+        CryptoClient cryptoClient = mock(CryptoClient.class);
+        doAnswer((Answer<InputStream>) invocation -> (InputStream) invocation.getArgument(0)).when(cryptoClient)
+            .createDecryptingStream(any(InputStream.class));
+        TranslogTransferManager translogTransferManager = new TranslogTransferManager(
+            shardId,
+            transferService,
+            cryptoClient,
+            remoteBaseTransferPath,
+            new FileTransferTracker(new ShardId("index", "indexUuid", 0))
+        );
+
+        when(transferService.downloadBlob(any(BlobPath.class), eq("translog-23.tlog"))).thenReturn(
+            new ByteArrayInputStream("Hello Translog".getBytes(StandardCharsets.UTF_8))
+        );
+
+        when(transferService.downloadBlob(any(BlobPath.class), eq("translog-23.ckp"))).thenReturn(
+            new ByteArrayInputStream("Hello Checkpoint".getBytes(StandardCharsets.UTF_8))
+        );
+
+        assertFalse(Files.exists(location.resolve("translog-23.tlog")));
+        assertFalse(Files.exists(location.resolve("translog-23.ckp")));
+        translogTransferManager.downloadTranslog("12", "23", location);
+        assertTrue(Files.exists(location.resolve("translog-23.tlog")));
+        assertTrue(Files.exists(location.resolve("translog-23.ckp")));
+        verify(cryptoClient, times(2)).createDecryptingStream(any());
+    }
+
     public void testDownloadTranslogAlreadyExists() throws IOException {
         FileTransferTracker tracker = new FileTransferTracker(new ShardId("index", "indexUuid", 0));
         Path location = createTempDir();
@@ -281,6 +329,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
+            null,
             remoteBaseTransferPath,
             tracker
         );
@@ -310,6 +359,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             transferService,
+            null,
             remoteBaseTransferPath,
             tracker
         );
@@ -346,6 +396,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             blobStoreTransferService,
+            null,
             remoteBaseTransferPath,
             tracker
         );
@@ -370,6 +421,7 @@ public class TranslogTransferManagerTests extends OpenSearchTestCase {
         TranslogTransferManager translogTransferManager = new TranslogTransferManager(
             shardId,
             blobStoreTransferService,
+            null,
             remoteBaseTransferPath,
             tracker
         );

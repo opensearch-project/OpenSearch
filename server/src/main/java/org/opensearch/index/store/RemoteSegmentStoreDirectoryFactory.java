@@ -11,6 +11,7 @@ package org.opensearch.index.store;
 import org.apache.lucene.store.Directory;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.crypto.CryptoClient;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
@@ -56,8 +57,12 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
                 indexUUID,
                 shardId
             );
+            CryptoClient cryptoClient = null;
+            if (repository.getMetadata() != null && Boolean.TRUE.equals(repository.getMetadata().encrypted())) {
+                cryptoClient = repositoriesService.get().cryptoClient(repository.getMetadata());
+            }
 
-            return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, mdLockManager);
+            return new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, mdLockManager, cryptoClient);
         } catch (RepositoryMissingException e) {
             throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", e);
         }

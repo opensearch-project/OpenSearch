@@ -62,6 +62,11 @@ public class RepositoryMetadata implements Writeable {
     private final long pendingGeneration;
 
     /**
+     * Whether repository is encrypted
+     */
+    private final Boolean encrypted;
+
+    /**
      * Constructs new repository metadata
      *
      * @param name     repository name
@@ -69,14 +74,22 @@ public class RepositoryMetadata implements Writeable {
      * @param settings repository settings
      */
     public RepositoryMetadata(String name, String type, Settings settings) {
-        this(name, type, settings, RepositoryData.UNKNOWN_REPO_GEN, RepositoryData.EMPTY_REPO_GEN);
+        this(name, type, settings, RepositoryData.UNKNOWN_REPO_GEN, RepositoryData.EMPTY_REPO_GEN, null);
+    }
+
+    public RepositoryMetadata(String name, String type, Settings settings, Boolean encrypted) {
+        this(name, type, settings, RepositoryData.UNKNOWN_REPO_GEN, RepositoryData.EMPTY_REPO_GEN, encrypted);
     }
 
     public RepositoryMetadata(RepositoryMetadata metadata, long generation, long pendingGeneration) {
-        this(metadata.name, metadata.type, metadata.settings, generation, pendingGeneration);
+        this(metadata.name, metadata.type, metadata.settings, generation, pendingGeneration, null);
     }
 
     public RepositoryMetadata(String name, String type, Settings settings, long generation, long pendingGeneration) {
+        this(name, type, settings, generation, pendingGeneration, null);
+    }
+
+    public RepositoryMetadata(String name, String type, Settings settings, long generation, long pendingGeneration, Boolean encrypted) {
         this.name = name;
         this.type = type;
         this.settings = settings;
@@ -87,6 +100,7 @@ public class RepositoryMetadata implements Writeable {
             + "] must be greater or equal to generation ["
             + generation
             + "]";
+        this.encrypted = encrypted;
     }
 
     /**
@@ -114,6 +128,15 @@ public class RepositoryMetadata implements Writeable {
      */
     public Settings settings() {
         return this.settings;
+    }
+
+    /**
+     * Returns whether repository is encrypted
+     *
+     * @return whether repository is encrypted
+     */
+    public Boolean encrypted() {
+        return null;
     }
 
     /**
@@ -146,6 +169,7 @@ public class RepositoryMetadata implements Writeable {
         settings = Settings.readSettingsFromStream(in);
         generation = in.readLong();
         pendingGeneration = in.readLong();
+        encrypted = null;
     }
 
     /**

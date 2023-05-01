@@ -9,6 +9,7 @@
 package org.opensearch.index.translog.transfer;
 
 import org.opensearch.action.ActionListener;
+import org.opensearch.crypto.CryptoClient;
 import org.opensearch.index.translog.transfer.FileSnapshot.TransferFileSnapshot;
 
 import java.io.IOException;
@@ -27,14 +28,18 @@ public interface TransferService {
      * Uploads the {@link TransferFileSnapshot} async, once the upload is complete the callback is invoked
      * @param threadpoolName threadpool type which will be used to upload blobs asynchronously
      * @param fileSnapshot the file snapshot to upload
+     * @param cryptoClient client for encrypting the file content of an encrypted repo before upload.
      * @param remotePath the remote path where upload should be made
      * @param listener the callback to be invoked once upload completes successfully/fails
+     * @param transferContentType type of content to be uploaded.
      */
     void uploadBlobAsync(
         String threadpoolName,
         final TransferFileSnapshot fileSnapshot,
+        final CryptoClient cryptoClient,
         Iterable<String> remotePath,
-        ActionListener<TransferFileSnapshot> listener
+        ActionListener<TransferFileSnapshot> listener,
+        TransferContentType transferContentType
     );
 
     /**

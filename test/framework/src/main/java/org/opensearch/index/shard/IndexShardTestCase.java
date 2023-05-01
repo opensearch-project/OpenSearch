@@ -48,6 +48,7 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
@@ -74,6 +75,7 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.crypto.CryptoClient;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexSettings;
@@ -150,6 +152,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -160,6 +163,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
@@ -568,16 +572,30 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
                 remoteStore = createRemoteStore(createTempDir(), routing, indexMetadata);
             }
 
-            final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier = (settings, shardRouting) -> {
-                if (settings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
-                    return new RemoteBlobStoreInternalTranslogFactory(
-                        this::createRepositoriesService,
-                        threadPool,
-                        settings.getRemoteStoreTranslogRepository()
-                    );
+            final Supplier<RepositoriesService> repositoryServiceRef = this::createRepositoriesService;
+
+            IndicesService.TranslogFactorySupplier translogFactorySupplier = new IndicesService.TranslogFactorySupplier() {
+                @Override
+                public TranslogFactory createTranslogFactory(IndexSettings indexSettings, ShardRouting shardRouting) {
+                    if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
+                        return new RemoteBlobStoreInternalTranslogFactory(
+                            repositoryServiceRef,
+                            threadPool,
+                            indexSettings.getRemoteStoreTranslogRepository()
+                        );
+                    }
+                    return new InternalTranslogFactory();
                 }
-                return new InternalTranslogFactory();
+
+                @Override
+                public CryptoClient createCryptoClient(RepositoryMetadata repositoryMetadata) {
+                    if (repositoryMetadata != null && Boolean.TRUE.equals(repositoryMetadata.encrypted())) {
+                        return Objects.requireNonNull(repositoryServiceRef.get()).cryptoClient(repositoryMetadata);
+                    }
+                    return null;
+                }
             };
+
             indexShard = new IndexShard(
                 routing,
                 indexSettings,
@@ -633,7 +651,12 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         ShardPath remoteShardPath = new ShardPath(false, remoteNodePath.resolve(shardId), remoteNodePath.resolve(shardId), shardId);
         RemoteDirectory dataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
         RemoteDirectory metadataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
-        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, null);
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
+            dataDirectory,
+            metadataDirectory,
+            null,
+            null
+        );
         return createStore(shardId, new IndexSettings(metadata, nodeSettings), remoteSegmentStoreDirectory);
     }
 

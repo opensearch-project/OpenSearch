@@ -169,7 +169,8 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
             getPersistedSeqNoConsumer(),
             repository,
             threadPool,
-            primaryMode::get
+            primaryMode::get,
+            null
         );
 
     }
@@ -1263,7 +1264,8 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
                 persistedSeqNos::add,
                 repository,
                 threadPool,
-                () -> Boolean.TRUE
+                () -> Boolean.TRUE,
+                null
             ) {
                 @Override
                 ChannelFactory getChannelFactory() {

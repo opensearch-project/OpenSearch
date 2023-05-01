@@ -47,6 +47,7 @@ import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -66,6 +67,7 @@ import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.crypto.CryptoClient;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.ShardLock;
@@ -97,6 +99,7 @@ import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesQueryCache;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.indices.breaker.CircuitBreakerService;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
@@ -122,10 +125,10 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -225,15 +228,26 @@ public class IndexModuleTests extends OpenSearchTestCase {
     private IndexService newIndexService(IndexModule module) throws IOException {
         final SetOnce<RepositoriesService> repositoriesServiceReference = new SetOnce<>();
         repositoriesServiceReference.set(repositoriesService);
-        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier = (indexSettings, shardRouting) -> {
-            if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
-                return new RemoteBlobStoreInternalTranslogFactory(
-                    repositoriesServiceReference::get,
-                    threadPool,
-                    indexSettings.getRemoteStoreTranslogRepository()
-                );
+        IndicesService.TranslogFactorySupplier translogFactorySupplier = new IndicesService.TranslogFactorySupplier() {
+            @Override
+            public TranslogFactory createTranslogFactory(IndexSettings indexSettings, ShardRouting shardRouting) {
+                if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
+                    return new RemoteBlobStoreInternalTranslogFactory(
+                        repositoriesServiceReference::get,
+                        threadPool,
+                        indexSettings.getRemoteStoreTranslogRepository()
+                    );
+                }
+                return new InternalTranslogFactory();
             }
-            return new InternalTranslogFactory();
+
+            @Override
+            public CryptoClient createCryptoClient(RepositoryMetadata repositoryMetadata) {
+                if (Boolean.TRUE.equals(repositoryMetadata.encrypted())) {
+                    return Objects.requireNonNull(repositoriesServiceReference.get()).cryptoClient(repositoryMetadata);
+                }
+                return null;
+            }
         };
         return module.newIndexService(
             CREATE_INDEX,

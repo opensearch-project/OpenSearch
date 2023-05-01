@@ -71,6 +71,10 @@ public class FileSnapshot implements Closeable {
             : new InputStreamIndexInput(new ByteArrayIndexInput(this.name, content), content.length);
     }
 
+    public void reset() throws IOException {
+        fileChannel.position(0);
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(name, content, path);

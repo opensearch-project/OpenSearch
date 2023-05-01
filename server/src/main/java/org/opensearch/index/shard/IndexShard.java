@@ -101,6 +101,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.crypto.CryptoClient;
 import org.opensearch.gateway.WriteStateException;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;
@@ -211,7 +212,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
-import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -327,7 +327,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final RefreshPendingLocationListener refreshPendingLocationListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
     private final Store remoteStore;
-    private final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier;
+    private final IndicesService.TranslogFactorySupplier translogFactorySupplier;
 
     private final boolean isTimeSeriesIndex;
 
@@ -352,7 +352,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final Runnable globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final CircuitBreakerService circuitBreakerService,
-        final BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
+        final IndicesService.TranslogFactorySupplier translogFactorySupplier,
         @Nullable final SegmentReplicationCheckpointPublisher checkpointPublisher,
         @Nullable final Store remoteStore
     ) throws IOException {
@@ -3591,7 +3591,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             tombstoneDocSupplier(),
             isReadOnlyReplica,
             replicationTracker::isPrimaryMode,
-            translogFactorySupplier.apply(indexSettings, shardRouting),
+            translogFactorySupplier.createTranslogFactory(indexSettings, shardRouting),
             isTimeSeriesIndex ? DataStream.TIMESERIES_LEAF_SORTER : null // DESC @timestamp default order for timeseries
         );
     }
@@ -4453,10 +4453,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void syncTranslogFilesFromRemoteTranslog() throws IOException {
-        TranslogFactory translogFactory = translogFactorySupplier.apply(indexSettings, shardRouting);
+        TranslogFactory translogFactory = translogFactorySupplier.createTranslogFactory(indexSettings, shardRouting);
         assert translogFactory instanceof RemoteBlobStoreInternalTranslogFactory;
         Repository repository = ((RemoteBlobStoreInternalTranslogFactory) translogFactory).getRepository();
-        RemoteFsTranslog.download(repository, shardId, getThreadPool(), shardPath().resolveTranslog());
+        CryptoClient cryptoClient = translogFactorySupplier.createCryptoClient(repository.getMetadata());
+        RemoteFsTranslog.download(repository, shardId, getThreadPool(), shardPath().resolveTranslog(), cryptoClient);
     }
 
     /**
@@ -4483,12 +4484,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert remoteStoreDirectory.getDelegate() instanceof FilterDirectory
             : "Store.directory is not enclosing an instance of FilterDirectory";
         FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
-        final Directory remoteDirectory = byteSizeCachingStoreDirectory.getDelegate();
+        final Directory remoteStoreDelegate = byteSizeCachingStoreDirectory.getDelegate();
         // We need to call RemoteSegmentStoreDirectory.init() in order to get latest metadata of the files that
         // are uploaded to the remote segment store.
-        assert remoteDirectory instanceof RemoteSegmentStoreDirectory : "remoteDirectory is not an instance of RemoteSegmentStoreDirectory";
-        ((RemoteSegmentStoreDirectory) remoteDirectory).init();
-        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = ((RemoteSegmentStoreDirectory) remoteDirectory)
+        assert remoteStoreDelegate instanceof RemoteSegmentStoreDirectory
+            : "remoteDirectory is not an instance of RemoteSegmentStoreDirectory";
+        RemoteSegmentStoreDirectory remoteDirectory = (RemoteSegmentStoreDirectory) remoteStoreDelegate;
+        remoteDirectory.init();
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = remoteDirectory
             .getSegmentsUploadedToRemoteStore();
         store.incRef();
         remoteStore.incRef();
@@ -4517,7 +4520,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     if (localSegmentFiles.contains(file)) {
                         storeDirectory.deleteFile(file);
                     }
-                    storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
+                    if (file.startsWith(SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX)) {
+                        storeDirectory.copyFrom(remoteDirectory, file, file, IOContext.DEFAULT);
+                    } else {
+                        remoteDirectory.downloadDataFile(storeDirectory, file, IOContext.DEFAULT);
+                    }
                     downloadedSegments.add(file);
                     if (file.startsWith(SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX)) {
                         assert segmentInfosSnapshotFilename == null : "There should be only one SegmentInfosSnapshot file";

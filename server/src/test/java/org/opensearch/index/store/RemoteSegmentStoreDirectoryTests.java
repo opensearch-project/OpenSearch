@@ -19,11 +19,16 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.junit.Before;
+import org.mockito.Mockito;
+import org.mockito.stubbing.Answer;
+import org.opensearch.common.Stream;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
+import org.opensearch.crypto.CryptoClient;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -36,6 +41,11 @@ import java.util.Set;
 import java.util.HashMap;
 import java.util.Collection;
 
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
@@ -56,11 +66,13 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
 
     @Before
     public void setup() throws IOException {
-        remoteDataDirectory = mock(RemoteDirectory.class);
+        BlobContainer blobContainer = mock(BlobContainer.class);
+        doNothing().when(blobContainer).writeBlob(anyString(), any(), anyLong(), anyBoolean());
+        remoteDataDirectory = Mockito.spy(new RemoteDirectory(blobContainer));
         remoteMetadataDirectory = mock(RemoteDirectory.class);
         mdLockManager = mock(RemoteStoreMetadataLockManager.class);
 
-        remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(remoteDataDirectory, remoteMetadataDirectory, mdLockManager);
+        remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(remoteDataDirectory, remoteMetadataDirectory, mdLockManager, null);
     }
 
     public void testUploadedSegmentMetadataToString() {
@@ -330,7 +342,7 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
         remoteSegmentStoreDirectory.init();
 
         IndexInput indexInput = mock(IndexInput.class);
-        when(remoteDataDirectory.openInput(startsWith("_0.si"), eq(IOContext.DEFAULT))).thenReturn(indexInput);
+        Mockito.doReturn(indexInput).when(remoteDataDirectory).openInput(startsWith("_0.si"), eq(IOContext.DEFAULT));
 
         assertEquals(indexInput, remoteSegmentStoreDirectory.openInput("_0.si", IOContext.DEFAULT));
     }
@@ -343,7 +355,7 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
         populateMetadata();
         remoteSegmentStoreDirectory.init();
 
-        when(remoteDataDirectory.openInput(startsWith("_0.si"), eq(IOContext.DEFAULT))).thenThrow(new IOException("Error"));
+        doThrow(new IOException("Error")).when(remoteDataDirectory).openInput(startsWith("_0.si"), eq(IOContext.DEFAULT));
 
         assertThrows(IOException.class, () -> remoteSegmentStoreDirectory.openInput("_0.si", IOContext.DEFAULT));
     }
@@ -493,6 +505,52 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
         remoteSegmentStoreDirectory.copyFrom(storeDirectory, filename, filename, IOContext.DEFAULT);
         assertTrue(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
 
+        storeDirectory.close();
+    }
+
+    public void testCopyFilesFrom() throws Exception {
+        BlobContainer dataContainer = mock(BlobContainer.class);
+        doNothing().when(dataContainer).writeBlob(anyString(), any(), anyLong(), anyBoolean());
+        CryptoClient cryptoClient = mock(CryptoClient.class);
+        when(cryptoClient.initCryptoContext()).thenReturn(mock(Object.class));
+        doAnswer((Answer<Stream>) invocation -> (Stream) invocation.getArgument(1)).when(cryptoClient)
+            .createEncryptingStream(any(), any(Stream.class));
+
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
+            remoteDataDirectory,
+            remoteMetadataDirectory,
+            mdLockManager,
+            cryptoClient
+        );
+
+        List<String> files = new ArrayList<>();
+        remoteSegmentStoreDirectory.init();
+        populateMetadata();
+        Directory storeDirectory = LuceneTestCase.newDirectory();
+
+        String filename = "_100.si";
+        IndexOutput indexOutput = storeDirectory.createOutput(filename, IOContext.DEFAULT);
+        indexOutput.writeString("Hello World!");
+        CodecUtil.writeFooter(indexOutput);
+        indexOutput.close();
+        files.add(filename);
+
+        filename = "_200.si";
+        indexOutput = storeDirectory.createOutput(filename, IOContext.DEFAULT);
+        indexOutput.writeString("Hello World again!");
+        CodecUtil.writeFooter(indexOutput);
+        indexOutput.close();
+        files.add(filename);
+
+        storeDirectory.sync(files);
+        assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
+        remoteSegmentStoreDirectory.copyFilesFrom(storeDirectory, files, IOContext.DEFAULT);
+
+        for (String fileName : files) {
+            assertTrue(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(fileName));
+        }
+
+        verify(cryptoClient, times(files.size())).createEncryptingStream(any(), any(Stream.class));
         storeDirectory.close();
     }
 

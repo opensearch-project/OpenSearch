@@ -16,6 +16,7 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.crypto.CryptoClient;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.transfer.BlobStoreTransferService;
 import org.opensearch.index.translog.transfer.FileTransferTracker;
@@ -51,6 +52,7 @@ public class RemoteFsTranslog extends Translog {
 
     private static final Logger logger = LogManager.getLogger(RemoteFsTranslog.class);
     private final BlobStoreRepository blobStoreRepository;
+    private final CryptoClient cryptoClient;
     private final TranslogTransferManager translogTransferManager;
     private final FileTransferTracker fileTransferTracker;
     private final BooleanSupplier primaryModeSupplier;
@@ -78,13 +80,21 @@ public class RemoteFsTranslog extends Translog {
         LongConsumer persistedSequenceNumberConsumer,
         BlobStoreRepository blobStoreRepository,
         ThreadPool threadPool,
-        BooleanSupplier primaryModeSupplier
+        BooleanSupplier primaryModeSupplier,
+        CryptoClient cryptoClient
     ) throws IOException {
         super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
         this.blobStoreRepository = blobStoreRepository;
+        this.cryptoClient = cryptoClient;
         this.primaryModeSupplier = primaryModeSupplier;
         fileTransferTracker = new FileTransferTracker(shardId);
-        this.translogTransferManager = buildTranslogTransferManager(blobStoreRepository, threadPool, shardId, fileTransferTracker);
+        this.translogTransferManager = buildTranslogTransferManager(
+            blobStoreRepository,
+            cryptoClient,
+            threadPool,
+            shardId,
+            fileTransferTracker
+        );
         try {
             download(translogTransferManager, location);
             Checkpoint checkpoint = readCheckpoint(location);
@@ -119,12 +129,14 @@ public class RemoteFsTranslog extends Translog {
         }
     }
 
-    public static void download(Repository repository, ShardId shardId, ThreadPool threadPool, Path location) throws IOException {
+    public static void download(Repository repository, ShardId shardId, ThreadPool threadPool, Path location, CryptoClient cryptoClient)
+        throws IOException {
         assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
         BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
         FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId);
         TranslogTransferManager translogTransferManager = buildTranslogTransferManager(
             blobStoreRepository,
+            cryptoClient,
             threadPool,
             shardId,
             fileTransferTracker
@@ -160,6 +172,7 @@ public class RemoteFsTranslog extends Translog {
 
     public static TranslogTransferManager buildTranslogTransferManager(
         BlobStoreRepository blobStoreRepository,
+        CryptoClient cryptoClient,
         ThreadPool threadPool,
         ShardId shardId,
         FileTransferTracker fileTransferTracker
@@ -167,6 +180,7 @@ public class RemoteFsTranslog extends Translog {
         return new TranslogTransferManager(
             shardId,
             new BlobStoreTransferService(blobStoreRepository.blobStore(), threadPool),
+            cryptoClient,
             blobStoreRepository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())),
             fileTransferTracker
         );
