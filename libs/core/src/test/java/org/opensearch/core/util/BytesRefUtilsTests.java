@@ -12,8 +12,10 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Counter;
+import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -85,5 +87,11 @@ public class BytesRefUtilsTests extends OpenSearchTestCase {
             assertThat(iterator.hasNext(), is(true));
             assertThat(array.get(spare, indices[i]), equalTo(iterator.next()));
         }
+    }
+
+    public void testBytesToLong() {
+        final long value = randomLong();
+        final BytesReference buffer = BytesReference.fromByteBuffer(ByteBuffer.allocate(8).putLong(value).flip());
+        assertThat(BytesRefUtils.bytesToLong(buffer.toBytesRef()), equalTo(value));
     }
 }
