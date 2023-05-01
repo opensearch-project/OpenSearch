@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.google.protobuf:protobuf-java` from 3.22.2 to 3.22.3
 - Bump `jackson` from 2.14.2 to 2.15.0 ([#7286](https://github.com/opensearch-project/OpenSearch/pull/7286)
 - Bump `com.netflix.nebula:nebula-publishing-plugin` from 20.2.0 to 20.3.0
+- Bump `com.netflix.nebula.ospackage-base` from 11.0.0 to 11.3.0
 
 ### Changed
 
