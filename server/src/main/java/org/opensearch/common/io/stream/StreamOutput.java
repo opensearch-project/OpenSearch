@@ -42,6 +42,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
+import org.opensearch.Build;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
@@ -1096,6 +1097,24 @@ public abstract class StreamOutput extends OutputStream {
             }
             OpenSearchException.writeStackTraces(throwable, this, (o, t) -> o.writeException(rootException, t, nestedLevel + 1));
         }
+    }
+
+    /** Writes the OpenSearch {@link Version} to the output stream */
+    public void writeVersion(final Version version) throws IOException {
+        writeVInt(version.id);
+    }
+
+    /** Writes the OpenSearch {@link Build} informn to the output stream */
+    public void writeBuild(final Build build) throws IOException {
+        // the following is new for opensearch: we write the distribution name to support any "forks" of the code
+        writeString(build.getDistribution());
+
+        final Build.Type buildType = build.type();
+        writeString(buildType.displayName());
+        writeString(build.hash());
+        writeString(build.date());
+        writeBoolean(build.isSnapshot());
+        writeString(build.getQualifiedVersion());
     }
 
     boolean failOnTooManyNestedExceptions(Throwable throwable) {
