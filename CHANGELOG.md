@@ -41,7 +41,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.avast.gradle:gradle-docker-compose-plugin` from 0.16.11 to 0.16.12
 - Bump `org.apache.commons:commons-compress` from 1.22 to 1.23.0
 - Bump `org.apache.commons:commons-configuration2` from 2.8.0 to 2.9.0
-- Bump `com.netflix.nebula:nebula-publishing-plugin` from 19.2.0 to 20.2.0
+- Bump `com.netflix.nebula:nebula-publishing-plugin` from 19.2.0 to 20.3.0
 - Bump `com.netflix.nebula.ospackage-base` from 11.0.0 to 11.2.0
 - Bump `org.apache.commons:commons-compress` from 1.22 to 1.23.0
 - Bump `com.google.protobuf:protobuf-java` from 3.22.2 to 3.22.3
