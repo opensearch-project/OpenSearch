@@ -63,7 +63,7 @@ import java.util.regex.Pattern
  */
 
 plugins {
-  id "com.netflix.nebula.ospackage-base" version "11.2.0"
+  id "com.netflix.nebula.ospackage-base" version "11.3.0"
 }
 
 void addProcessFilesTask(String type, boolean jdk) {

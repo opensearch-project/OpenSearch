@@ -9,7 +9,7 @@
 package org.opensearch.index.translog;
 
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.io.FileSystemUtils;
+import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.ReleasableLock;

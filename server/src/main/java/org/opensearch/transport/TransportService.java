@@ -711,14 +711,14 @@ public class TransportService extends AbstractLifecycleComponent
             super(in);
             discoveryNode = in.readOptionalWriteable(DiscoveryNode::new);
             clusterName = new ClusterName(in);
-            version = Version.readVersion(in);
+            version = in.readVersion();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalWriteable(discoveryNode);
             clusterName.writeTo(out);
-            Version.writeVersion(version, out);
+            out.writeVersion(version);
         }
 
         public DiscoveryNode getDiscoveryNode() {

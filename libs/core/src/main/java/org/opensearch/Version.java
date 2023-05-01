@@ -32,15 +32,9 @@
 
 package org.opensearch;
 
-import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.monitor.jvm.JvmInfo;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -96,10 +90,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_3_0_0 = new Version(3000099, org.apache.lucene.util.Version.LUCENE_9_6_0);
     public static final Version CURRENT = V_3_0_0;
 
-    public static Version readVersion(StreamInput in) throws IOException {
-        return fromId(in.readVInt());
-    }
-
     public static Version fromId(int id) {
         final Version known = LegacyESVersion.idToVersion.get(id);
         if (known != null) {
@@ -136,30 +126,6 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         return id < MASK ? new LegacyESVersion(id, luceneVersion) : new Version(id ^ MASK, luceneVersion);
     }
 
-    /**
-     * Return the {@link Version} of OpenSearch that has been used to create an index given its settings.
-     *
-     * @throws IllegalStateException if the given index settings doesn't contain a value for the key
-     *         {@value IndexMetadata#SETTING_VERSION_CREATED}
-     */
-    public static Version indexCreated(Settings indexSettings) {
-        final Version indexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexSettings);
-        if (indexVersion.equals(V_EMPTY)) {
-            final String message = String.format(
-                Locale.ROOT,
-                "[%s] is not present in the index settings for index with UUID [%s]",
-                IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
-                indexSettings.get(IndexMetadata.SETTING_INDEX_UUID)
-            );
-            throw new IllegalStateException(message);
-        }
-        return indexVersion;
-    }
-
-    public static void writeVersion(Version version, StreamOutput out) throws IOException {
-        out.writeVInt(version.id);
-    }
-
     public static int computeLegacyID(int major, int minor, int revision, int build) {
         return major * 1000000 + minor * 10000 + revision * 100 + build;
     }
@@ -186,7 +152,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
      * Returns the version given its string representation, current version if the argument is null or empty
      */
     public static Version fromString(String version) {
-        if (!Strings.hasLength(version)) {
+        if (stringHasLength(version) == false) { // TODO replace with Strings.hasLength after refactoring Strings to core lib
             return Version.CURRENT;
         }
         final Version cached = LegacyESVersion.stringToVersion.get(version);
@@ -450,7 +416,7 @@ public class Version implements Comparable<Version>, ToXContentFragment {
             Build.CURRENT.type().displayName(),
             Build.CURRENT.hash(),
             Build.CURRENT.date(),
-            JvmInfo.jvmInfo().version()
+            System.getProperty("java.version")  // TODO switch back to JvmInfo.jvmInfo().version() after refactoring to core lib
         );
         System.out.println(versionOutput);
     }
@@ -546,5 +512,13 @@ public class Version implements Comparable<Version>, ToXContentFragment {
         }
         Collections.sort(versions);
         return versions;
+    }
+
+    /**
+     * Check that the given String is neither <code>null</code> nor of length 0.
+     * Note: Will return <code>true</code> for a String that purely consists of whitespace.
+     */
+    public static boolean stringHasLength(String str) {
+        return (str != null && str.length() > 0);
     }
 }

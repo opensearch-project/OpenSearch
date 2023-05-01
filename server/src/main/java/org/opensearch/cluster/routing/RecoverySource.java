@@ -279,7 +279,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         SnapshotRecoverySource(StreamInput in) throws IOException {
             restoreUUID = in.readString();
             snapshot = new Snapshot(in);
-            version = Version.readVersion(in);
+            version = in.readVersion();
             index = new IndexId(in);
             if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
                 isSearchableSnapshot = in.readBoolean();
@@ -318,7 +318,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         protected void writeAdditionalFields(StreamOutput out) throws IOException {
             out.writeString(restoreUUID);
             snapshot.writeTo(out);
-            Version.writeVersion(version, out);
+            out.writeVersion(version);
             index.writeTo(out);
             if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
                 out.writeBoolean(isSearchableSnapshot);
@@ -388,7 +388,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
         RemoteStoreRecoverySource(StreamInput in) throws IOException {
             restoreUUID = in.readString();
-            version = Version.readVersion(in);
+            version = in.readVersion();
             index = new IndexId(in);
         }
 
@@ -413,7 +413,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         @Override
         protected void writeAdditionalFields(StreamOutput out) throws IOException {
             out.writeString(restoreUUID);
-            Version.writeVersion(version, out);
+            out.writeVersion(version);
             index.writeTo(out);
         }
 
