@@ -36,6 +36,7 @@ public class NoopExtensionsManager extends ExtensionsManager {
         super(Path.of(""));
     }
 
+    @Override
     public void initializeServicesAndRestHandler(
         ActionModule actionModule,
         SettingsModule settingsModule,
@@ -47,24 +48,34 @@ public class NoopExtensionsManager extends ExtensionsManager {
         // no-op
     }
 
+    @Override
     public RemoteExtensionActionResponse handleRemoteTransportRequest(ExtensionActionRequest request) throws Exception {
         // no-op empty response
         return new RemoteExtensionActionResponse(true, new byte[0]);
     }
 
+    @Override
     public ExtensionActionResponse handleTransportRequest(ExtensionActionRequest request) throws Exception {
         // no-op empty response
         return new ExtensionActionResponse(new byte[0]);
     }
 
+    @Override
+    protected void discover() throws IOException {
+        // no-op
+    }
+
+    @Override
     public void initialize() {
         // no-op
     }
 
+    @Override
     public void onIndexModule(IndexModule indexModule) throws UnknownHostException {
         // no-op
     }
 
+    @Override
     public Optional<DiscoveryExtensionNode> lookupInitializedExtensionById(final String extensionId) {
         // no-op not found
         return Optional.empty();

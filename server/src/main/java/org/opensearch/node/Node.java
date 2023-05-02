@@ -704,61 +704,32 @@ public class Node implements Closeable {
                 repositoriesServiceReference::get
             );
 
-            final IndicesService indicesService;
-            if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-                indicesService = new IndicesService(
-                    settings,
-                    pluginsService,
-                    extensionsManager,
-                    nodeEnvironment,
-                    xContentRegistry,
-                    analysisModule.getAnalysisRegistry(),
-                    clusterModule.getIndexNameExpressionResolver(),
-                    indicesModule.getMapperRegistry(),
-                    namedWriteableRegistry,
-                    threadPool,
-                    settingsModule.getIndexScopedSettings(),
-                    circuitBreakerService,
-                    bigArrays,
-                    scriptService,
-                    clusterService,
-                    client,
-                    metaStateService,
-                    engineFactoryProviders,
-                    Map.copyOf(directoryFactories),
-                    searchModule.getValuesSourceRegistry(),
-                    recoveryStateFactories,
-                    remoteDirectoryFactory,
-                    repositoriesServiceReference::get,
-                    fileCacheCleaner
-                );
-            } else {
-                indicesService = new IndicesService(
-                    settings,
-                    pluginsService,
-                    nodeEnvironment,
-                    xContentRegistry,
-                    analysisModule.getAnalysisRegistry(),
-                    clusterModule.getIndexNameExpressionResolver(),
-                    indicesModule.getMapperRegistry(),
-                    namedWriteableRegistry,
-                    threadPool,
-                    settingsModule.getIndexScopedSettings(),
-                    circuitBreakerService,
-                    bigArrays,
-                    scriptService,
-                    clusterService,
-                    client,
-                    metaStateService,
-                    engineFactoryProviders,
-                    Map.copyOf(directoryFactories),
-                    searchModule.getValuesSourceRegistry(),
-                    recoveryStateFactories,
-                    remoteDirectoryFactory,
-                    repositoriesServiceReference::get,
-                    fileCacheCleaner
-                );
-            }
+            final IndicesService indicesService = new IndicesService(
+                settings,
+                pluginsService,
+                extensionsManager,
+                nodeEnvironment,
+                xContentRegistry,
+                analysisModule.getAnalysisRegistry(),
+                clusterModule.getIndexNameExpressionResolver(),
+                indicesModule.getMapperRegistry(),
+                namedWriteableRegistry,
+                threadPool,
+                settingsModule.getIndexScopedSettings(),
+                circuitBreakerService,
+                bigArrays,
+                scriptService,
+                clusterService,
+                client,
+                metaStateService,
+                engineFactoryProviders,
+                Map.copyOf(directoryFactories),
+                searchModule.getValuesSourceRegistry(),
+                recoveryStateFactories,
+                remoteDirectoryFactory,
+                repositoriesServiceReference::get,
+                fileCacheCleaner
+            );
 
             final AliasValidator aliasValidator = new AliasValidator();
 

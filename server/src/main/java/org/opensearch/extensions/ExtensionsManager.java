@@ -294,7 +294,7 @@ public class ExtensionsManager {
     /*
      * Load and populate all extensions
      */
-    private void discover() throws IOException {
+    protected void discover() throws IOException {
         logger.info("Loading extensions : {}", extensionsPath);
         if (!FileSystemUtils.isAccessibleDirectory(extensionsPath, logger)) {
             return;
