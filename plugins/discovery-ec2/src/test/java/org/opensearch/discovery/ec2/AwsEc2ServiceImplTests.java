@@ -34,7 +34,6 @@ package org.opensearch.discovery.ec2;
 
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProviderChain;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
@@ -53,7 +52,7 @@ public class AwsEc2ServiceImplTests extends OpenSearchTestCase {
             logger,
             Ec2ClientSettings.getClientSettings(Settings.EMPTY)
         );
-        assertThat(credentialsProvider, instanceOf(AwsCredentialsProviderChain.class));
+        assertThat(credentialsProvider, instanceOf(AwsCredentialsProvider.class));
     }
 
     public void testAwsCredentialsWithOpenSearchAwsSettings() {
@@ -82,34 +81,30 @@ public class AwsEc2ServiceImplTests extends OpenSearchTestCase {
         assertThat(credentials.sessionToken(), is("aws_session_token"));
     }
 
-    public void testDeprecationOfLoneAccessKey() {
+    public void testRejectionOfLoneAccessKey() {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("discovery.ec2.access_key", "aws_key");
-        final AwsCredentials credentials = AwsEc2ServiceImpl.buildCredentials(
-            logger,
-            Ec2ClientSettings.getClientSettings(Settings.builder().setSecureSettings(secureSettings).build())
-        ).resolveCredentials();
-        assertThat(credentials.accessKeyId(), is("aws_key"));
-        assertThat(credentials.secretAccessKey(), is(""));
-        assertSettingDeprecationsAndWarnings(
-            new String[] {},
-            "Setting [discovery.ec2.access_key] is set but [discovery.ec2.secret_key] is not, which will be unsupported in future"
+        SettingsException e = expectThrows(
+            SettingsException.class,
+            () -> AwsEc2ServiceImpl.buildCredentials(
+                logger,
+                Ec2ClientSettings.getClientSettings(Settings.builder().setSecureSettings(secureSettings).build())
+            )
         );
+        assertThat(e.getMessage(), is("Setting [discovery.ec2.access_key] is set but [discovery.ec2.secret_key] is not"));
     }
 
     public void testDeprecationOfLoneSecretKey() {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("discovery.ec2.secret_key", "aws_secret");
-        final AwsCredentials credentials = AwsEc2ServiceImpl.buildCredentials(
-            logger,
-            Ec2ClientSettings.getClientSettings(Settings.builder().setSecureSettings(secureSettings).build())
-        ).resolveCredentials();
-        assertThat(credentials.accessKeyId(), is(""));
-        assertThat(credentials.secretAccessKey(), is("aws_secret"));
-        assertSettingDeprecationsAndWarnings(
-            new String[] {},
-            "Setting [discovery.ec2.secret_key] is set but [discovery.ec2.access_key] is not, which will be unsupported in future"
+        SettingsException e = expectThrows(
+            SettingsException.class,
+            () -> AwsEc2ServiceImpl.buildCredentials(
+                logger,
+                Ec2ClientSettings.getClientSettings(Settings.builder().setSecureSettings(secureSettings).build())
+            )
         );
+        assertThat(e.getMessage(), is("Setting [discovery.ec2.secret_key] is set but [discovery.ec2.access_key] is not"));
     }
 
     public void testRejectionOfLoneSessionToken() {
