@@ -30,12 +30,11 @@
  * GitHub history for details.
  */
 
-package org.opensearch.common.io;
+package org.opensearch.core.util;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.opensearch.common.util.io.IOUtils;
-import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
 
 import java.io.IOException;
@@ -151,7 +150,7 @@ public final class FileSystemUtils {
         if ("file".equals(protocol) == false && "jar".equals(protocol) == false) {
             throw new IllegalArgumentException("Invalid protocol [" + protocol + "], must be [file] or [jar]");
         }
-        if (Strings.isEmpty(url.getHost()) == false) {
+        if (url.getHost().isEmpty() == false) {
             throw new IllegalArgumentException("URL cannot have host. Found: [" + url.getHost() + ']');
         }
         if (url.getPort() != -1) {

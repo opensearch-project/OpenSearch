@@ -34,12 +34,13 @@ package org.opensearch.action.admin.indices.alias.get;
 
 import org.opensearch.action.ActionResponse;
 import org.opensearch.cluster.metadata.AliasMetadata;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -49,18 +50,18 @@ import java.util.Objects;
  */
 public class GetAliasesResponse extends ActionResponse {
 
-    private final ImmutableOpenMap<String, List<AliasMetadata>> aliases;
+    private final Map<String, List<AliasMetadata>> aliases;
 
-    public GetAliasesResponse(ImmutableOpenMap<String, List<AliasMetadata>> aliases) {
-        this.aliases = aliases;
+    public GetAliasesResponse(final Map<String, List<AliasMetadata>> aliases) {
+        this.aliases = Collections.unmodifiableMap(aliases);
     }
 
     public GetAliasesResponse(StreamInput in) throws IOException {
         super(in);
-        aliases = in.readImmutableMap(StreamInput::readString, i -> i.readList(AliasMetadata::new));
+        aliases = in.readMap(StreamInput::readString, i -> i.readList(AliasMetadata::new));
     }
 
-    public ImmutableOpenMap<String, List<AliasMetadata>> getAliases() {
+    public Map<String, List<AliasMetadata>> getAliases() {
         return aliases;
     }
 

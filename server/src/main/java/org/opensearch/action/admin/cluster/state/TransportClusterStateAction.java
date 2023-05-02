@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.cluster.state;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
@@ -222,9 +221,9 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
         builder.metadata(mdBuilder);
 
         if (request.customs()) {
-            for (ObjectObjectCursor<String, ClusterState.Custom> custom : currentState.customs()) {
-                if (custom.value.isPrivate() == false) {
-                    builder.putCustom(custom.key, custom.value);
+            for (final Map.Entry<String, ClusterState.Custom> custom : currentState.customs().entrySet()) {
+                if (custom.getValue().isPrivate() == false) {
+                    builder.putCustom(custom.getKey(), custom.getValue());
                 }
             }
         }

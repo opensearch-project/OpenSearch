@@ -44,7 +44,6 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
@@ -55,6 +54,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -66,7 +66,7 @@ public class SnapshotsServiceTests extends OpenSearchTestCase {
     public void testNoopShardStateUpdates() throws Exception {
         final String repoName = "test-repo";
         final Snapshot snapshot = snapshot(repoName, "snapshot-1");
-        final SnapshotsInProgress.Entry snapshotNoShards = snapshotEntry(snapshot, Collections.emptyList(), ImmutableOpenMap.of());
+        final SnapshotsInProgress.Entry snapshotNoShards = snapshotEntry(snapshot, Collections.emptyList(), Map.of());
 
         final String indexName1 = "index-1";
         final ShardId shardId1 = new ShardId(index(indexName1), 0);
@@ -128,7 +128,7 @@ public class SnapshotsServiceTests extends OpenSearchTestCase {
         final SnapshotsInProgress.Entry snapshotSingleShard = snapshotEntry(
             sn1,
             Collections.singletonList(indexId1),
-            ImmutableOpenMap.builder(shardsMap(shardId1, shardInitStatus)).fPut(shardId2, shardInitStatus).build()
+            Map.of(shardId1, shardInitStatus, shardId2, shardInitStatus)
         );
 
         assertThat(snapshotSingleShard.state(), is(SnapshotsInProgress.State.STARTED));
@@ -178,7 +178,7 @@ public class SnapshotsServiceTests extends OpenSearchTestCase {
         final SnapshotsInProgress.Entry cloneMultipleShards = cloneEntry(
             targetSnapshot,
             sourceSnapshot.getSnapshotId(),
-            ImmutableOpenMap.builder(clonesMap(shardId1, shardInitStatus)).fPut(shardId2, shardInitStatus).build()
+            Map.of(shardId1, shardInitStatus, shardId2, shardInitStatus)
         );
 
         assertThat(cloneMultipleShards.state(), is(SnapshotsInProgress.State.STARTED));
@@ -408,18 +408,18 @@ public class SnapshotsServiceTests extends OpenSearchTestCase {
         return DiscoveryNodes.builder().localNodeId(localNodeId).build();
     }
 
-    private static ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardsMap(
+    private static Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardsMap(
         ShardId shardId,
         SnapshotsInProgress.ShardSnapshotStatus shardStatus
     ) {
-        return ImmutableOpenMap.<ShardId, SnapshotsInProgress.ShardSnapshotStatus>builder().fPut(shardId, shardStatus).build();
+        return Map.of(shardId, shardStatus);
     }
 
-    private static ImmutableOpenMap<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> clonesMap(
+    private static Map<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> clonesMap(
         RepositoryShardId shardId,
         SnapshotsInProgress.ShardSnapshotStatus shardStatus
     ) {
-        return ImmutableOpenMap.<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus>builder().fPut(shardId, shardStatus).build();
+        return Map.of(shardId, shardStatus);
     }
 
     private static SnapshotsService.ShardSnapshotUpdate successUpdate(Snapshot snapshot, ShardId shardId, String nodeId) {
@@ -472,7 +472,7 @@ public class SnapshotsServiceTests extends OpenSearchTestCase {
     private static SnapshotsInProgress.Entry snapshotEntry(
         Snapshot snapshot,
         List<IndexId> indexIds,
-        ImmutableOpenMap<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards
+        final Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards
     ) {
         return SnapshotsInProgress.startedEntry(
             snapshot,
@@ -491,10 +491,10 @@ public class SnapshotsServiceTests extends OpenSearchTestCase {
     private static SnapshotsInProgress.Entry cloneEntry(
         Snapshot snapshot,
         SnapshotId source,
-        ImmutableOpenMap<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> clones
+        final Map<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> clones
     ) {
-        final List<IndexId> indexIds = StreamSupport.stream(clones.keys().spliterator(), false)
-            .map(k -> k.value.index())
+        final List<IndexId> indexIds = StreamSupport.stream(clones.keySet().spliterator(), false)
+            .map(k -> k.index())
             .distinct()
             .collect(Collectors.toList());
         return SnapshotsInProgress.startClone(snapshot, source, indexIds, 1L, randomNonNegativeLong(), Version.CURRENT).withClones(clones);

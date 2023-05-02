@@ -37,7 +37,6 @@ import org.opensearch.action.admin.indices.alias.get.GetAliasesResponseTests;
 import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponseTests;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
@@ -63,10 +62,10 @@ public class GetIndexResponseTests extends AbstractWireSerializingTestCase<GetIn
     protected GetIndexResponse createTestInstance() {
         String[] indices = generateRandomStringArray(5, 5, false, false);
         final Map<String, MappingMetadata> mappings = new HashMap<>();
-        ImmutableOpenMap.Builder<String, List<AliasMetadata>> aliases = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, Settings> settings = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, Settings> defaultSettings = ImmutableOpenMap.builder();
-        ImmutableOpenMap.Builder<String, String> dataStreams = ImmutableOpenMap.builder();
+        final Map<String, List<AliasMetadata>> aliases = new HashMap<>();
+        Map<String, Settings> settings = new HashMap<>();
+        Map<String, Settings> defaultSettings = new HashMap<>();
+        Map<String, String> dataStreams = new HashMap<>();
         IndexScopedSettings indexScopedSettings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS;
         boolean includeDefaults = randomBoolean();
         for (String index : indices) {
@@ -92,6 +91,6 @@ public class GetIndexResponseTests extends AbstractWireSerializingTestCase<GetIn
                 dataStreams.put(index, randomAlphaOfLength(5).toLowerCase(Locale.ROOT));
             }
         }
-        return new GetIndexResponse(indices, mappings, aliases.build(), settings.build(), defaultSettings.build(), dataStreams.build());
+        return new GetIndexResponse(indices, mappings, aliases, settings, defaultSettings, dataStreams);
     }
 }

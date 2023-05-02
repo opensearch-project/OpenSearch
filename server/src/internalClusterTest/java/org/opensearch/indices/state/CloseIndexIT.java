@@ -462,7 +462,7 @@ public class CloseIndexIT extends OpenSearchIntegTestCase {
         internalCluster().ensureAtLeastNumDataNodes(2);
         List<String> dataNodes = randomSubsetOf(
             2,
-            Sets.newHashSet(clusterService().state().nodes().getDataNodes().valuesIt())
+            Sets.newHashSet(clusterService().state().nodes().getDataNodes().values().iterator())
                 .stream()
                 .map(DiscoveryNode::getName)
                 .collect(Collectors.toSet())
