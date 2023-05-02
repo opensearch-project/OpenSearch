@@ -33,7 +33,7 @@ public class CompressionHelper {
      * @param streamBooleanFlag flag used at receiver end to make intelligent decisions. For example, ClusterState
      *                          assumes full state of diff of the states based on this flag.
      * @return reference to serialized bytes
-     * @throws IOException
+     * @throws IOException if writing on the compressed stream is failed.
      */
     public static BytesReference serializedWrite(Writeable writer, Version nodeVersion, boolean streamBooleanFlag) throws IOException {
         final BytesStreamOutput bStream = new BytesStreamOutput();
@@ -43,11 +43,7 @@ public class CompressionHelper {
             writer.writeTo(stream);
         }
         final BytesReference serializedByteRef = bStream.bytes();
-        logger.trace(
-                "serialized writable object for node version [{}] with size [{}]",
-                nodeVersion,
-                serializedByteRef.length()
-        );
+        logger.trace("serialized writable object for node version [{}] with size [{}]", nodeVersion, serializedByteRef.length());
         return serializedByteRef;
     }
 }

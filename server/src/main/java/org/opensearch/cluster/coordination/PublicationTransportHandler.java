@@ -310,8 +310,7 @@ public class PublicationTransportHandler {
                 try {
                     if (sendFullVersion || previousState.nodes().nodeExists(node) == false) {
                         if (serializedStates.containsKey(node.getVersion()) == false) {
-                            serializedStates.put(node.getVersion(), CompressionHelper.serializedWrite(newState,
-                                node.getVersion(), true));
+                            serializedStates.put(node.getVersion(), CompressionHelper.serializedWrite(newState, node.getVersion(), true));
                         }
                     } else {
                         // will send a diff
@@ -319,8 +318,7 @@ public class PublicationTransportHandler {
                             diff = newState.diff(previousState);
                         }
                         if (serializedDiffs.containsKey(node.getVersion()) == false) {
-                            final BytesReference serializedDiff = CompressionHelper.serializedWrite(newState,
-                                node.getVersion(), false);
+                            final BytesReference serializedDiff = CompressionHelper.serializedWrite(newState, node.getVersion(), false);
                             serializedDiffs.put(node.getVersion(), serializedDiff);
                             logger.trace(
                                 "serialized cluster state diff for version [{}] in for node version [{}] with size [{}]",

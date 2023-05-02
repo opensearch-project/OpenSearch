@@ -88,7 +88,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -239,9 +238,11 @@ public class JoinHelper {
         );
     }
 
-    private void handleValidateJoinRequest(Supplier<ClusterState> currentStateSupplier,
-                                           Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators,
-                                           BytesTransportRequest request) throws IOException {
+    private void handleValidateJoinRequest(
+        Supplier<ClusterState> currentStateSupplier,
+        Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators,
+        BytesTransportRequest request
+    ) throws IOException {
         final Compressor compressor = CompressorFactory.compressor(request.bytes());
         StreamInput in = request.bytes().streamInput();
         final ClusterState incomingState;
@@ -467,16 +468,11 @@ public class JoinHelper {
             if (bytes == null || (System.currentTimeMillis() >= lastRefreshTime + clusterStateRefreshInterval)) {
                 try {
                     // Re-getting current cluster state for validate join request
-                    bytes = CompressionHelper.serializedWrite(state,
-                        node.getVersion(), true);
+                    bytes = CompressionHelper.serializedWrite(state, node.getVersion(), true);
                     serializedStates.put(node.getVersion(), bytes);
                     lastRefreshTime = System.currentTimeMillis();
                 } catch (Exception e) {
-                    logger.warn(
-                        () -> new ParameterizedMessage("failed to serialize cluster state during validateJoin" +
-                            " {}", node),
-                        e
-                    );
+                    logger.warn(() -> new ParameterizedMessage("failed to serialize cluster state during validateJoin" + " {}", node), e);
                     listener.onFailure(e);
                     return;
                 }

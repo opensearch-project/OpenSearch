@@ -231,10 +231,16 @@ public class JoinHelperTests extends OpenSearchTestCase {
         );
         new JoinHelper(Settings.EMPTY, null, null, transportService, () -> 0L, () -> localClusterState, (joinRequest, joinCallback) -> {
             throw new AssertionError();
-        }, startJoinRequest -> { throw new AssertionError(); }, Collections.emptyList(), (s, p, r) -> {}, null,
-            nodeCommissioned -> {}, namedWriteableRegistry); // registers
-                                                                                                                                         // request
-                                                                                                                                         // handler
+        },
+            startJoinRequest -> { throw new AssertionError(); },
+            Collections.emptyList(),
+            (s, p, r) -> {},
+            null,
+            nodeCommissioned -> {},
+            namedWriteableRegistry
+        ); // registers
+           // request
+           // handler
         transportService.start();
         transportService.acceptIncomingRequests();
 
