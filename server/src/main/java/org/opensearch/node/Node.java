@@ -462,7 +462,7 @@ public class Node implements Closeable {
                 logger.info("Identity on so found plugins implementing: " + pluginsService.filterPlugins(IdentityPlugin.class).toString());
                 identityPlugins.addAll(pluginsService.filterPlugins(IdentityPlugin.class));
             }
-            logger.info("Creating identity service in Node.java with identity plugins: " + identityPlugins.toString());
+
             final IdentityService identityService = new IdentityService(settings, identityPlugins);
 
             if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
