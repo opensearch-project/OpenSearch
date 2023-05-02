@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.network.NetworkService.CustomNameResolver;
 import org.opensearch.common.util.io.IOUtils;
+import software.amazon.awssdk.core.SdkSystemSetting;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -46,6 +47,7 @@ import java.net.InetAddress;
 import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 
 /**
  * Resolves certain ec2 related 'meta' hostnames into an actual hostname
@@ -102,25 +104,30 @@ class Ec2NameResolver implements CustomNameResolver {
     @SuppressForbidden(reason = "We call getInputStream in doPrivileged and provide SocketPermission")
     public InetAddress[] resolve(Ec2HostnameType type) throws IOException {
         InputStream in = null;
-        String metadataUrl = "TODO"; // EC2MetadataUtils.getHostAddressForEC2MetadataService() + "/latest/meta-data/" + type.ec2Name;
-        try {
-            URL url = new URL(metadataUrl);
-            logger.debug("obtaining ec2 hostname from ec2 meta-data url {}", url);
-            URLConnection urlConnection = SocketAccess.doPrivilegedIOException(url::openConnection);
-            urlConnection.setConnectTimeout(2000);
-            in = SocketAccess.doPrivilegedIOException(urlConnection::getInputStream);
-            BufferedReader urlReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
+        Optional<String> ec2MetadataServiceEndpoint = SdkSystemSetting.AWS_EC2_METADATA_SERVICE_ENDPOINT.getStringValue();
+        if (ec2MetadataServiceEndpoint.isPresent()) {
+            String metadataUrl = ec2MetadataServiceEndpoint.get() + "/latest/meta-data/" + type.ec2Name;
+            try {
+                URL url = new URL(metadataUrl);
+                logger.debug("obtaining ec2 hostname from ec2 meta-data url {}", url);
+                URLConnection urlConnection = SocketAccess.doPrivilegedIOException(url::openConnection);
+                urlConnection.setConnectTimeout(2000);
+                in = SocketAccess.doPrivilegedIOException(urlConnection::getInputStream);
+                BufferedReader urlReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
 
-            String metadataResult = urlReader.readLine();
-            if (metadataResult == null || metadataResult.length() == 0) {
-                throw new IOException("no gce metadata returned from [" + url + "] for [" + type.configName + "]");
+                String metadataResult = urlReader.readLine();
+                if (metadataResult == null || metadataResult.length() == 0) {
+                    throw new IOException("no gce metadata returned from [" + url + "] for [" + type.configName + "]");
+                }
+                // only one address: because we explicitly ask for only one via the Ec2HostnameType
+                return new InetAddress[]{InetAddress.getByName(metadataResult)};
+            } catch (IOException e) {
+                throw new IOException("IOException caught when fetching InetAddress from [" + metadataUrl + "]", e);
+            } finally {
+                IOUtils.closeWhileHandlingException(in);
             }
-            // only one address: because we explicitly ask for only one via the Ec2HostnameType
-            return new InetAddress[] { InetAddress.getByName(metadataResult) };
-        } catch (IOException e) {
-            throw new IOException("IOException caught when fetching InetAddress from [" + metadataUrl + "]", e);
-        } finally {
-            IOUtils.closeWhileHandlingException(in);
+        } else {
+            throw new IOException("Missing ec2 meta-data url (AWS_EC2_METADATA_SERVICE_ENDPOINT)");
         }
     }
 
