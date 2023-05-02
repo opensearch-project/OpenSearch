@@ -55,7 +55,7 @@ public class RemoteRefreshSegmentTracker {
     /**
      * Keeps the seq no lag computed so that we do not compute it for every request.
      */
-    private volatile long seqNoLag;
+    private volatile long refreshSeqNoLag;
 
     /**
      * Keeps the time (ms) lag computed so that we do not compute it for every request.
@@ -180,7 +180,7 @@ public class RemoteRefreshSegmentTracker {
             + "currentLocalRefreshSeqNo="
             + this.localRefreshSeqNo;
         this.localRefreshSeqNo = localRefreshSeqNo;
-        computeSeqNoLag();
+        computeRefreshSeqNoLag();
     }
 
     long getLocalRefreshTimeMs() {
@@ -208,7 +208,7 @@ public class RemoteRefreshSegmentTracker {
             + "currentRemoteRefreshSeqNo="
             + this.remoteRefreshSeqNo;
         this.remoteRefreshSeqNo = remoteRefreshSeqNo;
-        computeSeqNoLag();
+        computeRefreshSeqNoLag();
     }
 
     long getRemoteRefreshTimeMs() {
@@ -225,12 +225,12 @@ public class RemoteRefreshSegmentTracker {
         computeTimeMsLag();
     }
 
-    private void computeSeqNoLag() {
-        seqNoLag = localRefreshSeqNo - remoteRefreshSeqNo;
+    private void computeRefreshSeqNoLag() {
+        refreshSeqNoLag = localRefreshSeqNo - remoteRefreshSeqNo;
     }
 
-    long getSeqNoLag() {
-        return seqNoLag;
+    long getRefreshSeqNoLag() {
+        return refreshSeqNoLag;
     }
 
     private void computeTimeMsLag() {

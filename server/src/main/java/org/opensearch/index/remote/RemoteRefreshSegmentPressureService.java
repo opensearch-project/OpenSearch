@@ -107,7 +107,7 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
         RemoteRefreshSegmentTracker remoteRefreshSegmentTracker = getRemoteRefreshSegmentTracker(shardId);
         // Check if refresh checkpoint (a.k.a. seq number) lag is 2 or below - this is to handle segment merges that can
         // increase the bytes to upload almost suddenly.
-        if (remoteRefreshSegmentTracker.getSeqNoLag() <= 1) {
+        if (remoteRefreshSegmentTracker.getRefreshSeqNoLag() <= 1) {
             return;
         }
 
@@ -162,9 +162,7 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
          *
          * @return the name using class name.
          */
-        final String name() {
-            return this.getClass().getSimpleName();
-        }
+        abstract String name();
 
         abstract String rejectionMessage(RemoteRefreshSegmentTracker pressureTracker, ShardId shardId);
     }
@@ -176,6 +174,8 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
      */
     private static class RefreshSeqNoLagValidator extends LagValidator {
 
+        private static final String NAME = "refresh_seq_no_lag";
+
         private RefreshSeqNoLagValidator(RemoteRefreshSegmentPressureSettings pressureSettings) {
             super(pressureSettings);
         }
@@ -183,7 +183,7 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
         @Override
         public boolean validate(RemoteRefreshSegmentTracker pressureTracker, ShardId shardId) {
             // Check if the remote store seq no lag is above the min seq no lag limit
-            return pressureTracker.getSeqNoLag() <= pressureSettings.getMinSeqNoLagLimit();
+            return pressureTracker.getRefreshSeqNoLag() <= pressureSettings.getMinRefreshSeqNoLagLimit();
         }
 
         @Override
@@ -197,6 +197,11 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
                 pressureTracker.getLocalRefreshSeqNo()
             );
         }
+
+        @Override
+        String name() {
+            return NAME;
+        }
     }
 
     /**
@@ -205,6 +210,8 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
      * @opensearch.internal
      */
     private static class BytesLagValidator extends LagValidator {
+
+        private static final String NAME = "bytes_lag";
 
         private BytesLagValidator(RemoteRefreshSegmentPressureSettings pressureSettings) {
             super(pressureSettings);
@@ -233,6 +240,11 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
                 dynamicBytesLagThreshold
             );
         }
+
+        @Override
+        String name() {
+            return NAME;
+        }
     }
 
     /**
@@ -241,6 +253,8 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
      * @opensearch.internal
      */
     private static class TimeLagValidator extends LagValidator {
+
+        private static final String NAME = "time_lag";
 
         private TimeLagValidator(RemoteRefreshSegmentPressureSettings pressureSettings) {
             super(pressureSettings);
@@ -269,6 +283,11 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
                 dynamicTimeLagThreshold
             );
         }
+
+        @Override
+        String name() {
+            return NAME;
+        }
     }
 
     /**
@@ -277,6 +296,8 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
      * @opensearch.internal
      */
     private static class ConsecutiveFailureValidator extends LagValidator {
+
+        private static final String NAME = "consecutive_failures_lag";
 
         private ConsecutiveFailureValidator(RemoteRefreshSegmentPressureSettings pressureSettings) {
             super(pressureSettings);
@@ -299,6 +320,11 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
                 pressureTracker.getConsecutiveFailureCount(),
                 pressureSettings.getMinConsecutiveFailuresLimit()
             );
+        }
+
+        @Override
+        String name() {
+            return NAME;
         }
     }
 }

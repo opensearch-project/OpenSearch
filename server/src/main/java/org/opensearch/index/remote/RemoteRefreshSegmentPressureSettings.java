@@ -99,7 +99,7 @@ public class RemoteRefreshSegmentPressureSettings {
 
     private volatile boolean remoteRefreshSegmentPressureEnabled;
 
-    private volatile long minSeqNoLagLimit;
+    private volatile long minRefreshSeqNoLagLimit;
 
     private volatile double bytesLagVarianceFactor;
 
@@ -123,8 +123,8 @@ public class RemoteRefreshSegmentPressureSettings {
         this.remoteRefreshSegmentPressureEnabled = REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED.get(settings);
         clusterSettings.addSettingsUpdateConsumer(REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED, this::setRemoteRefreshSegmentPressureEnabled);
 
-        this.minSeqNoLagLimit = MIN_SEQ_NO_LAG_LIMIT.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(MIN_SEQ_NO_LAG_LIMIT, this::setMinSeqNoLagLimit);
+        this.minRefreshSeqNoLagLimit = MIN_SEQ_NO_LAG_LIMIT.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(MIN_SEQ_NO_LAG_LIMIT, this::setMinRefreshSeqNoLagLimit);
 
         this.bytesLagVarianceFactor = BYTES_LAG_VARIANCE_FACTOR.get(settings);
         clusterSettings.addSettingsUpdateConsumer(BYTES_LAG_VARIANCE_FACTOR, this::setBytesLagVarianceFactor);
@@ -168,12 +168,12 @@ public class RemoteRefreshSegmentPressureSettings {
         this.remoteRefreshSegmentPressureEnabled = remoteRefreshSegmentPressureEnabled;
     }
 
-    public long getMinSeqNoLagLimit() {
-        return minSeqNoLagLimit;
+    public long getMinRefreshSeqNoLagLimit() {
+        return minRefreshSeqNoLagLimit;
     }
 
-    public void setMinSeqNoLagLimit(long minSeqNoLagLimit) {
-        this.minSeqNoLagLimit = minSeqNoLagLimit;
+    public void setMinRefreshSeqNoLagLimit(long minRefreshSeqNoLagLimit) {
+        this.minRefreshSeqNoLagLimit = minRefreshSeqNoLagLimit;
     }
 
     public double getBytesLagVarianceFactor() {

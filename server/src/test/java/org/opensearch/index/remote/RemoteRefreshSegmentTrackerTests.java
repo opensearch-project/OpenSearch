@@ -124,9 +124,9 @@ public class RemoteRefreshSegmentTrackerTests extends OpenSearchTestCase {
         int localRefreshSeqNo = randomIntBetween(50, 100);
         int remoteRefreshSeqNo = randomIntBetween(20, 50);
         pressureTracker.updateLocalRefreshSeqNo(localRefreshSeqNo);
-        assertEquals(localRefreshSeqNo, pressureTracker.getSeqNoLag());
+        assertEquals(localRefreshSeqNo, pressureTracker.getRefreshSeqNoLag());
         pressureTracker.updateRemoteRefreshSeqNo(remoteRefreshSeqNo);
-        assertEquals(localRefreshSeqNo - remoteRefreshSeqNo, pressureTracker.getSeqNoLag());
+        assertEquals(localRefreshSeqNo - remoteRefreshSeqNo, pressureTracker.getRefreshSeqNoLag());
     }
 
     public void testComputeTimeLagOnUpdate() {

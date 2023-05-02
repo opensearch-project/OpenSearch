@@ -55,7 +55,7 @@ public class RemoteRefreshSegmentPressureSettingsTests extends OpenSearchTestCas
         assertFalse(pressureSettings.isRemoteRefreshSegmentPressureEnabled());
 
         // Check min sequence number lag limit default value
-        assertEquals(5L, pressureSettings.getMinSeqNoLagLimit());
+        assertEquals(5L, pressureSettings.getMinRefreshSeqNoLagLimit());
 
         // Check bytes lag variance threshold default value
         assertEquals(2.0, pressureSettings.getBytesLagVarianceFactor(), 0.0d);
@@ -97,7 +97,7 @@ public class RemoteRefreshSegmentPressureSettingsTests extends OpenSearchTestCas
         assertTrue(pressureSettings.isRemoteRefreshSegmentPressureEnabled());
 
         // Check min sequence number lag limit configured value
-        assertEquals(100L, pressureSettings.getMinSeqNoLagLimit());
+        assertEquals(100L, pressureSettings.getMinRefreshSeqNoLagLimit());
 
         // Check bytes lag variance threshold configured value
         assertEquals(50.0, pressureSettings.getBytesLagVarianceFactor(), 0.0d);
@@ -141,7 +141,7 @@ public class RemoteRefreshSegmentPressureSettingsTests extends OpenSearchTestCas
         assertTrue(pressureSettings.isRemoteRefreshSegmentPressureEnabled());
 
         // Check min sequence number lag limit
-        assertEquals(100L, pressureSettings.getMinSeqNoLagLimit());
+        assertEquals(100L, pressureSettings.getMinRefreshSeqNoLagLimit());
 
         // Check bytes lag variance threshold updated
         assertEquals(50.0, pressureSettings.getBytesLagVarianceFactor(), 0.0d);
@@ -195,7 +195,7 @@ public class RemoteRefreshSegmentPressureSettingsTests extends OpenSearchTestCas
         assertTrue(pressureSettings.isRemoteRefreshSegmentPressureEnabled());
 
         // Check min sequence number lag limit
-        assertEquals(80L, pressureSettings.getMinSeqNoLagLimit());
+        assertEquals(80L, pressureSettings.getMinRefreshSeqNoLagLimit());
 
         // Check bytes lag variance threshold updated
         assertEquals(40.0, pressureSettings.getBytesLagVarianceFactor(), 0.0d);
