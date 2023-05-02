@@ -12,6 +12,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Bump `json-smart` from 2.4.7 to 2.4.11 in plugins/repository-hdfs/ ([#8160](https://github.com/opensearch-project/OpenSearch/pull/8160))
 - Bump `netty` from 4.1.93.Final to 4.1.94.Final ([#8191](https://github.com/opensearch-project/OpenSearch/pull/8191))
 - Update nebula-publishing-plugin to 19.2.0 ([#5704](https://github.com/opensearch-project/OpenSearch/pull/5704))
+- Bump `gradle.plugin.com.github.johnrengelman:shadow` from 7.1.2 to 8.0.0
 
 ### Changed
 
