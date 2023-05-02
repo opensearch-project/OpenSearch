@@ -96,7 +96,7 @@ public class Ec2NetworkTests extends OpenSearchTestCase {
         // redirect EC2 metadata service to httpServer
         AccessController.doPrivileged(
             (PrivilegedAction<String>) () -> System.setProperty(
-                "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride",
+                "aws.ec2MetadataServiceEndpoint",
                 "http://" + httpServer.getAddress().getHostName() + ":" + httpServer.getAddress().getPort()
             )
         );
@@ -121,7 +121,7 @@ public class Ec2NetworkTests extends OpenSearchTestCase {
     public void testNetworkHostUnableToResolveEc2() {
         // redirect EC2 metadata service to unknown location
         AccessController.doPrivileged(
-            (PrivilegedAction<String>) () -> System.setProperty("com.amazonaws.sdk.ec2MetadataServiceEndpointOverride", "http://127.0.0.1/")
+            (PrivilegedAction<String>) () -> System.setProperty("aws.ec2MetadataServiceEndpoint", "http://127.0.0.1/")
         );
 
         try {
