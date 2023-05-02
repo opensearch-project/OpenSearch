@@ -47,6 +47,8 @@ dependencies {
   api "software.amazon.awssdk:http-client-spi:${versions.aws}"
   api "software.amazon.awssdk:apache-client:${versions.aws}"
   api "software.amazon.awssdk:regions:${versions.aws}"
+  api "software.amazon.awssdk:profiles:${versions.aws}"
+  api "software.amazon.awssdk:endpoints-spi:${versions.aws}"
   api "org.apache.httpcomponents:httpclient:${versions.httpclient}"
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
@@ -148,22 +150,12 @@ tasks.named("thirdPartyAudit").configure {
     'org.slf4j.impl.StaticLoggerBinder',
     'org.slf4j.impl.StaticMDCBinder',
     'org.slf4j.impl.StaticMarkerBinder',
-    'software.amazon.awssdk.endpoints.Endpoint',
-    'software.amazon.awssdk.endpoints.Endpoint$Builder',
-    'software.amazon.awssdk.endpoints.EndpointAttributeKey',
-    'software.amazon.awssdk.endpoints.EndpointProvider',
     'software.amazon.awssdk.metrics.MetricCategory',
     'software.amazon.awssdk.metrics.MetricCollector',
     'software.amazon.awssdk.metrics.MetricLevel',
     'software.amazon.awssdk.metrics.MetricPublisher',
     'software.amazon.awssdk.metrics.NoOpMetricCollector',
     'software.amazon.awssdk.metrics.SdkMetric',
-    'software.amazon.awssdk.profiles.Profile',
-    'software.amazon.awssdk.profiles.ProfileFile',
-    'software.amazon.awssdk.profiles.ProfileFile$Builder',
-    'software.amazon.awssdk.profiles.ProfileFileSupplier',
-    'software.amazon.awssdk.profiles.ProfileFileSystemSetting',
-    'software.amazon.awssdk.profiles.internal.ProfileSection',
     'software.amazon.awssdk.protocols.core.OperationInfo',
     'software.amazon.awssdk.protocols.core.OperationInfo$Builder',
     'software.amazon.awssdk.protocols.core.ProtocolMarshaller',

@@ -120,7 +120,7 @@ class Ec2NameResolver implements CustomNameResolver {
                     throw new IOException("no gce metadata returned from [" + url + "] for [" + type.configName + "]");
                 }
                 // only one address: because we explicitly ask for only one via the Ec2HostnameType
-                return new InetAddress[]{InetAddress.getByName(metadataResult)};
+                return new InetAddress[] { InetAddress.getByName(metadataResult) };
             } catch (IOException e) {
                 throw new IOException("IOException caught when fetching InetAddress from [" + metadataUrl + "]", e);
             } finally {
