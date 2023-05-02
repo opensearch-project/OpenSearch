@@ -32,11 +32,12 @@
 
 package org.opensearch.discovery.ec2;
 
-import software.amazon.awssdk.awscore.AwsServiceClientConfiguration;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.services.ec2.Ec2Client;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
@@ -205,8 +206,14 @@ public class Ec2DiscoveryPluginTests extends OpenSearchTestCase {
 
         Ec2DiscoveryPluginMock(Settings settings) {
             super(settings, new AwsEc2ServiceImpl() {
-                Ec2Client buildClient(AwsCredentialsProvider credentials, AwsServiceClientConfiguration configuration, String endpoint) {
-                    return new MockEc2Client(credentials, configuration, endpoint);
+                @Override
+                protected Ec2Client buildClient(
+                    AwsCredentialsProvider credentials,
+                    ApacheHttpClient.Builder apacheHttpClientBuilder,
+                    ClientOverrideConfiguration overrideConfiguration,
+                    String endpoint
+                ) {
+                    return new MockEc2Client(credentials, apacheHttpClientBuilder, overrideConfiguration, endpoint);
                 }
             });
         }
@@ -216,11 +223,18 @@ public class Ec2DiscoveryPluginTests extends OpenSearchTestCase {
 
         String endpoint;
         final AwsCredentialsProvider credentials;
-        final AwsServiceClientConfiguration configuration;
+        final ApacheHttpClient.Builder apacheHttpClientBuilder;
+        final ClientOverrideConfiguration clientOverrideConfiguration;
 
-        MockEc2Client(AwsCredentialsProvider credentials, AwsServiceClientConfiguration configuration, String endpoint) {
+        MockEc2Client(
+            AwsCredentialsProvider credentials,
+            ApacheHttpClient.Builder apacheHttpClientBuilder,
+            ClientOverrideConfiguration clientOverrideConfiguration,
+            String endpoint
+        ) {
             this.credentials = credentials;
-            this.configuration = configuration;
+            this.apacheHttpClientBuilder = apacheHttpClientBuilder;
+            this.clientOverrideConfiguration = clientOverrideConfiguration;
             this.endpoint = endpoint;
         }
 

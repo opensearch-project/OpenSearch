@@ -45,6 +45,7 @@ import org.opensearch.common.unit.TimeValue;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
+import software.amazon.awssdk.core.Protocol;
 
 import java.util.Locale;
 
@@ -78,10 +79,10 @@ final class Ec2ClientSettings {
 
     /** The protocol to use to connect to ec2. */
     // TODO: AWS SDKv2 only enables HTTPs, deprecate
-    static final Setting<String> PROTOCOL_SETTING = new Setting<>(
+    static final Setting<Protocol> PROTOCOL_SETTING = new Setting<>(
         "discovery.ec2.protocol",
         "https",
-        s -> s.toUpperCase(Locale.ROOT),
+        s -> Protocol.valueOf(s.toUpperCase(Locale.ROOT)),
         Property.NodeScope
     );
 
@@ -112,7 +113,7 @@ final class Ec2ClientSettings {
     final String endpoint;
 
     /** The protocol to use to talk to ec2. Defaults to https. */
-    final String protocol;
+    final Protocol protocol;
 
     /** An optional proxy host that requests to ec2 should be made through. */
     final String proxyHost;
@@ -135,7 +136,7 @@ final class Ec2ClientSettings {
     protected Ec2ClientSettings(
         AwsCredentials credentials,
         String endpoint,
-        String protocol,
+        Protocol protocol,
         String proxyHost,
         int proxyPort,
         String proxyUsername,

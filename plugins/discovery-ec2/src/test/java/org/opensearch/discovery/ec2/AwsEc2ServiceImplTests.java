@@ -40,6 +40,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.test.OpenSearchTestCase;
 import software.amazon.awssdk.core.Protocol;
+import software.amazon.awssdk.core.retry.RetryPolicy;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
 
 import static org.hamcrest.Matchers.instanceOf;
@@ -124,21 +125,36 @@ public class AwsEc2ServiceImplTests extends OpenSearchTestCase {
     }
 
     public void testAWSDefaultConfiguration() {
-        testConfiguration(
-            Settings.EMPTY,
-            Protocol.HTTPS,
-            null,
-            -1,
-            null,
-            null,
-            50 * 1000
+        // proxy configuration
+        final ProxyConfiguration proxyConfiguration = AwsEc2ServiceImpl.buildProxyConfiguration(
+            logger,
+            Ec2ClientSettings.getClientSettings(Settings.EMPTY)
         );
+
+        assertNull(proxyConfiguration.scheme());
+        assertNull(proxyConfiguration.host());
+        assertThat(proxyConfiguration.port(), is(0));
+        assertNull(proxyConfiguration.username());
+        assertNull(proxyConfiguration.password());
+
+        // retry policy
+        RetryPolicy retryPolicyConfiguration = AwsEc2ServiceImpl.buildRetryPolicy(
+            logger,
+            Ec2ClientSettings.getClientSettings(Settings.EMPTY)
+        );
+
+        assertThat(retryPolicyConfiguration.numRetries(), is(10));
+
+        // TODO: AwsEc2ServiceImpl.buildCredentials(logger, Ec2ClientSettings.getClientSettings(Settings.EMPTY));
+        // TODO: AwsEc2ServiceImpl.buildOverrideConfiguration(logger, Ec2ClientSettings.getClientSettings(Settings.EMPTY));
+        // TODO: AwsEc2ServiceImpl.buildHttpClient(logger, Ec2ClientSettings.getClientSettings(Settings.EMPTY));
     }
 
     public void testAWSConfigurationWithAwsSettings() {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("discovery.ec2.proxy.username", "aws_proxy_username");
         secureSettings.setString("discovery.ec2.proxy.password", "aws_proxy_password");
+
         final Settings settings = Settings.builder()
             .put("discovery.ec2.protocol", "http")
             .put("discovery.ec2.proxy.host", "aws-proxy-host")
@@ -146,49 +162,26 @@ public class AwsEc2ServiceImplTests extends OpenSearchTestCase {
             .put("discovery.ec2.read_timeout", "10s")
             .setSecureSettings(secureSettings)
             .build();
-        testConfiguration(
-            settings,
-            Protocol.HTTP,
-            "aws-proxy-host",
-            8080,
-            "aws_proxy_username",
-            "aws_proxy_password",
-            10000
-        );
-    }
 
-    protected void testConfiguration(
-        Settings settings,
-        Protocol expectedProtocol,
-        String expectedProxyHost,
-        int expectedProxyPort,
-        String expectedProxyUsername,
-        String expectedProxyPassword,
-        int expectedReadTimeout
-    ) {
+        // proxy configuration
         final ProxyConfiguration proxyConfiguration = AwsEc2ServiceImpl.buildProxyConfiguration(
             logger,
             Ec2ClientSettings.getClientSettings(settings)
         );
 
-        if (proxyConfiguration != null) {
-            assertThat(proxyConfiguration.host(), is(expectedProxyHost));
-            assertThat(proxyConfiguration.port(), is(expectedProxyPort));
-            assertThat(proxyConfiguration.username(), is(expectedProxyUsername));
-            assertThat(proxyConfiguration.password(), is(expectedProxyPassword));
-        } else {
-            assertThat(null, is(expectedProxyHost));
-            assertThat(-1, is(expectedProxyPort));
-            assertThat(null, is(expectedProxyUsername));
-            assertThat(null, is(expectedProxyPassword));
-        }
+        assertThat(proxyConfiguration.scheme(), is(Protocol.HTTP.toString()));
+        assertThat(proxyConfiguration.host(), is("aws-proxy-host"));
+        assertThat(proxyConfiguration.port(), is(8080));
+        assertThat(proxyConfiguration.username(), is("aws_proxy_username"));
+        assertThat(proxyConfiguration.password(), is("aws_proxy_password"));
 
-        // final ApacheHttpClient.Builder clientBuilder = AwsEc2ServiceImpl.buildHttpClient(logger,
-        // Ec2ClientSettings.getClientSettings(settings));
+        // retry policy
+        RetryPolicy retryPolicyConfiguration = AwsEc2ServiceImpl.buildRetryPolicy(logger, Ec2ClientSettings.getClientSettings(settings));
 
-        // assertThat(configuration.getResponseMetadataCacheSize(), is(0));
-        // assertThat(configuration.getProtocol(), is(expectedProtocol));
-        // assertThat(configuration.getSocketTimeout(), is(expectedReadTimeout));
+        assertThat(retryPolicyConfiguration.numRetries(), is(10));
+
+        // TODO: AwsEc2ServiceImpl.buildCredentials(logger, Ec2ClientSettings.getClientSettings(settings));
+        // TODO: AwsEc2ServiceImpl.buildOverrideConfiguration(logger, Ec2ClientSettings.getClientSettings(settings));
+        // TODO: AwsEc2ServiceImpl.buildHttpClient(logger, Ec2ClientSettings.getClientSettings(settings));
     }
-
 }

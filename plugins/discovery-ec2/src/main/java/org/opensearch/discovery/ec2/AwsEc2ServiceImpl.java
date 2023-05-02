@@ -47,7 +47,9 @@ import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
 import software.amazon.awssdk.services.ec2.Ec2Client;
 import software.amazon.awssdk.services.ec2.Ec2ClientBuilder;
+import software.amazon.awssdk.core.retry.RetryPolicy;
 import java.util.concurrent.atomic.AtomicReference;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 
 class AwsEc2ServiceImpl implements AwsEc2Service {
 
@@ -59,22 +61,25 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
     private Ec2Client buildClient(Ec2ClientSettings clientSettings) {
         final AwsCredentialsProvider awsCredentialsProvider = buildCredentials(logger, clientSettings);
         final ApacheHttpClient.Builder clientBuilder = buildHttpClient(logger, clientSettings);
-        return buildClient(awsCredentialsProvider, clientBuilder, clientSettings.endpoint);
+        final ClientOverrideConfiguration overrideConfiguration = buildOverrideConfiguration(logger, clientSettings);
+        return buildClient(awsCredentialsProvider, clientBuilder, overrideConfiguration, clientSettings.endpoint);
     }
 
     // proxy for testing
     protected Ec2Client buildClient(
         AwsCredentialsProvider awsCredentialsProvider,
         ApacheHttpClient.Builder apacheHttpClientBuilder,
+        ClientOverrideConfiguration overrideConfiguration,
         String endpoint
     ) {
         Ec2ClientBuilder builder = Ec2Client.builder()
+            .overrideConfiguration(overrideConfiguration)
             .httpClientBuilder(apacheHttpClientBuilder)
             .credentialsProvider(awsCredentialsProvider);
 
         if (Strings.hasText(endpoint)) {
             logger.debug("using explicit ec2 endpoint [{}]", endpoint);
-            // TODO: builder.end(new AwsClientBuilder.EndpointConfiguration(endpoint, null));
+            builder.endpointOverride(URI.create(endpoint));
         }
         return SocketAccess.doPrivileged(builder::build);
     }
@@ -83,26 +88,33 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
         if (Strings.hasText(clientSettings.proxyHost)) {
             // TODO: remove this leniency, these settings should exist together and be validated
             return ProxyConfiguration.builder()
-                .endpoint(URI.create("https://" + clientSettings.proxyHost + ":" + clientSettings.proxyPort))
+                .endpoint(URI.create(clientSettings.protocol + "://" + clientSettings.proxyHost + ":" + clientSettings.proxyPort))
                 .username(clientSettings.proxyUsername)
                 .password(clientSettings.proxyPassword)
                 .build();
         } else {
-            return null;
+            return ProxyConfiguration.builder().build();
         }
     }
 
     // pkg private for tests
     static ApacheHttpClient.Builder buildHttpClient(Logger logger, Ec2ClientSettings clientSettings) {
-        // clientConfiguration.setProtocol(clientSettings.protocol);
-        // Increase the number of retries in case of 5xx API responses
-        // clientConfiguration.setMaxErrorRetry(10);
         return ApacheHttpClient.builder()
             .proxyConfiguration(buildProxyConfiguration(logger, clientSettings))
             .socketTimeout(Duration.ofMillis(clientSettings.readTimeoutMillis));
     }
 
+    static ClientOverrideConfiguration buildOverrideConfiguration(Logger logger, Ec2ClientSettings clientSettings) {
+        return ClientOverrideConfiguration.builder().retryPolicy(buildRetryPolicy(logger, clientSettings)).build();
+    }
+
     // pkg private for tests
+    static RetryPolicy buildRetryPolicy(Logger logger, Ec2ClientSettings clientSettings) {
+        // Increase the number of retries in case of 5xx API responses
+        RetryPolicy.Builder retryPolicy = RetryPolicy.builder().numRetries(10);
+        return retryPolicy.build();
+    }
+
     static AwsCredentialsProvider buildCredentials(Logger logger, Ec2ClientSettings clientSettings) {
         final AwsCredentials credentials = clientSettings.credentials;
         if (credentials == null) {
@@ -145,6 +157,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
     public void close() {
         final LazyInitializable<AmazonEc2ClientReference, OpenSearchException> clientReference = this.lazyClientReference.getAndSet(null);
         if (clientReference != null) {
+            clientReference.getOrCompute().get().close();
             clientReference.reset();
         }
     }
