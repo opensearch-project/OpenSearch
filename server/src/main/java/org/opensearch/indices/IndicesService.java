@@ -82,7 +82,6 @@ import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.iterable.Iterables;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
@@ -926,9 +925,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexModule.addIndexOperationListener(operationListener);
         }
         pluginsService.onIndexModule(indexModule);
-        if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-            extensionsManager.onIndexModule(indexModule);
-        }
+        extensionsManager.onIndexModule(indexModule);
         for (IndexEventListener listener : builtInListeners) {
             indexModule.addIndexEventListener(listener);
         }

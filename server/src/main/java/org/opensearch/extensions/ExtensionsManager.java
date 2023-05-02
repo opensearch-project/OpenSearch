@@ -19,6 +19,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
@@ -107,8 +108,7 @@ public class ExtensionsManager {
 
     private final Path extensionsPath;
     private ExtensionTransportActionsHandler extensionTransportActionsHandler;
-    // A list of initialized extensions, a subset of the values of map below which includes all extensions
-    private List<DiscoveryExtensionNode> extensions;
+    private Map<String, DiscoveryExtensionNode> initializedExtensions;
     private Map<String, DiscoveryExtensionNode> extensionIdMap;
     private RestActionsRequestHandler restActionsRequestHandler;
     private CustomSettingsRequestHandler customSettingsRequestHandler;
@@ -118,21 +118,16 @@ public class ExtensionsManager {
     private AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler;
     private NodeClient client;
 
-    public ExtensionsManager() {
-        this.extensionsPath = Path.of("");
-    }
-
     /**
      * Instantiate a new ExtensionsManager object to handle requests and responses from extensions. This is called during Node bootstrap.
      *
-     * @param settings  Settings from the node the orchestrator is running on.
      * @param extensionsPath  Path to a directory containing extensions.
      * @throws IOException  If the extensions discovery file is not properly retrieved.
      */
-    public ExtensionsManager(Settings settings, Path extensionsPath) throws IOException {
+    public ExtensionsManager(Path extensionsPath) throws IOException {
         logger.info("ExtensionsManager initialized");
         this.extensionsPath = extensionsPath;
-        this.extensions = new ArrayList<DiscoveryExtensionNode>();
+        this.initializedExtensions = new HashMap<String, DiscoveryExtensionNode>();
         this.extensionIdMap = new HashMap<String, DiscoveryExtensionNode>();
         // will be initialized in initializeServicesAndRestHandler which is called after the Node is initialized
         this.transportService = null;
@@ -185,6 +180,16 @@ public class ExtensionsManager {
             this
         );
         registerRequestHandler();
+    }
+
+    /**
+     * Lookup an initialized extension by its unique id
+     *
+     * @param extensionId The unique extension identifier
+     * @return An optional of the DiscoveryExtensionNode instance for the matching extension
+     */
+    public Optional<DiscoveryExtensionNode> lookupInitializedExtensionById(final String extensionId) {
+        return Optional.ofNullable(this.initializedExtensions.get(extensionId));
     }
 
     /**
@@ -342,7 +347,7 @@ public class ExtensionsManager {
     }
 
     /**
-     * Iterate through all extensions and initialize them.  Initialized extensions will be added to the {@link #extensions}.
+     * Iterate through all extensions and initialize them.  Initialized extensions will be added to the {@link #initializedExtensions}.
      */
     public void initialize() {
         for (DiscoveryExtensionNode extension : extensionIdMap.values()) {
@@ -366,7 +371,7 @@ public class ExtensionsManager {
                 for (DiscoveryExtensionNode extension : extensionIdMap.values()) {
                     if (extension.getName().equals(response.getName())) {
                         extension.setImplementedInterfaces(response.getImplementedInterfaces());
-                        extensions.add(extension);
+                        initializedExtensions.put(extension.getId(), extension);
                         logger.info("Initialized extension: " + extension.getName());
                         break;
                     }
@@ -426,11 +431,17 @@ public class ExtensionsManager {
             case REQUEST_EXTENSION_DEPENDENCY_INFORMATION:
                 String uniqueId = extensionRequest.getUniqueId();
                 if (uniqueId == null) {
-                    return new ExtensionDependencyResponse(extensions);
+                    return new ExtensionDependencyResponse(
+                        initializedExtensions.entrySet().stream().map(e -> e.getValue()).collect(Collectors.toList())
+                    );
                 } else {
                     ExtensionDependency matchingId = new ExtensionDependency(uniqueId, Version.CURRENT);
                     return new ExtensionDependencyResponse(
-                        extensions.stream().filter(e -> e.dependenciesContain(matchingId)).collect(Collectors.toList())
+                        initializedExtensions.entrySet()
+                            .stream()
+                            .map(e -> e.getValue())
+                            .filter(e -> e.dependenciesContain(matchingId))
+                            .collect(Collectors.toList())
                     );
                 }
             default:
@@ -623,154 +634,83 @@ public class ExtensionsManager {
         }
     }
 
-    public static String getRequestExtensionActionName() {
+    static String getRequestExtensionActionName() {
         return REQUEST_EXTENSION_ACTION_NAME;
     }
 
-    public static String getIndicesExtensionPointActionName() {
+    static String getIndicesExtensionPointActionName() {
         return INDICES_EXTENSION_POINT_ACTION_NAME;
     }
 
-    public static String getIndicesExtensionNameActionName() {
+    static String getIndicesExtensionNameActionName() {
         return INDICES_EXTENSION_NAME_ACTION_NAME;
     }
 
-    public static String getRequestExtensionClusterState() {
+    static String getRequestExtensionClusterState() {
         return REQUEST_EXTENSION_CLUSTER_STATE;
     }
 
-    public static String getRequestExtensionClusterSettings() {
+    static String getRequestExtensionClusterSettings() {
         return REQUEST_EXTENSION_CLUSTER_SETTINGS;
     }
 
-    public static Logger getLogger() {
+    static Logger getLogger() {
         return logger;
     }
 
-    public Path getExtensionsPath() {
+    Path getExtensionsPath() {
         return extensionsPath;
     }
 
-    public List<DiscoveryExtensionNode> getExtensions() {
-        return extensions;
-    }
-
-    public TransportService getTransportService() {
+    TransportService getTransportService() {
         return transportService;
     }
 
-    public ClusterService getClusterService() {
+    ClusterService getClusterService() {
         return clusterService;
     }
 
-    public static String getRequestExtensionRegisterRestActions() {
-        return REQUEST_EXTENSION_REGISTER_REST_ACTIONS;
-    }
-
-    public static String getRequestRestExecuteOnExtensionAction() {
-        return REQUEST_REST_EXECUTE_ON_EXTENSION_ACTION;
-    }
-
-    public Map<String, DiscoveryExtensionNode> getExtensionIdMap() {
+    Map<String, DiscoveryExtensionNode> getExtensionIdMap() {
         return extensionIdMap;
     }
 
-    public RestActionsRequestHandler getRestActionsRequestHandler() {
+    RestActionsRequestHandler getRestActionsRequestHandler() {
         return restActionsRequestHandler;
     }
 
-    public void setExtensions(List<DiscoveryExtensionNode> extensions) {
-        this.extensions = extensions;
-    }
-
-    public void setExtensionIdMap(Map<String, DiscoveryExtensionNode> extensionIdMap) {
+    void setExtensionIdMap(Map<String, DiscoveryExtensionNode> extensionIdMap) {
         this.extensionIdMap = extensionIdMap;
     }
 
-    public void setRestActionsRequestHandler(RestActionsRequestHandler restActionsRequestHandler) {
+    void setRestActionsRequestHandler(RestActionsRequestHandler restActionsRequestHandler) {
         this.restActionsRequestHandler = restActionsRequestHandler;
     }
 
-    public void setTransportService(TransportService transportService) {
+    void setTransportService(TransportService transportService) {
         this.transportService = transportService;
     }
 
-    public void setClusterService(ClusterService clusterService) {
+    void setClusterService(ClusterService clusterService) {
         this.clusterService = clusterService;
     }
 
-    public static String getRequestExtensionRegisterTransportActions() {
-        return REQUEST_EXTENSION_REGISTER_TRANSPORT_ACTIONS;
-    }
-
-    public static String getRequestExtensionRegisterCustomSettings() {
-        return REQUEST_EXTENSION_REGISTER_CUSTOM_SETTINGS;
-    }
-
-    public CustomSettingsRequestHandler getCustomSettingsRequestHandler() {
+    CustomSettingsRequestHandler getCustomSettingsRequestHandler() {
         return customSettingsRequestHandler;
     }
 
-    public void setCustomSettingsRequestHandler(CustomSettingsRequestHandler customSettingsRequestHandler) {
+    void setCustomSettingsRequestHandler(CustomSettingsRequestHandler customSettingsRequestHandler) {
         this.customSettingsRequestHandler = customSettingsRequestHandler;
     }
 
-    public static String getRequestExtensionEnvironmentSettings() {
-        return REQUEST_EXTENSION_ENVIRONMENT_SETTINGS;
-    }
-
-    public static String getRequestExtensionAddSettingsUpdateConsumer() {
-        return REQUEST_EXTENSION_ADD_SETTINGS_UPDATE_CONSUMER;
-    }
-
-    public static String getRequestExtensionUpdateSettings() {
-        return REQUEST_EXTENSION_UPDATE_SETTINGS;
-    }
-
-    public AddSettingsUpdateConsumerRequestHandler getAddSettingsUpdateConsumerRequestHandler() {
+    AddSettingsUpdateConsumerRequestHandler getAddSettingsUpdateConsumerRequestHandler() {
         return addSettingsUpdateConsumerRequestHandler;
     }
 
-    public void setAddSettingsUpdateConsumerRequestHandler(
-        AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler
-    ) {
+    void setAddSettingsUpdateConsumerRequestHandler(AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler) {
         this.addSettingsUpdateConsumerRequestHandler = addSettingsUpdateConsumerRequestHandler;
     }
 
-    public Settings getEnvironmentSettings() {
+    Settings getEnvironmentSettings() {
         return environmentSettings;
     }
-
-    public void setEnvironmentSettings(Settings environmentSettings) {
-        this.environmentSettings = environmentSettings;
-    }
-
-    public static String getRequestExtensionHandleTransportAction() {
-        return REQUEST_EXTENSION_HANDLE_TRANSPORT_ACTION;
-    }
-
-    public static String getTransportActionRequestFromExtension() {
-        return TRANSPORT_ACTION_REQUEST_FROM_EXTENSION;
-    }
-
-    public static int getExtensionRequestWaitTimeout() {
-        return EXTENSION_REQUEST_WAIT_TIMEOUT;
-    }
-
-    public ExtensionTransportActionsHandler getExtensionTransportActionsHandler() {
-        return extensionTransportActionsHandler;
-    }
-
-    public void setExtensionTransportActionsHandler(ExtensionTransportActionsHandler extensionTransportActionsHandler) {
-        this.extensionTransportActionsHandler = extensionTransportActionsHandler;
-    }
-
-    public NodeClient getClient() {
-        return client;
-    }
-
-    public void setClient(NodeClient client) {
-        this.client = client;
-    }
-
 }
