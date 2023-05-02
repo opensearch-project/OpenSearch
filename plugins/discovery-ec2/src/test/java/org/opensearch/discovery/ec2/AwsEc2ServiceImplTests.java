@@ -124,7 +124,15 @@ public class AwsEc2ServiceImplTests extends OpenSearchTestCase {
     }
 
     public void testAWSDefaultConfiguration() {
-        testConfiguration(Settings.EMPTY, Protocol.HTTPS, null, -1, null, null, 50 * 1000);
+        testConfiguration(
+            Settings.EMPTY,
+            Protocol.HTTPS,
+            null,
+            -1,
+            null,
+            null,
+            50 * 1000
+        );
     }
 
     public void testAWSConfigurationWithAwsSettings() {
@@ -133,12 +141,20 @@ public class AwsEc2ServiceImplTests extends OpenSearchTestCase {
         secureSettings.setString("discovery.ec2.proxy.password", "aws_proxy_password");
         final Settings settings = Settings.builder()
             .put("discovery.ec2.protocol", "http")
-            .put("discovery.ec2.proxy.host", "aws_proxy_host")
+            .put("discovery.ec2.proxy.host", "aws-proxy-host")
             .put("discovery.ec2.proxy.port", 8080)
             .put("discovery.ec2.read_timeout", "10s")
             .setSecureSettings(secureSettings)
             .build();
-        testConfiguration(settings, Protocol.HTTP, "aws_proxy_host", 8080, "aws_proxy_username", "aws_proxy_password", 10000);
+        testConfiguration(
+            settings,
+            Protocol.HTTP,
+            "aws-proxy-host",
+            8080,
+            "aws_proxy_username",
+            "aws_proxy_password",
+            10000
+        );
     }
 
     protected void testConfiguration(
@@ -154,10 +170,18 @@ public class AwsEc2ServiceImplTests extends OpenSearchTestCase {
             logger,
             Ec2ClientSettings.getClientSettings(settings)
         );
-        assertThat(proxyConfiguration.host(), is(expectedProxyHost));
-        assertThat(proxyConfiguration.port(), is(expectedProxyPort));
-        assertThat(proxyConfiguration.username(), is(expectedProxyUsername));
-        assertThat(proxyConfiguration.password(), is(expectedProxyPassword));
+
+        if (proxyConfiguration != null) {
+            assertThat(proxyConfiguration.host(), is(expectedProxyHost));
+            assertThat(proxyConfiguration.port(), is(expectedProxyPort));
+            assertThat(proxyConfiguration.username(), is(expectedProxyUsername));
+            assertThat(proxyConfiguration.password(), is(expectedProxyPassword));
+        } else {
+            assertThat(null, is(expectedProxyHost));
+            assertThat(-1, is(expectedProxyPort));
+            assertThat(null, is(expectedProxyUsername));
+            assertThat(null, is(expectedProxyPassword));
+        }
 
         // final ApacheHttpClient.Builder clientBuilder = AwsEc2ServiceImpl.buildHttpClient(logger,
         // Ec2ClientSettings.getClientSettings(settings));
