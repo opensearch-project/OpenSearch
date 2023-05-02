@@ -204,8 +204,6 @@ thirdPartyAudit {
     'javax.jms.Message',
     'javax.servlet.ServletContextEvent',
     'javax.servlet.ServletContextListener',
-    'io.opencensus.tags.TagMetadata',
-    'io.opencensus.tags.TagMetadata$TagTtl',
   )
 }
 
