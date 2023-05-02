@@ -60,15 +60,11 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.snapshots.IndexShardRestoreFailedException;
 import org.opensearch.index.store.Store;
-import org.opensearch.index.translog.RemoteFsTranslog;
 import org.opensearch.index.translog.Translog;
-import org.opensearch.index.translog.transfer.FileTransferTracker;
-import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.Repository;
-import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.IOException;
 import java.util.Arrays;
