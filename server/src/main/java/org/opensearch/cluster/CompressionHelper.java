@@ -1,3 +1,11 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
 package org.opensearch.cluster;
 
 import org.apache.logging.log4j.LogManager;
@@ -18,6 +26,15 @@ import java.io.IOException;
 public class CompressionHelper {
     private static final Logger logger = LogManager.getLogger(CompressionHelper.class);
 
+    /**
+     * It'll always use compression before writing on a newly created output stream.
+     * @param writer Object which is going to write the content
+     * @param nodeVersion version of cluster node
+     * @param streamBooleanFlag flag used at receiver end to make intelligent decisions. For example, ClusterState
+     *                          assumes full state of diff of the states based on this flag.
+     * @return reference to serialized bytes
+     * @throws IOException
+     */
     public static BytesReference serializedWrite(Writeable writer, Version nodeVersion, boolean streamBooleanFlag) throws IOException {
         final BytesStreamOutput bStream = new BytesStreamOutput();
         try (StreamOutput stream = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(bStream))) {
