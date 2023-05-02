@@ -10,7 +10,6 @@ package org.opensearch.identity.shiro;
 
 import org.opensearch.test.OpenSearchTestCase;
 
-import static org.junit.Assert.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;

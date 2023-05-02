@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
  * @opensearch.experimental
  * */
 public class IdentityService {
-    private static final Logger logger = LogManager.getLogger(IdentityService.class);
+    private static final Logger log = LogManager.getLogger(IdentityService.class);
 
     private final Settings settings;
     private final IdentityPlugin identityPlugin;
@@ -29,8 +29,10 @@ public class IdentityService {
         this.settings = settings;
 
         if (identityPlugins.size() == 0) {
+            log.debug("Identity plugins size is 0");
             identityPlugin = new NoopIdentityPlugin();
         } else if (identityPlugins.size() == 1) {
+            log.debug("Identity plugins size is 1");
             identityPlugin = identityPlugins.get(0);
         } else {
             throw new OpenSearchException(
