@@ -40,6 +40,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressure;
+import org.opensearch.index.remote.RemoteRefreshSegmentPressureSettings;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.ShardIndexingPressureMemoryManager;
 import org.opensearch.index.ShardIndexingPressureSettings;
@@ -640,7 +641,17 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SegmentReplicationPressureService.MAX_ALLOWED_STALE_SHARDS,
 
                 // Settings related to Searchable Snapshots
-                Node.NODE_SEARCH_CACHE_SIZE_SETTING
+                Node.NODE_SEARCH_CACHE_SIZE_SETTING,
+
+                // Settings related to Remote Refresh Segment Pressure
+                RemoteRefreshSegmentPressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED,
+                RemoteRefreshSegmentPressureSettings.MIN_SEQ_NO_LAG_LIMIT,
+                RemoteRefreshSegmentPressureSettings.BYTES_LAG_VARIANCE_FACTOR,
+                RemoteRefreshSegmentPressureSettings.UPLOAD_TIME_LAG_VARIANCE_FACTOR,
+                RemoteRefreshSegmentPressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT,
+                RemoteRefreshSegmentPressureSettings.UPLOAD_BYTES_MOVING_AVERAGE_WINDOW_SIZE,
+                RemoteRefreshSegmentPressureSettings.UPLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE,
+                RemoteRefreshSegmentPressureSettings.UPLOAD_TIME_MOVING_AVERAGE_WINDOW_SIZE
             )
         )
     );
