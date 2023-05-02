@@ -635,7 +635,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                         IndexAbstraction.Index index = (IndexAbstraction.Index) ia;
 
                         String[] aliasNames = StreamSupport.stream(
-                            Spliterators.spliteratorUnknownSize(index.getWriteIndex().getAliases().keysIt(), 0),
+                            Spliterators.spliteratorUnknownSize(index.getWriteIndex().getAliases().keySet().iterator(), 0),
                             false
                         ).toArray(String[]::new);
                         Arrays.sort(aliasNames);

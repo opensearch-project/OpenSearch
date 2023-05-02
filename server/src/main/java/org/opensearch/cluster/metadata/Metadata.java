@@ -32,9 +32,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.CollectionUtil;
@@ -53,7 +50,6 @@ import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.regex.Regex;
@@ -382,7 +378,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
      * @return A map of index name to the list of aliases metadata. If a concrete index does not have matching
      * aliases then the result will <b>not</b> include the index's key.
      */
-    public ImmutableOpenMap<String, List<AliasMetadata>> findAllAliases(final String[] concreteIndices) {
+    public Map<String, List<AliasMetadata>> findAllAliases(final String[] concreteIndices) {
         return findAliases(Strings.EMPTY_ARRAY, concreteIndices);
     }
 
@@ -395,7 +391,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
      * @return A map of index name to the list of aliases metadata. If a concrete index does not have matching
      * aliases then the result will <b>not</b> include the index's key.
      */
-    public ImmutableOpenMap<String, List<AliasMetadata>> findAliases(final AliasesRequest aliasesRequest, final String[] concreteIndices) {
+    public Map<String, List<AliasMetadata>> findAliases(final AliasesRequest aliasesRequest, final String[] concreteIndices) {
         return findAliases(aliasesRequest.aliases(), concreteIndices);
     }
 
@@ -408,11 +404,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
      * @return A map of index name to the list of aliases metadata. If a concrete index does not have matching
      * aliases then the result will <b>not</b> include the index's key.
      */
-    private ImmutableOpenMap<String, List<AliasMetadata>> findAliases(final String[] aliases, final String[] concreteIndices) {
+    private Map<String, List<AliasMetadata>> findAliases(final String[] aliases, final String[] concreteIndices) {
         assert aliases != null;
         assert concreteIndices != null;
         if (concreteIndices.length == 0) {
-            return ImmutableOpenMap.of();
+            return Map.of();
         }
         String[] patterns = new String[aliases.length];
         boolean[] include = new boolean[aliases.length];
@@ -427,12 +423,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
         }
         boolean matchAllAliases = patterns.length == 0;
-        ImmutableOpenMap.Builder<String, List<AliasMetadata>> mapBuilder = ImmutableOpenMap.builder();
+        final Map<String, List<AliasMetadata>> mapBuilder = new HashMap<>();
         for (String index : concreteIndices) {
             IndexMetadata indexMetadata = indices.get(index);
             List<AliasMetadata> filteredValues = new ArrayList<>();
-            for (ObjectCursor<AliasMetadata> cursor : indexMetadata.getAliases().values()) {
-                AliasMetadata value = cursor.value;
+            for (final AliasMetadata value : indexMetadata.getAliases().values()) {
                 boolean matched = matchAllAliases;
                 String alias = value.alias();
                 for (int i = 0; i < patterns.length; i++) {
@@ -455,7 +450,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 mapBuilder.put(index, Collections.unmodifiableList(filteredValues));
             }
         }
-        return mapBuilder.build();
+        return mapBuilder;
     }
 
     /**
@@ -484,9 +479,9 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     /**
      * Finds the parent data streams, if any, for the specified concrete indices.
      */
-    public ImmutableOpenMap<String, IndexAbstraction.DataStream> findDataStreams(String[] concreteIndices) {
+    public Map<String, IndexAbstraction.DataStream> findDataStreams(String[] concreteIndices) {
         assert concreteIndices != null;
-        final ImmutableOpenMap.Builder<String, IndexAbstraction.DataStream> builder = ImmutableOpenMap.builder();
+        final Map<String, IndexAbstraction.DataStream> builder = new HashMap<>();
         final SortedMap<String, IndexAbstraction> lookup = getIndicesLookup();
         for (String indexName : concreteIndices) {
             IndexAbstraction index = lookup.get(indexName);
@@ -496,7 +491,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 builder.put(indexName, index.getParentDataStream());
             }
         }
-        return builder.build();
+        return Collections.unmodifiableMap(builder);
     }
 
     @SuppressWarnings("unchecked")
@@ -1224,7 +1219,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         public Builder put(String name, ComponentTemplate componentTemplate) {
             Objects.requireNonNull(componentTemplate, "it is invalid to add a null component template: " + name);
-            // ಠ_ಠ at ImmutableOpenMap
             Map<String, ComponentTemplate> existingTemplates = Optional.ofNullable(
                 (ComponentTemplateMetadata) this.customs.get(ComponentTemplateMetadata.TYPE)
             ).map(ctm -> new HashMap<>(ctm.componentTemplates())).orElse(new HashMap<>());
@@ -1234,7 +1228,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         public Builder removeComponentTemplate(String name) {
-            // ಠ_ಠ at ImmutableOpenMap
             Map<String, ComponentTemplate> existingTemplates = Optional.ofNullable(
                 (ComponentTemplateMetadata) this.customs.get(ComponentTemplateMetadata.TYPE)
             ).map(ctm -> new HashMap<>(ctm.componentTemplates())).orElse(new HashMap<>());
@@ -1255,7 +1248,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         public Builder put(String name, ComposableIndexTemplate indexTemplate) {
             Objects.requireNonNull(indexTemplate, "it is invalid to add a null index template: " + name);
-            // ಠ_ಠ at ImmutableOpenMap
             Map<String, ComposableIndexTemplate> existingTemplates = Optional.ofNullable(
                 (ComposableIndexTemplateMetadata) this.customs.get(ComposableIndexTemplateMetadata.TYPE)
             ).map(itmd -> new HashMap<>(itmd.indexTemplates())).orElse(new HashMap<>());
@@ -1265,7 +1257,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         public Builder removeIndexTemplate(String name) {
-            // ಠ_ಠ at ImmutableOpenMap
             Map<String, ComposableIndexTemplate> existingTemplates = Optional.ofNullable(
                 (ComposableIndexTemplateMetadata) this.customs.get(ComposableIndexTemplateMetadata.TYPE)
             ).map(itmd -> new HashMap<>(itmd.indexTemplates())).orElse(new HashMap<>());
@@ -1465,7 +1456,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         visibleClosedIndices.add(name);
                     }
                 }
-                indexMetadata.getAliases().keysIt().forEachRemaining(allAliases::add);
+                indexMetadata.getAliases().keySet().iterator().forEachRemaining(allAliases::add);
             }
 
             final Set<String> allDataStreams = new HashSet<>();
@@ -1595,8 +1586,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 IndexAbstraction existing = indicesLookup.put(indexMetadata.getIndex().getName(), index);
                 assert existing == null : "duplicate for " + indexMetadata.getIndex();
 
-                for (final ObjectObjectCursor<String, AliasMetadata> aliasCursor : indexMetadata.getAliases()) {
-                    AliasMetadata aliasMetadata = aliasCursor.value;
+                for (final AliasMetadata aliasCursor : indexMetadata.getAliases().values()) {
+                    AliasMetadata aliasMetadata = aliasCursor;
                     indicesLookup.compute(aliasMetadata.getAlias(), (aliasName, alias) -> {
                         if (alias == null) {
                             return new IndexAbstraction.Alias(aliasMetadata, indexMetadata);

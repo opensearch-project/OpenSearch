@@ -36,6 +36,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Strings;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
@@ -762,7 +763,7 @@ final class DocumentParser {
                             DateFieldMapper.Resolution.MILLISECONDS,
                             dateTimeFormatter,
                             ignoreMalformed,
-                            Version.indexCreated(context.indexSettings().getSettings())
+                            IndexMetadata.indexCreated(context.indexSettings().getSettings())
                         );
                     }
                     return builder;

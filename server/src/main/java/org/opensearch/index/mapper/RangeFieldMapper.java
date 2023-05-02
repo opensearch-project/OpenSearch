@@ -39,6 +39,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.geo.ShapeRelation;
@@ -142,7 +143,7 @@ public class RangeFieldMapper extends ParametrizedFieldMapper {
                 type,
                 COERCE_SETTING.get(settings),
                 IGNORE_MALFORMED_SETTING.get(settings),
-                hasIndexCreated(settings) ? Version.indexCreated(settings) : null
+                hasIndexCreated(settings) ? IndexMetadata.indexCreated(settings) : null
             );
         }
 

@@ -32,7 +32,6 @@
 
 package org.opensearch.common.io.stream;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -43,6 +42,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.joda.time.DateTimeZone;
 import org.joda.time.ReadableInstant;
+import org.opensearch.Build;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
@@ -51,7 +51,6 @@ import org.opensearch.common.CharArrays;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.io.stream.Writeable.Writer;
 import org.opensearch.common.settings.SecureString;
@@ -641,28 +640,6 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Write a {@link ImmutableOpenMap} of {@code K}-type keys to {@code V}-type.
-     *
-     * @param keyWriter The key writer
-     * @param valueWriter The value writer
-     */
-    public final <K, V> void writeMap(final ImmutableOpenMap<K, V> map, final Writer<K> keyWriter, final Writer<V> valueWriter)
-        throws IOException {
-        writeVInt(map.size());
-        for (final ObjectObjectCursor<K, V> entry : map) {
-            keyWriter.write(this, entry.key);
-            valueWriter.write(this, entry.value);
-        }
-    }
-
-    /**
-     * Write a {@link ImmutableOpenMap} of {@code K}-type keys to {@code V}-type.
-     */
-    public final <K extends Writeable, V extends Writeable> void writeMap(final ImmutableOpenMap<K, V> map) throws IOException {
-        writeMap(map, (o, k) -> k.writeTo(o), (o, v) -> v.writeTo(o));
-    }
-
-    /**
      * Writes an {@link Instant} to the stream with nanosecond resolution
      */
     public final void writeInstant(Instant instant) throws IOException {
@@ -1120,6 +1097,24 @@ public abstract class StreamOutput extends OutputStream {
             }
             OpenSearchException.writeStackTraces(throwable, this, (o, t) -> o.writeException(rootException, t, nestedLevel + 1));
         }
+    }
+
+    /** Writes the OpenSearch {@link Version} to the output stream */
+    public void writeVersion(final Version version) throws IOException {
+        writeVInt(version.id);
+    }
+
+    /** Writes the OpenSearch {@link Build} informn to the output stream */
+    public void writeBuild(final Build build) throws IOException {
+        // the following is new for opensearch: we write the distribution name to support any "forks" of the code
+        writeString(build.getDistribution());
+
+        final Build.Type buildType = build.type();
+        writeString(buildType.displayName());
+        writeString(build.hash());
+        writeString(build.date());
+        writeBoolean(build.isSnapshot());
+        writeString(build.getQualifiedVersion());
     }
 
     boolean failOnTooManyNestedExceptions(Throwable throwable) {

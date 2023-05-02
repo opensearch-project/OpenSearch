@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add getter for path field in NestedQueryBuilder ([#4636](https://github.com/opensearch-project/OpenSearch/pull/4636))
 - Allow mmap to use new JDK-19 preview APIs in Apache Lucene 9.4+ ([#5151](https://github.com/opensearch-project/OpenSearch/pull/5151))
 - Add events correlation engine plugin ([#6854](https://github.com/opensearch-project/OpenSearch/issues/6854))
+- Add connectToNodeAsExtension in TransportService ([#6866](https://github.com/opensearch-project/OpenSearch/pull/6866))
 
 ### Dependencies
 - Bump `log4j-core` from 2.18.0 to 2.19.0
@@ -40,10 +41,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.avast.gradle:gradle-docker-compose-plugin` from 0.16.11 to 0.16.12
 - Bump `org.apache.commons:commons-compress` from 1.22 to 1.23.0
 - Bump `org.apache.commons:commons-configuration2` from 2.8.0 to 2.9.0
-- Bump `com.netflix.nebula:nebula-publishing-plugin` from 19.2.0 to 20.2.0
-- Bump `com.netflix.nebula.ospackage-base` from 11.0.0 to 11.2.0
+- Bump `com.netflix.nebula:nebula-publishing-plugin` from 19.2.0 to 20.3.0
+- Bump `com.netflix.nebula.ospackage-base` from 11.0.0 to 11.3.0
 - Bump `org.apache.commons:commons-compress` from 1.22 to 1.23.0
 - Bump `com.google.protobuf:protobuf-java` from 3.22.2 to 3.22.3
+- Bump `com.diffplug.spotless` from 6.17.0 to 6.18.0
+- Bump `io.opencensus:opencensus-api` from 0.18.0 to 0.31.1 ([#7291](https://github.com/opensearch-project/OpenSearch/pull/7291))
+- Bump `gradle.plugin.com.github.johnrengelman:shadow` from 7.1.2 to 8.0.0
 
 ### Changed
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
@@ -75,6 +79,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix 'org.apache.hc.core5.http.ParseException: Invalid protocol version' under JDK 16+ ([#4827](https://github.com/opensearch-project/OpenSearch/pull/4827))
 - Fix compression support for h2c protocol ([#4944](https://github.com/opensearch-project/OpenSearch/pull/4944))
 - Support OpenSSL Provider with default Netty allocator ([#5460](https://github.com/opensearch-project/OpenSearch/pull/5460))
+- Replaces ZipInputStream with ZipFile to fix Zip Slip vulnerability ([#7230](https://github.com/opensearch-project/OpenSearch/pull/7230))
 
 ### Security
 
@@ -82,10 +87,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 - [Extensions] Moving Extensions APIs to protobuf serialization. ([#6960](https://github.com/opensearch-project/OpenSearch/pull/6960))
 - [Extensions] Moving RestActions APIs to protobuf serialization. ([#7302](https://github.com/opensearch-project/OpenSearch/pull/7302))
+- Add descending order search optimization through reverse segment read. ([#7244](https://github.com/opensearch-project/OpenSearch/pull/7244))
 
 ### Dependencies
+- Bump `jackson` from 2.14.2 to 2.15.0 ([#7286](https://github.com/opensearch-project/OpenSearch/pull/7286)
 
 ### Changed
+- Enable `./gradlew build` on MacOS by disabling bcw tests ([#7303](https://github.com/opensearch-project/OpenSearch/pull/7303))
 
 ### Deprecated
 

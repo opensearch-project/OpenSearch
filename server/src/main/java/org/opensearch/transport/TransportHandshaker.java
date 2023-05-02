@@ -208,7 +208,7 @@ final class TransportHandshaker {
                 version = null;
             } else {
                 try (StreamInput messageStreamInput = remainingMessage.streamInput()) {
-                    this.version = Version.readVersion(messageStreamInput);
+                    this.version = messageStreamInput.readVersion();
                 }
             }
         }
@@ -218,7 +218,7 @@ final class TransportHandshaker {
             super.writeTo(streamOutput);
             assert version != null;
             try (BytesStreamOutput messageStreamOutput = new BytesStreamOutput(4)) {
-                Version.writeVersion(version, messageStreamOutput);
+                messageStreamOutput.writeVersion(version);
                 BytesReference reference = messageStreamOutput.bytes();
                 streamOutput.writeBytesReference(reference);
             }
@@ -235,13 +235,13 @@ final class TransportHandshaker {
 
         private HandshakeResponse(StreamInput in) throws IOException {
             super(in);
-            responseVersion = Version.readVersion(in);
+            responseVersion = in.readVersion();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             assert responseVersion != null;
-            Version.writeVersion(responseVersion, out);
+            out.writeVersion(responseVersion);
         }
 
         Version getResponseVersion() {
