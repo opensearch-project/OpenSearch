@@ -94,6 +94,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Changed
 - Enable `./gradlew build` on MacOS by disabling bcw tests ([#7303](https://github.com/opensearch-project/OpenSearch/pull/7303))
+- Cleanup interfaces around ExtensionManager ([#7374](https://github.com/opensearch-project/OpenSearch/pull/7374))
 
 ### Deprecated
 
