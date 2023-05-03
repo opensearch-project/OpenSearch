@@ -1,0 +1,59 @@
+---
+teardown:
+  - do:
+      search_pipeline.delete:
+        id: "my_pipeline"
+        ignore: 404
+
+---
+"Test filter_query processor":
+  - do:
+      search_pipeline.put:
+        id: "my_pipeline"
+        body: >
+          {
+            "description": "test pipeline",
+            "response_processors":[
+              {
+                "rename":
+                  {
+                    "field": "a",
+                    "target_field": "b"
+                  }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: {
+          "a": "foo"
+        }
+
+  - do:
+      indices.refresh:
+        index: test
+
+  - do:
+      search:
+        body: { }
+  - match: { hits.total.value: 1 }
+
+  - do:
+      search:
+        index: test
+        search_pipeline: "my_pipeline"
+        body: { }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source: {"b": "foo"} }
+
+  # Should also work with no search body specified
+  - do:
+      search:
+        index: test
+        search_pipeline: "my_pipeline"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source: {"b": "foo"} }
