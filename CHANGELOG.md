@@ -5,9 +5,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 2.x]
 ### Added
-- [Extensions] Moving Extensions APIs to support cross versions via protobuf. ([#6960](https://github.com/opensearch-project/OpenSearch/pull/6960))
+- [Extensions] Moving Extensions APIs to support cross versions via protobuf. ([#7402](https://github.com/opensearch-project/OpenSearch/issues/7402))
+- [Extensions] Add IdentityPlugin into core to support Extension identities ([#7246](https://github.com/opensearch-project/OpenSearch/pull/7246))
 - Add connectToNodeAsExtension in TransportService ([#6866](https://github.com/opensearch-project/OpenSearch/pull/6866))
-- [Extensions] Add IdentityPlugin into core to support Extension identities ([#7393](https://github.com/opensearch-project/OpenSearch/pull/7393))
+- Add descending order search optimization through reverse segment read. ([#7244](https://github.com/opensearch-project/OpenSearch/pull/7244))
 
 ### Dependencies
 - Bump `com.netflix.nebula:gradle-info-plugin` from 12.0.0 to 12.1.0
@@ -21,6 +22,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `commons-io:commons-io` from 2.7 to 2.11.0
 
 ### Changed
+- Enable `./gradlew build` on MacOS by disabling bcw tests ([#7303](https://github.com/opensearch-project/OpenSearch/pull/7303))
+- Moved concurrent-search from sandbox plugin to server module behind feature flag ([#7203](https://github.com/opensearch-project/OpenSearch/pull/7203))
 
 ### Deprecated
 
@@ -31,4 +34,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Security
 
-
+[Unreleased 3.0]: https://github.com/opensearch-project/OpenSearch/compare/2.x...HEAD
+[Unreleased 2.x]: https://github.com/opensearch-project/OpenSearch/compare/2.5...2.x

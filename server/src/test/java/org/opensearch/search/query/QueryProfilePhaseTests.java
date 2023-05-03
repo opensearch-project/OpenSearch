@@ -8,6 +8,7 @@
 
 package org.opensearch.search.query;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field.Store;
@@ -66,6 +67,7 @@ import org.opensearch.search.profile.query.CollectorResult;
 import org.opensearch.search.profile.query.QueryProfileShardResult;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.test.TestSearchContext;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -73,8 +75,12 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.hamcrest.CoreMatchers.not;
@@ -90,8 +96,22 @@ import static org.mockito.Mockito.when;
 import static org.hamcrest.Matchers.hasSize;
 
 public class QueryProfilePhaseTests extends IndexShardTestCase {
-
     private IndexShard indexShard;
+    private final ExecutorService executor;
+    private final QueryPhaseSearcher queryPhaseSearcher;
+
+    @ParametersFactory
+    public static Collection<Object[]> concurrency() {
+        return Arrays.asList(
+            new Object[] { 0, QueryPhase.DEFAULT_QUERY_PHASE_SEARCHER },
+            new Object[] { 5, new ConcurrentQueryPhaseSearcher() }
+        );
+    }
+
+    public QueryProfilePhaseTests(int concurrency, QueryPhaseSearcher queryPhaseSearcher) {
+        this.executor = (concurrency > 0) ? Executors.newFixedThreadPool(concurrency) : null;
+        this.queryPhaseSearcher = queryPhaseSearcher;
+    }
 
     @Override
     public Settings threadPoolSettings() {
@@ -107,6 +127,9 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
+        if (executor != null) {
+            ThreadPool.terminate(executor, 10, TimeUnit.SECONDS);
+        }
         closeShards(indexShard);
     }
 
@@ -121,12 +144,14 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
 
         IndexReader reader = DirectoryReader.open(dir);
 
-        TestSearchContext context = new TestSearchContext(null, indexShard, newEarlyTerminationContextSearcher(reader, 0));
+        TestSearchContext context = new TestSearchContext(null, indexShard, newEarlyTerminationContextSearcher(reader, 0, executor));
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
 
-        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
+        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
         assertEquals(1, context.queryResult().topDocs().topDocs.totalHits.value);
+        // IndexSearcher#rewrite optimizes by rewriting non-scoring queries to ConstantScoreQuery
+        // see: https://github.com/apache/lucene/pull/672
         assertProfileData(context, "ConstantScoreQuery", query -> {
             assertThat(query.getTimeBreakdown().keySet(), not(empty()));
             assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
@@ -139,9 +164,9 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertThat(collector.getProfiledChildren(), empty());
         });
 
-        context.setSearcher(newContextSearcher(reader));
+        context.setSearcher(newContextSearcher(reader, executor));
         context.parsedPostFilter(new ParsedQuery(new MatchNoDocsQuery()));
-        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
+        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
         assertEquals(0, context.queryResult().topDocs().topDocs.totalHits.value);
         assertProfileData(context, collector -> {
             assertThat(collector.getReason(), equalTo("search_post_filter"));
@@ -157,6 +182,8 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertThat(query.getTimeBreakdown().get("create_weight"), greaterThan(0L));
             assertThat(query.getTimeBreakdown().get("create_weight_count"), equalTo(1L));
         }, (query) -> {
+            // IndexSearcher#rewrite optimizes by rewriting non-scoring queries to ConstantScoreQuery
+            // see: https://github.com/apache/lucene/pull/672
             assertThat(query.getQueryName(), equalTo("ConstantScoreQuery"));
             assertThat(query.getTimeBreakdown().keySet(), not(empty()));
             assertThat(query.getTimeBreakdown().get("score"), equalTo(0L));
@@ -183,7 +210,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
 
         IndexReader reader = DirectoryReader.open(dir);
 
-        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader));
+        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader, executor));
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
 
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
@@ -191,7 +218,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         context.setSize(10);
         for (int i = 0; i < 10; i++) {
             context.parsedPostFilter(new ParsedQuery(new TermQuery(new Term("foo", Integer.toString(i)))));
-            QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
+            QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
             assertEquals(1, context.queryResult().topDocs().topDocs.totalHits.value);
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
             assertProfileData(context, collector -> {
@@ -233,11 +260,11 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         w.close();
 
         IndexReader reader = DirectoryReader.open(dir);
-        TestSearchContext context = new TestSearchContext(null, indexShard, newEarlyTerminationContextSearcher(reader, 0));
+        TestSearchContext context = new TestSearchContext(null, indexShard, newEarlyTerminationContextSearcher(reader, 0, executor));
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         context.setSize(0);
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
-        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
+        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
         assertEquals(1, context.queryResult().topDocs().topDocs.totalHits.value);
         // IndexSearcher#rewrite optimizes by rewriting non-scoring queries to ConstantScoreQuery
         // see: https://github.com/apache/lucene/pull/672
@@ -254,7 +281,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         });
 
         context.minimumScore(100);
-        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
+        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
         assertEquals(0, context.queryResult().topDocs().topDocs.totalHits.value);
         assertEquals(TotalHits.Relation.EQUAL_TO, context.queryResult().topDocs().topDocs.totalHits.relation);
         assertProfileData(context, "MatchAllDocsQuery", query -> {
@@ -287,7 +314,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         w.close();
         IndexReader reader = DirectoryReader.open(dir);
         ScrollContext scrollContext = new ScrollContext();
-        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader), scrollContext);
+        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader, executor), scrollContext);
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         context.sort(new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW }));
         scrollContext.lastEmittedDoc = null;
@@ -297,9 +324,10 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         int size = randomIntBetween(2, 5);
         context.setSize(size);
 
-        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
+        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
         assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
         assertNull(context.queryResult().terminatedEarly());
+        assertThat(context.terminateAfter(), equalTo(0));
         assertThat(context.queryResult().getTotalHits().value, equalTo((long) numDocs));
         assertProfileData(context, "ConstantScoreQuery", query -> {
             assertThat(query.getTimeBreakdown().keySet(), not(empty()));
@@ -313,8 +341,8 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             assertThat(collector.getProfiledChildren(), empty());
         });
 
-        context.setSearcher(newEarlyTerminationContextSearcher(reader, size));
-        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
+        context.setSearcher(newEarlyTerminationContextSearcher(reader, size, executor));
+        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
         assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
         assertThat(context.queryResult().getTotalHits().value, equalTo((long) numDocs));
         assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0].doc, greaterThanOrEqualTo(size));
@@ -356,14 +384,14 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         }
         w.close();
         final IndexReader reader = DirectoryReader.open(dir);
-        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader));
+        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader, executor));
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
 
         context.terminateAfter(1);
         {
             context.setSize(1);
-            QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
+            QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
             assertTrue(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(1L));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
@@ -382,7 +410,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             });
 
             context.setSize(0);
-            QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
+            QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
             assertTrue(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(1L));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
@@ -405,7 +433,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
 
         {
             context.setSize(1);
-            QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
+            QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
             assertTrue(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(1L));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
@@ -429,7 +457,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 .add(new TermQuery(new Term("foo", "baz")), Occur.SHOULD)
                 .build();
             context.parsedQuery(new ParsedQuery(bq));
-            QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
+            QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
             assertTrue(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(1L));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
@@ -459,7 +487,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             });
             context.setSize(0);
             context.parsedQuery(new ParsedQuery(bq));
-            QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
+            QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
             assertTrue(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(1L));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
@@ -511,7 +539,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         context.setSize(10);
         for (int trackTotalHits : new int[] { -1, 3, 75, 100 }) {
             context.trackTotalHitsUpTo(trackTotalHits);
-            QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
+            QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
             assertTrue(context.queryResult().terminatedEarly());
             if (trackTotalHits == -1) {
                 assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(0L));
@@ -573,13 +601,13 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         w.close();
 
         final IndexReader reader = DirectoryReader.open(dir);
-        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader));
+        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader, executor));
         context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
         context.setSize(1);
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
         context.sort(new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW }));
 
-        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
+        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
         assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
         assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
         assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0], instanceOf(FieldDoc.class));
@@ -601,7 +629,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
 
         {
             context.parsedPostFilter(new ParsedQuery(new MinDocQuery(1)));
-            QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
+            QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
             assertNull(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo(numDocs - 1L));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
@@ -634,9 +662,9 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         }
 
         {
-            context.setSearcher(newEarlyTerminationContextSearcher(reader, 1));
+            context.setSearcher(newEarlyTerminationContextSearcher(reader, 1, executor));
             context.trackTotalHitsUpTo(SearchContext.TRACK_TOTAL_HITS_DISABLED);
-            QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
+            QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
             assertNull(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0], instanceOf(FieldDoc.class));
@@ -655,7 +683,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 assertThat(collector.getProfiledChildren(), empty());
             });
 
-            QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
+            QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
             assertNull(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(1));
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs[0], instanceOf(FieldDoc.class));
@@ -703,7 +731,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         searchSortAndFormats.add(new SortAndFormats(new Sort(indexSort.getSort()[0]), new DocValueFormat[] { DocValueFormat.RAW }));
         for (SortAndFormats searchSortAndFormat : searchSortAndFormats) {
             ScrollContext scrollContext = new ScrollContext();
-            TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader), scrollContext);
+            TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader, executor), scrollContext);
             context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
             scrollContext.lastEmittedDoc = null;
             scrollContext.maxScore = Float.NaN;
@@ -712,7 +740,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             context.setSize(10);
             context.sort(searchSortAndFormat);
 
-            QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
+            QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
             assertNull(context.queryResult().terminatedEarly());
             assertThat(context.terminateAfter(), equalTo(0));
@@ -734,8 +762,8 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             int sizeMinus1 = context.queryResult().topDocs().topDocs.scoreDocs.length - 1;
             FieldDoc lastDoc = (FieldDoc) context.queryResult().topDocs().topDocs.scoreDocs[sizeMinus1];
 
-            context.setSearcher(newEarlyTerminationContextSearcher(reader, 10));
-            QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
+            context.setSearcher(newEarlyTerminationContextSearcher(reader, 10, executor));
+            QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
             assertNull(context.queryResult().terminatedEarly());
             assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
             assertThat(context.terminateAfter(), equalTo(0));
@@ -764,7 +792,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 @SuppressWarnings("unchecked")
                 FieldComparator<Object> comparator = (FieldComparator<Object>) searchSortAndFormat.sort.getSort()[i].getComparator(
                     i,
-                    false
+                    randomBoolean()
                 );
                 int cmp = comparator.compareValues(firstDoc.fields[i], lastDoc.fields[i]);
                 if (cmp == 0) {
@@ -796,7 +824,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         w.close();
 
         IndexReader reader = DirectoryReader.open(dir);
-        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader));
+        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader, executor));
         context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
         Query q = new SpanNearQuery.Builder("title", true).addClause(new SpanTermQuery(new Term("title", "foo")))
             .addClause(new SpanTermQuery(new Term("title", "bar")))
@@ -807,7 +835,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         context.trackTotalHitsUpTo(3);
         TopDocsCollectorContext topDocsContext = TopDocsCollectorContext.createTopDocsCollectorContext(context, false);
         assertEquals(topDocsContext.create(null).scoreMode(), org.apache.lucene.search.ScoreMode.COMPLETE);
-        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
+        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
         assertEquals(numDocs / 2, context.queryResult().topDocs().topDocs.totalHits.value);
         assertEquals(context.queryResult().topDocs().topDocs.totalHits.relation, TotalHits.Relation.EQUAL_TO);
         assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(3));
@@ -826,7 +854,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         context.sort(new SortAndFormats(new Sort(new SortField("other", SortField.Type.INT)), new DocValueFormat[] { DocValueFormat.RAW }));
         topDocsContext = TopDocsCollectorContext.createTopDocsCollectorContext(context, false);
         assertEquals(topDocsContext.create(null).scoreMode(), org.apache.lucene.search.ScoreMode.TOP_DOCS);
-        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
+        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
         assertEquals(numDocs / 2, context.queryResult().topDocs().topDocs.totalHits.value);
         assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(3));
         assertEquals(context.queryResult().topDocs().topDocs.totalHits.relation, TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO);
@@ -861,7 +889,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         w.close();
 
         IndexReader reader = DirectoryReader.open(dir);
-        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader));
+        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader, executor));
         context.parsedQuery(
             new ParsedQuery(
                 new BooleanQuery.Builder().add(new TermQuery(new Term("foo", "bar")), Occur.MUST)
@@ -874,7 +902,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         context.setSize(1);
         context.trackTotalHitsUpTo(5);
 
-        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
+        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
         assertEquals(10, context.queryResult().topDocs().topDocs.totalHits.value);
         assertProfileData(context, "BooleanQuery", query -> {
             assertThat(query.getTimeBreakdown().keySet(), not(empty()));
@@ -922,7 +950,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         w.close();
 
         IndexReader reader = DirectoryReader.open(dir);
-        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader));
+        TestSearchContext context = new TestSearchContext(null, indexShard, newContextSearcher(reader, executor));
         context.trackScores(true);
         context.parsedQuery(
             new ParsedQuery(
@@ -935,7 +963,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         context.setSize(1);
         context.trackTotalHitsUpTo(5);
 
-        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
+        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
         assertFalse(Float.isNaN(context.queryResult().getMaxScore()));
         assertEquals(1, context.queryResult().topDocs().topDocs.scoreDocs.length);
         assertThat(context.queryResult().topDocs().topDocs.totalHits.value, greaterThanOrEqualTo(6L));
@@ -963,7 +991,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         });
 
         context.sort(new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW }));
-        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
+        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
         assertFalse(Float.isNaN(context.queryResult().getMaxScore()));
         assertEquals(1, context.queryResult().topDocs().topDocs.scoreDocs.length);
         assertThat(context.queryResult().topDocs().topDocs.totalHits.value, greaterThanOrEqualTo(6L));
@@ -1016,7 +1044,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
             new NumberFieldType("user", NumberType.INTEGER, true, false, true, false, null, Collections.emptyMap())
         );
 
-        TestSearchContext context = new TestSearchContext(queryShardContext, indexShard, newContextSearcher(reader));
+        TestSearchContext context = new TestSearchContext(queryShardContext, indexShard, newContextSearcher(reader, executor));
         context.collapse(new CollapseBuilder("user").build(context.getQueryShardContext()));
         context.trackScores(true);
         context.parsedQuery(new ParsedQuery(new TermQuery(new Term("foo", "bar"))));
@@ -1024,7 +1052,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         context.setSize(2);
         context.trackTotalHitsUpTo(5);
 
-        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
+        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
         assertFalse(Float.isNaN(context.queryResult().getMaxScore()));
         assertEquals(2, context.queryResult().topDocs().topDocs.scoreDocs.length);
         assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
@@ -1044,7 +1072,7 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         });
 
         context.sort(new SortAndFormats(sort, new DocValueFormat[] { DocValueFormat.RAW }));
-        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers());
+        QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
         assertFalse(Float.isNaN(context.queryResult().getMaxScore()));
         assertEquals(2, context.queryResult().topDocs().topDocs.scoreDocs.length);
         assertThat(context.queryResult().topDocs().topDocs.totalHits.value, equalTo((long) numDocs));
@@ -1129,25 +1157,26 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
         collector.accept(queryProfileShardResult.getCollectorResult());
     }
 
-    private static ContextIndexSearcher newContextSearcher(IndexReader reader) throws IOException {
+    private static ContextIndexSearcher newContextSearcher(IndexReader reader, ExecutorService executor) throws IOException {
         return new ContextIndexSearcher(
             reader,
             IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
             true,
-            null
+            executor
         );
     }
 
-    private static ContextIndexSearcher newEarlyTerminationContextSearcher(IndexReader reader, int size) throws IOException {
+    private static ContextIndexSearcher newEarlyTerminationContextSearcher(IndexReader reader, int size, ExecutorService executor)
+        throws IOException {
         return new ContextIndexSearcher(
             reader,
             IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(),
             IndexSearcher.getDefaultQueryCachingPolicy(),
             true,
-            null
+            executor
         ) {
 
             @Override
