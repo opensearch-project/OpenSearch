@@ -52,6 +52,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
@@ -243,22 +244,22 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         private final String name;
         private String projectPath;
         private File distFile;
+        private List<File> alternativeDistFiles;
         private File expandedDistDir;
 
         DistributionProject(String name, String baseDir, Version version, String classifier, String extension, File checkoutDir) {
             this.name = name;
             this.projectPath = baseDir + "/" + name;
-            if (version.onOrAfter("1.1.0")) {
-                this.distFile = new File(
-                    checkoutDir,
-                    baseDir + "/" + name + "/build/distributions/opensearch-min-" + version + "-SNAPSHOT" + classifier + "." + extension
-                );
-            } else {
-                this.distFile = new File(
-                    checkoutDir,
-                    baseDir + "/" + name + "/build/distributions/opensearch-" + version + "-SNAPSHOT" + classifier + "." + extension
-                );
-            }
+            final String minDesignation = version.onOrAfter("1.1.0") ? "min-" : "";
+            final Function<Version, String> generateName = (Version ver) -> {
+                return baseDir + "/" + name + "/build/distributions/opensearch-" + minDesignation + ver + "-SNAPSHOT" + classifier + "." + extension;
+            };
+            this.distFile = new File(checkoutDir, generateName.apply(version));
+
+            final Version nextPatchVersion = new Version(version.getMajor(), version.getMinor(), version.getRevision() + 1);
+            final Version nextMinorVersion = new Version(version.getMajor(), version.getMinor() + 1, 0);
+            alternativeDistFiles = List.of(nextPatchVersion, nextMinorVersion).stream().map(generateName).map(n -> new File(checkoutDir, n)).collect(Collectors.toList());
+
             // we only ported this down to the 7.x branch.
             if (version.onOrAfter("7.10.0") && (name.endsWith("zip") || name.endsWith("tar"))) {
                 this.expandedDistDir = new File(checkoutDir, baseDir + "/" + name + "/build/install");
