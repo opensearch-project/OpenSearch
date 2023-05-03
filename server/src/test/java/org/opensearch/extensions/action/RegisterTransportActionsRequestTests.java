@@ -6,15 +6,15 @@
  * compatible open source license.
  */
 
-package org.opensearch.extensions;
+package org.opensearch.extensions.action;
 
 import org.junit.Before;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.extensions.action.RegisterTransportActionsRequest;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Set;
 
 public class RegisterTransportActionsRequestTests extends OpenSearchTestCase {
@@ -37,6 +37,32 @@ public class RegisterTransportActionsRequestTests extends OpenSearchTestCase {
     }
 
     public void testToString() {
-        assertEquals(originalRequest.toString(), "TransportActionsRequest{uniqueId=extension-uniqueId, actions=[testAction]}");
+        logger.info(originalRequest.toString());
+        assertEquals(
+            originalRequest.toString(),
+            "TransportActionsRequest{Identity=uniqueId: \"extension-uniqueId\"\n, actions=[testAction]}"
+        );
+    }
+
+    public void testNoIdentityRegisterTransportActionsRequest() {
+        String uniqueId = null;
+        // Expect exception as Extension Identity(uniqueId) is null
+        expectThrows(NullPointerException.class, () -> new RegisterTransportActionsRequest(uniqueId, Set.of()));
+    }
+
+    public void testNoTransportActionsRequest() {
+        String uniqueId = "extension-1234";
+        Set<String> expectedActions = null;
+        // Expect exception as paths are null
+        expectThrows(NullPointerException.class, () -> new RegisterTransportActionsRequest(uniqueId, expectedActions));
+    }
+
+    public void testEmptyTransportActionsRequest() {
+        String uniqueId = "extension-1234";
+        Set<String> expectedActions = Set.of();
+        RegisterTransportActionsRequest request = new RegisterTransportActionsRequest(uniqueId, expectedActions);
+
+        assertEquals(uniqueId, request.getUniqueId());
+        assertEquals(List.of(), request.getTransportActions());
     }
 }
