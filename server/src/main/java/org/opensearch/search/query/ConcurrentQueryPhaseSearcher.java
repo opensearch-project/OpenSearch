@@ -8,11 +8,6 @@
 
 package org.opensearch.search.query;
 
-import static org.opensearch.search.query.TopDocsCollectorContext.createTopDocsCollectorContext;
-
-import java.io.IOException;
-import java.util.LinkedList;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.Collector;
@@ -23,6 +18,11 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.profile.query.ProfileCollectorManager;
 import org.opensearch.search.query.QueryPhase.DefaultQueryPhaseSearcher;
 import org.opensearch.search.query.QueryPhase.TimeExceededException;
+
+import java.io.IOException;
+import java.util.LinkedList;
+
+import static org.opensearch.search.query.TopDocsCollectorContext.createTopDocsCollectorContext;
 
 /**
  * The implementation of the {@link QueryPhaseSearcher} which attempts to use concurrent
