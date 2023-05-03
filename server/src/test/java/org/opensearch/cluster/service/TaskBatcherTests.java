@@ -433,6 +433,80 @@ public class TaskBatcherTests extends TaskExecutorTests {
         latch.await();
     }
 
+    public void testDuplicateSubmissionAfterTimeout() throws InterruptedException {
+        final CountDownLatch latch = new CountDownLatch(2);
+        final CountDownLatch timeOutLatch = new CountDownLatch(1);
+        try (BlockingTask blockingTask = new BlockingTask(Priority.IMMEDIATE)) {
+            submitTask("blocking", blockingTask);
+
+            TestExecutor<SimpleTask> executor = tasks -> {};
+            SimpleTask task1 = new SimpleTask(1);
+            TestListener listener = new TestListener() {
+                @Override
+                public void processed(String source) {
+                    latch.countDown();
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    if (e instanceof ProcessClusterEventTimeoutException) {
+                        timeOutLatch.countDown();
+                    } else {
+                        throw new AssertionError(e);
+                    }
+                }
+            };
+
+            submitTask("first time", task1, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
+            ArrayList<TaskBatcher.BatchedTask> tasks = new ArrayList();
+            tasks.add(
+                taskBatcher.new UpdateTask(
+                    ClusterStateTaskConfig.build(Priority.NORMAL).priority(), "first time", task1, listener, executor
+                )
+            );
+
+            // task1 got timed out, it will be removed from map.
+            taskBatcher.onTimeoutInternal(tasks, TimeValue.ZERO);
+            timeOutLatch.await(); // wait for task to get timeout
+            // submitting same task1 again, it should get submitted, since last task was timeout.
+            submitTask("first time", task1, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
+            assertThat(latch.getCount(), equalTo(2L));
+        }
+        latch.await();
+    }
+
+    public void testDuplicateSubmissionAfterExecution() throws InterruptedException {
+        final CountDownLatch firstTaskLatch = new CountDownLatch(1);
+        final CountDownLatch latch = new CountDownLatch(2);
+
+        TestExecutor<SimpleTask> executor = tasks -> {};
+        SimpleTask task1 = new SimpleTask(1);
+        TestListener listener = new TestListener() {
+            @Override
+            public void processed(String source) {
+                firstTaskLatch.countDown();
+                latch.countDown();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                if (e instanceof ProcessClusterEventTimeoutException) {
+                    latch.countDown();
+                } else {
+                    throw new AssertionError(e);
+                }
+            }
+        };
+        submitTask("first time", task1, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
+
+        firstTaskLatch.await(); // wait till task is not executed
+
+        // submitting same task1 again, it should get submitted, since last task was executed.
+        submitTask("first time", task1, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
+
+        latch.await(); // wait till all tasks are not completed.
+    }
+
     protected static TaskBatcherListener getMockListener() {
         return new TaskBatcherListener() {
             @Override
@@ -466,7 +540,7 @@ public class TaskBatcherTests extends TaskExecutorTests {
 
         @Override
         public int hashCode() {
-            return super.hashCode();
+            return this.id;
         }
 
         @Override
