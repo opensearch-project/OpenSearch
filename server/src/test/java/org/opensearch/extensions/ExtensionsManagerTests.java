@@ -420,7 +420,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
         Settings settings = Settings.builder().build();
 
-        expectThrows(IOException.class, () -> new ExtensionsManager( emptyExtensionDir));
+        expectThrows(IOException.class, () -> new ExtensionsManager(emptyExtensionDir));
     }
 
     public void testInitialize() throws Exception {
