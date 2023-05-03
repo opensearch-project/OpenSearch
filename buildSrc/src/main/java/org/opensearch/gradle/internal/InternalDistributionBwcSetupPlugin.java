@@ -220,8 +220,12 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                     @Override
                     public void execute(Task task) {
                         if (projectArtifact.exists() == false) {
+                            String foundArtifacts = stream(projectArtifact.getParentFile().listFiles())
+                                .map(f -> f.getName())
+                                .map(s -> "   - " + s)
+                                .collect(Collectors.joining("\r\n"));
                             throw new InvalidUserDataException(
-                                "Building " + bwcVersion.get() + " didn't generate expected file " + projectArtifact
+                                "Building " + bwcVersion.get() + " didn't generate expected file " + projectArtifact + "\r\nFound the following artifacts:\r\n" + foundArtifacts
                             );
                         }
                     }
