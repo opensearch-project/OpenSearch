@@ -23,7 +23,7 @@ import org.opensearch.search.pipeline.SearchResponseProcessor;
 
 import java.util.Map;
 
-public class RenameResponseProcessor extends AbstractProcessor implements SearchResponseProcessor{
+public class RenameResponseProcessor extends AbstractProcessor implements SearchResponseProcessor {
     private final String oldField;
     private final String newField;
     private final boolean ignoreMissing;
@@ -38,7 +38,9 @@ public class RenameResponseProcessor extends AbstractProcessor implements Search
     }
 
     @Override
-    public String getType() { return TYPE; }
+    public String getType() {
+        return TYPE;
+    }
 
     public String getOldField() {
         return oldField;
@@ -67,8 +69,11 @@ public class RenameResponseProcessor extends AbstractProcessor implements Search
             }
 
             BytesReference sourceRef = hit.getSourceRef();
-            Tuple<? extends MediaType, Map<String, Object>> typeAndSourceMap =
-                XContentHelper.convertToMap(sourceRef, false, (MediaType) null);
+            Tuple<? extends MediaType, Map<String, Object>> typeAndSourceMap = XContentHelper.convertToMap(
+                sourceRef,
+                false,
+                (MediaType) null
+            );
 
             Map<String, Object> sourceAsMap = typeAndSourceMap.v2();
             if (sourceAsMap.containsKey(oldField)) {
@@ -95,7 +100,12 @@ public class RenameResponseProcessor extends AbstractProcessor implements Search
 
     public static final class Factory implements Processor.Factory {
         @Override
-        public RenameResponseProcessor create(Map<String, Processor.Factory> processorFactories, String tag, String description, Map<String, Object> config) throws Exception {
+        public RenameResponseProcessor create(
+            Map<String, Processor.Factory> processorFactories,
+            String tag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
             String oldField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "field");
             String newField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "target_field");
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_missing", false);

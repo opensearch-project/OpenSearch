@@ -55,8 +55,7 @@ public class RenameResponseProcessorTests extends AbstractBuilderTestCase {
     public void testRenameResponse() throws Exception {
         SearchRequest request = createDummyRequest();
 
-        RenameResponseProcessor renameResponseProcessor =
-            new RenameResponseProcessor(null, null, "field 0", "new field", false);
+        RenameResponseProcessor renameResponseProcessor = new RenameResponseProcessor(null, null, "field 0", "new field", false);
         SearchResponse response = createTestResponse(2, false);
         SearchResponse renameResponse = renameResponseProcessor.processResponse(request, createTestResponse(5, false));
 
@@ -66,8 +65,7 @@ public class RenameResponseProcessorTests extends AbstractBuilderTestCase {
     public void testRenameResponseWithMapping() throws Exception {
         SearchRequest request = createDummyRequest();
 
-        RenameResponseProcessor renameResponseProcessor =
-            new RenameResponseProcessor(null, null, "field 0", "new field", true);
+        RenameResponseProcessor renameResponseProcessor = new RenameResponseProcessor(null, null, "field 0", "new field", true);
         SearchResponse response = createTestResponse(5, true);
         SearchResponse renameResponse = renameResponseProcessor.processResponse(request, createTestResponse(5, true));
 
@@ -90,12 +88,7 @@ public class RenameResponseProcessorTests extends AbstractBuilderTestCase {
         config.put("target_field", newField);
 
         RenameResponseProcessor.Factory factory = new RenameResponseProcessor.Factory();
-        RenameResponseProcessor processor = factory.create(
-            Collections.emptyMap(),
-            null,
-            null,
-            config
-        );
+        RenameResponseProcessor processor = factory.create(Collections.emptyMap(), null, null, config);
         assertEquals(processor.getType(), "rename");
         assertEquals(processor.getOldField(), oldField);
         assertEquals(processor.getNewField(), newField);
