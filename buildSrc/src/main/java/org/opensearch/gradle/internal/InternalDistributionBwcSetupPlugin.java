@@ -52,6 +52,7 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -107,6 +108,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 distributionProject.name,
                 distributionProject.getProjectPath(),
                 distributionProject.getDistFile(),
+                distributionProject.getAlternativeDistFiles(),
                 buildBwcTaskProvider
             );
 
@@ -201,6 +203,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         String projectName,
         String projectPath,
         File projectArtifact,
+        List<File> alternativeProjectArtifacts,
         TaskProvider<Task> bwcTaskProvider
     ) {
         String bwcTaskName = buildBwcTaskName(projectName);
@@ -221,6 +224,11 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                     @Override
                     public void execute(Task task) {
                         if (projectArtifact.exists() == false) {
+                            Optional<String> foundAlternative = alternativeProjectArtifacts.stream().filter(File::exists).map(File::getName).findFirst();
+                            if (foundAlternative.isPresent()) {
+                                project.getLogger().warn("Building " + bwcVersion.get() + " found acceptable alternative artifact " + foundAlternative.get());
+                                return;
+                            }
                             String foundArtifacts = stream(projectArtifact.getParentFile().listFiles())
                                 .map(f -> f.getName())
                                 .map(s -> "   - " + s)
@@ -258,7 +266,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
             final Version nextPatchVersion = new Version(version.getMajor(), version.getMinor(), version.getRevision() + 1);
             final Version nextMinorVersion = new Version(version.getMajor(), version.getMinor() + 1, 0);
-            alternativeDistFiles = List.of(nextPatchVersion, nextMinorVersion).stream().map(generateName).map(n -> new File(checkoutDir, n)).collect(Collectors.toList());
+            this.alternativeDistFiles = List.of(nextPatchVersion, nextMinorVersion).stream().map(generateName).map(n -> new File(checkoutDir, n)).collect(Collectors.toList());
 
             // we only ported this down to the 7.x branch.
             if (version.onOrAfter("7.10.0") && (name.endsWith("zip") || name.endsWith("tar"))) {
@@ -272,6 +280,10 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
         public File getDistFile() {
             return distFile;
+        }
+
+        public List<File> getAlternativeDistFiles() {
+            return alternativeDistFiles;
         }
 
         public File getExpandedDistDirectory() {
