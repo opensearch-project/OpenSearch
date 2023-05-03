@@ -140,7 +140,7 @@ OpenSearch uses code generators like [Protobuf](https://protobuf.dev/).
 OpenSearch build system already takes a dependency of generating code from protobuf, incase you run into compilation errors, run:
 
 ```
-/.gradlew generateProto
+./gradlew generateProto
 ```
 
 Generated code in OpenSearch is used to establish cross version compatibility communication for API contracts within OpenSearch.
