@@ -353,6 +353,10 @@ tasks.named("missingJavadoc").configure {
    */
   dependsOn("generateProto")
   javadocMissingIgnore = [
+    "org.opensearch.extensions.proto.ExtensionIdentityProto",
+    "org.opensearch.extensions.proto.ExtensionIdentityProto.ExtensionIdentityOrBuilder",
+    "org.opensearch.extensions.proto.RegisterRestActionsProto",
+    "org.opensearch.extensions.proto.RegisterRestActionsProto.RegisterRestActionsOrBuilder",
     "org.opensearch.extensions.proto.ExtensionRequestProto",
     "org.opensearch.extensions.proto.ExtensionRequestProto.ExtensionRequestOrBuilder",
     "org.opensearch.extensions.proto"
