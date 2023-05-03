@@ -63,7 +63,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.component.AbstractLifecycleComponent;
-import org.opensearch.common.io.FileSystemUtils;
+import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;

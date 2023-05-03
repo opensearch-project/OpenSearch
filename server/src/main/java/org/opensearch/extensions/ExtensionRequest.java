@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.extensions.proto.ExtensionIdentityProto;
 import org.opensearch.extensions.proto.ExtensionRequestProto;
 import org.opensearch.transport.TransportRequest;
 
@@ -35,7 +36,7 @@ public class ExtensionRequest extends TransportRequest {
     public ExtensionRequest(ExtensionRequestProto.RequestType requestType, @Nullable String uniqueId) {
         ExtensionRequestProto.ExtensionRequest.Builder builder = ExtensionRequestProto.ExtensionRequest.newBuilder();
         if (uniqueId != null) {
-            builder.setUniqueId(uniqueId);
+            builder.setIdentity(ExtensionIdentityProto.ExtensionIdentity.newBuilder().setUniqueId(uniqueId).build());
         }
         this.request = builder.setRequestType(requestType).build();
     }
@@ -56,11 +57,15 @@ public class ExtensionRequest extends TransportRequest {
     }
 
     public String getUniqueId() {
-        return request.getUniqueId();
+        return request.getIdentity().getUniqueId();
     }
 
     public String toString() {
         return "ExtensionRequest{" + request.toString() + '}';
+    }
+
+    public ExtensionIdentityProto.ExtensionIdentity getExtensionIdentity() {
+        return request.getIdentity();
     }
 
     @Override
@@ -69,11 +74,11 @@ public class ExtensionRequest extends TransportRequest {
         if (o == null || getClass() != o.getClass()) return false;
         ExtensionRequest that = (ExtensionRequest) o;
         return Objects.equals(request.getRequestType(), that.request.getRequestType())
-            && Objects.equals(request.getUniqueId(), that.request.getUniqueId());
+            && Objects.equals(request.getIdentity().getUniqueId(), that.request.getIdentity().getUniqueId());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(request.getRequestType(), request.getUniqueId());
+        return Objects.hash(request.getRequestType(), request.getIdentity().getUniqueId());
     }
 }

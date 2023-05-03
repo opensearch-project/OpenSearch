@@ -31,7 +31,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
@@ -1235,8 +1234,8 @@ public class MetadataIndexTemplateService {
         templates.forEach(template -> {
             if (template.aliases() != null) {
                 Map<String, AliasMetadata> aliasMeta = new HashMap<>();
-                for (final ObjectObjectCursor<String, AliasMetadata> cursor : template.aliases()) {
-                    aliasMeta.put(cursor.key, cursor.value);
+                for (final Map.Entry<String, AliasMetadata> cursor : template.aliases().entrySet()) {
+                    aliasMeta.put(cursor.getKey(), cursor.getValue());
                 }
                 resolvedAliases.add(aliasMeta);
             }

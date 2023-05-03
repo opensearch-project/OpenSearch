@@ -98,6 +98,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private QueryProfiler profiler;
     private MutableQueryTimeout cancellable;
 
+    /**
+     * Certain queries can benefit if we reverse the segment read order,
+     * for example time series based queries if searched for desc sort order
+     */
+    private final boolean reverseLeafReaderContexts;
+
     public ContextIndexSearcher(
         IndexReader reader,
         Similarity similarity,
@@ -106,7 +112,37 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         boolean wrapWithExitableDirectoryReader,
         Executor executor
     ) throws IOException {
-        this(reader, similarity, queryCache, queryCachingPolicy, new MutableQueryTimeout(), wrapWithExitableDirectoryReader, executor);
+        this(
+            reader,
+            similarity,
+            queryCache,
+            queryCachingPolicy,
+            new MutableQueryTimeout(),
+            wrapWithExitableDirectoryReader,
+            executor,
+            false
+        );
+    }
+
+    public ContextIndexSearcher(
+        IndexReader reader,
+        Similarity similarity,
+        QueryCache queryCache,
+        QueryCachingPolicy queryCachingPolicy,
+        boolean wrapWithExitableDirectoryReader,
+        Executor executor,
+        boolean reverseLeafReaderContexts
+    ) throws IOException {
+        this(
+            reader,
+            similarity,
+            queryCache,
+            queryCachingPolicy,
+            new MutableQueryTimeout(),
+            wrapWithExitableDirectoryReader,
+            executor,
+            reverseLeafReaderContexts
+        );
     }
 
     private ContextIndexSearcher(
@@ -116,13 +152,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         QueryCachingPolicy queryCachingPolicy,
         MutableQueryTimeout cancellable,
         boolean wrapWithExitableDirectoryReader,
-        Executor executor
+        Executor executor,
+        boolean reverseLeafReaderContexts
     ) throws IOException {
         super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
         setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
         this.cancellable = cancellable;
+        this.reverseLeafReaderContexts = reverseLeafReaderContexts;
     }
 
     public void setProfiler(QueryProfiler profiler) {
@@ -246,8 +284,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
-        for (LeafReaderContext ctx : leaves) { // search each subreader
-            searchLeaf(ctx, weight, collector);
+        if (reverseLeafReaderContexts) {
+            // reverse the segment search order if this flag is true.
+            for (int i = leaves.size() - 1; i >= 0; i--) {
+                searchLeaf(leaves.get(i), weight, collector);
+            }
+        } else {
+            for (int i = 0; i < leaves.size(); i++) {
+                searchLeaf(leaves.get(i), weight, collector);
+            }
         }
     }
 

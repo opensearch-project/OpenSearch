@@ -178,7 +178,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             executorNodeAttr = in.readOptionalString();
             responseNode = in.readOptionalString();
             testParam = in.readOptionalString();
-            minVersion = Version.readVersion(in);
+            minVersion = in.readVersion();
             feature = Optional.ofNullable(in.readOptionalString());
         }
 
@@ -208,7 +208,7 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
             out.writeOptionalString(executorNodeAttr);
             out.writeOptionalString(responseNode);
             out.writeOptionalString(testParam);
-            Version.writeVersion(minVersion, out);
+            out.writeVersion(minVersion);
             out.writeOptionalString(feature.orElse(null));
         }
 
