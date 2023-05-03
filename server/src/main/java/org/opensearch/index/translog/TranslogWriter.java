@@ -185,7 +185,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             if (Assertions.ENABLED) {
                 writerGlobalCheckpointSupplier = () -> {
                     long gcp = globalCheckpointSupplier.getAsLong();
-                    assert gcp >= initialGlobalCheckpoint : "global checkpoint ["
+                    assert gcp >= initialGlobalCheckpoint || gcp == -1 : "global checkpoint ["
                         + gcp
                         + "] lower than initial gcp ["
                         + initialGlobalCheckpoint

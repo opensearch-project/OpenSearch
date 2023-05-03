@@ -8,6 +8,8 @@
 
 package org.opensearch.index.translog;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.SetOnce;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.common.lease.Releasable;
@@ -47,6 +49,7 @@ import java.util.function.LongSupplier;
  */
 public class RemoteFsTranslog extends Translog {
 
+    private static final Logger logger = LogManager.getLogger(RemoteFsTranslog.class);
     private final BlobStoreRepository blobStoreRepository;
     private final TranslogTransferManager translogTransferManager;
     private final FileTransferTracker fileTransferTracker;
@@ -82,7 +85,6 @@ public class RemoteFsTranslog extends Translog {
         this.primaryModeSupplier = primaryModeSupplier;
         fileTransferTracker = new FileTransferTracker(shardId);
         this.translogTransferManager = buildTranslogTransferManager(blobStoreRepository, threadPool, shardId, fileTransferTracker);
-
         try {
             download(translogTransferManager, location);
             Checkpoint checkpoint = readCheckpoint(location);
@@ -131,6 +133,7 @@ public class RemoteFsTranslog extends Translog {
     }
 
     public static void download(TranslogTransferManager translogTransferManager, Path location) throws IOException {
+        logger.info("Downloading translog files from remote for shard {} ", translogTransferManager.getShardId());
         TranslogTransferMetadata translogMetadata = translogTransferManager.readMetadata();
         if (translogMetadata != null) {
             if (Files.notExists(location)) {
@@ -152,6 +155,7 @@ public class RemoteFsTranslog extends Translog {
                 location.resolve(Translog.CHECKPOINT_FILE_NAME)
             );
         }
+        logger.info("Downloaded translog files from remote for shard {} ", translogTransferManager.getShardId());
     }
 
     public static TranslogTransferManager buildTranslogTransferManager(
@@ -161,6 +165,7 @@ public class RemoteFsTranslog extends Translog {
         FileTransferTracker fileTransferTracker
     ) {
         return new TranslogTransferManager(
+            shardId,
             new BlobStoreTransferService(blobStoreRepository.blobStore(), threadPool),
             blobStoreRepository.basePath().add(shardId.getIndex().getUUID()).add(String.valueOf(shardId.id())),
             fileTransferTracker
@@ -329,10 +334,18 @@ public class RemoteFsTranslog extends Translog {
 
     protected long getMinReferencedGen() throws IOException {
         assert readLock.isHeldByCurrentThread() || writeLock.isHeldByCurrentThread();
-        long minReferencedGen = Math.min(
+        long uncommitedSeqNo, minReferencedGen;
+        if (this.indexSettings.isRemoteStoreEnabled()) {
+            uncommitedSeqNo = minSeqNoToKeep;
+        } else {
+            uncommitedSeqNo = deletionPolicy.getLocalCheckpointOfSafeCommit() + 1;
+        }
+
+        minReferencedGen = Math.min(
             deletionPolicy.minTranslogGenRequired(readers, current),
-            minGenerationForSeqNo(Math.min(deletionPolicy.getLocalCheckpointOfSafeCommit() + 1, minSeqNoToKeep), current, readers)
+            minGenerationForSeqNo(uncommitedSeqNo, current, readers)
         );
+
         assert minReferencedGen >= getMinFileGeneration() : "deletion policy requires a minReferenceGen of ["
             + minReferencedGen
             + "] but the lowest gen available is ["
@@ -413,6 +426,32 @@ public class RemoteFsTranslog extends Translog {
             translogTransferManager.deletePrimaryTermsAsync(minimumReferencedPrimaryTerm);
             // Second we delete all stale metadata files from remote store
             translogTransferManager.deleteStaleTranslogMetadataFilesAsync();
+        }
+    }
+
+    /**
+     * return stats
+     */
+    @Override
+    public TranslogStats stats() {
+        // acquire lock to make the two numbers roughly consistent (no file change half way)
+
+        try (ReleasableLock lock = readLock.acquire()) {
+            long uncommitedSeqNo;
+            if (this.indexSettings.isRemoteStoreEnabled()) {
+                uncommitedSeqNo = minSeqNoToKeep;
+            } else {
+                uncommitedSeqNo = deletionPolicy.getLocalCheckpointOfSafeCommit() + 1;
+            }
+
+            long uncommittedGen = getMinGenerationForSeqNo(uncommitedSeqNo).translogFileGeneration;
+            return new TranslogStats(
+                totalOperations(),
+                sizeInBytes(),
+                totalOperationsByMinGen(uncommittedGen),
+                sizeInBytesByMinGen(uncommittedGen),
+                earliestLastModifiedAge()
+            );
         }
     }
 }
