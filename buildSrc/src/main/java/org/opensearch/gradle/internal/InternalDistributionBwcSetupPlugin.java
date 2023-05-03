@@ -224,17 +224,27 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                     @Override
                     public void execute(Task task) {
                         if (projectArtifact.exists() == false) {
-                            Optional<String> foundAlternative = alternativeProjectArtifacts.stream().filter(File::exists).map(File::getName).findFirst();
+                            Optional<String> foundAlternative = alternativeProjectArtifacts.stream()
+                                .filter(File::exists)
+                                .map(File::getName)
+                                .findFirst();
                             if (foundAlternative.isPresent()) {
-                                project.getLogger().warn("Building " + bwcVersion.get() + " found acceptable alternative artifact " + foundAlternative.get());
+                                project.getLogger()
+                                    .warn(
+                                        "Building " + bwcVersion.get() + " found acceptable alternative artifact " + foundAlternative.get()
+                                    );
                                 return;
                             }
-                            String foundArtifacts = stream(projectArtifact.getParentFile().listFiles())
-                                .map(f -> f.getName())
+                            String foundArtifacts = stream(projectArtifact.getParentFile().listFiles()).map(f -> f.getName())
                                 .map(s -> "   - " + s)
                                 .collect(Collectors.joining("\r\n"));
                             throw new InvalidUserDataException(
-                                "Building " + bwcVersion.get() + " didn't generate expected file " + projectArtifact + "\r\nFound the following artifacts:\r\n" + foundArtifacts
+                                "Building "
+                                    + bwcVersion.get()
+                                    + " didn't generate expected file "
+                                    + projectArtifact
+                                    + "\r\nFound the following artifacts:\r\n"
+                                    + foundArtifacts
                             );
                         }
                     }
@@ -260,13 +270,26 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             this.projectPath = baseDir + "/" + name;
             final String minDesignation = version.onOrAfter("1.1.0") ? "min-" : "";
             final Function<Version, String> generateName = (Version ver) -> {
-                return baseDir + "/" + name + "/build/distributions/opensearch-" + minDesignation + ver + "-SNAPSHOT" + classifier + "." + extension;
+                return baseDir
+                    + "/"
+                    + name
+                    + "/build/distributions/opensearch-"
+                    + minDesignation
+                    + ver
+                    + "-SNAPSHOT"
+                    + classifier
+                    + "."
+                    + extension;
             };
             this.distFile = new File(checkoutDir, generateName.apply(version));
 
             final Version nextPatchVersion = new Version(version.getMajor(), version.getMinor(), version.getRevision() + 1);
             final Version nextMinorVersion = new Version(version.getMajor(), version.getMinor() + 1, 0);
-            this.alternativeDistFiles = List.of(nextPatchVersion, nextMinorVersion).stream().map(generateName).map(n -> new File(checkoutDir, n)).collect(Collectors.toList());
+            this.alternativeDistFiles = List.of(nextPatchVersion, nextMinorVersion)
+                .stream()
+                .map(generateName)
+                .map(n -> new File(checkoutDir, n))
+                .collect(Collectors.toList());
 
             // we only ported this down to the 7.x branch.
             if (version.onOrAfter("7.10.0") && (name.endsWith("zip") || name.endsWith("tar"))) {
