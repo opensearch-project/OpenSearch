@@ -29,6 +29,8 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -96,7 +98,9 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
 
     private volatile Scheduler.ScheduledCancellable scheduledCancellableRetry;
 
-    public RemoteStoreRefreshListener(IndexShard indexShard) {
+    private final SegmentReplicationCheckpointPublisher checkpointPublisher;
+
+    public RemoteStoreRefreshListener(IndexShard indexShard, SegmentReplicationCheckpointPublisher checkpointPublisher) {
         this.indexShard = indexShard;
         this.storeDirectory = indexShard.store().directory();
         this.remoteDirectory = (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory())
@@ -111,6 +115,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
             }
         }
         resetBackOffDelayIterator();
+        this.checkpointPublisher = checkpointPublisher;
     }
 
     @Override
@@ -150,6 +155,10 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                     if (isRefreshAfterCommit()) {
                         deleteStaleCommits();
                     }
+
+                    // Capture replication checkpoint before uploading the segments as upload can take some time and checkpoint can
+                    // move.
+                    ReplicationCheckpoint checkpoint = indexShard.getLatestReplicationCheckpoint();
 
                     String segmentInfoSnapshotFilename = null;
                     try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
@@ -193,6 +202,8 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                                 OnSuccessfulSegmentsSync();
                                 final long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();
                                 indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
+
+                                notifySegmentUpload(indexShard, checkpoint);
                             } else {
                                 shouldRetry = true;
                             }
@@ -333,5 +344,9 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         } catch (IOException e) {
             logger.info("Exception while deleting stale commits from remote segment store, will retry delete post next commit", e);
         }
+    }
+
+    private void notifySegmentUpload(IndexShard indexShard, ReplicationCheckpoint checkpoint) {
+        checkpointPublisher.publish(indexShard, checkpoint);
     }
 }
