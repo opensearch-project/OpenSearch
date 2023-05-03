@@ -331,7 +331,7 @@ Please follow these formatting guidelines:
 
 ## Adding Dependencies
 
-When adding a new dependency or removing an existing dependency via any `build.gradle`, update the dependency LICENSE and library SHAs.
+When adding a new dependency or removing an existing dependency via any `build.gradle` (that are not in the test scope), update the dependency LICENSE and library SHAs.
 
 For example, after adding `api "org.slf4j:slf4j-api:${versions.slf4j}"` to [plugins/discovery-ec2/build.gradle](plugins/discovery-ec2/build.gradle), copy the library `LICENSE.txt` and `NOTICE.txt` to `plugins/discovery-ec2/licenses/slf4j-api-LICENSE.txt` and `plugins/discovery-ec2/licenses/slf4j-api-NOTICE.txt`, then run the following to generate `plugins/discovery-ec2/licenses/slf4j-api-1.7.36.jar.sha1`.
 
