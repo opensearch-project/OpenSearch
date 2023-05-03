@@ -9,6 +9,7 @@
       - [Windows](#windows)
       - [Docker](#docker)
     - [Build](#build)
+      - [Generated Code](#generated-code)
     - [Run Tests](#run-tests)
     - [Run OpenSearch](#run-opensearch)
   - [Use an Editor](#use-an-editor)
@@ -133,6 +134,17 @@ To build a distribution to run on your local platform, run:
 ```
 
 All distributions built will be under `distributions/archives`.
+
+#### Generated Code
+
+OpenSearch uses code generators like [Protobuf](https://protobuf.dev/).
+OpenSearch build system already takes a dependency of generating code from protobuf, incase you run into compilation errors, run:
+
+```
+./gradlew generateProto
+```
+
+Generated code in OpenSearch is used to establish cross version compatibility communication for API contracts within OpenSearch.
 
 ### Run Tests
 

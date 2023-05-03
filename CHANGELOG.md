@@ -5,7 +5,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased 2.x]
 ### Added
-- [Extensions] Moving Extensions APIs to support cross versions via protobuf. ([#6960](https://github.com/opensearch-project/OpenSearch/pull/6960))
+- [Extensions] Moving Extensions APIs to support cross versions via protobuf. ([#7402](https://github.com/opensearch-project/OpenSearch/issues/7402))
 - Add connectToNodeAsExtension in TransportService ([#6866](https://github.com/opensearch-project/OpenSearch/pull/6866))
 - [Extensions] Add IdentityPlugin into core to support Extension identities ([#7393](https://github.com/opensearch-project/OpenSearch/pull/7393))
 
@@ -30,5 +30,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Replaces ZipInputStream with ZipFile to fix Zip Slip vulnerability ([#7230](https://github.com/opensearch-project/OpenSearch/pull/7230))
 
 ### Security
-
 
