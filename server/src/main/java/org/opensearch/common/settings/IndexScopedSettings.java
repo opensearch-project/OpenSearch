@@ -53,6 +53,7 @@ import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.FieldMapper;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.shard.RemoteStoreRefreshListener;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.Store;
@@ -233,7 +234,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             IndexMetadata.INDEX_REMOTE_STORE_REPOSITORY_SETTING,
             IndexMetadata.INDEX_REMOTE_TRANSLOG_STORE_ENABLED_SETTING,
             IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING,
-            IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING
+            IndexMetadata.INDEX_REMOTE_TRANSLOG_BUFFER_INTERVAL_SETTING,
+            // Setting related to remote refresh retry interval
+            RemoteStoreRefreshListener.INDEX_REMOTE_REFRESH_RETRY_INTERVAL
         )
     );
 
