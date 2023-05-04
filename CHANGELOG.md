@@ -30,25 +30,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `wiremock-jre8-standalone` from 2.33.2 to 2.35.0
 - Bump `gson` from 2.10 to 2.10.1
 - Bump `json-schema-validator` from 1.0.73 to 1.0.76
-- Bump `jna` from 5.11.0 to 5.13.0
 - Bump `joni` from 2.1.44 to 2.1.45
-- Bump `commons-io:commons-io` from 2.7 to 2.11.0
 - Bump `org.jruby.joni:joni` from 2.1.45 to 2.1.48
 - Bump `com.google.code.gson:gson` from 2.10 to 2.10.1
 - Bump `com.maxmind.geoip2:geoip2` from 4.0.0 to 4.0.1
 - Bump `com.networknt:json-schema-validator` from 1.0.76 to 1.0.78
-- Bump `com.netflix.nebula:gradle-info-plugin` from 12.0.0 to 12.1.0
 - Bump `com.avast.gradle:gradle-docker-compose-plugin` from 0.16.11 to 0.16.12
 - Bump `org.apache.commons:commons-compress` from 1.22 to 1.23.0
 - Bump `org.apache.commons:commons-configuration2` from 2.8.0 to 2.9.0
 - Bump `com.netflix.nebula:nebula-publishing-plugin` from 19.2.0 to 20.3.0
-- Bump `com.netflix.nebula.ospackage-base` from 11.0.0 to 11.3.0
 - Bump `org.apache.commons:commons-compress` from 1.22 to 1.23.0
-- Bump `com.google.protobuf:protobuf-java` from 3.22.2 to 3.22.3
 - Bump `com.diffplug.spotless` from 6.17.0 to 6.18.0
 - Bump `io.opencensus:opencensus-api` from 0.18.0 to 0.31.1 ([#7291](https://github.com/opensearch-project/OpenSearch/pull/7291))
-- Bump `gradle.plugin.com.github.johnrengelman:shadow` from 7.1.2 to 8.0.0
-- Bump `org.apache.shiro:shiro-core` from 1.9.1 to 1.11.0 ([#7397](https://github.com/opensearch-project/OpenSearch/pull/7397)
 
 ### Changed
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
@@ -88,10 +81,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Added
 - [Extensions] Moving Extensions APIs to support cross versions via protobuf. ([#7402](https://github.com/opensearch-project/OpenSearch/issues/7402))
 - [Extensions] Add IdentityPlugin into core to support Extension identities ([#7246](https://github.com/opensearch-project/OpenSearch/pull/7246))
+- Add connectToNodeAsExtension in TransportService ([#6866](https://github.com/opensearch-project/OpenSearch/pull/6866))
 - Add descending order search optimization through reverse segment read. ([#7244](https://github.com/opensearch-project/OpenSearch/pull/7244))
 
 ### Dependencies
-- Bump `jackson` from 2.14.2 to 2.15.0 ([#7286](https://github.com/opensearch-project/OpenSearch/pull/7286)
+- Bump `com.netflix.nebula:gradle-info-plugin` from 12.0.0 to 12.1.0
+- Bump `com.netflix.nebula:nebula-publishing-plugin` from 19.2.0 to 20.2.0
+- Bump `com.google.protobuf:protobuf-java` from 3.22.2 to 3.22.3
+- Bump `jackson` from 2.14.2 to 2.15.0 ([#7286](https://github.com/opensearch-project/OpenSearch/pull/7286))
+- Bump `com.netflix.nebula:nebula-publishing-plugin` from 20.2.0 to 20.3.0
+- Bump `com.netflix.nebula.ospackage-base` from 11.0.0 to 11.3.0
+- Bump `gradle.plugin.com.github.johnrengelman:shadow` from 7.1.2 to 8.0.0
+- Bump `jna` from 5.11.0 to 5.13.0
+- Bump `commons-io:commons-io` from 2.7 to 2.11.0
+- Bump `org.apache.shiro:shiro-core` from 1.9.1 to 1.11.0 ([#7397](https://github.com/opensearch-project/OpenSearch/pull/7397)
 
 ### Changed
 - Enable `./gradlew build` on MacOS by disabling bcw tests ([#7303](https://github.com/opensearch-project/OpenSearch/pull/7303))
@@ -106,4 +109,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Security
 
 [Unreleased 3.0]: https://github.com/opensearch-project/OpenSearch/compare/2.x...HEAD
-[Unreleased 2.x]: https://github.com/opensearch-project/OpenSearch/compare/2.5...2.x
+[Unreleased 2.x]: https://github.com/opensearch-project/OpenSearch/compare/2.7...2.x
