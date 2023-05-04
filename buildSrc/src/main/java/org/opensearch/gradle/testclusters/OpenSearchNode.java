@@ -46,6 +46,8 @@ import org.opensearch.gradle.ReaperService;
 import org.opensearch.gradle.Version;
 import org.opensearch.gradle.VersionProperties;
 import org.opensearch.gradle.info.BuildParams;
+import org.yaml.snakeyaml.DumperOptions;
+import org.yaml.snakeyaml.Yaml;
 import org.gradle.api.Action;
 import org.gradle.api.Named;
 import org.gradle.api.NamedDomainObjectContainer;
@@ -92,6 +94,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Scanner;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -141,6 +144,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
     private final Map<String, Configuration> pluginAndModuleConfigurations = new HashMap<>();
     private final List<Provider<File>> plugins = new ArrayList<>();
     private final List<Provider<File>> modules = new ArrayList<>();
+    private final List<ExtensionsProperties> extensions = new ArrayList<>();
     final LazyPropertyMap<String, CharSequence> settings = new LazyPropertyMap<>("Settings", this);
     private final LazyPropertyMap<String, CharSequence> keystoreSettings = new LazyPropertyMap<>("Keystore", this);
     private final LazyPropertyMap<String, File> keystoreFiles = new LazyPropertyMap<>("Keystore files", this, FileEntry::new);
@@ -342,6 +346,42 @@ public class OpenSearchNode implements TestClusterConfiguration {
     }
 
     @Override
+    public void extension(ExtensionsProperties extensions) {
+        this.extensions.add(extensions);
+    }
+
+    public void writeExtensionFiles() {
+        try {
+            // Creates extensions.yml in the target directory
+            Path destination = getDistroDir().resolve("extensions").resolve("extensions.yml");
+            if (!Files.exists(getDistroDir().resolve("extensions"))) {
+                Files.createDirectory(getDistroDir().resolve("extensions"));
+            }
+            DumperOptions dumperOptions = new DumperOptions();
+            TestExtensionsList extensionsList = new TestExtensionsList(this.extensions);
+            dumperOptions.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+            Yaml yaml = new Yaml(dumperOptions);
+            Files.write(destination, yaml.dump(extensionsList).getBytes());
+
+            /*
+             * SnakeYaml creates a Yaml file with an unnecessary line at the top with the class name
+             * This section of code removes that line while keeping everything else the same.
+             */
+
+            Scanner scanner = new Scanner(destination);
+            scanner.nextLine();
+            StringBuilder extensionsString = new StringBuilder();
+            while (scanner.hasNextLine()) {
+                extensionsString.append("\n" + scanner.nextLine());
+            }
+            Files.write(destination, extensionsString.toString().getBytes());
+
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to write to extensions.yml", e);
+        }
+    }
+
+    @Override
     public void keystore(String key, String value) {
         keystoreSettings.put(key, value);
     }
@@ -509,6 +549,10 @@ public class OpenSearchNode implements TestClusterConfiguration {
             final String[] arguments = Stream.concat(Stream.of("install", "--batch"), pluginsToInstall.stream()).toArray(String[]::new);
             runOpenSearchBinScript("opensearch-plugin", arguments);
             logToProcessStdout("installed plugins");
+        }
+
+        if (!extensions.isEmpty()) {
+            writeExtensionFiles();
         }
 
         logToProcessStdout("Creating opensearch keystore with password set to [" + keystorePassword + "]");
@@ -784,6 +828,10 @@ public class OpenSearchNode implements TestClusterConfiguration {
         // Don't inherit anything from the environment for as that would lack reproducibility
         environment.clear();
         environment.putAll(getOpenSearchEnvironment());
+
+        if (!extensions.isEmpty()) {
+            environment.put("OPENSEARCH_JAVA_OPTS", "-Dopensearch.experimental.feature.extensions.enabled=true");
+        }
 
         // don't buffer all in memory, make sure we don't block on the default pipes
         processBuilder.redirectError(ProcessBuilder.Redirect.appendTo(stderrFile.toFile()));
