@@ -233,7 +233,17 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
                  */
                 promoteToDouble = true;
                 break;
-            }
+            } else if (agg instanceof UnsignedLongTerms
+                && (((UnsignedLongTerms) agg).format == DocValueFormat.RAW
+                    || ((UnsignedLongTerms) agg).format == DocValueFormat.UNSIGNED_LONG_SHIFTED
+                    || ((UnsignedLongTerms) agg).format == DocValueFormat.UNSIGNED_LONG)) {
+                        /*
+                         * this terms agg mixes unsigned longs and doubles, we must promote unsigned longs to doubles to make the internal aggs
+                         * compatible
+                         */
+                        promoteToDouble = true;
+                        break;
+                    }
         }
         if (promoteToDouble == false) {
             return super.reduce(aggregations, reduceContext);
@@ -242,6 +252,9 @@ public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bu
         for (InternalAggregation agg : aggregations) {
             if (agg instanceof LongTerms) {
                 DoubleTerms dTerms = LongTerms.convertLongTermsToDouble((LongTerms) agg, format);
+                newAggs.add(dTerms);
+            } else if (agg instanceof UnsignedLongTerms) {
+                DoubleTerms dTerms = UnsignedLongTerms.convertUnsignedLongTermsToDouble((UnsignedLongTerms) agg, format);
                 newAggs.add(dTerms);
             } else {
                 newAggs.add(agg);

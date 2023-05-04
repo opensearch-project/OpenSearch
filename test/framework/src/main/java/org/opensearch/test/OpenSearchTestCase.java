@@ -67,6 +67,7 @@ import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.CheckedRunnable;
+import org.opensearch.common.Numbers;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
@@ -802,6 +803,22 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
 
     public static long randomLong() {
         return random().nextLong();
+    }
+
+    /**
+     * Returns a random BigInteger uniformly distributed over the range 0 to (2^64 - 1) inclusive
+     * Currently BigIntegers are only used for unsigned_long field type, where the max value is 2^64 - 1.
+     * Modify this random generator if a wider range for BigIntegers is necessary.
+     * @return a random bigInteger in the range [0 ; 2^64 - 1]
+     */
+    public static BigInteger randomUnsignedLong() {
+        BigInteger value = randomBigInteger().abs();
+
+        while (value.compareTo(Numbers.MAX_UNSIGNED_LONG_VALUE) == 1) {
+            value = value.subtract(Numbers.MAX_UNSIGNED_LONG_VALUE);
+        }
+
+        return value;
     }
 
     /**
