@@ -40,7 +40,7 @@ import com.sun.net.httpserver.HttpsServer;
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.cloud.azure.classic.management.AzureComputeService;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.io.FileSystemUtils;
+import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.discovery.DiscoveryModule;

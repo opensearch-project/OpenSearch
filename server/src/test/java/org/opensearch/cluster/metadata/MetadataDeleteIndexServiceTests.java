@@ -40,7 +40,6 @@ import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
@@ -58,6 +57,7 @@ import org.junit.Before;
 import java.util.HashSet;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -108,7 +108,7 @@ public class MetadataDeleteIndexServiceTests extends OpenSearchTestCase {
                     Collections.emptyList(),
                     System.currentTimeMillis(),
                     (long) randomIntBetween(0, 1000),
-                    ImmutableOpenMap.of(),
+                    Map.of(),
                     null,
                     SnapshotInfoTests.randomUserMetadata(),
                     VersionUtils.randomVersion(random())

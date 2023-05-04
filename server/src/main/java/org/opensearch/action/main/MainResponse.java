@@ -66,10 +66,10 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     MainResponse(StreamInput in) throws IOException {
         super(in);
         nodeName = in.readString();
-        version = Version.readVersion(in);
+        version = in.readVersion();
         clusterName = new ClusterName(in);
         clusterUuid = in.readString();
-        build = Build.readBuild(in);
+        build = in.readBuild();
     }
 
     public MainResponse(String nodeName, Version version, ClusterName clusterName, String clusterUuid, Build build) {
@@ -103,10 +103,10 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeName);
-        Version.writeVersion(version, out);
+        out.writeVersion(version);
         clusterName.writeTo(out);
         out.writeString(clusterUuid);
-        Build.writeBuild(build, out);
+        out.writeBuild(build);
     }
 
     @Override

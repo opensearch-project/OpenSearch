@@ -255,7 +255,7 @@ public class DanglingIndicesState implements ClusterStateListener {
             logger.info(
                 "[{}] stripping aliases: {} from index before importing",
                 indexMetadata.getIndex(),
-                indexMetadata.getAliases().keys()
+                indexMetadata.getAliases().keySet()
             );
             return IndexMetadata.builder(indexMetadata).removeAllAliases().build();
         }

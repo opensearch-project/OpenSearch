@@ -39,7 +39,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.io.FileSystemUtils;
+import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.network.IfConfig;
 import org.opensearch.common.network.NetworkAddress;
