@@ -20,7 +20,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.util.Base64;
 import java.util.List;
 
@@ -35,13 +34,12 @@ import static org.mockito.Mockito.when;
 public class ServiceAccountManagerTests extends OpenSearchTestCase {
     private Settings setting = Settings.builder().put("http.port", "9200").build();
     private String defaultAuthString = "admin:admin";
-    private Path path = Path.of("");
     private HttpClient httpClient = Mockito.mock(HttpClient.class);
     @SuppressWarnings("unchecked")
     private HttpResponse<String> httpResponse = Mockito.mock(HttpResponse.class);
 
     public void testShouldReturnServiceWhenFound() throws IOException, InterruptedException {
-        ServiceAccountManager serviceAccountManager = new ServiceAccountManager(setting, path, httpClient);
+        ServiceAccountManager serviceAccountManager = new ServiceAccountManager(setting, httpClient);
         doReturn(httpResponse).when(httpClient).send(any(), any());
         when(httpResponse.statusCode()).thenReturn(200);
         ArgumentCaptor<HttpRequest> argument = ArgumentCaptor.forClass(HttpRequest.class);
@@ -62,7 +60,7 @@ public class ServiceAccountManagerTests extends OpenSearchTestCase {
     }
 
     public void testShouldCreateServiceWhenNotFound() throws IOException, InterruptedException {
-        ServiceAccountManager serviceAccountManager = new ServiceAccountManager(setting, path, httpClient);
+        ServiceAccountManager serviceAccountManager = new ServiceAccountManager(setting, httpClient);
         doReturn(httpResponse).when(httpClient).send(any(), any());
         when(httpResponse.statusCode()).thenReturn(404).thenReturn(200);
         ArgumentCaptor<HttpRequest> argument = ArgumentCaptor.forClass(HttpRequest.class);

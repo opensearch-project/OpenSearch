@@ -33,7 +33,6 @@
 package org.opensearch.gateway;
 
 import com.carrotsearch.hppc.ObjectFloatHashMap;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.FailedNodeException;
@@ -70,7 +69,7 @@ public class Gateway {
     }
 
     public void performStateRecovery(final GatewayStateRecoveredListener listener) throws GatewayException {
-        final String[] nodesIds = clusterService.state().nodes().getClusterManagerNodes().keys().toArray(String.class);
+        final String[] nodesIds = clusterService.state().nodes().getClusterManagerNodes().keySet().toArray(new String[0]);
         logger.trace("performing state recovery from {}", Arrays.toString(nodesIds));
         final TransportNodesListGatewayMetaState.NodesGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds, null).actionGet();
 
@@ -95,8 +94,8 @@ public class Gateway {
             } else if (nodeState.metadata().version() > electedGlobalState.version()) {
                 electedGlobalState = nodeState.metadata();
             }
-            for (final ObjectCursor<IndexMetadata> cursor : nodeState.metadata().indices().values()) {
-                indices.addTo(cursor.value.getIndex(), 1);
+            for (final IndexMetadata cursor : nodeState.metadata().indices().values()) {
+                indices.addTo(cursor.getIndex(), 1);
             }
         }
         if (found < requiredAllocation) {

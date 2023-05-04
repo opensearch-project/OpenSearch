@@ -18,7 +18,6 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Path;
 
 import static java.net.http.HttpRequest.BodyPublishers.ofString;
 import static org.opensearch.rest.RestStatus.NOT_FOUND;
@@ -28,20 +27,17 @@ import static org.opensearch.rest.RestStatus.NOT_FOUND;
  */
 public class ServiceAccountManager {
     private Settings settings;
-    private Path extensionsPath;
     private final String url;
     public HttpClient httpClient;
 
-    public ServiceAccountManager(Settings settings, Path extensionsPath) {
+    public ServiceAccountManager(Settings settings) {
         this.settings = settings;
-        this.extensionsPath = extensionsPath;
         this.url = buildUrl(settings);
         this.httpClient = HttpClient.newHttpClient();
     }
 
-    public ServiceAccountManager(Settings settings, Path extensionsPath, HttpClient httpClient) {
+    public ServiceAccountManager(Settings settings, HttpClient httpClient) {
         this.settings = settings;
-        this.extensionsPath = extensionsPath;
         this.url = buildUrl(settings);
         this.httpClient = httpClient;
     }

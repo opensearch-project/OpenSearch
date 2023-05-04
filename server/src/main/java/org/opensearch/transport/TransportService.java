@@ -165,7 +165,7 @@ public class TransportService extends AbstractLifecycleComponent
      * Build the service.
      *
      * @param clusterSettings if non null, the {@linkplain TransportService} will register with the {@link ClusterSettings} for settings
-    *   *    updates for {@link TransportSettings#TRACE_LOG_EXCLUDE_SETTING} and {@link TransportSettings#TRACE_LOG_INCLUDE_SETTING}.
+     *   *    updates for {@link TransportSettings#TRACE_LOG_EXCLUDE_SETTING} and {@link TransportSettings#TRACE_LOG_INCLUDE_SETTING}.
      */
     public TransportService(
         Settings settings,
@@ -397,6 +397,15 @@ public class TransportService extends AbstractLifecycleComponent
         connectToNode(node, (ConnectionProfile) null);
     }
 
+    /**
+     * Connect to the specified node as an extension with the default connection profile
+     *
+     * @param node the node to connect to
+     */
+    public void connectToNodeAsExtension(DiscoveryNode node, String extensionUniqueId) throws ConnectTransportException {
+        connectToNodeAsExtension(node, (ConnectionProfile) null, extensionUniqueId);
+    }
+
     // We are skipping node validation for extensibility as extensionNode and opensearchNode(LocalNode) will have different ephemeral id's
     public void connectToExtensionNode(final DiscoveryNode node) {
         PlainActionFuture.get(fut -> connectToExtensionNode(node, (ConnectionProfile) null, ActionListener.map(fut, x -> null)));
@@ -410,6 +419,19 @@ public class TransportService extends AbstractLifecycleComponent
      */
     public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile) {
         PlainActionFuture.get(fut -> connectToNode(node, connectionProfile, ActionListener.map(fut, x -> null)));
+    }
+
+    /**
+     * Connect to the specified node with the given connection profile
+     *
+     * @param node the node to connect to
+     * @param connectionProfile the connection profile to use when connecting to this node
+     * @param extensionUniqueIq the id of the extension
+     */
+    public void connectToNodeAsExtension(final DiscoveryNode node, ConnectionProfile connectionProfile, String extensionUniqueIq) {
+        PlainActionFuture.get(
+            fut -> connectToNodeAsExtension(node, connectionProfile, extensionUniqueIq, ActionListener.map(fut, x -> null))
+        );
     }
 
     public void connectToExtensionNode(final DiscoveryNode node, ConnectionProfile connectionProfile) {
@@ -447,6 +469,33 @@ public class TransportService extends AbstractLifecycleComponent
         connectionManager.connectToNode(node, connectionProfile, connectionValidator(node), listener);
     }
 
+    /**
+     * Connect to the specified node as an extension with the given connection profile.
+     * The ActionListener will be called on the calling thread or the generic thread pool.
+     *
+     * @param node the node to connect to
+     * @param connectionProfile the connection profile to use when connecting to this node
+     * @param extensionUniqueId the id of the extension
+     * @param listener the action listener to notify
+     */
+    public void connectToNodeAsExtension(
+        final DiscoveryNode node,
+        ConnectionProfile connectionProfile,
+        String extensionUniqueId,
+        ActionListener<Void> listener
+    ) {
+        if (isLocalNode(node)) {
+            listener.onResponse(null);
+            return;
+        }
+        connectionManager.connectToNode(
+            node,
+            connectionProfile,
+            connectionValidatorForExtensionConnectingToNode(node, extensionUniqueId),
+            listener
+        );
+    }
+
     public void connectToExtensionNode(final DiscoveryNode node, ConnectionProfile connectionProfile, ActionListener<Void> listener) {
         if (isLocalNode(node)) {
             listener.onResponse(null);
@@ -458,6 +507,25 @@ public class TransportService extends AbstractLifecycleComponent
     public ConnectionManager.ConnectionValidator connectionValidator(DiscoveryNode node) {
         return (newConnection, actualProfile, listener) -> {
             // We don't validate cluster names to allow for CCS connections.
+            handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true, ActionListener.map(listener, resp -> {
+                final DiscoveryNode remote = resp.discoveryNode;
+
+                if (node.equals(remote) == false) {
+                    throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
+                }
+
+                return null;
+            }));
+        };
+    }
+
+    public ConnectionManager.ConnectionValidator connectionValidatorForExtensionConnectingToNode(
+        DiscoveryNode node,
+        String extensionUniqueId
+    ) {
+        return (newConnection, actualProfile, listener) -> {
+            // We don't validate cluster names to allow for CCS connections.
+            threadPool.getThreadContext().putHeader("extension_unique_id", extensionUniqueId);
             handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true, ActionListener.map(listener, resp -> {
                 final DiscoveryNode remote = resp.discoveryNode;
 
@@ -643,14 +711,14 @@ public class TransportService extends AbstractLifecycleComponent
             super(in);
             discoveryNode = in.readOptionalWriteable(DiscoveryNode::new);
             clusterName = new ClusterName(in);
-            version = Version.readVersion(in);
+            version = in.readVersion();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalWriteable(discoveryNode);
             clusterName.writeTo(out);
-            Version.writeVersion(version, out);
+            out.writeVersion(version);
         }
 
         public DiscoveryNode getDiscoveryNode() {

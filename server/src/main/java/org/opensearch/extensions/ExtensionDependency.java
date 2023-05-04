@@ -45,13 +45,13 @@ public class ExtensionDependency implements Writeable {
     */
     public ExtensionDependency(StreamInput in) throws IOException {
         uniqueId = in.readString();
-        version = Version.readVersion(in);
+        version = in.readVersion();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(uniqueId);
-        Version.writeVersion(version, out);
+        out.writeVersion(version);
     }
 
     /**

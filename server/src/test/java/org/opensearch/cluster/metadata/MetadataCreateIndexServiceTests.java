@@ -57,7 +57,6 @@ import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDeci
 import org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
@@ -96,6 +95,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -742,9 +742,9 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         IndexTemplateMetadata templateMetadata = addMatchingTemplate(builder -> {
             builder.settings(Settings.builder().put("template_setting", "value1"));
         });
-        ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templatesBuilder = ImmutableOpenMap.builder();
+        final Map<String, IndexTemplateMetadata> templatesBuilder = new HashMap<>();
         templatesBuilder.put("template_1", templateMetadata);
-        Metadata metadata = new Metadata.Builder().templates(templatesBuilder.build()).build();
+        Metadata metadata = new Metadata.Builder().templates(templatesBuilder).build();
         ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
             .metadata(metadata)
             .build();
@@ -1018,7 +1018,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
         // adds alias from new index to existing index
         BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer = (builder, indexMetadata) -> {
-            AliasMetadata newAlias = indexMetadata.getAliases().iterator().next().value;
+            AliasMetadata newAlias = indexMetadata.getAliases().values().iterator().next();
             IndexMetadata myIndex = builder.get("my-index");
             builder.put(IndexMetadata.builder(myIndex).putAlias(AliasMetadata.builder(newAlias.getAlias()).build()));
         };
@@ -1397,7 +1397,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         IndexMetadata indexMetadata = buildIndexMetadata("test", aliases, () -> null, indexSettings, 4, sourceIndexMetadata, false);
 
         assertThat(indexMetadata.getAliases().size(), is(1));
-        assertThat(indexMetadata.getAliases().keys().iterator().next().value, is("alias1"));
+        assertThat(indexMetadata.getAliases().keySet().iterator().next(), is("alias1"));
         assertThat("The source index primary term must be used", indexMetadata.primaryTerm(0), is(3L));
     }
 

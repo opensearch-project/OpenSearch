@@ -32,7 +32,6 @@
 
 package org.opensearch.recovery;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.tests.util.English;
 import org.opensearch.action.ActionFuture;
@@ -770,8 +769,8 @@ public class RelocationIT extends OpenSearchIntegTestCase {
 
     private void assertActiveCopiesEstablishedPeerRecoveryRetentionLeases() throws Exception {
         assertBusy(() -> {
-            for (ObjectCursor<String> it : client().admin().cluster().prepareState().get().getState().metadata().indices().keys()) {
-                Map<ShardId, List<ShardStats>> byShardId = Stream.of(client().admin().indices().prepareStats(it.value).get().getShards())
+            for (final String it : client().admin().cluster().prepareState().get().getState().metadata().indices().keySet()) {
+                Map<ShardId, List<ShardStats>> byShardId = Stream.of(client().admin().indices().prepareStats(it).get().getShards())
                     .collect(Collectors.groupingBy(l -> l.getShardRouting().shardId()));
                 for (List<ShardStats> shardStats : byShardId.values()) {
                     Set<String> expectedLeaseIds = shardStats.stream()

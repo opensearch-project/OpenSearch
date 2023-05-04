@@ -21,6 +21,7 @@
 - Add retry delay as dynamic setting for cluster maanger throttling. ([#6998](https://github.com/opensearch-project/OpenSearch/pull/6998))
 - Introduce full support for searchable snapshots ([#5087](https://github.com/opensearch-project/OpenSearch/issues/5087))
 - Introduce full support for Segment Replication ([#5147](https://github.com/opensearch-project/OpenSearch/issues/5147))
+- Introduce a new field type: flat_object to help prevent mapping explosions ([#1018](https://github.com/opensearch-project/OpenSearch/issues/1018))
 
 ### Dependencies
 - Bump `org.apache.logging.log4j:log4j-core` from 2.18.0 to 2.20.0 ([#6490](https://github.com/opensearch-project/OpenSearch/pull/6490))
@@ -45,7 +46,6 @@
 ### Changed
 - Require MediaType in Strings.toString API ([#6009](https://github.com/opensearch-project/OpenSearch/pull/6009))
 - [Refactor] XContent base classes from xcontent to core library ([#5902](https://github.com/opensearch-project/OpenSearch/pull/5902))
-- Added a new field type: flat_object ([#6507](https://github.com/opensearch-project/OpenSearch/pull/6507))
 - Changed `opensearch-env` to respect already set `OPENSEARCH_HOME` environment variable ([#6956](https://github.com/opensearch-project/OpenSearch/pull/6956/))
 - Increased visibility of BaseRestHandler’s `unrecognized` method using a new public `unrecognizedStrings` method. ([#7125](https://github.com/opensearch-project/OpenSearch/pull/7125))
 

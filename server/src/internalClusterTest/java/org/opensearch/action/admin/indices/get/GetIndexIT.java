@@ -32,13 +32,11 @@
 
 package org.opensearch.action.admin.indices.get;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -46,6 +44,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_METADATA_BLOCK;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
@@ -254,7 +253,7 @@ public class GetIndexIT extends OpenSearchIntegTestCase {
     }
 
     private void assertSettings(GetIndexResponse response, String indexName) {
-        ImmutableOpenMap<String, Settings> settings = response.settings();
+        final Map<String, Settings> settings = response.settings();
         assertThat(settings, notNullValue());
         assertThat(settings.size(), equalTo(1));
         Settings indexSettings = settings.get(indexName);
@@ -263,7 +262,7 @@ public class GetIndexIT extends OpenSearchIntegTestCase {
     }
 
     private void assertNonEmptySettings(GetIndexResponse response, String indexName) {
-        ImmutableOpenMap<String, Settings> settings = response.settings();
+        final Map<String, Settings> settings = response.settings();
         assertThat(settings, notNullValue());
         assertThat(settings.size(), equalTo(1));
         Settings indexSettings = settings.get(indexName);
@@ -271,7 +270,7 @@ public class GetIndexIT extends OpenSearchIntegTestCase {
     }
 
     private void assertMappings(GetIndexResponse response, String indexName) {
-        ImmutableOpenMap<String, MappingMetadata> mappings = response.mappings();
+        final Map<String, MappingMetadata> mappings = response.mappings();
         assertThat(mappings, notNullValue());
         assertThat(mappings.size(), equalTo(1));
         MappingMetadata indexMappings = mappings.get(indexName);
@@ -279,7 +278,7 @@ public class GetIndexIT extends OpenSearchIntegTestCase {
     }
 
     private void assertEmptyOrOnlyDefaultMappings(GetIndexResponse response, String indexName) {
-        ImmutableOpenMap<String, MappingMetadata> mappings = response.mappings();
+        final Map<String, MappingMetadata> mappings = response.mappings();
         assertThat(mappings, notNullValue());
         assertThat(mappings.size(), equalTo(1));
         MappingMetadata indexMappings = mappings.get(indexName);
@@ -287,7 +286,7 @@ public class GetIndexIT extends OpenSearchIntegTestCase {
     }
 
     private void assertAliases(GetIndexResponse response, String indexName) {
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases = response.aliases();
+        final Map<String, List<AliasMetadata>> aliases = response.aliases();
         assertThat(aliases, notNullValue());
         assertThat(aliases.size(), equalTo(1));
         List<AliasMetadata> indexAliases = aliases.get(indexName);
@@ -310,8 +309,8 @@ public class GetIndexIT extends OpenSearchIntegTestCase {
 
     private void assertEmptyAliases(GetIndexResponse response) {
         assertThat(response.aliases(), notNullValue());
-        for (final ObjectObjectCursor<String, List<AliasMetadata>> entry : response.getAliases()) {
-            assertTrue(entry.value.isEmpty());
+        for (final List<AliasMetadata> entry : response.getAliases().values()) {
+            assertTrue(entry.isEmpty());
         }
     }
 }
