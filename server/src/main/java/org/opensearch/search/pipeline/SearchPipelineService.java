@@ -61,6 +61,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
 
     public static final String SEARCH_PIPELINE_ORIGIN = "search_pipeline";
     public static final String AD_HOC_PIPELINE_ID = "_ad_hoc_pipeline";
+    public static final String NOOP_PIPELINE_ID = "_none";
     private static final Logger logger = LogManager.getLogger(SearchPipelineService.class);
     private final ClusterService clusterService;
     private final ScriptService scriptService;
@@ -340,7 +341,7 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         if (searchRequest.source() != null && searchRequest.source().searchPipelineSource() != null) {
             if (searchRequest.pipeline() != null) {
                 throw new IllegalArgumentException(
-                    "Both named and inline search pipeline were specified. Please only specify on or the other."
+                    "Both named and inline search pipeline were specified. Please only specify one or the other."
                 );
             }
             try {

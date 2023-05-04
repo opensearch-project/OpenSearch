@@ -155,12 +155,16 @@ class Pipeline {
         return searchResponseProcessors;
     }
 
-    public SearchRequest transformRequest(SearchRequest request) throws Exception {
+    SearchRequest transformRequest(SearchRequest request) throws Exception {
         if (searchRequestProcessors.isEmpty() == false) {
-            BytesStreamOutput bytesStreamOutput = new BytesStreamOutput();
-            request.writeTo(bytesStreamOutput);
-            StreamInput input = new NamedWriteableAwareStreamInput(bytesStreamOutput.bytes().streamInput(), namedWriteableRegistry);
-            request = new SearchRequest(input);
+            try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
+                request.writeTo(bytesStreamOutput);
+                try (StreamInput in = bytesStreamOutput.bytes().streamInput()) {
+                    try (StreamInput input = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry)) {
+                        request = new SearchRequest(input);
+                    }
+                }
+            }
             for (SearchRequestProcessor searchRequestProcessor : searchRequestProcessors) {
                 request = searchRequestProcessor.processRequest(request);
             }
@@ -168,7 +172,7 @@ class Pipeline {
         return request;
     }
 
-    public SearchResponse transformResponse(SearchRequest request, SearchResponse response) throws SearchPipelineProcessingException {
+    SearchResponse transformResponse(SearchRequest request, SearchResponse response) throws SearchPipelineProcessingException {
         try {
             for (SearchResponseProcessor responseProcessor : searchResponseProcessors) {
                 response = responseProcessor.processResponse(request, response);
@@ -180,7 +184,7 @@ class Pipeline {
     }
 
     static final Pipeline NO_OP_PIPELINE = new Pipeline(
-        "no_op",
+        SearchPipelineService.NOOP_PIPELINE_ID,
         "Pipeline that does not transform anything",
         0,
         Collections.emptyList(),
