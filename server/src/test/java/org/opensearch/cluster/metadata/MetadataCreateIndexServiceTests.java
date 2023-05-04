@@ -1254,7 +1254,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             randomShardLimitService(),
             Collections.emptySet()
         );
-        verifyRemoteStoreIndexSettings(indexSettings, "false", null, null, null, null, null);
+        verifyRemoteStoreIndexSettings(indexSettings, "false", null, null, null, ReplicationType.SEGMENT.toString(), null);
     }
 
     public void testRemoteStoreTranslogDisabledByUserIndexSettings() {
