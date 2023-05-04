@@ -53,7 +53,6 @@ import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.FieldMapper;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.shard.RemoteStoreRefreshListener;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.Store;
@@ -204,9 +203,6 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.SEARCHABLE_SNAPSHOT_INDEX_ID,
                 IndexSettings.SEARCHABLE_SNAPSHOT_ID_NAME,
                 IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID,
-
-                // Settings for Remote Store
-                RemoteStoreRefreshListener.INDEX_REMOTE_REFRESH_RETRY_INTERVAL,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
