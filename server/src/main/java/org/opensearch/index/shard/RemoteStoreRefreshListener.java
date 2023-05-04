@@ -135,9 +135,9 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         }
     }
 
-    private synchronized void syncSegments(boolean retry) {
+    private synchronized void syncSegments(boolean isRetry) {
         boolean shouldRetry = false;
-        beforeSegmentsSync(retry);
+        beforeSegmentsSync(isRetry);
         try {
             if (indexShard.getReplicationTracker().isPrimaryMode()) {
                 if (this.primaryTerm != indexShard.getOperationPrimaryTerm()) {
@@ -219,9 +219,10 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                 }
             }
         } catch (Throwable t) {
+            shouldRetry = true;
             logger.error("Exception in RemoteStoreRefreshListener.afterRefresh()", t);
         }
-        afterSegmentsSync(retry, shouldRetry);
+        afterSegmentsSync(isRetry, shouldRetry);
     }
 
     private void beforeSegmentsSync(boolean isRetry) {

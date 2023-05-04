@@ -76,13 +76,18 @@ public class RemoteStoreRefreshListenerIT extends AbstractSnapshotIntegTestCase 
 
     @After
     public void teardown() {
+        logger.info("--> Deleting the repository={}", REPOSITORY_NAME);
         assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_NAME));
     }
 
     public void testRemoteRefreshRetryOnFailure() throws Exception {
 
-        // Create repository
         Path location = randomRepoPath().toAbsolutePath();
+        logger.info("--> Creating repository={} at the path={}", REPOSITORY_NAME, location);
+
+        // The random_control_io_exception_rate setting ensures that 10-25% of all operations to remote store results in
+        /// IOException. skip_exception_on_verification_file & skip_exception_on_list_blobs settings ensures that the
+        // repository creation can happen without failure.
         createRepository(
             REPOSITORY_NAME,
             "mock",
@@ -95,10 +100,18 @@ public class RemoteStoreRefreshListenerIT extends AbstractSnapshotIntegTestCase 
 
         internalCluster().startDataOnlyNodes(1);
         createIndex(INDEX_NAME);
+        logger.info("--> Created index={}", INDEX_NAME);
         ensureYellowAndNoInitializingShards(INDEX_NAME);
+        logger.info("--> Cluster is yellow with no initializing shards");
         ensureGreen(INDEX_NAME);
+        logger.info("--> Cluster is green");
 
+        // Here we are having flush/refresh after each iteration of indexing. However, the refresh will not always succeed
+        // due to IOExceptions that are thrown while doing uploadBlobs.
         indexData(randomIntBetween(5, 10), randomBoolean());
+        logger.info("--> Indexed data");
+
+        // TODO - Once the segments stats api is available, we need to verify that there were failed upload attempts.
         IndicesStatsResponse response = client().admin().indices().stats(new IndicesStatsRequest()).get();
         assertEquals(1, response.getShards().length);
 
@@ -106,6 +119,7 @@ public class RemoteStoreRefreshListenerIT extends AbstractSnapshotIntegTestCase 
         Path segmentDataRepoPath = location.resolve(String.format(Locale.ROOT, "%s/0/segments/data", indexUuid));
         String segmentDataLocalPath = String.format(Locale.ROOT, "%s/indices/%s/0/index", response.getShards()[0].getDataPath(), indexUuid);
 
+        logger.info("--> Verify that the segment files are same on local and repository eventually");
         assertBusy(
             () -> assertEquals(getSegmentFiles(location.getRoot().resolve(segmentDataLocalPath)), getSegmentFiles(segmentDataRepoPath))
         );
@@ -137,8 +151,10 @@ public class RemoteStoreRefreshListenerIT extends AbstractSnapshotIntegTestCase 
     }
 
     private void indexData(int numberOfIterations, boolean invokeFlush) {
+        logger.info("--> Indexing data for {} iterations with flush={}", numberOfIterations, invokeFlush);
         for (int i = 0; i < numberOfIterations; i++) {
             int numberOfOperations = randomIntBetween(20, 50);
+            logger.info("--> Indexing {} operations in iteration #{}", numberOfOperations, i);
             for (int j = 0; j < numberOfOperations; j++) {
                 indexSingleDoc();
             }

@@ -265,7 +265,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         builders.put(Names.REMOTE_PURGE, new ScalingExecutorBuilder(Names.REMOTE_PURGE, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
         builders.put(
             Names.REMOTE_REFRESH,
-            new ScalingExecutorBuilder(Names.REMOTE_REFRESH, 1, allocatedProcessors * 4, TimeValue.timeValueMinutes(5))
+            new ScalingExecutorBuilder(Names.REMOTE_REFRESH, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5))
         );
         if (FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)) {
             builders.put(Names.INDEX_SEARCHER, new FixedExecutorBuilder(settings, Names.INDEX_SEARCHER, allocatedProcessors, 1000, false));
@@ -309,7 +309,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     /**
      * Returns a value of milliseconds that may be used for relative time calculations.
-     * <p>
+     *
      * This method should only be used for calculating time deltas. For an epoch based
      * timestamp, see {@link #absoluteTimeInMillis()}.
      */
@@ -319,7 +319,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     /**
      * Returns a value of nanoseconds that may be used for relative time calculations.
-     * <p>
+     *
      * This method should only be used for calculating time deltas. For an epoch based
      * timestamp, see {@link #absoluteTimeInMillis()}.
      */
@@ -329,7 +329,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     /**
      * Returns the value of milliseconds since UNIX epoch.
-     * <p>
+     *
      * This method should only be used for exact date/time formatting. For calculating
      * time deltas that should not suffer from negative deltas, which are possible with
      * this method, see {@link #relativeTimeInMillis()}.
@@ -416,14 +416,14 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     /**
      * Schedules a one-shot command to run after a given delay. The command is run in the context of the calling thread.
      *
-     * @param command  the command to run
-     * @param delay    delay before the task executes
+     * @param command the command to run
+     * @param delay delay before the task executes
      * @param executor the name of the thread pool on which to execute this task. SAME means "execute on the scheduler thread" which changes
-     *                 the meaning of the ScheduledFuture returned by this method. In that case the ScheduledFuture will complete only when the
-     *                 command completes.
+     *        the meaning of the ScheduledFuture returned by this method. In that case the ScheduledFuture will complete only when the
+     *        command completes.
      * @return a ScheduledFuture who's get will return when the task is has been added to its target thread pool and throw an exception if
-     * the task is canceled before it was added to its target thread pool. Once the task has been added to its target thread pool
-     * the ScheduledFuture will cannot interact with it.
+     *         the task is canceled before it was added to its target thread pool. Once the task has been added to its target thread pool
+     *         the ScheduledFuture will cannot interact with it.
      * @throws OpenSearchRejectedExecutionException if the task cannot be scheduled for execution
      */
     @Override
@@ -623,7 +623,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     /**
      * A thread to cache millisecond time values from
      * {@link System#nanoTime()} and {@link System#currentTimeMillis()}.
-     * <p>
+     *
      * The values are updated at a specified interval.
      */
     static class CachedTimeThread extends Thread {
