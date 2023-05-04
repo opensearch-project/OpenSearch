@@ -74,6 +74,11 @@ class org.opensearch.index.fielddata.ScriptDocValues$Longs {
   long getValue()
 }
 
+class org.opensearch.index.fielddata.ScriptDocValues$UnsignedLongs {
+  BigInteger get(int)
+  BigInteger getValue()
+}
+
 class org.opensearch.script.JodaCompatibleZonedDateTime {
   ##### ZonedDateTime methods
   int getDayOfMonth()

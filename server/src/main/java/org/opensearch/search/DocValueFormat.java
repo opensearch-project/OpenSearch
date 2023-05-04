@@ -35,6 +35,7 @@ package org.opensearch.search;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.LegacyESVersion;
+import org.opensearch.common.Numbers;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -86,6 +87,13 @@ public interface DocValueFormat extends NamedWriteable {
         throw new UnsupportedOperationException();
     }
 
+    /** Format a unsigned long value. This is used by terms and histogram aggregations
+     *  to format keys for fields that use unsigned longs as a doc value representation
+     *  such as the {@code unsigned_long} field. */
+    default BigInteger format(BigInteger value) {
+        throw new UnsupportedOperationException();
+    }
+
     /** Format a binary value. This is used by terms aggregations to format
      *  keys for fields that use binary doc value representations such as the
      *  {@code keyword} and {@code ip} fields. */
@@ -96,6 +104,12 @@ public interface DocValueFormat extends NamedWriteable {
     /** Parse a value that was formatted with {@link #format(long)} back to the
      *  original long value. */
     default long parseLong(String value, boolean roundUp, LongSupplier now) {
+        throw new UnsupportedOperationException();
+    }
+
+    /** Parse a value that was formatted with {@link #format(long)} back to the
+     *  original unsigned long value. */
+    default BigInteger parseUnsignedLong(String value, boolean roundUp, LongSupplier now) {
         throw new UnsupportedOperationException();
     }
 
@@ -128,6 +142,15 @@ public interface DocValueFormat extends NamedWriteable {
 
         @Override
         public Double format(double value) {
+            return value;
+        }
+
+        /**
+         * Double docValues of the unsigned_long field type are already in the formatted representation,
+         * so we don't need to do anything here
+         */
+        @Override
+        public BigInteger format(BigInteger value) {
             return value;
         }
 
@@ -469,6 +492,15 @@ public interface DocValueFormat extends NamedWriteable {
             return format.format(value);
         }
 
+        /**
+         * Double docValues of the unsigned_long field type are already in the formatted representation,
+         * so we don't need to do anything here
+         */
+        @Override
+        public BigInteger format(BigInteger value) {
+            return value;
+        }
+
         @Override
         public String format(double value) {
             /*
@@ -571,6 +603,14 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         /**
+         * Formats the unsigned long to the shifted long format
+         */
+        @Override
+        public BigInteger parseUnsignedLong(String value, boolean roundUp, LongSupplier now) {
+            return Numbers.toUnsignedLong(value, roundUp);
+        }
+
+        /**
          * Formats a raw docValue that is stored in the shifted long format to the unsigned long representation.
          */
         @Override
@@ -583,6 +623,73 @@ public interface DocValueFormat extends NamedWriteable {
             } else {
                 return BigInteger.valueOf(formattedValue).and(BIGINTEGER_2_64_MINUS_ONE);
             }
+        }
+
+        /**
+         * Double docValues of the unsigned_long field type are already in the formatted representation,
+         * so we don't need to do anything here
+         */
+        @Override
+        public Double format(double value) {
+            return value;
+        }
+
+        @Override
+        public double parseDouble(String value, boolean roundUp, LongSupplier now) {
+            return Double.parseDouble(value);
+        }
+    };
+
+    /**
+     * DocValues format for unsigned 64 bit long values,
+     * that are stored as signed 64 bit long values.
+     */
+    DocValueFormat UNSIGNED_LONG = new DocValueFormat() {
+
+        @Override
+        public String getWriteableName() {
+            return "unsigned_long";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {}
+
+        @Override
+        public String toString() {
+            return "unsigned_long";
+        }
+
+        /**
+         * Formats the unsigned long to the shifted long format
+         */
+        @Override
+        public long parseLong(String value, boolean roundUp, LongSupplier now) {
+            return Long.parseUnsignedLong(value);
+        }
+
+        /**
+         * Formats the unsigned long to the shifted long format
+         */
+        @Override
+        public BigInteger parseUnsignedLong(String value, boolean roundUp, LongSupplier now) {
+            return Numbers.toUnsignedLong(value, roundUp);
+        }
+
+        /**
+         * Formats a raw docValue that is stored in the shifted long format to the unsigned long representation.
+         */
+        @Override
+        public Object format(long value) {
+            return Numbers.toUnsignedBigInteger(value);
+        }
+
+        /**
+         * Double docValues of the unsigned_long field type are already in the formatted representation,
+         * so we don't need to do anything here
+         */
+        @Override
+        public BigInteger format(BigInteger value) {
+            return value;
         }
 
         /**
