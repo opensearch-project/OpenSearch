@@ -36,6 +36,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.opensearch.common.Numbers;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
 import org.opensearch.common.time.DateUtils;
@@ -43,6 +44,7 @@ import org.opensearch.geometry.utils.Geohash;
 import org.opensearch.script.JodaCompatibleZonedDateTime;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.AbstractList;
@@ -599,5 +601,64 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
             return get(0);
         }
 
+    }
+
+    /**
+     * Unsigned long values for scripted doc values (returned as {@link BigInteger})
+     *
+     * @opensearch.internal
+     */
+    public static final class UnsignedLongs extends ScriptDocValues<BigInteger> {
+        private final SortedNumericDocValues in;
+        private BigInteger[] values = new BigInteger[0];
+        private int count;
+
+        /**
+         * Standard constructor.
+         */
+        public UnsignedLongs(SortedNumericDocValues in) {
+            this.in = in;
+        }
+
+        @Override
+        public void setNextDocId(int docId) throws IOException {
+            if (in.advanceExact(docId)) {
+                resize(in.docValueCount());
+                for (int i = 0; i < count; i++) {
+                    values[i] = Numbers.toUnsignedBigInteger(in.nextValue());
+                }
+            } else {
+                resize(0);
+            }
+        }
+
+        /**
+         * Set the {@link #size()} and ensure that the internal values array can
+         * store at least that many entries.
+         */
+        protected void resize(int newSize) {
+            count = newSize;
+            values = ArrayUtil.grow(values, count);
+        }
+
+        public BigInteger getValue() {
+            return get(0);
+        }
+
+        @Override
+        public BigInteger get(int index) {
+            if (count == 0) {
+                throw new IllegalStateException(
+                    "A document doesn't have a value for a field! "
+                        + "Use doc[<field>].size()==0 to check if a document is missing a field!"
+                );
+            }
+            return values[index];
+        }
+
+        @Override
+        public int size() {
+            return count;
+        }
     }
 }

@@ -79,6 +79,8 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
                 this.formattedSortValues[i] = sortValueFormats[i].format((BytesRef) sortValue);
             } else if ((sortValue instanceof Long) && (sortValueFormats[i] == DocValueFormat.UNSIGNED_LONG_SHIFTED)) {
                 this.formattedSortValues[i] = sortValueFormats[i].format((Long) sortValue);
+            } else if ((sortValue instanceof Long) && (sortValueFormats[i] == DocValueFormat.UNSIGNED_LONG)) {
+                this.formattedSortValues[i] = sortValueFormats[i].format((Long) sortValue);
             } else {
                 this.formattedSortValues[i] = sortValue;
             }

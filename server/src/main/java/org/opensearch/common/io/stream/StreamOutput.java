@@ -496,6 +496,10 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    public final void writeBigInteger(BigInteger v) throws IOException {
+        writeString(v.toString());
+    }
+
     private static byte ZERO = 0;
     private static byte ONE = 1;
     private static byte TWO = 2;

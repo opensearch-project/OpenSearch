@@ -157,6 +157,17 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                                 compositeValuesSourceConfig.reverseMul()
                             );
 
+                        } else if (vs.isBigInteger()) {
+                            return new UnsignedLongValuesSource(
+                                bigArrays,
+                                compositeValuesSourceConfig.fieldType(),
+                                vs::longValues,
+                                compositeValuesSourceConfig.format(),
+                                compositeValuesSourceConfig.missingBucket(),
+                                compositeValuesSourceConfig.missingOrder(),
+                                size,
+                                compositeValuesSourceConfig.reverseMul()
+                            );
                         } else {
                             final LongUnaryOperator rounding;
                             rounding = LongUnaryOperator.identity();
