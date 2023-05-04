@@ -653,7 +653,7 @@ public class OpenSearchNode implements TestClusterConfiguration {
         }
 
         logToProcessStdout("Creating " + currentConfig.command + " keystore with password set to [" + keystorePassword + "]");
-        
+
         if (keystorePassword.length() > 0) {
             runOpenSearchBinScriptWithInput(keystorePassword + "\n" + keystorePassword, currentConfig.keystoreTool, "create", "-p");
         } else {
