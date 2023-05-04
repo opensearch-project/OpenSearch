@@ -47,4 +47,35 @@ public class RegisterRestActionsTests extends OpenSearchTestCase {
             }
         }
     }
+
+    public void testNoIdentityRestActionsRequest() {
+        String uniqueId = null;
+        List<String> expected = List.of("GET /foo", "PUT /bar", "POST /baz");
+        List<String> expectedDeprecated = List.of("GET /deprecated/foo", "It's deprecated");
+        // Expect exception as Extension Identity(uniqueId) is null
+        expectThrows(NullPointerException.class, () -> new RegisterRestActionsRequest(uniqueId, expected, expectedDeprecated));
+    }
+
+    public void testNoRestActionsRequest() {
+        String uniqueId = "extension-1234";
+        List<String> expected = null;
+        List<String> expectedDeprecated = null;
+        // Expect exception as paths are null
+        expectThrows(NullPointerException.class, () -> new RegisterRestActionsRequest(uniqueId, expected, expectedDeprecated));
+    }
+
+    public void testEmptyRestActionsRequest() {
+        String uniqueId = "extension-1234";
+        List<String> expected = List.of();
+        List<String> expectedDeprecated = List.of();
+        RegisterRestActionsRequest request = new RegisterRestActionsRequest(uniqueId, expected, expectedDeprecated);
+
+        assertEquals(uniqueId, request.getUniqueId());
+        assertEquals(List.of(), request.getRestActions());
+        assertEquals(List.of(), request.getDeprecatedRestActions());
+        assertEquals(
+            "RestActionsRequest{Identity=uniqueId: \"extension-1234\"\n" + ", restActions=[], deprecatedRestActions=[]}",
+            request.toString()
+        );
+    }
 }

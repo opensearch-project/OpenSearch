@@ -31,6 +31,7 @@
 
 package org.opensearch.rest.action.admin.indices;
 
+import java.util.List;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
@@ -43,6 +44,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.identity.IdentityService;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestRequest;
@@ -73,7 +75,15 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
     private static NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
 
     private static UsageService usageService = new UsageService();
-    private static RestController controller = new RestController(emptySet(), null, client, new NoneCircuitBreakerService(), usageService);
+    private static IdentityService identityService = new IdentityService(Settings.EMPTY, List.of());
+    private static RestController controller = new RestController(
+        emptySet(),
+        null,
+        client,
+        new NoneCircuitBreakerService(),
+        usageService,
+        identityService
+    );
     private static RestValidateQueryAction action = new RestValidateQueryAction();
 
     /**
