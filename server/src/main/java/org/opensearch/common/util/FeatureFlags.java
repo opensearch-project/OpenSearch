@@ -58,6 +58,12 @@ public class FeatureFlags {
     public static final String IDENTITY = "opensearch.experimental.feature.identity.enabled";
 
     /**
+     * Gates the functionality of concurrently searching the segments
+     * Once the feature is ready for release, this feature flag can be removed.
+     */
+    public static final String CONCURRENT_SEGMENT_SEARCH = "opensearch.experimental.feature.concurrent_segment_search.enabled";
+
+    /**
      * Should store the settings from opensearch.yml.
      */
     private static Settings settings;
@@ -96,5 +102,12 @@ public class FeatureFlags {
     public static final Setting<Boolean> EXTENSIONS_SETTING = Setting.boolSetting(EXTENSIONS, false, Property.NodeScope);
 
     public static final Setting<Boolean> SEARCH_PIPELINE_SETTING = Setting.boolSetting(SEARCH_PIPELINE, false, Property.NodeScope);
+
     public static final Setting<Boolean> IDENTITY_SETTING = Setting.boolSetting(IDENTITY, false, Property.NodeScope);
+
+    public static final Setting<Boolean> CONCURRENT_SEGMENT_SEARCH_SETTING = Setting.boolSetting(
+        CONCURRENT_SEGMENT_SEARCH,
+        false,
+        Property.NodeScope
+    );
 }
