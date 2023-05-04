@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import org.opensearch.identity.tokens.AuthToken;
 
 /**
  * Discover extensions running independently or in a separate process
@@ -33,6 +34,8 @@ import java.util.Map;
 public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, ToXContentFragment {
 
     private Version minimumCompatibleVersion;
+
+    private AuthToken authToken;
     private List<ExtensionDependency> dependencies = Collections.emptyList();
     private List<String> implementedInterfaces = Collections.emptyList();
 
@@ -48,6 +51,7 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
         super(name, id, address, attributes, DiscoveryNodeRole.BUILT_IN_ROLES, version);
         this.minimumCompatibleVersion = minimumCompatibleVersion;
         this.dependencies = dependencies;
+        this.authToken = null;
         validate();
     }
 
@@ -112,6 +116,10 @@ public class DiscoveryExtensionNode extends DiscoveryNode implements Writeable, 
                     + Version.CURRENT
             );
         }
+    }
+
+    private void setAuthToken(AuthToken authToken) {
+        this.authToken = authToken;
     }
 
     @Override

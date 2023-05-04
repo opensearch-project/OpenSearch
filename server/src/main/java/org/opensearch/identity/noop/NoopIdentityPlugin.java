@@ -8,6 +8,8 @@
 
 package org.opensearch.identity.noop;
 
+import org.opensearch.identity.ServiceAccountManager;
+import org.opensearch.identity.UserProvider;
 import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.identity.Subject;
 
@@ -29,4 +31,13 @@ public class NoopIdentityPlugin implements IdentityPlugin {
         return new NoopSubject();
     }
 
+    @Override
+    public ServiceAccountManager getServiceAccountManager() {
+        return new NoopServiceAccountManager();
+    }
+
+    @Override
+    public UserProvider getUserProvider() {
+        return null;
+    }
 }

@@ -39,7 +39,7 @@ public class ServiceAccountManagerTests extends OpenSearchTestCase {
     private HttpResponse<String> httpResponse = Mockito.mock(HttpResponse.class);
 
     public void testShouldReturnServiceWhenFound() throws IOException, InterruptedException {
-        ServiceAccountManager serviceAccountManager = new ServiceAccountManager(setting, httpClient);
+        RestServiceAccountManager serviceAccountManager = new RestServiceAccountManager(setting, httpClient);
         doReturn(httpResponse).when(httpClient).send(any(), any());
         when(httpResponse.statusCode()).thenReturn(200);
         ArgumentCaptor<HttpRequest> argument = ArgumentCaptor.forClass(HttpRequest.class);
@@ -60,7 +60,7 @@ public class ServiceAccountManagerTests extends OpenSearchTestCase {
     }
 
     public void testShouldCreateServiceWhenNotFound() throws IOException, InterruptedException {
-        ServiceAccountManager serviceAccountManager = new ServiceAccountManager(setting, httpClient);
+        RestServiceAccountManager serviceAccountManager = new RestServiceAccountManager(setting, httpClient);
         doReturn(httpResponse).when(httpClient).send(any(), any());
         when(httpResponse.statusCode()).thenReturn(404).thenReturn(200);
         ArgumentCaptor<HttpRequest> argument = ArgumentCaptor.forClass(HttpRequest.class);

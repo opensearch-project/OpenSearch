@@ -125,8 +125,9 @@ dependencies {
   // utilities
   api project(":libs:opensearch-cli")
   api 'com.carrotsearch:hppc:0.8.1'
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
 
-  // time handling, remove with java 8 time
+    // time handling, remove with java 8 time
   api "joda-time:joda-time:${versions.joda}"
 
   // percentiles aggregation

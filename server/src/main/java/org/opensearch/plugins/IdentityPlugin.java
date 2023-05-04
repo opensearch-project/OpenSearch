@@ -8,7 +8,9 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.identity.ServiceAccountManager;
 import org.opensearch.identity.Subject;
+import org.opensearch.identity.UserProvider;
 
 /**
  * Plugin that provides identity and access control for OpenSearch
@@ -23,4 +25,13 @@ public interface IdentityPlugin {
      * Should never return null
      * */
     public Subject getSubject();
+
+    /**
+     * Get the Identity Plugin's Service Account Manager
+     *
+     * Should never return null
+     * */
+    public ServiceAccountManager getServiceAccountManager();
+
+    public UserProvider getUserProvider();
 }

@@ -25,6 +25,8 @@ public class IdentityService {
     private final Settings settings;
     private final IdentityPlugin identityPlugin;
 
+    private final ServiceAccountManager serviceAccountManager;
+
     public IdentityService(final Settings settings, final List<IdentityPlugin> identityPlugins) {
         this.settings = settings;
 
@@ -40,6 +42,7 @@ public class IdentityService {
                     + identityPlugins.stream().map(Object::getClass).map(Class::getName).collect(Collectors.joining(","))
             );
         }
+        serviceAccountManager = identityPlugin.getServiceAccountManager();
     }
 
     /**
@@ -49,8 +52,10 @@ public class IdentityService {
         return identityPlugin.getSubject();
     }
 
+    /**
+     * Get the service account manager
+     */
     public ServiceAccountManager getServiceAccountManager() {
-        ServiceAccountManager serviceAccountManager = new ServiceAccountManager(settings);
-        return serviceAccountManager;
+        return this.serviceAccountManager;
     }
 }
