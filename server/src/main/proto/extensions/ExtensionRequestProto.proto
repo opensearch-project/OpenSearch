@@ -12,6 +12,7 @@
 syntax = "proto3";
 package org.opensearch.extensions.proto;
 
+import "extensions/ExtensionIdentityProto.proto";
 option java_outer_classname = "ExtensionRequestProto";
 
 enum RequestType {
@@ -27,6 +28,6 @@ enum RequestType {
 }
 
 message ExtensionRequest {
-  RequestType requestType = 1;
-  string uniqueId = 2;
+  ExtensionIdentity identity = 1;
+  RequestType requestType = 2;
 }

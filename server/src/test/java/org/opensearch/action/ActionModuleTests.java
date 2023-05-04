@@ -32,6 +32,7 @@
 
 package org.opensearch.action;
 
+import java.util.ArrayList;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.main.MainAction;
 import org.opensearch.action.main.TransportMainAction;
@@ -50,6 +51,7 @@ import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.extensions.action.ExtensionAction;
 import org.opensearch.extensions.action.ExtensionTransportAction;
+import org.opensearch.identity.IdentityService;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ActionPlugin.ActionHandler;
 
@@ -143,7 +145,8 @@ public class ActionModuleTests extends OpenSearchTestCase {
             null,
             null,
             usageService,
-            null
+            null,
+            new IdentityService(Settings.EMPTY, new ArrayList<>())
         );
         actionModule.initRestHandlers(null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -199,6 +202,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
                 null,
                 null,
                 usageService,
+                null,
                 null
             );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
@@ -248,6 +252,7 @@ public class ActionModuleTests extends OpenSearchTestCase {
                 null,
                 null,
                 usageService,
+                null,
                 null
             );
             actionModule.initRestHandlers(null);
