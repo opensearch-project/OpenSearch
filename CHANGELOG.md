@@ -14,7 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.netflix.nebula:gradle-info-plugin` from 12.0.0 to 12.1.0
 - Bump `com.netflix.nebula:nebula-publishing-plugin` from 19.2.0 to 20.2.0
 - Bump `com.google.protobuf:protobuf-java` from 3.22.2 to 3.22.3
-- Bump `jackson` from 2.14.2 to 2.15.0 ([#7286](https://github.com/opensearch-project/OpenSearch/pull/7286)
+- Bump `jackson` from 2.14.2 to 2.15.0 ([#7286](https://github.com/opensearch-project/OpenSearch/pull/7286))
 - Bump `com.netflix.nebula:nebula-publishing-plugin` from 20.2.0 to 20.3.0
 - Bump `com.netflix.nebula.ospackage-base` from 11.0.0 to 11.3.0
 - Bump `gradle.plugin.com.github.johnrengelman:shadow` from 7.1.2 to 8.0.0
@@ -35,5 +35,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Security
 
-[Unreleased 3.0]: https://github.com/opensearch-project/OpenSearch/compare/2.x...HEAD
-[Unreleased 2.x]: https://github.com/opensearch-project/OpenSearch/compare/2.5...2.x
+[Unreleased 2.x]: https://github.com/opensearch-project/OpenSearch/compare/2.7...2.x
