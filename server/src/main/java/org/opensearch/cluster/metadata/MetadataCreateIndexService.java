@@ -891,6 +891,8 @@ public class MetadataCreateIndexService {
         indexSettingsBuilder.put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
         indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
+        updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings);
+
         updateRemoteStoreSettings(indexSettingsBuilder, request.settings(), settings);
 
         if (sourceMetadata != null) {
@@ -923,6 +925,22 @@ public class MetadataCreateIndexService {
         validateStoreTypeSettings(indexSettings);
 
         return indexSettings;
+    }
+
+    /**
+     * Updates index settings to set replication strategy by default based on cluster level settings
+     * @param settingsBuilder index settings builder to be updated with relevant settings
+     * @param requestSettings settings passed in during index create request
+     * @param clusterSettings cluster level settings
+     */
+    private static void updateReplicationStrategy(Settings.Builder settingsBuilder, Settings requestSettings, Settings clusterSettings) {
+        if (IndexMetadata.INDEX_HIDDEN_SETTING.get(requestSettings) == true) {
+            settingsBuilder.put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT);
+            return;
+        }
+        if (CLUSTER_REPLICATION_TYPE_SETTING.exists(clusterSettings) && INDEX_REPLICATION_TYPE_SETTING.exists(requestSettings) == false) {
+            settingsBuilder.put(SETTING_REPLICATION_TYPE, CLUSTER_REPLICATION_TYPE_SETTING.get(clusterSettings));
+        }
     }
 
     /**

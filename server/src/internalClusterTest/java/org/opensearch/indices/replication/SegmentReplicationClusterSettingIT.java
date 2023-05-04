@@ -9,6 +9,8 @@
 package org.opensearch.indices.replication;
 
 import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -113,17 +115,97 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
         }
     }
 
-    public void testIndexReplicationSettingOverridesClusterSetting() throws Exception {
+    public void testIndexReplicationSettingOverridesSegRepClusterSetting() throws Exception {
+        Settings settings = Settings.builder().put(CLUSTER_SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT).build();
+        final String ANOTHER_INDEX = "test-index";
+
         // Starting two nodes with primary and replica shards respectively.
-        final String primaryNode = internalCluster().startNode();
+        final String primaryNode = internalCluster().startNode(settings);
         prepareCreate(
             INDEX_NAME,
             Settings.builder()
                 // we want to override cluster replication setting by passing a index replication setting
                 .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
         ).get();
-        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        createIndex(ANOTHER_INDEX);
+        ensureYellowAndNoInitializingShards(INDEX_NAME, ANOTHER_INDEX);
+        final String replicaNode = internalCluster().startNode(settings);
+        ensureGreen(INDEX_NAME, ANOTHER_INDEX);
+
+        final int initialDocCount = scaledRandomIntBetween(20, 30);
+        for (int i = 0; i < initialDocCount; i++) {
+            client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+            client().prepareIndex(ANOTHER_INDEX).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+        }
+
+        refresh(INDEX_NAME, ANOTHER_INDEX);
+        assertBusy(() -> {
+            assertHitCount(client(replicaNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
+            assertHitCount(client(replicaNode).prepareSearch(ANOTHER_INDEX).setSize(0).setPreference("_only_local").get(), initialDocCount);
+        });
+
+        SegmentReplicationStatsResponse segmentReplicationStatsResponse = client().admin()
+            .indices()
+            .prepareSegmentReplicationStats(INDEX_NAME, ANOTHER_INDEX)
+            .execute()
+            .actionGet();
+
+        // Verify that Segment Replication happened on the replica shard.
+        assertFalse(segmentReplicationStatsResponse.getReplicationStats().get(ANOTHER_INDEX).get(0).getReplicaStats().isEmpty());
+
+        // Verify that Segment Replication did not happen on the replica shard.
+        assertNull(segmentReplicationStatsResponse.getReplicationStats().get(INDEX_NAME));
+    }
+
+    public void testIndexReplicationSettingOverridesDocRepClusterSetting() throws Exception {
+        Settings settings = Settings.builder().put(CLUSTER_SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT).build();
+        final String ANOTHER_INDEX = "test-index";
+        final String primaryNode = internalCluster().startNode(settings);
+        prepareCreate(
+            INDEX_NAME,
+            Settings.builder()
+                // we want to override cluster replication setting by passing a index replication setting
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+        ).get();
+        createIndex(ANOTHER_INDEX);
+        ensureYellowAndNoInitializingShards(INDEX_NAME, ANOTHER_INDEX);
+        final String replicaNode = internalCluster().startNode(settings);
+        ensureGreen(INDEX_NAME, ANOTHER_INDEX);
+
+        final int initialDocCount = scaledRandomIntBetween(20, 30);
+        for (int i = 0; i < initialDocCount; i++) {
+            client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+            client().prepareIndex(ANOTHER_INDEX).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+        }
+
+        refresh(INDEX_NAME, ANOTHER_INDEX);
+        assertBusy(() -> {
+            assertHitCount(client(replicaNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
+            assertHitCount(client(replicaNode).prepareSearch(ANOTHER_INDEX).setSize(0).setPreference("_only_local").get(), initialDocCount);
+        });
+
+        SegmentReplicationStatsResponse segmentReplicationStatsResponse = client().admin()
+            .indices()
+            .prepareSegmentReplicationStats(INDEX_NAME, ANOTHER_INDEX)
+            .execute()
+            .actionGet();
+
+        // Verify that Segment Replication happened on the replica shard.
+        assertFalse(segmentReplicationStatsResponse.getReplicationStats().get(INDEX_NAME).get(0).getReplicaStats().isEmpty());
+
+        // Verify that Segment Replication did not happen on the replica shard.
+        assertNull(segmentReplicationStatsResponse.getReplicationStats().get(ANOTHER_INDEX));
+    }
+
+    public void testIndexReopenCloseWithReplicationStrategyClusterSetting() throws Exception {
+        final String primaryNode = internalCluster().startNode();
         final String replicaNode = internalCluster().startNode();
+        prepareCreate(
+            INDEX_NAME,
+            Settings.builder()
+                // we want to override cluster replication setting by passing a index replication setting
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
+        ).get();
         ensureGreen(INDEX_NAME);
 
         final int initialDocCount = scaledRandomIntBetween(20, 30);
@@ -135,13 +217,43 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
         assertBusy(() -> {
             assertHitCount(client(replicaNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
         });
-
         SegmentReplicationStatsResponse segmentReplicationStatsResponse = client().admin()
             .indices()
             .prepareSegmentReplicationStats(INDEX_NAME)
             .execute()
             .actionGet();
+
         // Verify that Segment Replication did not happen on the replica shard.
         assertNull(segmentReplicationStatsResponse.getReplicationStats().get(INDEX_NAME));
+
+        logger.info("--> Closing the index ");
+        client().admin().indices().prepareClose(INDEX_NAME).get();
+
+        logger.info("--> Opening the index");
+        client().admin().indices().prepareOpen(INDEX_NAME).get();
+
+        ensureGreen(INDEX_NAME);
+        GetSettingsResponse settingsResponse = client().admin().indices().getSettings(new GetSettingsRequest().indices(INDEX_NAME)).get();
+
+        assertEquals(settingsResponse.getSetting(INDEX_NAME, "index.replication.type"), "DOCUMENT");
+        assertHitCount(client(replicaNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
+        assertHitCount(client(primaryNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
     }
+
+    public void testHiddenIndicesWithReplicationStrategyClusterSetting() throws Exception {
+        final String primaryNode = internalCluster().startNode();
+        final String replicaNode = internalCluster().startNode();
+        prepareCreate(
+            INDEX_NAME,
+            Settings.builder()
+                // we want to set index as hidden
+                .put("index.hidden", true)
+        ).get();
+        ensureGreen(INDEX_NAME);
+
+        // Verify that document replication strategy is used for hidden indices.
+        GetSettingsResponse settingsResponse = client().admin().indices().getSettings(new GetSettingsRequest().indices(INDEX_NAME)).get();
+        assertEquals(settingsResponse.getSetting(INDEX_NAME, "index.replication.type"), "DOCUMENT");
+    }
+
 }
