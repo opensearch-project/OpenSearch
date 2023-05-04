@@ -331,11 +331,11 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
         return newState.build();
     }
 
-    public Pipeline resolvePipeline(SearchRequest searchRequest) {
+    public PipelinedRequest resolvePipeline(SearchRequest searchRequest) throws Exception {
         Pipeline pipeline = Pipeline.NO_OP_PIPELINE;
 
         if (isEnabled == false) {
-            return pipeline;
+            return new PipelinedRequest(pipeline, searchRequest);
         }
         if (searchRequest.source() != null && searchRequest.source().searchPipelineSource() != null) {
             if (searchRequest.pipeline() != null) {
@@ -361,7 +361,8 @@ public class SearchPipelineService implements ClusterStateApplier, ReportingServ
             }
             pipeline = pipelineHolder.pipeline;
         }
-        return pipeline;
+        SearchRequest transformedRequest = pipeline.transformRequest(searchRequest);
+        return new PipelinedRequest(pipeline, transformedRequest);
     }
 
     Map<String, Processor.Factory> getProcessorFactories() {

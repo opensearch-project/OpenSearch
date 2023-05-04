@@ -31,7 +31,7 @@ import static org.opensearch.ingest.Pipeline.VERSION_KEY;
 /**
  * Concrete representation of a search pipeline, holding multiple processors.
  */
-public class Pipeline {
+class Pipeline {
 
     public static final String REQUEST_PROCESSORS_KEY = "request_processors";
     public static final String RESPONSE_PROCESSORS_KEY = "response_processors";
