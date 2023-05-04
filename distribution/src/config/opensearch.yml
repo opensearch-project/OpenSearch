@@ -104,7 +104,7 @@ ${path.logs}
 #
 # Gates the visibility of the experimental segment replication features until they are production ready.
 #
-#"opensearch.experimental.feature.segment_replication_experimental.enabled": false
+#opensearch.experimental.feature.segment_replication_experimental.enabled: false
 #
 #
 # Gates the visibility of the index setting that allows persisting data to remote store along with local disk.
