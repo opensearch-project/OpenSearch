@@ -426,7 +426,14 @@ public class TaskBatcherTests extends TaskExecutorTests {
             // references of both tasks are different.
             assertFalse(task1 == task2);
             // submitting this task should be allowed, as it is new object.
-            submitTask("third time a charm", new SimpleTask(1), ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
+            submitTask("third time a charm", task2, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener);
+
+            // submitting same task2 again, it should throw exception, since it was submitted last time
+            final IllegalStateException e2 = expectThrows(
+                IllegalStateException.class,
+                () -> submitTask("second time", task2, ClusterStateTaskConfig.build(Priority.NORMAL), executor, listener)
+            );
+            assertThat(e2, hasToString(containsString("task [1] with source [second time] is already queued")));
 
             assertThat(latch.getCount(), equalTo(2L));
         }

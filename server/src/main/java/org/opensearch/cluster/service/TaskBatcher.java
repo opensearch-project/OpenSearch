@@ -96,29 +96,22 @@ public abstract class TaskBatcher {
             // For remove: First remove task from taskMap and then remove identity from taskIdentity map.
             // We are inserting identity first and removing at last to ensure no duplicate tasks are enqueued.
             // Changing this order might lead to duplicate tasks in queue.
-            taskIdentityPerBatchingKey.merge(firstTask.batchingKey, tasksIdentity, (existingIdentity, updatedIdentity) -> {
-                Map<Object, BatchedTask> existingIdentities = taskIdentityPerBatchingKey.computeIfAbsent(
-                    firstTask.batchingKey,
-                    k -> new IdentityHashMap<>()
-                );
-                if (!existingIdentities.isEmpty()) {
-                    // check for duplicate tasks if existing identities are not empty.
-                    for (Object newIdentity : tasksIdentity.keySet()) {
-                        // check that there won't be two tasks with the same identity for the same batching key
-                        if (existingIdentities.containsKey(newIdentity)) {
-                            BatchedTask duplicateTask = tasksIdentity.get(newIdentity);
-                            throw new IllegalStateException(
-                                "task ["
-                                    + duplicateTask.describeTasks(Collections.singletonList(duplicateTask))
-                                    + "] with source ["
-                                    + duplicateTask.source
-                                    + "] is already queued"
-                            );
-                        }
+            taskIdentityPerBatchingKey.merge(firstTask.batchingKey, tasksIdentity, (existingIdentities, updatedIdentities) -> {
+                for (Object newIdentity : tasksIdentity.keySet()) {
+                    // check that there won't be two tasks with the same identity for the same batching key
+                    if (existingIdentities.containsKey(newIdentity)) {
+                        BatchedTask duplicateTask = tasksIdentity.get(newIdentity);
+                        throw new IllegalStateException(
+                            "task ["
+                                + duplicateTask.describeTasks(Collections.singletonList(duplicateTask))
+                                + "] with source ["
+                                + duplicateTask.source
+                                + "] is already queued"
+                        );
                     }
                 }
-                existingIdentity.putAll(updatedIdentity);
-                return existingIdentity;
+                existingIdentities.putAll(updatedIdentities);
+                return existingIdentities;
             });
             // since we have checked for dup tasks in above map, we can add all new task in map.
             tasksPerBatchingKey.merge(firstTask.batchingKey, newTasks, (existingTasks, updatedTasks) -> {
