@@ -26,11 +26,7 @@ import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANS
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_REPOSITORY_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING;
-import static org.opensearch.indices.IndicesService.CLUSTER_REPLICATION_TYPE_SETTING;
+import static org.opensearch.indices.IndicesService.*;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
@@ -120,7 +116,7 @@ public class CreateRemoteIndexIT extends OpenSearchIntegTestCase {
             .getIndex(new GetIndexRequest().indices("test-idx-1").includeDefaults(true))
             .get();
         Settings indexSettings = getIndexResponse.settings().get("test-idx-1");
-        verifyRemoteStoreIndexSettings(indexSettings, "false", null, null, null, null, null);
+        verifyRemoteStoreIndexSettings(indexSettings, "false", null, null, null, client().settings().get(CLUSTER_SETTING_REPLICATION_TYPE), null);
     }
 
     public void testRemoteStoreEnabledByUserWithoutRemoteRepoAndSegmentReplicationIllegalArgumentException() throws Exception {
