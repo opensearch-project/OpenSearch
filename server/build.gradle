@@ -359,6 +359,8 @@ tasks.named("missingJavadoc").configure {
     "org.opensearch.extensions.proto.RegisterRestActionsProto.RegisterRestActionsOrBuilder",
     "org.opensearch.extensions.proto.ExtensionRequestProto",
     "org.opensearch.extensions.proto.ExtensionRequestProto.ExtensionRequestOrBuilder",
+    "org.opensearch.extensions.proto.RegisterTransportActionsProto",
+    "org.opensearch.extensions.proto.RegisterTransportActionsProto.RegisterTransportActionsOrBuilder",
     "org.opensearch.extensions.proto"
   ]
 }

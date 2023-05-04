@@ -60,7 +60,7 @@ public class RegisterRestActionsTests extends OpenSearchTestCase {
         String uniqueId = "extension-1234";
         List<String> expected = null;
         List<String> expectedDeprecated = null;
-        // Expect exception as Extension Identity(uniqueId) is null
+        // Expect exception as paths are null
         expectThrows(NullPointerException.class, () -> new RegisterRestActionsRequest(uniqueId, expected, expectedDeprecated));
     }
 
