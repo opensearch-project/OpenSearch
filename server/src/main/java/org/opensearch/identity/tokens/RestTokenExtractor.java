@@ -40,7 +40,7 @@ public class RestTokenExtractor {
         if (authHeaderValue.isPresent()) {
             final String authHeaderValueStr = authHeaderValue.get();
 
-            if (authHeaderValueStr.startsWith(BasicAuthToken.TOKEN_IDENIFIER)) {
+            if (authHeaderValueStr.startsWith(BasicAuthToken.TOKEN_IDENTIFIER)) {
                 return new BasicAuthToken(authHeaderValueStr);
             } else {
                 if (logger.isDebugEnabled()) {

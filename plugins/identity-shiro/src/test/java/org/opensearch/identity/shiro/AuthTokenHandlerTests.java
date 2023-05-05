@@ -10,7 +10,9 @@ package org.opensearch.identity.shiro;
 
 import org.apache.shiro.authc.AuthenticationToken;
 import org.apache.shiro.authc.UsernamePasswordToken;
+import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.identity.tokens.BasicAuthToken;
+import org.opensearch.identity.tokens.NoopToken;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -23,11 +25,11 @@ import java.util.Optional;
 
 public class AuthTokenHandlerTests extends OpenSearchTestCase {
 
-    private AuthTokenHandler authTokenHandler;
+    private ShiroTokenHandler authTokenHandler;
 
     @Before
     public void testSetup() {
-        authTokenHandler = new AuthTokenHandler();
+        authTokenHandler = new ShiroTokenHandler();
     }
 
     public void testShouldExtractBasicAuthTokenSuccessfully() {
@@ -58,5 +60,35 @@ public class AuthTokenHandlerTests extends OpenSearchTestCase {
         final Optional<AuthenticationToken> translatedToken = authTokenHandler.translateAuthToken(null);
 
         assertThat(translatedToken.isEmpty(), is(true));
+    }
+
+    public void testShouldRevokeTokenSuccessfully() {
+        final BasicAuthToken authToken = new BasicAuthToken("Basic dGVzdDp0ZTpzdA==");
+        assertTrue(authToken.toString().equals("Basic auth token with user=test, password=te:st"));
+        authTokenHandler.revokeToken(authToken);
+        assert(authToken.toString().equals("Basic auth token with user=, password="));
+    }
+
+    public void testShouldFailWhenRevokeToken() {
+        final NoopToken authToken = new NoopToken();
+        assert(authToken.getTokenIdentifier().equals("Noop"));
+        assertThrows(UnsupportedAuthenticationToken.class, () -> authTokenHandler.revokeToken(authToken));
+    }
+
+    public void testShouldGetTokenInfoSuccessfully() {
+        final BasicAuthToken authToken = new BasicAuthToken("Basic dGVzdDp0ZTpzdA==");
+        assert(authToken.toString().equals(authTokenHandler.getTokenInfo(authToken)));
+    }
+
+    public void testShouldFailGetTokenInfo() {
+        final NoopToken authToken = new NoopToken();
+        assert(authToken.getTokenIdentifier().equals("Noop"));
+        assertThrows(UnsupportedAuthenticationToken.class, () -> authTokenHandler.getTokenInfo(authToken));
+    }
+
+
+    public void testShouldFailValidateToken() {
+        final AuthToken authToken = new NoopToken();
+        assertFalse(authTokenHandler.validateToken(authToken));
     }
 }

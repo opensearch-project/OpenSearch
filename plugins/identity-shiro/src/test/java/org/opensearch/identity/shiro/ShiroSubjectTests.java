@@ -25,13 +25,13 @@ import static org.hamcrest.Matchers.equalTo;
 public class ShiroSubjectTests extends OpenSearchTestCase {
 
     private org.apache.shiro.subject.Subject shiroSubject;
-    private AuthTokenHandler authTokenHandler;
+    private ShiroTokenHandler authTokenHandler;
     private ShiroSubject subject;
 
     @Before
     public void setup() {
         shiroSubject = mock(org.apache.shiro.subject.Subject.class);
-        authTokenHandler = mock(AuthTokenHandler.class);
+        authTokenHandler = mock(ShiroTokenHandler.class);
         subject = new ShiroSubject(authTokenHandler, shiroSubject);
     }
 
