@@ -95,7 +95,7 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
                 .indices()
                 .getSettings(new GetSettingsRequest().indices(SYSTEM_INDEX_NAME).includeDefaults(true))
                 .actionGet();
-            assertEquals(response.getSetting(INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
+            assertEquals(response.getSetting(SYSTEM_INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
         } else {
             final GetSettingsResponse response = client().admin()
                 .indices()
