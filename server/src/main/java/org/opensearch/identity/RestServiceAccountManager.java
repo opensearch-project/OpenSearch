@@ -137,8 +137,8 @@ public class RestServiceAccountManager implements ServiceAccountManager {
      * @param serviceName The name used for referencing the service
      * @param authenticationString An authentication string used to authorize the REST request
      * @return A string of the response body--this will be a new auth header for the account
-     * @throws IOException
-     * @throws InterruptedException
+     * @throws IOException When failing to communicate
+     * @throws InterruptedException When communication is interrupted
      */
     public String getOrCreateServiceAccount(String serviceName, String authenticationString) throws IOException, InterruptedException {
         HttpRequest request = HttpRequest.newBuilder(URI.create(url + serviceName))
@@ -165,7 +165,7 @@ public class RestServiceAccountManager implements ServiceAccountManager {
      * Calls a Get Request and returns the response code
      *
      * @param serviceName The name associated with the service in question
-     * @param authenticationString
+     * @param authenticationString A string containing the auth token
      * @return An int status code from the request
      * @throws IOException If connection fails
      * @throws InterruptedException If connection interrupted

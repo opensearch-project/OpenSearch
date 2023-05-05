@@ -18,8 +18,8 @@ public interface UserProvider {
 
     /**
      * A method that is able to return a specific user with the matching username
-     * @param username
-     * @return
+     * @param username The username of the User
+     * @return A new User object
      */
     public User getUser(String username);
 
