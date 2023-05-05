@@ -462,6 +462,9 @@ public class RemoteRefreshSegmentTracker {
         );
     }
 
+    /**
+     * Represents the tracker's state as seen in the stats API.
+     */
     public static class Stats implements Writeable {
 
         public final ShardId shardId;
