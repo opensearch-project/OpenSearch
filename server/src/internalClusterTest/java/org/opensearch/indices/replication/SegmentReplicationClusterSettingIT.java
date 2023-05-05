@@ -90,13 +90,17 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
         final String replicaNode = internalCluster().startNode();
         ensureGreen(indexName);
 
-        final GetSettingsResponse response = client().admin()
-            .indices()
-            .getSettings(new GetSettingsRequest().indices(INDEX_NAME).includeDefaults(true))
-            .actionGet();
         if (isSystemIndex) {
+            final GetSettingsResponse response = client().admin()
+                .indices()
+                .getSettings(new GetSettingsRequest().indices(SYSTEM_INDEX_NAME).includeDefaults(true))
+                .actionGet();
             assertEquals(response.getSetting(INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
         } else {
+            final GetSettingsResponse response = client().admin()
+                .indices()
+                .getSettings(new GetSettingsRequest().indices(INDEX_NAME).includeDefaults(true))
+                .actionGet();
             assertEquals(response.getSetting(INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.SEGMENT.toString());
         }
     }
@@ -120,10 +124,10 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
 
         final GetSettingsResponse response = client().admin()
             .indices()
-            .getSettings(new GetSettingsRequest().indices(INDEX_NAME, "test-index").includeDefaults(true))
+            .getSettings(new GetSettingsRequest().indices(INDEX_NAME, ANOTHER_INDEX).includeDefaults(true))
             .actionGet();
         assertEquals(response.getSetting(INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
-        assertEquals(response.getSetting("test-index", SETTING_REPLICATION_TYPE), ReplicationType.SEGMENT.toString());
+        assertEquals(response.getSetting(ANOTHER_INDEX, SETTING_REPLICATION_TYPE), ReplicationType.SEGMENT.toString());
     }
 
     public void testIndexReplicationSettingOverridesDocRepClusterSetting() throws Exception {
@@ -143,10 +147,10 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
 
         final GetSettingsResponse response = client().admin()
             .indices()
-            .getSettings(new GetSettingsRequest().indices(INDEX_NAME, "test-index").includeDefaults(true))
+            .getSettings(new GetSettingsRequest().indices(INDEX_NAME, ANOTHER_INDEX).includeDefaults(true))
             .actionGet();
         assertEquals(response.getSetting(INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.SEGMENT.toString());
-        assertEquals(response.getSetting("test-index", SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
+        assertEquals(response.getSetting(ANOTHER_INDEX, SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
     }
 
     public void testIndexReopenCloseWithReplicationStrategyClusterSetting() throws Exception {

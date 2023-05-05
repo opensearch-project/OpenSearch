@@ -296,8 +296,8 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
         ensureGreen(RESTORED_INDEX_NAME);
         GetSettingsResponse settingsResponse = client().admin()
             .indices()
-            .getSettings(new GetSettingsRequest().indices(RESTORED_INDEX_NAME))
+            .getSettings(new GetSettingsRequest().indices(RESTORED_INDEX_NAME).includeDefaults(true))
             .get();
-        assertEquals(settingsResponse.getSetting(INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
+        assertEquals(settingsResponse.getSetting(RESTORED_INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
     }
 }
