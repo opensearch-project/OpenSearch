@@ -2873,7 +2873,7 @@ public class IndexShardTests extends IndexShardTestCase {
         DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
         target.markAsRecovering("remote_store", new RecoveryState(routing, localNode, null));
         final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
-        target.restoreFromRemoteStore(null, future);
+        target.restoreFromRemoteStore(future);
         target.remoteStore().decRef();
 
         assertTrue(future.actionGet());
