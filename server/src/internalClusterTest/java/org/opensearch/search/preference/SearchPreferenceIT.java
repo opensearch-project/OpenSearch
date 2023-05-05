@@ -89,7 +89,9 @@ public class SearchPreferenceIT extends OpenSearchIntegTestCase {
         internalCluster().stopRandomDataNode();
         client().admin().cluster().prepareHealth().setWaitForStatus(ClusterHealthStatus.RED).get();
         String[] preferences = new String[] {
+            "_primary",
             "_local",
+            "_primary_first",
             "_prefer_nodes:somenode",
             "_prefer_nodes:server2",
             "_prefer_nodes:somenode,server2" };
@@ -140,13 +142,32 @@ public class SearchPreferenceIT extends OpenSearchIntegTestCase {
         client().prepareIndex("test").setSource("field1", "value1").get();
         refresh();
 
-        SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).get();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_local").execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_local").execute().actionGet();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_local").get();
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_primary").execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_primary").execute().actionGet();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
-        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("1234").get();
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica").execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica").execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica_first").execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica_first").execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("1234").execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("1234").execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
     }
 

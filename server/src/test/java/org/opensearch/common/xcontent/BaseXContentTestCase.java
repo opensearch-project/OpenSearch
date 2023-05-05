@@ -255,6 +255,10 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
         assertResult("{'long':null}", () -> builder().startObject().field("long", (Long) null).endObject());
         assertResult("{'long':42}", () -> builder().startObject().field("long", Long.valueOf(42L)).endObject());
         assertResult("{'long':9223372036854775807}", () -> builder().startObject().field("long", 9_223_372_036_854_775_807L).endObject());
+        assertResult(
+            "{'unsigned_long':18446744073709551615}",
+            () -> builder().startObject().field("unsigned_long", new BigDecimal("18446744073709551615")).endObject()
+        );
         assertResult("{'long':[1,3,5,7,11]}", () -> builder().startObject().array("long", 1L, 3L, 5L, 7L, 11L).endObject());
         assertResult("{'long':null}", () -> builder().startObject().array("long", (long[]) null).endObject());
         assertResult("{'long':[]}", () -> builder().startObject().array("long", new long[] {}).endObject());

@@ -201,9 +201,15 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
 
                 case LONG:
                     // for unsigned_long field type we want to pass search_after value through formatting
-                    if (value instanceof Number && format != DocValueFormat.UNSIGNED_LONG_SHIFTED) {
+                    if (value instanceof Number
+                        && (format != DocValueFormat.UNSIGNED_LONG_SHIFTED && format != DocValueFormat.UNSIGNED_LONG)) {
                         return ((Number) value).longValue();
+                    } else if (format == DocValueFormat.UNSIGNED_LONG_SHIFTED || format == DocValueFormat.UNSIGNED_LONG) {
+                        return format.parseUnsignedLong(value.toString(), false, () -> {
+                            throw new IllegalStateException("now() is not allowed in [search_after] key");
+                        });
                     }
+
                     return format.parseLong(
                         value.toString(),
                         false,

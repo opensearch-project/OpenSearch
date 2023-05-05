@@ -172,6 +172,7 @@ import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.UnmappedRareTerms;
 import org.opensearch.search.aggregations.bucket.terms.UnmappedSignificantTerms;
 import org.opensearch.search.aggregations.bucket.terms.UnmappedTerms;
+import org.opensearch.search.aggregations.bucket.terms.UnsignedLongTerms;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.ChiSquare;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.GND;
 import org.opensearch.search.aggregations.bucket.terms.heuristic.JLHScore;
@@ -523,6 +524,7 @@ public class SearchModule {
                 .addResultReader(UnmappedTerms.NAME, UnmappedTerms::new)
                 .addResultReader(LongTerms.NAME, LongTerms::new)
                 .addResultReader(DoubleTerms.NAME, DoubleTerms::new)
+                .addResultReader(UnsignedLongTerms.NAME, UnsignedLongTerms::new)
                 .setAggregatorRegistrar(TermsAggregationBuilder::registerAggregators),
             builder
         );
@@ -994,6 +996,7 @@ public class SearchModule {
         registerValueFormat(DocValueFormat.RAW.getWriteableName(), in -> DocValueFormat.RAW);
         registerValueFormat(DocValueFormat.BINARY.getWriteableName(), in -> DocValueFormat.BINARY);
         registerValueFormat(DocValueFormat.UNSIGNED_LONG_SHIFTED.getWriteableName(), in -> DocValueFormat.UNSIGNED_LONG_SHIFTED);
+        registerValueFormat(DocValueFormat.UNSIGNED_LONG.getWriteableName(), in -> DocValueFormat.UNSIGNED_LONG);
     }
 
     /**

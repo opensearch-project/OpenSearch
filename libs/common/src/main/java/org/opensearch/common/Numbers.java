@@ -32,8 +32,6 @@
 
 package org.opensearch.common;
 
-import org.apache.lucene.util.BytesRef;
-
 import java.math.BigDecimal;
 import java.math.BigInteger;
 
@@ -43,19 +41,16 @@ import java.math.BigInteger;
  * @opensearch.internal
  */
 public final class Numbers {
+    public static final BigInteger MAX_UNSIGNED_LONG_VALUE = BigInteger.ONE.shiftLeft(64).subtract(BigInteger.ONE);
+    public static final BigInteger MIN_UNSIGNED_LONG_VALUE = BigInteger.ZERO;
+
+    public static final long MIN_UNSIGNED_LONG_VALUE_AS_LONG = MIN_UNSIGNED_LONG_VALUE.longValue();
+    public static final long MAX_UNSIGNED_LONG_VALUE_AS_LONG = MAX_UNSIGNED_LONG_VALUE.longValue();
 
     private static final BigInteger MAX_LONG_VALUE = BigInteger.valueOf(Long.MAX_VALUE);
     private static final BigInteger MIN_LONG_VALUE = BigInteger.valueOf(Long.MIN_VALUE);
 
     private Numbers() {}
-
-    public static long bytesToLong(BytesRef bytes) {
-        int high = (bytes.bytes[bytes.offset + 0] << 24) | ((bytes.bytes[bytes.offset + 1] & 0xff) << 16) | ((bytes.bytes[bytes.offset + 2]
-            & 0xff) << 8) | (bytes.bytes[bytes.offset + 3] & 0xff);
-        int low = (bytes.bytes[bytes.offset + 4] << 24) | ((bytes.bytes[bytes.offset + 5] & 0xff) << 16) | ((bytes.bytes[bytes.offset + 6]
-            & 0xff) << 8) | (bytes.bytes[bytes.offset + 7] & 0xff);
-        return (((long) high) << 32) | (low & 0x0ffffffffL);
-    }
 
     /**
      * Converts a long to a byte array.
@@ -107,9 +102,44 @@ public final class Numbers {
         }
     }
 
+    /** Return the {@link BigInteger} that {@code n} stores, or throws an exception if the
+     *  stored value cannot be converted to a {@link BigInteger} that stores the exact same
+     *  value. */
+    public static BigInteger toBigIntegerExact(Number n) {
+        if (n instanceof Byte || n instanceof Short || n instanceof Integer || n instanceof Long) {
+            return BigInteger.valueOf(n.longValue());
+        } else if (n instanceof Float || n instanceof Double) {
+            double d = n.doubleValue();
+            if (d != Math.round(d)) {
+                throw new IllegalArgumentException(n + " is not an integer value");
+            }
+            return BigInteger.valueOf(n.longValue());
+        } else if (n instanceof BigDecimal) {
+            return ((BigDecimal) n).toBigIntegerExact();
+        } else if (n instanceof BigInteger) {
+            return ((BigInteger) n);
+        } else {
+            throw new IllegalArgumentException("Cannot convert [" + n + "] of class [" + n.getClass().getName() + "] to a BigInteger");
+        }
+    }
+
+    /** Return the unsigned long (as {@link BigInteger}) that {@code n} stores, or throws an exception if the
+     *  stored value cannot be converted to an unsigned long that stores the exact same
+     *  value. */
+    public static BigInteger toUnsignedLongExact(Number value) {
+        final BigInteger v = Numbers.toBigIntegerExact(value);
+
+        if (v.compareTo(MAX_UNSIGNED_LONG_VALUE) > 0 || v.compareTo(MIN_UNSIGNED_LONG_VALUE) < 0) {
+            throw new IllegalArgumentException("Value [" + value + "] is out of range for an unsigned long");
+        }
+
+        return v;
+    }
+
     // weak bounds on the BigDecimal representation to allow for coercion
     private static BigDecimal BIGDECIMAL_GREATER_THAN_LONG_MAX_VALUE = BigDecimal.valueOf(Long.MAX_VALUE).add(BigDecimal.ONE);
     private static BigDecimal BIGDECIMAL_LESS_THAN_LONG_MIN_VALUE = BigDecimal.valueOf(Long.MIN_VALUE).subtract(BigDecimal.ONE);
+    private static BigDecimal BIGDECIMAL_GREATER_THAN_USIGNED_LONG_MAX_VALUE = new BigDecimal(MAX_UNSIGNED_LONG_VALUE).add(BigDecimal.ONE);
 
     /** Return the long that {@code stringValue} stores or throws an exception if the
      *  stored value cannot be converted to a long that stores the exact same
@@ -142,6 +172,31 @@ public final class Numbers {
         return bigIntegerValue.longValue();
     }
 
+    /** Return the long that {@code stringValue} stores or throws an exception if the
+     *  stored value cannot be converted to a long that stores the exact same
+     *  value and {@code coerce} is false. */
+    public static BigInteger toUnsignedLong(String stringValue, boolean coerce) {
+        final BigInteger bigIntegerValue;
+        try {
+            BigDecimal bigDecimalValue = new BigDecimal(stringValue);
+            if (bigDecimalValue.compareTo(BIGDECIMAL_GREATER_THAN_USIGNED_LONG_MAX_VALUE) >= 0
+                || bigDecimalValue.compareTo(BigDecimal.ZERO) <= 0) {
+                throw new IllegalArgumentException("Value [" + stringValue + "] is out of range for an unsigned long");
+            }
+            bigIntegerValue = coerce ? bigDecimalValue.toBigInteger() : bigDecimalValue.toBigIntegerExact();
+        } catch (ArithmeticException e) {
+            throw new IllegalArgumentException("Value [" + stringValue + "] has a decimal part");
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("For input string: \"" + stringValue + "\"");
+        }
+
+        if (bigIntegerValue.compareTo(MAX_UNSIGNED_LONG_VALUE) > 0 || bigIntegerValue.compareTo(MIN_UNSIGNED_LONG_VALUE) < 0) {
+            throw new IllegalArgumentException("Value [" + stringValue + "] is out of range for an unsigned long");
+        }
+
+        return bigIntegerValue;
+    }
+
     /** Return the int that {@code n} stores, or throws an exception if the
      *  stored value cannot be converted to an int that stores the exact same
      *  value. */
@@ -169,5 +224,37 @@ public final class Numbers {
             throw new ArithmeticException("byte overflow: " + l);
         }
         return (byte) l;
+    }
+
+    /**
+     * Return a BigInteger equal to the unsigned value of the
+     * argument.
+     */
+    public static BigInteger toUnsignedBigInteger(long i) {
+        if (i >= 0L) return BigInteger.valueOf(i);
+        else {
+            int upper = (int) (i >>> 32);
+            int lower = (int) i;
+
+            // return (upper << 32) + lower
+            return (BigInteger.valueOf(Integer.toUnsignedLong(upper))).shiftLeft(32).add(BigInteger.valueOf(Integer.toUnsignedLong(lower)));
+        }
+    }
+
+    /**
+     * Convert unsigned long to double value (see please Guava's com.google.common.primitives.UnsignedLong),
+     * this is faster then going through {@link #toUnsignedBigInteger(long)} conversion.
+     */
+    public static double unsignedLongToDouble(long value) {
+        if (value >= 0) {
+            return (double) value;
+        }
+
+        // The top bit is set, which means that the double value is going to come from the top 53 bits.
+        // So we can ignore the bottom 11, except for rounding. We can unsigned-shift right 1, aka
+        // unsigned-divide by 2, and convert that. Then we'll get exactly half of the desired double
+        // value. But in the specific case where the bottom two bits of the original number are 01, we
+        // want to replace that with 1 in the shifted value for correct rounding.
+        return (double) ((value >>> 1) | (value & 1)) * 2.0;
     }
 }
