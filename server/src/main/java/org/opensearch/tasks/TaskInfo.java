@@ -85,6 +85,10 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
 
     private final boolean cancelled;
 
+    private final long cancellationStartTime;
+
+    private final long runningTimeSinceCancellationNanos;
+
     private final TaskId parentTaskId;
 
     private final Map<String, String> headers;
@@ -105,6 +109,26 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         Map<String, String> headers,
         TaskResourceStats resourceStats
     ) {
+        this(taskId, type, action, description, status, startTime, runningTimeNanos, cancellable, cancelled,
+            parentTaskId, headers, resourceStats, -1, -1);
+    }
+
+    public TaskInfo(
+        TaskId taskId,
+        String type,
+        String action,
+        String description,
+        Task.Status status,
+        long startTime,
+        long runningTimeNanos,
+        boolean cancellable,
+        boolean cancelled,
+        TaskId parentTaskId,
+        Map<String, String> headers,
+        TaskResourceStats resourceStats,
+        long cancelledStartTime,
+        long runningTimeSinceCancellationNanos
+    ) {
         if (cancellable == false && cancelled == true) {
             throw new IllegalArgumentException("task cannot be cancelled");
         }
@@ -120,6 +144,8 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         this.parentTaskId = parentTaskId;
         this.headers = headers;
         this.resourceStats = resourceStats;
+        this.cancellationStartTime = cancelledStartTime;
+        this.runningTimeSinceCancellationNanos = runningTimeSinceCancellationNanos;
     }
 
     /**
@@ -150,6 +176,13 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         } else {
             resourceStats = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_2_8_0)) {
+            cancellationStartTime = in.readLong();
+            runningTimeSinceCancellationNanos = in.readLong();
+        } else {
+            cancellationStartTime = -1;
+            runningTimeSinceCancellationNanos = -1;
+        }
     }
 
     @Override
@@ -169,6 +202,13 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
         if (out.getVersion().onOrAfter(Version.V_2_1_0)) {
             out.writeOptionalWriteable(resourceStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_6_0)) {
+            out.writeLong(cancellationStartTime);
+            out.writeLong(runningTimeSinceCancellationNanos);
+        } else {
+            out.writeLong(-1);
+            out.writeLong(-1);
         }
     }
 
@@ -228,6 +268,14 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         return cancelled;
     }
 
+    public long getCancellationStartTime() {
+        return cancellationStartTime;
+    }
+
+    public long getRunningTimeSinceCancellationNanos() {
+        return runningTimeSinceCancellationNanos;
+    }
+
     /**
      * Returns the parent task id
      */
@@ -281,6 +329,10 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             resourceStats.toXContent(builder, params);
             builder.endObject();
         }
+        if (cancellationStartTime != -1) {
+            builder.field("cancelled_at_millis", cancellationStartTime);
+            builder.field("running_time_since_cancellation_nanos", runningTimeSinceCancellationNanos);
+        }
         return builder;
     }
 
@@ -308,6 +360,12 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         }
         @SuppressWarnings("unchecked")
         TaskResourceStats resourceStats = (TaskResourceStats) a[i++];
+        long cancellationStartTime = -1;
+        long runningTimeSinceCancellationNanos = -1;
+        if (cancelled) {
+            cancellationStartTime = (Long) a[i++];
+            runningTimeSinceCancellationNanos = (Long) a[i++];
+        }
         RawTaskStatus status = statusBytes == null ? null : new RawTaskStatus(statusBytes);
         TaskId parentTaskId = parentTaskIdString == null ? TaskId.EMPTY_TASK_ID : new TaskId(parentTaskIdString);
         return new TaskInfo(
@@ -322,7 +380,9 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             cancelled,
             parentTaskId,
             headers,
-            resourceStats
+            resourceStats,
+            cancellationStartTime,
+            runningTimeSinceCancellationNanos
         );
     });
     static {
@@ -341,6 +401,8 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         PARSER.declareString(optionalConstructorArg(), new ParseField("parent_task_id"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapStrings(), new ParseField("headers"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> TaskResourceStats.fromXContent(p), new ParseField("resource_stats"));
+        PARSER.declareLong(optionalConstructorArg(), new ParseField("cancelled_at_millis"));
+        PARSER.declareLong(optionalConstructorArg(), new ParseField("running_time_since_cancellation_nanos"));
     }
 
     @Override
@@ -366,7 +428,9 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             && Objects.equals(cancelled, other.cancelled)
             && Objects.equals(status, other.status)
             && Objects.equals(headers, other.headers)
-            && Objects.equals(resourceStats, other.resourceStats);
+            && Objects.equals(resourceStats, other.resourceStats)
+            && Objects.equals(cancellationStartTime, other.cancellationStartTime)
+            && Objects.equals(runningTimeSinceCancellationNanos, other.runningTimeSinceCancellationNanos);
     }
 
     @Override
@@ -383,7 +447,9 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             cancelled,
             status,
             headers,
-            resourceStats
+            resourceStats,
+            cancellationStartTime,
+            runningTimeSinceCancellationNanos
         );
     }
 }

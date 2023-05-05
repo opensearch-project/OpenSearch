@@ -89,6 +89,8 @@ public class TaskTests extends OpenSearchTestCase {
         long taskId = randomIntBetween(0, 100000);
         long startTime = randomNonNegativeLong();
         long runningTime = randomNonNegativeLong();
+        long cancellationStartTime = randomNonNegativeLong();
+        long runningTimeSinceCancellationNanos = randomNonNegativeLong();
         boolean cancellable = true;
         boolean cancelled = true;
         TaskInfo taskInfo = new TaskInfo(
@@ -103,12 +105,16 @@ public class TaskTests extends OpenSearchTestCase {
             cancelled,
             TaskId.EMPTY_TASK_ID,
             Collections.singletonMap("foo", "bar"),
-            randomResourceStats(randomBoolean())
+            randomResourceStats(randomBoolean()),
+            cancellationStartTime,
+            runningTimeSinceCancellationNanos
         );
         String taskInfoString = taskInfo.toString();
         Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(taskInfoString.getBytes(StandardCharsets.UTF_8)), true).v2();
         assertEquals(map.get("cancellable"), cancellable);
         assertEquals(map.get("cancelled"), cancelled);
+        assertEquals(map.get("cancelled_at_millis"), cancellationStartTime);
+        assertEquals(map.get("running_time_since_cancellation_nanos"), runningTimeSinceCancellationNanos);
     }
 
     public void testCancellableOptionWhenCancelledFalse() {

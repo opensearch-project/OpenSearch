@@ -543,6 +543,14 @@ public class TasksIT extends OpenSearchIntegTestCase {
             .get();
         assertEquals(1, cancelTasksResponse.getTasks().size());
 
+        // Tasks are marked as cancelled at this point but not yet completed.
+        List<TaskInfo> taskInfoList = client().admin().cluster().prepareListTasks()
+            .setActions(TestTaskPlugin.TestTaskAction.NAME + "*").get().getTasks();
+        for (TaskInfo taskInfo: taskInfoList) {
+            assertTrue(taskInfo.isCancelled());
+            assertNotEquals(-1, taskInfo.getCancellationStartTime());
+            assertNotEquals(-1, taskInfo.getRunningTimeSinceCancellationNanos());
+        }
         future.get();
 
         logger.info("--> checking that test tasks are not running");

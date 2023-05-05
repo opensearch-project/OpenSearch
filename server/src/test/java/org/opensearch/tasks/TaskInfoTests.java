@@ -83,7 +83,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
 
     @Override
     protected TaskInfo mutateInstance(TaskInfo info) {
-        switch (between(0, 10)) {
+        switch (between(0, 12)) {
             case 0:
                 TaskId taskId = new TaskId(info.getTaskId().getNodeId() + randomAlphaOfLength(5), info.getTaskId().getId());
                 return new TaskInfo(
@@ -266,6 +266,40 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.getHeaders(),
                     new TaskResourceStats(resourceUsageMap)
                 );
+            case 11:
+                return new TaskInfo(
+                    info.getTaskId(),
+                    info.getType(),
+                    info.getAction(),
+                    info.getDescription(),
+                    info.getStatus(),
+                    info.getStartTime(),
+                    info.getRunningTimeNanos(),
+                    info.isCancellable(),
+                    info.isCancelled(),
+                    info.getParentTaskId(),
+                    info.getHeaders(),
+                    info.getResourceStats(),
+                    info.getCancellationStartTime() + between(1, 100),
+                    info.getRunningTimeSinceCancellationNanos()
+                );
+            case 12:
+                return new TaskInfo(
+                    info.getTaskId(),
+                    info.getType(),
+                    info.getAction(),
+                    info.getDescription(),
+                    info.getStatus(),
+                    info.getStartTime(),
+                    info.getRunningTimeNanos(),
+                    true,
+                    true,
+                    info.getParentTaskId(),
+                    info.getHeaders(),
+                    info.getResourceStats(),
+                    info.getCancellationStartTime(),
+                    info.getRunningTimeSinceCancellationNanos() + between(1, 100)
+                );
             default:
                 throw new IllegalStateException();
         }
@@ -285,6 +319,12 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
         long runningTimeNanos = randomLong();
         boolean cancellable = randomBoolean();
         boolean cancelled = cancellable == true ? randomBoolean() : false;
+        long cancellationStartTime = -1;
+        long runningTimeSinceCancellationNanos = -1;
+        if (cancelled) {
+            cancellationStartTime = randomLong();
+            runningTimeSinceCancellationNanos = randomLong();
+        }
         TaskId parentTaskId = randomBoolean() ? TaskId.EMPTY_TASK_ID : randomTaskId();
         Map<String, String> headers = randomBoolean()
             ? Collections.emptyMap()
@@ -301,7 +341,9 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
             cancelled,
             parentTaskId,
             headers,
-            randomResourceStats(detailed)
+            randomResourceStats(detailed),
+            cancellationStartTime,
+            runningTimeSinceCancellationNanos
         );
     }
 
@@ -312,7 +354,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
     private static RawTaskStatus randomRawTaskStatus() {
         try (XContentBuilder builder = XContentBuilder.builder(Requests.INDEX_CONTENT_TYPE.xContent())) {
             builder.startObject();
-            int fields = between(0, 10);
+            int fields = between(0, 12);
             for (int f = 0; f < fields; f++) {
                 builder.field(randomAlphaOfLength(5), randomAlphaOfLength(5));
             }

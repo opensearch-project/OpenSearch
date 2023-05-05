@@ -61,6 +61,7 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
         assertEquals("{\n" + "  \"tasks\" : [ ]\n" + "}", new ListTasksResponse(null, null, null).toString());
     }
 
+    // Here
     public void testNonEmptyToString() {
         TaskInfo info = new TaskInfo(
             new TaskId("node1", 1),
@@ -78,7 +79,10 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
                 {
                     put("dummy-type1", new TaskResourceUsage(100, 100));
                 }
-            })
+            }),
+            0,
+            1
+
         );
         ListTasksResponse tasksResponse = new ListTasksResponse(singletonList(info), emptyList(), emptyList());
         assertEquals(
@@ -105,7 +109,9 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
                 + "          \"cpu_time_in_nanos\" : 100,\n"
                 + "          \"memory_in_bytes\" : 100\n"
                 + "        }\n"
-                + "      }\n"
+                + "      },\n"
+                + "      \"cancelled_at_millis\" : 0,\n"
+                + "      \"running_time_since_cancellation_nanos\" : 1\n"
                 + "    }\n"
                 + "  ]\n"
                 + "}",

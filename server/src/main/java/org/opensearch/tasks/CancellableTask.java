@@ -50,6 +50,14 @@ public abstract class CancellableTask extends Task {
     private volatile String reason;
     private final AtomicBoolean cancelled = new AtomicBoolean(false);
     private final TimeValue cancelAfterTimeInterval;
+    /**
+     * The task's cancellation start time as a wall clock time since epoch ({@link System#currentTimeMillis()} style).
+     */
+    private long cancellationStartTime = -1;
+    /**
+     * The task's cancellation start time as a relative time ({@link System#nanoTime()} style).
+     */
+    private long cancellationStartTimeNanos = -1;
 
     public CancellableTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         this(id, type, action, description, parentTaskId, headers, NO_TIMEOUT);
@@ -74,6 +82,8 @@ public abstract class CancellableTask extends Task {
     public void cancel(String reason) {
         assert reason != null;
         if (cancelled.compareAndSet(false, true)) {
+            this.cancellationStartTime = System.currentTimeMillis();
+            this.cancellationStartTimeNanos = System.nanoTime();
             this.reason = reason;
             onCancelled();
         }
@@ -85,6 +95,14 @@ public abstract class CancellableTask extends Task {
      */
     public boolean cancelOnParentLeaving() {
         return true;
+    }
+
+    public long getCancellationStartTime() {
+        return cancellationStartTime;
+    }
+
+    public long getCancellationStartTimeNanos() {
+        return cancellationStartTimeNanos;
     }
 
     /**
