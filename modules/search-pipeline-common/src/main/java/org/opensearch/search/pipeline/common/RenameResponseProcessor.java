@@ -19,17 +19,34 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.ingest.ConfigurationUtils;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.pipeline.Processor;
+import org.opensearch.search.pipeline.SearchRequestProcessor;
 import org.opensearch.search.pipeline.SearchResponseProcessor;
 
 import java.util.Map;
 
+/**
+ * This is a {@link SearchRequestProcessor} that renames a field before returning the search response
+ */
 public class RenameResponseProcessor extends AbstractProcessor implements SearchResponseProcessor {
+
     private final String oldField;
     private final String newField;
     private final boolean ignoreMissing;
 
+    /**
+     * Key to reference this processor type from a search pipeline.
+     */
     public static final String TYPE = "rename";
 
+    /**
+     * Constructor that takes a target field to rename and the new name
+     *
+     * @param tag           processor tag
+     * @param description   processor description
+     * @param oldField      name of field to be renamed
+     * @param newField      name of field that will replace the old field
+     * @param ignoreMissing if true, do not throw error if oldField does not exist within search response
+     */
     public RenameResponseProcessor(String tag, String description, String oldField, String newField, boolean ignoreMissing) {
         super(tag, description);
         this.oldField = oldField;
@@ -42,14 +59,26 @@ public class RenameResponseProcessor extends AbstractProcessor implements Search
         return TYPE;
     }
 
+    /**
+     * Getter function for oldField
+     * @return oldField
+     */
     public String getOldField() {
         return oldField;
     }
 
+    /**
+     * Getter function for newField
+     * @return newField
+     */
     public String getNewField() {
         return newField;
     }
 
+    /**
+     * Getter function for ignoreMissing
+     * @return ignoreMissing
+     */
     public boolean isIgnoreMissing() {
         return ignoreMissing;
     }
@@ -98,7 +127,16 @@ public class RenameResponseProcessor extends AbstractProcessor implements Search
         return response;
     }
 
+    /**
+     * This is a factor that creates the RenameResponseProcessor
+     */
     public static final class Factory implements Processor.Factory {
+
+        /**
+         * Constructor for factory
+         */
+        Factory() {}
+
         @Override
         public RenameResponseProcessor create(
             Map<String, Processor.Factory> processorFactories,
