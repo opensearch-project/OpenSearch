@@ -11,8 +11,16 @@ package org.opensearch.identity;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.List;
 
+/**
+ * An interface representing a user provider
+ */
 public interface UserProvider {
 
+    /**
+     * A method that is able to return a specific user with the matching username
+     * @param username
+     * @return
+     */
     public User getUser(String username);
 
     public void removeUser(String username);
