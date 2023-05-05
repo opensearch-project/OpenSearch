@@ -8,11 +8,15 @@
 
 package org.opensearch.index.remote;
 
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.util.MovingAverage;
 import org.opensearch.common.util.Streak;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.index.shard.ShardId;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -106,6 +110,12 @@ public class RemoteRefreshSegmentTracker {
      * Map of name to size of the segment files created as part of the most recent refresh.
      */
     private volatile Map<String, Long> latestLocalFileNameLengthMap;
+
+    private volatile long latestLocalFilesCount;
+    private volatile long latestLocalFileSizeAvg;
+    private volatile long latestLocalFileSizeMin;
+    private volatile long latestLocalFileSizeMax;
+    private volatile long latestLocalFileSizeCount;
 
     /**
      * Set of names of segment files that were uploaded as part of the most recent remote refresh.
@@ -422,4 +432,173 @@ public class RemoteRefreshSegmentTracker {
             this.uploadTimeMsMovingAverageReference.set(this.uploadTimeMsMovingAverageReference.get().copyWithSize(updatedSize));
         }
     }
+
+    public RemoteRefreshSegmentTracker.Stats stats() {
+        return new RemoteRefreshSegmentTracker.Stats(
+            shardId,
+            latestLocalFilesCount,
+            latestUploadFiles.size(),
+            localRefreshTimeMs,
+            localRefreshSeqNo,
+            remoteRefreshTimeMs,
+            remoteRefreshSeqNo,
+            uploadBytesStarted,
+            uploadBytesSucceeded,
+            uploadBytesFailed,
+            totalUploadsStarted,
+            totalUploadsSucceeded,
+            totalUploadsFailed,
+            rejectionCount.get(),
+            failures.length(),
+            uploadBytesMovingAverageReference.get().getAverage(),
+            uploadBytesPerSecMovingAverageReference.get().getAverage(),
+            uploadTimeMsMovingAverageReference.get().getAverage(),
+            getBytesLag(),
+            getInflightUploads(),
+            getInflightUploadBytes(),
+            latestLocalFileSizeAvg,
+            latestLocalFileSizeMax,
+            latestLocalFileSizeMin
+        );
+    }
+
+    public static class Stats implements Writeable {
+
+        public final ShardId shardId;
+        public final long latestUploadFilesCount;
+        public final long latestLocalFilesCount;
+        public final long localRefreshSeqNo;
+        public final long localRefreshTime;
+        public final long remoteRefreshSeqNo;
+        public final long remoteRefreshTime;
+        public final long uploadBytesStarted;
+        public final long uploadBytesFailed;
+        public final long uploadBytesSucceeded;
+        public final long totalUploadsStarted;
+        public final long totalUploadsFailed;
+        public final long totalUploadsSucceeded;
+        public final long rejectionCount;
+        public final long consecutiveFailuresCount;
+        public final double uploadBytesMovingAverage;
+        public final double uploadBytesPerSecMovingAverage;
+        public final double uploadTimeMovingAverage;
+        public final long bytesLag;
+        public final long inflightUploads;
+        public final long inflightUploadBytes;
+        public final long latestLocalFileSizeAvg;
+        public final long latestLocalFileSizeMax;
+        public final long latestLocalFileSizeMin;
+
+        public Stats(
+            ShardId shardId,
+            long latestLocalFilesCount,
+            long latestUploadFilesCount,
+            long localRefreshSeqNo,
+            long localRefreshTime,
+            long remoteRefreshSeqNo,
+            long remoteRefreshTime,
+            long uploadBytesStarted,
+            long uploadBytesSucceeded,
+            long uploadBytesFailed,
+            long totalUploadsStarted,
+            long totalUploadsSucceeded,
+            long totalUploadsFailed,
+            long rejectionCount,
+            long consecutiveFailuresCount,
+            double uploadBytesMovingAverage,
+            double uploadBytesPerSecMovingAverage,
+            double uploadTimeMovingAverage,
+            long bytesLag,
+            long inflightUploads,
+            long inflightUploadBytes,
+            long latestLocalFileSizeAvg,
+            long latestLocalFileSizeMax,
+            long latestLocalFileSizeMin
+        ) {
+            this.shardId = shardId;
+            this.latestLocalFilesCount = latestLocalFilesCount;
+            this.latestUploadFilesCount = latestUploadFilesCount;
+            this.localRefreshSeqNo = localRefreshSeqNo;
+            this.localRefreshTime = localRefreshTime;
+            this.remoteRefreshSeqNo = remoteRefreshSeqNo;
+            this.remoteRefreshTime = remoteRefreshTime;
+            this.uploadBytesStarted = uploadBytesStarted;
+            this.uploadBytesFailed = uploadBytesFailed;
+            this.uploadBytesSucceeded = uploadBytesSucceeded;
+            this.totalUploadsStarted = totalUploadsStarted;
+            this.totalUploadsFailed = totalUploadsFailed;
+            this.totalUploadsSucceeded = totalUploadsSucceeded;
+            this.rejectionCount = rejectionCount;
+            this.consecutiveFailuresCount = consecutiveFailuresCount;
+            this.uploadBytesMovingAverage = uploadBytesMovingAverage;
+            this.uploadBytesPerSecMovingAverage = uploadBytesPerSecMovingAverage;
+            this.uploadTimeMovingAverage = uploadTimeMovingAverage;
+            this.bytesLag = bytesLag;
+            this.inflightUploads = inflightUploads;
+            this.inflightUploadBytes = inflightUploadBytes;
+            this.latestLocalFileSizeAvg = latestLocalFileSizeAvg;
+            this.latestLocalFileSizeMin = latestLocalFileSizeMin;
+            this.latestLocalFileSizeMax = latestLocalFileSizeMax;
+        }
+
+        public Stats(StreamInput in) throws IOException {
+            try {
+                this.shardId = new ShardId(in);
+                this.latestLocalFilesCount = in.readLong();
+                this.latestUploadFilesCount = in.readLong();
+                this.localRefreshSeqNo = in.readLong();
+                this.localRefreshTime = in.readLong();
+                this.remoteRefreshSeqNo = in.readLong();
+                this.remoteRefreshTime = in.readLong();
+                this.uploadBytesStarted = in.readLong();
+                this.uploadBytesFailed = in.readLong();
+                this.uploadBytesSucceeded = in.readLong();
+                this.totalUploadsStarted = in.readLong();
+                this.totalUploadsFailed = in.readLong();
+                this.totalUploadsSucceeded = in.readLong();
+                this.rejectionCount = in.readLong();
+                this.consecutiveFailuresCount = in.readLong();
+                this.uploadBytesMovingAverage = in.readDouble();
+                this.uploadBytesPerSecMovingAverage = in.readDouble();
+                this.uploadTimeMovingAverage = in.readDouble();
+                this.bytesLag = in.readLong();
+                this.inflightUploads = in.readLong();
+                this.inflightUploadBytes = in.readLong();
+                this.latestLocalFileSizeAvg = in.readLong();
+                this.latestLocalFileSizeMin = in.readLong();
+                this.latestLocalFileSizeMax = in.readLong();
+            } catch (IOException e) {
+                throw e;
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            shardId.writeTo(out);
+            out.writeLong(latestLocalFilesCount);
+            out.writeLong(latestUploadFilesCount);
+            out.writeLong(localRefreshSeqNo);
+            out.writeLong(localRefreshTime);
+            out.writeLong(remoteRefreshSeqNo);
+            out.writeLong(remoteRefreshTime);
+            out.writeLong(uploadBytesStarted);
+            out.writeLong(uploadBytesFailed);
+            out.writeLong(uploadBytesSucceeded);
+            out.writeLong(totalUploadsStarted);
+            out.writeLong(totalUploadsFailed);
+            out.writeLong(totalUploadsSucceeded);
+            out.writeLong(rejectionCount);
+            out.writeLong(consecutiveFailuresCount);
+            out.writeDouble(uploadBytesMovingAverage);
+            out.writeDouble(uploadBytesPerSecMovingAverage);
+            out.writeDouble(uploadTimeMovingAverage);
+            out.writeLong(bytesLag);
+            out.writeLong(inflightUploads);
+            out.writeLong(inflightUploadBytes);
+            out.writeLong(latestLocalFileSizeAvg);
+            out.writeLong(latestLocalFileSizeMin);
+            out.writeLong(latestLocalFileSizeMax);
+        }
+    }
+
 }
