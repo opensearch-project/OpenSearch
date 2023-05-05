@@ -12,6 +12,11 @@ import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.unit.TimeValue;
 
+/**
+ * Builder for RemoteStoreStatsRequest
+ *
+ * @opensearch.internal
+ */
 public class RemoteStoreStatsRequestBuilder extends BroadcastOperationRequestBuilder<
     RemoteStoreStatsRequest,
     RemoteStoreStatsResponse,
