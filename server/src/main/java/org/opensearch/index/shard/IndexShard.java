@@ -2237,8 +2237,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 syncSegmentsFromRemoteSegmentStore(false);
             }
             if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
-                syncTranslogFilesFromRemoteTranslog();
-                loadGlobalCheckpointToReplicationTracker();
+                syncRemoteTranslogAndUpdateGlobalCheckpoint();
             }
             // we must create a new engine under mutex (see IndexShard#snapshotStoreMetadata).
             final Engine newEngine = engineFactory.newReadWriteEngine(config);
@@ -4406,8 +4405,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 syncSegmentsFromRemoteSegmentStore(false);
             }
             if (indexSettings.isRemoteTranslogStoreEnabled() && shardRouting.primary()) {
-                syncTranslogFilesFromRemoteTranslog();
-                loadGlobalCheckpointToReplicationTracker();
+                syncRemoteTranslogAndUpdateGlobalCheckpoint();
             }
             newEngineReference.set(engineFactory.newReadWriteEngine(newEngineConfig(replicationTracker)));
             onNewEngine(newEngineReference.get());
@@ -4440,6 +4438,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // time elapses after the engine is created above (pulling the config settings) until we set the engine reference, during
         // which settings changes could possibly have happened, so here we forcefully push any config changes to the new engine.
         onSettingsChanged();
+    }
+
+    private void syncRemoteTranslogAndUpdateGlobalCheckpoint() throws IOException {
+        syncTranslogFilesFromRemoteTranslog();
+        loadGlobalCheckpointToReplicationTracker();
     }
 
     public void syncTranslogFilesFromRemoteTranslog() throws IOException {

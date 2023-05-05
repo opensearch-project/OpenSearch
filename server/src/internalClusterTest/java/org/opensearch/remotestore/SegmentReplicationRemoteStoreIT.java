@@ -20,6 +20,11 @@ import java.nio.file.Path;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
+/**
+ * The aim of this class is to run Segment Replication integ tests by enabling remote store specific settings.
+ * This makes sure that the constructs/flows that are being tested with Segment Replication, holds true after enabling
+ * remote store.
+ */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SegmentReplicationRemoteStoreIT extends SegmentReplicationIT {
 
