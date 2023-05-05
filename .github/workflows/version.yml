@@ -1,123 +1,115 @@
 name: Increment Version
 
 on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'the tag'
+        required: true
+        type: string
   push:
     tags:
       - '*.*.*'
 
-permissions: {}
+permissions:
+  contents: write
+  issues: write
 jobs:
-  build:
+  version-update:
     runs-on: ubuntu-latest
     steps:
-      - name: GitHub App token
-        id: github_app_token
-        uses: tibdex/github-app-token@v1.5.0
-        with:
-          app_id: ${{ secrets.APP_ID }}
-          private_key: ${{ secrets.APP_PRIVATE_KEY }}
-          installation_id: 22958780
-
-      - uses: actions/checkout@v2
       - name: Fetch Tag and Version Information
         run: |
-          TAG=$(echo "${GITHUB_REF#refs/*/}")
+          TAG=${{ github.event.inputs.tag }}
           CURRENT_VERSION_ARRAY=($(echo "$TAG" | tr . '\n'))
           BASE=$(IFS=. ; echo "${CURRENT_VERSION_ARRAY[*]:0:2}")
           BASE_X=$(IFS=. ; echo "${CURRENT_VERSION_ARRAY[*]:0:1}.x")
           CURRENT_VERSION=$(IFS=. ; echo "${CURRENT_VERSION_ARRAY[*]:0:3}")
-          CURRENT_VERSION_UNDERSCORE=$(IFS=_ ; echo "V_${CURRENT_VERSION_ARRAY[*]:0:3}")
           CURRENT_VERSION_ARRAY[2]=$((CURRENT_VERSION_ARRAY[2]+1))
           NEXT_VERSION=$(IFS=. ; echo "${CURRENT_VERSION_ARRAY[*]:0:3}")
-          NEXT_VERSION_UNDERSCORE=$(IFS=_ ; echo "V_${CURRENT_VERSION_ARRAY[*]:0:3}")
-          NEXT_VERSION_ID=$(IFS=0 ; echo "${CURRENT_VERSION_ARRAY[*]:0:3}99")
           echo "TAG=$TAG" >> $GITHUB_ENV
           echo "BASE=$BASE" >> $GITHUB_ENV
           echo "BASE_X=$BASE_X" >> $GITHUB_ENV
           echo "CURRENT_VERSION=$CURRENT_VERSION" >> $GITHUB_ENV
-          echo "CURRENT_VERSION_UNDERSCORE=$CURRENT_VERSION_UNDERSCORE" >> $GITHUB_ENV
           echo "NEXT_VERSION=$NEXT_VERSION" >> $GITHUB_ENV
-          echo "NEXT_VERSION_UNDERSCORE=$NEXT_VERSION_UNDERSCORE" >> $GITHUB_ENV
-          echo "NEXT_VERSION_ID=$NEXT_VERSION_ID" >> $GITHUB_ENV
-      - uses: actions/checkout@v2
+
+      - id: create-issue
+        uses: actions/github-script@v6.4.0
+        with:
+          script: |
+            const { data: issue }= await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: "Increment version for ${{ env.NEXT_VERSION }}",
+              body: "Issue for tracking the changes associated with a version increment."
+            });
+            console.error(JSON.stringify(issue));
+            return issue.number;
+          result-encoding: string
+            
+      - uses: actions/checkout@v3
         with:
           ref: ${{ env.BASE }}
-          token: ${{ steps.github_app_token.outputs.token }}
 
-      - name: Increment Patch Version
-        run: |
-          echo Incrementing $CURRENT_VERSION to $NEXT_VERSION
-          echo "  - \"$CURRENT_VERSION\"" >> .ci/bwcVersions
-          sed -i "s/opensearch        = $CURRENT_VERSION/opensearch        = $NEXT_VERSION/g" buildSrc/version.properties
-          echo Adding $NEXT_VERSION_UNDERSCORE after $CURRENT_VERSION_UNDERSCORE
-          sed -i "s/public static final Version $CURRENT_VERSION_UNDERSCORE = new Version(\([[:digit:]]\+\)\(.*\));/\0\n    public static final Version $NEXT_VERSION_UNDERSCORE = new Version($NEXT_VERSION_ID\2);/g" server/src/main/java/org/opensearch/Version.java
-          sed -i "s/CURRENT = $CURRENT_VERSION_UNDERSCORE;/CURRENT = $NEXT_VERSION_UNDERSCORE;/g" server/src/main/java/org/opensearch/Version.java
-
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v3
+      - name: Increment Patch Version on Major.Minor branch
+        uses: peternied/opensearch-core-version-updater@main
         with:
-          token: ${{ steps.github_app_token.outputs.token }}
-          base: ${{ env.BASE }}
-          branch: 'create-pull-request/patch-${{ env.BASE }}'
-          commit-message: Increment version to ${{ env.NEXT_VERSION }}
-          signoff: true
-          delete-branch: true
-          labels: |
-            autocut
-          title: '[AUTO] Increment version to ${{ env.NEXT_VERSION }}.'
-          body: |
-            I've noticed that a new tag ${{ env.TAG }} was pushed, and incremented the version from ${{ env.CURRENT_VERSION }} to ${{ env.NEXT_VERSION }}.
+          previous-version: ${{ env.CURRENT_VERSION }}
+          new-version: ${{ env.NEXT_VERSION }}
+          update-current: true
 
-      - uses: actions/checkout@v2
+      - run: git diff
+      - run: |
+          git config --global user.name 'Peter Nied'
+          git config --global user.email 'petern@amazon.com'
+          git add .
+          git commit -s -m "Increment version to $NEXT_VERSION #${{steps.create-issue.outputs.result}}"
+          git push
+
+      - uses: actions/checkout@v3
         with:
           ref: ${{ env.BASE_X }}
-          token: ${{ steps.github_app_token.outputs.token }}
 
-      - name: Add bwc version to .X branch
-        run: |
-          echo Adding bwc version $NEXT_VERSION after $CURRENT_VERSION
-          sed -i "s/- \"$CURRENT_VERSION\"/\0\n  - \"$NEXT_VERSION\"/g" .ci/bwcVersions
-          echo Adding $NEXT_VERSION_UNDERSCORE after $CURRENT_VERSION_UNDERSCORE
-          sed -i "s/public static final Version $CURRENT_VERSION_UNDERSCORE = new Version(\([[:digit:]]\+\)\(.*\));/\0\n    public static final Version $NEXT_VERSION_UNDERSCORE = new Version($NEXT_VERSION_ID\2);/g" server/src/main/java/org/opensearch/Version.java
-
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v3
+      - name: Add Patch Version on Major.X branch
+        uses: peternied/opensearch-core-version-updater@main
         with:
-          token: ${{ steps.github_app_token.outputs.token }}
-          base: ${{ env.BASE_X }}
-          branch: 'create-pull-request/patch-${{ env.BASE_X }}'
-          commit-message: Add bwc version ${{ env.NEXT_VERSION }}
-          signoff: true
-          delete-branch: true
-          labels: |
-            autocut
-          title: '[AUTO] [${{ env.BASE_X }}] Add bwc version ${{ env.NEXT_VERSION }}.'
-          body: |
-            I've noticed that a new tag ${{ env.TAG }} was pushed, and added a bwc version ${{ env.NEXT_VERSION }}.
+          previous-version: ${{ env.CURRENT_VERSION }}
+          new-version: ${{ env.NEXT_VERSION }}
+          update-current: false
 
-      - uses: actions/checkout@v2
+      - run: git diff
+      - run: |
+          git config --global user.name 'Peter Nied'
+          git config --global user.email 'petern@amazon.com'
+          git add .
+          git commit -s -m "Add patch version $NEXT_VERSION #${{steps.create-issue.outputs.result}}"
+          git push
+
+      - uses: actions/checkout@v3
         with:
           ref: main
-          token: ${{ steps.github_app_token.outputs.token }}
 
-      - name: Add bwc version to main branch
-        run: |
-          echo Adding bwc version $NEXT_VERSION after $CURRENT_VERSION
-          sed -i "s/- \"$CURRENT_VERSION\"/\0\n  - \"$NEXT_VERSION\"/g" .ci/bwcVersions
-          echo Adding $NEXT_VERSION_UNDERSCORE after $CURRENT_VERSION_UNDERSCORE
-          sed -i "s/public static final Version $CURRENT_VERSION_UNDERSCORE = new Version(\([[:digit:]]\+\)\(.*\));/\0\n    public static final Version $NEXT_VERSION_UNDERSCORE = new Version($NEXT_VERSION_ID\2);/g" libs/core/src/main/java/org/opensearch/Version.java
-
-      - name: Create Pull Request
-        uses: peter-evans/create-pull-request@v3
+      - name: Add Patch Version on Main branch
+        uses: peternied/opensearch-core-version-updater@main
         with:
-          token: ${{ steps.github_app_token.outputs.token }}
-          base: main
-          branch: 'create-pull-request/patch-main'
-          commit-message: Add bwc version ${{ env.NEXT_VERSION }}
-          signoff: true
-          delete-branch: true
-          labels: |
-            autocut
-          title: '[AUTO] [main] Add bwc version ${{ env.NEXT_VERSION }}.'
-          body: |
-            I've noticed that a new tag ${{ env.TAG }} was pushed, and added a bwc version ${{ env.NEXT_VERSION }}.
+          previous-version: ${{ env.CURRENT_VERSION }}
+          new-version: ${{ env.NEXT_VERSION }}
+          update-current: false
+
+      - run: git diff
+      - run: |
+          git config --global user.name 'Peter Nied'
+          git config --global user.email 'petern@amazon.com'
+          git add .
+          git commit -s -m "Add patch version $NEXT_VERSION #${{steps.create-issue.outputs.result}}"
+          git push
+
+      - uses: actions/github-script@v6.4.0
+        with:
+          script: |
+            github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: "${{steps.create-issue.outputs.result}}",
+              state: "closed"
+            });
