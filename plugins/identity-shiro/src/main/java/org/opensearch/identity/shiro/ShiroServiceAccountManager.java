@@ -18,6 +18,7 @@ import org.opensearch.identity.tokens.BasicAuthToken;
 public class ShiroServiceAccountManager implements ServiceAccountManager {
 
     public final static String TOKEN_IDENTIFIER = "Basic";
+
     @Override
     public AuthToken resetServiceAccountToken(String principal) {
         String generatedPassword = generatePassword();

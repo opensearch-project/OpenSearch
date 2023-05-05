@@ -13,7 +13,6 @@ import org.opensearch.identity.tokens.AuthToken;
 
 public class User implements Subject {
 
-
     String username;
     String password;
 

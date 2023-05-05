@@ -8,7 +8,6 @@
 
 package org.opensearch.identity;
 
-
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -132,7 +131,6 @@ public class RestServiceAccountManager implements ServiceAccountManager {
      */
     @Override
     public void updateServiceAccount(ObjectNode contentAsNode) {}
-
 
     /**
      * Get or create a new service account
