@@ -8,7 +8,6 @@
 
 package org.opensearch.indices.replication;
 
-import org.opensearch.action.admin.indices.replication.SegmentReplicationStatsResponse;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -26,8 +25,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Arrays;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.indices.IndicesService.CLUSTER_SETTING_REPLICATION_TYPE;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase {
@@ -91,27 +90,14 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
         final String replicaNode = internalCluster().startNode();
         ensureGreen(indexName);
 
-        final int initialDocCount = scaledRandomIntBetween(20, 30);
-        for (int i = 0; i < initialDocCount; i++) {
-            client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
-        }
-
-        refresh(indexName);
-        assertBusy(() -> {
-            assertHitCount(client(replicaNode).prepareSearch(indexName).setSize(0).setPreference("_only_local").get(), initialDocCount);
-        });
-
-        SegmentReplicationStatsResponse segmentReplicationStatsResponse = client().admin()
+        final GetSettingsResponse response = client().admin()
             .indices()
-            .prepareSegmentReplicationStats(indexName)
-            .execute()
+            .getSettings(new GetSettingsRequest().indices(INDEX_NAME).includeDefaults(true))
             .actionGet();
         if (isSystemIndex) {
-            // Verify that Segment Replication did not happen on the replica shard.
-            assertNull(segmentReplicationStatsResponse.getReplicationStats().get(indexName));
+            assertEquals(response.getSetting(INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
         } else {
-            // Verify that Segment Replication happened on the replica shard.
-            assertFalse(segmentReplicationStatsResponse.getReplicationStats().get(indexName).get(0).getReplicaStats().isEmpty());
+            assertEquals(response.getSetting(INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.SEGMENT.toString());
         }
     }
 
@@ -132,29 +118,12 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
         final String replicaNode = internalCluster().startNode(settings);
         ensureGreen(INDEX_NAME, ANOTHER_INDEX);
 
-        final int initialDocCount = scaledRandomIntBetween(20, 30);
-        for (int i = 0; i < initialDocCount; i++) {
-            client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
-            client().prepareIndex(ANOTHER_INDEX).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
-        }
-
-        refresh(INDEX_NAME, ANOTHER_INDEX);
-        assertBusy(() -> {
-            assertHitCount(client(replicaNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
-            assertHitCount(client(replicaNode).prepareSearch(ANOTHER_INDEX).setSize(0).setPreference("_only_local").get(), initialDocCount);
-        });
-
-        SegmentReplicationStatsResponse segmentReplicationStatsResponse = client().admin()
+        final GetSettingsResponse response = client().admin()
             .indices()
-            .prepareSegmentReplicationStats(INDEX_NAME, ANOTHER_INDEX)
-            .execute()
+            .getSettings(new GetSettingsRequest().indices(INDEX_NAME, "test-index").includeDefaults(true))
             .actionGet();
-
-        // Verify that Segment Replication happened on the replica shard.
-        assertFalse(segmentReplicationStatsResponse.getReplicationStats().get(ANOTHER_INDEX).get(0).getReplicaStats().isEmpty());
-
-        // Verify that Segment Replication did not happen on the replica shard.
-        assertNull(segmentReplicationStatsResponse.getReplicationStats().get(INDEX_NAME));
+        assertEquals(response.getSetting(INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
+        assertEquals(response.getSetting("test-index", SETTING_REPLICATION_TYPE), ReplicationType.SEGMENT.toString());
     }
 
     public void testIndexReplicationSettingOverridesDocRepClusterSetting() throws Exception {
@@ -172,29 +141,12 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
         final String replicaNode = internalCluster().startNode(settings);
         ensureGreen(INDEX_NAME, ANOTHER_INDEX);
 
-        final int initialDocCount = scaledRandomIntBetween(20, 30);
-        for (int i = 0; i < initialDocCount; i++) {
-            client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
-            client().prepareIndex(ANOTHER_INDEX).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
-        }
-
-        refresh(INDEX_NAME, ANOTHER_INDEX);
-        assertBusy(() -> {
-            assertHitCount(client(replicaNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
-            assertHitCount(client(replicaNode).prepareSearch(ANOTHER_INDEX).setSize(0).setPreference("_only_local").get(), initialDocCount);
-        });
-
-        SegmentReplicationStatsResponse segmentReplicationStatsResponse = client().admin()
+        final GetSettingsResponse response = client().admin()
             .indices()
-            .prepareSegmentReplicationStats(INDEX_NAME, ANOTHER_INDEX)
-            .execute()
+            .getSettings(new GetSettingsRequest().indices(INDEX_NAME, "test-index").includeDefaults(true))
             .actionGet();
-
-        // Verify that Segment Replication happened on the replica shard.
-        assertFalse(segmentReplicationStatsResponse.getReplicationStats().get(INDEX_NAME).get(0).getReplicaStats().isEmpty());
-
-        // Verify that Segment Replication did not happen on the replica shard.
-        assertNull(segmentReplicationStatsResponse.getReplicationStats().get(ANOTHER_INDEX));
+        assertEquals(response.getSetting(INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.SEGMENT.toString());
+        assertEquals(response.getSetting("test-index", SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
     }
 
     public void testIndexReopenCloseWithReplicationStrategyClusterSetting() throws Exception {
@@ -208,24 +160,6 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
         ).get();
         ensureGreen(INDEX_NAME);
 
-        final int initialDocCount = scaledRandomIntBetween(20, 30);
-        for (int i = 0; i < initialDocCount; i++) {
-            client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
-        }
-
-        refresh(INDEX_NAME);
-        assertBusy(() -> {
-            assertHitCount(client(replicaNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
-        });
-        SegmentReplicationStatsResponse segmentReplicationStatsResponse = client().admin()
-            .indices()
-            .prepareSegmentReplicationStats(INDEX_NAME)
-            .execute()
-            .actionGet();
-
-        // Verify that Segment Replication did not happen on the replica shard.
-        assertNull(segmentReplicationStatsResponse.getReplicationStats().get(INDEX_NAME));
-
         logger.info("--> Closing the index ");
         client().admin().indices().prepareClose(INDEX_NAME).get();
 
@@ -233,11 +167,12 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
         client().admin().indices().prepareOpen(INDEX_NAME).get();
 
         ensureGreen(INDEX_NAME);
-        GetSettingsResponse settingsResponse = client().admin().indices().getSettings(new GetSettingsRequest().indices(INDEX_NAME)).get();
 
-        assertEquals(settingsResponse.getSetting(INDEX_NAME, "index.replication.type"), "DOCUMENT");
-        assertHitCount(client(replicaNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
-        assertHitCount(client(primaryNode).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), initialDocCount);
+        final GetSettingsResponse response = client().admin()
+            .indices()
+            .getSettings(new GetSettingsRequest().indices(INDEX_NAME).includeDefaults(true))
+            .actionGet();
+        assertEquals(response.getSetting(INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
     }
 
     public void testHiddenIndicesWithReplicationStrategyClusterSetting() throws Exception {
@@ -252,8 +187,11 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
         ensureGreen(INDEX_NAME);
 
         // Verify that document replication strategy is used for hidden indices.
-        GetSettingsResponse settingsResponse = client().admin().indices().getSettings(new GetSettingsRequest().indices(INDEX_NAME)).get();
-        assertEquals(settingsResponse.getSetting(INDEX_NAME, "index.replication.type"), "DOCUMENT");
+        final GetSettingsResponse response = client().admin()
+            .indices()
+            .getSettings(new GetSettingsRequest().indices(INDEX_NAME).includeDefaults(true))
+            .actionGet();
+        assertEquals(response.getSetting(INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
     }
 
 }

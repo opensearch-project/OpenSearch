@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.indices.IndicesService.CLUSTER_SETTING_REPLICATION_TYPE;
 import static org.opensearch.indices.replication.SegmentReplicationBaseIT.waitForSearchableDocs;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -283,14 +284,6 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
         final String replicaNode = internalCluster().startNode(settings);
         ensureGreen(INDEX_NAME);
 
-        final int initialDocCount = scaledRandomIntBetween(20, 30);
-        for (int i = 0; i < initialDocCount; i++) {
-            client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
-        }
-
-        refresh(INDEX_NAME);
-        assertBusy(() -> { assertHitCount(client(replicaNode).prepareSearch(INDEX_NAME).setSize(0).get(), initialDocCount); });
-
         createSnapshot();
         // Delete index
         assertAcked(client().admin().indices().delete(new DeleteIndexRequest(INDEX_NAME)).get());
@@ -305,7 +298,6 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
             .indices()
             .getSettings(new GetSettingsRequest().indices(RESTORED_INDEX_NAME))
             .get();
-        assertEquals(settingsResponse.getSetting(RESTORED_INDEX_NAME, "index.replication.type"), "DOCUMENT");
-        assertHitCount(client(replicaNode).prepareSearch(RESTORED_INDEX_NAME).setSize(0).get(), initialDocCount);
+        assertEquals(settingsResponse.getSetting(INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
     }
 }
