@@ -34,8 +34,10 @@ package org.opensearch.search.builder;
 
 import org.opensearch.LegacyESVersion;
 import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
 import org.opensearch.common.Strings;
@@ -77,6 +79,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
@@ -128,6 +131,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField COLLAPSE = new ParseField("collapse");
     public static final ParseField SLICE = new ParseField("slice");
     public static final ParseField POINT_IN_TIME = new ParseField("pit");
+    public static final ParseField SEARCH_PIPELINE = new ParseField("search_pipeline");
 
     public static SearchSourceBuilder fromXContent(XContentParser parser) throws IOException {
         return fromXContent(parser, true);
@@ -208,6 +212,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private PointInTimeBuilder pointInTimeBuilder = null;
 
+    private Map<String, Object> searchPipelineSource = null;
+
     /**
      * Constructs a new search source builder.
      */
@@ -272,6 +278,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
+        }
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) { // TODO: Update if/when we backport to 2.x
+            if (in.readBoolean()) {
+                searchPipelineSource = in.readMap();
+            }
         }
     }
 
@@ -339,6 +350,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             out.writeOptionalWriteable(pointInTimeBuilder);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) { // TODO: Update if/when we backport to 2.x
+            out.writeBoolean(searchPipelineSource != null);
+            if (searchPipelineSource != null) {
+                out.writeMap(searchPipelineSource);
+            }
         }
     }
 
@@ -999,6 +1016,21 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
+     * @return a search pipeline defined within the search source (see {@link org.opensearch.search.pipeline.SearchPipelineService})
+     */
+    public Map<String, Object> searchPipelineSource() {
+        return searchPipelineSource;
+    }
+
+    /**
+     * Define a search pipeline to process this search request and/or its response. See {@link org.opensearch.search.pipeline.SearchPipelineService}.
+     */
+    public SearchSourceBuilder searchPipelineSource(Map<String, Object> searchPipelineSource) {
+        this.searchPipelineSource = searchPipelineSource;
+        return this;
+    }
+
+    /**
      * Rewrites this search source builder into its primitive form. e.g. by
      * rewriting the QueryBuilder. If the builder did not change the identity
      * reference must be returned otherwise the builder will be rewritten
@@ -1235,13 +1267,16 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         collapse = CollapseBuilder.fromXContent(parser);
                     } else if (POINT_IN_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
                         pointInTimeBuilder = PointInTimeBuilder.fromXContent(parser);
-                    } else {
-                        throw new ParsingException(
-                            parser.getTokenLocation(),
-                            "Unknown key for a " + token + " in [" + currentFieldName + "].",
-                            parser.getTokenLocation()
-                        );
-                    }
+                    } else if (FeatureFlags.isEnabled(FeatureFlags.SEARCH_PIPELINE)
+                        && SEARCH_PIPELINE.match(currentFieldName, parser.getDeprecationHandler())) {
+                            searchPipelineSource = parser.mapOrdered();
+                        } else {
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "Unknown key for a " + token + " in [" + currentFieldName + "].",
+                                parser.getTokenLocation()
+                            );
+                        }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (STORED_FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     storedFieldsContext = StoredFieldsContext.fromXContent(STORED_FIELDS_FIELD.getPreferredName(), parser);
@@ -1459,6 +1494,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         if (pointInTimeBuilder != null) {
             pointInTimeBuilder.toXContent(builder, params);
+        }
+        if (searchPipelineSource != null) {
+            builder.field(SEARCH_PIPELINE.getPreferredName(), searchPipelineSource);
         }
         return builder;
     }
