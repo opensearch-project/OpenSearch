@@ -30,7 +30,11 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicLong;
 
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.opensearch.index.shard.RemoteStoreRefreshListener.SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX;
 
 public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
@@ -58,9 +62,11 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
 
     @After
     public void tearDown() throws Exception {
-        Directory storeDirectory = ((FilterDirectory) ((FilterDirectory) indexShard.store().directory()).getDelegate()).getDelegate();
-        ((BaseDirectoryWrapper) storeDirectory).setCheckIndexOnClose(false);
-        closeShards(indexShard);
+        if (indexShard != null) {
+            Directory storeDirectory = ((FilterDirectory) ((FilterDirectory) indexShard.store().directory()).getDelegate()).getDelegate();
+            ((BaseDirectoryWrapper) storeDirectory).setCheckIndexOnClose(false);
+            closeShards(indexShard);
+        }
         super.tearDown();
     }
 
@@ -202,6 +208,120 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         remoteSegmentStoreDirectory.init();
 
         verifyUploadedSegments(remoteSegmentStoreDirectory);
+    }
+
+    public void testRefreshSuccessOnFirstAttempt() throws Exception {
+        // This is the case of isRetry=false, shouldRetry=false
+        // Succeed on 1st attempt
+        int succeedOnAttempt = 1;
+        // We spy on IndexShard.getReplicationTracker() to validate that we have tried running remote time as per the expectation.
+        CountDownLatch refreshCountLatch = new CountDownLatch(succeedOnAttempt);
+        // We spy on IndexShard.getEngine() to validate that we have successfully hit the terminal code for ascertaining successful upload.
+        CountDownLatch successLatch = new CountDownLatch(2);
+        mockIndexShardWithRetryAndScheduleRefresh(succeedOnAttempt, refreshCountLatch, successLatch);
+        assertBusy(() -> assertEquals(0, refreshCountLatch.getCount()));
+        assertBusy(() -> assertEquals(0, successLatch.getCount()));
+    }
+
+    public void testRefreshSuccessOnSecondAttempt() throws Exception {
+        // This covers 2 cases - 1) isRetry=false, shouldRetry=true 2) isRetry=true, shouldRetry=false
+        // Succeed on 2nd attempt
+        int succeedOnAttempt = 2;
+        // We spy on IndexShard.getReplicationTracker() to validate that we have tried running remote time as per the expectation.
+        CountDownLatch refreshCountLatch = new CountDownLatch(succeedOnAttempt);
+        // We spy on IndexShard.getEngine() to validate that we have successfully hit the terminal code for ascertaining successful upload.
+        CountDownLatch successLatch = new CountDownLatch(2);
+        mockIndexShardWithRetryAndScheduleRefresh(succeedOnAttempt, refreshCountLatch, successLatch);
+        assertBusy(() -> assertEquals(0, refreshCountLatch.getCount()));
+        assertBusy(() -> assertEquals(0, successLatch.getCount()));
+    }
+
+    public void testRefreshSuccessOnThirdAttemptAttempt() throws Exception {
+        // This covers 3 cases - 1) isRetry=false, shouldRetry=true 2) isRetry=true, shouldRetry=false 3) isRetry=True, shouldRetry=true
+        // Succeed on 3rd attempt
+        int succeedOnAttempt = 3;
+        // We spy on IndexShard.getReplicationTracker() to validate that we have tried running remote time as per the expectation.
+        CountDownLatch refreshCountLatch = new CountDownLatch(succeedOnAttempt);
+        // We spy on IndexShard.getEngine() to validate that we have successfully hit the terminal code for ascertaining successful upload.
+        CountDownLatch successLatch = new CountDownLatch(2);
+        mockIndexShardWithRetryAndScheduleRefresh(succeedOnAttempt, refreshCountLatch, successLatch);
+        assertBusy(() -> assertEquals(0, refreshCountLatch.getCount()));
+        assertBusy(() -> assertEquals(0, successLatch.getCount()));
+    }
+
+    private void mockIndexShardWithRetryAndScheduleRefresh(
+        int SucceedOnAttempt,
+        CountDownLatch refreshCountLatch,
+        CountDownLatch successLatch
+    ) throws IOException {
+        // Create index shard that we will be using to mock different methods in IndexShard for the unit test
+        indexShard = newStartedShard(
+            true,
+            Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true).build(),
+            new InternalEngineFactory()
+        );
+
+        indexDocs(1, randomIntBetween(1, 100));
+
+        // Mock indexShard.store().directory()
+        IndexShard shard = mock(IndexShard.class);
+        Store store = mock(Store.class);
+        when(shard.store()).thenReturn(store);
+        when(store.directory()).thenReturn(indexShard.store().directory());
+
+        // Mock (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory())
+        Store remoteStore = mock(Store.class);
+        when(shard.remoteStore()).thenReturn(remoteStore);
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
+            (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory()).getDelegate())
+                .getDelegate();
+        FilterDirectory remoteStoreFilterDirectory = new TestFilterDirectory(new TestFilterDirectory(remoteSegmentStoreDirectory));
+        when(remoteStore.directory()).thenReturn(remoteStoreFilterDirectory);
+
+        // Mock indexShard.getOperationPrimaryTerm()
+        when(shard.getOperationPrimaryTerm()).thenReturn(indexShard.getOperationPrimaryTerm());
+
+        // Mock indexShard.routingEntry().primary()
+        when(shard.routingEntry()).thenReturn(indexShard.routingEntry());
+
+        // Mock threadpool
+        when(shard.getThreadPool()).thenReturn(threadPool);
+
+        // Mock indexShard.getReplicationTracker().isPrimaryMode()
+        doAnswer(invocation -> {
+            refreshCountLatch.countDown();
+            return indexShard.getReplicationTracker();
+        }).when(shard).getReplicationTracker();
+
+        AtomicLong counter = new AtomicLong();
+        // Mock indexShard.getSegmentInfosSnapshot()
+        doAnswer(invocation -> {
+            if (counter.incrementAndGet() <= SucceedOnAttempt - 1) {
+                throw new RuntimeException("Inducing failure in upload");
+            }
+            return indexShard.getSegmentInfosSnapshot();
+        }).when(shard).getSegmentInfosSnapshot();
+
+        when(shard.getEngine()).thenReturn(indexShard.getEngine());
+        doAnswer(invocation -> {
+            successLatch.countDown();
+            return indexShard.getEngine();
+        }).when(shard).getEngine();
+
+        RemoteStoreRefreshListener refreshListener = new RemoteStoreRefreshListener(shard);
+        refreshListener.afterRefresh(false);
+    }
+
+    private static class TestFilterDirectory extends FilterDirectory {
+
+        /**
+         * Sole constructor, typically called from sub-classes.
+         *
+         * @param in
+         */
+        protected TestFilterDirectory(Directory in) {
+            super(in);
+        }
     }
 
     private void verifyUploadedSegments(RemoteSegmentStoreDirectory remoteSegmentStoreDirectory) throws IOException {

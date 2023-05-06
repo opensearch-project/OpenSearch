@@ -60,22 +60,20 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     /**
      * The initial retry interval at which the retry job gets scheduled after a failure.
      */
-    private static final int REMOTE_REFRESH_RETRY_BASE_INTERVAL_SECONDS = 1;
+    private static final int REMOTE_REFRESH_RETRY_BASE_INTERVAL_MILLIS = 1_000;
 
     /**
      * In an exponential back off setup, the maximum retry interval after the retry interval increases exponentially.
      */
-    private static final int REMOTE_REFRESH_RETRY_MAX_INTERVAL_SECONDS = 30;
+    private static final int REMOTE_REFRESH_RETRY_MAX_INTERVAL_MILLIS = 30_000;
 
     /**
      * Exponential back off policy with max retry interval.
      */
     private static final BackoffPolicy EXPONENTIAL_BACKOFF_POLICY = BackoffPolicy.exponentialEqualJitterBackoff(
-        REMOTE_REFRESH_RETRY_BASE_INTERVAL_SECONDS,
-        REMOTE_REFRESH_RETRY_MAX_INTERVAL_SECONDS
+        REMOTE_REFRESH_RETRY_BASE_INTERVAL_MILLIS,
+        REMOTE_REFRESH_RETRY_MAX_INTERVAL_MILLIS
     );
-
-    private static final int MAX_CONCURRENT_SCHEDULED_REMOTE_REFRESH_RETRIES = 1;
 
     // Visible for testing
     static final Set<String> EXCLUDE_FILES = Set.of("write.lock");
@@ -92,7 +90,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     /**
      * Semaphore that ensures there is only 1 retry scheduled at any time.
      */
-    private final Semaphore retrySemaphore = new Semaphore(MAX_CONCURRENT_SCHEDULED_REMOTE_REFRESH_RETRIES);
+    private final Semaphore SCHEDULE_RETRY_PERMITS = new Semaphore(1);
 
     private volatile Iterator<TimeValue> backoffDelayIterator;
 
@@ -105,7 +103,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
             .getDelegate()).getDelegate();
         this.primaryTerm = indexShard.getOperationPrimaryTerm();
         localSegmentChecksumMap = new HashMap<>();
-        if (indexShard.shardRouting.primary()) {
+        if (indexShard.routingEntry().primary()) {
             try {
                 this.remoteDirectory.init();
             } catch (IOException e) {
@@ -259,12 +257,12 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     private void afterSegmentsSync(boolean isRetry, boolean shouldRetry) {
         // If this was a retry attempt, then we release the semaphore at the end so that further retries can be scheduled
         if (isRetry) {
-            retrySemaphore.release();
+            SCHEDULE_RETRY_PERMITS.release();
         }
 
         // If there are failures in uploading segments, then we should retry as search idle can lead to
         // refresh not occurring until write happens.
-        if (shouldRetry && indexShard.state() != IndexShardState.CLOSED && retrySemaphore.tryAcquire()) {
+        if (shouldRetry && indexShard.state() != IndexShardState.CLOSED && SCHEDULE_RETRY_PERMITS.tryAcquire()) {
             scheduledCancellableRetry = indexShard.getThreadPool()
                 .schedule(() -> this.syncSegments(true), backoffDelayIterator.next(), ThreadPool.Names.REMOTE_REFRESH);
         }
