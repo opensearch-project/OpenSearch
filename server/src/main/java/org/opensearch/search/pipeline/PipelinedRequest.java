@@ -13,8 +13,10 @@ import org.opensearch.action.search.SearchResponse;
 
 /**
  * Groups a search pipeline based on a request and the request after being transformed by the pipeline.
+ *
+ * @opensearch.internal
  */
-public class PipelinedRequest {
+public final class PipelinedRequest {
     private final Pipeline pipeline;
     private final SearchRequest transformedRequest;
 
@@ -24,8 +26,6 @@ public class PipelinedRequest {
     }
 
     public SearchResponse transformResponse(SearchResponse response) {
-
-        // TODO: Should we transform responses with the original request or the transformed request? Or both?
         return pipeline.transformResponse(transformedRequest, response);
     }
 
