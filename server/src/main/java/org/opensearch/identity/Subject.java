@@ -29,4 +29,19 @@ public interface Subject {
      * throws SubjectDisabled
      */
     void authenticate(final AuthToken token);
+
+    /**
+     * Performs an authorization check for the subject if it has permission
+     * 
+     * @return true if the subject has permission, false if the subject should
+     * be denied
+     */
+    boolean hasPermission(final String permission);
+
+    /**
+     * Throws an exception if an authorization check for the subject is denied
+     * 
+     * @throws UnauthorizedException If the permission is not allowed 
+     */
+    void checkPermission(final String permission);
 }

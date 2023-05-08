@@ -54,4 +54,15 @@ public class NoopSubject implements Subject {
     public void authenticate(AuthToken AuthToken) {
         // Do nothing as noop subject is always logged in
     }
+
+    @Override
+    public boolean hasPermission(final String permission) {
+        // Noop subject is always authorized
+        return true;
+    }
+
+    @Override
+    public void checkPermission(final String permission) {
+        // Noop subject never fails a permission check
+    }
 }
