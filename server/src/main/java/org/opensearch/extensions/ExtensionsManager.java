@@ -49,6 +49,13 @@ import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.rest.RestActionsRequestHandler;
 import org.opensearch.extensions.settings.CustomSettingsRequestHandler;
 import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
+import org.opensearch.identity.scopes.Scope;
+import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexService;
+import org.opensearch.index.IndicesModuleRequest;
+import org.opensearch.index.IndicesModuleResponse;
+import org.opensearch.index.shard.IndexEventListener;
+import org.opensearch.indices.cluster.IndicesClusterStateService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.TransportException;
@@ -112,7 +119,6 @@ public class ExtensionsManager {
         logger.info("ExtensionsManager initialized");
         this.initializedExtensions = new HashMap<String, DiscoveryExtensionNode>();
         this.extensionIdMap = new HashMap<String, DiscoveryExtensionNode>();
-        this.extensionSettingsMap = new HashMap<String, Extension>();
         // will be initialized in initializeServicesAndRestHandler which is called after the Node is initialized
         this.transportService = null;
         this.clusterService = null;
@@ -335,6 +341,20 @@ public class ExtensionsManager {
         }
     }
 
+    /**
+     * Check if the matching extension id is allowed to perform the action
+     */
+    public boolean isExtensionAllowed(final String id, final String action) {
+        final Optional<Extension> extensionScopes = Optional.of(this.extensionSettingsMap)
+            .map(extensionMap -> extensionMap.get(id));
+
+        if (!extensionScopes.isPresent()) {
+            return false; // No extension was found, so it is not permitted
+        }
+
+        return extensionScopes.get().getScopes().stream().filter(action::equals).findFirst().isPresent();
+    }
+
     private void initializeExtension(DiscoveryExtensionNode extension) {
 
         final CompletableFuture<InitializeExtensionResponse> inProgressFuture = new CompletableFuture<>();
@@ -436,7 +456,6 @@ public class ExtensionsManager {
                 throw new IllegalArgumentException("Handler not present for the provided request");
         }
     }
-
 
     static String getRequestExtensionActionName() {
         return REQUEST_EXTENSION_ACTION_NAME;

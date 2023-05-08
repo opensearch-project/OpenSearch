@@ -31,17 +31,9 @@ public interface Subject {
     void authenticate(final AuthToken token);
 
     /**
-     * Performs an authorization check for the subject if it has permission
-     * 
-     * @return true if the subject has permission, false if the subject should
-     * be denied
+     * Get the associated extension with this subject.  Returns null if there is no association.
      */
-    boolean hasPermission(final String permission);
-
-    /**
-     * Throws an exception if an authorization check for the subject is denied
-     * 
-     * @throws UnauthorizedException If the permission is not allowed 
-     */
-    void checkPermission(final String permission);
+    default String getAssociatedExtension() {
+        return null;
+    }
 }

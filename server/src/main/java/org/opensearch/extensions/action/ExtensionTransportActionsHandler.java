@@ -78,6 +78,7 @@ public class ExtensionTransportActionsHandler {
         if (actionToIdMap.putIfAbsent(action, uniqueId) != null) {
             throw new IllegalArgumentException("The action [" + action + "] you are trying to register is already registered");
         }
+
         // Register the action in the action module's dynamic actions map
         dynamicActionRegistry.registerDynamicAction(
             new ExtensionAction(uniqueId, action),
