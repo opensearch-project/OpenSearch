@@ -250,7 +250,7 @@ public class AzureStorageService implements AutoCloseable {
 
     private static BlobServiceClientBuilder createClientBuilder(AzureStorageSettings settings) throws InvalidKeyException,
         URISyntaxException {
-        return new BlobServiceClientBuilder().connectionString(settings.getConnectString());
+        return SocketAccess.doPrivilegedException(() -> new BlobServiceClientBuilder().connectionString(settings.getConnectString()));
     }
 
     /**
