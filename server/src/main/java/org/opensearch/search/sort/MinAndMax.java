@@ -110,7 +110,7 @@ public class MinAndMax<T extends Comparable<? super T>> implements Writeable {
         return compare(getMax(), object);
     }
 
-    private int compare(Object one, Object two) {
+    private int compare(T one, Object two) {
         if (one instanceof Long) {
             return Long.compare((Long) one, (Long) two);
         } else if (one instanceof Integer) {
