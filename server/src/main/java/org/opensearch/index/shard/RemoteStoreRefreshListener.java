@@ -65,7 +65,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     /**
      * In an exponential back off setup, the maximum retry interval after the retry interval increases exponentially.
      */
-    private static final int REMOTE_REFRESH_RETRY_MAX_INTERVAL_MILLIS = 30_000;
+    private static final int REMOTE_REFRESH_RETRY_MAX_INTERVAL_MILLIS = 10_000;
 
     /**
      * Exponential back off policy with max retry interval.

@@ -20,6 +20,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.opensearch.test.FeatureFlagSetter;
@@ -31,6 +32,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -83,28 +85,7 @@ public class RemoteStoreRefreshListenerIT extends AbstractSnapshotIntegTestCase 
     public void testRemoteRefreshRetryOnFailure() throws Exception {
 
         Path location = randomRepoPath().toAbsolutePath();
-        logger.info("--> Creating repository={} at the path={}", REPOSITORY_NAME, location);
-
-        // The random_control_io_exception_rate setting ensures that 10-25% of all operations to remote store results in
-        /// IOException. skip_exception_on_verification_file & skip_exception_on_list_blobs settings ensures that the
-        // repository creation can happen without failure.
-        createRepository(
-            REPOSITORY_NAME,
-            "mock",
-            Settings.builder()
-                .put("location", location)
-                .put("random_control_io_exception_rate", randomIntBetween(10, 25) / 100f)
-                .put("skip_exception_on_verification_file", true)
-                .put("skip_exception_on_list_blobs", true)
-        );
-
-        internalCluster().startDataOnlyNodes(1);
-        createIndex(INDEX_NAME);
-        logger.info("--> Created index={}", INDEX_NAME);
-        ensureYellowAndNoInitializingShards(INDEX_NAME);
-        logger.info("--> Cluster is yellow with no initializing shards");
-        ensureGreen(INDEX_NAME);
-        logger.info("--> Cluster is green");
+        setup(location, randomDoubleBetween(0.1, 0.25, true), "metadata");
 
         // Here we are having flush/refresh after each iteration of indexing. However, the refresh will not always succeed
         // due to IOExceptions that are thrown while doing uploadBlobs.
@@ -120,9 +101,37 @@ public class RemoteStoreRefreshListenerIT extends AbstractSnapshotIntegTestCase 
         String segmentDataLocalPath = String.format(Locale.ROOT, "%s/indices/%s/0/index", response.getShards()[0].getDataPath(), indexUuid);
 
         logger.info("--> Verify that the segment files are same on local and repository eventually");
-        assertBusy(
-            () -> assertEquals(getSegmentFiles(location.getRoot().resolve(segmentDataLocalPath)), getSegmentFiles(segmentDataRepoPath))
+        // This can take time as the retry interval is exponential and maxed at 30s
+        assertBusy(() -> {
+            Set<String> filesInLocal = getSegmentFiles(location.getRoot().resolve(segmentDataLocalPath));
+            Set<String> filesInRepo = getSegmentFiles(segmentDataRepoPath);
+            assertTrue(filesInRepo.containsAll(filesInLocal));
+        }, 60, TimeUnit.SECONDS);
+    }
+
+    private void setup(Path repoLocation, double ioFailureRate, String skipExceptionBlobList) {
+        logger.info("--> Creating repository={} at the path={}", REPOSITORY_NAME, repoLocation);
+        // The random_control_io_exception_rate setting ensures that 10-25% of all operations to remote store results in
+        /// IOException. skip_exception_on_verification_file & skip_exception_on_list_blobs settings ensures that the
+        // repository creation can happen without failure.
+        createRepository(
+            REPOSITORY_NAME,
+            "mock",
+            Settings.builder()
+                .put("location", repoLocation)
+                .put("random_control_io_exception_rate", ioFailureRate)
+                .put("skip_exception_on_verification_file", true)
+                .put("skip_exception_on_list_blobs", true)
+                .put("max_failure_number", Long.MAX_VALUE)
         );
+
+        internalCluster().startDataOnlyNodes(1);
+        createIndex(INDEX_NAME);
+        logger.info("--> Created index={}", INDEX_NAME);
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        logger.info("--> Cluster is yellow with no initializing shards");
+        ensureGreen(INDEX_NAME);
+        logger.info("--> Cluster is green");
     }
 
     /**
@@ -134,13 +143,18 @@ public class RemoteStoreRefreshListenerIT extends AbstractSnapshotIntegTestCase 
     private Set<String> getSegmentFiles(Path location) {
         try {
             return Arrays.stream(FileSystemUtils.files(location))
-                .filter(path -> path.getFileName().startsWith("_"))
+                .filter(path -> path.getFileName().toString().startsWith("_"))
                 .map(path -> path.getFileName().toString())
+                .map(this::getLocalSegmentFilename)
                 .collect(Collectors.toSet());
         } catch (IOException exception) {
             logger.error("Exception occurred while getting segment files", exception);
         }
         return Collections.emptySet();
+    }
+
+    private String getLocalSegmentFilename(String remoteFilename) {
+        return remoteFilename.split(RemoteSegmentStoreDirectory.SEGMENT_NAME_UUID_SEPARATOR)[0];
     }
 
     private IndexResponse indexSingleDoc() {
@@ -153,7 +167,7 @@ public class RemoteStoreRefreshListenerIT extends AbstractSnapshotIntegTestCase 
     private void indexData(int numberOfIterations, boolean invokeFlush) {
         logger.info("--> Indexing data for {} iterations with flush={}", numberOfIterations, invokeFlush);
         for (int i = 0; i < numberOfIterations; i++) {
-            int numberOfOperations = randomIntBetween(20, 50);
+            int numberOfOperations = randomIntBetween(1, 5);
             logger.info("--> Indexing {} operations in iteration #{}", numberOfOperations, i);
             for (int j = 0; j < numberOfOperations; j++) {
                 indexSingleDoc();

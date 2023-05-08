@@ -29,6 +29,7 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -251,7 +252,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     }
 
     private void mockIndexShardWithRetryAndScheduleRefresh(
-        int SucceedOnAttempt,
+        int succeedOnAttempt,
         CountDownLatch refreshCountLatch,
         CountDownLatch successLatch
     ) throws IOException {
@@ -289,22 +290,27 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         when(shard.getThreadPool()).thenReturn(threadPool);
 
         // Mock indexShard.getReplicationTracker().isPrimaryMode()
+
         doAnswer(invocation -> {
-            refreshCountLatch.countDown();
+            if (Objects.nonNull(refreshCountLatch)) {
+                refreshCountLatch.countDown();
+            }
             return indexShard.getReplicationTracker();
         }).when(shard).getReplicationTracker();
 
         AtomicLong counter = new AtomicLong();
         // Mock indexShard.getSegmentInfosSnapshot()
         doAnswer(invocation -> {
-            if (counter.incrementAndGet() <= SucceedOnAttempt - 1) {
+            if (counter.incrementAndGet() <= succeedOnAttempt - 1) {
                 throw new RuntimeException("Inducing failure in upload");
             }
             return indexShard.getSegmentInfosSnapshot();
         }).when(shard).getSegmentInfosSnapshot();
 
         doAnswer(invocation -> {
-            successLatch.countDown();
+            if (Objects.nonNull(successLatch)) {
+                successLatch.countDown();
+            }
             return indexShard.getEngine();
         }).when(shard).getEngine();
 
