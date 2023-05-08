@@ -26,7 +26,7 @@ public class ExtensionHandleTransportRequest extends TransportRequest {
     private final ExtensionTransportMessage request;
 
     /**
-     * ExtensionExtensionTransportRequest constructor.
+     * ExtensionHandleTransportRequest constructor.
      *
      * @param action is the transport action intended to be invoked which is registered by an extension via {@link ExtensionTransportActionsHandler}.
      * @param requestBytes is the raw bytes being transported between extensions.
