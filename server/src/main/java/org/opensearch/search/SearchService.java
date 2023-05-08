@@ -1535,14 +1535,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     canMatch = aliasFilterCanMatch;
                 }
                 final Optional<SortAndFormats> sortOpt = SortBuilder.buildSort(request.source().sorts(), context);
-                canMatch = canMatch
-                    && sortOpt.map(
-                        sort -> canMatchSearchAfter(
-                            SearchAfterBuilder.buildFieldDoc(sort, request.source().searchAfter()),
-                            minMax,
-                            sortBuilder // primary sort field
-                        )
-                    ).orElse(false);
+                final FieldDoc searchAfter = sortOpt.get() == null || CollectionUtils.isEmpty(request.source().searchAfter())
+                    ? null
+                    : SearchAfterBuilder.buildFieldDoc(sortOpt.get(), request.source().searchAfter());
+                canMatch = canMatch && canMatchSearchAfter(searchAfter, minMax, sortBuilder);
 
                 return new CanMatchResponse(canMatch || hasRefreshPending, minMax);
             }
