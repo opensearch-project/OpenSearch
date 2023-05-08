@@ -1538,7 +1538,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // null query means match_all
                     canMatch = aliasFilterCanMatch;
                 }
-                canMatch = canMatch & canMatchSearchAfter(searchContext, minMax);
+                canMatch = canMatch && canMatchSearchAfter(searchContext, minMax);
 
                 return new CanMatchResponse(canMatch || hasRefreshPending, minMax);
             }
