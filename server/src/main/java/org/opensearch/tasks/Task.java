@@ -197,8 +197,7 @@ public class Task {
         long runningTimeSinceCancellationNanos = -1;
         if (cancelled) {
             cancellationStartTime = ((CancellableTask) this).getCancellationStartTime();
-            runningTimeSinceCancellationNanos =
-                System.nanoTime() - ((CancellableTask) this).getCancellationStartTimeNanos();
+            runningTimeSinceCancellationNanos = System.nanoTime() - ((CancellableTask) this).getCancellationStartTimeNanos();
         }
         return new TaskInfo(
             new TaskId(localNodeId, getId()),

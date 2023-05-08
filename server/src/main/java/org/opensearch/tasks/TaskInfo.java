@@ -109,8 +109,22 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         Map<String, String> headers,
         TaskResourceStats resourceStats
     ) {
-        this(taskId, type, action, description, status, startTime, runningTimeNanos, cancellable, cancelled,
-            parentTaskId, headers, resourceStats, -1, -1);
+        this(
+            taskId,
+            type,
+            action,
+            description,
+            status,
+            startTime,
+            runningTimeNanos,
+            cancellable,
+            cancelled,
+            parentTaskId,
+            headers,
+            resourceStats,
+            -1,
+            -1
+        );
     }
 
     public TaskInfo(
@@ -176,7 +190,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         } else {
             resourceStats = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_2_8_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             cancellationStartTime = in.readLong();
             runningTimeSinceCancellationNanos = in.readLong();
         } else {
@@ -203,12 +217,9 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_2_1_0)) {
             out.writeOptionalWriteable(resourceStats);
         }
-        if (out.getVersion().onOrAfter(Version.V_2_6_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
             out.writeLong(cancellationStartTime);
             out.writeLong(runningTimeSinceCancellationNanos);
-        } else {
-            out.writeLong(-1);
-            out.writeLong(-1);
         }
     }
 
