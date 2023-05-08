@@ -201,7 +201,7 @@ public class ExtensionsManager {
      * @param extensionId The unique extension identifier
      * @return An optional of the Extension instance for the matching extension
      */
-    public Optional<Extension> lookupExtensionSettings(final String extensionId) {
+    public Optional<Extension> lookupExtensionSettingsById(final String extensionId) {
         return Optional.ofNullable(this.extensionSettingsMap.get(extensionId));
     }
 
