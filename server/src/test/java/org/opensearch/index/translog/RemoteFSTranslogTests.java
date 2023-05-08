@@ -28,15 +28,15 @@ import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.ReleasableBytesReference;
-import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.util.FileSystemUtils;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexSettings;
@@ -562,9 +562,13 @@ public class RemoteFSTranslogTests extends OpenSearchTestCase {
 
         // this should now trim as tlog-2 files from remote, but not tlog-3 and tlog-4
         addToTranslogAndListAndUpload(translog, ops, new Translog.Index("2", 2, primaryTerm.get(), new byte[] { 1 }));
+        assertEquals(2, translog.stats().estimatedNumberOfOperations());
+
         translog.setMinSeqNoToKeep(2);
+
         translog.trimUnreferencedReaders();
         assertEquals(1, translog.readers.size());
+        assertEquals(1, translog.stats().estimatedNumberOfOperations());
         assertBusy(() -> assertEquals(4, translog.allUploaded().size()));
     }
 

@@ -428,30 +428,4 @@ public class RemoteFsTranslog extends Translog {
             translogTransferManager.deleteStaleTranslogMetadataFilesAsync();
         }
     }
-
-    /**
-     * return stats
-     */
-    @Override
-    public TranslogStats stats() {
-        // acquire lock to make the two numbers roughly consistent (no file change half way)
-
-        try (ReleasableLock lock = readLock.acquire()) {
-            long uncommitedSeqNo;
-            if (this.indexSettings.isRemoteStoreEnabled()) {
-                uncommitedSeqNo = minSeqNoToKeep;
-            } else {
-                uncommitedSeqNo = deletionPolicy.getLocalCheckpointOfSafeCommit() + 1;
-            }
-
-            long uncommittedGen = getMinGenerationForSeqNo(uncommitedSeqNo).translogFileGeneration;
-            return new TranslogStats(
-                totalOperations(),
-                sizeInBytes(),
-                totalOperationsByMinGen(uncommittedGen),
-                sizeInBytesByMinGen(uncommittedGen),
-                earliestLastModifiedAge()
-            );
-        }
-    }
 }
