@@ -499,7 +499,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         MinAndMax<?> minMax = sortBuilder != null
             ? FieldSortBuilder.getMinMaxOrNullForSegment(this.searchContext.getQueryShardContext(), ctx, sortBuilder)
             : null;
-        return SearchService.canMatchSearchAfter(searchContext, minMax);
+        return SearchService.canMatchSearchAfter(searchContext.searchAfter(), minMax, sortBuilder.order());
     }
 
     private boolean shouldReverseLeafReaderContexts() {

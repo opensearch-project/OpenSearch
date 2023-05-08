@@ -1499,9 +1499,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private CanMatchResponse canMatch(ShardSearchRequest request, boolean checkRefreshPending) throws IOException {
         assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
         final ReaderContext readerContext = request.readerId() != null ? findReaderContext(request.readerId(), request) : null;
-        final SearchContext searchContext = readerContext == null
-            ? null
-            : createSearchContext(readerContext, request, defaultSearchTimeout, false);
         final Releasable markAsUsed = readerContext != null ? readerContext.markAsUsed(getKeepAlive(request)) : () -> {};
         try (Releasable ignored = markAsUsed) {
             final IndexService indexService;
@@ -1533,28 +1530,35 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 if (canRewriteToMatchNone(request.source())) {
                     QueryBuilder queryBuilder = request.source().query();
                     canMatch = aliasFilterCanMatch && queryBuilder instanceof MatchNoneQueryBuilder == false;
-                    canMatch = aliasFilterCanMatch && queryBuilder instanceof MatchNoneQueryBuilder == false;
                 } else {
                     // null query means match_all
                     canMatch = aliasFilterCanMatch;
                 }
-                canMatch = canMatch && canMatchSearchAfter(searchContext, minMax);
+                final Optional<SortAndFormats> sortOpt = SortBuilder.buildSort(request.source().sorts(), context);
+                canMatch = canMatch
+                    && sortOpt.map(
+                        sort -> canMatchSearchAfter(
+                            SearchAfterBuilder.buildFieldDoc(sort, request.source().searchAfter()),
+                            minMax,
+                            sortBuilder.order()
+                        )
+                    ).orElse(false);
 
                 return new CanMatchResponse(canMatch || hasRefreshPending, minMax);
             }
         }
     }
 
-    public static boolean canMatchSearchAfter(SearchContext searchContext, MinAndMax<?> minMax) {
-        if (searchContext != null && searchContext.searchAfter() != null && minMax != null) {
-            SortOrder order = searchContext.request().source().sorts().get(0).order();
+    public static boolean canMatchSearchAfter(FieldDoc searchAfter, MinAndMax<?> minMax, SortOrder order) {
+        if (searchAfter != null && minMax != null) {
+            final Object searchAfterPrimary = searchAfter.fields[0];
             if (order == SortOrder.DESC) {
-                if (minMax.compareMin(searchContext.searchAfter().fields[0]) > 0) {
+                if (minMax.compareMin(searchAfterPrimary) > 0) {
                     // In Desc order, if segment/shard minimum is gt search_after, the segment/shard won't be competitive
                     return false;
                 }
             } else {
-                if (minMax.compareMax(searchContext.searchAfter().fields[0]) < 0) {
+                if (minMax.compareMax(searchAfterPrimary) < 0) {
                     // In ASC order, if segment/shard maximum is lt search_after, the segment/shard won't be competitive
                     return false;
                 }
