@@ -42,6 +42,7 @@ dependencies {
     exclude module: 'jettison'
     exclude module: 'netty'
     exclude module: 'guava'
+    exclude module: 'protobuf-java'
     exclude group: 'org.codehaus.jackson'
   }
   api "org.codehaus.jettison:jettison:${versions.jettison}"
@@ -56,7 +57,7 @@ dependencies {
   api "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
   api 'net.minidev:json-smart:2.4.10'
   api "org.mockito:mockito-core:${versions.mockito}"
-  api "com.google.protobuf:protobuf-java:3.22.2"
+  api "com.google.protobuf:protobuf-java:${versions.protobuf}"
   api "org.jetbrains.kotlin:kotlin-stdlib:${versions.kotlin}"
   api "org.eclipse.jetty:jetty-server:${versions.jetty}"
   api "org.eclipse.jetty.websocket:javax-websocket-server-impl:${versions.jetty}"
