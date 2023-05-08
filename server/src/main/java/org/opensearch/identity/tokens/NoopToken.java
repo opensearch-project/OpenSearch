@@ -8,9 +8,16 @@
 
 package org.opensearch.identity.tokens;
 
+/**
+ * A NoopToken is a pass-through AuthToken
+ */
 public class NoopToken implements AuthToken {
     public final static String TOKEN_IDENTIFIER = "Noop";
 
+    /**
+     * Returns the TokenIdentifier of Noop
+     * @return The token identifier "Noop"
+     */
     public String getTokenIdentifier() {
         return TOKEN_IDENTIFIER;
     }
