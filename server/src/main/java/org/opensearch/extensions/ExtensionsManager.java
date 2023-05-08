@@ -108,6 +108,7 @@ public class ExtensionsManager {
 
     private final Path extensionsPath;
     private ExtensionTransportActionsHandler extensionTransportActionsHandler;
+    private Map<String, Extension> extensionsSettings;
     private Map<String, DiscoveryExtensionNode> initializedExtensions;
     private Map<String, DiscoveryExtensionNode> extensionIdMap;
     private RestActionsRequestHandler restActionsRequestHandler;
@@ -129,6 +130,7 @@ public class ExtensionsManager {
         this.extensionsPath = extensionsPath;
         this.initializedExtensions = new HashMap<String, DiscoveryExtensionNode>();
         this.extensionIdMap = new HashMap<String, DiscoveryExtensionNode>();
+        this.extensionsSettings = new HashMap<String, Extension>();
         // will be initialized in initializeServicesAndRestHandler which is called after the Node is initialized
         this.transportService = null;
         this.clusterService = null;
@@ -308,6 +310,7 @@ public class ExtensionsManager {
                 throw new IOException("Could not read from extensions.yml", e);
             }
             for (Extension extension : extensions) {
+                extensionsSettings.put(extension.getUniqueId(), extension);
                 loadExtension(extension);
             }
             if (!extensionIdMap.isEmpty()) {
@@ -672,6 +675,10 @@ public class ExtensionsManager {
 
     Map<String, DiscoveryExtensionNode> getExtensionIdMap() {
         return extensionIdMap;
+    }
+
+    public Map<String, Extension> getExtensionsSettings() {
+        return extensionsSettings;
     }
 
     RestActionsRequestHandler getRestActionsRequestHandler() {
