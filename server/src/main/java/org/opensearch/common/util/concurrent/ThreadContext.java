@@ -31,12 +31,15 @@
 
 package org.opensearch.common.util.concurrent;
 
+import com.google.protobuf.CodedOutputStream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.ContextPreservingActionListener;
 import org.opensearch.client.OriginSettingClient;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.io.stream.ProtobufStreamOutput;
+import org.opensearch.common.io.stream.ProtobufWriteable;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -99,7 +102,7 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING
  *
  * @opensearch.internal
  */
-public final class ThreadContext implements Writeable {
+public final class ThreadContext implements Writeable, ProtobufWriteable {
 
     public static final String PREFIX = "request.headers";
     public static final Setting<Settings> DEFAULT_HEADERS_SETTING = Setting.groupSetting(PREFIX + ".", Property.NodeScope);
@@ -183,6 +186,25 @@ public final class ThreadContext implements Writeable {
             final Map<String, String> propagatedHeaders = propagateHeaders(context.transientHeaders);
             context.writeTo(out, defaultHeader, propagatedHeaders);
         };
+    }
+
+    /**
+     * Captures the current thread context as writeable, allowing it to be serialized out later
+     */
+    public ProtobufWriteable captureAsWriteable() {
+        final ThreadContextStruct context = threadLocal.get();
+        return out -> {
+            final Map<String, String> propagatedHeaders = propagateHeaders(context.transientHeaders);
+            context.writeTo(out, defaultHeader, propagatedHeaders);
+        };
+    }
+
+    /**
+     * Captures the current thread context as writeable, allowing it to be serialized out later
+     */
+    public ProtobufWriteable captureAsWriteable() {
+        final ThreadContextStruct context = threadLocal.get();
+        return out -> context.writeTo(out, defaultHeader);
     }
 
     /**
@@ -828,6 +850,25 @@ public final class ThreadContext implements Writeable {
 
             out.writeMap(responseHeaders, StreamOutput::writeString, StreamOutput::writeStringCollection);
         }
+
+        private void writeTo(CodedOutputStream out, Map<String, String> defaultHeaders) throws IOException {
+            final Map<String, String> requestHeaders;
+            if (defaultHeaders.isEmpty()) {
+                requestHeaders = this.requestHeaders;
+            } else {
+                requestHeaders = new HashMap<>(defaultHeaders);
+                requestHeaders.putAll(this.requestHeaders);
+            }
+
+            out.writeInt32NoTag(requestHeaders.size());
+            for (Map.Entry<String, String> entry : requestHeaders.entrySet()) {
+                out.writeStringNoTag(entry.getKey());
+                out.writeStringNoTag(entry.getValue());
+            }
+
+            ProtobufStreamOutput protobufStreamOutput = new ProtobufStreamOutput();
+            protobufStreamOutput.writeMap(responseHeaders, CodedOutputStream::writeStringNoTag, CodedOutputStream::writeStringNoTag, out);
+        }
     }
 
     /**
@@ -958,6 +999,11 @@ public final class ThreadContext implements Writeable {
         public Set<Characteristics> characteristics() {
             return CHARACTERISTICS;
         }
+    }
+
+    @Override
+    public void writeTo(CodedOutputStream out) throws IOException {
+        threadLocal.get().writeTo(out, defaultHeader);
     }
 
 }
