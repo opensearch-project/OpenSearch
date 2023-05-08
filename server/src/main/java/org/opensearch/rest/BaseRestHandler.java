@@ -48,6 +48,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.rest.action.admin.cluster.RestNodesUsageAction;
 import org.opensearch.tasks.Task;
+import org.opensearch.identity.IdentityService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -101,6 +102,11 @@ public abstract class BaseRestHandler implements RestHandler {
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+        final IdentityService identityService = IdentityService.getInstance();
+        if (!identityService.getSubject().checkAnyPermission(allowedScopes())) {
+            throw new IllegalArgumentException("");
+        }
+
         // prepare the request for execution; has the side effect of touching the request parameters
         final RestChannelConsumer action = prepareRequest(request, client);
 

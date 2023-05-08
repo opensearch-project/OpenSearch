@@ -5,10 +5,12 @@
 
 package org.opensearch.identity;
 
+import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.scopes.Scope;
 import org.opensearch.identity.tokens.AuthToken;
 
 import java.security.Principal;
-
+import java.util.List;
 /**
  * An individual, process, or device that causes information to flow among objects or change to the system state.
  *
@@ -30,10 +32,7 @@ public interface Subject {
      */
     void authenticate(final AuthToken token);
 
-    /**
-     * Get the associated extension with this subject.  Returns null if there is no association.
-     */
-    default String getAssociatedExtension() {
-        return null;
+    default boolean checkAnyPermission(final List<Scope> scope) {
+        return false;
     }
 }

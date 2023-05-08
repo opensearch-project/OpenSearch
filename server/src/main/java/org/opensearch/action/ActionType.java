@@ -32,8 +32,12 @@
 
 package org.opensearch.action;
 
+import java.util.Collections;
+import java.util.List;
+
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.identity.scopes.Scope;
 import org.opensearch.transport.TransportRequestOptions;
 
 /**
@@ -84,5 +88,8 @@ public class ActionType<Response extends ActionResponse> {
     @Override
     public int hashCode() {
         return name.hashCode();
+    }
+    public List<Scope> allowedScopes() {
+        return Collections.emptyList();
     }
 }

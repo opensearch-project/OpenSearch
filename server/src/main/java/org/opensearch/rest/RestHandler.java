@@ -34,6 +34,7 @@ package org.opensearch.rest;
 
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.xcontent.XContent;
+import org.opensearch.identity.scopes.Scope;
 import org.opensearch.rest.RestRequest.Method;
 
 import java.util.Collections;
@@ -117,6 +118,10 @@ public interface RestHandler {
 
     static RestHandler wrapper(RestHandler delegate) {
         return new Wrapper(delegate);
+    }
+
+    default List<Scope> allowedScopes() {
+        return Collections.emptyList();
     }
 
     /**

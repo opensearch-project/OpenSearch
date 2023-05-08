@@ -36,10 +36,12 @@ import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.common.Strings;
+import org.opensearch.identity.scopes.Scope;
 import org.opensearch.index.VersionType;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestStatus;
+import org.opensearch.action.ActionScopes;
 import org.opensearch.rest.action.RestActions;
 import org.opensearch.rest.action.RestToXContentListener;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
@@ -69,6 +71,11 @@ public class RestGetAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return unmodifiableList(asList(new Route(GET, "/{index}/_doc/{id}"), new Route(HEAD, "/{index}/_doc/{id}")));
+    }
+
+    @Override
+    public List<Scope> allowedScopes() {
+        return List.of(ActionScopes.Index_Read, ActionScopes.Index_ReadWrite);
     }
 
     @Override

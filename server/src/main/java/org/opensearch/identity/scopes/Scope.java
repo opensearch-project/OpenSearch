@@ -15,8 +15,8 @@ public interface Scope {
     String getNamespace();
     String getArea();
     String getAction();
-    default String asPermission() {
-        return getNamespace() + "." + getAction() + "." + getAction();
+    default String asPermissionString() {
+        return getNamespace() + "." + getArea() + "." + getAction();
     }
 }
 

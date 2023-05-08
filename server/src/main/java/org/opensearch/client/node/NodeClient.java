@@ -33,6 +33,7 @@
 package org.opensearch.client.node;
 
 import org.opensearch.action.ActionType;
+import org.opensearch.OpenSearchSecurityException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.ActionRequest;
@@ -43,12 +44,15 @@ import org.opensearch.client.support.AbstractClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.identity.IdentityService;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskListener;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterService;
 
 import java.util.function.Supplier;
+
+import javax.management.InvalidApplicationException;
 
 /**
  * Client that executes actions on the local node.
@@ -137,6 +141,10 @@ public class NodeClient extends AbstractClient {
     private <Request extends ActionRequest, Response extends ActionResponse> TransportAction<Request, Response> transportAction(
         ActionType<Response> action
     ) {
+        if (!IdentityService.getInstance().getSubject().checkAnyPermission(action.allowedScopes())) {
+            throw new OpenSearchSecurityException("Unauthorized action!");
+        }
+
         if (actionRegistry == null) {
             throw new IllegalStateException("NodeClient has not been initialized");
         }

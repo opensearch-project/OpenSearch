@@ -29,6 +29,9 @@ public class IdentityService {
     private final IdentityPlugin identityPlugin;
     private final ExtensionsManager extensionManager;
 
+    private static IdentityService instance;
+    public static IdentityService getInstance() { return instance; } 
+
     public IdentityService(final Settings settings,
         final List<IdentityPlugin> identityPlugins,
         final ExtensionsManager extensionManager) {
@@ -47,6 +50,7 @@ public class IdentityService {
                     + identityPlugins.stream().map(Object::getClass).map(Class::getName).collect(Collectors.joining(","))
             );
         }
+        IdentityService.instance = this;
     }
 
     /**
