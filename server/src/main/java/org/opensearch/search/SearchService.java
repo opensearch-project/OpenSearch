@@ -1540,7 +1540,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         sort -> canMatchSearchAfter(
                             SearchAfterBuilder.buildFieldDoc(sort, request.source().searchAfter()),
                             minMax,
-                            sortBuilder.order()
+                            sortBuilder // primary sort field
                         )
                     ).orElse(false);
 
@@ -1549,10 +1549,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }
     }
 
-    public static boolean canMatchSearchAfter(FieldDoc searchAfter, MinAndMax<?> minMax, SortOrder order) {
-        if (searchAfter != null && minMax != null) {
+    public static boolean canMatchSearchAfter(FieldDoc searchAfter, MinAndMax<?> minMax, FieldSortBuilder primarySortField) {
+        if (searchAfter != null && minMax != null && primarySortField != null) {
             final Object searchAfterPrimary = searchAfter.fields[0];
-            if (order == SortOrder.DESC) {
+            if (primarySortField.order() == SortOrder.DESC) {
                 if (minMax.compareMin(searchAfterPrimary) > 0) {
                     // In Desc order, if segment/shard minimum is gt search_after, the segment/shard won't be competitive
                     return false;

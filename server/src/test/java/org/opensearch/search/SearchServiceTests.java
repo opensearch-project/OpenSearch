@@ -105,6 +105,7 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.MinAndMax;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.SuggestBuilder;
@@ -1574,7 +1575,9 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
     public void testCanMatchSearchAfterAscGreaterThanMax() throws IOException {
         FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { 10L });
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, SortOrder.ASC), false);
+        FieldSortBuilder primarySort = new FieldSortBuilder("test");
+        primarySort.order(SortOrder.ASC);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), false);
     }
 
     /**
@@ -1585,7 +1588,9 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
     public void testCanMatchSearchAfterAscLessThanMax() throws IOException {
         FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { 7L });
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, SortOrder.ASC), true);
+        FieldSortBuilder primarySort = new FieldSortBuilder("test");
+        primarySort.order(SortOrder.ASC);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), true);
     }
 
     /**
@@ -1596,7 +1601,9 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
     public void testCanMatchSearchAfterAscEqualMax() throws IOException {
         FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { 9L });
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, SortOrder.ASC), true);
+        FieldSortBuilder primarySort = new FieldSortBuilder("test");
+        primarySort.order(SortOrder.ASC);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), true);
     }
 
     /**
@@ -1607,7 +1614,9 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
     public void testCanMatchSearchAfterDescGreaterThanMin() throws IOException {
         FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { 10L });
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, SortOrder.DESC), true);
+        FieldSortBuilder primarySort = new FieldSortBuilder("test");
+        primarySort.order(SortOrder.DESC);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), true);
     }
 
     /**
@@ -1618,7 +1627,9 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
     public void testCanMatchSearchAfterDescLessThanMin() throws IOException {
         FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { -1L });
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, SortOrder.DESC), false);
+        FieldSortBuilder primarySort = new FieldSortBuilder("test");
+        primarySort.order(SortOrder.DESC);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), false);
     }
 
     /**
@@ -1629,6 +1640,8 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
     public void testCanMatchSearchAfterDescEqualMin() throws IOException {
         FieldDoc searchAfter = new FieldDoc(0, 0, new Long[] { 0L });
         MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
-        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, SortOrder.DESC), true);
+        FieldSortBuilder primarySort = new FieldSortBuilder("test");
+        primarySort.order(SortOrder.DESC);
+        assertEquals(SearchService.canMatchSearchAfter(searchAfter, minMax, primarySort), true);
     }
 }
