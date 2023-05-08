@@ -492,13 +492,17 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     private boolean canMatchSearchAfter(LeafReaderContext ctx) throws IOException {
-        if (searchContext != null) {
+        if (searchContext != null && searchContext.request() != null && searchContext.request().source() != null) {
             // Only applied on primary sort field and primary search_after.
             FieldSortBuilder primarySortField = FieldSortBuilder.getPrimaryFieldSortOrNull(searchContext.request().source());
-            MinAndMax<?> minMax = primarySortField != null
-                ? FieldSortBuilder.getMinMaxOrNullForSegment(this.searchContext.getQueryShardContext(), ctx, primarySortField)
-                : null;
-            return SearchService.canMatchSearchAfter(searchContext.searchAfter(), minMax, primarySortField);
+            if (primarySortField != null) {
+                MinAndMax<?> minMax = FieldSortBuilder.getMinMaxOrNullForSegment(
+                    this.searchContext.getQueryShardContext(),
+                    ctx,
+                    primarySortField
+                );
+                return SearchService.canMatchSearchAfter(searchContext.searchAfter(), minMax, primarySortField);
+            }
         }
         return true;
     }

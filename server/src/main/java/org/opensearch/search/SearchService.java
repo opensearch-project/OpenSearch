@@ -1534,14 +1534,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // null query means match_all
                     canMatch = aliasFilterCanMatch;
                 }
-                final List<SortBuilder<?>> sorts = request.source().sorts();
-                final Optional<SortAndFormats> sortOpt = sorts == null ? null : SortBuilder.buildSort(sorts, context);
-                final FieldDoc searchAfter = sortOpt == null
-                    || sortOpt.get() == null
-                    || CollectionUtils.isEmpty(request.source().searchAfter())
-                        ? null
-                        : SearchAfterBuilder.buildFieldDoc(sortOpt.get(), request.source().searchAfter());
-                canMatch = canMatch && canMatchSearchAfter(searchAfter, minMax, sortBuilder);
+                final FieldDoc searchAfterFieldDoc = getSearchAfterFieldDoc(request, context);
+                canMatch = canMatch && canMatchSearchAfter(searchAfterFieldDoc, minMax, sortBuilder);
 
                 return new CanMatchResponse(canMatch || hasRefreshPending, minMax);
             }
@@ -1564,6 +1558,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
         }
         return true;
+    }
+
+    private static FieldDoc getSearchAfterFieldDoc(ShardSearchRequest request, QueryShardContext context) throws IOException {
+        if (context != null && request != null && request.source() != null && request.source().sorts() != null) {
+            final List<SortBuilder<?>> sorts = request.source().sorts();
+            final Object[] searchAfter = request.source().searchAfter();
+            final Optional<SortAndFormats> sortOpt = SortBuilder.buildSort(sorts, context);
+            if (sortOpt.isPresent() && !CollectionUtils.isEmpty(searchAfter)) {
+                return SearchAfterBuilder.buildFieldDoc(sortOpt.get(), searchAfter);
+            }
+        }
+        return null;
     }
 
     /**
