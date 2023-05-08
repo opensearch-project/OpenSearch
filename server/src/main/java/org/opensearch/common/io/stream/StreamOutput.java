@@ -51,18 +51,17 @@ import org.opensearch.common.CharArrays;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.io.stream.Writeable.Writer;
 import org.opensearch.common.settings.SecureString;
 import org.opensearch.common.text.Text;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.io.stream.BaseStreamOutput;
+import org.opensearch.core.common.io.stream.BaseWriteable;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
-import org.opensearch.script.JodaCompatibleZonedDateTime;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.math.BigInteger;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -103,7 +102,7 @@ import java.util.function.IntFunction;
  *
  * @opensearch.internal
  */
-public abstract class StreamOutput extends OutputStream {
+public abstract class StreamOutput extends BaseStreamOutput {
 
     private static final int MAX_NESTED_EXCEPTION_LEVEL = 100;
 
@@ -663,10 +662,10 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    private static final Map<Class<?>, Writer> WRITERS;
+    private static final Map<Class<?>, BaseWriteable.Writer<StreamOutput, Object>> WRITERS;
 
     static {
-        Map<Class<?>, Writer> writers = new HashMap<>();
+        Map<Class<?>, BaseWriteable.Writer<StreamOutput, Object>> writers = new HashMap<>();
         writers.put(String.class, (o, v) -> {
             o.writeByte((byte) 0);
             o.writeString((String) v);
@@ -773,23 +772,10 @@ public abstract class StreamOutput extends OutputStream {
             o.writeByte((byte) 21);
             o.writeBytesRef((BytesRef) v);
         });
-        writers.put(GeoPoint.class, (o, v) -> {
-            o.writeByte((byte) 22);
-            o.writeGeoPoint((GeoPoint) v);
-        });
         writers.put(ZonedDateTime.class, (o, v) -> {
             o.writeByte((byte) 23);
             final ZonedDateTime zonedDateTime = (ZonedDateTime) v;
             o.writeString(zonedDateTime.getZone().getId());
-            o.writeLong(zonedDateTime.toInstant().toEpochMilli());
-        });
-        writers.put(JodaCompatibleZonedDateTime.class, (o, v) -> {
-            // write the joda compatibility datetime as joda datetime
-            o.writeByte((byte) 13);
-            final JodaCompatibleZonedDateTime zonedDateTime = (JodaCompatibleZonedDateTime) v;
-            String zoneId = zonedDateTime.getZonedDateTime().getZone().getId();
-            // joda does not understand "Z" for utc, so we must special case
-            o.writeString(zoneId.equals("Z") ? DateTimeZone.UTC.getID() : zoneId);
             o.writeLong(zonedDateTime.toInstant().toEpochMilli());
         });
         writers.put(Set.class, (o, v) -> {
@@ -838,7 +824,12 @@ public abstract class StreamOutput extends OutputStream {
             return;
         }
         final Class<?> type = getGenericType(value);
-        final Writer writer = WRITERS.get(type);
+        BaseWriteable.Writer<StreamOutput, Object> writer = BaseWriteable.WriteableRegistry.getWriter(type);
+        if (writer == null) {
+            // fallback to this local hashmap
+            // todo: move all writers to the registry
+            writer = WRITERS.get(type);
+        }
         if (writer != null) {
             writer.write(this, value);
         } else {
@@ -1143,14 +1134,6 @@ public abstract class StreamOutput extends OutputStream {
             writeBoolean(true);
             writeNamedWriteable(namedWriteable);
         }
-    }
-
-    /**
-     * Writes the given {@link GeoPoint} to the stream
-     */
-    public void writeGeoPoint(GeoPoint geoPoint) throws IOException {
-        writeDouble(geoPoint.lat());
-        writeDouble(geoPoint.lon());
     }
 
     /**

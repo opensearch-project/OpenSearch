@@ -35,6 +35,7 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.util.LongObjectPagedHashMap;
+import org.opensearch.core.common.io.stream.BaseWriteable;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.InternalAggregations;
@@ -69,7 +70,7 @@ public abstract class BaseGeoGrid<B extends BaseGeoGridBucket> extends InternalM
         this.buckets = buckets;
     }
 
-    protected abstract Writeable.Reader<B> getBucketReader();
+    protected abstract BaseWriteable.Reader<StreamInput, B> getBucketReader();
 
     /**
      * Read from a stream.
@@ -77,7 +78,7 @@ public abstract class BaseGeoGrid<B extends BaseGeoGridBucket> extends InternalM
     public BaseGeoGrid(StreamInput in) throws IOException {
         super(in);
         requiredSize = readSize(in);
-        buckets = (List<BaseGeoGridBucket>) in.readList(getBucketReader());
+        buckets = (List<BaseGeoGridBucket>) in.readList((Writeable.Reader<B>) getBucketReader());
     }
 
     @Override

@@ -639,9 +639,9 @@ public class BytesStreamsTests extends OpenSearchTestCase {
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             GeoPoint geoPoint = new GeoPoint(randomDouble(), randomDouble());
-            out.writeGeoPoint(geoPoint);
+            geoPoint.writeTo(out);
             StreamInput wrap = out.bytes().streamInput();
-            GeoPoint point = wrap.readGeoPoint();
+            GeoPoint point = new GeoPoint(wrap);
             assertEquals(point, geoPoint);
         }
     }

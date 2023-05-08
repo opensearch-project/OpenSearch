@@ -33,6 +33,7 @@ package org.opensearch.geo.search.aggregations.bucket.geogrid;
 
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.BaseStreamInput;
 import org.opensearch.geometry.utils.Geohash;
 import org.opensearch.search.aggregations.InternalAggregations;
 
@@ -51,8 +52,8 @@ class InternalGeoHashGridBucket extends BaseGeoGridBucket<InternalGeoHashGridBuc
     /**
      * Read from a stream.
      */
-    InternalGeoHashGridBucket(StreamInput in) throws IOException {
-        super(in);
+    InternalGeoHashGridBucket(BaseStreamInput in) throws IOException {
+        super((StreamInput) in);
     }
 
     @Override

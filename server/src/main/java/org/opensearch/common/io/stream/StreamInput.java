@@ -50,20 +50,18 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.SecureString;
 import org.opensearch.common.text.Text;
-import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.io.stream.BaseStreamInput;
+import org.opensearch.core.common.io.stream.BaseWriteable;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
-import org.opensearch.script.JodaCompatibleZonedDateTime;
 
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.FilterInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.math.BigInteger;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -108,7 +106,7 @@ import static org.opensearch.OpenSearchException.readStackTrace;
  *
  * @opensearch.internal
  */
-public abstract class StreamInput extends InputStream {
+public abstract class StreamInput extends BaseStreamInput {
 
     private Version version = Version.CURRENT;
 
@@ -686,6 +684,11 @@ public abstract class StreamInput extends InputStream {
     @Nullable
     public Object readGenericValue() throws IOException {
         byte type = readByte();
+        BaseWriteable.Reader<StreamInput, ?> r = BaseWriteable.WriteableRegistry.getReader(type);
+        if (r != null) {
+            return r.read(this);
+        }
+
         switch (type) {
             case -1:
                 return null;
@@ -715,8 +718,6 @@ public abstract class StreamInput extends InputStream {
                 return readByte();
             case 12:
                 return readDate();
-            case 13:
-                return readDateTime();
             case 14:
                 return readBytesReference();
             case 15:
@@ -733,8 +734,6 @@ public abstract class StreamInput extends InputStream {
                 return readDoubleArray();
             case 21:
                 return readBytesRef();
-            case 22:
-                return readGeoPoint();
             case 23:
                 return readZonedDateTime();
             case 24:
@@ -776,14 +775,6 @@ public abstract class StreamInput extends InputStream {
             list.add(readGenericValue());
         }
         return list;
-    }
-
-    private JodaCompatibleZonedDateTime readDateTime() throws IOException {
-        // we reuse DateTime to communicate with older nodes that don't know about the joda compat layer, but
-        // here we are on a new node so we always want a compat datetime
-        final ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(DateTimeZone.forID(readString()));
-        long millis = readLong();
-        return new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(millis), zoneId);
     }
 
     private ZonedDateTime readZonedDateTime() throws IOException {
@@ -831,13 +822,6 @@ public abstract class StreamInput extends InputStream {
 
     private Date readDate() throws IOException {
         return new Date(readLong());
-    }
-
-    /**
-     * Reads a {@link GeoPoint} from this stream input
-     */
-    public GeoPoint readGeoPoint() throws IOException {
-        return new GeoPoint(readDouble(), readDouble());
     }
 
     /**
