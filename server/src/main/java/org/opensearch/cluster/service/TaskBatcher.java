@@ -96,11 +96,11 @@ public abstract class TaskBatcher {
             // For remove: First remove task from taskMap and then remove identity from taskIdentity map.
             // We are inserting identity first and removing at last to ensure no duplicate tasks are enqueued.
             // Changing this order might lead to duplicate tasks in queue.
-            taskIdentityPerBatchingKey.merge(firstTask.batchingKey, tasksIdentity, (existingIdentities, updatedIdentities) -> {
-                for (Object newIdentity : tasksIdentity.keySet()) {
+            taskIdentityPerBatchingKey.merge(firstTask.batchingKey, tasksIdentity, (existingIdentities, newIdentities) -> {
+                for (Object newIdentity : newIdentities.keySet()) {
                     // check that there won't be two tasks with the same identity for the same batching key
                     if (existingIdentities.containsKey(newIdentity)) {
-                        BatchedTask duplicateTask = tasksIdentity.get(newIdentity);
+                        BatchedTask duplicateTask = newIdentities.get(newIdentity);
                         throw new IllegalStateException(
                             "task ["
                                 + duplicateTask.describeTasks(Collections.singletonList(duplicateTask))
@@ -110,7 +110,7 @@ public abstract class TaskBatcher {
                         );
                     }
                 }
-                existingIdentities.putAll(updatedIdentities);
+                existingIdentities.putAll(newIdentities);
                 return existingIdentities;
             });
             // since we have checked for dup tasks in above map, we can add all new task in map.
@@ -155,7 +155,7 @@ public abstract class TaskBatcher {
                 return existingTasks;
             });
             taskIdentityPerBatchingKey.computeIfPresent(batchingKey, (tasksKey, existingIdentities) -> {
-                toRemoveIdentities.stream().forEach(k -> existingIdentities.remove(k));
+                toRemoveIdentities.stream().forEach(existingIdentities::remove);
                 if (existingIdentities.isEmpty()) {
                     return null;
                 }
