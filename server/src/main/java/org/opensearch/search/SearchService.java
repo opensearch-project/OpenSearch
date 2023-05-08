@@ -133,6 +133,7 @@ import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.MinAndMax;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.sort.SortBuilder;
+import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.Suggest;
 import org.opensearch.search.suggest.completion.CompletionSuggestion;
 import org.opensearch.threadpool.Scheduler.Cancellable;
@@ -1498,6 +1499,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private CanMatchResponse canMatch(ShardSearchRequest request, boolean checkRefreshPending) throws IOException {
         assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
         final ReaderContext readerContext = request.readerId() != null ? findReaderContext(request.readerId(), request) : null;
+        final SearchContext searchContext = readerContext == null
+            ? null
+            : createSearchContext(readerContext, request, defaultSearchTimeout, false);
         final Releasable markAsUsed = readerContext != null ? readerContext.markAsUsed(getKeepAlive(request)) : () -> {};
         try (Releasable ignored = markAsUsed) {
             final IndexService indexService;
@@ -1525,17 +1529,38 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 final boolean aliasFilterCanMatch = request.getAliasFilter().getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
                 FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
                 MinAndMax<?> minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
-                final boolean canMatch;
+                boolean canMatch;
                 if (canRewriteToMatchNone(request.source())) {
                     QueryBuilder queryBuilder = request.source().query();
+                    canMatch = aliasFilterCanMatch && queryBuilder instanceof MatchNoneQueryBuilder == false;
                     canMatch = aliasFilterCanMatch && queryBuilder instanceof MatchNoneQueryBuilder == false;
                 } else {
                     // null query means match_all
                     canMatch = aliasFilterCanMatch;
                 }
+                canMatch = canMatch & canMatchSearchAfter(searchContext, minMax);
+
                 return new CanMatchResponse(canMatch || hasRefreshPending, minMax);
             }
         }
+    }
+
+    public static boolean canMatchSearchAfter(SearchContext searchContext, MinAndMax<?> minMax) {
+        if (searchContext != null && searchContext.searchAfter() != null && minMax != null) {
+            SortOrder order = searchContext.request().source().sorts().get(0).order();
+            if (order == SortOrder.DESC) {
+                if (minMax.compareMin(searchContext.searchAfter().fields[0]) > 0) {
+                    // In Desc order, if segment/shard minimum is gt search_after, the segment/shard won't be competitive
+                    return false;
+                }
+            } else {
+                if (minMax.compareMax(searchContext.searchAfter().fields[0]) < 0) {
+                    // In ASC order, if segment/shard maximum is lt search_after, the segment/shard won't be competitive
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     /**

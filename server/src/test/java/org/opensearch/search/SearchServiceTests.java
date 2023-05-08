@@ -35,6 +35,7 @@ import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.action.ActionListener;
@@ -104,6 +105,8 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
+import org.opensearch.search.sort.MinAndMax;
+import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.SuggestBuilder;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -1561,5 +1564,168 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         IndexShard indexShard = indexService.getShard(shardId);
         assertEquals(expectedPitCurrent, indexShard.searchStats().getTotal().getPitCurrent());
         assertEquals(expectedPitCount, indexShard.searchStats().getTotal().getPitCount());
+    }
+
+    /**
+     * Test for ASC order search_after query.
+     * Min = 0L, Max = 9L, search_after = 10L
+     * Expected result is canMatch = false
+     */
+    public void testCanMatchSearchAfterAscGreaterThanMax() throws IOException {
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.source(new SearchSourceBuilder());
+        searchRequest.source().sort("testField", SortOrder.ASC);
+        MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
+        searchRequest.allowPartialSearchResults(randomBoolean());
+        try (
+            DefaultSearchContext searchContext = service.createSearchContext(
+                createShardSearchRequest(searchRequest),
+                new TimeValue(System.currentTimeMillis())
+            )
+        ) {
+            FieldDoc fieldDoc = new FieldDoc(0, 0, new Long[] { 10L });
+            searchContext.searchAfter(fieldDoc);
+            assertEquals(SearchService.canMatchSearchAfter(searchContext, minMax), false);
+        }
+    }
+
+    /**
+     * Test for ASC order search_after query.
+     * Min = 0L, Max = 9L, search_after = 7L
+     * Expected result is canMatch = true
+     */
+    public void testCanMatchSearchAfterAscLessThanMax() throws IOException {
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.source(new SearchSourceBuilder());
+        searchRequest.source().sort("testField", SortOrder.ASC);
+        MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
+        searchRequest.allowPartialSearchResults(randomBoolean());
+        try (
+            DefaultSearchContext searchContext = service.createSearchContext(
+                createShardSearchRequest(searchRequest),
+                new TimeValue(System.currentTimeMillis())
+            )
+        ) {
+            FieldDoc fieldDoc = new FieldDoc(0, 0, new Long[] { 7L });
+            searchContext.searchAfter(fieldDoc);
+            assertEquals(SearchService.canMatchSearchAfter(searchContext, minMax), true);
+        }
+    }
+
+    /**
+     * Test for ASC order search_after query.
+     * Min = 0L, Max = 9L, search_after = 9L
+     * Expected result is canMatch = true
+     */
+    public void testCanMatchSearchAfterAscEqualMax() throws IOException {
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.source(new SearchSourceBuilder());
+        searchRequest.source().sort("testField", SortOrder.ASC);
+        MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
+        searchRequest.allowPartialSearchResults(randomBoolean());
+        try (
+            DefaultSearchContext searchContext = service.createSearchContext(
+                createShardSearchRequest(searchRequest),
+                new TimeValue(System.currentTimeMillis())
+            )
+        ) {
+            FieldDoc fieldDoc = new FieldDoc(0, 0, new Long[] { 9L });
+            searchContext.searchAfter(fieldDoc);
+            assertEquals(SearchService.canMatchSearchAfter(searchContext, minMax), true);
+        }
+    }
+
+    /**
+     * Test for DESC order search_after query.
+     * Min = 0L, Max = 9L, search_after = 10L
+     * Expected result is canMatch = true
+     */
+    public void testCanMatchSearchAfterDescGreaterThanMin() throws IOException {
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.source(new SearchSourceBuilder());
+        searchRequest.source().sort("testField", SortOrder.DESC);
+        MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
+        searchRequest.allowPartialSearchResults(randomBoolean());
+        try (
+            DefaultSearchContext searchContext = service.createSearchContext(
+                createShardSearchRequest(searchRequest),
+                new TimeValue(System.currentTimeMillis())
+            )
+        ) {
+            FieldDoc fieldDoc = new FieldDoc(0, 0, new Long[] { 10L });
+            searchContext.searchAfter(fieldDoc);
+            assertEquals(SearchService.canMatchSearchAfter(searchContext, minMax), true);
+        }
+    }
+
+    /**
+     * Test for DESC order search_after query.
+     * Min = 0L, Max = 9L, search_after = -1L
+     * Expected result is canMatch = false
+     */
+    public void testCanMatchSearchAfterDescLessThanMin() throws IOException {
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.source(new SearchSourceBuilder());
+        searchRequest.source().sort("testField", SortOrder.DESC);
+        MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
+        searchRequest.allowPartialSearchResults(randomBoolean());
+        try (
+            DefaultSearchContext searchContext = service.createSearchContext(
+                createShardSearchRequest(searchRequest),
+                new TimeValue(System.currentTimeMillis())
+            )
+        ) {
+            FieldDoc fieldDoc = new FieldDoc(0, 0, new Long[] { -1L });
+            searchContext.searchAfter(fieldDoc);
+            assertEquals(SearchService.canMatchSearchAfter(searchContext, minMax), false);
+        }
+    }
+
+    /**
+     * Test for DESC order search_after query.
+     * Min = 0L, Max = 9L, search_after = 0L
+     * Expected result is canMatch = true
+     */
+    public void testCanMatchSearchAfterDescEqualMin() throws IOException {
+        final SearchService service = getInstanceFromNode(SearchService.class);
+        SearchRequest searchRequest = new SearchRequest();
+        searchRequest.source(new SearchSourceBuilder());
+        searchRequest.source().sort("testField", SortOrder.DESC);
+        MinAndMax<?> minMax = new MinAndMax<Long>(0L, 9L);
+        searchRequest.allowPartialSearchResults(randomBoolean());
+        try (
+            DefaultSearchContext searchContext = service.createSearchContext(
+                createShardSearchRequest(searchRequest),
+                new TimeValue(System.currentTimeMillis())
+            )
+        ) {
+            FieldDoc fieldDoc = new FieldDoc(0, 0, new Long[] { 0L });
+            searchContext.searchAfter(fieldDoc);
+            assertEquals(SearchService.canMatchSearchAfter(searchContext, minMax), true);
+        }
+    }
+
+    private ShardSearchRequest createShardSearchRequest(SearchRequest searchRequest) {
+        String index = randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT);
+        IndexService indexService = createIndex(index);
+        ShardId shardId = new ShardId(indexService.index(), 0);
+        long nowInMillis = System.currentTimeMillis();
+        String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10);
+        return new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            shardId,
+            indexService.numberOfShards(),
+            AliasFilter.EMPTY,
+            1f,
+            nowInMillis,
+            clusterAlias,
+            Strings.EMPTY_ARRAY
+        );
     }
 }
