@@ -51,6 +51,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.node.Node;
+import org.opensearch.search.pipeline.SearchPipelineService;
 
 import java.util.Collections;
 import java.util.List;
@@ -576,6 +577,14 @@ public final class IndexSettings {
         "index.searchable_snapshot.index.id",
         Property.IndexScope,
         Property.InternalIndex
+    );
+
+    public static final Setting<String> DEFAULT_SEARCH_PIPELINE = new Setting<>(
+        "index.default_search_pipeline",
+        SearchPipelineService.NOOP_PIPELINE_ID,
+        Function.identity(),
+        Property.Dynamic,
+        Property.IndexScope
     );
 
     private final Index index;
