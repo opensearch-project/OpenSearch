@@ -32,6 +32,8 @@
 
 package org.opensearch;
 
+import com.google.protobuf.CodedInputStream;
+import com.google.protobuf.CodedOutputStream;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.io.FileSystemUtils;
 import org.opensearch.common.io.stream.StreamInput;
@@ -218,6 +220,18 @@ public class Build {
         return new Build(type, hash, date, snapshot, version, distribution);
     }
 
+    public static Build readBuildProtobuf(CodedInputStream in) throws IOException {
+        // the following is new for opensearch: we write the distribution to support any "forks"
+        final String distribution = in.readString();
+        // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
+        final Type type = Type.fromDisplayName(in.readString(), false);
+        String hash = in.readString();
+        String date = in.readString();
+        boolean snapshot = in.readBool();
+        final String version = in.readString();
+        return new Build(type, hash, date, snapshot, version, distribution);
+    }
+
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
         // the following is new for opensearch: we write the distribution name to support any "forks" of the code
         out.writeString(build.distribution);
@@ -228,6 +242,18 @@ public class Build {
         out.writeString(build.date());
         out.writeBoolean(build.isSnapshot());
         out.writeString(build.getQualifiedVersion());
+    }
+
+    public static void writeBuildProtobuf(Build build, CodedOutputStream out) throws IOException {
+        // the following is new for opensearch: we write the distribution name to support any "forks" of the code
+        out.writeStringNoTag(build.distribution);
+
+        final Type buildType = build.type();
+        out.writeStringNoTag(buildType.displayName());
+        out.writeStringNoTag(build.hash());
+        out.writeStringNoTag(build.date());
+        out.writeBoolNoTag(build.isSnapshot());
+        out.writeStringNoTag(build.getQualifiedVersion());
     }
 
     /**

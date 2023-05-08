@@ -32,6 +32,8 @@
 
 package org.opensearch.common.settings;
 
+import com.google.protobuf.CodedInputStream;
+import com.google.protobuf.CodedOutputStream;
 import org.apache.logging.log4j.Level;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.OpenSearchParseException;
@@ -574,6 +576,23 @@ public final class Settings implements ToXContentFragment {
         return builder.build();
     }
 
+    public static Settings readSettingsFromStreamProtobuf(CodedInputStream in) throws IOException {
+        Builder builder = new Builder();
+        int numberOfSettings = in.readInt32();
+        for (int i = 0; i < numberOfSettings; i++) {
+            String key = in.readString();
+            Object value = in.readString();
+            if (value == null) {
+                builder.putNull(key);
+            } else if (value instanceof List) {
+                builder.putList(key, (List<String>) value);
+            } else {
+                builder.put(key, value.toString());
+            }
+        }
+        return builder.build();
+    }
+
     public static void writeSettingsToStream(Settings settings, StreamOutput out) throws IOException {
         // pull settings to exclude secure settings in size()
         Set<Map.Entry<String, Object>> entries = settings.settings.entrySet();
@@ -581,6 +600,16 @@ public final class Settings implements ToXContentFragment {
         for (Map.Entry<String, Object> entry : entries) {
             out.writeString(entry.getKey());
             out.writeGenericValue(entry.getValue());
+        }
+    }
+
+    public static void writeSettingsToStreamProtobuf(Settings settings, CodedOutputStream out) throws IOException {
+        // pull settings to exclude secure settings in size()
+        Set<Map.Entry<String, Object>> entries = settings.settings.entrySet();
+        out.writeInt32NoTag(entries.size());
+        for (Map.Entry<String, Object> entry : entries) {
+            out.writeStringNoTag(entry.getKey());
+            out.writeStringNoTag(entry.getValue().toString());
         }
     }
 

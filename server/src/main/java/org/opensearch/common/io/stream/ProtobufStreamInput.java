@@ -11,17 +11,25 @@ package org.opensearch.common.io.stream;
 import com.google.protobuf.CodedInputStream;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.function.IntFunction;
 
 import org.apache.lucene.util.ArrayUtil;
 
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.Strings;
 
 /**
  * A class for additional methods to read from a {@link CodedInputStream}.
@@ -29,6 +37,8 @@ import org.opensearch.common.Nullable;
 public class ProtobufStreamInput {
 
     private Version version = Version.CURRENT;
+
+    private static final TimeUnit[] TIME_UNITS = TimeUnit.values();
 
     /**
      * The version of the node on the other side of this stream.
@@ -50,6 +60,24 @@ public class ProtobufStreamInput {
             return in.readString();
         }
         return null;
+    }
+
+    @Nullable
+    public Long readOptionalLong(CodedInputStream in) throws IOException {
+        if (readBoolean(in)) {
+            return in.readInt64();
+        }
+        return null;
+    }
+
+    @Nullable
+    public final Boolean readOptionalBoolean(CodedInputStream in) throws IOException {
+        final byte value = in.readRawByte();
+        if (value == 2) {
+            return null;
+        } else {
+            return readBoolean(value);
+        }
     }
 
     /**
@@ -162,6 +190,51 @@ public class ProtobufStreamInput {
         return new BytesArray(bytes, 0, length);
     }
 
+    /**
+     * Read a {@link TimeValue} from the stream
+     */
+    public TimeValue readTimeValue(CodedInputStream in) throws IOException {
+        long duration = in.readInt64();
+        TimeUnit timeUnit = TIME_UNITS[in.readRawByte()];
+        return new TimeValue(duration, timeUnit);
+    }
+
+    public String[] readStringArray(CodedInputStream in) throws IOException {
+        int size = readArraySize(in);
+        if (size == 0) {
+            return Strings.EMPTY_ARRAY;
+        }
+        String[] ret = new String[size];
+        for (int i = 0; i < size; i++) {
+            ret[i] = in.readString();
+        }
+        return ret;
+    }
+
+    private <E extends Enum<E>> E readEnum(Class<E> enumClass, E[] values, CodedInputStream in) throws IOException {
+        int ordinal = readVInt(in);
+        if (ordinal < 0 || ordinal >= values.length) {
+            throw new IOException("Unknown " + enumClass.getSimpleName() + " ordinal [" + ordinal + "]");
+        }
+        return values[ordinal];
+    }
+
+    /**
+     * Reads an enum with type E that was serialized based on the value of it's ordinal
+     */
+    public <E extends Enum<E>> EnumSet<E> readEnumSet(Class<E> enumClass, CodedInputStream in) throws IOException {
+        int size = readVInt(in);
+        final EnumSet<E> res = EnumSet.noneOf(enumClass);
+        if (size == 0) {
+            return res;
+        }
+        final E[] values = enumClass.getEnumConstants();
+        for (int i = 0; i < size; i++) {
+            res.add(readEnum(enumClass, values, in));
+        }
+        return res;
+    }
+
     private boolean readBoolean(final byte value) {
         if (value == 0) {
             return false;
@@ -172,4 +245,86 @@ public class ProtobufStreamInput {
             throw new IllegalStateException(message);
         }
     }
+
+    /**
+     * Reads a list of objects. The list is expected to have been written using {@link StreamOutput#writeList(List)}.
+     * If the returned list contains any entries it will be mutable. If it is empty it might be immutable.
+     *
+     * @return the list of objects
+     * @throws IOException if an I/O exception occurs reading the list
+     */
+    public <T> List<T> readList(final ProtobufWriteable.Reader<T> reader, CodedInputStream in) throws IOException {
+        return readCollection(reader, ArrayList::new, Collections.emptyList(), in);
+    }
+
+    /**
+     * Reads a collection of objects
+     */
+    private <T, C extends Collection<? super T>> C readCollection(
+        ProtobufWriteable.Reader<T> reader,
+        IntFunction<C> constructor,
+        C empty,
+        CodedInputStream in
+    ) throws IOException {
+        int count = readArraySize(in);
+        if (count == 0) {
+            return empty;
+        }
+        C builder = constructor.apply(count);
+        for (int i = 0; i < count; i++) {
+            builder.add(reader.read(in));
+        }
+        return builder;
+    }
+
+    /**
+     * Reads a {@link NamedWriteable} from the current stream, by first reading its name and then looking for
+     * the corresponding entry in the registry by name, so that the proper object can be read and returned.
+     * Default implementation throws {@link UnsupportedOperationException} as StreamInput doesn't hold a registry.
+     */
+    @Nullable
+    public <C extends ProtobufNamedWriteable> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass) throws IOException {
+        throw new UnsupportedOperationException("can't read named writeable from StreamInput");
+    }
+
+    /**
+     * Reads a {@link ProtobufNamedWriteable} from the current stream with the given name. It is assumed that the caller obtained the name
+     * from other source, so it's not read from the stream. The name is used for looking for
+     * the corresponding entry in the registry by name, so that the proper object can be read and returned.
+     * Default implementation throws {@link UnsupportedOperationException} as StreamInput doesn't hold a registry.
+     */
+    @Nullable
+    public <C extends ProtobufNamedWriteable> C readNamedWriteable(
+        @SuppressWarnings("unused") Class<C> categoryClass,
+        @SuppressWarnings("unused") String name
+    ) throws IOException {
+        throw new UnsupportedOperationException("can't read named writeable from StreamInput");
+    }
+
+    public <T> T[] readOptionalArray(ProtobufWriteable.Reader<T> reader, IntFunction<T[]> arraySupplier, CodedInputStream in)
+        throws IOException {
+        return readBoolean(in) ? readArray(reader, arraySupplier, in) : null;
+    }
+
+    public <T> T[] readArray(final ProtobufWriteable.Reader<T> reader, final IntFunction<T[]> arraySupplier, CodedInputStream in)
+        throws IOException {
+        final int length = readArraySize(in);
+        final T[] values = arraySupplier.apply(length);
+        for (int i = 0; i < length; i++) {
+            values[i] = reader.read(in);
+        }
+        return values;
+    }
+
+    /**
+     * Read an optional {@link TimeValue} from the stream, returning null if no TimeValue was written.
+     */
+    public @Nullable TimeValue readOptionalTimeValue(CodedInputStream in) throws IOException {
+        if (readBoolean(in)) {
+            return readTimeValue(in);
+        } else {
+            return null;
+        }
+    }
+
 }

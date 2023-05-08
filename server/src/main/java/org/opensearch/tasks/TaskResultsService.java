@@ -154,6 +154,53 @@ public class TaskResultsService {
         }
     }
 
+    public void storeResult(ProtobufTaskResult taskResult, ActionListener<Void> listener) {
+
+        ClusterState state = clusterService.state();
+
+        if (state.routingTable().hasIndex(TASK_INDEX) == false) {
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest();
+            createIndexRequest.settings(taskResultIndexSettings());
+            createIndexRequest.index(TASK_INDEX);
+            createIndexRequest.mapping(taskResultIndexMapping());
+            createIndexRequest.cause("auto(task api)");
+
+            client.admin().indices().create(createIndexRequest, new ActionListener<CreateIndexResponse>() {
+                @Override
+                public void onResponse(CreateIndexResponse result) {
+                    doStoreResult(taskResult, listener);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
+                        // we have the index, do it
+                        try {
+                            doStoreResult(taskResult, listener);
+                        } catch (Exception inner) {
+                            inner.addSuppressed(e);
+                            listener.onFailure(inner);
+                        }
+                    } else {
+                        listener.onFailure(e);
+                    }
+                }
+            });
+        } else {
+            IndexMetadata metadata = state.getMetadata().index(TASK_INDEX);
+            if (getTaskResultMappingVersion(metadata) < TASK_RESULT_MAPPING_VERSION) {
+                // The index already exists but doesn't have our mapping
+                client.admin()
+                    .indices()
+                    .preparePutMapping(TASK_INDEX)
+                    .setSource(taskResultIndexMapping(), XContentType.JSON)
+                    .execute(ActionListener.delegateFailure(listener, (l, r) -> doStoreResult(taskResult, listener)));
+            } else {
+                doStoreResult(taskResult, listener);
+            }
+        }
+    }
+
     private int getTaskResultMappingVersion(IndexMetadata metadata) {
         MappingMetadata mappingMetadata = metadata.mapping();
         if (mappingMetadata == null) {
@@ -168,6 +215,17 @@ public class TaskResultsService {
     }
 
     private void doStoreResult(TaskResult taskResult, ActionListener<Void> listener) {
+        IndexRequestBuilder index = client.prepareIndex(TASK_INDEX).setId(taskResult.getTask().getTaskId().toString());
+        try (XContentBuilder builder = XContentFactory.contentBuilder(Requests.INDEX_CONTENT_TYPE)) {
+            taskResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            index.setSource(builder);
+        } catch (IOException e) {
+            throw new OpenSearchException("Couldn't convert task result to XContent for [{}]", e, taskResult.getTask());
+        }
+        doStoreResult(STORE_BACKOFF_POLICY.iterator(), index, listener);
+    }
+
+    private void doStoreResult(ProtobufTaskResult taskResult, ActionListener<Void> listener) {
         IndexRequestBuilder index = client.prepareIndex(TASK_INDEX).setId(taskResult.getTask().getTaskId().toString());
         try (XContentBuilder builder = XContentFactory.contentBuilder(Requests.INDEX_CONTENT_TYPE)) {
             taskResult.toXContent(builder, ToXContent.EMPTY_PARAMS);

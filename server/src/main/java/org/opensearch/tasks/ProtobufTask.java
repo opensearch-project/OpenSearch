@@ -14,9 +14,9 @@ package org.opensearch.tasks;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
-import org.opensearch.action.ActionResponse;
+import org.opensearch.action.ProtobufActionResponse;
 import org.opensearch.action.NotifyOnceListener;
-import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.ProtobufDiscoveryNode;
 import org.opensearch.common.io.stream.NamedWriteable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
@@ -385,11 +385,11 @@ public class ProtobufTask {
         return headers.get(header);
     }
 
-    public ProtobufTaskResult result(DiscoveryNode node, Exception error) throws IOException {
+    public ProtobufTaskResult result(ProtobufDiscoveryNode node, Exception error) throws IOException {
         return new ProtobufTaskResult(taskInfo(node.getId(), true, true), error);
     }
 
-    public ProtobufTaskResult result(DiscoveryNode node, ActionResponse response) throws IOException {
+    public ProtobufTaskResult result(ProtobufDiscoveryNode node, ProtobufActionResponse response) throws IOException {
         if (response instanceof ToXContent) {
             return new ProtobufTaskResult(taskInfo(node.getId(), true, true), (ToXContent) response);
         } else {

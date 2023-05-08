@@ -35,11 +35,16 @@ package org.opensearch.rest.action.cat;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.opensearch.action.admin.cluster.node.info.ProtobufNodeInfo;
+import org.opensearch.action.admin.cluster.node.info.ProtobufNodesInfoRequest;
+import org.opensearch.action.admin.cluster.node.info.ProtobufNodesInfoResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.action.admin.cluster.state.ProtobufClusterStateRequest;
+import org.opensearch.action.admin.cluster.state.ProtobufClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
@@ -65,6 +70,7 @@ import org.opensearch.indices.NodeIndicesStats;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.jvm.JvmStats;
+import org.opensearch.monitor.jvm.ProtobufJvmInfo;
 import org.opensearch.monitor.os.OsStats;
 import org.opensearch.monitor.process.ProcessInfo;
 import org.opensearch.monitor.process.ProcessStats;
@@ -109,7 +115,7 @@ public class RestNodesAction extends AbstractCatAction {
 
     @Override
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
-        final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
+        final ProtobufClusterStateRequest clusterStateRequest = new ProtobufClusterStateRequest();
         clusterStateRequest.clear().nodes(true);
         if (request.hasParam("local")) {
             deprecationLogger.deprecate("cat_nodes_local_parameter", LOCAL_DEPRECATED_MESSAGE);
@@ -118,23 +124,23 @@ public class RestNodesAction extends AbstractCatAction {
         clusterStateRequest.clusterManagerNodeTimeout(
             request.paramAsTime("cluster_manager_timeout", clusterStateRequest.clusterManagerNodeTimeout())
         );
-        parseDeprecatedMasterTimeoutParameter(clusterStateRequest, request, deprecationLogger, getName());
+        parseDeprecatedMasterTimeoutParameterProtobuf(clusterStateRequest, request, deprecationLogger, getName());
         final boolean fullId = request.paramAsBoolean("full_id", false);
-        return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
+        return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<ProtobufClusterStateResponse>(channel) {
             @Override
-            public void processResponse(final ClusterStateResponse clusterStateResponse) {
-                NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
+            public void processResponse(final ProtobufClusterStateResponse clusterStateResponse) {
+                ProtobufNodesInfoRequest nodesInfoRequest = new ProtobufNodesInfoRequest();
                 nodesInfoRequest.timeout(request.param("timeout"));
                 nodesInfoRequest.clear()
                     .addMetrics(
-                        NodesInfoRequest.Metric.JVM.metricName(),
-                        NodesInfoRequest.Metric.OS.metricName(),
-                        NodesInfoRequest.Metric.PROCESS.metricName(),
-                        NodesInfoRequest.Metric.HTTP.metricName()
+                        ProtobufNodesInfoRequest.Metric.JVM.metricName(),
+                        ProtobufNodesInfoRequest.Metric.OS.metricName(),
+                        ProtobufNodesInfoRequest.Metric.PROCESS.metricName(),
+                        ProtobufNodesInfoRequest.Metric.HTTP.metricName()
                     );
-                client.admin().cluster().nodesInfo(nodesInfoRequest, new RestActionListener<NodesInfoResponse>(channel) {
+                client.admin().cluster().nodesInfo(nodesInfoRequest, new RestActionListener<ProtobufNodesInfoResponse>(channel) {
                     @Override
-                    public void processResponse(final NodesInfoResponse nodesInfoResponse) {
+                    public void processResponse(final ProtobufNodesInfoResponse nodesInfoResponse) {
                         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
                         nodesStatsRequest.timeout(request.param("timeout"));
                         nodesStatsRequest.clear()
@@ -350,8 +356,8 @@ public class RestNodesAction extends AbstractCatAction {
     Table buildTable(
         boolean fullId,
         RestRequest req,
-        ClusterStateResponse state,
-        NodesInfoResponse nodesInfo,
+        ProtobufClusterStateResponse state,
+        ProtobufNodesInfoResponse nodesInfo,
         NodesStatsResponse nodesStats
     ) {
 
@@ -360,10 +366,10 @@ public class RestNodesAction extends AbstractCatAction {
         Table table = getTableWithHeader(req);
 
         for (DiscoveryNode node : nodes) {
-            NodeInfo info = nodesInfo.getNodesMap().get(node.getId());
+            ProtobufNodeInfo info = nodesInfo.getNodesMap().get(node.getId());
             NodeStats stats = nodesStats.getNodesMap().get(node.getId());
 
-            JvmInfo jvmInfo = info == null ? null : info.getInfo(JvmInfo.class);
+            ProtobufJvmInfo jvmInfo = info == null ? null : info.getInfo(ProtobufJvmInfo.class);
             JvmStats jvmStats = stats == null ? null : stats.getJvm();
             FsInfo fsInfo = stats == null ? null : stats.getFs();
             OsStats osStats = stats == null ? null : stats.getOs();
