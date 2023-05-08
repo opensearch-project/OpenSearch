@@ -42,6 +42,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -59,6 +60,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.DISCOVERY;
+import static org.opensearch.cluster.coordination.JoinHelper.CLUSTER_MANAGER_VALIDATE_JOIN_CACHE_INTERVAL;
 import static org.opensearch.test.NodeRoles.dataNode;
 import static org.opensearch.test.NodeRoles.clusterManagerOnlyNode;
 import static org.hamcrest.Matchers.containsString;
@@ -106,7 +108,9 @@ public class ZenDiscoveryIT extends OpenSearchIntegTestCase {
     }
 
     public void testHandleNodeJoin_incompatibleClusterState() throws InterruptedException, ExecutionException, TimeoutException {
-        String clusterManagerNode = internalCluster().startClusterManagerOnlyNode();
+        String clusterManagerNode = internalCluster().startClusterManagerOnlyNode(
+            Settings.builder().put(CLUSTER_MANAGER_VALIDATE_JOIN_CACHE_INTERVAL.getKey(), TimeValue.timeValueMillis(0)).build()
+        );
         String node1 = internalCluster().startNode();
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, node1);
         Coordinator coordinator = (Coordinator) internalCluster().getInstance(Discovery.class, clusterManagerNode);
@@ -117,7 +121,6 @@ public class ZenDiscoveryIT extends OpenSearchIntegTestCase {
 
         final CompletableFuture<Throwable> future = new CompletableFuture<>();
         DiscoveryNode node = state.nodes().getLocalNode();
-
         coordinator.sendValidateJoinRequest(
             stateWithCustomMetadata,
             new JoinRequest(node, 0L, Optional.empty()),

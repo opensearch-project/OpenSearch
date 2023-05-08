@@ -213,7 +213,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
                         requestId,
                         new TransportService.HandshakeResponse(destination, initialState.getClusterName(), destination.getVersion())
                     );
-                } else if (action.equals(JoinHelper.VALIDATE_JOIN_ACTION_NAME)) {
+                } else if (action.equals(JoinHelper.VALIDATE_COMPRESSED_JOIN_ACTION_NAME)) {
                     handleResponse(requestId, new TransportResponse.Empty());
                 } else {
                     super.onSendRequest(requestId, action, request, destination);
