@@ -1534,10 +1534,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // null query means match_all
                     canMatch = aliasFilterCanMatch;
                 }
-                final Optional<SortAndFormats> sortOpt = SortBuilder.buildSort(request.source().sorts(), context);
-                final FieldDoc searchAfter = sortOpt.get() == null || CollectionUtils.isEmpty(request.source().searchAfter())
-                    ? null
-                    : SearchAfterBuilder.buildFieldDoc(sortOpt.get(), request.source().searchAfter());
+                final List<SortBuilder<?>> sorts = request.source().sorts();
+                final Optional<SortAndFormats> sortOpt = sorts == null ? null : SortBuilder.buildSort(sorts, context);
+                final FieldDoc searchAfter = sortOpt == null
+                    || sortOpt.get() == null
+                    || CollectionUtils.isEmpty(request.source().searchAfter())
+                        ? null
+                        : SearchAfterBuilder.buildFieldDoc(sortOpt.get(), request.source().searchAfter());
                 canMatch = canMatch && canMatchSearchAfter(searchAfter, minMax, sortBuilder);
 
                 return new CanMatchResponse(canMatch || hasRefreshPending, minMax);
