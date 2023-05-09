@@ -232,7 +232,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         // We spy on IndexShard.getReplicationTracker() to validate that we have tried running remote time as per the expectation.
         CountDownLatch refreshCountLatch = new CountDownLatch(succeedOnAttempt);
         // We spy on IndexShard.getEngine() to validate that we have successfully hit the terminal code for ascertaining successful upload.
-        CountDownLatch successLatch = new CountDownLatch(2);
+        // Value has been set as 3 as during a successful upload IndexShard.getEngine() is hit thrice and with mockito we are counting down
+        CountDownLatch successLatch = new CountDownLatch(3);
         mockIndexShardWithRetryAndScheduleRefresh(succeedOnAttempt, refreshCountLatch, successLatch);
         assertBusy(() -> assertEquals(0, refreshCountLatch.getCount()));
         assertBusy(() -> assertEquals(0, successLatch.getCount()));
@@ -245,7 +246,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         // We spy on IndexShard.getReplicationTracker() to validate that we have tried running remote time as per the expectation.
         CountDownLatch refreshCountLatch = new CountDownLatch(succeedOnAttempt);
         // We spy on IndexShard.getEngine() to validate that we have successfully hit the terminal code for ascertaining successful upload.
-        CountDownLatch successLatch = new CountDownLatch(2);
+        // Value has been set as 3 as during a successful upload IndexShard.getEngine() is hit thrice and with mockito we are counting down
+        CountDownLatch successLatch = new CountDownLatch(3);
         mockIndexShardWithRetryAndScheduleRefresh(succeedOnAttempt, refreshCountLatch, successLatch);
         assertBusy(() -> assertEquals(0, refreshCountLatch.getCount()));
         assertBusy(() -> assertEquals(0, successLatch.getCount()));
