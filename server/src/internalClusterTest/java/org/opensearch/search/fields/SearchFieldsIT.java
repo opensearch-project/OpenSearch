@@ -35,6 +35,7 @@ package org.opensearch.search.fields;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.Numbers;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
@@ -66,6 +67,7 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 
+import java.math.BigInteger;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -113,6 +115,20 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
+            scripts.put("doc['unsigned_num1'].value", vars -> {
+                Map<?, ?> doc = (Map) vars.get("doc");
+                ScriptDocValues.UnsignedLongs num1 = (ScriptDocValues.UnsignedLongs) doc.get("unsigned_num1");
+                return num1.getValue();
+            });
+
+            scripts.put("doc['unsigned_num1'].value * factor", vars -> {
+                Map<?, ?> doc = (Map) vars.get("doc");
+                ScriptDocValues.UnsignedLongs num1 = (ScriptDocValues.UnsignedLongs) doc.get("unsigned_num1");
+                Map<String, Object> params = (Map<String, Object>) vars.get("params");
+                Double factor = (Double) params.get("factor");
+                return num1.getValue().multiply(Numbers.toBigIntegerExact(factor));
+            });
+
             scripts.put("doc['num1'].value", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Doubles num1 = (ScriptDocValues.Doubles) doc.get("num1");
@@ -140,6 +156,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             });
 
             scripts.put("_fields['num1'].value", vars -> fieldsScript(vars, "num1"));
+            scripts.put("_fields['unsigned_num1'].value", vars -> fieldsScript(vars, "unsigned_num1"));
             scripts.put("_fields._uid.value", vars -> fieldsScript(vars, "_uid"));
             scripts.put("_fields._id.value", vars -> fieldsScript(vars, "_id"));
 
@@ -386,6 +403,109 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
         assertThat(response.getHits().getAt(2).getFields().get("sNum1").getValues().get(0), equalTo(6.0));
     }
 
+    public void testScriptWithUnsignedLong() throws Exception {
+        createIndex("test");
+
+        String mapping = Strings.toString(
+            XContentFactory.jsonBuilder()
+                .startObject()
+                .startObject(MapperService.SINGLE_MAPPING_NAME)
+                .startObject("properties")
+                .startObject("unsigned_num1")
+                .field("type", "unsigned_long")
+                .field("store", true)
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+        );
+
+        client().admin().indices().preparePutMapping().setSource(mapping, XContentType.JSON).get();
+
+        client().prepareIndex("test")
+            .setId("1")
+            .setSource(jsonBuilder().startObject().field("test", "value beck").field("unsigned_num1", BigInteger.valueOf(1)).endObject())
+            .get();
+        client().admin().indices().prepareFlush().get();
+        client().prepareIndex("test")
+            .setId("2")
+            .setSource(jsonBuilder().startObject().field("test", "value beck").field("unsigned_num1", BigInteger.valueOf(2)).endObject())
+            .get();
+        client().admin().indices().prepareFlush().get();
+        client().prepareIndex("test")
+            .setId("3")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("test", "value beck")
+                    .field("unsigned_num1", new BigInteger("9322337203685477580"))
+                    .endObject()
+            )
+            .get();
+        client().admin().indices().refresh(refreshRequest()).actionGet();
+
+        SearchResponse response = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .addSort("unsigned_num1", SortOrder.ASC)
+            .addScriptField(
+                "sNum1",
+                new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['unsigned_num1'].value", Collections.emptyMap())
+            )
+            .addScriptField(
+                "sNum1_field",
+                new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "_fields['unsigned_num1'].value", Collections.emptyMap())
+            )
+            .get();
+
+        assertNoFailures(response);
+
+        logger.info("running doc['unsigned_num1'].value");
+        assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+        assertFalse(response.getHits().getAt(0).hasSource());
+        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+        Set<String> fields = new HashSet<>(response.getHits().getAt(0).getFields().keySet());
+        assertThat(fields, equalTo(newHashSet("sNum1", "sNum1_field")));
+        assertThat(response.getHits().getAt(0).getFields().get("sNum1").getValues().get(0), equalTo(BigInteger.valueOf(1)));
+        assertThat(response.getHits().getAt(0).getFields().get("sNum1_field").getValues().get(0), equalTo(BigInteger.valueOf(1)));
+        assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
+        fields = new HashSet<>(response.getHits().getAt(0).getFields().keySet());
+        assertThat(fields, equalTo(newHashSet("sNum1", "sNum1_field")));
+        assertThat(response.getHits().getAt(1).getFields().get("sNum1").getValues().get(0), equalTo(BigInteger.valueOf(2)));
+        assertThat(response.getHits().getAt(1).getFields().get("sNum1_field").getValues().get(0), equalTo(BigInteger.valueOf(2)));
+        assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
+        fields = new HashSet<>(response.getHits().getAt(0).getFields().keySet());
+        assertThat(fields, equalTo(newHashSet("sNum1", "sNum1_field")));
+        assertThat(response.getHits().getAt(2).getFields().get("sNum1").getValues().get(0), equalTo(new BigInteger("9322337203685477580")));
+        assertThat(
+            response.getHits().getAt(2).getFields().get("sNum1_field").getValues().get(0),
+            equalTo(new BigInteger("9322337203685477580"))
+        );
+
+        logger.info("running doc['unsigned_num1'].value * factor");
+        Map<String, Object> params = MapBuilder.<String, Object>newMapBuilder().put("factor", 2.0).map();
+        response = client().prepareSearch()
+            .setQuery(matchAllQuery())
+            .addSort("unsigned_num1", SortOrder.ASC)
+            .addScriptField("sNum1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['unsigned_num1'].value * factor", params))
+            .get();
+
+        assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+        fields = new HashSet<>(response.getHits().getAt(0).getFields().keySet());
+        assertThat(fields, equalTo(singleton("sNum1")));
+        assertThat(response.getHits().getAt(0).getFields().get("sNum1").getValues().get(0), equalTo(BigInteger.valueOf(2)));
+        assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
+        fields = new HashSet<>(response.getHits().getAt(0).getFields().keySet());
+        assertThat(fields, equalTo(singleton("sNum1")));
+        assertThat(response.getHits().getAt(1).getFields().get("sNum1").getValues().get(0), equalTo(BigInteger.valueOf(4)));
+        assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
+        fields = new HashSet<>(response.getHits().getAt(0).getFields().keySet());
+        assertThat(fields, equalTo(singleton("sNum1")));
+        assertThat(
+            response.getHits().getAt(2).getFields().get("sNum1").getValues().get(0),
+            equalTo(new BigInteger("18644674407370955160"))
+        );
+    }
+
     public void testScriptFieldWithNanos() throws Exception {
         createIndex("test");
 
@@ -630,6 +750,10 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
                 .field("type", "binary")
                 .field("store", true)
                 .endObject()
+                .startObject("unsigned_long_field")
+                .field("type", "unsigned_long")
+                .field("store", true)
+                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -651,6 +775,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
                     .field("date_field", DateFormatter.forPattern("date_optional_time").format(date))
                     .field("boolean_field", true)
                     .field("binary_field", Base64.getEncoder().encodeToString("testing text".getBytes("UTF-8")))
+                    .field("unsigned_long_field", new BigInteger("10223372036854775807"))
                     .endObject()
             )
             .get();
@@ -668,6 +793,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             .addStoredField("date_field")
             .addStoredField("boolean_field")
             .addStoredField("binary_field")
+            .addStoredField("unsigned_long_field")
             .get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -685,7 +811,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
                     "double_field",
                     "date_field",
                     "boolean_field",
-                    "binary_field"
+                    "binary_field",
+                    "unsigned_long_field"
                 )
             )
         );
@@ -701,6 +828,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
         assertThat(searchHit.getFields().get("date_field").getValue(), equalTo((Object) dateTime));
         assertThat(searchHit.getFields().get("boolean_field").getValue(), equalTo((Object) Boolean.TRUE));
         assertThat(searchHit.getFields().get("binary_field").getValue(), equalTo(new BytesArray("testing text".getBytes("UTF8"))));
+        assertThat(searchHit.getFields().get("unsigned_long_field").getValue(), equalTo(new BigInteger("10223372036854775807")));
     }
 
     public void testSearchFieldsMetadata() throws Exception {
@@ -862,6 +990,9 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
                 .startObject("ip_field")
                 .field("type", "ip")
                 .endObject()
+                .startObject("flat_object_field")
+                .field("type", "flat_object")
+                .endObject()
                 .endObject()
                 .endObject()
                 .endObject()
@@ -886,6 +1017,10 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
                     .field("boolean_field", true)
                     .field("binary_field", new byte[] { 42, 100 })
                     .field("ip_field", "::1")
+                    .field("flat_object_field")
+                    .startObject()
+                    .field("foo", "bar")
+                    .endObject()
                     .endObject()
             )
             .get();
@@ -905,7 +1040,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             .addDocValueField("date_field")
             .addDocValueField("boolean_field")
             .addDocValueField("binary_field")
-            .addDocValueField("ip_field");
+            .addDocValueField("ip_field")
+            .addDocValueField("flat_object_field");
         SearchResponse searchResponse = builder.get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -926,11 +1062,14 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
                     "text_field",
                     "keyword_field",
                     "binary_field",
-                    "ip_field"
+                    "ip_field",
+                    "flat_object_field"
                 )
             )
         );
-
+        String json = Strings.toString(
+            XContentFactory.jsonBuilder().startObject().startObject("flat_object_field").field("foo", "bar").endObject().endObject()
+        );
         assertThat(searchResponse.getHits().getAt(0).getFields().get("byte_field").getValue().toString(), equalTo("1"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("short_field").getValue().toString(), equalTo("2"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("integer_field").getValue(), equalTo((Object) 3L));
@@ -946,6 +1085,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("keyword_field").getValue(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("binary_field").getValue(), equalTo("KmQ"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("ip_field").getValue(), equalTo("::1"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("flat_object_field").getValue(), equalTo("flat_object_field.foo"));
 
         builder = client().prepareSearch().setQuery(matchAllQuery()).addDocValueField("*field");
         searchResponse = builder.get();
@@ -968,7 +1108,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
                     "text_field",
                     "keyword_field",
                     "binary_field",
-                    "ip_field"
+                    "ip_field",
+                    "flat_object_field"
                 )
             )
         );
@@ -988,6 +1129,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("keyword_field").getValue(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("binary_field").getValue(), equalTo("KmQ"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("ip_field").getValue(), equalTo("::1"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("flat_object_field").getValue(), equalTo("flat_object_field.foo"));
 
         builder = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -1002,7 +1144,9 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
             .addDocValueField("date_field", "use_field_mapping")
             .addDocValueField("boolean_field", "use_field_mapping")
             .addDocValueField("binary_field", "use_field_mapping")
-            .addDocValueField("ip_field", "use_field_mapping");
+            .addDocValueField("ip_field", "use_field_mapping")
+            .addDocValueField("flat_object_field", "use_field_mapping");
+        ;
         searchResponse = builder.get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -1023,7 +1167,8 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
                     "text_field",
                     "keyword_field",
                     "binary_field",
-                    "ip_field"
+                    "ip_field",
+                    "flat_object_field"
                 )
             )
         );
@@ -1043,6 +1188,7 @@ public class SearchFieldsIT extends OpenSearchIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getFields().get("keyword_field").getValue(), equalTo("foo"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("binary_field").getValue(), equalTo("KmQ"));
         assertThat(searchResponse.getHits().getAt(0).getFields().get("ip_field").getValue(), equalTo("::1"));
+        assertThat(searchResponse.getHits().getAt(0).getFields().get("flat_object_field").getValue(), equalTo("flat_object_field.foo"));
 
         builder = client().prepareSearch()
             .setQuery(matchAllQuery())

@@ -45,8 +45,6 @@ public class FileCacheStatsTests extends OpenSearchTestCase {
             fileCacheCapacity,
             usage.usage(),
             stats.evictionWeight(),
-            stats.removeWeight(),
-            stats.replaceCount(),
             stats.hitCount(),
             stats.missCount()
         );
@@ -64,10 +62,8 @@ public class FileCacheStatsTests extends OpenSearchTestCase {
         assertEquals(original.getActive(), deserialized.getActive());
         assertEquals(original.getActivePercent(), deserialized.getActivePercent());
         assertEquals(original.getEvicted(), deserialized.getEvicted());
-        assertEquals(original.getRemoved(), deserialized.getRemoved());
-        assertEquals(original.getReplacedCount(), deserialized.getReplacedCount());
         assertEquals(original.getCacheHits(), deserialized.getCacheHits());
-        assertEquals(original.getCacheMiss(), deserialized.getCacheMiss());
+        assertEquals(original.getCacheMisses(), deserialized.getCacheMisses());
     }
 
     public void testFileCacheStatsSerialization() throws IOException {

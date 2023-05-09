@@ -35,20 +35,28 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.bootstrap.BootstrapContext;
 import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.transport.BoundTransportAddress;
+import org.opensearch.common.unit.ByteSizeUnit;
+import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.env.Environment;
+import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.Engine.Searcher;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.breaker.BreakerSettings;
 import org.opensearch.indices.breaker.CircuitBreakerService;
+import org.opensearch.monitor.fs.FsInfo;
+import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.plugins.CircuitBreakerPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.test.NodeRoles;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.MockHttpTransport;
@@ -59,6 +67,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -66,6 +75,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.test.NodeRoles.addRoles;
 import static org.opensearch.test.NodeRoles.dataNode;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
@@ -343,6 +353,54 @@ public class NodeTests extends OpenSearchTestCase {
                 ((MockCircuitBreakerPlugin) breakerPlugin).myCircuitBreaker.get(),
                 service.getBreaker("test_breaker")
             );
+        }
+    }
+
+    public void testCreateWithFileCache() throws Exception {
+        Settings searchRoleSettings = addRoles(baseSettings().build(), Set.of(DiscoveryNodeRole.SEARCH_ROLE));
+        List<Class<? extends Plugin>> plugins = basePlugins();
+        ByteSizeValue cacheSize = new ByteSizeValue(16, ByteSizeUnit.GB);
+        Settings searchRoleSettingsWithConfig = baseSettings().put(searchRoleSettings)
+            .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize)
+            .build();
+        Settings onlySearchRoleSettings = Settings.builder()
+            .put(searchRoleSettingsWithConfig)
+            .put(
+                NodeRoles.removeRoles(
+                    searchRoleSettingsWithConfig,
+                    Set.of(
+                        DiscoveryNodeRole.DATA_ROLE,
+                        DiscoveryNodeRole.CLUSTER_MANAGER_ROLE,
+                        DiscoveryNodeRole.INGEST_ROLE,
+                        DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE
+                    )
+                )
+            )
+            .build();
+
+        // Test exception thrown with configuration missing
+        assertThrows(SettingsException.class, () -> new MockNode(searchRoleSettings, plugins));
+
+        // Test file cache is initialized
+        try (MockNode mockNode = new MockNode(searchRoleSettingsWithConfig, plugins)) {
+            NodeEnvironment.NodePath fileCacheNodePath = mockNode.getNodeEnvironment().fileCacheNodePath();
+            assertEquals(cacheSize.getBytes(), fileCacheNodePath.fileCacheReservedSize.getBytes());
+        }
+
+        // Test data + search node with defined cache size
+        try (MockNode mockNode = new MockNode(searchRoleSettingsWithConfig, plugins)) {
+            NodeEnvironment.NodePath fileCacheNodePath = mockNode.getNodeEnvironment().fileCacheNodePath();
+            assertEquals(cacheSize.getBytes(), fileCacheNodePath.fileCacheReservedSize.getBytes());
+        }
+
+        // Test dedicated search node with no configuration
+        try (MockNode mockNode = new MockNode(onlySearchRoleSettings, plugins)) {
+            NodeEnvironment.NodePath fileCacheNodePath = mockNode.getNodeEnvironment().fileCacheNodePath();
+            assertTrue(fileCacheNodePath.fileCacheReservedSize.getBytes() > 0);
+            FsProbe fsProbe = new FsProbe(mockNode.getNodeEnvironment(), mockNode.fileCache());
+            FsInfo fsInfo = fsProbe.stats(null);
+            FsInfo.Path cachePathInfo = fsInfo.iterator().next();
+            assertEquals(cachePathInfo.getFileCacheReserved().getBytes(), fileCacheNodePath.fileCacheReservedSize.getBytes());
         }
     }
 

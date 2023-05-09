@@ -47,6 +47,7 @@ import org.opensearch.threadpool.ThreadPool;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 
 public class MockSearchService extends SearchService {
@@ -94,7 +95,8 @@ public class MockSearchService extends SearchService {
         BigArrays bigArrays,
         QueryPhase queryPhase,
         FetchPhase fetchPhase,
-        CircuitBreakerService circuitBreakerService
+        CircuitBreakerService circuitBreakerService,
+        Executor indexSearcherExecutor
     ) {
         super(
             clusterService,
@@ -106,7 +108,7 @@ public class MockSearchService extends SearchService {
             fetchPhase,
             null,
             circuitBreakerService,
-            null
+            indexSearcherExecutor
         );
     }
 

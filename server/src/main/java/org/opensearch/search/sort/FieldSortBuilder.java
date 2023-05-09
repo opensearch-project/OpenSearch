@@ -71,6 +71,7 @@ import org.opensearch.search.SearchSortValuesAndFormats;
 import org.opensearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Objects;
@@ -392,6 +393,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 return NumericType.DATE;
             case "date_nanos":
                 return NumericType.DATE_NANOSECONDS;
+            case "unsigned_long":
+                return NumericType.UNSIGNED_LONG;
 
             default:
                 throw new IllegalArgumentException(
@@ -658,7 +661,12 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             Number maxPoint = numberFieldType.parsePoint(PointValues.getMaxPackedValue(reader, fieldName));
             switch (IndexSortConfig.getSortFieldType(sortField)) {
                 case LONG:
-                    return new MinAndMax<>(minPoint.longValue(), maxPoint.longValue());
+                    if (numberFieldType.numericType() == NumericType.UNSIGNED_LONG) {
+                        // The min and max are expected to be BigInteger numbers
+                        return new MinAndMax<>((BigInteger) minPoint, (BigInteger) maxPoint);
+                    } else {
+                        return new MinAndMax<>(minPoint.longValue(), maxPoint.longValue());
+                    }
                 case INT:
                     return new MinAndMax<>(minPoint.intValue(), maxPoint.intValue());
                 case DOUBLE:

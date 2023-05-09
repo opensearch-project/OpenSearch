@@ -207,7 +207,7 @@ public final class RemoteShardsBalancer extends ShardsBalancer {
         logger.trace("Performing balancing for remote shards.");
 
         if (remoteRoutingNodes.isEmpty()) {
-            logger.info("No eligible remote nodes found to perform balancing");
+            logger.debug("No eligible remote nodes found to perform balancing");
             return;
         }
 

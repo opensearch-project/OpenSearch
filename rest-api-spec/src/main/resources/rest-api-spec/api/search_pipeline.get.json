@@ -1,0 +1,37 @@
+{
+  "search_pipeline.get": {
+    "documentation": {
+      "description": "Returns a search pipeline",
+      "url": "https://opensearch.org/docs/latest/opensearch/rest-api/search_pipelines/"
+    },
+    "stability": "stable",
+    "url": {
+      "paths": [
+        {
+          "path": "/_search/pipeline",
+          "methods": [
+            "GET"
+          ]
+        },
+        {
+          "path": "/_search/pipeline/{id}",
+          "methods": [
+            "GET"
+          ],
+          "parts": {
+            "id": {
+              "type": "string",
+              "description": "Comma-separated list of search pipeline ids. Wildcards supported."
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "cluster_manager_timeout":{
+        "type":"time",
+        "description":"Explicit operation timeout for connection to cluster-manager node"
+      }
+    }
+  }
+}

@@ -54,6 +54,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -324,17 +325,13 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         WeightedRouting weightedRouting,
         DiscoveryNodes nodes,
         double defaultWeight,
-        boolean isFailOpenEnabled
+        boolean isFailOpenEnabled,
+        @Nullable Integer seed
     ) {
-        final int seed = shufflerForWeightedRouting.nextSeed();
-        List<ShardRouting> ordered = new ArrayList<>();
-        List<ShardRouting> orderedActiveShards = getActiveShardsByWeight(weightedRouting, nodes, defaultWeight);
-        List<ShardRouting> orderedListWithDistinctShards;
-        ordered.addAll(shufflerForWeightedRouting.shuffle(orderedActiveShards, seed));
-        if (!allInitializingShards.isEmpty()) {
-            List<ShardRouting> orderedInitializingShards = getInitializingShardsByWeight(weightedRouting, nodes, defaultWeight);
-            ordered.addAll(orderedInitializingShards);
+        if (seed == null) {
+            seed = shufflerForWeightedRouting.nextSeed();
         }
+        List<ShardRouting> ordered = activeInitializingShardsWithWeights(weightedRouting, nodes, defaultWeight, seed);
 
         // append shards for attribute value with weight zero, so that shard search requests can be tried on
         // shard copies in case of request failure from other attribute values.
@@ -357,8 +354,26 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
                 logger.debug("no shard copies found for shard id [{}] for node attribute with weight zero", shardId);
             }
         }
+
+        return new PlainShardIterator(shardId, ordered);
+    }
+
+    private List<ShardRouting> activeInitializingShardsWithWeights(
+        WeightedRouting weightedRouting,
+        DiscoveryNodes nodes,
+        double defaultWeight,
+        int seed
+    ) {
+        List<ShardRouting> ordered = new ArrayList<>();
+        List<ShardRouting> orderedActiveShards = getActiveShardsByWeight(weightedRouting, nodes, defaultWeight);
+        ordered.addAll(shufflerForWeightedRouting.shuffle(orderedActiveShards, seed));
+        if (!allInitializingShards.isEmpty()) {
+            List<ShardRouting> orderedInitializingShards = getInitializingShardsByWeight(weightedRouting, nodes, defaultWeight);
+            ordered.addAll(orderedInitializingShards);
+        }
+        List<ShardRouting> orderedListWithDistinctShards;
         orderedListWithDistinctShards = ordered.stream().distinct().collect(Collectors.toList());
-        return new PlainShardIterator(shardId, orderedListWithDistinctShards);
+        return orderedListWithDistinctShards;
     }
 
     /**
@@ -560,6 +575,96 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
         return new PlainShardIterator(shardId, Collections.emptyList());
     }
 
+    /**
+     * Returns true if no primaries are active or initializing for this shard
+     */
+    private boolean noPrimariesActive() {
+        return this.primary != null && !this.primary.active() && !this.primary.initializing();
+    }
+
+    /**
+     * Returns an iterator only on the active primary shard.
+     */
+    public ShardIterator primaryActiveInitializingShardIt() {
+        if (noPrimariesActive()) {
+            return new PlainShardIterator(shardId, Collections.emptyList());
+        }
+        return primaryShardIt();
+    }
+
+    /**
+     * Returns an ordered iterator on the active primary shard, followed by replica shards.
+     */
+    public ShardIterator primaryFirstActiveInitializingShardsIt() {
+        ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
+        // fill it in a randomized fashion
+        for (ShardRouting shardRouting : shuffler.shuffle(activeShards)) {
+            ordered.add(shardRouting);
+            if (shardRouting.primary()) {
+                // switch, its the matching node id
+                ordered.set(ordered.size() - 1, ordered.get(0));
+                ordered.set(0, shardRouting);
+            }
+        }
+        // no need to worry about primary first here..., its temporal
+        if (!allInitializingShards.isEmpty()) {
+            ordered.addAll(allInitializingShards);
+        }
+        return new PlainShardIterator(shardId, ordered);
+    }
+
+    /**
+     * Returns an iterator on replica shards.
+     */
+    public ShardIterator replicaActiveInitializingShardIt() {
+        // If the primaries are unassigned, return an empty list (there aren't
+        // any replicas to query anyway)
+        if (noPrimariesActive()) {
+            return new PlainShardIterator(shardId, Collections.emptyList());
+        }
+
+        LinkedList<ShardRouting> ordered = new LinkedList<>();
+        for (ShardRouting replica : shuffler.shuffle(replicas)) {
+            if (replica.active()) {
+                ordered.addFirst(replica);
+            } else if (replica.initializing()) {
+                ordered.addLast(replica);
+            }
+        }
+        return new PlainShardIterator(shardId, ordered);
+    }
+
+    /**
+     * Returns an ordered iterator on active replica shards, followed by the primary shard.
+     */
+    public ShardIterator replicaFirstActiveInitializingShardsIt() {
+        // If the primaries are unassigned, return an empty list (there aren't
+        // any replicas to query anyway)
+        if (noPrimariesActive()) {
+            return new PlainShardIterator(shardId, Collections.emptyList());
+        }
+
+        ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
+        // fill it in a randomized fashion with the active replicas
+        for (ShardRouting replica : shuffler.shuffle(replicas)) {
+            if (replica.active()) {
+                ordered.add(replica);
+            }
+        }
+
+        // Add the primary shard
+        ordered.add(primary);
+
+        // Add initializing shards last
+        if (!allInitializingShards.isEmpty()) {
+            ordered.addAll(allInitializingShards);
+        }
+        return new PlainShardIterator(shardId, ordered);
+    }
+
+    /**
+     * Returns an iterator on active and initializing shards residing on the provided nodeId.
+     */
     public ShardIterator onlyNodeActiveInitializingShardsIt(String nodeId) {
         ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
         int seed = shuffler.nextSeed();

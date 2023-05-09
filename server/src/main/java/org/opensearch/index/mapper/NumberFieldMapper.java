@@ -41,6 +41,7 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
+import org.apache.lucene.sandbox.document.BigIntegerPoint;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.BoostQuery;
@@ -58,6 +59,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
+import org.opensearch.index.document.SortedUnsignedLongDocValuesRangeQuery;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.opensearch.index.fielddata.plain.SortedNumericIndexFieldData;
@@ -66,6 +68,7 @@ import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -264,6 +267,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 return fields;
             }
 
+            @Override
+            Number valueForSearch(String value) {
+                return Float.parseFloat(value);
+            }
+
             private void validateParsed(float value) {
                 if (!Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(value)))) {
                     throw new IllegalArgumentException("[half_float] supports only finite values, but got [" + value + "]");
@@ -365,6 +373,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 return fields;
             }
 
+            @Override
+            Number valueForSearch(String value) {
+                return Float.parseFloat(value);
+            }
+
             private void validateParsed(float value) {
                 if (!Float.isFinite(value)) {
                     throw new IllegalArgumentException("[float] supports only finite values, but got [" + value + "]");
@@ -445,6 +458,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 return fields;
             }
 
+            @Override
+            Number valueForSearch(String value) {
+                return Double.parseDouble(value);
+            }
+
             private void validateParsed(double value) {
                 if (!Double.isFinite(value)) {
                     throw new IllegalArgumentException("[double] supports only finite values, but got [" + value + "]");
@@ -516,6 +534,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             Number valueForSearch(Number value) {
                 return value.byteValue();
             }
+
+            @Override
+            Number valueForSearch(String value) {
+                return Byte.parseByte(value);
+            }
         },
         SHORT("short", NumericType.SHORT) {
             @Override
@@ -577,6 +600,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             @Override
             Number valueForSearch(Number value) {
                 return value.shortValue();
+            }
+
+            @Override
+            Number valueForSearch(String value) {
+                return Short.parseShort(value);
             }
         },
         INTEGER("integer", NumericType.INT) {
@@ -700,6 +728,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 }
                 return fields;
             }
+
+            @Override
+            Number valueForSearch(String value) {
+                return Integer.parseInt(value);
+            }
         },
         LONG("long", NumericType.LONG) {
             @Override
@@ -784,6 +817,103 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 }
                 return fields;
             }
+
+            @Override
+            Number valueForSearch(String value) {
+                return Long.parseLong(value);
+            }
+        },
+        UNSIGNED_LONG("unsigned_long", NumericType.UNSIGNED_LONG) {
+            @Override
+            public BigInteger parse(Object value, boolean coerce) {
+                return objectToUnsignedLong(value, coerce);
+            }
+
+            @Override
+            public Number parsePoint(byte[] value) {
+                return BigIntegerPoint.decodeDimension(value, 0);
+            }
+
+            @Override
+            public BigInteger parse(XContentParser parser, boolean coerce) throws IOException {
+                return parser.bigIntegerValue(coerce);
+            }
+
+            @Override
+            public Query termQuery(String field, Object value) {
+                if (hasDecimalPart(value)) {
+                    return Queries.newMatchNoDocsQuery("Value [" + value + "] has a decimal part");
+                }
+                BigInteger v = parse(value, true);
+                return BigIntegerPoint.newExactQuery(field, v);
+            }
+
+            @Override
+            public Query termsQuery(String field, List<Object> values) {
+                BigInteger[] v = new BigInteger[values.size()];
+                int upTo = 0;
+
+                for (int i = 0; i < values.size(); i++) {
+                    Object value = values.get(i);
+                    if (!hasDecimalPart(value)) {
+                        v[upTo++] = parse(value, true);
+                    }
+                }
+
+                if (upTo == 0) {
+                    return Queries.newMatchNoDocsQuery("All values have a decimal part");
+                }
+                if (upTo != v.length) {
+                    v = Arrays.copyOf(v, upTo);
+                }
+
+                return BigIntegerPoint.newSetQuery(field, v);
+            }
+
+            @Override
+            public Query rangeQuery(
+                String field,
+                Object lowerTerm,
+                Object upperTerm,
+                boolean includeLower,
+                boolean includeUpper,
+                boolean hasDocValues,
+                QueryShardContext context
+            ) {
+                return unsignedLongRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (l, u) -> {
+                    Query query = BigIntegerPoint.newRangeQuery(field, l, u);
+                    if (hasDocValues) {
+                        Query dvQuery = SortedUnsignedLongDocValuesRangeQuery.newSlowRangeQuery(field, l, u);
+                        query = new IndexOrDocValuesQuery(query, dvQuery);
+                    }
+                    return query;
+                });
+            }
+
+            @Override
+            public List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+                List<Field> fields = new ArrayList<>();
+                final BigInteger v = Numbers.toUnsignedLongExact(value);
+
+                if (indexed) {
+                    fields.add(new BigIntegerPoint(name, v));
+                }
+
+                if (docValued) {
+                    fields.add(new SortedNumericDocValuesField(name, v.longValue()));
+                }
+
+                if (stored) {
+                    fields.add(new StoredField(name, v.toString()));
+                }
+
+                return fields;
+            }
+
+            @Override
+            Number valueForSearch(String value) {
+                return new BigInteger(value);
+            }
         };
 
         private final String name;
@@ -831,6 +961,8 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
         public abstract Number parsePoint(byte[] value);
 
         public abstract List<Field> createFields(String name, Number value, boolean indexed, boolean docValued, boolean stored);
+
+        abstract Number valueForSearch(String value);
 
         Number valueForSearch(Number value) {
             return value;
@@ -908,6 +1040,28 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             return Numbers.toLong(stringValue, coerce);
         }
 
+        /**
+         * Converts and Object to a {@code long} by checking it against known
+         * types and checking its range.
+         */
+        public static BigInteger objectToUnsignedLong(Object value, boolean coerce) {
+            if (value instanceof Long) {
+                return Numbers.toUnsignedBigInteger(((Long) value).longValue());
+            }
+
+            double doubleValue = objectToDouble(value);
+            if (doubleValue < Numbers.MIN_UNSIGNED_LONG_VALUE.doubleValue()
+                || doubleValue > Numbers.MAX_UNSIGNED_LONG_VALUE.doubleValue()) {
+                throw new IllegalArgumentException("Value [" + value + "] is out of range for an unsigned long");
+            }
+            if (!coerce && doubleValue % 1 != 0) {
+                throw new IllegalArgumentException("Value [" + value + "] has a decimal part");
+            }
+
+            String stringValue = (value instanceof BytesRef) ? ((BytesRef) value).utf8ToString() : value.toString();
+            return Numbers.toUnsignedLong(stringValue, coerce);
+        }
+
         public static Query doubleRangeQuery(
             Object lowerTerm,
             Object upperTerm,
@@ -968,6 +1122,47 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                         return new MatchNoDocsQuery();
                     }
                     --u;
+                }
+            }
+            return builder.apply(l, u);
+        }
+
+        /**
+         * Processes query bounds into {@code long}s and delegates the
+         * provided {@code builder} to build a range query.
+         */
+        public static Query unsignedLongRangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            BiFunction<BigInteger, BigInteger, Query> builder
+        ) {
+            BigInteger l = Numbers.MIN_UNSIGNED_LONG_VALUE;
+            BigInteger u = Numbers.MAX_UNSIGNED_LONG_VALUE;
+            if (lowerTerm != null) {
+                l = objectToUnsignedLong(lowerTerm, true);
+                // if the lower bound is decimal:
+                // - if the bound is positive then we increment it:
+                // if lowerTerm=1.5 then the (inclusive) bound becomes 2
+                // - if the bound is negative then we leave it as is:
+                // if lowerTerm=-1.5 then the (inclusive) bound becomes -1 due to the call to longValue
+                boolean lowerTermHasDecimalPart = hasDecimalPart(lowerTerm);
+                if ((lowerTermHasDecimalPart == false && includeLower == false) || (lowerTermHasDecimalPart && signum(lowerTerm) > 0)) {
+                    if (l.compareTo(Numbers.MAX_UNSIGNED_LONG_VALUE) == 0) {
+                        return new MatchNoDocsQuery();
+                    }
+                    l = l.add(BigInteger.ONE);
+                }
+            }
+            if (upperTerm != null) {
+                u = objectToUnsignedLong(upperTerm, true);
+                boolean upperTermHasDecimalPart = hasDecimalPart(upperTerm);
+                if ((upperTermHasDecimalPart == false && includeUpper == false) || (upperTermHasDecimalPart && signum(upperTerm) < 0)) {
+                    if (u.compareTo(Numbers.MAX_UNSIGNED_LONG_VALUE) == 0) {
+                        return new MatchNoDocsQuery();
+                    }
+                    u = u.subtract(BigInteger.ONE);
                 }
             }
             return builder.apply(l, u);
@@ -1077,7 +1272,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
             if (value == null) {
                 return null;
             }
-            return type.valueForSearch((Number) value);
+            if (value instanceof String) {
+                return type.valueForSearch((String) value);
+            } else {
+                return type.valueForSearch((Number) value);
+            }
         }
 
         @Override
@@ -1105,7 +1304,11 @@ public class NumberFieldMapper extends ParametrizedFieldMapper {
                 );
             }
             if (format == null) {
-                return DocValueFormat.RAW;
+                if (type == NumberType.UNSIGNED_LONG) {
+                    return DocValueFormat.UNSIGNED_LONG;
+                } else {
+                    return DocValueFormat.RAW;
+                }
             } else {
                 return new DocValueFormat.Decimal(format);
             }

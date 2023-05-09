@@ -32,6 +32,9 @@ public final class ClusterManagerTaskKeys {
     public static final String REMOVE_INDEX_TEMPLATE_V2_KEY = "remove-index-template-v2";
     public static final String PUT_PIPELINE_KEY = "put-pipeline";
     public static final String DELETE_PIPELINE_KEY = "delete-pipeline";
+
+    public static final String PUT_SEARCH_PIPELINE_KEY = "put-search-pipeline";
+    public static final String DELETE_SEARCH_PIPELINE_KEY = "delete-search-pipeline";
     public static final String CREATE_PERSISTENT_TASK_KEY = "create-persistent-task";
     public static final String FINISH_PERSISTENT_TASK_KEY = "finish-persistent-task";
     public static final String REMOVE_PERSISTENT_TASK_KEY = "remove-persistent-task";

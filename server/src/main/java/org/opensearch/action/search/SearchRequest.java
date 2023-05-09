@@ -116,6 +116,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private TimeValue cancelAfterTimeInterval;
 
+    private String pipeline;
+
     public SearchRequest() {
         this.localClusterAlias = null;
         this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
@@ -258,6 +260,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
             cancelAfterTimeInterval = in.readOptionalTimeValue();
         }
+        if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
+            pipeline = in.readOptionalString();
+        }
     }
 
     @Override
@@ -294,6 +299,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
         if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
             out.writeOptionalTimeValue(cancelAfterTimeInterval);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
+            out.writeOptionalString(pipeline);
         }
     }
 
@@ -443,7 +451,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
-     * {@code _local} to prefer local shards or a custom value, which guarantees that the same order
+     * {@code _local} to prefer local shards, {@code _primary} to execute only on primary shards,
+     * or a custom value, which guarantees that the same order
      * will be used across different requests.
      */
     public SearchRequest preference(String preference) {
@@ -673,6 +682,15 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return cancelAfterTimeInterval;
     }
 
+    public SearchRequest pipeline(String pipeline) {
+        this.pipeline = pipeline;
+        return this;
+    }
+
+    public String pipeline() {
+        return pipeline;
+    }
+
     @Override
     public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new SearchTask(id, type, action, this::buildDescription, parentTaskId, headers, cancelAfterTimeInterval);
@@ -719,7 +737,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             && Objects.equals(localClusterAlias, that.localClusterAlias)
             && absoluteStartMillis == that.absoluteStartMillis
             && ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips
-            && Objects.equals(cancelAfterTimeInterval, that.cancelAfterTimeInterval);
+            && Objects.equals(cancelAfterTimeInterval, that.cancelAfterTimeInterval)
+            && Objects.equals(pipeline, that.pipeline);
     }
 
     @Override
@@ -781,6 +800,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             + source
             + ", cancelAfterTimeInterval="
             + cancelAfterTimeInterval
+            + ", pipeline="
+            + pipeline
             + "}";
     }
 }

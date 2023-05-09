@@ -455,15 +455,16 @@ public class RestoreService implements ClusterStateApplier {
                                     request.indexSettings(),
                                     request.ignoreIndexSettings()
                                 );
-                                final boolean isSearchableSnapshot = FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT)
-                                    && IndexModule.Type.REMOTE_SNAPSHOT.match(request.storageType().toString());
-                                if (isSearchableSnapshot) {
+                                if (IndexModule.Type.REMOTE_SNAPSHOT.match(request.storageType().toString())) {
                                     snapshotIndexMetadata = addSnapshotToIndexSettings(
                                         snapshotIndexMetadata,
                                         snapshot,
                                         repositoryData.resolveIndexId(index)
                                     );
                                 }
+                                final boolean isSearchableSnapshot = IndexModule.Type.REMOTE_SNAPSHOT.match(
+                                    snapshotIndexMetadata.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
+                                );
                                 final SnapshotRecoverySource recoverySource = new SnapshotRecoverySource(
                                     restoreUUID,
                                     snapshot,
@@ -1254,12 +1255,12 @@ public class RestoreService implements ClusterStateApplier {
 
     private static IndexMetadata addSnapshotToIndexSettings(IndexMetadata metadata, Snapshot snapshot, IndexId indexId) {
         final Settings newSettings = Settings.builder()
+            .put(metadata.getSettings())
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
             .put(IndexSettings.SEARCHABLE_SNAPSHOT_REPOSITORY.getKey(), snapshot.getRepository())
             .put(IndexSettings.SEARCHABLE_SNAPSHOT_ID_UUID.getKey(), snapshot.getSnapshotId().getUUID())
             .put(IndexSettings.SEARCHABLE_SNAPSHOT_ID_NAME.getKey(), snapshot.getSnapshotId().getName())
             .put(IndexSettings.SEARCHABLE_SNAPSHOT_INDEX_ID.getKey(), indexId.getId())
-            .put(metadata.getSettings())
             .build();
         return IndexMetadata.builder(metadata).settings(newSettings).build();
     }
