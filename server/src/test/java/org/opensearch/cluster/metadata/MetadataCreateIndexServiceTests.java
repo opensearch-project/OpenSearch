@@ -1668,7 +1668,6 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         String replicationType,
         String translogBufferInterval
     ) {
-        System.out.println("rep type is: " + replicationType);
         assertEquals(replicationType, indexSettings.get(SETTING_REPLICATION_TYPE));
         assertEquals(isRemoteSegmentEnabled, indexSettings.get(SETTING_REMOTE_STORE_ENABLED));
         assertEquals(remoteSegmentRepo, indexSettings.get(SETTING_REMOTE_STORE_REPOSITORY));
