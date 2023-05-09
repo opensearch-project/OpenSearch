@@ -149,7 +149,7 @@ public class RemoteRefreshSegmentPressureServiceTests extends OpenSearchTestCase
         e = assertThrows(OpenSearchRejectedExecutionException.class, () -> pressureService.validateSegmentsUploadLag(shardId));
         assertTrue(e.getMessage().contains("due to remote segments lagging behind local segments"));
         assertTrue(e.getMessage().contains("failure_streak_count:11 min_consecutive_failure_threshold:10"));
-        pressureTracker.incrementTotalUploadSucceeded();
+        pressureTracker.incrementTotalUploadsSucceeded();
         pressureService.validateSegmentsUploadLag(shardId);
     }
 

@@ -8,8 +8,8 @@
 
 package org.opensearch.remotestore;
 
-import org.junit.After;
 import org.junit.Before;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.index.IndexResponse;
@@ -17,6 +17,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
@@ -35,6 +36,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.opensearch.index.remote.RemoteRefreshSegmentPressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -76,8 +78,7 @@ public class RemoteStoreRefreshListenerIT extends AbstractSnapshotIntegTestCase 
             .build();
     }
 
-    @After
-    public void teardown() {
+    public void deleteRepo() {
         logger.info("--> Deleting the repository={}", REPOSITORY_NAME);
         assertAcked(clusterAdmin().prepareDeleteRepository(REPOSITORY_NAME));
     }
@@ -107,6 +108,38 @@ public class RemoteStoreRefreshListenerIT extends AbstractSnapshotIntegTestCase 
             Set<String> filesInRepo = getSegmentFiles(segmentDataRepoPath);
             assertTrue(filesInRepo.containsAll(filesInLocal));
         }, 60, TimeUnit.SECONDS);
+        deleteRepo();
+    }
+
+    public void testWritesRejected() {
+        Path location = randomRepoPath().toAbsolutePath();
+        setup(location, 1d, "metadata");
+
+        Settings request = Settings.builder().put(REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED.getKey(), true).build();
+        ClusterUpdateSettingsResponse clusterUpdateResponse = client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(request)
+            .get();
+        assertEquals(clusterUpdateResponse.getPersistentSettings().get(REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED.getKey()), "true");
+
+        logger.info("--> Indexing data");
+        OpenSearchRejectedExecutionException ex = assertThrows(
+            OpenSearchRejectedExecutionException.class,
+            () -> indexData(randomIntBetween(10, 20), randomBoolean())
+        );
+        assertTrue(ex.getMessage().contains("rejected execution on primary shard"));
+        deleteRepo();
+    }
+
+    public void testRemoteRefreshSegmentPressureSettingChanged() {
+        Settings request = Settings.builder().put(REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED.getKey(), true).build();
+        ClusterUpdateSettingsResponse response = client().admin().cluster().prepareUpdateSettings().setPersistentSettings(request).get();
+        assertEquals(response.getPersistentSettings().get(REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED.getKey()), "true");
+
+        request = Settings.builder().put(REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED.getKey(), false).build();
+        response = client().admin().cluster().prepareUpdateSettings().setPersistentSettings(request).get();
+        assertEquals(response.getPersistentSettings().get(REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED.getKey()), "false");
     }
 
     private void setup(Path repoLocation, double ioFailureRate, String skipExceptionBlobList) {
@@ -122,6 +155,8 @@ public class RemoteStoreRefreshListenerIT extends AbstractSnapshotIntegTestCase 
                 .put("random_control_io_exception_rate", ioFailureRate)
                 .put("skip_exception_on_verification_file", true)
                 .put("skip_exception_on_list_blobs", true)
+                // Skipping is required for metadata as it is part of recovery
+                .put("skip_exception_on_blobs", skipExceptionBlobList)
                 .put("max_failure_number", Long.MAX_VALUE)
         );
 

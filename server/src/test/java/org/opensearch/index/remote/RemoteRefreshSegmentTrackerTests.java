@@ -240,9 +240,9 @@ public class RemoteRefreshSegmentTrackerTests extends OpenSearchTestCase {
             pressureSettings.getUploadBytesPerSecMovingAverageWindowSize(),
             pressureSettings.getUploadTimeMovingAverageWindowSize()
         );
-        pressureTracker.incrementTotalUploadSucceeded();
+        pressureTracker.incrementTotalUploadsSucceeded();
         assertEquals(1, pressureTracker.getTotalUploadsSucceeded());
-        pressureTracker.incrementTotalUploadSucceeded();
+        pressureTracker.incrementTotalUploadsSucceeded();
         assertEquals(2, pressureTracker.getTotalUploadsSucceeded());
     }
 
@@ -257,7 +257,7 @@ public class RemoteRefreshSegmentTrackerTests extends OpenSearchTestCase {
         assertEquals(1, pressureTracker.getInflightUploads());
         pressureTracker.incrementTotalUploadsStarted();
         assertEquals(2, pressureTracker.getInflightUploads());
-        pressureTracker.incrementTotalUploadSucceeded();
+        pressureTracker.incrementTotalUploadsSucceeded();
         assertEquals(1, pressureTracker.getInflightUploads());
         pressureTracker.incrementTotalUploadsFailed();
         assertEquals(0, pressureTracker.getInflightUploads());
@@ -287,7 +287,7 @@ public class RemoteRefreshSegmentTrackerTests extends OpenSearchTestCase {
         assertEquals(1, pressureTracker.getConsecutiveFailureCount());
         pressureTracker.incrementTotalUploadsFailed();
         assertEquals(2, pressureTracker.getConsecutiveFailureCount());
-        pressureTracker.incrementTotalUploadSucceeded();
+        pressureTracker.incrementTotalUploadsSucceeded();
         assertEquals(0, pressureTracker.getConsecutiveFailureCount());
     }
 

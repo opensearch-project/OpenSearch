@@ -87,11 +87,10 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
 
     @Override
     public void afterIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
-        if (indexShard.indexSettings().isRemoteStoreEnabled() == false) {
-            return;
+        RemoteRefreshSegmentTracker remoteRefreshSegmentTracker = trackerMap.remove(shardId);
+        if (remoteRefreshSegmentTracker != null) {
+            logger.trace("Deleted tracker for shardId={}", shardId);
         }
-        trackerMap.remove(shardId);
-        logger.trace("Deleted tracker for shardId={}", shardId);
     }
 
     /**
@@ -105,6 +104,10 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
 
     public void validateSegmentsUploadLag(ShardId shardId) {
         RemoteRefreshSegmentTracker remoteRefreshSegmentTracker = getRemoteRefreshSegmentTracker(shardId);
+        // This will be null for non-remote backed indexes
+        if (remoteRefreshSegmentTracker == null) {
+            return;
+        }
         // Check if refresh checkpoint (a.k.a. seq number) lag is 2 or below - this is to handle segment merges that can
         // increase the bytes to upload almost suddenly.
         if (remoteRefreshSegmentTracker.getRefreshSeqNoLag() <= 1) {
