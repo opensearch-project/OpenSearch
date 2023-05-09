@@ -10,6 +10,7 @@ Inspired from [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - Bump `org.apache.hadoop:hadoop-minicluster` from 3.3.4 to 3.3.5
 - Bump `snakeyaml` from 1.33 to 2.0 ([#6511](https://github.com/opensearch-project/OpenSearch/pull/6511))
 - OpenJDK Update (April 2023 Patch releases) ([#7449](https://github.com/opensearch-project/OpenSearch/pull/7449)
+- Bump `net.minidev:json-smart` from 2.4.7 to 2.4.10
 
 ### Changed
 - Changed `opensearch-env` to respect already set `OPENSEARCH_HOME` environment variable ([#6956](https://github.com/opensearch-project/OpenSearch/pull/6956/))
