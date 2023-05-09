@@ -39,7 +39,6 @@ public class RemoteStoreMetadataLockManagerTests extends OpenSearchTestCase {
         remoteStoreMetadataLockManager = new RemoteStoreMetadataLockManager(lockDirectory);
     }
 
-
     private Collection<String> getListOfLocksMock() {
         return Arrays.asList(
             String.join(RemoteStoreLockManagerUtils.SEPARATOR, testMetadata, testAcquirerId)
