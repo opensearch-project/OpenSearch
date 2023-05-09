@@ -6,10 +6,12 @@
  * compatible open source license.
  */
 
-package org.opensearch.identity.scopes;
+package org.opensearch.identity;
 
 /**
  * Any kind of limitation for an extension
+ *
+ * @opensearch.experimental
  */
 public interface Scope {
     String getNamespace();

@@ -34,7 +34,7 @@ package org.opensearch.rest;
 
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.xcontent.XContent;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 import org.opensearch.rest.RestRequest.Method;
 
 import java.util.Collections;

@@ -7,8 +7,13 @@
  */
 package org.opensearch.action;
 
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 
+/**
+ * Scopes associated with actions in OpenSearch
+ * 
+ * @opensearch.experimental
+ */
 public enum ActionScopes implements Scope {
     Index_Read(),
     Index_ReadWrite();

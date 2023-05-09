@@ -5,8 +5,8 @@
 
 package org.opensearch.identity;
 
-import org.opensearch.identity.scopes.Scope;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
+import org.opensearch.identity.Scope;
 import org.opensearch.identity.tokens.AuthToken;
 
 import java.security.Principal;

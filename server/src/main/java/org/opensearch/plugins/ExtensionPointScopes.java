@@ -8,8 +8,13 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 
+/**
+ * scopes associated with extension points, used by plugins/extensions
+ * 
+ * @opensearch.experimental
+ */
 public enum ExtensionPointScopes implements Scope  {
     ActionPlugin,
     Analysis,

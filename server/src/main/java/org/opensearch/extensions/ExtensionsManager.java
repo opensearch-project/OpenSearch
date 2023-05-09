@@ -49,7 +49,7 @@ import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.rest.RestActionsRequestHandler;
 import org.opensearch.extensions.settings.CustomSettingsRequestHandler;
 import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
-import org.opensearch.identity.scopes.Scope;
+import org.opensearch.identity.Scope;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndicesModuleRequest;
