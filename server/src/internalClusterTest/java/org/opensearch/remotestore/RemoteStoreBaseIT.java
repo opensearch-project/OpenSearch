@@ -12,6 +12,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.replication.common.ReplicationType;
@@ -38,6 +39,11 @@ public class RemoteStoreBaseIT extends OpenSearchIntegTestCase {
     @Override
     protected boolean addMockInternalEngine() {
         return false;
+    }
+
+    @Override
+    protected Settings featureFlagSettings() {
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REMOTE_STORE, "true").build();
     }
 
     public Settings indexSettings() {
