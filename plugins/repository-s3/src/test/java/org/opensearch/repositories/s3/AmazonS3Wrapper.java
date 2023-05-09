@@ -193,8 +193,7 @@ public class AmazonS3Wrapper extends AbstractAmazonS3 {
     }
 
     @Override
-    public VersionListing listNextBatchOfVersions(VersionListing previousVersionListing) throws SdkException,
-        AmazonServiceException {
+    public VersionListing listNextBatchOfVersions(VersionListing previousVersionListing) throws SdkException, AmazonServiceException {
         return delegate.listNextBatchOfVersions(previousVersionListing);
     }
 
@@ -241,8 +240,7 @@ public class AmazonS3Wrapper extends AbstractAmazonS3 {
     }
 
     @Override
-    public String getBucketLocation(GetBucketLocationRequest getBucketLocationRequest) throws SdkException,
-        AmazonServiceException {
+    public String getBucketLocation(GetBucketLocationRequest getBucketLocationRequest) throws SdkException, AmazonServiceException {
         return delegate.getBucketLocation(getBucketLocationRequest);
     }
 
@@ -273,8 +271,7 @@ public class AmazonS3Wrapper extends AbstractAmazonS3 {
     }
 
     @Override
-    public AccessControlList getObjectAcl(String bucketName, String key, String versionId) throws SdkException,
-        AmazonServiceException {
+    public AccessControlList getObjectAcl(String bucketName, String key, String versionId) throws SdkException, AmazonServiceException {
         return delegate.getObjectAcl(bucketName, key, versionId);
     }
 
@@ -289,8 +286,7 @@ public class AmazonS3Wrapper extends AbstractAmazonS3 {
     }
 
     @Override
-    public void setObjectAcl(String bucketName, String key, CannedAccessControlList acl) throws SdkException,
-        AmazonServiceException {
+    public void setObjectAcl(String bucketName, String key, CannedAccessControlList acl) throws SdkException, AmazonServiceException {
         delegate.setObjectAcl(bucketName, key, acl);
     }
 
@@ -342,8 +338,7 @@ public class AmazonS3Wrapper extends AbstractAmazonS3 {
     }
 
     @Override
-    public ObjectMetadata getObjectMetadata(GetObjectMetadataRequest getObjectMetadataRequest) throws SdkException,
-        AmazonServiceException {
+    public ObjectMetadata getObjectMetadata(GetObjectMetadataRequest getObjectMetadataRequest) throws SdkException, AmazonServiceException {
         return delegate.getObjectMetadata(getObjectMetadataRequest);
     }
 
@@ -358,8 +353,7 @@ public class AmazonS3Wrapper extends AbstractAmazonS3 {
     }
 
     @Override
-    public ObjectMetadata getObject(GetObjectRequest getObjectRequest, File destinationFile) throws SdkException,
-        AmazonServiceException {
+    public ObjectMetadata getObject(GetObjectRequest getObjectRequest, File destinationFile) throws SdkException, AmazonServiceException {
         return delegate.getObject(getObjectRequest, destinationFile);
     }
 
@@ -386,8 +380,7 @@ public class AmazonS3Wrapper extends AbstractAmazonS3 {
     }
 
     @Override
-    public BucketReplicationConfiguration getBucketReplicationConfiguration(String bucketName) throws AmazonServiceException,
-        SdkException {
+    public BucketReplicationConfiguration getBucketReplicationConfiguration(String bucketName) throws AmazonServiceException, SdkException {
         return delegate.getBucketReplicationConfiguration(bucketName);
     }
 
@@ -418,8 +411,8 @@ public class AmazonS3Wrapper extends AbstractAmazonS3 {
     }
 
     @Override
-    public PutObjectResult putObject(String bucketName, String key, InputStream input, ObjectMetadata metadata)
-        throws SdkException, AmazonServiceException {
+    public PutObjectResult putObject(String bucketName, String key, InputStream input, ObjectMetadata metadata) throws SdkException,
+        AmazonServiceException {
         return delegate.putObject(bucketName, key, input, metadata);
     }
 
@@ -450,8 +443,7 @@ public class AmazonS3Wrapper extends AbstractAmazonS3 {
     }
 
     @Override
-    public DeleteObjectsResult deleteObjects(DeleteObjectsRequest deleteObjectsRequest) throws SdkException,
-        AmazonServiceException {
+    public DeleteObjectsResult deleteObjects(DeleteObjectsRequest deleteObjectsRequest) throws SdkException, AmazonServiceException {
         return delegate.deleteObjects(deleteObjectsRequest);
     }
 
@@ -466,8 +458,7 @@ public class AmazonS3Wrapper extends AbstractAmazonS3 {
     }
 
     @Override
-    public BucketLoggingConfiguration getBucketLoggingConfiguration(String bucketName) throws SdkException,
-        AmazonServiceException {
+    public BucketLoggingConfiguration getBucketLoggingConfiguration(String bucketName) throws SdkException, AmazonServiceException {
         return delegate.getBucketLoggingConfiguration(bucketName);
     }
 
@@ -478,8 +469,7 @@ public class AmazonS3Wrapper extends AbstractAmazonS3 {
     }
 
     @Override
-    public BucketVersioningConfiguration getBucketVersioningConfiguration(String bucketName) throws SdkException,
-        AmazonServiceException {
+    public BucketVersioningConfiguration getBucketVersioningConfiguration(String bucketName) throws SdkException, AmazonServiceException {
         return delegate.getBucketVersioningConfiguration(bucketName);
     }
 
@@ -585,8 +575,7 @@ public class AmazonS3Wrapper extends AbstractAmazonS3 {
     }
 
     @Override
-    public BucketWebsiteConfiguration getBucketWebsiteConfiguration(String bucketName) throws SdkException,
-        AmazonServiceException {
+    public BucketWebsiteConfiguration getBucketWebsiteConfiguration(String bucketName) throws SdkException, AmazonServiceException {
         return delegate.getBucketWebsiteConfiguration(bucketName);
     }
 
@@ -626,8 +615,7 @@ public class AmazonS3Wrapper extends AbstractAmazonS3 {
     }
 
     @Override
-    public BucketPolicy getBucketPolicy(GetBucketPolicyRequest getBucketPolicyRequest) throws SdkException,
-        AmazonServiceException {
+    public BucketPolicy getBucketPolicy(GetBucketPolicyRequest getBucketPolicyRequest) throws SdkException, AmazonServiceException {
         return delegate.getBucketPolicy(getBucketPolicyRequest);
     }
 
@@ -647,8 +635,7 @@ public class AmazonS3Wrapper extends AbstractAmazonS3 {
     }
 
     @Override
-    public void deleteBucketPolicy(DeleteBucketPolicyRequest deleteBucketPolicyRequest) throws SdkException,
-        AmazonServiceException {
+    public void deleteBucketPolicy(DeleteBucketPolicyRequest deleteBucketPolicyRequest) throws SdkException, AmazonServiceException {
         delegate.deleteBucketPolicy(deleteBucketPolicyRequest);
     }
 
@@ -695,8 +682,7 @@ public class AmazonS3Wrapper extends AbstractAmazonS3 {
     }
 
     @Override
-    public MultipartUploadListing listMultipartUploads(ListMultipartUploadsRequest request) throws SdkException,
-        AmazonServiceException {
+    public MultipartUploadListing listMultipartUploads(ListMultipartUploadsRequest request) throws SdkException, AmazonServiceException {
         return delegate.listMultipartUploads(request);
     }
 
@@ -737,8 +723,8 @@ public class AmazonS3Wrapper extends AbstractAmazonS3 {
     }
 
     @Override
-    public VersionListing listNextBatchOfVersions(ListNextBatchOfVersionsRequest listNextBatchOfVersionsRequest)
-        throws SdkException, AmazonServiceException {
+    public VersionListing listNextBatchOfVersions(ListNextBatchOfVersionsRequest listNextBatchOfVersionsRequest) throws SdkException,
+        AmazonServiceException {
         return delegate.listNextBatchOfVersions(listNextBatchOfVersionsRequest);
     }
 

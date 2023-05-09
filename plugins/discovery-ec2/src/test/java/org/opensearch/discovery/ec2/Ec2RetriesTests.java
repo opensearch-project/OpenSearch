@@ -63,7 +63,13 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.is;
 
 @SuppressForbidden(reason = "use a http server")
-public class EC2RetriesTests extends AbstractEC2MockAPITestCase {
+public class Ec2RetriesTests extends AbstractEc2MockAPITestCase implements ConfigPathSupport {
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        setUpAwsProfile();
+    }
 
     @Override
     protected MockTransportService createTransportService() {

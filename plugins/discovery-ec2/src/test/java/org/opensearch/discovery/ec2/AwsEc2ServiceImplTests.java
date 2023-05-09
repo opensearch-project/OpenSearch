@@ -46,7 +46,12 @@ import software.amazon.awssdk.http.apache.ProxyConfiguration;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class AwsEc2ServiceImplTests extends OpenSearchTestCase {
+public class AwsEc2ServiceImplTests extends OpenSearchTestCase implements ConfigPathSupport {
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        setUpAwsProfile();
+    }
 
     public void testAwsCredentialsWithSystemProviders() {
         final AwsCredentialsProvider credentialsProvider = AwsEc2ServiceImpl.buildCredentials(
@@ -177,7 +182,6 @@ public class AwsEc2ServiceImplTests extends OpenSearchTestCase {
 
         // retry policy
         RetryPolicy retryPolicyConfiguration = AwsEc2ServiceImpl.buildRetryPolicy(logger, Ec2ClientSettings.getClientSettings(settings));
-
         assertThat(retryPolicyConfiguration.numRetries(), is(10));
 
         // TODO: AwsEc2ServiceImpl.buildCredentials(logger, Ec2ClientSettings.getClientSettings(settings));

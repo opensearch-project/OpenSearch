@@ -71,7 +71,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 @SuppressForbidden(reason = "use a http server")
-public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
+public class Ec2DiscoveryTests extends AbstractEc2MockAPITestCase implements ConfigPathSupport {
 
     private static final String SUFFIX_PRIVATE_DNS = ".ec2.internal";
     private static final String PREFIX_PRIVATE_DNS = "mock-ip-";
@@ -81,6 +81,12 @@ public class Ec2DiscoveryTests extends AbstractEC2MockAPITestCase {
     private static final String PREFIX_PRIVATE_IP = "10.0.0.";
 
     private Map<String, TransportAddress> poorMansDNS = new ConcurrentHashMap<>();
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        setUpAwsProfile();
+    }
 
     protected MockTransportService createTransportService() {
         final Transport transport = new MockNioTransport(

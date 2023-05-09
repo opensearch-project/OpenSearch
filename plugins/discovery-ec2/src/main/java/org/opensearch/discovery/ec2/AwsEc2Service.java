@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.function.Function;
 
 interface AwsEc2Service extends Closeable {
+
     Setting<Boolean> AUTO_ATTRIBUTE_SETTING = Setting.boolSetting("cloud.node.auto_attributes", false, Property.NodeScope);
 
     class HostType {
@@ -125,5 +126,4 @@ interface AwsEc2Service extends Closeable {
      * @param clientSettings the new refreshed settings
      */
     void refreshAndClearCache(Ec2ClientSettings clientSettings);
-
 }

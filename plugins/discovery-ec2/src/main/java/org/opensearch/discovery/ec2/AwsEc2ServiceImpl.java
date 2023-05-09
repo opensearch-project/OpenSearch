@@ -41,6 +41,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Strings;
 import org.opensearch.common.util.LazyInitializable;
+import org.opensearch.common.SuppressForbidden;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.http.apache.ApacheHttpClient;
@@ -50,9 +51,9 @@ import software.amazon.awssdk.services.ec2.Ec2ClientBuilder;
 import software.amazon.awssdk.core.retry.RetryPolicy;
 import java.util.concurrent.atomic.AtomicReference;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.profiles.ProfileFileSystemSetting;
 
 class AwsEc2ServiceImpl implements AwsEc2Service {
-
     private static final Logger logger = LogManager.getLogger(AwsEc2ServiceImpl.class);
 
     private final AtomicReference<LazyInitializable<AmazonEc2ClientReference, OpenSearchException>> lazyClientReference =
@@ -72,6 +73,8 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
         ClientOverrideConfiguration overrideConfiguration,
         String endpoint
     ) {
+        SocketAccess.doPrivilegedVoid(AwsEc2ServiceImpl::setDefaultAwsProfilePath);
+
         Ec2ClientBuilder builder = Ec2Client.builder()
             .overrideConfiguration(overrideConfiguration)
             .httpClientBuilder(apacheHttpClientBuilder)
@@ -159,6 +162,17 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
         if (clientReference != null) {
             clientReference.getOrCompute().get().close();
             clientReference.reset();
+        }
+    }
+
+    // AWS v2 SDK load a default profile from $user_home, which is restricted. Use OpenSearch configuration path.
+    @SuppressForbidden(reason = "Prevent AWS SDK v2 from using ~/.aws/config and ~/.aws/credentials.")
+    static void setDefaultAwsProfilePath() {
+        if (ProfileFileSystemSetting.AWS_SHARED_CREDENTIALS_FILE.getStringValue().isEmpty()) {
+            System.setProperty(ProfileFileSystemSetting.AWS_SHARED_CREDENTIALS_FILE.property(), System.getProperty("opensearch.path.conf"));
+        }
+        if (ProfileFileSystemSetting.AWS_CONFIG_FILE.getStringValue().isEmpty()) {
+            System.setProperty(ProfileFileSystemSetting.AWS_CONFIG_FILE.property(), System.getProperty("opensearch.path.conf"));
         }
     }
 }

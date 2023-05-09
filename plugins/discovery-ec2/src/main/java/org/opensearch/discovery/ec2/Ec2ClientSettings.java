@@ -221,5 +221,4 @@ final class Ec2ClientSettings {
             );
         }
     }
-
 }

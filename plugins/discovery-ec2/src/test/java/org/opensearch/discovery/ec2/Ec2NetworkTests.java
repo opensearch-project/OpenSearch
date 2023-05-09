@@ -66,9 +66,15 @@ import static org.hamcrest.Matchers.equalTo;
  * They aren't.
  */
 @SuppressForbidden(reason = "use http server")
-public class Ec2NetworkTests extends OpenSearchTestCase {
+public class Ec2NetworkTests extends OpenSearchTestCase implements ConfigPathSupport {
 
     private static HttpServer httpServer;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        setUpAwsProfile();
+    }
 
     @BeforeClass
     public static void startHttp() throws Exception {

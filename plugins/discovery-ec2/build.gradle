@@ -84,50 +84,8 @@ tasks.named("bundlePlugin").configure {
   }
 }
 
-tasks.register("writeTestJavaPolicy") {
-  doLast {
-    final File tmp = file("${buildDir}/tmp")
-    if (tmp.exists() == false && tmp.mkdirs() == false) {
-      throw new GradleException("failed to create temporary directory [${tmp}]")
-    }
-    final File javaPolicy = file("${tmp}/java.policy")
-    if (BuildParams.inFipsJvm) {
-      javaPolicy.write(
-        [
-          "grant {",
-          "  permission java.security.SecurityPermission \"putProviderProperty.BCFIPS\";",
-          "  permission java.security.SecurityPermission \"putProviderProperty.BCJSSE\";",
-          "  permission java.lang.RuntimePermission \"getProtectionDomain\";",
-          "  permission java.util.PropertyPermission \"java.runtime.name\", \"read\";",
-          "  permission org.bouncycastle.crypto.CryptoServicesPermission \"tlsAlgorithmsEnabled\";",
-          "  permission java.lang.RuntimePermission \"accessClassInPackage.sun.security.internal.spec\";",
-          "  permission java.lang.RuntimePermission \"accessDeclaredMembers\";",
-          "  permission java.util.PropertyPermission \"intellij.debug.agent\", \"read\";",
-          "  permission java.util.PropertyPermission \"intellij.debug.agent\", \"write\";",
-          "  permission org.bouncycastle.crypto.CryptoServicesPermission \"exportSecretKey\";",
-          "  permission org.bouncycastle.crypto.CryptoServicesPermission \"exportPrivateKey\";",
-          "  permission java.io.FilePermission \"\${javax.net.ssl.trustStore}\", \"read\";",
-          "  permission java.util.PropertyPermission \"aws.ec2MetadataServiceEndpoint\", \"write\";",
-          "  permission java.io.FilePermission \"\${user.home}/.aws/config\", \"read\";",
-          "  permission java.io.FilePermission \"\${user.home}/.aws/credentials\", \"read\";",
-          "};"
-        ].join("\n")
-      )
-    } else {
-      javaPolicy.write(
-        [
-          "grant {",
-          "  permission java.util.PropertyPermission \"aws.ec2MetadataServiceEndpoint\", \"write\";",
-          "  permission java.io.FilePermission \"\${user.home}/.aws/config\", \"read\";",
-          "  permission java.io.FilePermission \"\${user.home}/.aws/credentials\", \"read\";",
-          "};"
-        ].join("\n"))
-    }
-  }
-}
 
 tasks.named("test").configure {
-  dependsOn "writeTestJavaPolicy"
   // this is needed for insecure plugins, remove if possible!
   systemProperty 'tests.artifact', project.name
 

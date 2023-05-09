@@ -37,7 +37,6 @@ import software.amazon.awssdk.Protocol;
 import software.amazon.awssdk.auth.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.AWSStaticCredentialsProvider;
 
-import org.junit.AfterClass;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;

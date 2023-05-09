@@ -53,7 +53,13 @@ import java.util.Arrays;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class Ec2DiscoveryPluginTests extends OpenSearchTestCase {
+public class Ec2DiscoveryPluginTests extends OpenSearchTestCase implements ConfigPathSupport {
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        setUpAwsProfile();
+    }
 
     private Settings getNodeAttributes(Settings settings, String url) {
         final Settings realSettings = Settings.builder().put(AwsEc2Service.AUTO_ATTRIBUTE_SETTING.getKey(), true).put(settings).build();

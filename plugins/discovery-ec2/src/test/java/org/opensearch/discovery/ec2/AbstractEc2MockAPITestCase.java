@@ -61,7 +61,7 @@ import java.util.UUID;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 @SuppressForbidden(reason = "use a http server")
-public abstract class AbstractEC2MockAPITestCase extends OpenSearchTestCase {
+public abstract class AbstractEc2MockAPITestCase extends OpenSearchTestCase {
 
     protected HttpServer httpServer;
 
@@ -75,7 +75,7 @@ public abstract class AbstractEC2MockAPITestCase extends OpenSearchTestCase {
     public void setUp() throws Exception {
         httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         httpServer.start();
-        threadPool = new TestThreadPool(EC2RetriesTests.class.getName());
+        threadPool = new TestThreadPool(Ec2RetriesTests.class.getName());
         transportService = createTransportService();
         super.setUp();
     }
