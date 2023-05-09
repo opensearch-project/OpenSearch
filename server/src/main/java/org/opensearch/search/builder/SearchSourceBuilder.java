@@ -279,7 +279,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (in.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
         }
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) { // TODO: Update if/when we backport to 2.x
+        if (in.getVersion().onOrAfter(Version.V_2_8_0)) {
             if (in.readBoolean()) {
                 searchPipelineSource = in.readMap();
             }
@@ -351,7 +351,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (out.getVersion().onOrAfter(LegacyESVersion.V_7_10_0)) {
             out.writeOptionalWriteable(pointInTimeBuilder);
         }
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) { // TODO: Update if/when we backport to 2.x
+        if (out.getVersion().onOrAfter(Version.V_2_8_0)) {
             out.writeBoolean(searchPipelineSource != null);
             if (searchPipelineSource != null) {
                 out.writeMap(searchPipelineSource);
