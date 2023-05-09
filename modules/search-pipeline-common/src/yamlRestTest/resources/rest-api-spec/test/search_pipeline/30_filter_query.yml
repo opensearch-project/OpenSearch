@@ -107,7 +107,7 @@ teardown:
       indices.put_settings:
         index: test
         body:
-          index.default_search_pipeline: my_pipeline
+          index.search.default_pipeline: my_pipeline
 
   - do:
       search:
