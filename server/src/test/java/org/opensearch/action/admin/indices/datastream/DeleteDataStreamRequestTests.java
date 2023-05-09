@@ -162,6 +162,7 @@ public class DeleteDataStreamRequestTests extends AbstractWireSerializingTestCas
         return new SnapshotsInProgress.Entry(
             new Snapshot(repo, new SnapshotId("", "")),
             false,
+            false,
             partial,
             SnapshotsInProgress.State.SUCCESS,
             Collections.emptyList(),

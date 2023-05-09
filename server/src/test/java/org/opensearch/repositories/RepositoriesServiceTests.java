@@ -266,6 +266,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
             Collection<SnapshotId> snapshotIds,
             long repositoryStateId,
             Version repositoryMetaVersion,
+            RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
             ActionListener<RepositoryData> listener
         ) {
             listener.onResponse(null);

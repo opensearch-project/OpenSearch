@@ -1600,7 +1600,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 if (deletionToRun == null) {
                     runNextQueuedOperation(repositoryData, repository, false);
                 } else {
-                    deleteSnapshotsFromRepository(deletionToRun, repositoryData, newState.nodes().getMinNodeVersion());
+                    deleteSnapshotsFromRepository(
+                        deletionToRun,
+                        repositoryData,
+                        newState.nodes().getMinNodeVersion(),
+                        remoteStoreLockManagerFactory
+                    );
                 }
             }
         });
@@ -2125,7 +2130,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                     if (newDelete.state() == SnapshotDeletionsInProgress.State.STARTED) {
                         if (tryEnterRepoLoop(repoName)) {
-                            deleteSnapshotsFromRepository(newDelete, repositoryData, newState.nodes().getMinNodeVersion());
+                            deleteSnapshotsFromRepository(
+                                newDelete,
+                                repositoryData,
+                                newState.nodes().getMinNodeVersion(),
+                                remoteStoreLockManagerFactory
+                            );
                         } else {
                             logger.trace("Delete [{}] could not execute directly and was queued", newDelete);
                         }
@@ -2202,7 +2212,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         + "] in cluster state and ["
                         + repositoryData.getGenId()
                         + "] in the repository";
-                deleteSnapshotsFromRepository(deleteEntry, repositoryData, minNodeVersion);
+                deleteSnapshotsFromRepository(deleteEntry, repositoryData, minNodeVersion, remoteStoreLockManagerFactory);
             }
 
             @Override
@@ -2224,7 +2234,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private void deleteSnapshotsFromRepository(
         SnapshotDeletionsInProgress.Entry deleteEntry,
         RepositoryData repositoryData,
-        Version minNodeVersion
+        Version minNodeVersion,
+        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory
     ) {
         if (repositoryOperations.startDeletion(deleteEntry.uuid())) {
             assert currentlyFinalizing.contains(deleteEntry.repository());
@@ -2235,6 +2246,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     snapshotIds,
                     repositoryData.getGenId(),
                     minCompatibleVersion(minNodeVersion, repositoryData, snapshotIds),
+                    remoteStoreLockManagerFactory,
                     ActionListener.wrap(updatedRepoData -> {
                         logger.info("snapshots {} deleted", snapshotIds);
                         removeSnapshotDeletionFromClusterState(deleteEntry, null, updatedRepoData);
@@ -2389,7 +2401,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     leaveRepoLoop(deleteEntry.repository());
                 } else {
                     for (SnapshotDeletionsInProgress.Entry readyDeletion : readyDeletions) {
-                        deleteSnapshotsFromRepository(readyDeletion, repositoryData, newState.nodes().getMinNodeVersion());
+                        deleteSnapshotsFromRepository(
+                            readyDeletion,
+                            repositoryData,
+                            newState.nodes().getMinNodeVersion(),
+                            remoteStoreLockManagerFactory
+                        );
                     }
                 }
             } else {
