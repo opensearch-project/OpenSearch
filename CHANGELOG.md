@@ -52,8 +52,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 ### Security
 
 [Unreleased 3.0]: https://github.com/opensearch-project/OpenSearch/compare/2.x...HEAD
-<<<<<<< HEAD
-[Unreleased 2.x]: https://github.com/opensearch-project/OpenSearch/compare/2.5...2.x
-=======
 [Unreleased 2.x]: https://github.com/opensearch-project/OpenSearch/compare/2.7...2.x
->>>>>>> 16555e42ca5 (Adds ExtensionsManager.lookupExtensionSettingsById (#7466))
