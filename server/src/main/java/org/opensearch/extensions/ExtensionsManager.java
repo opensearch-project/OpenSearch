@@ -321,7 +321,6 @@ public class ExtensionsManager {
                 throw new IOException("Could not read from extensions.yml", e);
             }
             for (Extension extension : extensions) {
-                extensionSettingsMap.put(extension.getUniqueId(), extension);
                 loadExtension(extension);
             }
             if (!extensionIdMap.isEmpty()) {
@@ -351,6 +350,7 @@ public class ExtensionsManager {
                     extension.getDependencies()
                 );
                 extensionIdMap.put(extension.getUniqueId(), discoveryExtensionNode);
+                extensionSettingsMap.put(extension.getUniqueId(), extension);
                 logger.info("Loaded extension with uniqueId " + extension.getUniqueId() + ": " + extension);
             } catch (OpenSearchException e) {
                 logger.error("Could not load extension with uniqueId " + extension.getUniqueId() + " due to " + e);
