@@ -243,6 +243,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             assertEquals(extension.getVersion(), initializedExtension.getVersion());
             assertEquals(extension.getMinimumCompatibleVersion(), initializedExtension.getMinimumCompatibleVersion());
             assertEquals(extension.getDependencies(), initializedExtension.getDependencies());
+            assertTrue(extensionsManager.lookupExtensionSettingsById(extension.getId()).isPresent());
         }
     }
 
