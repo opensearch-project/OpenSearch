@@ -78,31 +78,19 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
         return Arrays.asList(SegmentReplicationClusterSettingIT.TestPlugin.class, MockTransportService.TestPlugin.class);
     }
 
-    public void testReplicationWithSegmentReplicationClusterSetting() throws Exception {
-
-        boolean isSystemIndex = randomBoolean();
-        String indexName = isSystemIndex ? SYSTEM_INDEX_NAME : INDEX_NAME;
+    public void testSystemIndexWithSegmentReplicationClusterSetting() throws Exception {
 
         // Starting two nodes with primary and replica shards respectively.
         final String primaryNode = internalCluster().startNode();
-        createIndex(indexName);
-        ensureYellowAndNoInitializingShards(indexName);
+        createIndex(SYSTEM_INDEX_NAME);
+        ensureYellowAndNoInitializingShards(SYSTEM_INDEX_NAME);
         final String replicaNode = internalCluster().startNode();
-        ensureGreen(indexName);
-
-        if (isSystemIndex) {
-            final GetSettingsResponse response = client().admin()
-                .indices()
-                .getSettings(new GetSettingsRequest().indices(SYSTEM_INDEX_NAME).includeDefaults(true))
-                .actionGet();
-            assertEquals(response.getSetting(SYSTEM_INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
-        } else {
-            final GetSettingsResponse response = client().admin()
-                .indices()
-                .getSettings(new GetSettingsRequest().indices(INDEX_NAME).includeDefaults(true))
-                .actionGet();
-            assertEquals(response.getSetting(INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.SEGMENT.toString());
-        }
+        ensureGreen(SYSTEM_INDEX_NAME);
+        final GetSettingsResponse response = client().admin()
+            .indices()
+            .getSettings(new GetSettingsRequest().indices(SYSTEM_INDEX_NAME).includeDefaults(true))
+            .actionGet();
+        assertEquals(response.getSetting(SYSTEM_INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
     }
 
     public void testIndexReplicationSettingOverridesSegRepClusterSetting() throws Exception {
