@@ -30,10 +30,6 @@
 
 apply plugin: 'opensearch.java'
 
-versions << [
-  'jetty': '9.4.51.v20230217'
-]
-
 dependencies {
   api("org.apache.hadoop:hadoop-minicluster:3.3.5") {
     exclude module: 'websocket-client'
