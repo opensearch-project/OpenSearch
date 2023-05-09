@@ -14,6 +14,9 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.Writeable;
+
+import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -41,18 +44,15 @@ public class ExtensionActionUtil {
         byte[] requestClassBytes = request.getClass().getName().getBytes(StandardCharsets.UTF_8);
         byte[] requestBytes;
 
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            request.writeTo(out);
-            requestBytes = BytesReference.toBytes(out.bytes());
-            out.flush();
-
+        try {
+            requestBytes = convertParamsToBytes(request);
             return ByteBuffer.allocate(requestClassBytes.length + 1 + requestBytes.length)
                 .put(requestClassBytes)
                 .put(UNIT_SEPARATOR)
                 .put(requestBytes)
                 .array();
         } catch (Exception e) {
-            logger.error("An error occurred while a creating byte array: " + e.getMessage(), e);
+            logger.error("Error occurred while creating proxyRequestBytes");
         }
         return null;
     }
@@ -95,25 +95,17 @@ public class ExtensionActionUtil {
     }
 
     /**
-     * @param actionRequest  is an instance of the Action Request class that is used to create an ExtensionActionRequest object.
-     * @return an Extension ActionRequest object, or {@code null} if an error occurred during the creation process.
+     * Converts the given object of type T, which implements the {@link Writeable} interface, to a byte array.
+     * @param <T> the type of the object to be converted to bytes, which must implement the {@link Writeable} interface.
+     * @param actionParams the object of type T to be converted to bytes.
+     * @return a byte array containing the serialized bytes of the given object, or {@code null} if the input is invalid or null.
+     * @throws IOException if there was an error while writing to the output stream.
      */
-    public static ExtensionActionRequest createExtensionActionRequest(ActionRequest actionRequest) {
-        byte[] requestBytes;
-
+    public static <T extends Writeable> byte[] convertParamsToBytes(T actionParams) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            actionRequest.writeTo(out);
-            requestBytes = BytesReference.toBytes(out.bytes());
-            Class<?> clazz = ExtensionActionRequest.class;
-            Constructor<?> constructor = clazz.getConstructor(StreamInput.class);
-            StreamInput requestByteStream = StreamInput.wrap(
-                Arrays.copyOfRange(requestBytes, delimPos(requestBytes) + 1, requestBytes.length)
-            );
-            return (ExtensionActionRequest) constructor.newInstance(requestByteStream);
-        } catch (Exception e) {
-            logger.error("An error occurred while creating ExtensionActionRequest: " + e.getMessage(), e);
+            actionParams.writeTo(out);
+            return BytesReference.toBytes(out.bytes());
         }
-        return null;
     }
 
     /**
