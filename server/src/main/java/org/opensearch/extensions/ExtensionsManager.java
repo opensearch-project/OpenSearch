@@ -127,6 +127,9 @@ public class ExtensionsManager {
     private ExtensionTransportActionsHandler extensionTransportActionsHandler;
     // A list of initialized extensions, a subset of the values of map below which includes all extensions
     private List<DiscoveryExtensionNode> extensions;
+
+    private Map<String, Extension> extensionSettingsMap;
+    private Map<String, DiscoveryExtensionNode> initializedExtensions;
     private Map<String, DiscoveryExtensionNode> extensionIdMap;
     private RestActionsRequestHandler restActionsRequestHandler;
     private CustomSettingsRequestHandler customSettingsRequestHandler;
@@ -152,6 +155,7 @@ public class ExtensionsManager {
         this.extensionsPath = extensionsPath;
         this.extensions = new ArrayList<DiscoveryExtensionNode>();
         this.extensionIdMap = new HashMap<String, DiscoveryExtensionNode>();
+        this.extensionSettingsMap = new HashMap<String, Extension>();
         // will be initialized in initializeServicesAndRestHandler which is called after the Node is initialized
         this.transportService = null;
         this.clusterService = null;
@@ -203,6 +207,26 @@ public class ExtensionsManager {
             this
         );
         registerRequestHandler();
+    }
+
+    /**
+     * Lookup an initialized extension by its unique id
+     *
+     * @param extensionId The unique extension identifier
+     * @return An optional of the DiscoveryExtensionNode instance for the matching extension
+     */
+    public Optional<DiscoveryExtensionNode> lookupInitializedExtensionById(final String extensionId) {
+        return Optional.ofNullable(this.initializedExtensions.get(extensionId));
+    }
+
+    /**
+     * Lookup the settings for an extension based on unique id for the settings placed in extensions.yml
+     *
+     * @param extensionId The unique extension identifier
+     * @return An optional of the Extension instance for the matching extension
+     */
+    public Optional<Extension> lookupExtensionSettingsById(final String extensionId) {
+        return Optional.ofNullable(this.extensionSettingsMap.get(extensionId));
     }
 
     /**
@@ -349,7 +373,9 @@ public class ExtensionsManager {
                     Version.fromString(extension.getMinimumCompatibleVersion()),
                     extension.getDependencies()
                 );
+
                 extensionIdMap.put(extension.getUniqueId(), discoveryExtensionNode);
+                extensionSettingsMap.put(extension.getUniqueId(), extension);
                 logger.info("Loaded extension with uniqueId " + extension.getUniqueId() + ": " + extension);
             } catch (OpenSearchException e) {
                 logger.error("Could not load extension with uniqueId " + extension.getUniqueId() + " due to " + e);
