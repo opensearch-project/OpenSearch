@@ -283,7 +283,7 @@ public class JoinHelper {
         ClusterState incomingState;
         try {
             if (in.readBoolean()) {
-                incomingState = CompressionHelper.deserializeFullClusterState(in, transportService);
+                incomingState = CompressionHelper.deserializeFullClusterState(in, transportService.getLocalNode());
                 runJoinValidators(currentStateSupplier, incomingState, joinValidators);
             } else {
                 logger.error("validate new node join request requires full cluster state");

@@ -166,7 +166,7 @@ public class PublicationTransportHandler {
         ClusterState incomingState;
         try {
             if (in.readBoolean()) {
-                incomingState = CompressionHelper.deserializeFullClusterState(in, transportService);
+                incomingState = CompressionHelper.deserializeFullClusterState(in, transportService.getLocalNode());
                 fullClusterStateReceivedCount.incrementAndGet();
                 logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(), request.bytes().length());
                 final PublishWithJoinResponse response = acceptState(incomingState);

@@ -75,10 +75,10 @@ public class CompressionHelper {
         return in;
     }
 
-    public static ClusterState deserializeFullClusterState(StreamInput in, TransportService transportService) throws IOException {
+    public static ClusterState deserializeFullClusterState(StreamInput in, DiscoveryNode localNode) throws IOException {
         final ClusterState incomingState;
         try (StreamInput input = in) {
-            incomingState = ClusterState.readFrom(input, transportService.getLocalNode());
+            incomingState = ClusterState.readFrom(input, localNode);
         } catch (Exception e) {
             logger.warn("unexpected error while deserializing an incoming cluster state", e);
             throw e;
