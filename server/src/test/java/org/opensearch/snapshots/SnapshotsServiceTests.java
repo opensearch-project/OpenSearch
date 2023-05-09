@@ -498,7 +498,8 @@ public class SnapshotsServiceTests extends OpenSearchTestCase {
             .map(k -> k.index())
             .distinct()
             .collect(Collectors.toList());
-        return SnapshotsInProgress.startClone(snapshot, source, indexIds, 1L, randomNonNegativeLong(), Version.CURRENT).withClones(clones);
+        return SnapshotsInProgress.startClone(snapshot, source, indexIds, 1L, randomNonNegativeLong(), Version.CURRENT, false)
+            .withClones(clones);
     }
 
     private static SnapshotsInProgress.ShardSnapshotStatus initShardStatus(String nodeId) {

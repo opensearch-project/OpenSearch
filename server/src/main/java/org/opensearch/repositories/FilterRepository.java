@@ -47,6 +47,7 @@ import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
@@ -254,9 +255,10 @@ public class FilterRepository implements Repository {
         SnapshotId target,
         RepositoryShardId shardId,
         String shardGeneration,
+        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
         ActionListener<String> listener
     ) {
-        in.cloneShardSnapshot(source, target, shardId, shardGeneration, listener);
+        in.cloneShardSnapshot(source, target, shardId, shardGeneration, remoteStoreLockManagerFactory, listener);
     }
 
     @Override

@@ -114,6 +114,9 @@ import org.opensearch.index.snapshots.blobstore.SlicedInputStream;
 import org.opensearch.index.snapshots.blobstore.SnapshotFiles;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.index.store.lockmanager.FileLockInfo;
+import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
+import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.repositories.IndexId;
@@ -494,6 +497,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         SnapshotId target,
         RepositoryShardId shardId,
         @Nullable String shardGeneration,
+        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
         ActionListener<String> listener
     ) {
         if (isReadOnly()) {
@@ -506,74 +510,97 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         executor.execute(ActionRunnable.supply(listener, () -> {
             final long startTime = threadPool.absoluteTimeInMillis();
             final BlobContainer shardContainer = shardContainer(index, shardNum);
-            final BlobStoreIndexShardSnapshots existingSnapshots;
             final String newGen;
-            final String existingShardGen;
-            if (shardGeneration == null) {
-                Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(
-                    shardContainer.listBlobsByPrefix(INDEX_FILE_PREFIX).keySet(),
-                    shardContainer
+            if (remoteStoreLockManagerFactory == null) {
+                final BlobStoreIndexShardSnapshots existingSnapshots;
+                final String existingShardGen;
+                if (shardGeneration == null) {
+                    Tuple<BlobStoreIndexShardSnapshots, Long> tuple = buildBlobStoreIndexShardSnapshots(
+                        shardContainer.listBlobsByPrefix(INDEX_FILE_PREFIX).keySet(),
+                        shardContainer
+                    );
+                    existingShardGen = String.valueOf(tuple.v2());
+                    newGen = String.valueOf(tuple.v2() + 1);
+                    existingSnapshots = tuple.v1();
+                } else {
+                    newGen = UUIDs.randomBase64UUID();
+                    existingSnapshots = buildBlobStoreIndexShardSnapshots(Collections.emptySet(), shardContainer, shardGeneration).v1();
+                    existingShardGen = shardGeneration;
+                }
+                SnapshotFiles existingTargetFiles = null;
+                SnapshotFiles sourceFiles = null;
+                for (SnapshotFiles existingSnapshot : existingSnapshots) {
+                    final String snapshotName = existingSnapshot.snapshot();
+                    if (snapshotName.equals(target.getName())) {
+                        existingTargetFiles = existingSnapshot;
+                    } else if (snapshotName.equals(source.getName())) {
+                        sourceFiles = existingSnapshot;
+                    }
+                    if (sourceFiles != null && existingTargetFiles != null) {
+                        break;
+                    }
+                }
+                if (sourceFiles == null) {
+                    throw new RepositoryException(
+                        metadata.name(),
+                        "Can't create clone of ["
+                            + shardId
+                            + "] for snapshot ["
+                            + target
+                            + "]. The source snapshot ["
+                            + source
+                            + "] was not found in the shard metadata."
+                    );
+                }
+                if (existingTargetFiles != null) {
+                    if (existingTargetFiles.isSame(sourceFiles)) {
+                        return existingShardGen;
+                    }
+                    throw new RepositoryException(
+                        metadata.name(),
+                        "Can't create clone of ["
+                            + shardId
+                            + "] for snapshot ["
+                            + target
+                            + "]. A snapshot by that name already exists for this shard."
+                    );
+                }
+                final BlobStoreIndexShardSnapshot sourceMeta = loadShardSnapshot(shardContainer, source);
+                logger.trace("[{}] [{}] writing shard snapshot file for clone", shardId, target);
+                INDEX_SHARD_SNAPSHOT_FORMAT.write(
+                    sourceMeta.asClone(target.getName(), startTime, threadPool.absoluteTimeInMillis() - startTime),
+                    shardContainer,
+                    target.getUUID(),
+                    compress
                 );
-                existingShardGen = String.valueOf(tuple.v2());
-                newGen = String.valueOf(tuple.v2() + 1);
-                existingSnapshots = tuple.v1();
+                INDEX_SHARD_SNAPSHOTS_FORMAT.write(
+                    existingSnapshots.withClone(source.getName(), target.getName()),
+                    shardContainer,
+                    newGen,
+                    compress
+                );
             } else {
                 newGen = UUIDs.randomBase64UUID();
-                existingSnapshots = buildBlobStoreIndexShardSnapshots(Collections.emptySet(), shardContainer, shardGeneration).v1();
-                existingShardGen = shardGeneration;
-            }
-            SnapshotFiles existingTargetFiles = null;
-            SnapshotFiles sourceFiles = null;
-            for (SnapshotFiles existingSnapshot : existingSnapshots) {
-                final String snapshotName = existingSnapshot.snapshot();
-                if (snapshotName.equals(target.getName())) {
-                    existingTargetFiles = existingSnapshot;
-                } else if (snapshotName.equals(source.getName())) {
-                    sourceFiles = existingSnapshot;
-                }
-                if (sourceFiles != null && existingTargetFiles != null) {
-                    break;
-                }
-            }
-            if (sourceFiles == null) {
-                throw new RepositoryException(
-                    metadata.name(),
-                    "Can't create clone of ["
-                        + shardId
-                        + "] for snapshot ["
-                        + target
-                        + "]. The source snapshot ["
-                        + source
-                        + "] was not found in the shard metadata."
+                RemoteStoreShardShallowCopySnapshot remStoreBasedShardMetadata = loadRemStoreEnabledShardSnapshot(shardContainer, source);
+                REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.write(
+                    remStoreBasedShardMetadata.asClone(target.getName(), startTime, threadPool.absoluteTimeInMillis() - startTime),
+                    shardContainer,
+                    target.getUUID(),
+                    compress
+                );
+                String indexUUID = remStoreBasedShardMetadata.getIndexUUID();
+                String remoteStoreRepository = remStoreBasedShardMetadata.getRemoteStoreRepository();
+                RemoteStoreMetadataLockManager remoteStoreMetadataLockManger = remoteStoreLockManagerFactory.newLockManager(
+                    remoteStoreRepository,
+                    indexUUID,
+                    String.valueOf(shardId.shardId())
+                );
+
+                remoteStoreMetadataLockManger.cloneLock(
+                    FileLockInfo.getLockInfoBuilder().withAcquirerId(source.getUUID()).build(),
+                    FileLockInfo.getLockInfoBuilder().withAcquirerId(target.getUUID()).build()
                 );
             }
-            if (existingTargetFiles != null) {
-                if (existingTargetFiles.isSame(sourceFiles)) {
-                    return existingShardGen;
-                }
-                throw new RepositoryException(
-                    metadata.name(),
-                    "Can't create clone of ["
-                        + shardId
-                        + "] for snapshot ["
-                        + target
-                        + "]. A snapshot by that name already exists for this shard."
-                );
-            }
-            final BlobStoreIndexShardSnapshot sourceMeta = loadShardSnapshot(shardContainer, source);
-            logger.trace("[{}] [{}] writing shard snapshot file for clone", shardId, target);
-            INDEX_SHARD_SNAPSHOT_FORMAT.write(
-                sourceMeta.asClone(target.getName(), startTime, threadPool.absoluteTimeInMillis() - startTime),
-                shardContainer,
-                target.getUUID(),
-                compressor
-            );
-            INDEX_SHARD_SNAPSHOTS_FORMAT.write(
-                existingSnapshots.withClone(source.getName(), target.getName()),
-                shardContainer,
-                newGen,
-                compressor
-            );
             return newGen;
         }));
     }

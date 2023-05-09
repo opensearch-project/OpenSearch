@@ -84,6 +84,25 @@ public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
         return !lockFiles.isEmpty();
     }
 
+    /**
+     * Acquires lock on the file mentioned in originalLockInfo for acquirer mentioned in clonedLockInfo
+     * @param originalLockInfo lock info instance for original lock.
+     * @param clonedLockInfo lock info instance for which lock needs to be cloned.
+     * @throws IOException throws IOException if originalResource itself do not have any lock.
+     */
+    @Override
+    public void cloneLock(LockInfo originalLockInfo, LockInfo clonedLockInfo) throws IOException {
+        assert originalLockInfo instanceof FileLockInfo : "originalLockInfo should be instance of ShardLockInfo";
+        assert clonedLockInfo instanceof FileLockInfo : "clonedLockInfo should be instance of ShardLockInfo";
+        String originalResourceId = ((FileLockInfo) originalLockInfo).getAcquirerId();
+        String clonedResourceId = ((FileLockInfo) clonedLockInfo).getAcquirerId();
+        assert originalResourceId != null && clonedResourceId != null : "provided resourceIds should not be null";
+        String[] lockFiles = lockDirectory.listAll();
+        String lockNameForAcquirer = ((FileLockInfo) originalLockInfo).getLocksForAcquirer(lockFiles).get(0);
+        String fileToLockName = FileLockInfo.LockFileUtils.getFileToLockNameFromLock(lockNameForAcquirer);
+        acquire(FileLockInfo.getLockInfoBuilder().withFileToLock(fileToLockName).withAcquirerId(clonedResourceId).build());
+    }
+
     public void delete() throws IOException {
         lockDirectory.delete();
     }

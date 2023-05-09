@@ -90,6 +90,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.ShardId;
+import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -476,13 +477,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             + "]"
                     );
                 }
+                final boolean isRemoteStoreInteropEnabled = repository.getSnapshotInfo(sourceSnapshotId)
+                    .isRemoteStoreIndexShallowCopyEnabled();
                 newEntry = SnapshotsInProgress.startClone(
                     snapshot,
                     sourceSnapshotId,
                     repositoryData.resolveIndices(matchingIndices),
                     threadPool.absoluteTimeInMillis(),
                     repositoryData.getGenId(),
-                    minCompatibleVersion(currentState.nodes().getMinNodeVersion(), repositoryData, null)
+                    minCompatibleVersion(currentState.nodes().getMinNodeVersion(), repositoryData, null),
+                    isRemoteStoreInteropEnabled
                 );
                 final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(runningSnapshots);
                 newEntries.add(newEntry);
@@ -669,58 +673,90 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         RepositoryShardId repoShardId,
         Repository repository
     ) {
-        final SnapshotId targetSnapshot = target.getSnapshotId();
-        final String localNodeId = clusterService.localNode().getId();
-        if (currentlyCloning.add(repoShardId)) {
-            repository.cloneShardSnapshot(
-                sourceSnapshot,
-                targetSnapshot,
-                repoShardId,
-                shardStatusBefore.generation(),
-                ActionListener.wrap(
-                    generation -> innerUpdateSnapshotState(
-                        new ShardSnapshotUpdate(target, repoShardId, new ShardSnapshotStatus(localNodeId, ShardState.SUCCESS, generation)),
-                        ActionListener.runBefore(
-                            ActionListener.wrap(
-                                v -> logger.trace(
-                                    "Marked [{}] as successfully cloned from [{}] to [{}]",
-                                    repoShardId,
-                                    sourceSnapshot,
-                                    targetSnapshot
-                                ),
-                                e -> {
-                                    logger.warn("Cluster state update after successful shard clone [{}] failed", repoShardId);
-                                    failAllListenersOnMasterFailOver(e);
-                                }
-                            ),
-                            () -> currentlyCloning.remove(repoShardId)
-                        )
-                    ),
-                    e -> innerUpdateSnapshotState(
-                        new ShardSnapshotUpdate(
-                            target,
+        repository.getRepositoryData(new ActionListener<RepositoryData>() {
+            @Override
+            public void onResponse(RepositoryData repositoryData) {
+                try {
+                    RemoteStoreLockManagerFactory remoteStoreLockManagerFactory = null;
+                    final IndexMetadata indexMetadata = repository.getSnapshotIndexMetaData(
+                        repositoryData,
+                        sourceSnapshot,
+                        repoShardId.index()
+                    );
+                    final boolean isRemoteStoreInteropEnabled = repository.getSnapshotInfo(sourceSnapshot)
+                        .isRemoteStoreIndexShallowCopyEnabled();
+                    if (isRemoteStoreInteropEnabled
+                        && indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)) {
+                        remoteStoreLockManagerFactory = new RemoteStoreLockManagerFactory(() -> repositoriesService);
+                    }
+                    final SnapshotId targetSnapshot = target.getSnapshotId();
+                    final String localNodeId = clusterService.localNode().getId();
+                    if (currentlyCloning.add(repoShardId)) {
+                        repository.cloneShardSnapshot(
+                            sourceSnapshot,
+                            targetSnapshot,
                             repoShardId,
-                            new ShardSnapshotStatus(localNodeId, ShardState.FAILED, "failed to clone shard snapshot", null)
-                        ),
-                        ActionListener.runBefore(
+                            shardStatusBefore.generation(),
+                            remoteStoreLockManagerFactory,
                             ActionListener.wrap(
-                                v -> logger.trace(
-                                    "Marked [{}] as failed clone from [{}] to [{}]",
-                                    repoShardId,
-                                    sourceSnapshot,
-                                    targetSnapshot
+                                generation -> innerUpdateSnapshotState(
+                                    new ShardSnapshotUpdate(
+                                        target,
+                                        repoShardId,
+                                        new ShardSnapshotStatus(localNodeId, ShardState.SUCCESS, generation)
+                                    ),
+                                    ActionListener.runBefore(
+                                        ActionListener.wrap(
+                                            v -> logger.trace(
+                                                "Marked [{}] as successfully cloned from [{}] to [{}]",
+                                                repoShardId,
+                                                sourceSnapshot,
+                                                targetSnapshot
+                                            ),
+                                            e -> {
+                                                logger.warn("Cluster state update after successful shard clone [{}] failed", repoShardId);
+                                                failAllListenersOnMasterFailOver(e);
+                                            }
+                                        ),
+                                        () -> currentlyCloning.remove(repoShardId)
+                                    )
                                 ),
-                                ex -> {
-                                    logger.warn("Cluster state update after failed shard clone [{}] failed", repoShardId);
-                                    failAllListenersOnMasterFailOver(ex);
-                                }
-                            ),
-                            () -> currentlyCloning.remove(repoShardId)
-                        )
-                    )
-                )
-            );
-        }
+                                e -> innerUpdateSnapshotState(
+                                    new ShardSnapshotUpdate(
+                                        target,
+                                        repoShardId,
+                                        new ShardSnapshotStatus(localNodeId, ShardState.FAILED, "failed to clone shard snapshot", null)
+                                    ),
+                                    ActionListener.runBefore(
+                                        ActionListener.wrap(
+                                            v -> logger.trace(
+                                                "Marked [{}] as failed clone from [{}] to [{}]",
+                                                repoShardId,
+                                                sourceSnapshot,
+                                                targetSnapshot
+                                            ),
+                                            ex -> {
+                                                logger.warn("Cluster state update after failed shard clone [{}] failed", repoShardId);
+                                                failAllListenersOnMasterFailOver(ex);
+                                            }
+                                        ),
+                                        () -> currentlyCloning.remove(repoShardId)
+                                    )
+                                )
+                            )
+                        );
+                    }
+                } catch (IOException e) {
+                    logger.warn("Failed to get index-metadata from repository data for index [{}]", repoShardId.index().getName());
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assert false : new AssertionError(e);
+                logger.warn("Failed to get repository data ", e);
+            }
+        });
     }
 
     private void ensureBelowConcurrencyLimit(

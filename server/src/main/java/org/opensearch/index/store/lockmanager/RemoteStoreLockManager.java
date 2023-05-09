@@ -39,6 +39,14 @@ public interface RemoteStoreLockManager {
      */
     Boolean isAcquired(LockInfo lockInfo) throws IOException;
 
+    /**
+     *
+     * @param originalLockInfo lock info instance for original lock.
+     * @param clonedLockInfo lock info instance for which lock needs to be cloned.
+     * @throws IOException throws IOException if originalResource itself do not have any lock.
+     */
+    void cloneLock(LockInfo originalLockInfo, LockInfo clonedLockInfo) throws IOException;
+
     /*
     Deletes all lock related files and directories
      */
