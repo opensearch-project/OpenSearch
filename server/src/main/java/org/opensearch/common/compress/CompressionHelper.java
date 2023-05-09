@@ -24,7 +24,6 @@ import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.transport.BytesTransportRequest;
-import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 
