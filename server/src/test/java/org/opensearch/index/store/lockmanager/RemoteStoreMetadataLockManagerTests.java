@@ -19,9 +19,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -41,12 +39,6 @@ public class RemoteStoreMetadataLockManagerTests extends OpenSearchTestCase {
         remoteStoreMetadataLockManager = new RemoteStoreMetadataLockManager(lockDirectory);
     }
 
-    private FileLockInfo getFileLockInfoMock() {
-        FileLockInfo lockInfoMock = mock(FileLockInfo.class);
-        when(lockInfoMock.getFileToLock()).thenReturn(testMetadata);
-        when(lockInfoMock.getAcquirerId()).thenReturn(testAcquirerId);
-        return lockInfoMock;
-    }
 
     private Collection<String> getListOfLocksMock() {
         return Arrays.asList(
@@ -59,35 +51,50 @@ public class RemoteStoreMetadataLockManagerTests extends OpenSearchTestCase {
 
     public void testAcquire() throws IOException {
         IndexOutput indexOutput = mock(IndexOutput.class);
-        when(lockDirectory.createOutput(eq(testLockName), eq(IOContext.DEFAULT))).thenReturn(indexOutput);
-        LockInfo lockInfoMock = getFileLockInfoMock();
-        when(lockInfoMock.generateLockName()).thenReturn(testLockName);
-        remoteStoreMetadataLockManager.acquire(lockInfoMock);
+        FileLockInfo testLockInfo = FileLockInfo.getLockInfoBuilder().withFileToLock(testMetadata).withAcquirerId(testAcquirerId).build();
+        when(lockDirectory.createOutput(eq(testLockInfo.generateLockName()), eq(IOContext.DEFAULT))).thenReturn(indexOutput);
+        remoteStoreMetadataLockManager.acquire(testLockInfo);
         verify(indexOutput).close();
     }
 
-    public void testRelease() throws IOException {
-        FileLockInfo lockInfoMock = getFileLockInfoMock();
-        when(lockDirectory.listAll()).thenReturn(getListOfLocksMock().toArray(new String[0]));
-        when(lockInfoMock.getLocksForAcquirer(any())).thenReturn(
-            List.of(
-                String.join(RemoteStoreLockManagerUtils.SEPARATOR, testMetadata, testAcquirerId)
-                    + RemoteStoreLockManagerUtils.LOCK_FILE_EXTENSION
-            )
-        );
+    public void testAcquireOnlyFileToLockPassed() { // only fileToLock was passed to acquire call.
+        IndexOutput indexOutput = mock(IndexOutput.class);
+        when(lockDirectory.createOutput(eq(testLockName), eq(IOContext.DEFAULT))).thenReturn(indexOutput);
+        FileLockInfo testLockInfo = FileLockInfo.getLockInfoBuilder().withFileToLock(testMetadata).build();
+        assertThrows(IllegalArgumentException.class, () -> remoteStoreMetadataLockManager.acquire(testLockInfo));
+    }
 
-        remoteStoreMetadataLockManager.release(lockInfoMock);
+    public void testAcquireOnlyAcquirerIdPassed() { // only AcquirerId was passed to acquire call.
+        IndexOutput indexOutput = mock(IndexOutput.class);
+        when(lockDirectory.createOutput(eq(testLockName), eq(IOContext.DEFAULT))).thenReturn(indexOutput);
+        LockInfo testLockInfo = FileLockInfo.getLockInfoBuilder().withAcquirerId(testAcquirerId).build();
+        assertThrows(IllegalArgumentException.class, () -> remoteStoreMetadataLockManager.acquire(testLockInfo));
+    }
+
+    public void testRelease() throws IOException {
+        when(lockDirectory.listAll()).thenReturn(getListOfLocksMock().toArray(new String[0]));
+        FileLockInfo testLockInfo = FileLockInfo.getLockInfoBuilder().withAcquirerId(testAcquirerId).build();
+
+        remoteStoreMetadataLockManager.release(testLockInfo);
         verify(lockDirectory).deleteFile(
             String.join(RemoteStoreLockManagerUtils.SEPARATOR, testMetadata, testAcquirerId)
                 + RemoteStoreLockManagerUtils.LOCK_FILE_EXTENSION
         );
     }
 
+    public void testReleaseExceptionCase() { // acquirerId is Not passed during release lock call.
+        FileLockInfo testLockInfo = FileLockInfo.getLockInfoBuilder().withFileToLock(testMetadata).build();
+        assertThrows(IllegalArgumentException.class, () -> remoteStoreMetadataLockManager.release(testLockInfo));
+    }
+
     public void testIsAcquired() throws IOException {
-        FileLockInfo lockInfoMock = mock(FileLockInfo.class);
-        when(lockInfoMock.getFileToLock()).thenReturn(testMetadata);
-        when(lockInfoMock.getLockPrefix()).thenReturn(testMetadata + RemoteStoreLockManagerUtils.SEPARATOR);
-        when(lockDirectory.listFilesByPrefix(testMetadata + RemoteStoreLockManagerUtils.SEPARATOR)).thenReturn(getListOfLocksMock());
-        TestCase.assertTrue(remoteStoreMetadataLockManager.isAcquired(lockInfoMock));
+        FileLockInfo testLockInfo = FileLockInfo.getLockInfoBuilder().withFileToLock(testMetadata).build();
+        when(lockDirectory.listFilesByPrefix(testLockInfo.getLockPrefix())).thenReturn(getListOfLocksMock());
+        TestCase.assertTrue(remoteStoreMetadataLockManager.isAcquired(testLockInfo));
+    }
+
+    public void testIsAcquiredExceptionCase() { // metadata file is not passed during isAcquired call.
+        FileLockInfo testLockInfo = FileLockInfo.getLockInfoBuilder().withAcquirerId(testAcquirerId).build();
+        assertThrows(IllegalArgumentException.class, () -> remoteStoreMetadataLockManager.isAcquired(testLockInfo));
     }
 }

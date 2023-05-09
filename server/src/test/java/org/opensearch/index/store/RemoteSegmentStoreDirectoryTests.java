@@ -415,6 +415,22 @@ public class RemoteSegmentStoreDirectoryTests extends OpenSearchTestCase {
         verify(mdLockManager).isAcquired(any());
     }
 
+    public void testIsAcquiredException() throws IOException {
+        populateMetadata();
+        remoteSegmentStoreDirectory.init();
+        long testPrimaryTerm = 1;
+        long testGeneration = 5;
+
+        List<String> metadataFiles = new ArrayList<>();
+        when(
+            remoteMetadataDirectory.listFilesByPrefix(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilePrefixForCommit(testPrimaryTerm, testGeneration)
+            )
+        ).thenReturn(metadataFiles);
+
+        assertThrows(NoSuchFileException.class, () -> remoteSegmentStoreDirectory.isLockAcquired(testPrimaryTerm, testGeneration));
+    }
+
     public void testGetMetadataFileForCommit() throws IOException {
         long testPrimaryTerm = 2;
         long testGeneration = 3;

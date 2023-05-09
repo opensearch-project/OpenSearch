@@ -378,7 +378,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         }
         if (metadataFiles.size() != 1) {
             throw new IllegalStateException(
-                "there should be only one metadata file for given primary term " + primaryTerm + "and generation " + generation
+                "there should be only one metadata file for given primary term "
+                    + primaryTerm
+                    + "and generation "
+                    + generation
+                    + " but found "
+                    + metadataFiles.size()
             );
         }
         return metadataFiles.iterator().next();

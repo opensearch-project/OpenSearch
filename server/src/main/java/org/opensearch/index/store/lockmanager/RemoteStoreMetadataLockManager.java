@@ -48,6 +48,10 @@ public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
 
     /**
      * Releases Locks acquired by a given acquirer which is passed in LockInfo Instance.
+     * Right now this method is only used to release locks for a given acquirer,
+     * This can be extended in future to handle other cases as well, like:
+     * - release lock for given fileToLock and AcquirerId
+     * - release all locks for given fileToLock
      * @param lockInfo File Lock Info instance for which lock need to be removed.
      * @throws IOException in case there is some failure in releasing locks.
      */
@@ -59,6 +63,9 @@ public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
         // ideally there should be only one lock per acquirer, but just to handle any stale locks,
         // we try to release all the locks for the acquirer.
         List<String> locksToRelease = ((FileLockInfo) lockInfo).getLocksForAcquirer(lockFiles);
+        if (locksToRelease.size() > 1) {
+            logger.warn(locksToRelease.size() + " locks found for acquirer " + ((FileLockInfo) lockInfo).getAcquirerId());
+        }
         for (String lock : locksToRelease) {
             lockDirectory.deleteFile(lock);
         }

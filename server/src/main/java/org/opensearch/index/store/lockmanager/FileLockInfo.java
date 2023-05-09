@@ -80,11 +80,19 @@ public class FileLockInfo implements LockInfo {
 
         public static String getFileToLockNameFromLock(String lockName) {
             String[] lockNameTokens = lockName.split(RemoteStoreLockManagerUtils.SEPARATOR);
+
+            if (lockNameTokens.length != 2) {
+                throw new IllegalArgumentException("Invalid LockName Provided.");
+            }
             return lockNameTokens[0];
         }
 
         public static String getAcquirerIdFromLock(String lockName) {
             String[] lockNameTokens = lockName.split(RemoteStoreLockManagerUtils.SEPARATOR);
+
+            if (lockNameTokens.length != 2) {
+                throw new IllegalArgumentException("Invalid LockName Provided.");
+            }
             return lockNameTokens[1].replace(RemoteStoreLockManagerUtils.LOCK_FILE_EXTENSION, "");
         }
     }
