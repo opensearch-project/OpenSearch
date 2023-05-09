@@ -97,26 +97,24 @@ public class RenameResponseProcessor extends AbstractProcessor implements Search
                 hit.setDocumentField(newField, newDocField);
             }
 
-            BytesReference sourceRef = hit.getSourceRef();
-            Tuple<? extends MediaType, Map<String, Object>> typeAndSourceMap = XContentHelper.convertToMap(
-                sourceRef,
-                false,
-                (MediaType) null
-            );
+            if (hit.hasSource()) {
+                BytesReference sourceRef = hit.getSourceRef();
+                Tuple<? extends MediaType, Map<String, Object>> typeAndSourceMap = XContentHelper.convertToMap(
+                    sourceRef,
+                    false,
+                    (MediaType) null
+                );
 
-            Map<String, Object> sourceAsMap = typeAndSourceMap.v2();
-            if (sourceAsMap.containsKey(oldField)) {
-                foundField = true;
-                Object val = sourceAsMap.remove(oldField);
-                if (val instanceof DocumentField) {
-                    DocumentField dfVal = (DocumentField) val;
-                    val = new DocumentField(newField, dfVal.getValues());
+                Map<String, Object> sourceAsMap = typeAndSourceMap.v2();
+                if (sourceAsMap.containsKey(oldField)) {
+                    foundField = true;
+                    Object val = sourceAsMap.remove(oldField);
+                    sourceAsMap.put(newField, val);
+
+                    XContentBuilder builder = XContentBuilder.builder(typeAndSourceMap.v1().xContent());
+                    builder.map(sourceAsMap);
+                    hit.sourceRef(BytesReference.bytes(builder));
                 }
-                sourceAsMap.put(newField, val);
-
-                XContentBuilder builder = XContentBuilder.builder(typeAndSourceMap.v1().xContent());
-                builder.map(sourceAsMap);
-                hit.sourceRef(BytesReference.bytes(builder));
             }
 
             if (!foundField && !ignoreMissing) {

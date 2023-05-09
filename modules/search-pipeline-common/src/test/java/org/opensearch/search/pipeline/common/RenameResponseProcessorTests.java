@@ -80,6 +80,12 @@ public class RenameResponseProcessorTests extends AbstractBuilderTestCase {
         assertTrue(foundField);
     }
 
+    public void testMissingField() throws Exception {
+        SearchRequest request = createDummyRequest();
+        RenameResponseProcessor renameResponseProcessor = new RenameResponseProcessor(null, null, "field", "new field", false);
+        assertThrows(IllegalArgumentException.class, () -> renameResponseProcessor.processResponse(request, createTestResponse(3, true)));
+    }
+
     public void testFactory() throws Exception {
         String oldField = RandomDocumentPicks.randomFieldName(random());
         String newField = RandomDocumentPicks.randomFieldName(random());
