@@ -27,7 +27,7 @@ import static org.opensearch.extensions.action.ExtensionActionUtil.UNIT_SEPARATO
 import static org.opensearch.extensions.action.ExtensionActionUtil.createProxyRequestBytes;
 
 public class ExtensionActionUtilTest {
-    private byte[] exampleRequestBytes;
+    private byte[] myExampleBytes;
     private final String action = "org.opensearch.action.MyExampleRequest";
     private final byte[] exampleByteArray = MyExampleRequest.class.getName().getBytes(StandardCharsets.UTF_8);
 
@@ -36,11 +36,10 @@ public class ExtensionActionUtilTest {
         BytesStreamOutput out = new BytesStreamOutput();
         MyExampleRequest exampleRequest = new MyExampleRequest(action, exampleByteArray);
         exampleRequest.writeTo(out);
-        out.flush();
 
         byte[] requestBytes = BytesReference.toBytes(out.bytes());
         byte[] requestClass = MyExampleRequest.class.getName().getBytes(StandardCharsets.UTF_8);
-        this.exampleRequestBytes = ByteBuffer.allocate(requestClass.length + 1 + requestBytes.length)
+        this.myExampleBytes = ByteBuffer.allocate(requestClass.length + 1 + requestBytes.length)
             .put(requestClass)
             .put(UNIT_SEPARATOR)
             .put(requestBytes)
@@ -52,35 +51,26 @@ public class ExtensionActionUtilTest {
         BytesStreamOutput out = new BytesStreamOutput();
         MyExampleRequest exampleRequest = new MyExampleRequest(action, exampleByteArray);
         exampleRequest.writeTo(out);
-        out.flush();
 
         byte[] result = createProxyRequestBytes(exampleRequest);
-        assertArrayEquals(this.exampleRequestBytes, result);
+        assertArrayEquals(this.myExampleBytes, result);
     }
 
     @Test
     public void testCreateExtensionActionRequestFromBytes() {
-        ExtensionActionRequest extensionActionRequest = ExtensionActionUtil.createExtensionActionRequestFromBytes(exampleRequestBytes);
-        assertNotNull(extensionActionRequest);
+        ExtensionActionRequest extensionActionRequest = ExtensionActionUtil.createExtensionActionRequestFromBytes(myExampleBytes);
+        assert extensionActionRequest != null;
+        String action = extensionActionRequest.getAction();
+        byte[] bytes = extensionActionRequest.getRequestBytes();
+
+        assertEquals(this.action, action);
+        assertArrayEquals(exampleByteArray, bytes);
     }
 
     @Test
     public void testCreateActionRequest() {
-        ActionRequest actionRequest = ExtensionActionUtil.createActionRequest(exampleRequestBytes);
+        ActionRequest actionRequest = ExtensionActionUtil.createActionRequest(myExampleBytes);
         assertNotNull(actionRequest);
-    }
-
-    @Test
-    public void testCreateExtensionActionRequest() throws Exception {
-        ActionRequest actionRequest = ExtensionActionUtil.createActionRequest(exampleRequestBytes);
-        ExtensionActionRequest extensionActionRequest = ExtensionActionUtil.createExtensionActionRequest(actionRequest);
-        BytesStreamOutput out = new BytesStreamOutput();
-        assert actionRequest != null;
-        actionRequest.writeTo(out);
-        out.flush();
-        assert extensionActionRequest != null;
-        assertEquals(action, extensionActionRequest.getAction());
-        assertArrayEquals(exampleByteArray, extensionActionRequest.getRequestBytes());
     }
 
     private static class MyExampleRequest extends ActionRequest {
