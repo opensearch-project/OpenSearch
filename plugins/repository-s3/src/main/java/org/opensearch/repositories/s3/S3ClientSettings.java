@@ -32,8 +32,8 @@
 
 package org.opensearch.repositories.s3;
 
-import software.amazon.awssdk.ClientConfiguration;
-import software.amazon.awssdk.Protocol;
+import com.amazonaws.ClientConfiguration;
+import com.amazonaws.Protocol;
 import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;

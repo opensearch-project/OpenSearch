@@ -32,11 +32,13 @@
 
 package org.opensearch.repositories.s3;
 
-import software.amazon.awssdk.ClientConfiguration;
-import software.amazon.awssdk.Protocol;
-import software.amazon.awssdk.auth.AwsCredentialsProvider;
-import software.amazon.awssdk.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.ClientConfiguration;
+import com.amazonaws.Protocol;
+import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.http.IdleConnectionReaper;
 
+import org.junit.AfterClass;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
@@ -54,14 +56,20 @@ import static org.opensearch.repositories.s3.S3ClientSettings.PROTOCOL_SETTING;
 import static org.opensearch.repositories.s3.S3ClientSettings.PROXY_TYPE_SETTING;
 
 public class AwsS3ServiceImplTests extends OpenSearchTestCase implements ConfigPathSupport {
-    public void testAwsCredentialsDefaultToInstanceProviders() {
+    @AfterClass
+    public static void shutdownIdleConnectionReaper() {
+        // created by default STS client
+        IdleConnectionReaper.shutdown();
+    }
+
+    public void testAWSCredentialsDefaultToInstanceProviders() {
         final String inexistentClientName = randomAlphaOfLength(8).toLowerCase(Locale.ROOT);
         final S3ClientSettings clientSettings = S3ClientSettings.getClientSettings(Settings.EMPTY, inexistentClientName, configPath());
-        final AwsCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, clientSettings);
+        final AWSCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, clientSettings);
         assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedInstanceProfileCredentialsProvider.class));
     }
 
-    public void testAwsCredentialsFromKeystore() {
+    public void testAWSCredentialsFromKeystore() {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         final String clientNamePrefix = "some_client_name_";
         final int clientsCount = randomIntBetween(0, 4);
@@ -77,14 +85,14 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase implements ConfigP
         for (int i = 0; i < clientsCount; i++) {
             final String clientName = clientNamePrefix + i;
             final S3ClientSettings someClientSettings = allClientsSettings.get(clientName);
-            final AwsCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, someClientSettings);
+            final AWSCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, someClientSettings);
             assertThat(credentialsProvider, instanceOf(AWSStaticCredentialsProvider.class));
             assertThat(credentialsProvider.getCredentials().getAWSAccessKeyId(), is(clientName + "_aws_access_key"));
             assertThat(credentialsProvider.getCredentials().getAWSSecretKey(), is(clientName + "_aws_secret_key"));
         }
         // test default exists and is an Instance provider
         final S3ClientSettings defaultClientSettings = allClientsSettings.get("default");
-        final AwsCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(logger, defaultClientSettings);
+        final AWSCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(logger, defaultClientSettings);
         assertThat(defaultCredentialsProvider, instanceOf(S3Service.PrivilegedInstanceProfileCredentialsProvider.class));
     }
 
@@ -112,13 +120,13 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase implements ConfigP
         for (int i = 0; i < clientsCount; i++) {
             final String clientName = clientNamePrefix + i;
             final S3ClientSettings someClientSettings = allClientsSettings.get(clientName);
-            final AwsCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, someClientSettings);
+            final AWSCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, someClientSettings);
             assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedSTSAssumeRoleSessionCredentialsProvider.class));
             ((Closeable) credentialsProvider).close();
         }
         // test default exists and is an Instance provider
         final S3ClientSettings defaultClientSettings = allClientsSettings.get("default");
-        final AwsCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(logger, defaultClientSettings);
+        final AWSCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(logger, defaultClientSettings);
         assertThat(defaultCredentialsProvider, instanceOf(S3Service.PrivilegedInstanceProfileCredentialsProvider.class));
     }
 
@@ -146,13 +154,13 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase implements ConfigP
         for (int i = 0; i < clientsCount; i++) {
             final String clientName = clientNamePrefix + i;
             final S3ClientSettings someClientSettings = allClientsSettings.get(clientName);
-            final AwsCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, someClientSettings);
+            final AWSCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, someClientSettings);
             assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedSTSAssumeRoleSessionCredentialsProvider.class));
             ((Closeable) credentialsProvider).close();
         }
         // test default exists and is an Instance provider
         final S3ClientSettings defaultClientSettings = allClientsSettings.get("default");
-        final AwsCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(logger, defaultClientSettings);
+        final AWSCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(logger, defaultClientSettings);
         assertThat(defaultCredentialsProvider, instanceOf(S3Service.PrivilegedInstanceProfileCredentialsProvider.class));
     }
 
@@ -173,13 +181,13 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase implements ConfigP
         for (int i = 0; i < clientsCount; i++) {
             final String clientName = clientNamePrefix + i;
             final S3ClientSettings someClientSettings = allClientsSettings.get(clientName);
-            final AwsCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, someClientSettings);
+            final AWSCredentialsProvider credentialsProvider = S3Service.buildCredentials(logger, someClientSettings);
             assertThat(credentialsProvider, instanceOf(S3Service.PrivilegedSTSAssumeRoleSessionCredentialsProvider.class));
             ((Closeable) credentialsProvider).close();
         }
         // test default exists and is an Instance provider
         final S3ClientSettings defaultClientSettings = allClientsSettings.get("default");
-        final AwsCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(logger, defaultClientSettings);
+        final AWSCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(logger, defaultClientSettings);
         assertThat(defaultCredentialsProvider, instanceOf(S3Service.PrivilegedInstanceProfileCredentialsProvider.class));
     }
 
@@ -194,7 +202,7 @@ public class AwsS3ServiceImplTests extends OpenSearchTestCase implements ConfigP
         assertThat(allClientsSettings.size(), is(1));
         // test default exists and is an Instance provider
         final S3ClientSettings defaultClientSettings = allClientsSettings.get("default");
-        final AwsCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(logger, defaultClientSettings);
+        final AWSCredentialsProvider defaultCredentialsProvider = S3Service.buildCredentials(logger, defaultClientSettings);
         assertThat(defaultCredentialsProvider, instanceOf(AWSStaticCredentialsProvider.class));
         assertThat(defaultCredentialsProvider.getCredentials().getAWSAccessKeyId(), is(awsAccessKey));
         assertThat(defaultCredentialsProvider.getCredentials().getAWSSecretKey(), is(awsSecretKey));

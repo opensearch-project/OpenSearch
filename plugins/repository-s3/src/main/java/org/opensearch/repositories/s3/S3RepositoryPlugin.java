@@ -32,7 +32,7 @@
 
 package org.opensearch.repositories.s3;
 
-import software.amazon.awssdk.util.json.Jackson;
+import com.amazonaws.util.json.Jackson;
 import org.opensearch.SpecialPermission;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
@@ -69,7 +69,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
                 Jackson.jsonNodeOf("{}");
                 // ClientConfiguration clinit has some classloader problems
                 // TODO: fix that
-                Class.forName("software.amazon.awssdk.ClientConfiguration");
+                Class.forName("com.amazonaws.ClientConfiguration");
             } catch (final ClassNotFoundException e) {
                 throw new RuntimeException(e);
             }

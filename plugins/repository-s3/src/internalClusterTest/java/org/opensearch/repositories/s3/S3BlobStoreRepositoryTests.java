@@ -31,7 +31,7 @@
 
 package org.opensearch.repositories.s3;
 
-import software.amazon.awssdk.http.AmazonHttpClient;
+import com.amazonaws.http.AmazonHttpClient;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;

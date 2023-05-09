@@ -32,7 +32,7 @@
 
 package org.opensearch.repositories.s3;
 
-import software.amazon.awssdk.services.s3.AbstractAmazonS3;
+import com.amazonaws.services.s3.AbstractAmazonS3;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;

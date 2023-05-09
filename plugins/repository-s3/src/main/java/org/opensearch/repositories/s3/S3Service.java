@@ -32,24 +32,25 @@
 
 package org.opensearch.repositories.s3;
 
-import software.amazon.awssdk.ClientConfiguration;
-import software.amazon.awssdk.auth.AwsCredentials;
-import software.amazon.awssdk.auth.AwsCredentialsProvider;
-import software.amazon.awssdk.auth.AWSSessionCredentialsProvider;
-import software.amazon.awssdk.auth.AWSStaticCredentialsProvider;
-import software.amazon.awssdk.auth.EC2ContainerCredentialsProviderWrapper;
-import software.amazon.awssdk.auth.STSAssumeRoleSessionCredentialsProvider;
-import software.amazon.awssdk.auth.STSAssumeRoleWithWebIdentitySessionCredentialsProvider;
-import software.amazon.awssdk.client.builder.AwsClientBuilder;
-import software.amazon.awssdk.client.builder.AwsClientBuilder.EndpointConfiguration;
-import software.amazon.awssdk.http.SystemPropertyTlsKeyManagersProvider;
-import software.amazon.awssdk.http.conn.ssl.SdkTLSSocketFactory;
-import software.amazon.awssdk.internal.SdkSSLContext;
-import software.amazon.awssdk.services.s3.AmazonS3;
-import software.amazon.awssdk.services.s3.AmazonS3ClientBuilder;
-import software.amazon.awssdk.services.s3.internal.Constants;
-import software.amazon.awssdk.services.securitytoken.AWSSecurityTokenService;
-import software.amazon.awssdk.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
+import com.amazonaws.ClientConfiguration;
+import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.AWSSessionCredentialsProvider;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
+import com.amazonaws.auth.STSAssumeRoleSessionCredentialsProvider;
+import com.amazonaws.auth.STSAssumeRoleWithWebIdentitySessionCredentialsProvider;
+import com.amazonaws.client.builder.AwsClientBuilder;
+import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
+import com.amazonaws.http.IdleConnectionReaper;
+import com.amazonaws.http.SystemPropertyTlsKeyManagersProvider;
+import com.amazonaws.http.conn.ssl.SdkTLSSocketFactory;
+import com.amazonaws.internal.SdkSSLContext;
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.amazonaws.services.s3.internal.Constants;
+import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
+import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
 
 import org.apache.http.conn.ssl.DefaultHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
@@ -75,15 +76,15 @@ import java.nio.file.Path;
 import java.security.SecureRandom;
 import java.util.Map;
 
-import static software.amazon.awssdk.SDKGlobalConfiguration.AWS_ROLE_ARN_ENV_VAR;
-import static software.amazon.awssdk.SDKGlobalConfiguration.AWS_ROLE_SESSION_NAME_ENV_VAR;
-import static software.amazon.awssdk.SDKGlobalConfiguration.AWS_WEB_IDENTITY_ENV_VAR;
+import static com.amazonaws.SDKGlobalConfiguration.AWS_ROLE_ARN_ENV_VAR;
+import static com.amazonaws.SDKGlobalConfiguration.AWS_ROLE_SESSION_NAME_ENV_VAR;
+import static com.amazonaws.SDKGlobalConfiguration.AWS_WEB_IDENTITY_ENV_VAR;
 import static java.util.Collections.emptyMap;
 
 class S3Service implements Closeable {
     private static final Logger logger = LogManager.getLogger(S3Service.class);
 
-    private static final String STS_ENDPOINT_OVERRIDE_SYSTEM_PROPERTY = "software.amazon.awssdk.sdk.stsEndpointOverride";
+    private static final String STS_ENDPOINT_OVERRIDE_SYSTEM_PROPERTY = "com.amazonaws.sdk.stsEndpointOverride";
 
     private volatile Map<S3ClientSettings, AmazonS3Reference> clientsCache = emptyMap();
 
@@ -183,7 +184,7 @@ class S3Service implements Closeable {
     AmazonS3WithCredentials buildClient(final S3ClientSettings clientSettings) {
         final AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
 
-        final AwsCredentialsProvider credentials = buildCredentials(logger, clientSettings);
+        final AWSCredentialsProvider credentials = buildCredentials(logger, clientSettings);
         builder.withCredentials(credentials);
         builder.withClientConfiguration(buildConfiguration(clientSettings));
 
@@ -277,7 +278,7 @@ class S3Service implements Closeable {
     }
 
     // pkg private for tests
-    static AwsCredentialsProvider buildCredentials(Logger logger, S3ClientSettings clientSettings) {
+    static AWSCredentialsProvider buildCredentials(Logger logger, S3ClientSettings clientSettings) {
         final S3BasicCredentials basicCredentials = clientSettings.credentials;
         final IrsaCredentials irsaCredentials = buildFromEnviroment(clientSettings.irsaCredentials);
 
@@ -373,10 +374,14 @@ class S3Service implements Closeable {
         // clear previously cached clients, they will be build lazily
         clientsCache = emptyMap();
         derivedClientSettings = emptyMap();
+
+        // shutdown IdleConnectionReaper background thread
+        // it will be restarted on new client usage
+        IdleConnectionReaper.shutdown();
     }
 
-    static class PrivilegedInstanceProfileCredentialsProvider implements AwsCredentialsProvider {
-        private final AwsCredentialsProvider credentials;
+    static class PrivilegedInstanceProfileCredentialsProvider implements AWSCredentialsProvider {
+        private final AWSCredentialsProvider credentials;
 
         private PrivilegedInstanceProfileCredentialsProvider() {
             // InstanceProfileCredentialsProvider as last item of chain
@@ -384,7 +389,7 @@ class S3Service implements Closeable {
         }
 
         @Override
-        public AwsCredentials getCredentials() {
+        public AWSCredentials getCredentials() {
             return SocketAccess.doPrivileged(credentials::getCredentials);
         }
 
@@ -396,7 +401,7 @@ class S3Service implements Closeable {
 
     static class PrivilegedSTSAssumeRoleSessionCredentialsProvider<P extends AWSSessionCredentialsProvider & Closeable>
         implements
-            AwsCredentialsProvider,
+            AWSCredentialsProvider,
             Closeable {
         private final P credentials;
         private final AWSSecurityTokenService securityTokenService;
@@ -410,7 +415,7 @@ class S3Service implements Closeable {
         }
 
         @Override
-        public AwsCredentials getCredentials() {
+        public AWSCredentials getCredentials() {
             return SocketAccess.doPrivileged(credentials::getCredentials);
         }
 

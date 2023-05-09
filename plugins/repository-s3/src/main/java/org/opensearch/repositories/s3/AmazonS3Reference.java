@@ -32,9 +32,9 @@
 
 package org.opensearch.repositories.s3;
 
-import software.amazon.awssdk.auth.AwsCredentialsProvider;
-import software.amazon.awssdk.services.s3.AmazonS3;
-import software.amazon.awssdk.services.s3.AmazonS3Client;
+import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3Client;
 
 import org.opensearch.common.Nullable;
 import org.opensearch.common.concurrent.RefCountedReleasable;
@@ -55,7 +55,7 @@ public class AmazonS3Reference extends RefCountedReleasable<AmazonS3> {
         this(client.client(), client.credentials());
     }
 
-    AmazonS3Reference(AmazonS3 client, @Nullable AwsCredentialsProvider credentials) {
+    AmazonS3Reference(AmazonS3 client, @Nullable AWSCredentialsProvider credentials) {
         super("AWS_S3_CLIENT", client, () -> {
             client.shutdown();
             if (credentials instanceof Closeable) {

@@ -32,21 +32,21 @@
 
 package org.opensearch.repositories.s3;
 
-import software.amazon.awssdk.core.exception.SdkException;
-import software.amazon.awssdk.services.s3.AmazonS3;
-import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
-import software.amazon.awssdk.services.s3.model.CannedAccessControlList;
-import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
-import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadResult;
-import software.amazon.awssdk.services.s3.model.InitiateMultipartUploadRequest;
-import software.amazon.awssdk.services.s3.model.InitiateMultipartUploadResult;
-import software.amazon.awssdk.services.s3.model.ObjectMetadata;
-import software.amazon.awssdk.services.s3.model.PartETag;
-import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.PutObjectResult;
-import software.amazon.awssdk.services.s3.model.StorageClass;
-import software.amazon.awssdk.services.s3.model.UploadPartRequest;
-import software.amazon.awssdk.services.s3.model.UploadPartResult;
+import com.amazonaws.AmazonClientException;
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.AbortMultipartUploadRequest;
+import com.amazonaws.services.s3.model.CannedAccessControlList;
+import com.amazonaws.services.s3.model.CompleteMultipartUploadRequest;
+import com.amazonaws.services.s3.model.CompleteMultipartUploadResult;
+import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
+import com.amazonaws.services.s3.model.InitiateMultipartUploadResult;
+import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.PartETag;
+import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.amazonaws.services.s3.model.PutObjectResult;
+import com.amazonaws.services.s3.model.StorageClass;
+import com.amazonaws.services.s3.model.UploadPartRequest;
+import com.amazonaws.services.s3.model.UploadPartResult;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStoreException;
 import org.opensearch.common.collect.Tuple;
@@ -300,10 +300,10 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         final String uploadId = randomAlphaOfLength(25);
 
         final int stage = randomInt(2);
-        final List<SdkException> exceptions = Arrays.asList(
-            new SdkException("Expected initialization request to fail"),
-            new SdkException("Expected upload part request to fail"),
-            new SdkException("Expected completion request to fail")
+        final List<AmazonClientException> exceptions = Arrays.asList(
+            new AmazonClientException("Expected initialization request to fail"),
+            new AmazonClientException("Expected upload part request to fail"),
+            new AmazonClientException("Expected completion request to fail")
         );
 
         if (stage == 0) {
@@ -344,7 +344,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         });
 
         assertEquals("Unable to upload object [" + blobName + "] using multipart upload", e.getMessage());
-        assertThat(e.getCause(), instanceOf(SdkException.class));
+        assertThat(e.getCause(), instanceOf(AmazonClientException.class));
         assertEquals(exceptions.get(stage).getMessage(), e.getCause().getMessage());
 
         if (stage == 0) {

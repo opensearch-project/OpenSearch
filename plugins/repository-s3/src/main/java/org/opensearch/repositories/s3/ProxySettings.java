@@ -8,7 +8,7 @@
 
 package org.opensearch.repositories.s3;
 
-import software.amazon.awssdk.Protocol;
+import com.amazonaws.Protocol;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.SettingsException;
 

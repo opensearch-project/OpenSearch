@@ -31,9 +31,9 @@
 
 package org.opensearch.repositories.s3;
 
-import software.amazon.awssdk.SdkClientException;
-import software.amazon.awssdk.services.s3.internal.MD5DigestCalculatingInputStream;
-import software.amazon.awssdk.util.Base16;
+import com.amazonaws.SdkClientException;
+import com.amazonaws.services.s3.internal.MD5DigestCalculatingInputStream;
+import com.amazonaws.util.Base16;
 import org.apache.http.HttpStatus;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.Nullable;

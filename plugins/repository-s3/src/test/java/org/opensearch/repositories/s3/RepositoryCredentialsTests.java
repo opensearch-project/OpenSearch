@@ -32,9 +32,9 @@
 
 package org.opensearch.repositories.s3;
 
-import software.amazon.awssdk.auth.AwsCredentials;
-import software.amazon.awssdk.auth.AwsCredentialsProvider;
-import software.amazon.awssdk.services.s3.AmazonS3;
+import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.services.s3.AmazonS3;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -127,7 +127,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase {
         final AmazonS3 client = repository.createBlobStore().clientReference().get();
         assertThat(client, instanceOf(ProxyS3RepositoryPlugin.ClientAndCredentials.class));
 
-        final AwsCredentials credentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) client).credentials.getCredentials();
+        final AWSCredentials credentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) client).credentials.getCredentials();
         assertThat(credentials.getAWSAccessKeyId(), is("insecure_aws_key"));
         assertThat(credentials.getAWSSecretKey(), is("insecure_aws_secret"));
 
@@ -166,7 +166,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase {
             final AmazonS3 client = clientReference.get();
             assertThat(client, instanceOf(ProxyS3RepositoryPlugin.ClientAndCredentials.class));
 
-            final AwsCredentials credentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) client).credentials.getCredentials();
+            final AWSCredentials credentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) client).credentials.getCredentials();
             if (hasInsecureSettings) {
                 assertThat(credentials.getAWSAccessKeyId(), is("insecure_aws_key"));
                 assertThat(credentials.getAWSSecretKey(), is("insecure_aws_secret"));
@@ -206,7 +206,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase {
             final AmazonS3 client = clientReference.get();
             assertThat(client, instanceOf(ProxyS3RepositoryPlugin.ClientAndCredentials.class));
 
-            final AwsCredentials newCredentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) client).credentials.getCredentials();
+            final AWSCredentials newCredentials = ((ProxyS3RepositoryPlugin.ClientAndCredentials) client).credentials.getCredentials();
             if (hasInsecureSettings) {
                 assertThat(newCredentials.getAWSAccessKeyId(), is("insecure_aws_key"));
                 assertThat(newCredentials.getAWSSecretKey(), is("insecure_aws_secret"));
@@ -305,9 +305,9 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase {
         }
 
         public static final class ClientAndCredentials extends AmazonS3Wrapper {
-            final AwsCredentialsProvider credentials;
+            final AWSCredentialsProvider credentials;
 
-            ClientAndCredentials(AmazonS3 delegate, AwsCredentialsProvider credentials) {
+            ClientAndCredentials(AmazonS3 delegate, AWSCredentialsProvider credentials) {
                 super(delegate);
                 this.credentials = credentials;
             }
@@ -324,7 +324,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase {
             @Override
             AmazonS3WithCredentials buildClient(final S3ClientSettings clientSettings) {
                 final AmazonS3WithCredentials client = super.buildClient(clientSettings);
-                final AwsCredentialsProvider credentials = buildCredentials(logger, clientSettings);
+                final AWSCredentialsProvider credentials = buildCredentials(logger, clientSettings);
                 return AmazonS3WithCredentials.create(new ClientAndCredentials(client.client(), credentials), credentials);
             }
 
