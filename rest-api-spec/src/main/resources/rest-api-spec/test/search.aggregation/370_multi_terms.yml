@@ -716,8 +716,8 @@ setup:
 ---
 "aggregate over multi-terms test":
   - skip:
-      version: "- 2.0.99"
-      reason:  multi_terms aggregation is introduced in 2.1.0
+      version: "- 2.9.99"
+      reason: "multi_terms aggregation was introduced in 2.1.0, NPE bug checked by this test case will manifest in any version < 3.0"
 
   - do:
       bulk:
