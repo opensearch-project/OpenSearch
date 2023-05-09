@@ -751,11 +751,7 @@ public final class IndexSettings {
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
-        if (indexMetadata.isSystem()) {
-            replicationType = ReplicationType.DOCUMENT;
-        } else {
-            replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
-        }
+        replicationType = IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.get(settings);
         isRemoteStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false);
         isRemoteTranslogStoreEnabled = settings.getAsBoolean(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_ENABLED, false);
         remoteStoreTranslogRepository = settings.get(IndexMetadata.SETTING_REMOTE_TRANSLOG_STORE_REPOSITORY);
