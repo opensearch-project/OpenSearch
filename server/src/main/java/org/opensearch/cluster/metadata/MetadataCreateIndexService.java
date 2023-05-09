@@ -420,7 +420,7 @@ public class MetadataCreateIndexService {
                 name,
                 isHiddenFromRequest == null ? false : isHiddenFromRequest
             );
-            boolean isSystemIndex = validateDotIndex(request.index(), false);
+            boolean isSystemIndex = systemIndices.validateSystemIndex(request.index());
 
             if (v2Template != null) {
                 // If a v2 template was found, it takes precedence over all v1 templates, so create
