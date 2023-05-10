@@ -47,12 +47,6 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
     ) throws IOException {
         boolean couldUseConcurrentSegmentSearch = allowConcurrentSegmentSearch(searcher);
 
-        // TODO: support aggregations
-        if (searchContext.aggregations() != null) {
-            couldUseConcurrentSegmentSearch = false;
-            LOGGER.debug("Unable to use concurrent search over index segments (experimental): aggregations are present");
-        }
-
         if (couldUseConcurrentSegmentSearch) {
             LOGGER.debug("Using concurrent search over index segments (experimental)");
             return searchWithCollectorManager(searchContext, searcher, query, collectors, hasFilterCollector, hasTimeout);
@@ -77,19 +71,14 @@ public class ConcurrentQueryPhaseSearcher extends DefaultQueryPhaseSearcher {
         final QuerySearchResult queryResult = searchContext.queryResult();
         final CollectorManager<?, ReduceableSearchResult> collectorManager;
 
-        // TODO: support aggregations in concurrent segment search flow
-        if (searchContext.aggregations() != null) {
-            throw new UnsupportedOperationException("The concurrent segment search does not support aggregations yet");
-        }
-
         if (searchContext.getProfilers() != null) {
             final ProfileCollectorManager<? extends Collector, ReduceableSearchResult> profileCollectorManager =
                 QueryCollectorManagerContext.createQueryCollectorManagerWithProfiler(collectorContexts);
             searchContext.getProfilers().getCurrentQueryProfiler().setCollector(profileCollectorManager);
             collectorManager = profileCollectorManager;
         } else {
-            // Create multi collector manager instance
-            collectorManager = QueryCollectorManagerContext.createMultiCollectorManager(collectorContexts);
+            // Create collector manager tree
+            collectorManager = QueryCollectorManagerContext.createQueryCollectorManager(collectorContexts);
         }
 
         try {

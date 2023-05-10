@@ -31,6 +31,10 @@
 
 package org.opensearch.search.aggregations;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 import static org.opensearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 
 /**
@@ -39,10 +43,14 @@ import static org.opensearch.search.aggregations.MultiBucketConsumerService.Mult
  * @opensearch.internal
  */
 public class SearchContextAggregations {
-
     private final AggregatorFactories factories;
     private final MultiBucketConsumer multiBucketConsumer;
-    private Aggregator[] aggregators;
+
+    // top level global aggregators in the request
+    private final List<Aggregator> globalAggregators;
+
+    // top level aggregators other than global ones in the request
+    private final List<Aggregator> nonGlobalAggregators;
 
     /**
      * Creates a new aggregation context with the parsed aggregator factories
@@ -50,23 +58,39 @@ public class SearchContextAggregations {
     public SearchContextAggregations(AggregatorFactories factories, MultiBucketConsumer multiBucketConsumer) {
         this.factories = factories;
         this.multiBucketConsumer = multiBucketConsumer;
+        this.globalAggregators = new ArrayList<>();
+        this.nonGlobalAggregators = new ArrayList<>();
     }
 
     public AggregatorFactories factories() {
         return factories;
     }
 
-    public Aggregator[] aggregators() {
-        return aggregators;
+    public List<Aggregator> getGlobalAggregators() {
+        return Collections.unmodifiableList(globalAggregators);
+    }
+
+    public List<Aggregator> getNonGlobalAggregators() {
+        return Collections.unmodifiableList(nonGlobalAggregators);
     }
 
     /**
-     * Registers all the created aggregators (top level aggregators) for the search execution context.
+     * Registers all the created non-global aggregators (top level aggregators) for the search execution context. In case of concurrent
+     * segment search where multiple slices are created, it will create the {@link Aggregator} collector per slice and register here.
      *
-     * @param aggregators The top level aggregators of the search execution.
+     * @param aggregators The top level non-global aggregators of the search execution.
      */
-    public void aggregators(Aggregator[] aggregators) {
-        this.aggregators = aggregators;
+    public void addNonGlobalAggregators(List<Aggregator> aggregators) {
+        this.nonGlobalAggregators.addAll(aggregators);
+    }
+
+    /**
+     * Registers all the created global aggregators (top level aggregators) for the search execution context.
+     *
+     * @param aggregators The top level global aggregators of the search execution.
+     */
+    public void addGlobalAggregators(List<Aggregator> aggregators) {
+        this.globalAggregators.addAll(aggregators);
     }
 
     /**
