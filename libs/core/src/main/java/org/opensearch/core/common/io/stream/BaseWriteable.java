@@ -8,8 +8,8 @@
 package org.opensearch.core.common.io.stream;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Implementers can be written to a {@code StreamOutput} and read from a {@code StreamInput}. This allows them to be "thrown
@@ -27,15 +27,15 @@ public interface BaseWriteable<S extends BaseStreamOutput> {
      * @opensearch.internal
      */
     class WriteableRegistry {
-        private static final Map<Class<?>, Writer> WRITER_REGISTRY = new HashMap<>();
-        private static final Map<Byte, Reader> READER_REGISTRY = new HashMap<>();
+        private static final Map<Class<?>, Writer<? extends BaseStreamOutput, ?>> WRITER_REGISTRY = new ConcurrentHashMap<>();
+        private static final Map<Byte, Reader<? extends BaseStreamInput, ?>> READER_REGISTRY = new ConcurrentHashMap<>();
 
         /**
          * registers a streamable writer
          *
          * @opensearch.internal
          */
-        public static <W extends Writer> void registerWriter(final Class<?> clazz, final W writer) {
+        public static <W extends Writer<? extends BaseStreamOutput, ?>> void registerWriter(final Class<?> clazz, final W writer) {
             if (WRITER_REGISTRY.containsKey(clazz)) {
                 throw new IllegalArgumentException("Streamable writer already registered for type [" + clazz.getName() + "]");
             }
@@ -47,18 +47,26 @@ public interface BaseWriteable<S extends BaseStreamOutput> {
          *
          * @opensearch.internal
          */
-        public static <R extends Reader> void registerReader(final byte ordinal, final R reader) {
+        public static <R extends Reader<? extends BaseStreamInput, ?>> void registerReader(final byte ordinal, final R reader) {
             if (READER_REGISTRY.containsKey(ordinal)) {
                 throw new IllegalArgumentException("Streamable reader already registered for ordinal [" + (int) ordinal + "]");
             }
             READER_REGISTRY.put(ordinal, reader);
         }
 
-        public static <W extends Writer> W getWriter(final Class<?> clazz) {
+        /**
+         * Returns the registered writer keyed by the class type
+         */
+        @SuppressWarnings("unchecked")
+        public static <W extends Writer<? extends BaseStreamOutput, ?>> W getWriter(final Class<?> clazz) {
             return (W) WRITER_REGISTRY.get(clazz);
         }
 
-        public static <R extends Reader> R getReader(final byte b) {
+        /**
+         * Returns the ristered reader keyed by the unique ordinal
+         */
+        @SuppressWarnings("unchecked")
+        public static <R extends Reader<? extends BaseStreamInput, ?>> R getReader(final byte b) {
             return (R) READER_REGISTRY.get(b);
         }
     }
