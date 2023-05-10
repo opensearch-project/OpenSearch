@@ -41,9 +41,9 @@ import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
 import org.opensearch.node.Node;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -206,15 +206,15 @@ public class SearchPreferenceIT extends OpenSearchIntegTestCase {
             allNodeHosts.add(node.getHostname());
         }
 
-        String node_expr = "_only_nodes:" + Strings.arrayToCommaDelimitedString(allNodeIds.toArray());
+        String node_expr = "_only_nodes:" + org.opensearch.core.common.Strings.arrayToCommaDelimitedString(allNodeIds.toArray());
         request = client.prepareSearch("test").setQuery(matchAllQuery()).setPreference(node_expr);
         assertSearchOnRandomNodes(request);
 
-        node_expr = "_only_nodes:" + Strings.arrayToCommaDelimitedString(allNodeNames.toArray());
+        node_expr = "_only_nodes:" + org.opensearch.core.common.Strings.arrayToCommaDelimitedString(allNodeNames.toArray());
         request = client.prepareSearch("test").setQuery(matchAllQuery()).setPreference(node_expr);
         assertSearchOnRandomNodes(request);
 
-        node_expr = "_only_nodes:" + Strings.arrayToCommaDelimitedString(allNodeHosts.toArray());
+        node_expr = "_only_nodes:" + org.opensearch.core.common.Strings.arrayToCommaDelimitedString(allNodeHosts.toArray());
         request = client.prepareSearch("test").setQuery(matchAllQuery()).setPreference(node_expr);
         assertSearchOnRandomNodes(request);
 

@@ -46,11 +46,11 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Strings;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.common.util.set.Sets;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.repositories.IndexId;
@@ -299,7 +299,7 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
         }
         // Now add snapshots on disk that are not currently running
         final String repositoryName = request.repository();
-        if (Strings.hasText(repositoryName) && CollectionUtils.isEmpty(request.snapshots()) == false) {
+        if (org.opensearch.core.common.Strings.hasText(repositoryName) && CollectionUtils.isEmpty(request.snapshots()) == false) {
             loadRepositoryData(snapshotsInProgress, request, builder, currentSnapshotNames, repositoryName, listener);
         } else {
             listener.onResponse(new SnapshotsStatusResponse(Collections.unmodifiableList(builder)));

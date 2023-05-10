@@ -35,7 +35,7 @@ package org.opensearch.rest.action;
 import org.opensearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 
@@ -73,7 +73,7 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
+        String[] indices = org.opensearch.core.common.Strings.splitStringByCommaToArray(request.param("index"));
         FieldCapabilitiesRequest fieldRequest = new FieldCapabilitiesRequest().fields(
             Strings.splitStringByCommaToArray(request.param("fields"))
         ).indices(indices);

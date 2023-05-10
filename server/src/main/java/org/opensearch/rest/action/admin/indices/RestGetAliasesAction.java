@@ -38,8 +38,8 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.common.Strings;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.rest.BaseRestHandler;
@@ -156,7 +156,11 @@ public class RestGetAliasesAction extends BaseRestHandler {
                 status = RestStatus.NOT_FOUND;
                 final String message;
                 if (missingAliases.size() == 1) {
-                    message = String.format(Locale.ROOT, "alias [%s] missing", Strings.collectionToCommaDelimitedString(missingAliases));
+                    message = String.format(
+                        Locale.ROOT,
+                        "alias [%s] missing",
+                        org.opensearch.core.common.Strings.collectionToCommaDelimitedString(missingAliases)
+                    );
                 } else {
                     message = String.format(Locale.ROOT, "aliases [%s] missing", Strings.collectionToCommaDelimitedString(missingAliases));
                 }
@@ -193,7 +197,7 @@ public class RestGetAliasesAction extends BaseRestHandler {
         final boolean namesProvided = request.hasParam("name");
         final String[] aliases = request.paramAsStringArrayOrEmptyIfAll("name");
         final GetAliasesRequest getAliasesRequest = new GetAliasesRequest(aliases);
-        final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
+        final String[] indices = org.opensearch.core.common.Strings.splitStringByCommaToArray(request.param("index"));
         getAliasesRequest.indices(indices);
         getAliasesRequest.indicesOptions(IndicesOptions.fromRequest(request, getAliasesRequest.indicesOptions()));
         getAliasesRequest.local(request.paramAsBoolean("local", getAliasesRequest.local()));

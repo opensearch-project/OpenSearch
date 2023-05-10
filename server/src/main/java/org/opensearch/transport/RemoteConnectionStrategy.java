@@ -39,12 +39,12 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.support.ContextPreservingActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -217,7 +217,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             return seeds.isEmpty() == false;
         } else {
             String address = ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
-            return Strings.isEmpty(address) == false;
+            return org.opensearch.core.common.Strings.isEmpty(address) == false;
         }
     }
 

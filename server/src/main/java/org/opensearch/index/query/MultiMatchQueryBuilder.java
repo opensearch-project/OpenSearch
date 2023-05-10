@@ -37,11 +37,11 @@ import org.apache.lucene.search.Query;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.unit.Fuzziness;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -294,7 +294,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
      * Adds a field to run the multi match against.
      */
     public MultiMatchQueryBuilder field(String field) {
-        if (Strings.isEmpty(field)) {
+        if (org.opensearch.core.common.Strings.isEmpty(field)) {
             throw new IllegalArgumentException("supplied field is null or empty.");
         }
         this.fieldsBoosts.put(field, AbstractQueryBuilder.DEFAULT_BOOST);

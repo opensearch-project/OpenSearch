@@ -69,7 +69,6 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
-import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.collect.ImmutableOpenIntMap;
 import org.opensearch.common.collect.Tuple;
@@ -80,6 +79,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.CountDown;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.shard.ShardId;
@@ -187,7 +187,9 @@ public class MetadataIndexStateService {
         }
         if (writeIndices.size() > 0) {
             throw new IllegalArgumentException(
-                "cannot close the following data stream write indices [" + Strings.collectionToCommaDelimitedString(writeIndices) + "]"
+                "cannot close the following data stream write indices ["
+                    + org.opensearch.core.common.Strings.collectionToCommaDelimitedString(writeIndices)
+                    + "]"
             );
         }
 
@@ -366,7 +368,7 @@ public class MetadataIndexStateService {
                 // Create a new index closed block
                 indexBlock = createIndexClosingBlock();
             }
-            assert Strings.hasLength(indexBlock.uuid()) : "Closing block should have a UUID";
+            assert org.opensearch.core.common.Strings.hasLength(indexBlock.uuid()) : "Closing block should have a UUID";
             blocks.addIndexBlock(index.getName(), indexBlock);
             blockedIndices.put(index, indexBlock);
         }
@@ -482,7 +484,7 @@ public class MetadataIndexStateService {
         if (writeIndices.size() > 0) {
             throw new IllegalArgumentException(
                 "cannot add a block to the following data stream write indices ["
-                    + Strings.collectionToCommaDelimitedString(writeIndices)
+                    + org.opensearch.core.common.Strings.collectionToCommaDelimitedString(writeIndices)
                     + "]"
             );
         }

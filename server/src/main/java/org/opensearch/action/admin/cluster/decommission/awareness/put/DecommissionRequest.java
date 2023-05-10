@@ -11,10 +11,10 @@ package org.opensearch.action.admin.cluster.decommission.awareness.put;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.cluster.decommission.DecommissionAttribute;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
 
 import java.io.IOException;
 
@@ -123,7 +123,8 @@ public class DecommissionRequest extends ClusterManagerNodeRequest<DecommissionR
             validationException = addValidationError("decommission attribute is missing", validationException);
             return validationException;
         }
-        if (decommissionAttribute.attributeName() == null || Strings.isEmpty(decommissionAttribute.attributeName())) {
+        if (decommissionAttribute.attributeName() == null
+            || org.opensearch.core.common.Strings.isEmpty(decommissionAttribute.attributeName())) {
             validationException = addValidationError("attribute name is missing", validationException);
         }
         if (decommissionAttribute.attributeValue() == null || Strings.isEmpty(decommissionAttribute.attributeValue())) {

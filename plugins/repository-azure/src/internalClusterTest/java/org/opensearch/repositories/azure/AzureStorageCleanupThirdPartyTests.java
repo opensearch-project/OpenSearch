@@ -32,6 +32,7 @@
 
 package org.opensearch.repositories.azure;
 
+import org.opensearch.core.common.Strings;
 import reactor.core.scheduler.Schedulers;
 
 import com.azure.core.util.Context;
@@ -43,7 +44,6 @@ import org.junit.AfterClass;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.common.Strings;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.SecureSettings;
@@ -74,7 +74,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
     @Override
     protected Settings nodeSettings() {
         final String endpoint = System.getProperty("test.azure.endpoint_suffix");
-        if (Strings.hasText(endpoint)) {
+        if (org.opensearch.core.common.Strings.hasText(endpoint)) {
             return Settings.builder().put(super.nodeSettings()).put("azure.client.default.endpoint_suffix", endpoint).build();
         }
         return super.nodeSettings();
@@ -83,7 +83,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
     @Override
     protected SecureSettings credentials() {
         assertThat(System.getProperty("test.azure.account"), not(blankOrNullString()));
-        final boolean hasSasToken = Strings.hasText(System.getProperty("test.azure.sas_token"));
+        final boolean hasSasToken = org.opensearch.core.common.Strings.hasText(System.getProperty("test.azure.sas_token"));
         if (hasSasToken == false) {
             assertThat(System.getProperty("test.azure.key"), not(blankOrNullString()));
         } else {

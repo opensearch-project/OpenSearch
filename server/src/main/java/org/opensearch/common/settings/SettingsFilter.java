@@ -66,7 +66,7 @@ public final class SettingsFilter {
             }
         }
         this.patterns = Collections.unmodifiableSet(new HashSet<>(patterns));
-        patternString = Strings.collectionToDelimitedString(patterns, ",");
+        patternString = org.opensearch.core.common.Strings.collectionToDelimitedString(patterns, ",");
     }
 
     /**

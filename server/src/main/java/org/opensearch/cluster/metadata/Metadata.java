@@ -48,7 +48,6 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.decommission.DecommissionAttributeMetadata;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
@@ -56,6 +55,7 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.NamedObjectNotFoundException;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
@@ -104,7 +104,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     private static final Logger logger = LogManager.getLogger(Metadata.class);
 
     public static final String ALL = "_all";
-    public static final String UNKNOWN_CLUSTER_UUID = "_na_";
+    public static final String UNKNOWN_CLUSTER_UUID = Strings.UNKNOWN_UUID_VALUE;
     public static final Pattern NUMBER_PATTERN = Pattern.compile("[0-9]+$");
 
     /**
@@ -379,7 +379,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
      * aliases then the result will <b>not</b> include the index's key.
      */
     public Map<String, List<AliasMetadata>> findAllAliases(final String[] concreteIndices) {
-        return findAliases(Strings.EMPTY_ARRAY, concreteIndices);
+        return findAliases(org.opensearch.common.Strings.EMPTY_ARRAY, concreteIndices);
     }
 
     /**
@@ -1519,12 +1519,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             // TODO: I think we can remove these arrays. it isn't worth the effort, for operations on all indices.
             // When doing an operation across all indices, most of the time is spent on actually going to all shards and
             // do the required operations, the bottleneck isn't resolving expressions into concrete indices.
-            String[] allIndicesArray = allIndices.toArray(Strings.EMPTY_ARRAY);
-            String[] visibleIndicesArray = visibleIndices.toArray(Strings.EMPTY_ARRAY);
-            String[] allOpenIndicesArray = allOpenIndices.toArray(Strings.EMPTY_ARRAY);
-            String[] visibleOpenIndicesArray = visibleOpenIndices.toArray(Strings.EMPTY_ARRAY);
-            String[] allClosedIndicesArray = allClosedIndices.toArray(Strings.EMPTY_ARRAY);
-            String[] visibleClosedIndicesArray = visibleClosedIndices.toArray(Strings.EMPTY_ARRAY);
+            String[] allIndicesArray = allIndices.toArray(org.opensearch.common.Strings.EMPTY_ARRAY);
+            String[] visibleIndicesArray = visibleIndices.toArray(org.opensearch.common.Strings.EMPTY_ARRAY);
+            String[] allOpenIndicesArray = allOpenIndices.toArray(org.opensearch.common.Strings.EMPTY_ARRAY);
+            String[] visibleOpenIndicesArray = visibleOpenIndices.toArray(org.opensearch.common.Strings.EMPTY_ARRAY);
+            String[] allClosedIndicesArray = allClosedIndices.toArray(org.opensearch.common.Strings.EMPTY_ARRAY);
+            String[] visibleClosedIndicesArray = visibleClosedIndices.toArray(org.opensearch.common.Strings.EMPTY_ARRAY);
 
             return new Metadata(
                 clusterUUID,

@@ -36,7 +36,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
-import org.opensearch.common.Strings;
 import org.opensearch.common.geo.GeoDistance;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
@@ -45,6 +44,7 @@ import org.opensearch.common.geo.SpatialStrategy;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.unit.DistanceUnit;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.geometry.Circle;
@@ -99,7 +99,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
      * @param fieldName name of indexed geo field to operate distance computation on.
      * */
     public GeoDistanceQueryBuilder(String fieldName) {
-        if (Strings.isEmpty(fieldName)) {
+        if (org.opensearch.core.common.Strings.isEmpty(fieldName)) {
             throw new IllegalArgumentException("fieldName must not be null or empty");
         }
         this.fieldName = fieldName;
@@ -166,7 +166,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
 
     /** Sets the distance from the center for this query. */
     public GeoDistanceQueryBuilder distance(String distance, DistanceUnit unit) {
-        if (Strings.isEmpty(distance)) {
+        if (org.opensearch.core.common.Strings.isEmpty(distance)) {
             throw new IllegalArgumentException("distance must not be null or empty");
         }
         if (unit == null) {

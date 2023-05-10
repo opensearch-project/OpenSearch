@@ -477,7 +477,9 @@ final class S3ClientSettings {
         final int proxyPort = getConfigValue(settings, clientName, PROXY_PORT_SETTING);
         final SecureString proxyUserName = getConfigValue(settings, clientName, PROXY_USERNAME_SETTING);
         final SecureString proxyPassword = getConfigValue(settings, clientName, PROXY_PASSWORD_SETTING);
-        if (awsProtocol != Protocol.HTTPS && proxyType == ProxySettings.ProxyType.DIRECT && Strings.hasText(proxyHost)) {
+        if (awsProtocol != Protocol.HTTPS
+            && proxyType == ProxySettings.ProxyType.DIRECT
+            && org.opensearch.core.common.Strings.hasText(proxyHost)) {
             // This is backward compatibility for the current behaviour.
             // The default value for Protocol settings is HTTPS,
             // The expectation of ex-developers that protocol is the same as the proxy protocol
@@ -496,10 +498,13 @@ final class S3ClientSettings {
         }
         // Validate proxy settings
         if (proxyType == ProxySettings.ProxyType.DIRECT
-            && (proxyPort != 80 || Strings.hasText(proxyHost) || Strings.hasText(proxyUserName) || Strings.hasText(proxyPassword))) {
+            && (proxyPort != 80
+                || org.opensearch.core.common.Strings.hasText(proxyHost)
+                || org.opensearch.core.common.Strings.hasText(proxyUserName)
+                || org.opensearch.core.common.Strings.hasText(proxyPassword))) {
             throw new SettingsException("S3 proxy port or host or username or password have been set but proxy type is not defined.");
         }
-        if (proxyType != ProxySettings.ProxyType.DIRECT && Strings.isEmpty(proxyHost)) {
+        if (proxyType != ProxySettings.ProxyType.DIRECT && org.opensearch.core.common.Strings.isEmpty(proxyHost)) {
             throw new SettingsException("S3 proxy type has been set but proxy host or port is not defined.");
         }
         if (proxyType == ProxySettings.ProxyType.DIRECT) {

@@ -32,8 +32,8 @@
 
 package org.opensearch.monitor.jvm;
 
-import org.opensearch.common.Strings;
 import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.Strings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -77,7 +77,7 @@ public class JvmStatsTests extends OpenSearchTestCase {
         assertNotNull(collectors);
         assertThat(collectors.length, greaterThan(0));
         for (JvmStats.GarbageCollector collector : collectors) {
-            assertTrue(Strings.hasText(collector.getName()));
+            assertTrue(org.opensearch.core.common.Strings.hasText(collector.getName()));
             assertNotNull(collector.getCollectionTime());
             assertThat(collector.getCollectionTime().millis(), anyOf(equalTo(-1L), greaterThanOrEqualTo(0L)));
             assertThat(collector.getCollectionCount(), anyOf(equalTo(-1L), greaterThanOrEqualTo(0L)));

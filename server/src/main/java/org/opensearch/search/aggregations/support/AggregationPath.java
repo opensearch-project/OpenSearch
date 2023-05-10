@@ -182,7 +182,7 @@ public class AggregationPath {
 
     @Override
     public String toString() {
-        return Strings.arrayToDelimitedString(pathElements.toArray(), AGG_DELIM);
+        return org.opensearch.core.common.Strings.arrayToDelimitedString(pathElements.toArray(), AGG_DELIM);
     }
 
     public PathElement lastPathElement() {

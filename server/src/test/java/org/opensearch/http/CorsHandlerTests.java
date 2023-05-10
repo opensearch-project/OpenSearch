@@ -50,7 +50,7 @@ import java.util.Set;
 import java.util.regex.PatternSyntaxException;
 import java.util.stream.Collectors;
 
-import static org.opensearch.common.Strings.collectionToDelimitedString;
+import static org.opensearch.core.common.Strings.collectionToDelimitedString;
 import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_CREDENTIALS;
 import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_HEADERS;
 import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_METHODS;

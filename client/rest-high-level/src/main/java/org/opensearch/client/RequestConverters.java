@@ -72,7 +72,6 @@ import org.opensearch.client.tasks.TaskId;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
-import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.lucene.uid.Versions;
@@ -80,6 +79,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
@@ -220,7 +220,7 @@ final class RequestConverters {
 
                     if (opType == DocWriteRequest.OpType.INDEX || opType == DocWriteRequest.OpType.CREATE) {
                         IndexRequest indexRequest = (IndexRequest) action;
-                        if (Strings.hasLength(indexRequest.getPipeline())) {
+                        if (org.opensearch.core.common.Strings.hasLength(indexRequest.getPipeline())) {
                             metadata.field("pipeline", indexRequest.getPipeline());
                         }
                     } else if (opType == DocWriteRequest.OpType.UPDATE) {
@@ -338,7 +338,7 @@ final class RequestConverters {
     }
 
     static Request index(IndexRequest indexRequest) {
-        String method = Strings.hasLength(indexRequest.id()) ? HttpPut.METHOD_NAME : HttpPost.METHOD_NAME;
+        String method = org.opensearch.core.common.Strings.hasLength(indexRequest.id()) ? HttpPut.METHOD_NAME : HttpPost.METHOD_NAME;
 
         String endpoint;
         if (indexRequest.opType() == DocWriteRequest.OpType.CREATE) {
@@ -747,7 +747,7 @@ final class RequestConverters {
         Params params = new Params();
         params.withTimeout(putStoredScriptRequest.timeout());
         params.withClusterManagerTimeout(putStoredScriptRequest.clusterManagerNodeTimeout());
-        if (Strings.hasText(putStoredScriptRequest.context())) {
+        if (org.opensearch.core.common.Strings.hasText(putStoredScriptRequest.context())) {
             params.putParam("context", putStoredScriptRequest.context());
         }
         request.addParameters(params.asMap());
@@ -903,7 +903,7 @@ final class RequestConverters {
         Params() {}
 
         Params putParam(String name, String value) {
-            if (Strings.hasLength(value)) {
+            if (org.opensearch.core.common.Strings.hasLength(value)) {
                 parameters.put(name, value);
             }
             return this;
@@ -1298,7 +1298,7 @@ final class RequestConverters {
 
         EndpointBuilder addPathPart(String... parts) {
             for (String part : parts) {
-                if (Strings.hasLength(part)) {
+                if (org.opensearch.core.common.Strings.hasLength(part)) {
                     joiner.add(encodePart(part));
                 }
             }
@@ -1317,7 +1317,7 @@ final class RequestConverters {
 
         EndpointBuilder addPathPartAsIs(String... parts) {
             for (String part : parts) {
-                if (Strings.hasLength(part)) {
+                if (org.opensearch.core.common.Strings.hasLength(part)) {
                     joiner.add(part);
                 }
             }

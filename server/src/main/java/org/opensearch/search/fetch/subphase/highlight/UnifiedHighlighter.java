@@ -46,8 +46,8 @@ import org.apache.lucene.search.uhighlight.UnifiedHighlighter.OffsetSource;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.common.CheckedSupplier;
-import org.opensearch.common.Strings;
 import org.opensearch.common.text.Text;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -253,7 +253,7 @@ public class UnifiedHighlighter implements Highlighter {
     protected static String mergeFieldValues(List<Object> fieldValues, char valuesSeparator) {
         // postings highlighter accepts all values in a single string, as offsets etc. need to match with content
         // loaded from stored fields, we merge all values using a proper separator
-        String rawValue = Strings.collectionToDelimitedString(fieldValues, String.valueOf(valuesSeparator));
+        String rawValue = org.opensearch.core.common.Strings.collectionToDelimitedString(fieldValues, String.valueOf(valuesSeparator));
         return rawValue.substring(0, Math.min(rawValue.length(), Integer.MAX_VALUE - 1));
     }
 

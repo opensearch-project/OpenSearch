@@ -35,11 +35,11 @@ package org.opensearch.cluster.routing.allocation.decider;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
 
 /**
  * An allocation decider that prevents multiple instances of the same shard to
@@ -101,15 +101,17 @@ public class SameShardAllocationDecider extends AllocationDecider {
                 // check if its on the same host as the one we want to allocate to
                 boolean checkNodeOnSameHostName = false;
                 boolean checkNodeOnSameHostAddress = false;
-                if (Strings.hasLength(checkNode.node().getHostAddress()) && Strings.hasLength(node.node().getHostAddress())) {
+                if (org.opensearch.core.common.Strings.hasLength(checkNode.node().getHostAddress())
+                    && org.opensearch.core.common.Strings.hasLength(node.node().getHostAddress())) {
                     if (checkNode.node().getHostAddress().equals(node.node().getHostAddress())) {
                         checkNodeOnSameHostAddress = true;
                     }
-                } else if (Strings.hasLength(checkNode.node().getHostName()) && Strings.hasLength(node.node().getHostName())) {
-                    if (checkNode.node().getHostName().equals(node.node().getHostName())) {
-                        checkNodeOnSameHostName = true;
+                } else if (org.opensearch.core.common.Strings.hasLength(checkNode.node().getHostName())
+                    && Strings.hasLength(node.node().getHostName())) {
+                        if (checkNode.node().getHostName().equals(node.node().getHostName())) {
+                            checkNodeOnSameHostName = true;
+                        }
                     }
-                }
                 if (checkNodeOnSameHostAddress || checkNodeOnSameHostName) {
                     for (ShardRouting assignedShard : assignedShards) {
                         if (checkNode.nodeId().equals(assignedShard.currentNodeId())) {

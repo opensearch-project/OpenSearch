@@ -54,13 +54,13 @@ import org.opensearch.cluster.routing.PlainShardIterator;
 import org.opensearch.cluster.routing.ShardIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -127,7 +127,7 @@ public class SliceBuilderTests extends OpenSearchTestCase {
     }
 
     private ShardSearchRequest createRequest(int shardId) {
-        return createRequest(shardId, Strings.EMPTY_ARRAY, null);
+        return createRequest(shardId, org.opensearch.common.Strings.EMPTY_ARRAY, null);
     }
 
     private ShardSearchRequest createRequest(int shardId, String[] routings, String preference) {

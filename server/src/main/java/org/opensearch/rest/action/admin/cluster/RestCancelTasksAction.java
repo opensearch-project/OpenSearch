@@ -35,7 +35,7 @@ package org.opensearch.rest.action.admin.cluster;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.tasks.TaskId;
@@ -73,7 +73,7 @@ public class RestCancelTasksAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodes"));
+        final String[] nodesIds = org.opensearch.core.common.Strings.splitStringByCommaToArray(request.param("nodes"));
         final TaskId taskId = new TaskId(request.param("task_id"));
         final String[] actions = Strings.splitStringByCommaToArray(request.param("actions"));
         final TaskId parentTaskId = new TaskId(request.param("parent_task_id"));

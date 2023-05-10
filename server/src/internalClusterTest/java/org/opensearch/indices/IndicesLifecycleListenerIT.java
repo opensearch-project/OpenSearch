@@ -42,8 +42,8 @@ import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.Index;
 import org.opensearch.index.shard.IndexEventListener;
 import org.opensearch.index.shard.IndexShard;
@@ -323,7 +323,10 @@ public class IndicesLifecycleListenerIT extends OpenSearchIntegTestCase {
         public String toString() {
             StringBuilder sb = new StringBuilder();
             for (Map.Entry<ShardId, List<IndexShardState>> entry : shardStates.entrySet()) {
-                sb.append(entry.getKey()).append(" --> ").append(Strings.collectionToCommaDelimitedString(entry.getValue())).append("\n");
+                sb.append(entry.getKey())
+                    .append(" --> ")
+                    .append(org.opensearch.core.common.Strings.collectionToCommaDelimitedString(entry.getValue()))
+                    .append("\n");
             }
             return sb.toString();
         }

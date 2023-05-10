@@ -37,11 +37,11 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.util.CollectionUtils;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.search.QueryParserHelper;
@@ -216,7 +216,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
     /** Add a field to run the query against. */
     public SimpleQueryStringBuilder field(String field) {
-        if (Strings.isEmpty(field)) {
+        if (org.opensearch.core.common.Strings.isEmpty(field)) {
             throw new IllegalArgumentException("supplied field is null or empty");
         }
         this.fieldsAndWeights.put(field, AbstractQueryBuilder.DEFAULT_BOOST);

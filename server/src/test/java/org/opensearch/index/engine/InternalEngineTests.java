@@ -2563,7 +2563,7 @@ public class InternalEngineTests extends EngineTestCase {
                                 "1",
                                 null,
                                 testDocument(),
-                                bytesArray(Strings.collectionToCommaDelimitedString(values)),
+                                bytesArray(org.opensearch.core.common.Strings.collectionToCommaDelimitedString(values)),
                                 null
                             ),
                             UNASSIGNED_SEQ_NO,

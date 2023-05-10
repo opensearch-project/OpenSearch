@@ -33,6 +33,7 @@
 package org.opensearch.common;
 
 import org.opensearch.common.time.DateFormatter;
+import org.opensearch.core.common.Strings;
 
 import java.time.Instant;
 import java.time.ZoneOffset;

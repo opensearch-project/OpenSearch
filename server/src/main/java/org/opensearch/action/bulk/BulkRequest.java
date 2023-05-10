@@ -455,7 +455,11 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     @Override
     public String getDescription() {
-        return "requests[" + requests.size() + "], indices[" + Strings.collectionToDelimitedString(indices, ", ") + "]";
+        return "requests["
+            + requests.size()
+            + "], indices["
+            + org.opensearch.core.common.Strings.collectionToDelimitedString(indices, ", ")
+            + "]";
     }
 
     private void applyGlobalMandatoryParameters(DocWriteRequest<?> request) {

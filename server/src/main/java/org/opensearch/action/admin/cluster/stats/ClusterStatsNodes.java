@@ -40,12 +40,12 @@ import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
-import org.opensearch.common.Strings;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.discovery.DiscoveryModule;
@@ -684,7 +684,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
                     NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.get(settings)
                 );
                 final String httpType = settings.get(NetworkModule.HTTP_TYPE_KEY, NetworkModule.HTTP_DEFAULT_TYPE_SETTING.get(settings));
-                if (Strings.hasText(transportType)) {
+                if (org.opensearch.core.common.Strings.hasText(transportType)) {
                     transportTypes.computeIfAbsent(transportType, k -> new AtomicInteger()).incrementAndGet();
                 }
                 if (Strings.hasText(httpType)) {

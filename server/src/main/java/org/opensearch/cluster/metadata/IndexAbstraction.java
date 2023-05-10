@@ -33,8 +33,8 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.Strings;
 import org.opensearch.common.collect.Tuple;
+import org.opensearch.core.common.Strings;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -297,7 +297,7 @@ public interface IndexAbstraction {
                     "alias ["
                         + aliasName
                         + "] has more than one write index ["
-                        + Strings.collectionToCommaDelimitedString(writeIndicesStrings)
+                        + org.opensearch.core.common.Strings.collectionToCommaDelimitedString(writeIndicesStrings)
                         + "]"
                 );
             }
@@ -318,7 +318,7 @@ public interface IndexAbstraction {
                     "alias ["
                         + aliasName
                         + "] has is_hidden set to true on indices ["
-                        + Strings.collectionToCommaDelimitedString(hiddenOn)
+                        + org.opensearch.core.common.Strings.collectionToCommaDelimitedString(hiddenOn)
                         + "] but does not have is_hidden set to true on indices ["
                         + Strings.collectionToCommaDelimitedString(nonHiddenOn)
                         + "]; alias must have the same is_hidden setting "

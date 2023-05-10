@@ -35,7 +35,7 @@ package org.opensearch.action.get;
 import org.opensearch.action.support.single.shard.SingleShardOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.VersionType;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 
@@ -111,7 +111,7 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
      */
     public GetRequestBuilder setFetchSource(@Nullable String include, @Nullable String exclude) {
         return setFetchSource(
-            include == null ? Strings.EMPTY_ARRAY : new String[] { include },
+            include == null ? org.opensearch.common.Strings.EMPTY_ARRAY : new String[] { include },
             exclude == null ? Strings.EMPTY_ARRAY : new String[] { exclude }
         );
     }

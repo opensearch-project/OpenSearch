@@ -37,13 +37,13 @@ import org.opensearch.action.CompositeIndicesRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.core.ParseField;
-import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -402,7 +402,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             List<String> list = (List<String>) value;
             return list.toArray(new String[0]);
         } else if (value instanceof String) {
-            return Strings.splitStringByCommaToArray((String) value);
+            return org.opensearch.core.common.Strings.splitStringByCommaToArray((String) value);
         } else {
             throw new IllegalArgumentException("Expected [" + name + "] to be a list or a string but was [" + value + ']');
         }

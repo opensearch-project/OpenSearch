@@ -34,8 +34,8 @@ package org.opensearch.snapshots;
 
 import org.apache.lucene.util.BytesRef;
 
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.OpenSearchException;
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -1986,7 +1986,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             }
         } catch (SnapshotException | RepositoryException ex) {
             // sometimes, the snapshot will fail with a top level I/O exception
-            assertThat(ExceptionsHelper.stackTrace(ex), containsString("Random IOException"));
+            assertThat(BaseExceptionsHelper.stackTrace(ex), containsString("Random IOException"));
         }
 
         logger.info("--> snapshot with no I/O failures");

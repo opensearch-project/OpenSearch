@@ -248,7 +248,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
                 String fieldName = source[i++];
                 if (RESERVED_FIELDS.contains(fieldName)) {
                     builder.startObject(fieldName);
-                    String[] s1 = Strings.splitStringByCommaToArray(source[i]);
+                    String[] s1 = org.opensearch.core.common.Strings.splitStringByCommaToArray(source[i]);
                     for (String s : s1) {
                         String[] s2 = Strings.split(s, "=");
                         if (s2.length != 2) {
@@ -268,7 +268,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
                 }
 
                 builder.startObject(fieldName);
-                String[] s1 = Strings.splitStringByCommaToArray(source[i]);
+                String[] s1 = org.opensearch.core.common.Strings.splitStringByCommaToArray(source[i]);
                 for (String s : s1) {
                     String[] s2 = Strings.split(s, "=");
                     if (s2.length != 2) {

@@ -35,10 +35,10 @@ package org.opensearch.search.fetch.subphase;
 import org.opensearch.common.Booleans;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
@@ -71,12 +71,12 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
     public FetchSourceContext(boolean fetchSource, String[] includes, String[] excludes) {
         this.fetchSource = fetchSource;
-        this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
-        this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
+        this.includes = includes == null ? org.opensearch.common.Strings.EMPTY_ARRAY : includes;
+        this.excludes = excludes == null ? org.opensearch.common.Strings.EMPTY_ARRAY : excludes;
     }
 
     public FetchSourceContext(boolean fetchSource) {
-        this(fetchSource, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
+        this(fetchSource, org.opensearch.common.Strings.EMPTY_ARRAY, org.opensearch.common.Strings.EMPTY_ARRAY);
     }
 
     public FetchSourceContext(StreamInput in) throws IOException {
@@ -116,13 +116,13 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             } else if (Booleans.isFalse(source)) {
                 fetchSource = false;
             } else {
-                sourceIncludes = Strings.splitStringByCommaToArray(source);
+                sourceIncludes = org.opensearch.core.common.Strings.splitStringByCommaToArray(source);
             }
         }
 
         String sIncludes = request.param("_source_includes");
         if (sIncludes != null) {
-            sourceIncludes = Strings.splitStringByCommaToArray(sIncludes);
+            sourceIncludes = org.opensearch.core.common.Strings.splitStringByCommaToArray(sIncludes);
         }
 
         String sExcludes = request.param("_source_excludes");
@@ -139,8 +139,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     public static FetchSourceContext fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         boolean fetchSource = true;
-        String[] includes = Strings.EMPTY_ARRAY;
-        String[] excludes = Strings.EMPTY_ARRAY;
+        String[] includes = org.opensearch.common.Strings.EMPTY_ARRAY;
+        String[] excludes = org.opensearch.common.Strings.EMPTY_ARRAY;
         if (token == XContentParser.Token.VALUE_BOOLEAN) {
             fetchSource = parser.booleanValue();
         } else if (token == XContentParser.Token.VALUE_STRING) {

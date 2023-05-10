@@ -34,9 +34,9 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -86,7 +86,7 @@ public class AliasValidator {
      */
     public void validateAliasStandalone(Alias alias) {
         validateAliasStandalone(alias.name(), alias.indexRouting());
-        if (Strings.hasLength(alias.filter())) {
+        if (org.opensearch.core.common.Strings.hasLength(alias.filter())) {
             try {
                 XContentHelper.convertToMap(XContentFactory.xContent(alias.filter()), alias.filter(), false);
             } catch (Exception e) {
@@ -101,7 +101,7 @@ public class AliasValidator {
     public void validateAlias(String alias, String index, @Nullable String indexRouting, Function<String, IndexMetadata> indexLookup) {
         validateAliasStandalone(alias, indexRouting);
 
-        if (!Strings.hasText(index)) {
+        if (!org.opensearch.core.common.Strings.hasText(index)) {
             throw new IllegalArgumentException("index name is required");
         }
 

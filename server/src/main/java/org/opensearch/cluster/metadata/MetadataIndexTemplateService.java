@@ -551,7 +551,7 @@ public class MetadataIndexTemplateService {
                     + "match during index creation, please use a different priority",
                 name,
                 template.indexPatterns(),
-                Strings.collectionToCommaDelimitedString(overlaps.keySet()),
+                org.opensearch.core.common.Strings.collectionToCommaDelimitedString(overlaps.keySet()),
                 overlaps.entrySet().stream().map(e -> e.getKey() + " => " + e.getValue()).collect(Collectors.joining(",")),
                 template.priorityOrZero()
             );
@@ -566,7 +566,7 @@ public class MetadataIndexTemplateService {
                     + "existing older templates [%s] with patterns (%s); this template [%s] will take precedence during new index creation",
                 name,
                 template.indexPatterns(),
-                Strings.collectionToCommaDelimitedString(overlaps.keySet()),
+                org.opensearch.core.common.Strings.collectionToCommaDelimitedString(overlaps.keySet()),
                 overlaps.entrySet().stream().map(e -> e.getKey() + " => " + e.getValue()).collect(Collectors.joining(",")),
                 name
             );
@@ -953,7 +953,7 @@ public class MetadataIndexTemplateService {
                     + " of a composable template at index creation time",
                 request.name,
                 request.indexPatterns,
-                Strings.collectionToCommaDelimitedString(overlaps.keySet()),
+                org.opensearch.core.common.Strings.collectionToCommaDelimitedString(overlaps.keySet()),
                 overlaps.entrySet().stream().map(e -> e.getKey() + " => " + e.getValue()).collect(Collectors.joining(",")),
                 request.name
             );

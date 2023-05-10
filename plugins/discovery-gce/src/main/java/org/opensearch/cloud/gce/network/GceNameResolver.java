@@ -34,8 +34,8 @@ package org.opensearch.cloud.gce.network;
 
 import org.opensearch.cloud.gce.GceMetadataService;
 import org.opensearch.cloud.gce.util.Access;
-import org.opensearch.common.Strings;
 import org.opensearch.common.network.NetworkService.CustomNameResolver;
+import org.opensearch.core.common.Strings;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -97,7 +97,7 @@ public class GceNameResolver implements CustomNameResolver {
         String gceMetadataPath;
         if (value.equals(GceAddressResolverType.GCE.configName)) {
             // We replace network placeholder with default network interface value: 0
-            gceMetadataPath = Strings.replace(GceAddressResolverType.GCE.gceName, "{{network}}", "0");
+            gceMetadataPath = org.opensearch.core.common.Strings.replace(GceAddressResolverType.GCE.gceName, "{{network}}", "0");
         } else if (value.equals(GceAddressResolverType.PRIVATE_DNS.configName)) {
             gceMetadataPath = GceAddressResolverType.PRIVATE_DNS.gceName;
         } else if (value.startsWith(GceAddressResolverType.PRIVATE_IP.configName)) {

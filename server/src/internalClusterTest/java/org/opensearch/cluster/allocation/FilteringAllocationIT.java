@@ -42,9 +42,9 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
@@ -287,8 +287,8 @@ public class FilteringAllocationIT extends OpenSearchIntegTestCase {
         Set<String> includeNodes = new HashSet<>(nodes.subList(3, 6));
         logger.info(
             "--> exclude: [{}], include: [{}]",
-            Strings.collectionToCommaDelimitedString(excludeNodes),
-            Strings.collectionToCommaDelimitedString(includeNodes)
+            org.opensearch.core.common.Strings.collectionToCommaDelimitedString(excludeNodes),
+            org.opensearch.core.common.Strings.collectionToCommaDelimitedString(includeNodes)
         );
         ensureStableCluster(6);
         client().admin().indices().prepareCreate("test").get();
@@ -299,7 +299,10 @@ public class FilteringAllocationIT extends OpenSearchIntegTestCase {
         }
 
         Settings exclude = Settings.builder()
-            .put("cluster.routing.allocation.exclude._name", Strings.collectionToCommaDelimitedString(excludeNodes))
+            .put(
+                "cluster.routing.allocation.exclude._name",
+                org.opensearch.core.common.Strings.collectionToCommaDelimitedString(excludeNodes)
+            )
             .build();
 
         logger.info("--> updating settings");
@@ -317,7 +320,7 @@ public class FilteringAllocationIT extends OpenSearchIntegTestCase {
                 "shard on "
                     + node
                     + " but should only be on the include node list: "
-                    + Strings.collectionToCommaDelimitedString(includeNodes),
+                    + org.opensearch.core.common.Strings.collectionToCommaDelimitedString(includeNodes),
                 includeNodes.contains(node)
             );
         }

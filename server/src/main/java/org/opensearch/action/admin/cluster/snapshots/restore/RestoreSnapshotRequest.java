@@ -533,7 +533,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
             String name = entry.getKey();
             if (name.equals("indices")) {
                 if (entry.getValue() instanceof String) {
-                    indices(Strings.splitStringByCommaToArray((String) entry.getValue()));
+                    indices(org.opensearch.core.common.Strings.splitStringByCommaToArray((String) entry.getValue()));
                 } else if (entry.getValue() instanceof ArrayList) {
                     indices((ArrayList<String>) entry.getValue());
                 } else {
@@ -572,7 +572,7 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
                 indexSettings((Map<String, Object>) entry.getValue());
             } else if (name.equals("ignore_index_settings")) {
                 if (entry.getValue() instanceof String) {
-                    ignoreIndexSettings(Strings.splitStringByCommaToArray((String) entry.getValue()));
+                    ignoreIndexSettings(org.opensearch.core.common.Strings.splitStringByCommaToArray((String) entry.getValue()));
                 } else if (entry.getValue() instanceof List) {
                     ignoreIndexSettings((List<String>) entry.getValue());
                 } else {

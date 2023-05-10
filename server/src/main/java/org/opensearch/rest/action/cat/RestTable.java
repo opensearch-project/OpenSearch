@@ -33,7 +33,6 @@
 package org.opensearch.rest.action.cat;
 
 import org.opensearch.common.Booleans;
-import org.opensearch.common.Strings;
 import org.opensearch.common.Table;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.io.UTF8StreamWriter;
@@ -42,6 +41,7 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.SizeValue;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.rest.BytesRestResponse;
@@ -187,7 +187,7 @@ public class RestTable {
                     for (Table.Cell headerCell : table.getHeaders()) {
                         String aliases = headerCell.attr.get("alias");
                         if (aliases != null) {
-                            for (String alias : Strings.splitStringByCommaToArray(aliases)) {
+                            for (String alias : org.opensearch.core.common.Strings.splitStringByCommaToArray(aliases)) {
                                 if (possibility.equals(alias)) {
                                     dispHeader = new DisplayHeader(headerCell.value.toString(), alias);
                                     break;
@@ -247,7 +247,7 @@ public class RestTable {
         Set<String> headers = new LinkedHashSet<>(table.getHeaders().size());
 
         // check headers and aliases
-        for (String header : Strings.splitStringByCommaToArray(request.param("h"))) {
+        for (String header : org.opensearch.core.common.Strings.splitStringByCommaToArray(request.param("h"))) {
             if (Regex.isSimpleMatchPattern(header)) {
                 for (Table.Cell tableHeaderCell : table.getHeaders()) {
                     String configuredHeader = tableHeaderCell.value.toString();

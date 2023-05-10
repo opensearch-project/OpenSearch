@@ -37,12 +37,12 @@ import org.apache.lucene.index.IndexableField;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.Strings;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.IndexSettings;
@@ -208,7 +208,7 @@ final class DocumentParser {
             for (String part : parts) {
                 if (Strings.hasText(part) == false) {
                     // check if the field name contains only whitespace
-                    if (Strings.isEmpty(part) == false) {
+                    if (org.opensearch.core.common.Strings.isEmpty(part) == false) {
                         throw new IllegalArgumentException("object field cannot contain only whitespace: ['" + fullFieldPath + "']");
                     }
                     throw new IllegalArgumentException(
@@ -218,7 +218,7 @@ final class DocumentParser {
             }
             return parts;
         } else {
-            if (Strings.isEmpty(fullFieldPath)) {
+            if (org.opensearch.core.common.Strings.isEmpty(fullFieldPath)) {
                 throw new IllegalArgumentException("field name cannot be an empty string");
             }
             return new String[] { fullFieldPath };

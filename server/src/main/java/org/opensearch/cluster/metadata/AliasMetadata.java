@@ -94,7 +94,9 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         this.indexRouting = indexRouting;
         this.searchRouting = searchRouting;
         if (searchRouting != null) {
-            searchRoutingValues = Collections.unmodifiableSet(Sets.newHashSet(Strings.splitStringByCommaToArray(searchRouting)));
+            searchRoutingValues = Collections.unmodifiableSet(
+                Sets.newHashSet(org.opensearch.core.common.Strings.splitStringByCommaToArray(searchRouting))
+            );
         } else {
             searchRoutingValues = emptySet();
         }
@@ -244,7 +246,9 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         }
         if (in.readBoolean()) {
             searchRouting = in.readString();
-            searchRoutingValues = Collections.unmodifiableSet(Sets.newHashSet(Strings.splitStringByCommaToArray(searchRouting)));
+            searchRoutingValues = Collections.unmodifiableSet(
+                Sets.newHashSet(org.opensearch.core.common.Strings.splitStringByCommaToArray(searchRouting))
+            );
         } else {
             searchRouting = null;
             searchRoutingValues = emptySet();
@@ -303,7 +307,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         }
 
         public Builder filter(String filter) {
-            if (!Strings.hasLength(filter)) {
+            if (!org.opensearch.core.common.Strings.hasLength(filter)) {
                 this.filter = null;
                 return this;
             }

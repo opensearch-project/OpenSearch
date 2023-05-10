@@ -34,13 +34,13 @@ package org.opensearch.repositories.gcs;
 import com.google.api.services.storage.StorageScopes;
 import com.google.auth.oauth2.ServiceAccountCredentials;
 
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.SecureSetting;
 import org.opensearch.common.settings.SecureString;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -221,7 +221,9 @@ public class GoogleCloudStorageClientSettings {
     }
 
     public String getProjectId() {
-        return Strings.hasLength(projectId) ? projectId : (credential != null ? credential.getProjectId() : null);
+        return org.opensearch.core.common.Strings.hasLength(projectId)
+            ? projectId
+            : (credential != null ? credential.getProjectId() : null);
     }
 
     public TimeValue getConnectTimeout() {
@@ -278,12 +280,15 @@ public class GoogleCloudStorageClientSettings {
         final SecureString proxyPassword = getConfigValue(settings, clientName, PROXY_PASSWORD_SETTING);
         // Validate proxy settings
         if (proxyType == Proxy.Type.DIRECT
-            && (proxyPort != 0 || Strings.hasText(proxyHost) || Strings.hasText(proxyUserName) || Strings.hasText(proxyPassword))) {
+            && (proxyPort != 0
+                || Strings.hasText(proxyHost)
+                || org.opensearch.core.common.Strings.hasText(proxyUserName)
+                || org.opensearch.core.common.Strings.hasText(proxyPassword))) {
             throw new SettingsException(
                 "Google Cloud Storage proxy port or host or username or password have been set but proxy type is not defined."
             );
         }
-        if (proxyType != Proxy.Type.DIRECT && (proxyPort == 0 || Strings.isEmpty(proxyHost))) {
+        if (proxyType != Proxy.Type.DIRECT && (proxyPort == 0 || org.opensearch.core.common.Strings.isEmpty(proxyHost))) {
             throw new SettingsException("Google Cloud Storage proxy type has been set but proxy host or port is not defined.");
         }
         if (proxyType == Proxy.Type.DIRECT) {

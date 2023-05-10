@@ -47,13 +47,13 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Strings;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
@@ -216,7 +216,7 @@ public final class BlobStoreTestUtil {
                 .filter(s -> s.startsWith("extra") == false)
                 .collect(Collectors.toList());
         }
-        assertThat(foundIndexUUIDs, containsInAnyOrder(expectedIndexUUIDs.toArray(Strings.EMPTY_ARRAY)));
+        assertThat(foundIndexUUIDs, containsInAnyOrder(expectedIndexUUIDs.toArray(org.opensearch.common.Strings.EMPTY_ARRAY)));
         for (String indexId : foundIndexUUIDs) {
             final Set<String> indexMetaGenerationsFound = indicesContainer.children()
                 .get(indexId)
@@ -247,7 +247,7 @@ public final class BlobStoreTestUtil {
                 .filter(p -> p.startsWith(prefix))
                 .map(p -> p.replace(prefix, "").replace(".dat", ""))
                 .collect(Collectors.toSet());
-            assertThat(foundSnapshotUUIDs, containsInAnyOrder(expectedSnapshotUUIDs.toArray(Strings.EMPTY_ARRAY)));
+            assertThat(foundSnapshotUUIDs, containsInAnyOrder(expectedSnapshotUUIDs.toArray(org.opensearch.common.Strings.EMPTY_ARRAY)));
         }
 
         final BlobContainer indicesContainer = repository.getBlobContainer().children().get("indices");

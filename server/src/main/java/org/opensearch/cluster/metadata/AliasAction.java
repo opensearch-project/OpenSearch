@@ -34,7 +34,7 @@ package org.opensearch.cluster.metadata;
 
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 
 /**
  * Individual operation to perform on the cluster state as part of an {@link IndicesAliasesRequest}.
@@ -45,7 +45,7 @@ public abstract class AliasAction {
     private final String index;
 
     private AliasAction(String index) {
-        if (false == Strings.hasText(index)) {
+        if (false == org.opensearch.core.common.Strings.hasText(index)) {
             throw new IllegalArgumentException("[index] is required");
         }
         this.index = index;
@@ -120,7 +120,7 @@ public abstract class AliasAction {
             @Nullable Boolean isHidden
         ) {
             super(index);
-            if (false == Strings.hasText(alias)) {
+            if (false == org.opensearch.core.common.Strings.hasText(alias)) {
                 throw new IllegalArgumentException("[alias] is required");
             }
             this.alias = alias;

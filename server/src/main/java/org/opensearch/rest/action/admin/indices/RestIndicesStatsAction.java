@@ -106,7 +106,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         assert indicesStatsRequest.indicesOptions() == IndicesOptions.strictExpandOpenAndForbidClosed() : "IndicesStats default indices "
             + "options changed";
         indicesStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, defaultIndicesOption));
-        indicesStatsRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
+        indicesStatsRequest.indices(org.opensearch.core.common.Strings.splitStringByCommaToArray(request.param("index")));
 
         Set<String> metrics = Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
         // short cut, if no metrics have been specified in URI
@@ -140,7 +140,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         }
 
         if (request.hasParam("groups")) {
-            indicesStatsRequest.groups(Strings.splitStringByCommaToArray(request.param("groups")));
+            indicesStatsRequest.groups(org.opensearch.core.common.Strings.splitStringByCommaToArray(request.param("groups")));
         }
 
         if (indicesStatsRequest.completion() && (request.hasParam("fields") || request.hasParam("completion_fields"))) {

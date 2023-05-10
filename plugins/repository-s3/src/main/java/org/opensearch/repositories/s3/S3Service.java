@@ -59,9 +59,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.repositories.s3.S3ClientSettings.IrsaCredentials;
 
 import javax.net.ssl.SSLContext;
@@ -176,7 +176,7 @@ class S3Service implements Closeable {
             "Unknown s3 client name ["
                 + clientName
                 + "]. Existing client configs: "
-                + Strings.collectionToDelimitedString(staticClientSettings.keySet(), ",")
+                + org.opensearch.core.common.Strings.collectionToDelimitedString(staticClientSettings.keySet(), ",")
         );
     }
 
@@ -188,13 +188,15 @@ class S3Service implements Closeable {
         builder.withCredentials(credentials);
         builder.withClientConfiguration(buildConfiguration(clientSettings));
 
-        String endpoint = Strings.hasLength(clientSettings.endpoint) ? clientSettings.endpoint : Constants.S3_HOSTNAME;
+        String endpoint = org.opensearch.core.common.Strings.hasLength(clientSettings.endpoint)
+            ? clientSettings.endpoint
+            : Constants.S3_HOSTNAME;
         if ((endpoint.startsWith("http://") || endpoint.startsWith("https://")) == false) {
             // Manually add the schema to the endpoint to work around https://github.com/aws/aws-sdk-java/issues/2274
             // TODO: Remove this once fixed in the AWS SDK
             endpoint = clientSettings.protocol.toString() + "://" + endpoint;
         }
-        final String region = Strings.hasLength(clientSettings.region) ? clientSettings.region : null;
+        final String region = org.opensearch.core.common.Strings.hasLength(clientSettings.region) ? clientSettings.region : null;
         logger.debug("using endpoint [{}] and region [{}]", endpoint, region);
 
         // If the endpoint configuration isn't set on the builder then the default behaviour is to try
@@ -252,7 +254,7 @@ class S3Service implements Closeable {
             }
         }
 
-        if (Strings.hasLength(clientSettings.signerOverride)) {
+        if (org.opensearch.core.common.Strings.hasLength(clientSettings.signerOverride)) {
             clientConfiguration.setSignerOverride(clientSettings.signerOverride);
         }
 

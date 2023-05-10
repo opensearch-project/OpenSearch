@@ -130,7 +130,7 @@ public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<Restore
             String name = entry.getKey();
             if (name.equals("indices")) {
                 if (entry.getValue() instanceof String) {
-                    indices(Strings.splitStringByCommaToArray((String) entry.getValue()));
+                    indices(org.opensearch.core.common.Strings.splitStringByCommaToArray((String) entry.getValue()));
                 } else if (entry.getValue() instanceof ArrayList) {
                     indices((ArrayList<String>) entry.getValue());
                 } else {

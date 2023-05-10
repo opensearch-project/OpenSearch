@@ -36,11 +36,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Strings;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.RepositoryException;
@@ -98,7 +98,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         this.storageService = storageService;
 
         String basePath = BASE_PATH.get(metadata.settings());
-        if (Strings.hasLength(basePath)) {
+        if (org.opensearch.core.common.Strings.hasLength(basePath)) {
             BlobPath path = new BlobPath();
             for (String elem : basePath.split("/")) {
                 path = path.add(elem);

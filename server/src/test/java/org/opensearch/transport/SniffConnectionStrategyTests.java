@@ -42,13 +42,13 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.common.Strings;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.AbstractScopedSettings;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.Strings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.test.transport.MockTransportService;
@@ -712,16 +712,25 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
                     );
 
                     Settings noChange = Settings.builder()
-                        .put(seedSetting.getKey(), Strings.arrayToCommaDelimitedString(seedNodes(seedNode).toArray()))
+                        .put(
+                            seedSetting.getKey(),
+                            org.opensearch.core.common.Strings.arrayToCommaDelimitedString(seedNodes(seedNode).toArray())
+                        )
                         .put(numConnections.getKey(), 3)
                         .build();
                     assertFalse(strategy.shouldRebuildConnection(noChange));
                     Settings seedsChanged = Settings.builder()
-                        .put(seedSetting.getKey(), Strings.arrayToCommaDelimitedString(seedNodes(discoverableNode).toArray()))
+                        .put(
+                            seedSetting.getKey(),
+                            org.opensearch.core.common.Strings.arrayToCommaDelimitedString(seedNodes(discoverableNode).toArray())
+                        )
                         .build();
                     assertTrue(strategy.shouldRebuildConnection(seedsChanged));
                     Settings proxyChanged = Settings.builder()
-                        .put(seedSetting.getKey(), Strings.arrayToCommaDelimitedString(seedNodes(seedNode).toArray()))
+                        .put(
+                            seedSetting.getKey(),
+                            org.opensearch.core.common.Strings.arrayToCommaDelimitedString(seedNodes(seedNode).toArray())
+                        )
                         .put(proxySetting.getKey(), "proxy_address:9300")
                         .build();
                     assertTrue(strategy.shouldRebuildConnection(proxyChanged));

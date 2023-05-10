@@ -38,12 +38,12 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.AbstractScopedSettings;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.Strings;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
@@ -283,11 +283,14 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                     {
                         Map<String, OriginalIndices> perClusterIndices = service.groupIndices(
                             IndicesOptions.LENIENT_EXPAND_OPEN,
-                            Strings.EMPTY_ARRAY,
+                            org.opensearch.common.Strings.EMPTY_ARRAY,
                             i -> false
                         );
                         assertEquals(1, perClusterIndices.size());
-                        assertArrayEquals(Strings.EMPTY_ARRAY, perClusterIndices.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).indices());
+                        assertArrayEquals(
+                            org.opensearch.common.Strings.EMPTY_ARRAY,
+                            perClusterIndices.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).indices()
+                        );
                     }
                 }
             }
