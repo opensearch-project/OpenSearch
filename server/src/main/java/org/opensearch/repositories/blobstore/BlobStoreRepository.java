@@ -2327,8 +2327,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
             long indexTotalFileSize = 0;
             Collection<String> fileNames = snapshotIndexCommit.getFileNames();
+            Store.MetadataSnapshot commitSnapshotMetadata = store.getMetadata(snapshotIndexCommit);
             for (String fileName : fileNames) {
-                indexTotalFileSize += store.getMetadata(snapshotIndexCommit).get(fileName).length();
+                indexTotalFileSize += commitSnapshotMetadata.get(fileName).length();
             }
             int indexTotalNumberOfFiles = fileNames.size();
 
