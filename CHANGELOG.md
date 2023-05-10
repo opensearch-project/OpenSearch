@@ -103,6 +103,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `jetty-server` in hdfs-fixture from 9.4.49.v20220914 to 9.4.51.v20230217 ([#7405](https://github.com/opensearch-project/OpenSearch/pull/7405))
 - Bump `com.networknt:json-schema-validator` from 1.0.78 to 1.0.81 (#7460)
 - Bump `org.apache.commons:commons-compress` from 1.22 to 1.23.0 (#7462)
+- Bump Apache Lucene to 9.6.0 ([#7505](https://github.com/opensearch-project/OpenSearch/pull/7505))
 - Bump `com.google.cloud:google-cloud-core-http` from 1.93.3 to 2.17.0 (#7488)
 
 ### Changed
