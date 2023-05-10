@@ -330,7 +330,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param primaryTerm Primary Term of index at the time of commit.
      * @param generation Commit Generation
      * @param acquirerId Lock Acquirer ID which wants to acquire lock on the commit.
-     * @throws IOException if the file for which we are acquiring lock is not found
+     * @throws IOException will be thrown in case i) listing file failed or ii) Writing the lock file failed.
+     * @throws NoSuchFileException when metadata file is not present for given commit point.
      */
     @Override
     public void acquireLock(long primaryTerm, long generation, String acquirerId) throws IOException {
@@ -344,7 +345,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param primaryTerm Primary Term of index at the time of commit.
      * @param generation Commit Generation
      * @param acquirerId Acquirer ID for which lock needs to be released.
-     * @throws IOException in case of any failure during releasing lock.
+     * @throws IOException will be thrown in case i) listing lock files failed or ii) deleting the lock file failed.
+     * @throws NoSuchFileException when metadata file is not present for given commit point.
      */
     @Override
     public void releaseLock(long primaryTerm, long generation, String acquirerId) throws IOException {
@@ -357,7 +359,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param primaryTerm Primary Term of index at the time of commit.
      * @param generation Commit Generation
      * @return True if there is at least one lock for given primary term and generation.
-     * @throws IOException in case of any failure during check for lock.
+     * @throws IOException will be thrown in case listing lock files failed.
+     * @throws NoSuchFileException when metadata file is not present for given commit point.
      */
     @Override
     public Boolean isLockAcquired(long primaryTerm, long generation) throws IOException {
