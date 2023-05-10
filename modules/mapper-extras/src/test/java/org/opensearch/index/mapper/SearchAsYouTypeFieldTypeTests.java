@@ -138,7 +138,10 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
 
         // this term should be too long to be rewriteable to a term query on the prefix field
         final String longTerm = "toolongforourprefixfieldthistermis";
-        assertThat(fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, MOCK_QSC), equalTo(new PrefixQuery(new Term(NAME, longTerm))));
+        assertThat(
+            fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, MOCK_QSC),
+            equalTo(new PrefixQuery(new Term(NAME, longTerm), CONSTANT_SCORE_REWRITE))
+        );
 
         OpenSearchException ee = expectThrows(
             OpenSearchException.class,
