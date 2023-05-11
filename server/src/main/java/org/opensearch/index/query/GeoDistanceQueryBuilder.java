@@ -113,7 +113,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         fieldName = in.readString();
         distance = in.readDouble();
         validationMethod = GeoValidationMethod.readFromStream(in);
-        center = in.readGeoPoint();
+        center = new GeoPoint(in);
         geoDistance = GeoDistance.readFromStream(in);
         ignoreUnmapped = in.readBoolean();
     }
@@ -123,7 +123,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         out.writeString(fieldName);
         out.writeDouble(distance);
         validationMethod.writeTo(out);
-        out.writeGeoPoint(center);
+        center.writeTo(out);
         geoDistance.writeTo(out);
         out.writeBoolean(ignoreUnmapped);
     }

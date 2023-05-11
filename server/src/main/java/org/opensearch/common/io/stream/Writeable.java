@@ -32,6 +32,8 @@
 
 package org.opensearch.common.io.stream;
 
+import org.opensearch.core.common.io.stream.BaseWriteable;
+
 import java.io.IOException;
 
 /**
@@ -41,7 +43,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public interface Writeable {
+public interface Writeable extends BaseWriteable<StreamOutput> {
 
     /**
      * Write this into the {@linkplain StreamOutput}.
@@ -64,17 +66,7 @@ public interface Writeable {
      * </code></pre>
      */
     @FunctionalInterface
-    interface Writer<V> {
-
-        /**
-         * Write {@code V}-type {@code value} to the {@code out}put stream.
-         *
-         * @param out Output to write the {@code value} too
-         * @param value The value to add
-         */
-        void write(StreamOutput out, V value) throws IOException;
-
-    }
+    interface Writer<V> extends BaseWriteable.Writer<StreamOutput, V> {}
 
     /**
      * Reference to a method that can read some object from a stream. By convention this is a constructor that takes
@@ -91,15 +83,6 @@ public interface Writeable {
      * </code></pre>
      */
     @FunctionalInterface
-    interface Reader<V> {
-
-        /**
-         * Read {@code V}-type value from a stream.
-         *
-         * @param in Input to read the value from
-         */
-        V read(StreamInput in) throws IOException;
-
-    }
+    interface Reader<V> extends BaseWriteable.Reader<StreamInput, V> {}
 
 }
