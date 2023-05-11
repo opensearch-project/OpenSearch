@@ -10,6 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Allow mmap to use new JDK-19 preview APIs in Apache Lucene 9.4+ ([#5151](https://github.com/opensearch-project/OpenSearch/pull/5151))
 - Add events correlation engine plugin ([#6854](https://github.com/opensearch-project/OpenSearch/issues/6854))
 - Add connectToNodeAsExtension in TransportService ([#6866](https://github.com/opensearch-project/OpenSearch/pull/6866))
+- Adds ExtensionsManager.lookupExtensionSettingsById ([#7466](https://github.com/opensearch-project/OpenSearch/pull/7466))
 
 ### Dependencies
 - Bump `log4j-core` from 2.18.0 to 2.19.0
@@ -42,6 +43,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.commons:commons-compress` from 1.22 to 1.23.0
 - Bump `com.diffplug.spotless` from 6.17.0 to 6.18.0
 - Bump `io.opencensus:opencensus-api` from 0.18.0 to 0.31.1 ([#7291](https://github.com/opensearch-project/OpenSearch/pull/7291))
+- Bump `com.azure:azure-core` from 1.34.0 to 1.39.0
 
 ### Changed
 - [CCR] Add getHistoryOperationsFromTranslog method to fetch the history snapshot from translogs ([#3948](https://github.com/opensearch-project/OpenSearch/pull/3948))
@@ -101,6 +103,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `jetty-server` in hdfs-fixture from 9.4.49.v20220914 to 9.4.51.v20230217 ([#7405](https://github.com/opensearch-project/OpenSearch/pull/7405))
 - Bump `com.networknt:json-schema-validator` from 1.0.78 to 1.0.81 (#7460)
 - Bump `org.apache.commons:commons-compress` from 1.22 to 1.23.0 (#7462)
+- Bump Apache Lucene to 9.6.0 ([#7505](https://github.com/opensearch-project/OpenSearch/pull/7505))
+- Bump `com.google.cloud:google-cloud-core-http` from 1.93.3 to 2.17.0 (#7488)
 
 ### Changed
 - Enable `./gradlew build` on MacOS by disabling bcw tests ([#7303](https://github.com/opensearch-project/OpenSearch/pull/7303))

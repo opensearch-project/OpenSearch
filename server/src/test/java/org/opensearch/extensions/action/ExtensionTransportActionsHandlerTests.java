@@ -8,6 +8,7 @@
 
 package org.opensearch.extensions.action;
 
+import com.google.protobuf.ByteString;
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.Version;
@@ -36,7 +37,6 @@ import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransport;
 
 import java.net.InetAddress;
-import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -148,7 +148,7 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
 
     public void testTransportActionRequestFromExtension() throws Exception {
         String action = "test-action";
-        byte[] requestBytes = "requestBytes".getBytes(StandardCharsets.UTF_8);
+        ByteString requestBytes = ByteString.copyFromUtf8("requestBytes");
         TransportActionRequestFromExtension request = new TransportActionRequestFromExtension(action, requestBytes, "uniqueid1");
         RemoteExtensionActionResponse response = extensionTransportActionsHandler.handleTransportActionRequestFromExtension(request);
         assertFalse(response.isSuccess());
@@ -158,7 +158,7 @@ public class ExtensionTransportActionsHandlerTests extends OpenSearchTestCase {
 
     public void testSendTransportRequestToExtension() throws InterruptedException {
         String action = "test-action";
-        byte[] requestBytes = "request-bytes".getBytes(StandardCharsets.UTF_8);
+        ByteString requestBytes = ByteString.copyFromUtf8("requestBytes");
         ExtensionActionRequest request = new ExtensionActionRequest(action, requestBytes);
 
         // Action not registered, expect exception
