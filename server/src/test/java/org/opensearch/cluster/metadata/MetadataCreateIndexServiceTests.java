@@ -157,6 +157,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
     private CreateIndexClusterStateUpdateRequest request;
     private QueryShardContext queryShardContext;
 
+    private FeatureFlagSetter featureFlagSetter;
+
     @Before
     public void setupCreateIndexRequestAndAliasValidator() {
         aliasValidator = new AliasValidator();
@@ -185,6 +187,14 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             () -> true,
             null
         );
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        if (featureFlagSetter != null) {
+            featureFlagSetter.close();
+        }
+        super.tearDown();
     }
 
     private ClusterState createClusterState(String name, int numShards, int numReplicas, Settings settings) {
@@ -1142,7 +1152,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .put(CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey(), true)
             .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
             .build();
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
+        featureFlagSetter = FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
 
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         IllegalArgumentException exc = expectThrows(
@@ -1172,7 +1182,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .put(CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey(), true)
             .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
             .build();
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
+        featureFlagSetter = FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
 
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
@@ -1207,7 +1217,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .put(CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey(), true)
             .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
             .build();
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
+        featureFlagSetter = FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
 
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         Settings indexSettings = aggregateIndexSettings(
@@ -1238,7 +1248,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
             .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
             .build();
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
+        featureFlagSetter = FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
 
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
@@ -1264,7 +1274,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
             .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
             .build();
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
+        featureFlagSetter = FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
 
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
@@ -1291,7 +1301,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .put(CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING.getKey(), true)
             .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
             .build();
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
+        featureFlagSetter = FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
 
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
@@ -1327,7 +1337,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
             .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
             .build();
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
+        featureFlagSetter = FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
 
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
@@ -1361,7 +1371,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .put(CLUSTER_REMOTE_STORE_REPOSITORY_SETTING.getKey(), "my-segment-repo-1")
             .put(CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING.getKey(), "my-translog-repo-1")
             .build();
-        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
+        featureFlagSetter = FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
 
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
