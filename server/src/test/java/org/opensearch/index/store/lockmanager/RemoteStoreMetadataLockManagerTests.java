@@ -13,7 +13,6 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.junit.Before;
 import org.opensearch.index.store.RemoteBufferedOutputDirectory;
-import org.opensearch.index.store.RemoteDirectory;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -26,7 +25,7 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 
 public class RemoteStoreMetadataLockManagerTests extends OpenSearchTestCase {
-    private RemoteDirectory lockDirectory;
+    private RemoteBufferedOutputDirectory lockDirectory;
     private RemoteStoreMetadataLockManager remoteStoreMetadataLockManager;
     String testLockName = "testLock";
     String testMetadata = "testMetadata";

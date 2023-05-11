@@ -12,7 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
-import org.opensearch.index.store.RemoteDirectory;
+import org.opensearch.index.store.RemoteBufferedOutputDirectory;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -28,9 +28,9 @@ import java.util.List;
  */
 public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
     private static final Logger logger = LogManager.getLogger(RemoteStoreMetadataLockManager.class);
-    private final RemoteDirectory lockDirectory;
+    private final RemoteBufferedOutputDirectory lockDirectory;
 
-    public RemoteStoreMetadataLockManager(RemoteDirectory lockDirectory) {
+    public RemoteStoreMetadataLockManager(RemoteBufferedOutputDirectory lockDirectory) {
         this.lockDirectory = lockDirectory;
     }
 

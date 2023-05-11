@@ -15,7 +15,6 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
-import org.opensearch.index.store.RemoteDirectory;
 
 import java.io.IOException;
 import java.util.function.Supplier;
@@ -47,7 +46,11 @@ public class RemoteStoreLockManagerFactory {
         try (Repository repository = repositoriesService.repository(repositoryName)) {
             assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
             BlobPath shardLevelBlobPath = ((BlobStoreRepository) repository).basePath().add(indexUUID).add(shardId).add(SEGMENTS);
-            RemoteDirectory shardMDLockDirectory = createRemoteBufferedOutputDirectory(repository, shardLevelBlobPath, LOCK_FILES);
+            RemoteBufferedOutputDirectory shardMDLockDirectory = createRemoteBufferedOutputDirectory(
+                repository,
+                shardLevelBlobPath,
+                LOCK_FILES
+            );
 
             return new RemoteStoreMetadataLockManager(shardMDLockDirectory);
         } catch (RepositoryMissingException e) {
