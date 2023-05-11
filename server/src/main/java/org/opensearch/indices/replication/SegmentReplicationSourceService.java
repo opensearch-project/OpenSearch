@@ -49,24 +49,6 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class SegmentReplicationSourceService extends AbstractLifecycleComponent implements ClusterStateListener, IndexEventListener {
 
-    // Empty Implementation, only required while Segment Replication is under feature flag.
-    public static final SegmentReplicationSourceService NO_OP = new SegmentReplicationSourceService() {
-        @Override
-        public void clusterChanged(ClusterChangedEvent event) {
-            // NoOp;
-        }
-
-        @Override
-        public void beforeIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
-            // NoOp;
-        }
-
-        @Override
-        public void shardRoutingChanged(IndexShard indexShard, @Nullable ShardRouting oldRouting, ShardRouting newRouting) {
-            // NoOp;
-        }
-    };
-
     private static final Logger logger = LogManager.getLogger(SegmentReplicationSourceService.class);
     private final RecoverySettings recoverySettings;
     private final TransportService transportService;
@@ -84,14 +66,6 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
     }
 
     private final OngoingSegmentReplications ongoingSegmentReplications;
-
-    // Used only for empty implementation.
-    private SegmentReplicationSourceService() {
-        recoverySettings = null;
-        ongoingSegmentReplications = null;
-        transportService = null;
-        indicesService = null;
-    }
 
     public SegmentReplicationSourceService(
         IndicesService indicesService,

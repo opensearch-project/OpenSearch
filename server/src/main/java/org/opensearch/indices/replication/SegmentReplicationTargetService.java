@@ -67,38 +67,6 @@ public class SegmentReplicationTargetService implements IndexEventListener {
 
     private final IndicesService indicesService;
 
-    // Empty Implementation, only required while Segment Replication is under feature flag.
-    public static final SegmentReplicationTargetService NO_OP = new SegmentReplicationTargetService() {
-        @Override
-        public void beforeIndexShardClosed(ShardId shardId, IndexShard indexShard, Settings indexSettings) {
-            // NoOp;
-        }
-
-        @Override
-        public synchronized void onNewCheckpoint(ReplicationCheckpoint receivedCheckpoint, IndexShard replicaShard) {
-            // noOp;
-        }
-
-        @Override
-        public void shardRoutingChanged(IndexShard indexShard, @Nullable ShardRouting oldRouting, ShardRouting newRouting) {
-            // noOp;
-        }
-
-        @Override
-        public void afterIndexShardStarted(IndexShard indexShard) {
-            // noOp;
-        }
-    };
-
-    // Used only for empty implementation.
-    private SegmentReplicationTargetService() {
-        threadPool = null;
-        recoverySettings = null;
-        onGoingReplications = null;
-        sourceFactory = null;
-        indicesService = null;
-    }
-
     public ReplicationRef<SegmentReplicationTarget> get(long replicationId) {
         return onGoingReplications.get(replicationId);
     }
@@ -288,7 +256,8 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         }
     }
 
-    private void processLatestReceivedCheckpoint(IndexShard replicaShard, Thread thread) {
+    // visible to tests
+    protected void processLatestReceivedCheckpoint(IndexShard replicaShard, Thread thread) {
         final ReplicationCheckpoint latestPublishedCheckpoint = latestReceivedCheckpoint.get(replicaShard.shardId());
         if (latestPublishedCheckpoint != null && latestPublishedCheckpoint.isAheadOf(replicaShard.getLatestReplicationCheckpoint())) {
             Runnable runnable = () -> onNewCheckpoint(latestReceivedCheckpoint.get(replicaShard.shardId()), replicaShard);
@@ -301,7 +270,8 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         }
     }
 
-    private void updateLatestReceivedCheckpoint(ReplicationCheckpoint receivedCheckpoint, IndexShard replicaShard) {
+    // visible to tests
+    protected void updateLatestReceivedCheckpoint(ReplicationCheckpoint receivedCheckpoint, IndexShard replicaShard) {
         if (latestReceivedCheckpoint.get(replicaShard.shardId()) != null) {
             if (receivedCheckpoint.isAheadOf(latestReceivedCheckpoint.get(replicaShard.shardId()))) {
                 latestReceivedCheckpoint.replace(replicaShard.shardId(), receivedCheckpoint);
@@ -435,7 +405,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             final IndexShard indexShard = indicesService.getShardOrNull(request.getShardId());
             // Proceed with round of segment replication only when it is allowed
             if (indexShard == null || indexShard.getReplicationEngine().isEmpty()) {
-                logger.trace("Ignore force segment replication sync as it is not allowed");
+                logger.info("Ignore force segment replication sync as it is not allowed");
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
                 return;
             }

@@ -32,15 +32,15 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 import static org.opensearch.indices.replication.SegmentReplicationState.Stage.CANCELLED;
 
 public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
@@ -270,5 +270,21 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         // Verify that checkpoint is not processed as shard is in PrimaryMode.
         verify(spy, times(0)).startReplication(any(), any(), any());
         closeShards(primaryShard);
+    }
+
+    public void testAfterIndexShardStartedDoesNothingForDocrepIndex() throws IOException {
+        SegmentReplicationTargetService spy = spy(sut);
+        final IndexShard indexShard = newStartedShard();
+        spy.afterIndexShardStarted(indexShard);
+        verify(spy, times(0)).processLatestReceivedCheckpoint(eq(replicaShard), any());
+        closeShards(indexShard);
+    }
+
+    public void testAfterIndexShardStartedProcessesLatestReceivedCheckpoint() {
+        sut.updateLatestReceivedCheckpoint(aheadCheckpoint, replicaShard);
+        SegmentReplicationTargetService spy = spy(sut);
+        doNothing().when(spy).onNewCheckpoint(any(), any());
+        spy.afterIndexShardStarted(replicaShard);
+        verify(spy, times(1)).processLatestReceivedCheckpoint(eq(replicaShard), any());
     }
 }

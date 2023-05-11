@@ -43,6 +43,7 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
     private TestThreadPool testThreadPool;
     private TransportService transportService;
     private DiscoveryNode localNode;
+    private SegmentReplicationSourceService segmentReplicationSourceService;
 
     @Override
     public void setUp() throws Exception {
@@ -81,11 +82,7 @@ public class SegmentReplicationSourceServiceTests extends OpenSearchTestCase {
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
 
-        SegmentReplicationSourceService segmentReplicationSourceService = new SegmentReplicationSourceService(
-            mockIndicesService,
-            transportService,
-            recoverySettings
-        );
+        segmentReplicationSourceService = new SegmentReplicationSourceService(mockIndicesService, transportService, recoverySettings);
     }
 
     @Override
