@@ -258,8 +258,10 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         private final Version version;
         private final boolean isSearchableSnapshot;
 
+        private final boolean remoteStoreIndexShallowCopy;
+
         public SnapshotRecoverySource(String restoreUUID, Snapshot snapshot, Version version, IndexId indexId) {
-            this(restoreUUID, snapshot, version, indexId, false);
+            this(restoreUUID, snapshot, version, indexId, false, false);
         }
 
         public SnapshotRecoverySource(
@@ -267,13 +269,15 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             Snapshot snapshot,
             Version version,
             IndexId indexId,
-            boolean isSearchableSnapshot
+            boolean isSearchableSnapshot,
+            boolean remoteStoreIndexShallowCopy
         ) {
             this.restoreUUID = restoreUUID;
             this.snapshot = Objects.requireNonNull(snapshot);
             this.version = Objects.requireNonNull(version);
             this.index = Objects.requireNonNull(indexId);
             this.isSearchableSnapshot = isSearchableSnapshot;
+            this.remoteStoreIndexShallowCopy = remoteStoreIndexShallowCopy;
         }
 
         SnapshotRecoverySource(StreamInput in) throws IOException {
@@ -285,6 +289,11 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
                 isSearchableSnapshot = in.readBoolean();
             } else {
                 isSearchableSnapshot = false;
+            }
+            if (in.getVersion().onOrAfter(Version.V_2_8_0)) {
+                remoteStoreIndexShallowCopy = in.readBoolean();
+            } else {
+                remoteStoreIndexShallowCopy = false;
             }
         }
 
@@ -314,6 +323,10 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             return isSearchableSnapshot;
         }
 
+        public boolean remoteStoreIndexShallowCopy() {
+            return remoteStoreIndexShallowCopy;
+        }
+
         @Override
         protected void writeAdditionalFields(StreamOutput out) throws IOException {
             out.writeString(restoreUUID);
@@ -322,6 +335,9 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             index.writeTo(out);
             if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
                 out.writeBoolean(isSearchableSnapshot);
+            }
+            if (out.getVersion().onOrAfter(Version.V_2_8_0)) {
+                out.writeBoolean(remoteStoreIndexShallowCopy);
             }
         }
 
@@ -337,7 +353,8 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
                 .field("version", version.toString())
                 .field("index", index.getName())
                 .field("restoreUUID", restoreUUID)
-                .field("isSearchableSnapshot", isSearchableSnapshot);
+                .field("isSearchableSnapshot", isSearchableSnapshot)
+                .field("remoteStoreIndexShallowCopy", remoteStoreIndexShallowCopy);
         }
 
         @Override
@@ -359,12 +376,13 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
                 && snapshot.equals(that.snapshot)
                 && index.equals(that.index)
                 && version.equals(that.version)
-                && isSearchableSnapshot == that.isSearchableSnapshot;
+                && isSearchableSnapshot == that.isSearchableSnapshot
+                && remoteStoreIndexShallowCopy == that.remoteStoreIndexShallowCopy;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(restoreUUID, snapshot, index, version, isSearchableSnapshot);
+            return Objects.hash(restoreUUID, snapshot, index, version, isSearchableSnapshot, remoteStoreIndexShallowCopy);
         }
 
     }
