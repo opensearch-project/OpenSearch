@@ -34,7 +34,6 @@ package org.opensearch.geo.search.aggregations.bucket.geogrid;
 
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.core.common.io.stream.BaseStreamInput;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.bucket.GeoTileUtils;
 
@@ -53,8 +52,8 @@ class InternalGeoTileGridBucket extends BaseGeoGridBucket<InternalGeoTileGridBuc
     /**
      * Read from a stream.
      */
-    InternalGeoTileGridBucket(BaseStreamInput in) throws IOException {
-        super((StreamInput) in);
+    InternalGeoTileGridBucket(StreamInput in) throws IOException {
+        super(in);
     }
 
     @Override

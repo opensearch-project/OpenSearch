@@ -1165,7 +1165,7 @@ public abstract class StreamInput extends BaseStreamInput {
      * @return the list of objects
      * @throws IOException if an I/O exception occurs reading the list
      */
-    public <T> List<T> readList(final Writeable.Reader<T> reader) throws IOException {
+    public <T> List<T> readList(final BaseWriteable.Reader<StreamInput, T> reader) throws IOException {
         return readCollection(reader, ArrayList::new, Collections.emptyList());
     }
 
@@ -1207,8 +1207,11 @@ public abstract class StreamInput extends BaseStreamInput {
     /**
      * Reads a collection of objects
      */
-    private <T, C extends Collection<? super T>> C readCollection(Writeable.Reader<T> reader, IntFunction<C> constructor, C empty)
-        throws IOException {
+    private <T, C extends Collection<? super T>> C readCollection(
+        BaseWriteable.Reader<StreamInput, T> reader,
+        IntFunction<C> constructor,
+        C empty
+    ) throws IOException {
         int count = readArraySize();
         if (count == 0) {
             return empty;

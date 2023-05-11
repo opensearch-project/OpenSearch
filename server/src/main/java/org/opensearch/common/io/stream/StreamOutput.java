@@ -1176,7 +1176,7 @@ public abstract class StreamOutput extends BaseStreamOutput {
 
     /**
      * Writes a collection to this stream. The corresponding collection can be read from a stream input using
-     * {@link StreamInput#readList(Writeable.Reader)}.
+     * {@link StreamInput#readList(BaseWriteable.Reader)}.
      *
      * @param collection the collection to write to this stream
      * @throws IOException if an I/O exception occurs writing the collection
@@ -1207,7 +1207,7 @@ public abstract class StreamOutput extends BaseStreamOutput {
 
     /**
      * Writes a collection of a strings. The corresponding collection can be read from a stream input using
-     * {@link StreamInput#readList(Writeable.Reader)}.
+     * {@link StreamInput#readList(BaseWriteable.Reader)}.
      *
      * @param collection the collection of strings
      * @throws IOException if an I/O exception occurs writing the collection
@@ -1218,7 +1218,7 @@ public abstract class StreamOutput extends BaseStreamOutput {
 
     /**
      * Writes an optional collection of a strings. The corresponding collection can be read from a stream input using
-     * {@link StreamInput#readList(Writeable.Reader)}.
+     * {@link StreamInput#readList(BaseWriteable.Reader)}.
      *
      * @param collection the collection of strings
      * @throws IOException if an I/O exception occurs writing the collection
