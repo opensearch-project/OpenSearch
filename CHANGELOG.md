@@ -30,6 +30,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `org.apache.commons:commons-compress` from 1.22 to 1.23.0 (#7462)
 - Bump `com.azure:azure-core` from 1.34.0 to 1.39.0
 - Bump `com.networknt:json-schema-validator` from 1.0.78 to 1.0.81 (#7460)
+- Bump Apache Lucene to 9.6.0 ([#7505](https://github.com/opensearch-project/OpenSearch/pull/7505))
 
 ### Changed
 - Enable `./gradlew build` on MacOS by disabling bcw tests ([#7303](https://github.com/opensearch-project/OpenSearch/pull/7303))
