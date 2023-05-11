@@ -21,13 +21,13 @@ import org.opensearch.ingest.RandomDocumentPicks;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.test.AbstractBuilderTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-public class RenameResponseProcessorTests extends AbstractBuilderTestCase {
+public class RenameResponseProcessorTests extends OpenSearchTestCase {
 
     private SearchRequest createDummyRequest() {
         QueryBuilder query = new TermQueryBuilder("field", "value");
