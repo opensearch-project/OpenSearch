@@ -75,10 +75,6 @@ public class ExtensionsManagerWithIdentityTests extends OpenSearchTestCase {
     private MockNioTransport transport;
     private Path extensionDir;
     private final ThreadPool threadPool = new TestThreadPool(ExtensionsManagerWithIdentityTests.class.getSimpleName());
-    private final Settings settings = Settings.builder()
-        .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-        .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-        .build();
     private final List<String> extensionsYmlLines = Arrays.asList(
         "extensions:",
         "   - name: firstExtension",
@@ -186,8 +182,6 @@ public class ExtensionsManagerWithIdentityTests extends OpenSearchTestCase {
         ExtensionsManager extensionsManager = new ExtensionsManager(extensionDir, identityService);
 
         List<DiscoveryExtensionNode> expectedExtensions = new ArrayList<DiscoveryExtensionNode>();
-
-        String expectedUniqueId = "uniqueid0";
 
         expectedExtensions.add(
             new DiscoveryExtensionNode(
