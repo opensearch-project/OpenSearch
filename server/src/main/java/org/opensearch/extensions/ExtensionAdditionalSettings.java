@@ -45,13 +45,13 @@ import java.util.Set;
  *
  * @opensearch.internal
  */
-public final class ExtensionSecuritySettings extends AbstractScopedSettings {
+public final class ExtensionAdditionalSettings extends AbstractScopedSettings {
 
-    public ExtensionSecuritySettings(final Set<Setting<?>> settingsSet) {
+    public ExtensionAdditionalSettings(final Set<Setting<?>> settingsSet) {
         this(settingsSet, Collections.emptySet());
     }
 
-    public ExtensionSecuritySettings(final Set<Setting<?>> settingsSet, final Set<SettingUpgrader<?>> settingUpgraders) {
+    public ExtensionAdditionalSettings(final Set<Setting<?>> settingsSet, final Set<SettingUpgrader<?>> settingUpgraders) {
         super(Settings.EMPTY, settingsSet, settingUpgraders, Property.ExtensionScope);
     }
 }

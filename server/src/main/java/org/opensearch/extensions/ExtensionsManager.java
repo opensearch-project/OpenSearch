@@ -16,7 +16,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,7 +39,6 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.settings.Setting;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
@@ -660,13 +658,19 @@ public class ExtensionsManager {
                         }
                     }
 
-                    Set<String> securitySettingsKeys = identityService.getExtensionSettings().stream().map(s -> s.getKey()).collect(Collectors.toSet());
-                    Map<String, ?> securitySettings = extensionMap.entrySet()
-                        .stream()
-                        .filter(kv -> securitySettingsKeys.contains(kv.getKey()))
-                        .collect(Collectors.toMap(map -> map.getKey(), map -> map.getValue()));
                     Settings.Builder output = Settings.builder();
-                    output.loadFromMap(securitySettings);
+                    ExtensionAdditionalSettings additionalSettings = new ExtensionAdditionalSettings(Set.of());
+
+                    if (identityService != null) {
+                        additionalSettings = new ExtensionAdditionalSettings(identityService.getExtensionSettings().stream().collect(Collectors.toSet()));
+                        Set<String> securitySettingsKeys = identityService.getExtensionSettings().stream().map(s -> s.getKey()).collect(Collectors.toSet());
+                        Map<String, ?> securitySettings = extensionMap.entrySet()
+                            .stream()
+                            .filter(kv -> securitySettingsKeys.contains(kv.getKey()))
+                            .collect(Collectors.toMap(map -> map.getKey(), map -> map.getValue()));
+                        output.loadFromMap(securitySettings);
+                        additionalSettings.applySettings(output.build());
+                    }
 
                     // Create extension read from yml config
                     readExtensions.add(
@@ -679,7 +683,7 @@ public class ExtensionsManager {
                             extensionMap.get("opensearchVersion").toString(),
                             extensionMap.get("minimumCompatibleVersion").toString(),
                             extensionDependencyList,
-                            output.build()
+                            additionalSettings
                         )
                     );
                 } catch (IOException e) {

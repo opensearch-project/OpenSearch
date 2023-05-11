@@ -8,15 +8,11 @@
 
 package org.opensearch.extensions;
 
-import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.identity.IdentityService;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * List of extension configurations from extension.yml
@@ -50,7 +46,7 @@ public class ExtensionsSettings {
         private String opensearchVersion;
         private String minimumCompatibleVersion;
         private List<ExtensionDependency> dependencies = Collections.emptyList();
-        private Settings securitySettings = Settings.EMPTY;
+        private ExtensionAdditionalSettings additionalSettings;
 
         public Extension(
             String name,
@@ -61,7 +57,7 @@ public class ExtensionsSettings {
             String opensearchVersion,
             String minimumCompatibleVersion,
             List<ExtensionDependency> dependencies,
-            Settings securitySettings
+            ExtensionAdditionalSettings additionalSettings
         ) {
             this.name = name;
             this.uniqueId = uniqueId;
@@ -71,7 +67,7 @@ public class ExtensionsSettings {
             this.opensearchVersion = opensearchVersion;
             this.minimumCompatibleVersion = minimumCompatibleVersion;
             this.dependencies = dependencies;
-            this.securitySettings = securitySettings;
+            this.additionalSettings = additionalSettings;
         }
 
         public Extension() {
@@ -136,8 +132,8 @@ public class ExtensionsSettings {
             return dependencies;
         }
 
-        public Settings getSecuritySettings() {
-            return securitySettings;
+        public ExtensionAdditionalSettings getAdditionalSettings() {
+            return additionalSettings;
         }
 
         public String getMinimumCompatibleVersion() {
