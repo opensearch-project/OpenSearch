@@ -33,6 +33,7 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.rest.ProtectedRoute;
 import org.opensearch.rest.RestHandler.Route;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.rest.extensions.RestSendToExtensionAction;
@@ -126,6 +127,40 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         assertTrue(expectedPaths.containsAll(paths));
         assertTrue(methods.containsAll(expectedMethods));
         assertTrue(expectedMethods.containsAll(methods));
+    }
+
+    public void testRestSendToExtensionActionWithProtectedRoute() throws Exception {
+        RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
+            "uniqueid1",
+            List.of("GET /foo foo", "PUT /bar bar", "POST /baz baz"),
+            List.of("GET /deprecated/foo foo_deprecated", "It's deprecated!")
+        );
+        RestSendToExtensionAction restSendToExtensionAction = new RestSendToExtensionAction(
+            registerRestActionRequest,
+            discoveryExtensionNode,
+            transportService
+        );
+
+        assertEquals("send_to_extension_action", restSendToExtensionAction.getName());
+        List<ProtectedRoute> expected = new ArrayList<>();
+        String uriPrefix = "/_extensions/_uniqueid1";
+        expected.add(new ProtectedRoute(Method.GET, uriPrefix + "/foo", "foo"));
+        expected.add(new ProtectedRoute(Method.PUT, uriPrefix + "/bar", "bar"));
+        expected.add(new ProtectedRoute(Method.POST, uriPrefix + "/baz", "baz"));
+
+        List<Route> routes = restSendToExtensionAction.routes();
+        assertEquals(expected.size(), routes.size());
+        List<String> expectedPaths = expected.stream().map(Route::getPath).collect(Collectors.toList());
+        List<String> paths = routes.stream().map(Route::getPath).collect(Collectors.toList());
+        List<Method> expectedMethods = expected.stream().map(Route::getMethod).collect(Collectors.toList());
+        List<Method> methods = routes.stream().map(Route::getMethod).collect(Collectors.toList());
+        List<String> expectedNames = expected.stream().map(ProtectedRoute::name).collect(Collectors.toList());
+        List<String> names = routes.stream().map(r -> ((ProtectedRoute)r).name()).collect(Collectors.toList());
+        assertTrue(paths.containsAll(expectedPaths));
+        assertTrue(expectedPaths.containsAll(paths));
+        assertTrue(methods.containsAll(expectedMethods));
+        assertTrue(expectedMethods.containsAll(methods));
+        assertTrue(expectedNames.containsAll(names));
     }
 
     public void testRestSendToExtensionActionFilterHeaders() throws Exception {
