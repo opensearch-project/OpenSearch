@@ -67,8 +67,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class IndexingIT extends OpenSearchRestTestCase {
 
-    protected static final Boolean SEGREP_ENABLED = Boolean.parseBoolean(System.getProperty("tests.segrep_enabled"));
-
 
     private int indexDocs(String index, final int idStart, final int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
@@ -118,37 +116,37 @@ public class IndexingIT extends OpenSearchRestTestCase {
     }
 
     /**
-     * This test verifies that segment replication does not break when primary shards are on higher version.
+     * This test verifies that segment replication does not break when primary shards are on lower OS version. It does this
+     * by verifying replica shards contains same number of documents as primary's.
      *
      * @throws Exception
      */
     public void testIndexingWithPrimaryOnBwcNodes() throws Exception {
-        if (SEGREP_ENABLED == false) return;
         Nodes nodes = buildNodeAndVersions();
         assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
         logger.info("cluster discovered:\n {}", nodes.toString());
         final List<String> bwcNamesList = nodes.getBWCNodes().stream().map(Node::getNodeName).collect(Collectors.toList());
-        logger.info("--> bwc nodes {}", bwcNamesList);
         final String bwcNames = bwcNamesList.stream().collect(Collectors.joining(","));
         // Exclude bwc nodes from allocation so that primaries gets allocated on current version
         Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put("index.routing.allocation.include._name", bwcNames);
         final String index = "test-index";
         createIndex(index, settings.build());
         ensureYellow(index);
-        printClusterRouting();
-
         printIndexSettings(index);
 
-        int docCount = 200;
+        int docCount = 20;
         try (RestClient nodeClient = buildClient(restClientSettings(),
-            nodes.values().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
+            nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
 
             logger.info("allowing replica shards assignment on bwc nodes");
             updateIndexSettings(index, Settings.builder().putNull("index.routing.allocation.include._name"));
+            // Add replicas so that it can be assigned on higher OS version nodes.
+            updateIndexSettings(index, Settings.builder().put("index.number_of_replicas", 2));
+
             printClusterRouting();
             printIndexSettings(index);
             ensureGreen(index);
@@ -166,22 +164,22 @@ public class IndexingIT extends OpenSearchRestTestCase {
 
 
     /**
-     * This test creates a cluster with primary on older version but due to {@link org.opensearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider} which prevents replica shard allocation on lower OpenSearch version
+     * This test creates a cluster with primary on older version but due to {@link org.opensearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider};
+     * replica shard allocation on lower OpenSearch version is prevented. Thus, this test though cover the use case where
+     * primary shard containing nodes are running on higher OS version while replicas are unassigned.
      *
      * @throws Exception
      */
     public void testIndexingWithReplicaOnBwcNodes() throws Exception {
-        if (SEGREP_ENABLED == false) return;
         Nodes nodes = buildNodeAndVersions();
         assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
         logger.info("cluster discovered:\n {}", nodes.toString());
         final List<String> bwcNamesList = nodes.getBWCNodes().stream().map(Node::getNodeName).collect(Collectors.toList());
-        logger.info("--> bwc nodes {}", bwcNamesList);
         final String bwcNames = bwcNamesList.stream().collect(Collectors.joining(","));
-        // Exclude bwc nodes from allocation so that primaries gets allocated on current version
+        // Exclude bwc nodes from allocation so that primaries gets allocated on current/higher version
         Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
             .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
             .put("index.routing.allocation.exclude._name", bwcNames);
         final String index = "test-index";
@@ -196,6 +194,8 @@ public class IndexingIT extends OpenSearchRestTestCase {
 
             logger.info("allowing replica shards assignment on bwc nodes");
             updateIndexSettings(index, Settings.builder().putNull("index.routing.allocation.exclude._name"));
+            // Add replicas so that it can be assigned on lower OS version nodes, but it doesn't work as called out in test overview
+            updateIndexSettings(index, Settings.builder().put("index.number_of_replicas", 2));
             printClusterRouting();
 
             // Index docs
@@ -507,10 +507,11 @@ public class IndexingIT extends OpenSearchRestTestCase {
         });
     }
 
-    private List<Shard> buildShards(String index, Nodes nodes, RestClient client) throws IOException {
+    private List<Shard> buildShards(String index, Nodes nodes, RestClient client) throws IOException, ParseException {
         Request request = new Request("GET", index + "/_stats");
         request.addParameter("level", "shards");
         Response response = client.performRequest(request);
+        logger.info("_stats response --> {}", EntityUtils.toString(client().performRequest(request).getEntity()).trim());
         List<Object> shardStats = ObjectPath.createFromResponse(response).evaluate("indices." + index + ".shards.0");
         ArrayList<Shard> shards = new ArrayList<>();
         for (Object shard : shardStats) {
