@@ -71,7 +71,6 @@ import org.opensearch.extensions.proto.ExtensionRequestProto;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
 import org.opensearch.identity.IdentityService;
-import org.opensearch.identity.noop.NoopIdentityPlugin;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
@@ -102,7 +101,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     private RestController restController;
     private SettingsModule settingsModule;
     private ClusterService clusterService;
-    private IdentityService identityService;
     private NodeClient client;
     private MockNioTransport transport;
     private Path extensionDir;
@@ -175,7 +173,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         when(actionModule.getRestController()).thenReturn(restController);
         settingsModule = new SettingsModule(Settings.EMPTY, emptyList(), emptyList(), emptySet());
         clusterService = createClusterService(threadPool);
-        identityService = new IdentityService(settings, List.of()); // NoopIdentityPlugin
 
         extensionDir = createTempDir();
 
@@ -829,7 +826,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             settingsModule,
             mockTransportService,
             clusterService,
-            identityService,
             settings,
             client
         );
@@ -910,7 +906,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             settingsModule,
             transportService,
             clusterService,
-            identityService,
             settings,
             client
         );

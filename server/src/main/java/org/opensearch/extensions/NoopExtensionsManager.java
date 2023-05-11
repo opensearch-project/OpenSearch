@@ -43,7 +43,6 @@ public class NoopExtensionsManager extends ExtensionsManager {
         SettingsModule settingsModule,
         TransportService transportService,
         ClusterService clusterService,
-        IdentityService identityService,
         Settings initialEnvironmentSettings,
         NodeClient client
     ) {

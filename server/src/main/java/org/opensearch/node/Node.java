@@ -466,7 +466,7 @@ public class Node implements Closeable {
             final IdentityService identityService = new IdentityService(settings, identityPlugins);
 
             if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-                this.extensionsManager = new ExtensionsManager(initialEnvironment.extensionDir());
+                this.extensionsManager = new ExtensionsManager(initialEnvironment.extensionDir(), identityService);
             } else {
                 this.extensionsManager = new NoopExtensionsManager();
             }
@@ -851,7 +851,6 @@ public class Node implements Closeable {
                 settingsModule,
                 transportService,
                 clusterService,
-                identityService,
                 environment.settings(),
                 client
             );

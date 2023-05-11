@@ -152,6 +152,33 @@ public class ExtensionsManager {
     }
 
     /**
+     * Instantiate a new ExtensionsManager object to handle requests and responses from extensions. This is called during Node bootstrap.
+     *
+     * @param extensionsPath  Path to a directory containing extensions.
+     * @param identityService  Identity Service
+     * @throws IOException  If the extensions discovery file is not properly retrieved.
+     */
+    public ExtensionsManager(Path extensionsPath, IdentityService identityService) throws IOException {
+        logger.info("ExtensionsManager initialized");
+        this.extensionsPath = extensionsPath;
+        this.initializedExtensions = new HashMap<String, DiscoveryExtensionNode>();
+        this.extensionIdMap = new HashMap<String, DiscoveryExtensionNode>();
+        this.extensionSettingsMap = new HashMap<String, Extension>();
+        // will be initialized in initializeServicesAndRestHandler which is called after the Node is initialized
+        this.transportService = null;
+        this.clusterService = null;
+        this.identityService = identityService;
+        this.client = null;
+        this.extensionTransportActionsHandler = null;
+
+        /*
+         * Now Discover extensions
+         */
+        discover();
+
+    }
+
+    /**
      * Initializes the {@link RestActionsRequestHandler}, {@link TransportService}, {@link ClusterService} and environment settings. This is called during Node bootstrap.
      * Lists/maps of extensions have already been initialized but not yet populated.
      *
@@ -167,7 +194,6 @@ public class ExtensionsManager {
         SettingsModule settingsModule,
         TransportService transportService,
         ClusterService clusterService,
-        IdentityService identityService,
         Settings initialEnvironmentSettings,
         NodeClient client
     ) {
@@ -175,7 +201,6 @@ public class ExtensionsManager {
         this.customSettingsRequestHandler = new CustomSettingsRequestHandler(settingsModule);
         this.transportService = transportService;
         this.clusterService = clusterService;
-        this.identityService = identityService;
         this.environmentSettings = initialEnvironmentSettings;
         this.addSettingsUpdateConsumerRequestHandler = new AddSettingsUpdateConsumerRequestHandler(
             clusterService,
