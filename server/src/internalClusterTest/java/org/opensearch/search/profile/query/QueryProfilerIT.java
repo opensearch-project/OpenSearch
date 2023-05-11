@@ -148,7 +148,6 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
             .setProfile(false)
             .addSort("id.keyword", SortOrder.ASC)
             .setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setPreference("_primary")
             .setRequestCache(false);
 
         SearchRequestBuilder profile = client().prepareSearch("test")
@@ -156,7 +155,6 @@ public class QueryProfilerIT extends OpenSearchIntegTestCase {
             .setProfile(true)
             .addSort("id.keyword", SortOrder.ASC)
             .setSearchType(SearchType.QUERY_THEN_FETCH)
-            .setPreference("_primary")
             .setRequestCache(false);
 
         MultiSearchResponse.Item[] responses = client().prepareMultiSearch().add(vanilla).add(profile).get().getResponses();
