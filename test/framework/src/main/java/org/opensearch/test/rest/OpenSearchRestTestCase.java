@@ -918,6 +918,20 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
         });
     }
 
+    /**
+     * Checks that the specific index is yellow.
+     *
+     * @param index index to test for
+     **/
+    public static void ensureYellow(String index) throws IOException {
+        ensureHealth(index, (request) -> {
+            request.addParameter("wait_for_status", "yellow");
+            request.addParameter("wait_for_no_relocating_shards", "true");
+            request.addParameter("timeout", "70s");
+            request.addParameter("level", "shards");
+        });
+    }
+
     protected static void ensureHealth(Consumer<Request> requestConsumer) throws IOException {
         ensureHealth("", requestConsumer);
     }

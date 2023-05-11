@@ -55,6 +55,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   }
 
   String baseName = "v${bwcVersion}"
+  String segRepCluster = "${baseName}segrep"
 
   /* This project runs the core REST tests against a 4 node cluster where two of
      the nodes has a different minor.  */
@@ -64,6 +65,12 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       numberOfNodes = 4
 
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+    }
+
+    "$segRepCluster" {
+      versions = [bwcVersion.toString(), project.version]
+      numberOfNodes = 2
+      setting 'path.repo', "${buildDir}/cluster/shared/repo/${segRepCluster}"
     }
   }
 
@@ -89,7 +96,30 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     onlyIf { project.bwc_tests_enabled }
   }
 
+  /**
+   * Defines a new task for segment replication where tests utilizes system property to set boolean param, consumed
+   * in tests.
+   */
+  tasks.register("${baseName}#segrepMixedClusterTest", StandaloneRestIntegTestTask) {
+    useCluster testClusters."${segRepCluster}"
+    doFirst {
+      delete("${buildDir}/cluster/shared/repo/${segRepCluster}")
+      // Getting the endpoints causes a wait for the cluster
+      println "Test cluster endpoints are: ${-> testClusters."${segRepCluster}".allHttpSocketURI.join(",")}"
+      println "Upgrading one node to create a mixed cluster"
+      testClusters."${segRepCluster}".nextNodeToNextVersion()
+      // Getting the endpoints causes a wait for the cluster
+      println "Upgrade complete, endpoints are: ${-> testClusters."${segRepCluster}".allHttpSocketURI.join(",")}"
+      nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${segRepCluster}".allHttpSocketURI.join(",")}")
+      nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${segRepCluster}".getName()}")
+    }
+    systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${segRepCluster}"
+    systemProperty 'tests.segrep_enabled', true
+    onlyIf { project.bwc_tests_enabled }
+  }
+
   tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn "${baseName}#mixedClusterTest"
+    dependsOn "${baseName}#segrepMixedClusterTest"
   }
 }

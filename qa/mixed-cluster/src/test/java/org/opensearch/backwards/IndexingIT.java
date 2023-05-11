@@ -32,6 +32,8 @@
 package org.opensearch.backwards;
 
 import org.apache.hc.core5.http.HttpHost;
+import org.apache.hc.core5.http.ParseException;
+import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.client.Request;
@@ -40,11 +42,13 @@ import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.client.RestClient;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.index.seqno.SeqNoStats;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.opensearch.test.rest.yaml.ObjectPath;
@@ -62,6 +66,9 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexingIT extends OpenSearchRestTestCase {
+
+    protected static final Boolean SEGREP_ENABLED = Boolean.parseBoolean(System.getProperty("tests.segrep_enabled"));
+
 
     private int indexDocs(String index, final int idStart, final int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
@@ -96,6 +103,110 @@ public class IndexingIT extends OpenSearchRestTestCase {
             indexThread.join();
         }
         return nUpdates + 1;
+    }
+
+    private void printClusterRouting() throws IOException, ParseException {
+        Request clusterStateRequest = new Request("GET", "_cluster/state/routing_nodes?pretty");
+        String clusterState = EntityUtils.toString(client().performRequest(clusterStateRequest).getEntity()).trim();
+        logger.info("cluster nodes: {}", clusterState);
+    }
+
+    private void printIndexSettings(String index) throws IOException, ParseException {
+        Request indexSettings = new Request("GET", index + "/_settings?pretty");
+        String idxSettings = EntityUtils.toString(client().performRequest(indexSettings).getEntity()).trim();
+        logger.info("idxSettings : {}", idxSettings);
+    }
+
+    /**
+     * This test verifies that segment replication does not break when primary shards are on higher version.
+     *
+     * @throws Exception
+     */
+    public void testIndexingWithPrimaryOnBwcNodes() throws Exception {
+        if (SEGREP_ENABLED == false) return;
+        Nodes nodes = buildNodeAndVersions();
+        assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
+        logger.info("cluster discovered:\n {}", nodes.toString());
+        final List<String> bwcNamesList = nodes.getBWCNodes().stream().map(Node::getNodeName).collect(Collectors.toList());
+        logger.info("--> bwc nodes {}", bwcNamesList);
+        final String bwcNames = bwcNamesList.stream().collect(Collectors.joining(","));
+        // Exclude bwc nodes from allocation so that primaries gets allocated on current version
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put("index.routing.allocation.include._name", bwcNames);
+        final String index = "test-index";
+        createIndex(index, settings.build());
+        ensureYellow(index);
+        printClusterRouting();
+
+        printIndexSettings(index);
+
+        int docCount = 200;
+        try (RestClient nodeClient = buildClient(restClientSettings(),
+            nodes.values().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
+
+            logger.info("allowing replica shards assignment on bwc nodes");
+            updateIndexSettings(index, Settings.builder().putNull("index.routing.allocation.include._name"));
+            printClusterRouting();
+            printIndexSettings(index);
+            ensureGreen(index);
+
+            // Index docs
+            indexDocs(index, 0, docCount);
+
+            // perform a refresh
+            assertOK(client().performRequest(new Request("POST", index + "/_flush")));
+
+            // verify replica catch up with primary
+            assertSeqNoOnShards(index, nodes, docCount, nodeClient);
+        }
+    }
+
+
+    /**
+     * This test creates a cluster with primary on older version but due to {@link org.opensearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider} which prevents replica shard allocation on lower OpenSearch version
+     *
+     * @throws Exception
+     */
+    public void testIndexingWithReplicaOnBwcNodes() throws Exception {
+        if (SEGREP_ENABLED == false) return;
+        Nodes nodes = buildNodeAndVersions();
+        assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());
+        logger.info("cluster discovered:\n {}", nodes.toString());
+        final List<String> bwcNamesList = nodes.getBWCNodes().stream().map(Node::getNodeName).collect(Collectors.toList());
+        logger.info("--> bwc nodes {}", bwcNamesList);
+        final String bwcNames = bwcNamesList.stream().collect(Collectors.joining(","));
+        // Exclude bwc nodes from allocation so that primaries gets allocated on current version
+        Settings.Builder settings = Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put("index.routing.allocation.exclude._name", bwcNames);
+        final String index = "test-index";
+        createIndex(index, settings.build());
+        ensureYellow(index);
+        printClusterRouting();
+        printIndexSettings(index);
+
+        int docCount = 200;
+        try (RestClient nodeClient = buildClient(restClientSettings(),
+            nodes.values().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
+
+            logger.info("allowing replica shards assignment on bwc nodes");
+            updateIndexSettings(index, Settings.builder().putNull("index.routing.allocation.exclude._name"));
+            printClusterRouting();
+
+            // Index docs
+            indexDocs(index, 0, docCount);
+
+            // perform a refresh
+            assertOK(client().performRequest(new Request("POST", index + "/_flush")));
+
+            // verify replica catch up with primary
+            assertSeqNoOnShards(index, nodes, docCount, nodeClient);
+        }
     }
 
     public void testIndexVersionPropagation() throws Exception {
