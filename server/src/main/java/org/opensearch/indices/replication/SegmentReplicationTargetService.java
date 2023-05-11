@@ -289,7 +289,8 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     }
 
     private void processLatestReceivedCheckpoint(IndexShard replicaShard, Thread thread) {
-        if (replicaShard.getLatestReplicationCheckpoint().isAheadOf(latestReceivedCheckpoint.get(replicaShard.shardId())) == false) {
+        final ReplicationCheckpoint latestReplicationCheckpoint = replicaShard.getLatestReplicationCheckpoint();
+        if (latestReplicationCheckpoint != null && latestReplicationCheckpoint.isAheadOf(latestReceivedCheckpoint.get(replicaShard.shardId())) == false) {
             Runnable runnable = () -> onNewCheckpoint(latestReceivedCheckpoint.get(replicaShard.shardId()), replicaShard);
             // Checks if we are using same thread and forks if necessary.
             if (thread == Thread.currentThread()) {
