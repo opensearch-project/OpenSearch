@@ -43,6 +43,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -1206,4 +1207,43 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         currentFiles = List.of(replicaShard.store().directory().listAll());
         assertFalse("Files should be cleaned up", currentFiles.containsAll(snapshottedSegments));
     }
+
+    /**
+     * This tests that if a primary receives docs while a replica is performing round of segrep during recovery
+     * the replica will catch up to latest checkpoint once recovery completes without requiring an additional primary refresh/flush.
+     */
+    public void testPrimaryReceivesDocsDuringReplicaRecovery() throws Exception {
+        final List<String> nodes = new ArrayList<>();
+        final String primaryNode = internalCluster().startNode();
+        nodes.add(primaryNode);
+        final Settings settings = Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
+        createIndex(INDEX_NAME, settings);
+        ensureGreen(INDEX_NAME);
+        // start a replica node, initially will be empty with no shard assignment.
+        final String replicaNode = internalCluster().startNode();
+        nodes.add(replicaNode);
+
+        // index a doc.
+        client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", randomInt()).get();
+        refresh(INDEX_NAME);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        // block replication
+        try (final Releasable ignored = blockReplication(List.of(replicaNode), latch)) {
+            // update to add replica, initiating recovery, this will get stuck at last step
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareUpdateSettings(INDEX_NAME)
+                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+            );
+            ensureYellow(INDEX_NAME);
+            // index another doc while blocked, this would not get replicated to replica.
+            client().prepareIndex(INDEX_NAME).setId("2").setSource("foo2", randomInt()).get();
+            refresh(INDEX_NAME);
+        }
+        ensureGreen(INDEX_NAME);
+        waitForSearchableDocs(2, nodes);
+    }
+
 }

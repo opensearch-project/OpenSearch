@@ -145,7 +145,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
      */
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
-        if (indexShard != null) {
+        if (indexShard != null && indexShard.indexSettings().isSegRepEnabled()) {
             onGoingReplications.cancelForShard(shardId, "shard closed");
             latestReceivedCheckpoint.remove(shardId);
         }
@@ -157,7 +157,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
      */
     @Override
     public void afterIndexShardStarted(IndexShard indexShard) {
-        if (indexShard.routingEntry().primary() == false) {
+        if (indexShard.indexSettings().isSegRepEnabled() && indexShard.routingEntry().primary() == false) {
             processLatestReceivedCheckpoint(indexShard, Thread.currentThread());
         }
     }
@@ -167,7 +167,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
      */
     @Override
     public void shardRoutingChanged(IndexShard indexShard, @Nullable ShardRouting oldRouting, ShardRouting newRouting) {
-        if (oldRouting != null && oldRouting.primary() == false && newRouting.primary()) {
+        if (oldRouting != null && indexShard.indexSettings().isSegRepEnabled() && oldRouting.primary() == false && newRouting.primary()) {
             onGoingReplications.cancelForShard(indexShard.shardId(), "shard has been promoted to primary");
             latestReceivedCheckpoint.remove(indexShard.shardId());
         }
@@ -289,8 +289,8 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     }
 
     private void processLatestReceivedCheckpoint(IndexShard replicaShard, Thread thread) {
-        final ReplicationCheckpoint latestReplicationCheckpoint = replicaShard.getLatestReplicationCheckpoint();
-        if (latestReplicationCheckpoint != null && latestReplicationCheckpoint.isAheadOf(latestReceivedCheckpoint.get(replicaShard.shardId())) == false) {
+        final ReplicationCheckpoint latestPublishedCheckpoint = latestReceivedCheckpoint.get(replicaShard.shardId());
+        if (latestPublishedCheckpoint != null && latestPublishedCheckpoint.isAheadOf(replicaShard.getLatestReplicationCheckpoint())) {
             Runnable runnable = () -> onNewCheckpoint(latestReceivedCheckpoint.get(replicaShard.shardId()), replicaShard);
             // Checks if we are using same thread and forks if necessary.
             if (thread == Thread.currentThread()) {
