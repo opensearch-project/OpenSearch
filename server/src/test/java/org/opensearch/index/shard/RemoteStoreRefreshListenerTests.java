@@ -317,7 +317,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             return indexShard.getEngine();
         }).when(shard).getEngine();
 
-        RemoteStoreRefreshListener refreshListener = new RemoteStoreRefreshListener(shard);
+        RemoteStoreRefreshListener refreshListener = new RemoteStoreRefreshListener(shard, SegmentReplicationCheckpointPublisher.EMPTY);
         refreshListener.afterRefresh(false);
     }
 
