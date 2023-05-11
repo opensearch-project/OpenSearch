@@ -54,4 +54,9 @@ public class NoopSubject implements Subject {
     public void authenticate(AuthToken AuthToken) {
         // Do nothing as noop subject is always logged in
     }
+
+    @Override
+    public boolean isAuthenticated() {
+        return true;
+    }
 }

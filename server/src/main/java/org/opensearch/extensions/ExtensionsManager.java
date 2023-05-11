@@ -16,10 +16,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
@@ -38,6 +40,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
@@ -57,6 +60,7 @@ import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.rest.RestActionsRequestHandler;
 import org.opensearch.extensions.settings.CustomSettingsRequestHandler;
 import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
+import org.opensearch.identity.IdentityService;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndicesModuleRequest;
@@ -114,6 +118,7 @@ public class ExtensionsManager {
     private CustomSettingsRequestHandler customSettingsRequestHandler;
     private TransportService transportService;
     private ClusterService clusterService;
+    private IdentityService identityService;
     private Settings environmentSettings;
     private AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler;
     private NodeClient client;
@@ -132,6 +137,7 @@ public class ExtensionsManager {
         // will be initialized in initializeServicesAndRestHandler which is called after the Node is initialized
         this.transportService = null;
         this.clusterService = null;
+        this.identityService = null;
         this.client = null;
         this.extensionTransportActionsHandler = null;
 
@@ -158,6 +164,7 @@ public class ExtensionsManager {
         SettingsModule settingsModule,
         TransportService transportService,
         ClusterService clusterService,
+        IdentityService identityService,
         Settings initialEnvironmentSettings,
         NodeClient client
     ) {
@@ -165,6 +172,7 @@ public class ExtensionsManager {
         this.customSettingsRequestHandler = new CustomSettingsRequestHandler(settingsModule);
         this.transportService = transportService;
         this.clusterService = clusterService;
+        this.identityService = identityService;
         this.environmentSettings = initialEnvironmentSettings;
         this.addSettingsUpdateConsumerRequestHandler = new AddSettingsUpdateConsumerRequestHandler(
             clusterService,
@@ -612,6 +620,14 @@ public class ExtensionsManager {
                         }
                     }
 
+                    Set<String> securitySettingsKeys = identityService.getExtensionSettings().stream().map(s -> s.getKey()).collect(Collectors.toSet());
+                    Map<String, ?> securitySettings = extensionMap.entrySet()
+                        .stream()
+                        .filter(kv -> securitySettingsKeys.contains(kv.getKey()))
+                        .collect(Collectors.toMap(map -> map.getKey(), map -> map.getValue()));
+                    Settings.Builder output = Settings.builder();
+                    output.loadFromMap(securitySettings);
+
                     // Create extension read from yml config
                     readExtensions.add(
                         new Extension(
@@ -622,7 +638,8 @@ public class ExtensionsManager {
                             extensionMap.get("version").toString(),
                             extensionMap.get("opensearchVersion").toString(),
                             extensionMap.get("minimumCompatibleVersion").toString(),
-                            extensionDependencyList
+                            extensionDependencyList,
+                            output.build()
                         )
                     );
                 } catch (IOException e) {
@@ -692,6 +709,10 @@ public class ExtensionsManager {
 
     void setClusterService(ClusterService clusterService) {
         this.clusterService = clusterService;
+    }
+
+    void setIdentityService(IdentityService identityService) {
+        this.identityService = identityService;
     }
 
     CustomSettingsRequestHandler getCustomSettingsRequestHandler() {

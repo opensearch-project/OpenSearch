@@ -851,6 +851,7 @@ public class Node implements Closeable {
                 settingsModule,
                 transportService,
                 clusterService,
+                identityService,
                 environment.settings(),
                 client
             );
