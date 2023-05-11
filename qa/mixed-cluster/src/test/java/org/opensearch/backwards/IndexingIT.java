@@ -42,7 +42,6 @@ import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
 import org.opensearch.client.RestClient;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -66,7 +65,6 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexingIT extends OpenSearchRestTestCase {
-
 
     private int indexDocs(String index, final int idStart, final int numDocs) throws IOException {
         for (int i = 0; i < numDocs; i++) {
@@ -138,7 +136,7 @@ public class IndexingIT extends OpenSearchRestTestCase {
         ensureYellow(index);
         printIndexSettings(index);
 
-        int docCount = 20;
+        int docCount = 200;
         try (RestClient nodeClient = buildClient(restClientSettings(),
             nodes.getNewNodes().stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
 
@@ -507,11 +505,10 @@ public class IndexingIT extends OpenSearchRestTestCase {
         });
     }
 
-    private List<Shard> buildShards(String index, Nodes nodes, RestClient client) throws IOException, ParseException {
+    private List<Shard> buildShards(String index, Nodes nodes, RestClient client) throws IOException {
         Request request = new Request("GET", index + "/_stats");
         request.addParameter("level", "shards");
         Response response = client.performRequest(request);
-        logger.info("_stats response --> {}", EntityUtils.toString(client().performRequest(request).getEntity()).trim());
         List<Object> shardStats = ObjectPath.createFromResponse(response).evaluate("indices." + index + ".shards.0");
         ArrayList<Shard> shards = new ArrayList<>();
         for (Object shard : shardStats) {
