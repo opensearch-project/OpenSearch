@@ -92,11 +92,11 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         List<Route> restActionsAsRoutes = new ArrayList<>();
         for (String restAction : restActionsRequest.getRestActions()) {
             Optional<String> name = Optional.empty();
+            String[] parts = restAction.split(" ");
+            if (parts.length < 2) {
+                throw new IllegalArgumentException("REST action must contain at least a REST method and route");
+            }
             try {
-                String[] parts = restAction.split(" ");
-                if (parts.length < 2) {
-                    throw new IllegalArgumentException(restAction + " does not begin with a valid REST method");
-                }
                 method = RestRequest.Method.valueOf(parts[0].trim());
                 path = pathPrefix + parts[1].trim();
                 if (parts.length > 2) {
