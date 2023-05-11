@@ -662,8 +662,13 @@ public class ExtensionsManager {
                     ExtensionAdditionalSettings additionalSettings = new ExtensionAdditionalSettings(Set.of());
 
                     if (identityService != null) {
-                        additionalSettings = new ExtensionAdditionalSettings(identityService.getExtensionSettings().stream().collect(Collectors.toSet()));
-                        Set<String> securitySettingsKeys = identityService.getExtensionSettings().stream().map(s -> s.getKey()).collect(Collectors.toSet());
+                        additionalSettings = new ExtensionAdditionalSettings(
+                            identityService.getExtensionSettings().stream().collect(Collectors.toSet())
+                        );
+                        Set<String> securitySettingsKeys = identityService.getExtensionSettings()
+                            .stream()
+                            .map(s -> s.getKey())
+                            .collect(Collectors.toSet());
                         Map<String, ?> securitySettings = extensionMap.entrySet()
                             .stream()
                             .filter(kv -> securitySettingsKeys.contains(kv.getKey()))

@@ -22,7 +22,6 @@ import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.extensions.action.ExtensionActionRequest;
 import org.opensearch.extensions.action.ExtensionActionResponse;
 import org.opensearch.extensions.action.RemoteExtensionActionResponse;
-import org.opensearch.identity.IdentityService;
 import org.opensearch.index.IndexModule;
 import org.opensearch.transport.TransportService;
 

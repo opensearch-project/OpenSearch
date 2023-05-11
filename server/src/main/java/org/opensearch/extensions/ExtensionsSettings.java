@@ -8,8 +8,6 @@
 
 package org.opensearch.extensions;
 
-import org.opensearch.common.settings.Settings;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;

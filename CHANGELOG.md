@@ -11,6 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add events correlation engine plugin ([#6854](https://github.com/opensearch-project/OpenSearch/issues/6854))
 - Add connectToNodeAsExtension in TransportService ([#6866](https://github.com/opensearch-project/OpenSearch/pull/6866))
 - Adds ExtensionsManager.lookupExtensionSettingsById ([#7466](https://github.com/opensearch-project/OpenSearch/pull/7466))
+- [Extensions] Allow IdentityPlugin to add settings for extensions/extensions.yml ([#7526](https://github.com/opensearch-project/OpenSearch/pull/7526))
 
 ### Dependencies
 - Bump `log4j-core` from 2.18.0 to 2.19.0

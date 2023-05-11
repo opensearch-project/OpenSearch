@@ -9,13 +9,10 @@
 package org.opensearch.plugins;
 
 import org.opensearch.common.settings.Setting;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.identity.Subject;
-import org.opensearch.rest.RestHandler;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.function.UnaryOperator;
 
 /**
  * Plugin that provides identity and access control for OpenSearch

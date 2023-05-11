@@ -56,10 +56,7 @@ import java.util.concurrent.TimeUnit;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 
@@ -227,9 +224,15 @@ public class ExtensionsManagerWithIdentityTests extends OpenSearchTestCase {
             assertEquals(extension.getDependencies(), initializedExtension.getDependencies());
             assertTrue(extensionsManager.lookupExtensionSettingsById(extension.getId()).isPresent());
             if ("firstExtension".equals(extension.getName())) {
-                assertEquals("custom_setting", extensionsManager.lookupExtensionSettingsById(extension.getId()).get().getAdditionalSettings().get(customSetting));
+                assertEquals(
+                    "custom_setting",
+                    extensionsManager.lookupExtensionSettingsById(extension.getId()).get().getAdditionalSettings().get(customSetting)
+                );
             } else if ("secondExtension".equals(extension.getName())) {
-                assertEquals("none", extensionsManager.lookupExtensionSettingsById(extension.getId()).get().getAdditionalSettings().get(customSetting));
+                assertEquals(
+                    "none",
+                    extensionsManager.lookupExtensionSettingsById(extension.getId()).get().getAdditionalSettings().get(customSetting)
+                );
             }
         }
     }
