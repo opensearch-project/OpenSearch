@@ -33,6 +33,7 @@ package org.opensearch.common.settings;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
+import org.junit.Test;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.allocation.decider.FilterAllocationDecider;
@@ -1462,4 +1463,17 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
         );
     }
 
+    @Test
+    public void testAddSettingsUpdateConsumer() {
+        Setting<Integer> testSetting = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);
+        Setting<Integer> testSetting2 = Setting.intSetting("foo.bar.baz", 1, Property.Dynamic, Property.NodeScope);
+        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(testSetting, testSetting2)));
+        AtomicInteger consumer2 = new AtomicInteger();
+        service.addSettingsUpdateConsumer(testSetting2, consumer2::set, (s) -> assertTrue(s > 0));
+        Setting<Integer> wrongKeySetting = Setting.intSetting("foo.bar.wrong", 1, Property.Dynamic, Property.NodeScope);
+
+        expectThrows(SettingsException.class, () -> {
+            service.addSettingsUpdateConsumer(wrongKeySetting, consumer2::set, (i) -> { if (i == 42) throw new AssertionError("boom"); });
+        });
+    }
 }

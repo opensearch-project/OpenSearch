@@ -245,11 +245,11 @@ public abstract class AbstractScopedSettings {
      *                  This is useful to add additional validation to settings at runtime compared to at startup time.
      */
     public synchronized <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer, Consumer<T> validator) {
-        if (setting.equals(get(setting.getKey())) ) {
+        if (!setting.equals(get(setting.getKey()))) {
             throw new SettingsException("Setting is not registered for key [" + setting.getKey() + "]");
-        }else if (setting.getKey() == null){
+        } else if (setting.getKey() == null) {
             logger.error("not registered setting key");
-        }else {
+        } else {
             addSettingsUpdater(setting.newUpdater(consumer, logger, validator));
         }
     }
