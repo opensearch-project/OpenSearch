@@ -374,9 +374,14 @@ public class MetadataCreateIndexService {
 
     private void normalizeRequestSetting(CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest) {
         Settings.Builder updatedSettingsBuilder = Settings.builder();
-        Settings build = updatedSettingsBuilder.put(createIndexClusterStateRequest.settings())
-            .normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX)
-            .build();
+        updatedSettingsBuilder.put(createIndexClusterStateRequest.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
+        updateReplicationStrategy(
+            updatedSettingsBuilder,
+            createIndexClusterStateRequest.settings(),
+            clusterService.getSettings(),
+            validateDotIndex(createIndexClusterStateRequest.index(), false)
+        );
+        Settings build = updatedSettingsBuilder.build();
         indexScopedSettings.validate(build, true);
         createIndexClusterStateRequest.settings(build);
     }
@@ -420,12 +425,11 @@ public class MetadataCreateIndexService {
                 name,
                 isHiddenFromRequest == null ? false : isHiddenFromRequest
             );
-            boolean isSystemIndex = systemIndices.validateSystemIndex(request.index());
 
             if (v2Template != null) {
                 // If a v2 template was found, it takes precedence over all v1 templates, so create
                 // the index using that template and the request's specified settings
-                return applyCreateIndexRequestWithV2Template(currentState, request, silent, v2Template, metadataTransformer, isSystemIndex);
+                return applyCreateIndexRequestWithV2Template(currentState, request, silent, v2Template, metadataTransformer);
             } else {
                 // A v2 template wasn't found, check the v1 templates, in the event no templates are
                 // found creation still works using the request's specified index settings
@@ -444,14 +448,7 @@ public class MetadataCreateIndexService {
                     );
                 }
 
-                return applyCreateIndexRequestWithV1Templates(
-                    currentState,
-                    request,
-                    silent,
-                    v1Templates,
-                    metadataTransformer,
-                    isSystemIndex
-                );
+                return applyCreateIndexRequestWithV1Templates(currentState, request, silent, v1Templates, metadataTransformer);
             }
         }
     }
@@ -566,8 +563,7 @@ public class MetadataCreateIndexService {
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
         final List<IndexTemplateMetadata> templates,
-        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
-        boolean isSystemIndex
+        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
     ) throws Exception {
         logger.debug(
             "applying create index request using legacy templates {}",
@@ -589,8 +585,7 @@ public class MetadataCreateIndexService {
             settings,
             indexScopedSettings,
             shardLimitValidator,
-            indexSettingProviders,
-            isSystemIndex
+            indexSettingProviders
         );
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
@@ -623,8 +618,7 @@ public class MetadataCreateIndexService {
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
         final String templateName,
-        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
-        boolean isSystemIndex
+        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
     ) throws Exception {
         logger.debug("applying create index request using composable template [{}]", templateName);
 
@@ -655,8 +649,7 @@ public class MetadataCreateIndexService {
             settings,
             indexScopedSettings,
             shardLimitValidator,
-            indexSettingProviders,
-            isSystemIndex
+            indexSettingProviders
         );
         int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, null);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
@@ -736,8 +729,7 @@ public class MetadataCreateIndexService {
             settings,
             indexScopedSettings,
             shardLimitValidator,
-            indexSettingProviders,
-            sourceMetadata.isSystem()
+            indexSettingProviders
         );
         final int routingNumShards = getIndexNumberOfRoutingShards(aggregatedIndexSettings, sourceMetadata);
         IndexMetadata tmpImd = buildAndValidateTemporaryIndexMetadata(currentState, aggregatedIndexSettings, request, routingNumShards);
@@ -820,8 +812,7 @@ public class MetadataCreateIndexService {
         Settings settings,
         IndexScopedSettings indexScopedSettings,
         ShardLimitValidator shardLimitValidator,
-        Set<IndexSettingProvider> indexSettingProviders,
-        boolean isSystemIndex
+        Set<IndexSettingProvider> indexSettingProviders
     ) {
         // Create builders for the template and request settings. We transform these into builders
         // because we may want settings to be "removed" from these prior to being set on the new
@@ -905,8 +896,6 @@ public class MetadataCreateIndexService {
         indexSettingsBuilder.put(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, request.getProvidedName());
         indexSettingsBuilder.put(SETTING_INDEX_UUID, UUIDs.randomBase64UUID());
 
-        updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings, isSystemIndex);
-
         updateRemoteStoreSettings(indexSettingsBuilder, request.settings(), settings);
 
         if (sourceMetadata != null) {
@@ -947,7 +936,7 @@ public class MetadataCreateIndexService {
      * @param requestSettings settings passed in during index create request
      * @param clusterSettings cluster level settings
      */
-    private static void updateReplicationStrategy(
+    private void updateReplicationStrategy(
         Settings.Builder settingsBuilder,
         Settings requestSettings,
         Settings clusterSettings,

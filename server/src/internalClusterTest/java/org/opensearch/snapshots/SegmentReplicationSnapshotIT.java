@@ -18,7 +18,9 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.index.Index;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.test.InternalTestCluster;
@@ -299,5 +301,10 @@ public class SegmentReplicationSnapshotIT extends AbstractSnapshotIntegTestCase 
             .getSettings(new GetSettingsRequest().indices(RESTORED_INDEX_NAME).includeDefaults(true))
             .get();
         assertEquals(settingsResponse.getSetting(RESTORED_INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
+
+        // Verify index setting isSegRepEnabled.
+        Index index = resolveIndex(RESTORED_INDEX_NAME);
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, primaryNode);
+        assertEquals(indicesService.indexService(index).getIndexSettings().isSegRepEnabled(), false);
     }
 }

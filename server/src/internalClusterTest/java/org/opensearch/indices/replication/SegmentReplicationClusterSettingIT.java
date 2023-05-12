@@ -13,7 +13,9 @@ import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
@@ -91,6 +93,11 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
             .getSettings(new GetSettingsRequest().indices(SYSTEM_INDEX_NAME).includeDefaults(true))
             .actionGet();
         assertEquals(response.getSetting(SYSTEM_INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
+
+        // Verify index setting isSegRepEnabled is false.
+        Index index = resolveIndex(SYSTEM_INDEX_NAME);
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, primaryNode);
+        assertEquals(indicesService.indexService(index).getIndexSettings().isSegRepEnabled(), false);
     }
 
     public void testIndexReplicationSettingOverridesSegRepClusterSetting() throws Exception {
@@ -108,6 +115,15 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
         createIndex(ANOTHER_INDEX);
         ensureYellowAndNoInitializingShards(INDEX_NAME, ANOTHER_INDEX);
         final String replicaNode = internalCluster().startNode(settings);
+
+        // Randomly close and open index.
+        if (randomBoolean()) {
+            logger.info("--> Closing the index ");
+            client().admin().indices().prepareClose(INDEX_NAME).get();
+
+            logger.info("--> Opening the index");
+            client().admin().indices().prepareOpen(INDEX_NAME).get();
+        }
         ensureGreen(INDEX_NAME, ANOTHER_INDEX);
 
         final GetSettingsResponse response = client().admin()
@@ -116,6 +132,13 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
             .actionGet();
         assertEquals(response.getSetting(INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
         assertEquals(response.getSetting(ANOTHER_INDEX, SETTING_REPLICATION_TYPE), ReplicationType.SEGMENT.toString());
+
+        // Verify index setting isSegRepEnabled.
+        Index index = resolveIndex(INDEX_NAME);
+        Index anotherIndex = resolveIndex(ANOTHER_INDEX);
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, primaryNode);
+        assertEquals(indicesService.indexService(index).getIndexSettings().isSegRepEnabled(), false);
+        assertEquals(indicesService.indexService(anotherIndex).getIndexSettings().isSegRepEnabled(), true);
     }
 
     public void testIndexReplicationSettingOverridesDocRepClusterSetting() throws Exception {
@@ -139,32 +162,13 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
             .actionGet();
         assertEquals(response.getSetting(INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.SEGMENT.toString());
         assertEquals(response.getSetting(ANOTHER_INDEX, SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
-    }
 
-    public void testIndexReopenCloseWithReplicationStrategyClusterSetting() throws Exception {
-        final String primaryNode = internalCluster().startNode();
-        final String replicaNode = internalCluster().startNode();
-        prepareCreate(
-            INDEX_NAME,
-            Settings.builder()
-                // we want to override cluster replication setting by passing a index replication setting
-                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT)
-        ).get();
-        ensureGreen(INDEX_NAME);
-
-        logger.info("--> Closing the index ");
-        client().admin().indices().prepareClose(INDEX_NAME).get();
-
-        logger.info("--> Opening the index");
-        client().admin().indices().prepareOpen(INDEX_NAME).get();
-
-        ensureGreen(INDEX_NAME);
-
-        final GetSettingsResponse response = client().admin()
-            .indices()
-            .getSettings(new GetSettingsRequest().indices(INDEX_NAME).includeDefaults(true))
-            .actionGet();
-        assertEquals(response.getSetting(INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
+        // Verify index setting isSegRepEnabled.
+        Index index = resolveIndex(INDEX_NAME);
+        Index anotherIndex = resolveIndex(ANOTHER_INDEX);
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, primaryNode);
+        assertEquals(indicesService.indexService(index).getIndexSettings().isSegRepEnabled(), true);
+        assertEquals(indicesService.indexService(anotherIndex).getIndexSettings().isSegRepEnabled(), false);
     }
 
     public void testHiddenIndicesWithReplicationStrategyClusterSetting() throws Exception {
@@ -184,6 +188,11 @@ public class SegmentReplicationClusterSettingIT extends OpenSearchIntegTestCase 
             .getSettings(new GetSettingsRequest().indices(INDEX_NAME).includeDefaults(true))
             .actionGet();
         assertEquals(response.getSetting(INDEX_NAME, SETTING_REPLICATION_TYPE), ReplicationType.DOCUMENT.toString());
+
+        // Verify index setting isSegRepEnabled.
+        Index index = resolveIndex(INDEX_NAME);
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, primaryNode);
+        assertEquals(indicesService.indexService(index).getIndexSettings().isSegRepEnabled(), false);
     }
 
 }
