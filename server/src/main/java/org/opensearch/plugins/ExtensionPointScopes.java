@@ -48,3 +48,9 @@ public enum ExtensionPointScopes implements Scope  {
         return "Allowed";
     }
 }
+
+public static class ExtensionPointScopeException extends OpenSearchException {
+    public ExtensionPointScopeException(final ExtensionPointScopes missingScope) {
+        super("Missing scope for this extension point " + missingScope.toString());
+    }
+}

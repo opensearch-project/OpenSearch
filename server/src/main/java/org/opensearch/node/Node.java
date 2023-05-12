@@ -797,6 +797,12 @@ public class Node implements Closeable {
                 )
                 .collect(Collectors.toList());
 
+            final List<ActionPlugin> scopeProtectedActionPlugin = pluginsService
+                .filterPlugins(ActionPlugin.class)
+                .stream()
+                .map(plugin -> ScopeProtectedActionPlugin(plugin, identityService))
+                .collect(Collectors.toList());
+
             ActionModule actionModule = new ActionModule(
                 settings,
                 clusterModule.getIndexNameExpressionResolver(),
@@ -804,7 +810,7 @@ public class Node implements Closeable {
                 settingsModule.getClusterSettings(),
                 settingsModule.getSettingsFilter(),
                 threadPool,
-                pluginsService.filterPlugins(ActionPlugin.class),
+                scopeProtectedActionPlugin,
                 client,
                 circuitBreakerService,
                 usageService,
@@ -847,7 +853,7 @@ public class Node implements Closeable {
             new TemplateUpgradeService(client, clusterService, threadPool, indexTemplateMetadataUpgraders);
             final Transport transport = networkModule.getTransportSupplier().get();
             Set<String> taskHeaders = Stream.concat(
-                pluginsService.filterPlugins(ActionPlugin.class).stream().flatMap(p -> p.getTaskHeaders().stream()),
+                scopeProtectedActionPlugin.stream().flatMap(p -> p.getTaskHeaders().stream()),
                 Stream.of(Task.X_OPAQUE_ID)
             ).collect(Collectors.toSet());
             final TransportService transportService = newTransportService(

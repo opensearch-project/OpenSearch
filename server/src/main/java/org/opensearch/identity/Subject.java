@@ -32,7 +32,7 @@ public interface Subject {
      */
     void authenticate(final AuthToken token);
 
-    default boolean checkAnyPermission(final List<Scope> scope) {
+    default boolean isAllowed(final List<Scope> scope) {
         return false;
     }
 }

@@ -141,8 +141,10 @@ public class NodeClient extends AbstractClient {
     private <Request extends ActionRequest, Response extends ActionResponse> TransportAction<Request, Response> transportAction(
         ActionType<Response> action
     ) {
-        if (!IdentityService.getInstance().getSubject().checkAnyPermission(action.allowedScopes())) {
-            throw new OpenSearchSecurityException("Unauthorized action!");
+        if (!IdentityService.getInstance().getSubject().isAllowed(action.allowedScopes())) {
+            final String scopeList = action.allowedScopes().stream().map(s -> s.toString()).collect(Collectors.joining(",");
+            logger.debug("Request did not have any of the required scopes, " + scopeList);
+            throw new OpenSearchSecurityException("Unauthorized, at least of these scopes is required, " + scopeList);
         }
 
         if (actionRegistry == null) {
