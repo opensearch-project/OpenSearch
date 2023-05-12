@@ -238,17 +238,21 @@ public abstract class AbstractScopedSettings {
 
     /**
      * Adds a settings consumer with a predicate that is only evaluated at update time.
-     * <p>
-     * Note: Only settings registered in {@link SettingsModule} can be changed dynamically.
-     * </p>
-     * @param validator an additional validator that is only applied to updates of this setting.
-     *                  This is useful to add additional validation to settings at runtime compared to at startup time.
+     * This method allows registering an additional validator that is only applied to updates of a specific setting.
+     * It is useful to add additional validation to settings at runtime compared to at startup time.
+     * Please note that only settings registered in the {@link SettingsModule} can be changed dynamically.
+     *
+     * @param setting The setting for which the consumer is registered.
+     * @param consumer The consumer to be invoked when the setting is updated.
+     * @param validator An additional validator that is only applied to updates of this setting.
+     * @throws SettingsException if the setting is not registered for the given key.
+     * @throws NullPointerException if the setting is not registered.
      */
     public synchronized <T> void addSettingsUpdateConsumer(Setting<T> setting, Consumer<T> consumer, Consumer<T> validator) {
-        if (!setting.equals(get(setting.getKey()))) {
+        if (setting.getKey() != null && !setting.equals(get(setting.getKey()))) {
             throw new SettingsException("Setting is not registered for key [" + setting.getKey() + "]");
         } else if (setting.getKey() == null) {
-            logger.error("not registered setting key");
+            throw new NullPointerException("Setting is not registered");
         } else {
             addSettingsUpdater(setting.newUpdater(consumer, logger, validator));
         }

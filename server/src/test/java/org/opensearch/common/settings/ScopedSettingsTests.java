@@ -1472,8 +1472,12 @@ public class ScopedSettingsTests extends OpenSearchTestCase {
         service.addSettingsUpdateConsumer(testSetting2, consumer2::set, (s) -> assertTrue(s > 0));
         Setting<Integer> wrongKeySetting = Setting.intSetting("foo.bar.wrong", 1, Property.Dynamic, Property.NodeScope);
 
-        expectThrows(SettingsException.class, () -> {
-            service.addSettingsUpdateConsumer(wrongKeySetting, consumer2::set, (i) -> { if (i == 42) throw new AssertionError("boom"); });
-        });
+        expectThrows(SettingsException.class, () -> service.addSettingsUpdateConsumer(wrongKeySetting, consumer2::set, (i) -> {
+            if (i == 42) throw new AssertionError("wrong key");
+        }));
+
+        expectThrows(NullPointerException.class, () -> service.addSettingsUpdateConsumer(null, consumer2::set, (i) -> {
+            if (i == 42) throw new AssertionError("empty key");
+        }));
     }
 }
