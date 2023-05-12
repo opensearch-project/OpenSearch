@@ -221,6 +221,12 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         portGenerator.set(0);
     }
 
+    @Override
+    public void tearDown() throws Exception {
+        FeatureFlagSetter.clearAllFlags();
+        super.tearDown();
+    }
+
     // Allows distinguishing between parallel test processes
     public static final String TEST_WORKER_VM_ID;
 

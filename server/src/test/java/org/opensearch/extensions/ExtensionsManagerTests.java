@@ -94,8 +94,6 @@ import org.opensearch.transport.nio.MockNioTransport;
 import org.opensearch.usage.UsageService;
 
 public class ExtensionsManagerTests extends OpenSearchTestCase {
-
-    private FeatureFlagSetter featureFlagSetter;
     private TransportService transportService;
     private ActionModule actionModule;
     private RestController restController;
@@ -134,7 +132,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
     @Before
     public void setup() throws Exception {
-        featureFlagSetter = FeatureFlagSetter.set(FeatureFlags.EXTENSIONS);
+        FeatureFlagSetter.set(FeatureFlags.EXTENSIONS);
         Settings settings = Settings.builder().put("cluster.name", "test").build();
         transport = new MockNioTransport(
             settings,
@@ -195,7 +193,6 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         transportService.close();
         client.close();
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
-        featureFlagSetter.close();
     }
 
     public void testDiscover() throws Exception {
