@@ -471,9 +471,9 @@ public class RemoteRefreshSegmentTracker {
         public final long latestUploadFilesCount;
         public final long latestLocalFilesCount;
         public final long localRefreshSeqNo;
-        public final long localRefreshTime;
+        public final long localRefreshTimeMs;
         public final long remoteRefreshSeqNo;
-        public final long remoteRefreshTime;
+        public final long remoteRefreshTimeMs;
         public final long uploadBytesStarted;
         public final long uploadBytesFailed;
         public final long uploadBytesSucceeded;
@@ -497,9 +497,9 @@ public class RemoteRefreshSegmentTracker {
             long latestLocalFilesCount,
             long latestUploadFilesCount,
             long localRefreshSeqNo,
-            long localRefreshTime,
+            long localRefreshTimeMs,
             long remoteRefreshSeqNo,
-            long remoteRefreshTime,
+            long remoteRefreshTimeMs,
             long uploadBytesStarted,
             long uploadBytesSucceeded,
             long uploadBytesFailed,
@@ -522,9 +522,9 @@ public class RemoteRefreshSegmentTracker {
             this.latestLocalFilesCount = latestLocalFilesCount;
             this.latestUploadFilesCount = latestUploadFilesCount;
             this.localRefreshSeqNo = localRefreshSeqNo;
-            this.localRefreshTime = localRefreshTime;
+            this.localRefreshTimeMs = localRefreshTimeMs;
             this.remoteRefreshSeqNo = remoteRefreshSeqNo;
-            this.remoteRefreshTime = remoteRefreshTime;
+            this.remoteRefreshTimeMs = remoteRefreshTimeMs;
             this.uploadBytesStarted = uploadBytesStarted;
             this.uploadBytesFailed = uploadBytesFailed;
             this.uploadBytesSucceeded = uploadBytesSucceeded;
@@ -550,9 +550,9 @@ public class RemoteRefreshSegmentTracker {
                 this.latestLocalFilesCount = in.readLong();
                 this.latestUploadFilesCount = in.readLong();
                 this.localRefreshSeqNo = in.readLong();
-                this.localRefreshTime = in.readLong();
+                this.localRefreshTimeMs = in.readLong();
                 this.remoteRefreshSeqNo = in.readLong();
-                this.remoteRefreshTime = in.readLong();
+                this.remoteRefreshTimeMs = in.readLong();
                 this.uploadBytesStarted = in.readLong();
                 this.uploadBytesFailed = in.readLong();
                 this.uploadBytesSucceeded = in.readLong();
@@ -581,9 +581,9 @@ public class RemoteRefreshSegmentTracker {
             out.writeLong(latestLocalFilesCount);
             out.writeLong(latestUploadFilesCount);
             out.writeLong(localRefreshSeqNo);
-            out.writeLong(localRefreshTime);
+            out.writeLong(localRefreshTimeMs);
             out.writeLong(remoteRefreshSeqNo);
-            out.writeLong(remoteRefreshTime);
+            out.writeLong(remoteRefreshTimeMs);
             out.writeLong(uploadBytesStarted);
             out.writeLong(uploadBytesFailed);
             out.writeLong(uploadBytesSucceeded);

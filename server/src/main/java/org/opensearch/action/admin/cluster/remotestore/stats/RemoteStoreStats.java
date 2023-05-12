@@ -44,9 +44,9 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
             .field("shardId", remoteSegmentUploadShardStats.shardId)
             .field("latest_upload_files_count", remoteSegmentUploadShardStats.latestUploadFilesCount)
             .field("latest_local_files_count", remoteSegmentUploadShardStats.latestLocalFilesCount)
-            .field("local_refresh_time", remoteSegmentUploadShardStats.localRefreshTime)
+            .field("local_refresh_time_ms", remoteSegmentUploadShardStats.localRefreshTimeMs)
             .field("local_refresh_seq_no", remoteSegmentUploadShardStats.localRefreshSeqNo)
-            .field("remote_refresh_time", remoteSegmentUploadShardStats.remoteRefreshTime)
+            .field("remote_refresh_time_ms", remoteSegmentUploadShardStats.remoteRefreshTimeMs)
             .field("remote_refresh_seqno", remoteSegmentUploadShardStats.remoteRefreshSeqNo)
             .field("bytes_lag", remoteSegmentUploadShardStats.bytesLag)
             .field("inflight_upload_bytes", remoteSegmentUploadShardStats.inflightUploadBytes)
@@ -60,14 +60,12 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
             .field("succeeded", remoteSegmentUploadShardStats.uploadBytesSucceeded)
             .field("failed", remoteSegmentUploadShardStats.uploadBytesFailed);
         builder.startObject("moving_avg");
-        builder.field("started", remoteSegmentUploadShardStats.uploadBytesMovingAverage)
-            .field("succeeded", remoteSegmentUploadShardStats.uploadBytesMovingAverage)
-            .field("failed", -1);
+        builder.field("started", remoteSegmentUploadShardStats.uploadBytesMovingAverage).field("succeeded", -1).field("failed", -1);
         builder.endObject();
-        builder.startObject("per_sec_moving_avg");
-        builder.field("started", remoteSegmentUploadShardStats.uploadBytesPerSecMovingAverage)
-            .field("succeeded", remoteSegmentUploadShardStats.uploadBytesPerSecMovingAverage)
-            .field("failed", -1);
+        builder.endObject();
+        builder.startObject("upload_bytes_per_sec");
+        builder.startObject("moving_avg");
+        builder.field("started", remoteSegmentUploadShardStats.uploadBytesPerSecMovingAverage).field("succeeded", -1).field("failed", -1);
         builder.endObject();
         builder.endObject();
 

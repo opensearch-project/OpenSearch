@@ -6,9 +6,8 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.remotestore.restore;
+package org.opensearch.action.admin.cluster.remotestore.stats;
 
-import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStats;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -71,9 +70,9 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
         assertEquals(jsonObject.get("shardId"), pressureTrackerStats.shardId.toString());
         assertEquals(jsonObject.get("latest_upload_files_count"), (int) pressureTrackerStats.latestUploadFilesCount);
         assertEquals(jsonObject.get("latest_local_files_count"), (int) pressureTrackerStats.latestLocalFilesCount);
-        assertEquals(jsonObject.get("local_refresh_time"), (int) pressureTrackerStats.localRefreshTime);
+        assertEquals(jsonObject.get("local_refresh_time_ms"), (int) pressureTrackerStats.localRefreshTimeMs);
         assertEquals(jsonObject.get("local_refresh_seq_no"), (int) pressureTrackerStats.localRefreshSeqNo);
-        assertEquals(jsonObject.get("remote_refresh_time"), (int) pressureTrackerStats.remoteRefreshTime);
+        assertEquals(jsonObject.get("remote_refresh_time_ms"), (int) pressureTrackerStats.remoteRefreshTimeMs);
         assertEquals(jsonObject.get("remote_refresh_seqno"), (int) pressureTrackerStats.remoteRefreshSeqNo);
         assertEquals(jsonObject.get("bytes_lag"), (int) pressureTrackerStats.bytesLag);
         assertEquals(jsonObject.get("inflight_upload_bytes"), (int) pressureTrackerStats.inflightUploadBytes);
@@ -90,20 +89,14 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
             ((Map) ((Map) jsonObject.get("upload_bytes")).get("moving_avg")).get("started"),
             pressureTrackerStats.uploadBytesMovingAverage
         );
-        assertEquals(
-            ((Map) ((Map) jsonObject.get("upload_bytes")).get("moving_avg")).get("succeeded"),
-            pressureTrackerStats.uploadBytesMovingAverage
-        );
+        assertEquals(((Map) ((Map) jsonObject.get("upload_bytes")).get("moving_avg")).get("succeeded"), -1);
         assertEquals(((Map) ((Map) jsonObject.get("upload_bytes")).get("moving_avg")).get("failed"), -1);
         assertEquals(
-            ((Map) ((Map) jsonObject.get("upload_bytes")).get("per_sec_moving_avg")).get("started"),
+            ((Map) ((Map) jsonObject.get("upload_bytes_per_sec")).get("moving_avg")).get("started"),
             pressureTrackerStats.uploadBytesPerSecMovingAverage
         );
-        assertEquals(
-            ((Map) ((Map) jsonObject.get("upload_bytes")).get("per_sec_moving_avg")).get("succeeded"),
-            pressureTrackerStats.uploadBytesPerSecMovingAverage
-        );
-        assertEquals(((Map) ((Map) jsonObject.get("upload_bytes")).get("per_sec_moving_avg")).get("failed"), -1);
+        assertEquals(((Map) ((Map) jsonObject.get("upload_bytes_per_sec")).get("moving_avg")).get("succeeded"), -1);
+        assertEquals(((Map) ((Map) jsonObject.get("upload_bytes_per_sec")).get("moving_avg")).get("failed"), -1);
         assertEquals(((Map) jsonObject.get("total_uploads")).get("started"), (int) pressureTrackerStats.totalUploadsStarted);
         assertEquals(((Map) jsonObject.get("total_uploads")).get("succeeded"), (int) pressureTrackerStats.totalUploadsSucceeded);
         assertEquals(((Map) jsonObject.get("total_uploads")).get("failed"), (int) pressureTrackerStats.totalUploadsFailed);
@@ -137,9 +130,9 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
                 assertEquals(deserializedStats.getStats().latestLocalFilesCount, stats.getStats().latestLocalFilesCount);
                 assertEquals(deserializedStats.getStats().latestUploadFilesCount, stats.getStats().latestUploadFilesCount);
                 assertEquals(deserializedStats.getStats().localRefreshSeqNo, stats.getStats().localRefreshSeqNo);
-                assertEquals(deserializedStats.getStats().localRefreshTime, stats.getStats().localRefreshTime);
+                assertEquals(deserializedStats.getStats().localRefreshTimeMs, stats.getStats().localRefreshTimeMs);
                 assertEquals(deserializedStats.getStats().remoteRefreshSeqNo, stats.getStats().remoteRefreshSeqNo);
-                assertEquals(deserializedStats.getStats().remoteRefreshTime, stats.getStats().remoteRefreshTime);
+                assertEquals(deserializedStats.getStats().remoteRefreshTimeMs, stats.getStats().remoteRefreshTimeMs);
                 assertEquals(deserializedStats.getStats().uploadBytesStarted, stats.getStats().uploadBytesStarted);
                 assertEquals(deserializedStats.getStats().uploadBytesSucceeded, stats.getStats().uploadBytesSucceeded);
                 assertEquals(deserializedStats.getStats().uploadBytesFailed, stats.getStats().uploadBytesFailed);

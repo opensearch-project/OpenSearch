@@ -6,10 +6,8 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.remotestore.restore;
+package org.opensearch.action.admin.cluster.remotestore.stats;
 
-import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStats;
-import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsResponse;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.bytes.BytesReference;
@@ -88,9 +86,9 @@ public class RemoteStoreStatsResponseTests extends OpenSearchTestCase {
         assertEquals(statsObject.get("shardId"), pressureTrackerStats.shardId.toString());
         assertEquals(statsObject.get("latest_upload_files_count"), (int) pressureTrackerStats.latestUploadFilesCount);
         assertEquals(statsObject.get("latest_local_files_count"), (int) pressureTrackerStats.latestLocalFilesCount);
-        assertEquals(statsObject.get("local_refresh_time"), (int) pressureTrackerStats.localRefreshTime);
+        assertEquals(statsObject.get("local_refresh_time_ms"), (int) pressureTrackerStats.localRefreshTimeMs);
         assertEquals(statsObject.get("local_refresh_seq_no"), (int) pressureTrackerStats.localRefreshSeqNo);
-        assertEquals(statsObject.get("remote_refresh_time"), (int) pressureTrackerStats.remoteRefreshTime);
+        assertEquals(statsObject.get("remote_refresh_time_ms"), (int) pressureTrackerStats.remoteRefreshTimeMs);
         assertEquals(statsObject.get("remote_refresh_seqno"), (int) pressureTrackerStats.remoteRefreshSeqNo);
         assertEquals(statsObject.get("bytes_lag"), (int) pressureTrackerStats.bytesLag);
         assertEquals(statsObject.get("inflight_upload_bytes"), (int) pressureTrackerStats.inflightUploadBytes);
@@ -107,20 +105,14 @@ public class RemoteStoreStatsResponseTests extends OpenSearchTestCase {
             ((Map) ((Map) statsObject.get("upload_bytes")).get("moving_avg")).get("started"),
             pressureTrackerStats.uploadBytesMovingAverage
         );
-        assertEquals(
-            ((Map) ((Map) statsObject.get("upload_bytes")).get("moving_avg")).get("succeeded"),
-            pressureTrackerStats.uploadBytesMovingAverage
-        );
+        assertEquals(((Map) ((Map) statsObject.get("upload_bytes")).get("moving_avg")).get("succeeded"), -1);
         assertEquals(((Map) ((Map) statsObject.get("upload_bytes")).get("moving_avg")).get("failed"), -1);
         assertEquals(
-            ((Map) ((Map) statsObject.get("upload_bytes")).get("per_sec_moving_avg")).get("started"),
+            ((Map) ((Map) statsObject.get("upload_bytes_per_sec")).get("moving_avg")).get("started"),
             pressureTrackerStats.uploadBytesPerSecMovingAverage
         );
-        assertEquals(
-            ((Map) ((Map) statsObject.get("upload_bytes")).get("per_sec_moving_avg")).get("succeeded"),
-            pressureTrackerStats.uploadBytesPerSecMovingAverage
-        );
-        assertEquals(((Map) ((Map) statsObject.get("upload_bytes")).get("per_sec_moving_avg")).get("failed"), -1);
+        assertEquals(((Map) ((Map) statsObject.get("upload_bytes_per_sec")).get("moving_avg")).get("succeeded"), -1);
+        assertEquals(((Map) ((Map) statsObject.get("upload_bytes_per_sec")).get("moving_avg")).get("failed"), -1);
         assertEquals(((Map) statsObject.get("total_uploads")).get("started"), (int) pressureTrackerStats.totalUploadsStarted);
         assertEquals(((Map) statsObject.get("total_uploads")).get("succeeded"), (int) pressureTrackerStats.totalUploadsSucceeded);
         assertEquals(((Map) statsObject.get("total_uploads")).get("failed"), (int) pressureTrackerStats.totalUploadsFailed);

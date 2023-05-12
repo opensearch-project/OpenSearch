@@ -6,9 +6,8 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.admin.cluster.remotestore.restore;
+package org.opensearch.action.admin.cluster.remotestore.stats;
 
-import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsRequest;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
