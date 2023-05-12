@@ -75,6 +75,11 @@ public abstract class BucketedSortTestCase<T extends BucketedSort> extends OpenS
      */
     protected abstract double randomValue();
 
+    /** A property to indicated the underlying bucket's numeric data type is represented as unsigned numeric */
+    protected boolean isUnsignedNumeric() {
+        return false;
+    }
+
     protected final T build(SortOrder order, int bucketSize, BucketedSort.ExtraData extra, double[] values) {
         DocValueFormat format = randomFrom(DocValueFormat.RAW, DocValueFormat.BINARY, DocValueFormat.BOOLEAN);
         return build(order, format, bucketSize, extra, values);
@@ -194,7 +199,7 @@ public abstract class BucketedSortTestCase<T extends BucketedSort> extends OpenS
 
         double[] maxes = new double[buckets.length];
 
-        try (T sort = build(SortOrder.DESC, 1, new double[] { 2, 3, -1 })) {
+        try (T sort = build(SortOrder.DESC, 1, new double[] { 2, 3, isUnsignedNumeric() ? 0 : -1 })) {
             BucketedSort.Leaf leaf = sort.forLeaf(null);
             for (int b : buckets) {
                 maxes[b] = 2;

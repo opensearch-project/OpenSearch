@@ -32,8 +32,15 @@
 
 package org.opensearch.script;
 
+import org.joda.time.DateTimeZone;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.BaseWriteable.Reader;
+import org.opensearch.core.common.io.stream.BaseWriteable.Writer;
 import org.opensearch.common.time.DateFormatter;
+import org.opensearch.common.time.DateUtils;
+import org.opensearch.core.common.io.stream.BaseWriteable.WriteableRegistry;
 
 import java.time.DayOfWeek;
 import java.time.Instant;
@@ -75,6 +82,26 @@ public class JodaCompatibleZonedDateTime
 
     public JodaCompatibleZonedDateTime(Instant instant, ZoneId zone) {
         this.dt = ZonedDateTime.ofInstant(instant, zone);
+    }
+
+    /**
+     * Register this type as a streamable so it can be serialized over the wire
+     */
+    public static void registerStreamables() {
+        WriteableRegistry.<Writer<StreamOutput, ?>>registerWriter(JodaCompatibleZonedDateTime.class, (o, v) -> {
+            // write the joda compatibility datetime as joda datetime
+            o.writeByte((byte) 13);
+            final JodaCompatibleZonedDateTime zonedDateTime = (JodaCompatibleZonedDateTime) v;
+            String zoneId = zonedDateTime.getZonedDateTime().getZone().getId();
+            // joda does not understand "Z" for utc, so we must special case
+            o.writeString(zoneId.equals("Z") ? DateTimeZone.UTC.getID() : zoneId);
+            o.writeLong(zonedDateTime.toInstant().toEpochMilli());
+        });
+        WriteableRegistry.<Reader<StreamInput, ?>>registerReader(Byte.valueOf((byte) 13), (i) -> {
+            final ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(DateTimeZone.forID(i.readString()));
+            long millis = i.readLong();
+            return new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(millis), zoneId);
+        });
     }
 
     // access the underlying ZonedDateTime

@@ -246,6 +246,8 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
                     rawFormat = true;
                 } else if (((LongTerms) agg).format == DocValueFormat.UNSIGNED_LONG_SHIFTED) {
                     unsignedLongFormat = true;
+                } else if (((LongTerms) agg).format == DocValueFormat.UNSIGNED_LONG) {
+                    unsignedLongFormat = true;
                 }
             }
         }

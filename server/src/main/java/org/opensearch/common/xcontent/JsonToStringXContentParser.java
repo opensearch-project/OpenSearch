@@ -18,6 +18,7 @@ import org.opensearch.core.xcontent.XContentLocation;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.mapper.ParseContext;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.CharBuffer;
 import java.util.ArrayList;
 
@@ -243,6 +244,11 @@ public class JsonToStringXContentParser extends AbstractXContentParser {
     @Override
     protected double doDoubleValue() throws IOException {
         return this.parser.doubleValue();
+    }
+
+    @Override
+    protected BigInteger doBigIntegerValue() throws IOException {
+        return this.parser.bigIntegerValue();
     }
 
     @Override

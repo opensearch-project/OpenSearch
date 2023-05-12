@@ -111,7 +111,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
         if (valuesSource instanceof ValuesSource.Numeric) {
             ValuesSource.Numeric source = (ValuesSource.Numeric) valuesSource;
-            MurmurHash3Values hashValues = source.isFloatingPoint()
+            MurmurHash3Values hashValues = (source.isFloatingPoint() || source.isBigInteger())
                 ? MurmurHash3Values.hash(source.doubleValues(ctx))
                 : MurmurHash3Values.hash(source.longValues(ctx));
             numericCollectorsUsed++;

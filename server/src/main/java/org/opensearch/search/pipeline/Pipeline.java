@@ -12,10 +12,15 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.ingest.ConfigurationUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -39,22 +44,30 @@ class Pipeline {
     private final List<SearchRequestProcessor> searchRequestProcessors;
     private final List<SearchResponseProcessor> searchResponseProcessors;
 
+    private final NamedWriteableRegistry namedWriteableRegistry;
+
     Pipeline(
         String id,
         @Nullable String description,
         @Nullable Integer version,
         List<SearchRequestProcessor> requestProcessors,
-        List<SearchResponseProcessor> responseProcessors
+        List<SearchResponseProcessor> responseProcessors,
+        NamedWriteableRegistry namedWriteableRegistry
     ) {
         this.id = id;
         this.description = description;
         this.version = version;
         this.searchRequestProcessors = requestProcessors;
         this.searchResponseProcessors = responseProcessors;
+        this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
-    public static Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorFactories)
-        throws Exception {
+    public static Pipeline create(
+        String id,
+        Map<String, Object> config,
+        Map<String, Processor.Factory> processorFactories,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) throws Exception {
         String description = ConfigurationUtils.readOptionalStringProperty(null, null, config, DESCRIPTION_KEY);
         Integer version = ConfigurationUtils.readIntProperty(null, null, config, VERSION_KEY, null);
         List<Map<String, Object>> requestProcessorConfigs = ConfigurationUtils.readOptionalList(null, null, config, REQUEST_PROCESSORS_KEY);
@@ -82,7 +95,7 @@ class Pipeline {
                     + Arrays.toString(config.keySet().toArray())
             );
         }
-        return new Pipeline(id, description, version, requestProcessors, responseProcessors);
+        return new Pipeline(id, description, version, requestProcessors, responseProcessors, namedWriteableRegistry);
     }
 
     @SuppressWarnings("unchecked") // Cast is checked using isInstance
@@ -143,8 +156,18 @@ class Pipeline {
     }
 
     SearchRequest transformRequest(SearchRequest request) throws Exception {
-        for (SearchRequestProcessor searchRequestProcessor : searchRequestProcessors) {
-            request = searchRequestProcessor.processRequest(request);
+        if (searchRequestProcessors.isEmpty() == false) {
+            try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
+                request.writeTo(bytesStreamOutput);
+                try (StreamInput in = bytesStreamOutput.bytes().streamInput()) {
+                    try (StreamInput input = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry)) {
+                        request = new SearchRequest(input);
+                    }
+                }
+            }
+            for (SearchRequestProcessor searchRequestProcessor : searchRequestProcessors) {
+                request = searchRequestProcessor.processRequest(request);
+            }
         }
         return request;
     }
@@ -159,4 +182,13 @@ class Pipeline {
             throw new SearchPipelineProcessingException(e);
         }
     }
+
+    static final Pipeline NO_OP_PIPELINE = new Pipeline(
+        SearchPipelineService.NOOP_PIPELINE_ID,
+        "Pipeline that does not transform anything",
+        0,
+        Collections.emptyList(),
+        Collections.emptyList(),
+        null
+    );
 }
