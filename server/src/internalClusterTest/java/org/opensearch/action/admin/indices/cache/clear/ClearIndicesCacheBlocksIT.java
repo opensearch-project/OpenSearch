@@ -55,7 +55,12 @@ public class ClearIndicesCacheBlocksIT extends OpenSearchIntegTestCase {
         NumShards numShards = getNumShards("test");
 
         // Request is not blocked
-        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE)) {
+        for (String blockSetting : Arrays.asList(
+            SETTING_BLOCKS_READ,
+            SETTING_BLOCKS_WRITE,
+            SETTING_READ_ONLY,
+            SETTING_READ_ONLY_ALLOW_DELETE
+        )) {
             try {
                 enableIndexBlock("test", blockSetting);
                 ClearIndicesCacheResponse clearIndicesCacheResponse = client().admin()
@@ -73,7 +78,7 @@ public class ClearIndicesCacheBlocksIT extends OpenSearchIntegTestCase {
             }
         }
         // Request is blocked
-        for (String blockSetting : Arrays.asList(SETTING_READ_ONLY, SETTING_BLOCKS_METADATA, SETTING_READ_ONLY_ALLOW_DELETE)) {
+        for (String blockSetting : Arrays.asList(SETTING_BLOCKS_METADATA)) {
             try {
                 enableIndexBlock("test", blockSetting);
                 assertBlocked(
