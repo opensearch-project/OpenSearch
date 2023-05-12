@@ -88,15 +88,4 @@ public class ShiroSubject implements Subject {
             .orElseThrow(() -> new UnsupportedAuthenticationToken());
         shiroSubject.login(authToken);
     }
-
-    @Override
-    public Principal getAssociatedApplication() {
-        return null;
-    }
-
-    @Override
-    public boolean isAllowed(final List<Scope> scope) {
-        // Noop subject is always allowed for any scope checks
-        return true;
-    }
 }

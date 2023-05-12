@@ -9,9 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
 import org.opensearch.identity.noop.NoopIdentityPlugin;
-import org.opensearch.extensions.ExtensionsManager;
 import java.util.List;
-
 import org.opensearch.common.settings.Settings;
 import org.opensearch.identity.tokens.TokenManager;
 import org.opensearch.plugins.IdentityPlugin;
@@ -27,16 +25,12 @@ public class IdentityService {
 
     private final Settings settings;
     private final IdentityPlugin identityPlugin;
-    private final ExtensionsManager extensionManager;
 
     private static IdentityService instance;
     public static IdentityService getInstance() { return instance; } 
 
-    public IdentityService(final Settings settings,
-        final List<IdentityPlugin> identityPlugins,
-        final ExtensionsManager extensionManager) {
+    public IdentityService(final Settings settings, final List<IdentityPlugin> identityPlugins) {
         this.settings = settings;
-        this.extensionManager = extensionManager;
 
         if (identityPlugins.size() == 0) {
             log.debug("Identity plugins size is 0");

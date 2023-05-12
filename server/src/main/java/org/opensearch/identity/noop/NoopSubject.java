@@ -58,12 +58,6 @@ public class NoopSubject implements Subject {
     }
 
     @Override
-    public Principal getAssociatedApplication() {
-        // Noop subject is not aware of an application
-        return null;
-    }
-
-    @Override
     public boolean isAllowed(final List<Scope> scope) {
         // Noop subject is always allowed for any scope checks
         return true;
