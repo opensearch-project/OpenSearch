@@ -23,22 +23,42 @@ import java.util.Set;
  */
 public class FeatureFlagSetter {
 
+    private static FeatureFlagSetter INSTANCE = null;
+
+    private static synchronized FeatureFlagSetter getInstance() {
+        if (INSTANCE == null) {
+            INSTANCE = new FeatureFlagSetter();
+        }
+        return INSTANCE;
+    }
+
+    public static synchronized void set(String flag) {
+        getInstance().setFlag(flag);
+    }
+
+    public static synchronized void clear() {
+        if (INSTANCE != null) {
+            INSTANCE.clearAll();
+            INSTANCE = null;
+        }
+    }
+
     private static final Logger LOGGER = LogManager.getLogger(FeatureFlagSetter.class);
-    private static final Set<String> SET_FLAGS = ConcurrentCollections.newConcurrentSet();
+    private final Set<String> flags = ConcurrentCollections.newConcurrentSet();
 
     @SuppressForbidden(reason = "Enables setting of feature flags")
-    public static void set(String flag) {
-        SET_FLAGS.add(flag);
+    private void setFlag(String flag) {
+        flags.add(flag);
         AccessController.doPrivileged((PrivilegedAction<String>) () -> System.setProperty(flag, "true"));
         LOGGER.info("set feature_flag={}", flag);
     }
 
     @SuppressForbidden(reason = "Clears the set feature flags")
-    public static void clearAllFlags() {
-        for (String flag : SET_FLAGS) {
+    private void clearAll() {
+        for (String flag : flags) {
             AccessController.doPrivileged((PrivilegedAction<String>) () -> System.clearProperty(flag));
         }
-        LOGGER.info("unset feature_flags={}", SET_FLAGS);
-        SET_FLAGS.clear();
+        LOGGER.info("unset feature_flags={}", flags);
+        flags.clear();
     }
 }
