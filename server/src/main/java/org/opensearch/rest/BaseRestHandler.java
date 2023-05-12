@@ -104,7 +104,7 @@ public abstract class BaseRestHandler implements RestHandler {
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         final IdentityService identityService = IdentityService.getInstance();
         if (!identityService.getSubject().isAllowed(allowedScopes())) {
-            final String scopeList = allowedScopes().stream().map(s -> s.toString()).collect(Collectors.joining(",");
+            final String scopeList = allowedScopes().stream().map(s -> s.toString()).collect(Collectors.joining(","));
             logger.debug("Request did not have any of the required scopes, " + scopeList);
             throw new IllegalArgumentException("Unauthorized, at least of these scopes is required, " + scopeList);
         }

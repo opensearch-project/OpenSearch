@@ -9,7 +9,7 @@
 package org.opensearch.identity;
 
 /**
- * Any kind of limitation for an extension
+ * Limitation for the scope of an application in OpenSearch
  *
  * @opensearch.experimental
  */
@@ -19,10 +19,6 @@ public interface Scope {
     String getAction();
     default String asPermissionString() {
         return getNamespace() + "." + getArea() + "." + getAction();
-    }
-
-    default String toString() {
-        return asPermissionString();
     }
 }
 

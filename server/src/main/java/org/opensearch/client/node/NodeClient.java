@@ -51,6 +51,7 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterService;
 
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import javax.management.InvalidApplicationException;
 
@@ -142,7 +143,7 @@ public class NodeClient extends AbstractClient {
         ActionType<Response> action
     ) {
         if (!IdentityService.getInstance().getSubject().isAllowed(action.allowedScopes())) {
-            final String scopeList = action.allowedScopes().stream().map(s -> s.toString()).collect(Collectors.joining(",");
+            final String scopeList = action.allowedScopes().stream().map(s -> s.toString()).collect(Collectors.joining(","));
             logger.debug("Request did not have any of the required scopes, " + scopeList);
             throw new OpenSearchSecurityException("Unauthorized, at least of these scopes is required, " + scopeList);
         }

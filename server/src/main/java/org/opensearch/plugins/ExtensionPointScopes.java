@@ -8,6 +8,7 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.identity.Scope;
 
 /**
@@ -16,7 +17,8 @@ import org.opensearch.identity.Scope;
  * @opensearch.experimental
  */
 public enum ExtensionPointScopes implements Scope  {
-    ActionPlugin,
+    Action,
+    // TODO: implement checks for all other scopes
     Analysis,
     CircuitBreaker,
     Cluster,
@@ -47,10 +49,15 @@ public enum ExtensionPointScopes implements Scope  {
     public String getAction() {
         return "Allowed";
     }
-}
 
-public static class ExtensionPointScopeException extends OpenSearchException {
-    public ExtensionPointScopeException(final ExtensionPointScopes missingScope) {
-        super("Missing scope for this extension point " + missingScope.toString());
+    /**
+     * Exception raised when an ExtensionPointScopes is missing
+     *
+     * @opensearch.experimental
+     */
+    public static class ExtensionPointScopeException extends OpenSearchException {
+        public ExtensionPointScopeException(final ExtensionPointScopes missingScope) {
+            super("Missing scope for this extension point " + missingScope.asPermissionString());
+        }
     }
 }

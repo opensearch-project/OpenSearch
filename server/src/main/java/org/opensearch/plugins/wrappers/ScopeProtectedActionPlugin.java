@@ -32,35 +32,37 @@
 
  package org.opensearch.plugins;
 
- import org.opensearch.action.ActionType;
- import org.opensearch.action.ActionRequest;
- import org.opensearch.action.ActionResponse;
- import org.opensearch.action.RequestValidators;
- import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
- import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
- import org.opensearch.action.support.ActionFilter;
- import org.opensearch.action.support.TransportAction;
- import org.opensearch.action.support.TransportActions;
- import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
- import org.opensearch.cluster.node.DiscoveryNodes;
- import org.opensearch.common.Strings;
- import org.opensearch.common.settings.ClusterSettings;
- import org.opensearch.common.settings.IndexScopedSettings;
- import org.opensearch.common.settings.Settings;
- import org.opensearch.common.settings.SettingsFilter;
- import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.action.ActionType;
+import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionResponse;
+import org.opensearch.action.RequestValidators;
+import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.opensearch.action.support.ActionFilter;
+import org.opensearch.action.support.TransportAction;
+import org.opensearch.action.support.TransportActions;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.Strings;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.IndexScopedSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.identity.IdentityService;
 import org.opensearch.plugins.ActionPlugin;
+import org.opensearch.plugins.ExtensionPointScopes;
+import org.opensearch.rest.RestHandler;
+import org.opensearch.rest.RestHeaderDefinition;
 import org.opensearch.rest.RestController;
- import org.opensearch.rest.RestHandler;
- import org.opensearch.rest.RestHeaderDefinition;
- 
- import java.util.Collection;
- import java.util.Collections;
- import java.util.List;
- import java.util.Objects;
- import java.util.function.Supplier;
- import java.util.function.UnaryOperator;
- import java.util.stream.Collectors;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
+import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
  
 /**
  * Only allowed plugins are able able to response
@@ -76,9 +78,9 @@ public class ScopeProtectedActionPlugin implements ActionPlugin {
         this.identity = identity;
     }
 
-    private throwIfNotAllowed() {
-        if (!identity.getInstance().getSubject().isAllowed(List.of(ExtensionPointScopes.ActionPlugin))) {
-            throw new ExtensionPointScopeException(ExtensionPointScopes.ActionPlugin);
+    private void throwIfNotAllowed() {
+        if (!identity.getSubject().isAllowed(List.of(ExtensionPointScopes.Action))) {
+            throw new ExtensionPointScopes.ExtensionPointScopeException(ExtensionPointScopes.Action);
         }
     }
 
@@ -94,7 +96,7 @@ public class ScopeProtectedActionPlugin implements ActionPlugin {
 
     public List<ActionFilter> getActionFilters() {
         throwIfNotAllowed();
-        return plugin.getClientActions();
+        return plugin.getActionFilters();
     }
 
     public List<RestHandler> getRestHandlers(
@@ -117,7 +119,7 @@ public class ScopeProtectedActionPlugin implements ActionPlugin {
 
     public Collection<String> getTaskHeaders() {
         throwIfNotAllowed();
-        return plugin.getRestHeaders();
+        return plugin.getTaskHeaders();
     }
 
     public UnaryOperator<RestHandler> getRestHandlerWrapper(final ThreadContext threadContext) {

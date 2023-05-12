@@ -6,11 +6,12 @@
 package org.opensearch.identity;
 
 import org.opensearch.identity.Scope;
-import org.opensearch.identity.Scope;
 import org.opensearch.identity.tokens.AuthToken;
 
 import java.security.Principal;
 import java.util.List;
+import org.opensearch.common.Nullable;
+
 /**
  * An individual, process, or device that causes information to flow among objects or change to the system state.
  *
@@ -32,7 +33,18 @@ public interface Subject {
      */
     void authenticate(final AuthToken token);
 
-    default boolean isAllowed(final List<Scope> scope) {
-        return false;
-    }
+
+    /**
+     * Get the application-wide uniquely identifying associated application's principal
+     * @return Null, if there is not associated application
+     */
+    @Nullable
+    Principal getAssociatedApplication();
+
+    /**
+     * Checks scopes of the current subject if they are allowed for any of the listed scopes
+     * @param scope The scopes to check against the subject
+     * @return true if allowed, false if none of the scopes are allowed.
+     */
+    boolean isAllowed(final List<Scope> scope);
 }

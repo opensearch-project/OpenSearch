@@ -9,9 +9,11 @@
 package org.opensearch.identity.noop;
 
 import java.security.Principal;
+import java.util.List;
 import java.util.Objects;
 
 import org.opensearch.identity.NamedPrincipal;
+import org.opensearch.identity.Scope;
 import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.identity.Subject;
 
@@ -53,5 +55,17 @@ public class NoopSubject implements Subject {
     @Override
     public void authenticate(AuthToken AuthToken) {
         // Do nothing as noop subject is always logged in
+    }
+
+    @Override
+    public Principal getAssociatedApplication() {
+        // Noop subject is not aware of an application
+        return null;
+    }
+
+    @Override
+    public boolean isAllowed(final List<Scope> scope) {
+        // Noop subject is always allowed for any scope checks
+        return true;
     }
 }

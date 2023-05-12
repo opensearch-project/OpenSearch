@@ -16,6 +16,7 @@ import org.opensearch.identity.Scope;
  */
 public enum ActionScopes implements Scope {
     Index_Read(),
+    // TODO: Write REST / Transport actions have not been covered
     Index_ReadWrite();
 
     public String getNamespace() {
