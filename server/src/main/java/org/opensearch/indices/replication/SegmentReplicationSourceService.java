@@ -67,14 +67,16 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
 
     private final OngoingSegmentReplications ongoingSegmentReplications;
 
-    public SegmentReplicationSourceService(
+    protected SegmentReplicationSourceService(
         IndicesService indicesService,
         TransportService transportService,
-        RecoverySettings recoverySettings
+        RecoverySettings recoverySettings,
+        OngoingSegmentReplications ongoingSegmentReplications
     ) {
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.recoverySettings = recoverySettings;
+        this.ongoingSegmentReplications = ongoingSegmentReplications;
         transportService.registerRequestHandler(
             Actions.GET_CHECKPOINT_INFO,
             ThreadPool.Names.GENERIC,
@@ -87,7 +89,14 @@ public class SegmentReplicationSourceService extends AbstractLifecycleComponent 
             GetSegmentFilesRequest::new,
             new GetSegmentFilesRequestHandler()
         );
-        this.ongoingSegmentReplications = new OngoingSegmentReplications(indicesService, recoverySettings);
+    }
+
+    public SegmentReplicationSourceService(
+        IndicesService indicesService,
+        TransportService transportService,
+        RecoverySettings recoverySettings
+    ) {
+        this(indicesService, transportService, recoverySettings, new OngoingSegmentReplications(indicesService, recoverySettings));
     }
 
     private class CheckpointInfoRequestHandler implements TransportRequestHandler<CheckpointInfoRequest> {

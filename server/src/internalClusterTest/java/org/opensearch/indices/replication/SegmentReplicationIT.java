@@ -774,10 +774,9 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         final int docCount = scaledRandomIntBetween(10, 200);
         for (int i = 0; i < docCount; i++) {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().get();
+            // Refresh, this should trigger round of segment replication
             refresh(INDEX_NAME);
         }
-        // Refresh, this should trigger round of segment replication
-        ensureYellowAndNoInitializingShards(INDEX_NAME);
         ensureGreen(INDEX_NAME);
         waitForSearchableDocs(docCount, primaryNode, replicaNode);
         verifyStoreContent();

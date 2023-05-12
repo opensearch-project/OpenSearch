@@ -57,13 +57,13 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     private final ThreadPool threadPool;
     private final RecoverySettings recoverySettings;
 
-    private final ReplicationCollection<SegmentReplicationTarget> onGoingReplications;
+    protected final ReplicationCollection<SegmentReplicationTarget> onGoingReplications;
 
     private final Map<ShardId, SegmentReplicationTarget> completedReplications = ConcurrentCollections.newConcurrentMap();
 
     private final SegmentReplicationSourceFactory sourceFactory;
 
-    private final Map<ShardId, ReplicationCheckpoint> latestReceivedCheckpoint = ConcurrentCollections.newConcurrentMap();
+    protected final Map<ShardId, ReplicationCheckpoint> latestReceivedCheckpoint = ConcurrentCollections.newConcurrentMap();
 
     private final IndicesService indicesService;
 
@@ -88,9 +88,27 @@ public class SegmentReplicationTargetService implements IndexEventListener {
         final SegmentReplicationSourceFactory sourceFactory,
         final IndicesService indicesService
     ) {
+        this(
+            threadPool,
+            recoverySettings,
+            transportService,
+            sourceFactory,
+            indicesService,
+            new ReplicationCollection<>(logger, threadPool)
+        );
+    }
+
+    public SegmentReplicationTargetService(
+        final ThreadPool threadPool,
+        final RecoverySettings recoverySettings,
+        final TransportService transportService,
+        final SegmentReplicationSourceFactory sourceFactory,
+        final IndicesService indicesService,
+        final ReplicationCollection<SegmentReplicationTarget> ongoingSegmentReplications
+    ) {
         this.threadPool = threadPool;
         this.recoverySettings = recoverySettings;
-        this.onGoingReplications = new ReplicationCollection<>(logger, threadPool);
+        this.onGoingReplications = ongoingSegmentReplications;
         this.sourceFactory = sourceFactory;
         this.indicesService = indicesService;
 
@@ -257,7 +275,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     }
 
     // visible to tests
-    protected void processLatestReceivedCheckpoint(IndexShard replicaShard, Thread thread) {
+    protected boolean processLatestReceivedCheckpoint(IndexShard replicaShard, Thread thread) {
         final ReplicationCheckpoint latestPublishedCheckpoint = latestReceivedCheckpoint.get(replicaShard.shardId());
         if (latestPublishedCheckpoint != null && latestPublishedCheckpoint.isAheadOf(replicaShard.getLatestReplicationCheckpoint())) {
             Runnable runnable = () -> onNewCheckpoint(latestReceivedCheckpoint.get(replicaShard.shardId()), replicaShard);
@@ -267,7 +285,9 @@ public class SegmentReplicationTargetService implements IndexEventListener {
             } else {
                 runnable.run();
             }
+            return true;
         }
+        return false;
     }
 
     // visible to tests

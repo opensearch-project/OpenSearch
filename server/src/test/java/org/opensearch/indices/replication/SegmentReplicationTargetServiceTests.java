@@ -13,6 +13,7 @@ import org.mockito.Mockito;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.index.codec.CodecService;
@@ -22,9 +23,13 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.common.ReplicationCollection;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
@@ -40,6 +45,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.opensearch.indices.replication.SegmentReplicationState.Stage.CANCELLED;
 
@@ -286,5 +292,63 @@ public class SegmentReplicationTargetServiceTests extends IndexShardTestCase {
         doNothing().when(spy).onNewCheckpoint(any(), any());
         spy.afterIndexShardStarted(replicaShard);
         verify(spy, times(1)).processLatestReceivedCheckpoint(eq(replicaShard), any());
+    }
+
+    public void testDoNotProcessLatestCheckpointIfItIsbehind() {
+        sut.updateLatestReceivedCheckpoint(replicaShard.getLatestReplicationCheckpoint(), replicaShard);
+        assertFalse(sut.processLatestReceivedCheckpoint(replicaShard, null));
+    }
+
+    public void testOnNewCheckpointInvokedOnClosedShardDoesNothing() throws IOException {
+        closeShards(replicaShard);
+        SegmentReplicationTargetService spy = spy(sut);
+        spy.onNewCheckpoint(aheadCheckpoint, replicaShard);
+        verify(spy, times(0)).updateLatestReceivedCheckpoint(any(), any());
+    }
+
+    public void testBeforeIndexShardClosed_DoesNothingForDocRepIndex() throws IOException {
+        final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
+        final IndicesService indicesService = mock(IndicesService.class);
+        final ReplicationCollection<SegmentReplicationTarget> ongoingReplications = mock(ReplicationCollection.class);
+        final SegmentReplicationTargetService targetService = new SegmentReplicationTargetService(
+            threadPool,
+            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            mock(TransportService.class),
+            sourceFactory,
+            indicesService,
+            ongoingReplications
+        );
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT).build();
+        IndexShard shard = newStartedShard(false, settings);
+        targetService.beforeIndexShardClosed(shard.shardId(), shard, shard.indexSettings().getSettings());
+        verifyNoInteractions(ongoingReplications);
+        closeShards(shard);
+    }
+
+    public void testShardRoutingChanged_DoesNothingForDocRepIndex() throws IOException {
+        final SegmentReplicationSourceFactory sourceFactory = mock(SegmentReplicationSourceFactory.class);
+        final IndicesService indicesService = mock(IndicesService.class);
+        final ReplicationCollection<SegmentReplicationTarget> ongoingReplications = mock(ReplicationCollection.class);
+        final SegmentReplicationTargetService targetService = new SegmentReplicationTargetService(
+            threadPool,
+            new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            mock(TransportService.class),
+            sourceFactory,
+            indicesService,
+            ongoingReplications
+        );
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT).build();
+        IndexShard shard = newStartedShard(false, settings);
+
+        targetService.shardRoutingChanged(shard, shard.routingEntry(), primaryShard.routingEntry());
+        verifyNoInteractions(ongoingReplications);
+        closeShards(shard);
+    }
+
+    public void testUpdateLatestReceivedCheckpoint() {
+        final SegmentReplicationTargetService spy = spy(sut);
+        sut.updateLatestReceivedCheckpoint(checkpoint, replicaShard);
+        sut.updateLatestReceivedCheckpoint(aheadCheckpoint, replicaShard);
+        assertEquals(sut.latestReceivedCheckpoint.get(replicaShard.shardId()), aheadCheckpoint);
     }
 }
