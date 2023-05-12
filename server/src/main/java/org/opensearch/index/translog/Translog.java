@@ -522,7 +522,8 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
                 primaryTermSupplier.getAsLong(),
                 tragedy,
                 persistedSequenceNumberConsumer,
-                bigArrays
+                bigArrays,
+                indexSettings
             );
         } catch (final IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
@@ -2025,7 +2026,8 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
             seqNo -> {
                 throw new UnsupportedOperationException();
             },
-            BigArrays.NON_RECYCLING_INSTANCE
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null
         );
         writer.close();
         return uuid;
