@@ -22,24 +22,27 @@ import java.nio.charset.StandardCharsets;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 import static org.opensearch.extensions.action.ExtensionActionUtil.UNIT_SEPARATOR;
 import static org.opensearch.extensions.action.ExtensionActionUtil.createProxyRequestBytes;
 
 public class ExtensionActionUtilTest {
-    private byte[] myExampleBytes;
-    private final String action = "org.opensearch.action.MyExampleRequest";
-    private final byte[] exampleByteArray = MyExampleRequest.class.getName().getBytes(StandardCharsets.UTF_8);
+    private byte[] myBytes;
+    private final String actionName = "org.opensearch.action.MyExampleRequest";
+    private final byte[] actionNameBytes = MyExampleRequest.class.getName().getBytes(StandardCharsets.UTF_8);
 
     @Before
     public void setUp() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
-        MyExampleRequest exampleRequest = new MyExampleRequest(action, exampleByteArray);
+        MyExampleRequest exampleRequest = new MyExampleRequest(actionName, actionNameBytes);
         exampleRequest.writeTo(out);
 
         byte[] requestBytes = BytesReference.toBytes(out.bytes());
         byte[] requestClass = MyExampleRequest.class.getName().getBytes(StandardCharsets.UTF_8);
-        this.myExampleBytes = ByteBuffer.allocate(requestClass.length + 1 + requestBytes.length)
+        this.myBytes = ByteBuffer.allocate(requestClass.length + 1 + requestBytes.length)
             .put(requestClass)
             .put(UNIT_SEPARATOR)
             .put(requestBytes)
@@ -49,28 +52,49 @@ public class ExtensionActionUtilTest {
     @Test
     public void testCreateProxyRequestBytes() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
-        MyExampleRequest exampleRequest = new MyExampleRequest(action, exampleByteArray);
+        MyExampleRequest exampleRequest = new MyExampleRequest(actionName, actionNameBytes);
         exampleRequest.writeTo(out);
 
         byte[] result = createProxyRequestBytes(exampleRequest);
-        assertArrayEquals(this.myExampleBytes, result);
+        assertArrayEquals(this.myBytes, result);
     }
 
     @Test
     public void testCreateExtensionActionRequestFromBytes() {
-        ExtensionActionRequest extensionActionRequest = ExtensionActionUtil.createExtensionActionRequestFromBytes(myExampleBytes);
+        ExtensionActionRequest extensionActionRequest = ExtensionActionUtil.createExtensionActionRequestFromBytes(myBytes);
         assert extensionActionRequest != null;
         String action = extensionActionRequest.getAction();
         byte[] bytes = extensionActionRequest.getRequestBytes();
 
-        assertEquals(this.action, action);
-        assertArrayEquals(exampleByteArray, bytes);
+        assertEquals(this.actionName, action);
+        assertArrayEquals(actionNameBytes, bytes);
     }
 
     @Test
     public void testCreateActionRequest() {
-        ActionRequest actionRequest = ExtensionActionUtil.createActionRequest(myExampleBytes);
+        ActionRequest actionRequest = ExtensionActionUtil.createActionRequest(myBytes);
         assertNotNull(actionRequest);
+        assertFalse(actionRequest.getShouldStoreResult());
+    }
+
+    @Test
+    public void testConvertParamsToBytes() {
+        MyExampleRequest exampleRequest = new MyExampleRequest(actionName, actionNameBytes);
+        byte[] bytes = ExtensionActionUtil.convertParamsToBytes(exampleRequest);
+
+        ExtensionActionRequest request = ExtensionActionUtil.createExtensionActionRequestFromBytes(bytes);
+        assert request != null;
+        assertEquals(actionName, request.getAction());
+        assertArrayEquals(actionNameBytes, request.getRequestBytes());
+        assertNull(ExtensionActionUtil.convertParamsToBytes(null));
+        assert bytes != null;
+        assertTrue(bytes.length > 0);
+    }
+
+    @Test
+    public void testDelimPos() {
+        assertTrue(ExtensionActionUtil.delimPos(myBytes) > 0);
+        assertTrue(ExtensionActionUtil.delimPos(actionNameBytes) < 0);
     }
 
     private static class MyExampleRequest extends ActionRequest {
