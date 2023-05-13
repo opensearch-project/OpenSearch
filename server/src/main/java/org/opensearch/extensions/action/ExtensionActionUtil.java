@@ -15,8 +15,6 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.Writeable;
-
-import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -46,11 +44,14 @@ public class ExtensionActionUtil {
 
         try {
             requestBytes = convertParamsToBytes(request);
+            assert requestBytes != null;
             return ByteBuffer.allocate(requestClassBytes.length + 1 + requestBytes.length)
                 .put(requestClassBytes)
                 .put(UNIT_SEPARATOR)
                 .put(requestBytes)
                 .array();
+        } catch (RuntimeException e) {
+            logger.error("RuntimeException occurred while creating proxyRequestBytes");
         } catch (Exception e) {
             logger.error("Error occurred while creating proxyRequestBytes");
         }
@@ -68,8 +69,10 @@ public class ExtensionActionUtil {
             Class<?> clazz = ExtensionActionRequest.class;
             Constructor<?> constructor = clazz.getConstructor(StreamInput.class);
             return (ExtensionActionRequest) constructor.newInstance(requestByteStream);
-        } catch (Exception e) {
-            logger.error("An error occurred while creating ExtensionActionRequest: " + e.getMessage(), e);
+        } catch (ReflectiveOperationException e) {
+            logger.error("ReflectiveOperationException occurred while creating extensionAction request from bytes: " + e.getMessage());
+        } catch (RuntimeException e) {
+            logger.error("RuntimeException occurred while creating extensionAction request from bytes: " + e.getMessage());
         }
         return null;
     }
@@ -88,8 +91,10 @@ public class ExtensionActionUtil {
             Constructor<?> constructor = clazz.getConstructor(StreamInput.class);
             StreamInput requestByteStream = StreamInput.wrap(Arrays.copyOfRange(requestBytes, delimPos + 1, requestBytes.length));
             return (ActionRequest) constructor.newInstance(requestByteStream);
-        } catch (Exception e) {
-            logger.error("An error occurred while creating ActionRequest: " + e.getMessage(), e);
+        } catch (ReflectiveOperationException e) {
+            logger.error("ReflectiveOperationException occurred while creating extensionAction request from bytes: " + e.getMessage());
+        } catch (RuntimeException e) {
+            logger.error("RuntimeException occurred while creating extensionAction request from bytes: " + e.getMessage());
         }
         return null;
     }
@@ -97,15 +102,21 @@ public class ExtensionActionUtil {
     /**
      * Converts the given object of type T, which implements the {@link Writeable} interface, to a byte array.
      * @param <T> the type of the object to be converted to bytes, which must implement the {@link Writeable} interface.
-     * @param actionParams the object of type T to be converted to bytes.
+     * @param writeableObject the object of type T to be converted to bytes.
      * @return a byte array containing the serialized bytes of the given object, or {@code null} if the input is invalid or null.
-     * @throws IOException if there was an error while writing to the output stream.
      */
-    public static <T extends Writeable> byte[] convertParamsToBytes(T actionParams) throws IOException {
+    public static <T extends Writeable> byte[] convertParamsToBytes(T writeableObject) {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            actionParams.writeTo(out);
+            writeableObject.writeTo(out);
             return BytesReference.toBytes(out.bytes());
+        } catch (IllegalStateException e) {
+            logger.error("IllegalStateException occurred while convert params to bytes: " + e.getMessage());
+        } catch (RuntimeException e) {
+            logger.error("RuntimeException occurred while convert params to bytes: " + e.getMessage());
+        } catch (Exception e) {
+            logger.error("Error occurred while convert params to bytes: " + e.getMessage());
         }
+        return null;
     }
 
     /**
