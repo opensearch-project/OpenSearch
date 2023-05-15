@@ -8,9 +8,11 @@
 
 package org.opensearch.identity.shiro;
 
+import org.opensearch.identity.ScheduledJobIdentityManager;
 import org.opensearch.identity.Subject;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.identity.noop.NoopScheduledJobIdentityManager;
 import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
@@ -49,5 +51,10 @@ public final class ShiroIdentityPlugin extends Plugin implements IdentityPlugin 
     @Override
     public Subject getSubject() {
         return new ShiroSubject(authTokenHandler, SecurityUtils.getSubject());
+    }
+
+    @Override
+    public ScheduledJobIdentityManager getScheduledJobIdentityManager() {
+        return new NoopScheduledJobIdentityManager();
     }
 }

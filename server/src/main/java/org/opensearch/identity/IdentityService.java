@@ -48,4 +48,11 @@ public class IdentityService {
     public Subject getSubject() {
         return identityPlugin.getSubject();
     }
+
+    /**
+     * Gets the scheduled job identity manager
+     */
+    public ScheduledJobIdentityManager getScheduledJobIdentityManager() {
+        return identityPlugin.getScheduledJobIdentityManager();
+    }
 }

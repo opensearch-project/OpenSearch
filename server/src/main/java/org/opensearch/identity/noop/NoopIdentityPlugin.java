@@ -8,6 +8,7 @@
 
 package org.opensearch.identity.noop;
 
+import org.opensearch.identity.ScheduledJobIdentityManager;
 import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.identity.Subject;
 
@@ -27,6 +28,11 @@ public class NoopIdentityPlugin implements IdentityPlugin {
     @Override
     public Subject getSubject() {
         return new NoopSubject();
+    }
+
+    @Override
+    public ScheduledJobIdentityManager getScheduledJobIdentityManager() {
+        return new NoopScheduledJobIdentityManager();
     }
 
 }

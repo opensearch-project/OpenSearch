@@ -8,6 +8,7 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.identity.ScheduledJobIdentityManager;
 import org.opensearch.identity.Subject;
 
 /**
@@ -22,5 +23,7 @@ public interface IdentityPlugin {
      *
      * Should never return null
      * */
-    public Subject getSubject();
+    Subject getSubject();
+
+    ScheduledJobIdentityManager getScheduledJobIdentityManager();
 }
