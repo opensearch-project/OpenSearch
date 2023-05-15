@@ -614,8 +614,9 @@ Pass a list of files or directories to limit your search.
 
 ### Lucene Snapshots
 
-The Github workflow in [lucene-snapshots.yml](.github/workflows/lucene-snapshots.yml) is a Github worfklow executable by maintainers to build a top-down snapshot build of lucene.
+The Github workflow in [lucene-snapshots.yml](.github/workflows/lucene-snapshots.yml) is a GitHub workflow executable by maintainers to build a top-down snapshot build of Lucene.
 These snapshots are available to test compatibility with upcoming changes to Lucene by updating the version at [version.properties](buildsrc/version.properties) with the `version-snapshot-sha` version. Example: `lucene = 10.0.0-snapshot-2e941fc`.
+Note that these snapshots do not follow the Maven [naming convention](https://maven.apache.org/guides/getting-started/index.html#what-is-a-snapshot-version) with a (case sensitive) SNAPSHOT suffix, so these artifacts are considered "releases" by build systems such as the `mavenContent` repository filter in Gradle or `releases` artifact policies in Maven.
 
 ### Flaky Tests
 
@@ -626,6 +627,6 @@ If you encounter a build/test failure in CI that is unrelated to the change in y
 1. Follow failed CI links, and locate the failing test(s).
 2. Copy-paste the failure into a comment of your PR.
 3. Search through [issues](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aopen+is%3Aissue+label%3A%22flaky-test%22) using the name of the failed test for whether this is a known flaky test.
-5. If an existing issue is found, paste a link to the known issue in a comment to your PR.
-6. If no existing issue is found, open one.
-7. Retry CI via the GitHub UX or by pushing an update to your PR.
+4. If an existing issue is found, paste a link to the known issue in a comment to your PR.
+5. If no existing issue is found, open one.
+6. Retry CI via the GitHub UX or by pushing an update to your PR.

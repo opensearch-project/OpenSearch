@@ -79,8 +79,8 @@ public class GeoBoundingBox implements ToXContentObject, Writeable {
     }
 
     public GeoBoundingBox(StreamInput input) throws IOException {
-        this.topLeft = input.readGeoPoint();
-        this.bottomRight = input.readGeoPoint();
+        this.topLeft = new GeoPoint(input);
+        this.bottomRight = new GeoPoint(input);
     }
 
     public boolean isUnbounded() {
@@ -164,8 +164,8 @@ public class GeoBoundingBox implements ToXContentObject, Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeGeoPoint(topLeft);
-        out.writeGeoPoint(bottomRight);
+        topLeft.writeTo(out);
+        bottomRight.writeTo(out);
     }
 
     @Override
