@@ -33,7 +33,7 @@ public class NoopTokenManager implements TokenManager {
      */
     @Override
     public boolean validateToken(AuthToken token) {
-        if (token instanceof NoopToken){
+        if (token instanceof NoopToken) {
             return true;
         }
         return false;
@@ -46,7 +46,7 @@ public class NoopTokenManager implements TokenManager {
      */
     @Override
     public String getTokenInfo(AuthToken token) {
-        if (token instanceof NoopToken){
+        if (token instanceof NoopToken) {
             return "Token is NoopToken";
         }
         return "Token is not a NoopToken";
@@ -66,7 +66,7 @@ public class NoopTokenManager implements TokenManager {
      * @param token The token to be refreshed
      */
     @Override
-    public void refreshToken(AuthToken token) {
+    public void resetToken(AuthToken token) {
 
     }
 }

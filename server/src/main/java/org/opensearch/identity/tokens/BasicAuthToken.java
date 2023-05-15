@@ -43,12 +43,12 @@ public final class BasicAuthToken implements AuthToken {
     }
 
     @Override
-    public String toString(){
+    public String toString() {
         return "Basic auth token with user=" + user + ", password=" + password;
     }
 
     public void revoke() {
-        this.password="";
-        this.user="";
+        this.password = "";
+        this.user = "";
     }
 }

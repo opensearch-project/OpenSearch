@@ -43,5 +43,5 @@ public interface TokenManager {
      * Updates a token to be valid for a greater period of time or to have different attributes.
      * @param token The token to be refreshed
      */
-    public void refreshToken(AuthToken token);
+    public void resetToken(AuthToken token);
 }

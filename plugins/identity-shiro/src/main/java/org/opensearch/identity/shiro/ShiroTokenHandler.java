@@ -8,7 +8,6 @@
 
 package org.opensearch.identity.shiro;
 
-import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Optional;
 
@@ -19,6 +18,7 @@ import org.opensearch.identity.Subject;
 import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.identity.tokens.BasicAuthToken;
 import org.opensearch.identity.tokens.TokenManager;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * Extracts Shiro's {@link AuthenticationToken} from different types of auth headers
@@ -45,8 +45,8 @@ class ShiroTokenHandler implements TokenManager {
     public AuthToken generateToken() {
 
         Subject subject = new ShiroSubject(this, SecurityUtils.getSubject());
-        final byte[] rawEncoded = Base64.getEncoder().encode((subject.getPrincipal().getName() + ":" + generatePassword()).getBytes());
-        final String usernamePassword = new String(rawEncoded, StandardCharsets.UTF_8);
+        final byte[] rawEncoded = Base64.getEncoder().encode((subject.getPrincipal().getName() + ":" + generatePassword()).getBytes(UTF_8));
+        final String usernamePassword = new String(rawEncoded, UTF_8);
         final String header = "Basic " + usernamePassword;
 
         return new BasicAuthToken(header);
@@ -83,7 +83,7 @@ class ShiroTokenHandler implements TokenManager {
     }
 
     @Override
-    public void refreshToken(AuthToken token) {
+    public void resetToken(AuthToken token) {
 
     }
 
