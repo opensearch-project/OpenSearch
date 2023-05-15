@@ -203,7 +203,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                                 final long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();
                                 indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
 
-                                notifySegmentUpload(indexShard, checkpoint);
+                                checkpointPublisher.publish(indexShard, checkpoint);
                             } else {
                                 shouldRetry = true;
                             }
@@ -344,9 +344,5 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         } catch (IOException e) {
             logger.info("Exception while deleting stale commits from remote segment store, will retry delete post next commit", e);
         }
-    }
-
-    private void notifySegmentUpload(IndexShard indexShard, ReplicationCheckpoint checkpoint) {
-        checkpointPublisher.publish(indexShard, checkpoint);
     }
 }
