@@ -74,6 +74,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Fix compression support for h2c protocol ([#4944](https://github.com/opensearch-project/OpenSearch/pull/4944))
 - Support OpenSSL Provider with default Netty allocator ([#5460](https://github.com/opensearch-project/OpenSearch/pull/5460))
 - Replaces ZipInputStream with ZipFile to fix Zip Slip vulnerability ([#7230](https://github.com/opensearch-project/OpenSearch/pull/7230))
+- Add missing validation/parsing of SearchBackpressureMode of SearchBackpressureSettings ([#7541](https://github.com/opensearch-project/OpenSearch/pull/7541))
 
 ### Security
 
@@ -91,7 +92,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Add search_after query optimizations with shard/segment short cutting ([#7453](https://github.com/opensearch-project/OpenSearch/pull/7453))
 
 ### Dependencies
-- Bump `com.netflix.nebula:gradle-info-plugin` from 12.0.0 to 12.1.0
+- Bump `com.netflix.nebula:gradle-info-plugin` from 12.0.0 to 12.1.3 (#7564)
 - Bump `com.netflix.nebula:nebula-publishing-plugin` from 19.2.0 to 20.2.0
 - Bump `com.google.protobuf:protobuf-java` from 3.22.2 to 3.22.3
 - Bump `jackson` from 2.14.2 to 2.15.0 ([#7286](https://github.com/opensearch-project/OpenSearch/pull/7286))
@@ -108,6 +109,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Bump `com.networknt:json-schema-validator` from 1.0.78 to 1.0.81 (#7460)
 - Bump Apache Lucene to 9.6.0 ([#7505](https://github.com/opensearch-project/OpenSearch/pull/7505))
 - Bump `com.google.cloud:google-cloud-core-http` from 1.93.3 to 2.17.0 (#7488)
+- Bump `com.google.guava:guava` from 30.1.1-jre to 31.1-jre (#7565)
+- Bump `com.azure:azure-storage-common` from 12.20.0 to 12.21.0 (#7566)
+- Bump `org.apache.commons:commons-compress` from 1.22 to 1.23.0 (#7563)
 
 ### Changed
 - Enable `./gradlew build` on MacOS by disabling bcw tests ([#7303](https://github.com/opensearch-project/OpenSearch/pull/7303))
@@ -120,6 +124,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ### Fixed
 - Replaces ZipInputStream with ZipFile to fix Zip Slip vulnerability ([#7230](https://github.com/opensearch-project/OpenSearch/pull/7230))
+- Add missing validation/parsing of SearchBackpressureMode of SearchBackpressureSettings ([#7541](https://github.com/opensearch-project/OpenSearch/pull/7541))
 
 ### Security
 
