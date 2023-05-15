@@ -132,7 +132,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase imp
         assertThat(repositories.repository(repositoryName), instanceOf(S3Repository.class));
 
         final S3Repository repository = (S3Repository) repositories.repository(repositoryName);
-        try (final AmazonS3Reference clientReference = SocketAccess.doPrivileged(() -> repository.createBlobStore().clientReference())) {
+        try (final AmazonS3Reference clientReference = repository.createBlobStore().clientReference()) {
             S3Client client = clientReference.get();
             assertThat(client, instanceOf(ProxyS3RepositoryPlugin.ClientAndCredentials.class));
 
@@ -173,9 +173,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase imp
         assertThat(repositories.repository(repositoryName), instanceOf(S3Repository.class));
 
         final S3Repository repository = (S3Repository) repositories.repository(repositoryName);
-        try (
-            AmazonS3Reference clientReference = SocketAccess.doPrivileged(() -> ((S3BlobStore) repository.blobStore()).clientReference())
-        ) {
+        try (AmazonS3Reference clientReference = ((S3BlobStore) repository.blobStore()).clientReference()) {
             final S3Client client = clientReference.get();
             assertThat(client, instanceOf(ProxyS3RepositoryPlugin.ClientAndCredentials.class));
 
