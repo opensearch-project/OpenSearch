@@ -379,7 +379,7 @@ public class MetadataCreateIndexService {
             updatedSettingsBuilder,
             createIndexClusterStateRequest.settings(),
             clusterService.getSettings(),
-            validateDotIndex(createIndexClusterStateRequest.index(), false)
+            systemIndices.validateSystemIndex(createIndexClusterStateRequest.index())
         );
         Settings build = updatedSettingsBuilder.build();
         indexScopedSettings.validate(build, true);
@@ -936,7 +936,7 @@ public class MetadataCreateIndexService {
      * @param requestSettings settings passed in during index create request
      * @param clusterSettings cluster level settings
      */
-    private void updateReplicationStrategy(
+    void updateReplicationStrategy(
         Settings.Builder settingsBuilder,
         Settings requestSettings,
         Settings clusterSettings,
