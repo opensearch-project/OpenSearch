@@ -1273,7 +1273,8 @@ public class StoreTests extends OpenSearchTestCase {
         final ShardId shardId = new ShardId("index", "_na_", 1);
         Store store = null;
 
-        try (FeatureFlagSetter f = FeatureFlagSetter.set(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)) {
+        try {
+            FeatureFlagSetter.set(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY);
             IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
                 "index",
                 Settings.builder()
