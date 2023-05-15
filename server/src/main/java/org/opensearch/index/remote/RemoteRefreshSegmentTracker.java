@@ -468,11 +468,11 @@ public class RemoteRefreshSegmentTracker {
     public static class Stats implements Writeable {
 
         public final ShardId shardId;
-        public final long latestUploadFilesCount;
-        public final long latestLocalFilesCount;
-        public final long localRefreshSeqNo;
+        public final long latestRemoteRefreshFilesCount;
+        public final long latestLocalRefreshFilesCount;
+        public final long localRefreshCount;
         public final long localRefreshTimeMs;
-        public final long remoteRefreshSeqNo;
+        public final long remoteRefreshCount;
         public final long remoteRefreshTimeMs;
         public final long uploadBytesStarted;
         public final long uploadBytesFailed;
@@ -494,11 +494,11 @@ public class RemoteRefreshSegmentTracker {
 
         public Stats(
             ShardId shardId,
-            long latestLocalFilesCount,
-            long latestUploadFilesCount,
-            long localRefreshSeqNo,
+            long latestLocalRefreshFilesCount,
+            long latestRemoteRefreshFilesCount,
+            long localRefreshCount,
             long localRefreshTimeMs,
-            long remoteRefreshSeqNo,
+            long remoteRefreshCount,
             long remoteRefreshTimeMs,
             long uploadBytesStarted,
             long uploadBytesSucceeded,
@@ -519,11 +519,11 @@ public class RemoteRefreshSegmentTracker {
             long latestLocalFileSizeMin
         ) {
             this.shardId = shardId;
-            this.latestLocalFilesCount = latestLocalFilesCount;
-            this.latestUploadFilesCount = latestUploadFilesCount;
-            this.localRefreshSeqNo = localRefreshSeqNo;
+            this.latestLocalRefreshFilesCount = latestLocalRefreshFilesCount;
+            this.latestRemoteRefreshFilesCount = latestRemoteRefreshFilesCount;
+            this.localRefreshCount = localRefreshCount;
             this.localRefreshTimeMs = localRefreshTimeMs;
-            this.remoteRefreshSeqNo = remoteRefreshSeqNo;
+            this.remoteRefreshCount = remoteRefreshCount;
             this.remoteRefreshTimeMs = remoteRefreshTimeMs;
             this.uploadBytesStarted = uploadBytesStarted;
             this.uploadBytesFailed = uploadBytesFailed;
@@ -547,11 +547,11 @@ public class RemoteRefreshSegmentTracker {
         public Stats(StreamInput in) throws IOException {
             try {
                 this.shardId = new ShardId(in);
-                this.latestLocalFilesCount = in.readLong();
-                this.latestUploadFilesCount = in.readLong();
-                this.localRefreshSeqNo = in.readLong();
+                this.latestLocalRefreshFilesCount = in.readLong();
+                this.latestRemoteRefreshFilesCount = in.readLong();
+                this.localRefreshCount = in.readLong();
                 this.localRefreshTimeMs = in.readLong();
-                this.remoteRefreshSeqNo = in.readLong();
+                this.remoteRefreshCount = in.readLong();
                 this.remoteRefreshTimeMs = in.readLong();
                 this.uploadBytesStarted = in.readLong();
                 this.uploadBytesFailed = in.readLong();
@@ -578,11 +578,11 @@ public class RemoteRefreshSegmentTracker {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             shardId.writeTo(out);
-            out.writeLong(latestLocalFilesCount);
-            out.writeLong(latestUploadFilesCount);
-            out.writeLong(localRefreshSeqNo);
+            out.writeLong(latestLocalRefreshFilesCount);
+            out.writeLong(latestRemoteRefreshFilesCount);
+            out.writeLong(localRefreshCount);
             out.writeLong(localRefreshTimeMs);
-            out.writeLong(remoteRefreshSeqNo);
+            out.writeLong(remoteRefreshCount);
             out.writeLong(remoteRefreshTimeMs);
             out.writeLong(uploadBytesStarted);
             out.writeLong(uploadBytesFailed);

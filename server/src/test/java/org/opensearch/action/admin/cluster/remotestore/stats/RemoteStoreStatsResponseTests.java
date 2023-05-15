@@ -84,55 +84,35 @@ public class RemoteStoreStatsResponseTests extends OpenSearchTestCase {
         assertEquals(shardsObject.get("successful"), 1);
         assertEquals(shardsObject.get("failed"), 0);
         assertEquals(statsObject.get("shardId"), pressureTrackerStats.shardId.toString());
-        assertEquals(statsObject.get("latest_upload_files_count"), (int) pressureTrackerStats.latestUploadFilesCount);
-        assertEquals(statsObject.get("latest_local_files_count"), (int) pressureTrackerStats.latestLocalFilesCount);
-        assertEquals(statsObject.get("local_refresh_time_ms"), (int) pressureTrackerStats.localRefreshTimeMs);
-        assertEquals(statsObject.get("local_refresh_seq_no"), (int) pressureTrackerStats.localRefreshSeqNo);
-        assertEquals(statsObject.get("remote_refresh_time_ms"), (int) pressureTrackerStats.remoteRefreshTimeMs);
-        assertEquals(statsObject.get("remote_refresh_seqno"), (int) pressureTrackerStats.remoteRefreshSeqNo);
+        assertEquals(statsObject.get("latest_remote_refresh_files_count"), (int) pressureTrackerStats.latestRemoteRefreshFilesCount);
+        assertEquals(statsObject.get("latest_local_refresh_files_count"), (int) pressureTrackerStats.latestLocalRefreshFilesCount);
+        assertEquals(statsObject.get("local_refresh_timestamp_in_millis"), (int) pressureTrackerStats.localRefreshTimeMs);
+        assertEquals(statsObject.get("local_refresh_cumulative_count"), (int) pressureTrackerStats.localRefreshCount);
+        assertEquals(statsObject.get("remote_refresh_timestamp_in_millis"), (int) pressureTrackerStats.remoteRefreshTimeMs);
+        assertEquals(statsObject.get("remote_refresh_cumulative_count"), (int) pressureTrackerStats.remoteRefreshCount);
         assertEquals(statsObject.get("bytes_lag"), (int) pressureTrackerStats.bytesLag);
         assertEquals(statsObject.get("inflight_upload_bytes"), (int) pressureTrackerStats.inflightUploadBytes);
-        assertEquals(statsObject.get("inflight_uploads"), (int) pressureTrackerStats.inflightUploads);
+        assertEquals(statsObject.get("inflight_remote_refreshes"), (int) pressureTrackerStats.inflightUploads);
         assertEquals(statsObject.get("rejection_count"), (int) pressureTrackerStats.rejectionCount);
         assertEquals(statsObject.get("consecutive_failure_count"), (int) pressureTrackerStats.consecutiveFailuresCount);
-        assertEquals(((Map) statsObject.get("last_upload_time")).get("started"), -1);
-        assertEquals(((Map) statsObject.get("last_upload_time")).get("succeeded"), -1);
-        assertEquals(((Map) statsObject.get("last_upload_time")).get("failed"), -1);
-        assertEquals(((Map) statsObject.get("upload_bytes")).get("started"), (int) pressureTrackerStats.uploadBytesStarted);
-        assertEquals(((Map) statsObject.get("upload_bytes")).get("succeeded"), (int) pressureTrackerStats.uploadBytesSucceeded);
-        assertEquals(((Map) statsObject.get("upload_bytes")).get("failed"), (int) pressureTrackerStats.uploadBytesFailed);
+        assertEquals(((Map) statsObject.get("total_upload_in_bytes")).get("started"), (int) pressureTrackerStats.uploadBytesStarted);
+        assertEquals(((Map) statsObject.get("total_upload_in_bytes")).get("succeeded"), (int) pressureTrackerStats.uploadBytesSucceeded);
+        assertEquals(((Map) statsObject.get("total_upload_in_bytes")).get("failed"), (int) pressureTrackerStats.uploadBytesFailed);
         assertEquals(
-            ((Map) ((Map) statsObject.get("upload_bytes")).get("moving_avg")).get("started"),
+            ((Map) ((Map) statsObject.get("total_upload_in_bytes")).get("moving_avg")).get("started"),
             pressureTrackerStats.uploadBytesMovingAverage
         );
-        assertEquals(((Map) ((Map) statsObject.get("upload_bytes")).get("moving_avg")).get("succeeded"), -1);
-        assertEquals(((Map) ((Map) statsObject.get("upload_bytes")).get("moving_avg")).get("failed"), -1);
         assertEquals(
-            ((Map) ((Map) statsObject.get("upload_bytes_per_sec")).get("moving_avg")).get("started"),
+            ((Map) ((Map) statsObject.get("upload_speed_in_bytes_per_sec")).get("moving_avg")).get("started"),
             pressureTrackerStats.uploadBytesPerSecMovingAverage
         );
-        assertEquals(((Map) ((Map) statsObject.get("upload_bytes_per_sec")).get("moving_avg")).get("succeeded"), -1);
-        assertEquals(((Map) ((Map) statsObject.get("upload_bytes_per_sec")).get("moving_avg")).get("failed"), -1);
-        assertEquals(((Map) statsObject.get("total_uploads")).get("started"), (int) pressureTrackerStats.totalUploadsStarted);
-        assertEquals(((Map) statsObject.get("total_uploads")).get("succeeded"), (int) pressureTrackerStats.totalUploadsSucceeded);
-        assertEquals(((Map) statsObject.get("total_uploads")).get("failed"), (int) pressureTrackerStats.totalUploadsFailed);
-        assertEquals(((Map) statsObject.get("total_deletes")).get("started"), -1);
-        assertEquals(((Map) statsObject.get("total_deletes")).get("succeeded"), -1);
-        assertEquals(((Map) statsObject.get("total_deletes")).get("failed"), -1);
-        assertEquals(((Map) statsObject.get("upload_latency")).get("avg"), -1);
-        assertEquals(((Map) statsObject.get("upload_latency")).get("moving_avg"), pressureTrackerStats.uploadTimeMovingAverage);
-        assertEquals(((Map) statsObject.get("upload_latency")).get("max"), -1);
-        assertEquals(((Map) statsObject.get("upload_latency")).get("min"), -1);
-        assertEquals(((Map) statsObject.get("upload_latency")).get("p90"), -1);
-        assertEquals(((Map) statsObject.get("delete_latency")).get("avg"), -1);
-        assertEquals(((Map) statsObject.get("delete_latency")).get("moving_avg"), -1);
-        assertEquals(((Map) statsObject.get("delete_latency")).get("max"), -1);
-        assertEquals(((Map) statsObject.get("delete_latency")).get("min"), -1);
-        assertEquals(((Map) statsObject.get("delete_latency")).get("p90"), -1);
+        assertEquals(((Map) statsObject.get("total_remote_refresh")).get("started"), (int) pressureTrackerStats.totalUploadsStarted);
+        assertEquals(((Map) statsObject.get("total_remote_refresh")).get("succeeded"), (int) pressureTrackerStats.totalUploadsSucceeded);
+        assertEquals(((Map) statsObject.get("total_remote_refresh")).get("failed"), (int) pressureTrackerStats.totalUploadsFailed);
+        assertEquals(((Map) statsObject.get("remote_refresh_latency")).get("moving_avg"), pressureTrackerStats.uploadTimeMovingAverage);
         assertEquals(((Map) statsObject.get("latest_segments_filesize")).get("avg"), (int) pressureTrackerStats.latestLocalFileSizeAvg);
         assertEquals(((Map) statsObject.get("latest_segments_filesize")).get("max"), (int) pressureTrackerStats.latestLocalFileSizeMax);
         assertEquals(((Map) statsObject.get("latest_segments_filesize")).get("min"), (int) pressureTrackerStats.latestLocalFileSizeMin);
-        assertEquals(((Map) statsObject.get("latest_segments_filesize")).get("p90"), -1);
     }
 
     private RemoteRefreshSegmentTracker.Stats createPressureTrackerStats() {

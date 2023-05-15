@@ -42,60 +42,45 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
             .field("shardId", remoteSegmentUploadShardStats.shardId)
-            .field("latest_upload_files_count", remoteSegmentUploadShardStats.latestUploadFilesCount)
-            .field("latest_local_files_count", remoteSegmentUploadShardStats.latestLocalFilesCount)
-            .field("local_refresh_time_ms", remoteSegmentUploadShardStats.localRefreshTimeMs)
-            .field("local_refresh_seq_no", remoteSegmentUploadShardStats.localRefreshSeqNo)
-            .field("remote_refresh_time_ms", remoteSegmentUploadShardStats.remoteRefreshTimeMs)
-            .field("remote_refresh_seqno", remoteSegmentUploadShardStats.remoteRefreshSeqNo)
+            .field("latest_remote_refresh_files_count", remoteSegmentUploadShardStats.latestRemoteRefreshFilesCount)
+            .field("latest_local_refresh_files_count", remoteSegmentUploadShardStats.latestLocalRefreshFilesCount)
+            .field("local_refresh_timestamp_in_millis", remoteSegmentUploadShardStats.localRefreshTimeMs)
+            .field("local_refresh_cumulative_count", remoteSegmentUploadShardStats.localRefreshCount)
+            .field("remote_refresh_timestamp_in_millis", remoteSegmentUploadShardStats.remoteRefreshTimeMs)
+            .field("remote_refresh_cumulative_count", remoteSegmentUploadShardStats.remoteRefreshCount)
             .field("bytes_lag", remoteSegmentUploadShardStats.bytesLag)
             .field("inflight_upload_bytes", remoteSegmentUploadShardStats.inflightUploadBytes)
-            .field("inflight_uploads", remoteSegmentUploadShardStats.inflightUploads)
+            .field("inflight_remote_refreshes", remoteSegmentUploadShardStats.inflightUploads)
             .field("rejection_count", remoteSegmentUploadShardStats.rejectionCount)
             .field("consecutive_failure_count", remoteSegmentUploadShardStats.consecutiveFailuresCount);
-        builder.startObject("last_upload_time").field("started", -1).field("succeeded", -1).field("failed", -1);
-        builder.endObject();
-        builder.startObject("upload_bytes");
+        builder.startObject("total_upload_in_bytes");
         builder.field("started", remoteSegmentUploadShardStats.uploadBytesStarted)
             .field("succeeded", remoteSegmentUploadShardStats.uploadBytesSucceeded)
             .field("failed", remoteSegmentUploadShardStats.uploadBytesFailed);
         builder.startObject("moving_avg");
-        builder.field("started", remoteSegmentUploadShardStats.uploadBytesMovingAverage).field("succeeded", -1).field("failed", -1);
+        builder.field("started", remoteSegmentUploadShardStats.uploadBytesMovingAverage);
         builder.endObject();
         builder.endObject();
-        builder.startObject("upload_bytes_per_sec");
+        builder.startObject("upload_speed_in_bytes_per_sec");
         builder.startObject("moving_avg");
-        builder.field("started", remoteSegmentUploadShardStats.uploadBytesPerSecMovingAverage).field("succeeded", -1).field("failed", -1);
+        builder.field("started", remoteSegmentUploadShardStats.uploadBytesPerSecMovingAverage);
         builder.endObject();
         builder.endObject();
 
-        builder.startObject("total_uploads");
+        builder.startObject("total_remote_refresh");
         builder.field("started", remoteSegmentUploadShardStats.totalUploadsStarted)
             .field("succeeded", remoteSegmentUploadShardStats.totalUploadsSucceeded)
             .field("failed", remoteSegmentUploadShardStats.totalUploadsFailed);
         builder.endObject();
 
-        builder.startObject("total_deletes");
-        builder.field("started", -1).field("succeeded", -1).field("failed", -1);
-        builder.endObject();
-
-        builder.startObject("upload_latency");
-        builder.field("avg", -1)
-            .field("moving_avg", remoteSegmentUploadShardStats.uploadTimeMovingAverage)
-            .field("max", -1)
-            .field("min", -1)
-            .field("p90", -1);
-        builder.endObject();
-
-        builder.startObject("delete_latency");
-        builder.field("avg", -1).field("moving_avg", -1).field("max", -1).field("min", -1).field("p90", -1);
+        builder.startObject("remote_refresh_latency");
+        builder.field("moving_avg", remoteSegmentUploadShardStats.uploadTimeMovingAverage);
         builder.endObject();
 
         builder.startObject("latest_segments_filesize");
         builder.field("avg", remoteSegmentUploadShardStats.latestLocalFileSizeAvg)
             .field("max", remoteSegmentUploadShardStats.latestLocalFileSizeMax)
-            .field("min", remoteSegmentUploadShardStats.latestLocalFileSizeMin)
-            .field("p90", -1);
+            .field("min", remoteSegmentUploadShardStats.latestLocalFileSizeMin);
         builder.endObject();
 
         builder.endObject();
