@@ -1023,6 +1023,14 @@ public final class IndexSettings {
         return ReplicationType.SEGMENT.equals(replicationType);
     }
 
+    public boolean isSegRepLocalEnabled() {
+        return isSegRepEnabled() && !isSegRepWithRemoteEnabled();
+    }
+
+    public boolean isSegRepWithRemoteEnabled() {
+        return isSegRepEnabled() && isRemoteStoreEnabled() && FeatureFlags.isEnabled(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL);
+    }
+
     /**
      * Returns if remote store is enabled for this index.
      */
