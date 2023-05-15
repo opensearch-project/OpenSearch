@@ -1538,34 +1538,9 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         FeatureFlagSetter.set(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL);
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         final Settings.Builder requestSettings = Settings.builder();
-        ClusterService clusterService = mock(ClusterService.class);
-        Metadata metadata = Metadata.builder()
-            .transientSettings(Settings.builder().put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 1).build())
-            .build();
-        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .build();
 
         ThreadPool threadPool = new TestThreadPool(getTestName());
-        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        when(clusterService.getSettings()).thenReturn(settings);
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        when(clusterService.state()).thenReturn(clusterState);
-        MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
-            settings,
-            clusterService,
-            null,
-            null,
-            null,
-            createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
-            new Environment(Settings.builder().put("path.home", "dummy").build(), null),
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            threadPool,
-            null,
-            new SystemIndices(Collections.emptyMap()),
-            true,
-            new AwarenessReplicaBalance(settings, clusterService.getClusterSettings())
-        );
+        MetadataCreateIndexService checkerService = getMetadataCreateIndexServiceInstance(settings, threadPool);
         checkerService.updateReplicationStrategy(requestSettings, request.settings(), settings, false);
 
         // Verify if index setting overrides cluster replication setting
@@ -1581,36 +1556,8 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         // Set index setting replication type as DOCUMENT
         requestSettings.put(SETTING_REPLICATION_TYPE, ReplicationType.DOCUMENT);
         request.settings(requestSettings.build());
-        ClusterService clusterService = mock(ClusterService.class);
-        Metadata metadata = Metadata.builder()
-            .transientSettings(Settings.builder().put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 1).build())
-            .build();
-        ClusterState clusterState = ClusterState.builder(org.opensearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
-            .metadata(metadata)
-            .build();
-
         ThreadPool threadPool = new TestThreadPool(getTestName());
-        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        when(clusterService.getSettings()).thenReturn(settings);
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-        when(clusterService.state()).thenReturn(clusterState);
-        MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
-            settings,
-            clusterService,
-            null,
-            null,
-            null,
-            createTestShardLimitService(randomIntBetween(1, 1000), false, clusterService),
-            new Environment(Settings.builder().put("path.home", "dummy").build(), null),
-            IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
-            threadPool,
-            null,
-            new SystemIndices(Collections.emptyMap()),
-            true,
-            new AwarenessReplicaBalance(settings, clusterService.getClusterSettings())
-        );
-        checkerService.updateReplicationStrategy(requestSettings, request.settings(), settings, false);
-
+        MetadataCreateIndexService checkerService = getMetadataCreateIndexServiceInstance(settings, threadPool);
         // Verify if index setting overrides cluster replication setting
         assertEquals(ReplicationType.DOCUMENT.toString(), requestSettings.build().get(SETTING_REPLICATION_TYPE));
         threadPool.shutdown();
@@ -1624,6 +1571,15 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         // Set index setting replication type as DOCUMENT
         requestSettings.put("index.hidden", true);
         request.settings(requestSettings.build());
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+        MetadataCreateIndexService checkerService = getMetadataCreateIndexServiceInstance(settings, threadPool);
+        checkerService.updateReplicationStrategy(requestSettings, request.settings(), settings, false);
+        // Verify replication type is Document Replication
+        assertEquals(ReplicationType.DOCUMENT.toString(), requestSettings.build().get(SETTING_REPLICATION_TYPE));
+        threadPool.shutdown();
+    }
+
+    private MetadataCreateIndexService getMetadataCreateIndexServiceInstance(Settings settings, ThreadPool threadPool) {
         ClusterService clusterService = mock(ClusterService.class);
         Metadata metadata = Metadata.builder()
             .transientSettings(Settings.builder().put(Metadata.DEFAULT_REPLICA_COUNT_SETTING.getKey(), 1).build())
@@ -1632,7 +1588,6 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             .metadata(metadata)
             .build();
 
-        ThreadPool threadPool = new TestThreadPool(getTestName());
         ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         when(clusterService.getSettings()).thenReturn(settings);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
@@ -1652,10 +1607,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             true,
             new AwarenessReplicaBalance(settings, clusterService.getClusterSettings())
         );
-        checkerService.updateReplicationStrategy(requestSettings, request.settings(), settings, false);
-        // Verify replication type is Document Replication
-        assertEquals(ReplicationType.DOCUMENT.toString(), requestSettings.build().get(SETTING_REPLICATION_TYPE));
-        threadPool.shutdown();
+        return checkerService;
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {
