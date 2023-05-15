@@ -43,7 +43,7 @@ public class CheckpointRefreshListener implements ReferenceManager.RefreshListen
         if (didRefresh
             && shard.state() == IndexShardState.STARTED
             && shard.getReplicationTracker().isPrimaryMode()
-            && !shard.indexSettings.isRemoteStoreEnabled()) {
+            && !shard.indexSettings.isSegRepWithRemoteEnabled()) {
             publisher.publish(shard, shard.getLatestReplicationCheckpoint());
         }
     }
