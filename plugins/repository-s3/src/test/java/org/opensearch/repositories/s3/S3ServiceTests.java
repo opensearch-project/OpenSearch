@@ -31,6 +31,7 @@
 
 package org.opensearch.repositories.s3;
 
+import org.junit.Before;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
@@ -39,6 +40,13 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.Map;
 
 public class S3ServiceTests extends OpenSearchTestCase implements ConfigPathSupport {
+    @Override
+    @Before
+    public void setUp() throws Exception {
+        SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
+
+        super.setUp();
+    }
 
     public void testCachedClientsAreReleased() {
         final S3Service s3Service = new S3Service(configPath());
@@ -48,10 +56,10 @@ public class S3ServiceTests extends OpenSearchTestCase implements ConfigPathSupp
         final S3ClientSettings clientSettings = s3Service.settings(metadata2);
         final S3ClientSettings otherClientSettings = s3Service.settings(metadata2);
         assertSame(clientSettings, otherClientSettings);
-        final AmazonS3Reference reference = s3Service.client(metadata1);
+        final AmazonS3Reference reference = SocketAccess.doPrivileged(() -> s3Service.client(metadata1));
         reference.close();
         s3Service.close();
-        final AmazonS3Reference referenceReloaded = s3Service.client(metadata1);
+        final AmazonS3Reference referenceReloaded = SocketAccess.doPrivileged(() -> s3Service.client(metadata1));
         assertNotSame(referenceReloaded, reference);
         referenceReloaded.close();
         s3Service.close();
@@ -74,10 +82,10 @@ public class S3ServiceTests extends OpenSearchTestCase implements ConfigPathSupp
         final S3ClientSettings clientSettings = s3Service.settings(metadata2);
         final S3ClientSettings otherClientSettings = s3Service.settings(metadata2);
         assertSame(clientSettings, otherClientSettings);
-        final AmazonS3Reference reference = s3Service.client(metadata1);
+        final AmazonS3Reference reference = SocketAccess.doPrivileged(() -> s3Service.client(metadata1));
         reference.close();
         s3Service.close();
-        final AmazonS3Reference referenceReloaded = s3Service.client(metadata1);
+        final AmazonS3Reference referenceReloaded = SocketAccess.doPrivileged(() -> s3Service.client(metadata1));
         assertNotSame(referenceReloaded, reference);
         referenceReloaded.close();
         s3Service.close();

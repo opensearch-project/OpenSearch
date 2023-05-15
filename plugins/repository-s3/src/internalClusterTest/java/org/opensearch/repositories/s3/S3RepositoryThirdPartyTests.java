@@ -40,11 +40,14 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import software.amazon.awssdk.services.s3.model.StorageClass;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.equalTo;
@@ -81,11 +84,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
             // only test different storage classes when running against the default endpoint, i.e. a genuine S3 service
             if (randomBoolean()) {
                 final String storageClass = randomFrom(
-                    "standard",
-                    "reduced_redundancy",
-                    "standard_ia",
-                    "onezone_ia",
-                    "intelligent_tiering"
+                    Arrays.stream(StorageClass.values()).map(StorageClass::toString).collect(Collectors.toList())
                 );
                 logger.info("--> using storage_class [{}]", storageClass);
                 settings.put("storage_class", storageClass);

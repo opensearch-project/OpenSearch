@@ -31,22 +31,21 @@
 
 package org.opensearch.repositories.s3;
 
-import com.amazonaws.auth.AWSSessionCredentials;
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 
 import java.util.Objects;
 
-final class S3BasicSessionCredentials extends S3BasicCredentials implements AWSSessionCredentials {
+final class S3BasicSessionCredentials extends S3BasicCredentials {
 
-    private final String sessionToken;
+    private final AwsSessionCredentials sessionCredentials;
 
     S3BasicSessionCredentials(String accessKey, String secretKey, String sessionToken) {
         super(accessKey, secretKey);
-        this.sessionToken = sessionToken;
+        sessionCredentials = AwsSessionCredentials.create(accessKey, secretKey, sessionToken);
     }
 
-    @Override
     public String getSessionToken() {
-        return sessionToken;
+        return sessionCredentials.sessionToken();
     }
 
     @Override
@@ -58,13 +57,13 @@ final class S3BasicSessionCredentials extends S3BasicCredentials implements AWSS
             return false;
         }
         final S3BasicSessionCredentials that = (S3BasicSessionCredentials) o;
-        return sessionToken.equals(that.sessionToken)
-            && getAWSAccessKeyId().equals(that.getAWSAccessKeyId())
-            && getAWSSecretKey().equals(that.getAWSSecretKey());
+        return getSessionToken().equals(that.getSessionToken())
+            && accessKeyId().equals(that.accessKeyId())
+            && secretAccessKey().equals(that.secretAccessKey());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sessionToken, getAWSAccessKeyId(), getAWSSecretKey());
+        return Objects.hash(getSessionToken(), accessKeyId(), secretAccessKey());
     }
 }
