@@ -94,9 +94,6 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
         assertEquals(((Map) jsonObject.get("total_remote_refresh")).get("succeeded"), (int) pressureTrackerStats.totalUploadsSucceeded);
         assertEquals(((Map) jsonObject.get("total_remote_refresh")).get("failed"), (int) pressureTrackerStats.totalUploadsFailed);
         assertEquals(((Map) jsonObject.get("remote_refresh_latency")).get("moving_avg"), pressureTrackerStats.uploadTimeMovingAverage);
-        assertEquals(((Map) jsonObject.get("latest_segments_filesize")).get("avg"), (int) pressureTrackerStats.latestLocalFileSizeAvg);
-        assertEquals(((Map) jsonObject.get("latest_segments_filesize")).get("max"), (int) pressureTrackerStats.latestLocalFileSizeMax);
-        assertEquals(((Map) jsonObject.get("latest_segments_filesize")).get("min"), (int) pressureTrackerStats.latestLocalFileSizeMin);
     }
 
     public void testSerialization() throws Exception {
@@ -131,9 +128,6 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
                 assertEquals(deserializedStats.getStats().bytesLag, stats.getStats().bytesLag);
                 assertEquals(deserializedStats.getStats().inflightUploads, stats.getStats().inflightUploads);
                 assertEquals(deserializedStats.getStats().inflightUploadBytes, stats.getStats().inflightUploadBytes);
-                assertEquals(deserializedStats.getStats().latestLocalFileSizeAvg, stats.getStats().latestLocalFileSizeAvg);
-                assertEquals(deserializedStats.getStats().latestLocalFileSizeMax, stats.getStats().latestLocalFileSizeMax);
-                assertEquals(deserializedStats.getStats().latestLocalFileSizeMin, stats.getStats().latestLocalFileSizeMin);
             }
         }
     }
@@ -160,10 +154,7 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
             4,
             9,
             3,
-            8,
-            100,
-            120,
-            80
+            8
         );
     }
 }

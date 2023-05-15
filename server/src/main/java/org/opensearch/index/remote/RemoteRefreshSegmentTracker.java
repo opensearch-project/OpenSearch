@@ -17,6 +17,7 @@ import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -111,12 +112,6 @@ public class RemoteRefreshSegmentTracker {
      */
     private volatile Map<String, Long> latestLocalFileNameLengthMap;
 
-    private volatile long latestLocalFilesCount;
-    private volatile long latestLocalFileSizeAvg;
-    private volatile long latestLocalFileSizeMin;
-    private volatile long latestLocalFileSizeMax;
-    private volatile long latestLocalFileSizeCount;
-
     /**
      * Set of names of segment files that were uploaded as part of the most recent remote refresh.
      */
@@ -173,6 +168,8 @@ public class RemoteRefreshSegmentTracker {
         uploadBytesMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadBytesMovingAverageWindowSize));
         uploadBytesPerSecMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadBytesPerSecMovingAverageWindowSize));
         uploadTimeMsMovingAverageReference = new AtomicReference<>(new MovingAverage(uploadTimeMsMovingAverageWindowSize));
+
+        latestLocalFileNameLengthMap = new HashMap<>();
     }
 
     ShardId getShardId() {
@@ -436,12 +433,12 @@ public class RemoteRefreshSegmentTracker {
     public RemoteRefreshSegmentTracker.Stats stats() {
         return new RemoteRefreshSegmentTracker.Stats(
             shardId,
-            latestLocalFilesCount,
+            latestLocalFileNameLengthMap.size(),
             latestUploadFiles.size(),
-            localRefreshTimeMs,
             localRefreshSeqNo,
-            remoteRefreshTimeMs,
+            localRefreshTimeMs,
             remoteRefreshSeqNo,
+            remoteRefreshTimeMs,
             uploadBytesStarted,
             uploadBytesSucceeded,
             uploadBytesFailed,
@@ -455,10 +452,7 @@ public class RemoteRefreshSegmentTracker {
             uploadTimeMsMovingAverageReference.get().getAverage(),
             getBytesLag(),
             getInflightUploads(),
-            getInflightUploadBytes(),
-            latestLocalFileSizeAvg,
-            latestLocalFileSizeMax,
-            latestLocalFileSizeMin
+            getInflightUploadBytes()
         );
     }
 
@@ -488,9 +482,6 @@ public class RemoteRefreshSegmentTracker {
         public final long bytesLag;
         public final long inflightUploads;
         public final long inflightUploadBytes;
-        public final long latestLocalFileSizeAvg;
-        public final long latestLocalFileSizeMax;
-        public final long latestLocalFileSizeMin;
 
         public Stats(
             ShardId shardId,
@@ -513,10 +504,7 @@ public class RemoteRefreshSegmentTracker {
             double uploadTimeMovingAverage,
             long bytesLag,
             long inflightUploads,
-            long inflightUploadBytes,
-            long latestLocalFileSizeAvg,
-            long latestLocalFileSizeMax,
-            long latestLocalFileSizeMin
+            long inflightUploadBytes
         ) {
             this.shardId = shardId;
             this.latestLocalRefreshFilesCount = latestLocalRefreshFilesCount;
@@ -539,9 +527,6 @@ public class RemoteRefreshSegmentTracker {
             this.bytesLag = bytesLag;
             this.inflightUploads = inflightUploads;
             this.inflightUploadBytes = inflightUploadBytes;
-            this.latestLocalFileSizeAvg = latestLocalFileSizeAvg;
-            this.latestLocalFileSizeMin = latestLocalFileSizeMin;
-            this.latestLocalFileSizeMax = latestLocalFileSizeMax;
         }
 
         public Stats(StreamInput in) throws IOException {
@@ -567,9 +552,6 @@ public class RemoteRefreshSegmentTracker {
                 this.bytesLag = in.readLong();
                 this.inflightUploads = in.readLong();
                 this.inflightUploadBytes = in.readLong();
-                this.latestLocalFileSizeAvg = in.readLong();
-                this.latestLocalFileSizeMin = in.readLong();
-                this.latestLocalFileSizeMax = in.readLong();
             } catch (IOException e) {
                 throw e;
             }
@@ -598,9 +580,6 @@ public class RemoteRefreshSegmentTracker {
             out.writeLong(bytesLag);
             out.writeLong(inflightUploads);
             out.writeLong(inflightUploadBytes);
-            out.writeLong(latestLocalFileSizeAvg);
-            out.writeLong(latestLocalFileSizeMin);
-            out.writeLong(latestLocalFileSizeMax);
         }
     }
 

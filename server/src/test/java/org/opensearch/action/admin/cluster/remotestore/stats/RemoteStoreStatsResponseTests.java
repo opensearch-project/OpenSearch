@@ -110,9 +110,6 @@ public class RemoteStoreStatsResponseTests extends OpenSearchTestCase {
         assertEquals(((Map) statsObject.get("total_remote_refresh")).get("succeeded"), (int) pressureTrackerStats.totalUploadsSucceeded);
         assertEquals(((Map) statsObject.get("total_remote_refresh")).get("failed"), (int) pressureTrackerStats.totalUploadsFailed);
         assertEquals(((Map) statsObject.get("remote_refresh_latency")).get("moving_avg"), pressureTrackerStats.uploadTimeMovingAverage);
-        assertEquals(((Map) statsObject.get("latest_segments_filesize")).get("avg"), (int) pressureTrackerStats.latestLocalFileSizeAvg);
-        assertEquals(((Map) statsObject.get("latest_segments_filesize")).get("max"), (int) pressureTrackerStats.latestLocalFileSizeMax);
-        assertEquals(((Map) statsObject.get("latest_segments_filesize")).get("min"), (int) pressureTrackerStats.latestLocalFileSizeMin);
     }
 
     private RemoteRefreshSegmentTracker.Stats createPressureTrackerStats() {
@@ -137,10 +134,7 @@ public class RemoteStoreStatsResponseTests extends OpenSearchTestCase {
             4,
             9,
             3,
-            8,
-            100,
-            120,
-            80
+            8
         );
     }
 

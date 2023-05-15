@@ -76,13 +76,6 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         builder.startObject("remote_refresh_latency");
         builder.field("moving_avg", remoteSegmentUploadShardStats.uploadTimeMovingAverage);
         builder.endObject();
-
-        builder.startObject("latest_segments_filesize");
-        builder.field("avg", remoteSegmentUploadShardStats.latestLocalFileSizeAvg)
-            .field("max", remoteSegmentUploadShardStats.latestLocalFileSizeMax)
-            .field("min", remoteSegmentUploadShardStats.latestLocalFileSizeMin);
-        builder.endObject();
-
         builder.endObject();
         return builder;
     }
