@@ -32,8 +32,6 @@
 
 package org.opensearch.repositories.s3;
 
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.Protocol;
 import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
@@ -45,6 +43,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.repositories.s3.utils.Protocol;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -167,21 +166,21 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<TimeValue> READ_TIMEOUT_SETTING = Setting.affixKeySetting(
         PREFIX,
         "read_timeout",
-        key -> Setting.timeSetting(key, TimeValue.timeValueMillis(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT), Property.NodeScope)
+        key -> Setting.timeSetting(key, TimeValue.timeValueMillis(50_000), Property.NodeScope)
     );
 
     /** The number of retries to use when an s3 request fails. */
     static final Setting.AffixSetting<Integer> MAX_RETRIES_SETTING = Setting.affixKeySetting(
         PREFIX,
         "max_retries",
-        key -> Setting.intSetting(key, ClientConfiguration.DEFAULT_RETRY_POLICY.getMaxErrorRetry(), 0, Property.NodeScope)
+        key -> Setting.intSetting(key, 3, 0, Property.NodeScope)
     );
 
     /** Whether retries should be throttled (ie use backoff). */
     static final Setting.AffixSetting<Boolean> USE_THROTTLE_RETRIES_SETTING = Setting.affixKeySetting(
         PREFIX,
         "use_throttle_retries",
-        key -> Setting.boolSetting(key, ClientConfiguration.DEFAULT_THROTTLE_RETRIES, Property.NodeScope)
+        key -> Setting.boolSetting(key, true, Property.NodeScope)
     );
 
     /** Whether the s3 client should use path style access. */
@@ -202,7 +201,7 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<String> REGION = Setting.affixKeySetting(
         PREFIX,
         "region",
-        key -> new Setting<>(key, "", Function.identity(), Property.NodeScope)
+        key -> new Setting<>(key, "us-east-1", Function.identity(), Property.NodeScope)
     );
 
     /** An override for the signer to use. */

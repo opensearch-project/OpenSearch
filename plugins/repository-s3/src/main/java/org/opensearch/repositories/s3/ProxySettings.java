@@ -8,9 +8,9 @@
 
 package org.opensearch.repositories.s3;
 
-import com.amazonaws.Protocol;
 import org.opensearch.common.Strings;
 import org.opensearch.common.settings.SettingsException;
+import org.opensearch.repositories.s3.utils.Protocol;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -28,7 +28,7 @@ public class ProxySettings {
 
         private final String name;
 
-        private ProxyType(String name) {
+        ProxyType(String name) {
             this.name = name;
         }
 
