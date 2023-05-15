@@ -33,7 +33,6 @@
 package org.opensearch.discovery.ec2;
 
 import java.net.URI;
-import java.time.Duration;
 import software.amazon.awssdk.auth.credentials.AwsCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import org.apache.logging.log4j.LogManager;
@@ -49,6 +48,8 @@ import software.amazon.awssdk.http.apache.ProxyConfiguration;
 import software.amazon.awssdk.services.ec2.Ec2Client;
 import software.amazon.awssdk.services.ec2.Ec2ClientBuilder;
 import software.amazon.awssdk.core.retry.RetryPolicy;
+
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.profiles.ProfileFileSystemSetting;
@@ -61,23 +62,34 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
 
     private Ec2Client buildClient(Ec2ClientSettings clientSettings) {
         final AwsCredentialsProvider awsCredentialsProvider = buildCredentials(logger, clientSettings);
-        final ApacheHttpClient.Builder clientBuilder = buildHttpClient(logger, clientSettings);
         final ClientOverrideConfiguration overrideConfiguration = buildOverrideConfiguration(logger, clientSettings);
-        return buildClient(awsCredentialsProvider, clientBuilder, overrideConfiguration, clientSettings.endpoint);
+        final ProxyConfiguration proxyConfiguration = buildProxyConfiguration(logger, clientSettings);
+        return buildClient(
+            awsCredentialsProvider,
+            proxyConfiguration,
+            overrideConfiguration,
+            clientSettings.endpoint,
+            clientSettings.readTimeoutMillis
+        );
     }
 
     // proxy for testing
     protected Ec2Client buildClient(
         AwsCredentialsProvider awsCredentialsProvider,
-        ApacheHttpClient.Builder apacheHttpClientBuilder,
+        ProxyConfiguration proxyConfiguration,
         ClientOverrideConfiguration overrideConfiguration,
-        String endpoint
+        String endpoint,
+        long readTimeoutMillis
     ) {
         SocketAccess.doPrivilegedVoid(AwsEc2ServiceImpl::setDefaultAwsProfilePath);
 
+        ApacheHttpClient.Builder clientBuilder = ApacheHttpClient.builder()
+            .proxyConfiguration(proxyConfiguration)
+            .socketTimeout(Duration.ofMillis(readTimeoutMillis));
+
         Ec2ClientBuilder builder = Ec2Client.builder()
             .overrideConfiguration(overrideConfiguration)
-            .httpClientBuilder(apacheHttpClientBuilder)
+            .httpClientBuilder(clientBuilder)
             .credentialsProvider(awsCredentialsProvider);
 
         if (Strings.hasText(endpoint)) {
@@ -98,13 +110,6 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
         } else {
             return ProxyConfiguration.builder().build();
         }
-    }
-
-    // pkg private for tests
-    static ApacheHttpClient.Builder buildHttpClient(Logger logger, Ec2ClientSettings clientSettings) {
-        return ApacheHttpClient.builder()
-            .proxyConfiguration(buildProxyConfiguration(logger, clientSettings))
-            .socketTimeout(Duration.ofMillis(clientSettings.readTimeoutMillis));
     }
 
     static ClientOverrideConfiguration buildOverrideConfiguration(Logger logger, Ec2ClientSettings clientSettings) {

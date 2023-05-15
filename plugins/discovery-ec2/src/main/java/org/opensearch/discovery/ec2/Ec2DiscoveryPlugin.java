@@ -74,8 +74,6 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
         // The ClientConfiguration class requires RuntimePermission getClassLoader
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             try {
-                // kick jackson to do some static caching of declared members info
-                // JacksonUtils.jsonNodeOf("{}");
                 // ClientConfiguration clinit has some classloader problems
                 // TODO: fix that
                 Class.forName("software.amazon.awssdk.http.apache.ApacheHttpClient");

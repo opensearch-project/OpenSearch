@@ -42,10 +42,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import software.amazon.awssdk.core.Protocol;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.retry.RetryPolicy;
-import software.amazon.awssdk.http.*;
-import software.amazon.awssdk.http.apache.ApacheHttpClient;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
-import java.net.URI;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -154,31 +151,18 @@ public class AwsEc2ServiceImplTests extends OpenSearchTestCase implements Config
 
         assertThat(retryPolicyConfiguration.numRetries(), is(10));
 
-        final AwsCredentials credentials = AwsEc2ServiceImpl.buildCredentials(
-            logger,
-            Ec2ClientSettings.getClientSettings(Settings.EMPTY)).resolveCredentials();
+        final AwsCredentials credentials = AwsEc2ServiceImpl.buildCredentials(logger, Ec2ClientSettings.getClientSettings(Settings.EMPTY))
+            .resolveCredentials();
 
         assertThat(credentials.accessKeyId(), is("aws-access-key-id"));
         assertThat(credentials.secretAccessKey(), is("aws-secret-access-key"));
 
         ClientOverrideConfiguration clientOverrideConfiguration = AwsEc2ServiceImpl.buildOverrideConfiguration(
             logger,
-            Ec2ClientSettings.getClientSettings(Settings.EMPTY));
+            Ec2ClientSettings.getClientSettings(Settings.EMPTY)
+        );
         assertTrue(clientOverrideConfiguration.retryPolicy().isPresent());
         assertThat(clientOverrideConfiguration.retryPolicy().get().numRetries(), is(10));
-
-        SdkHttpClient client = AwsEc2ServiceImpl.buildHttpClient(
-            logger,
-            Ec2ClientSettings.getClientSettings(Settings.EMPTY)).build();
-        try {
-            assertThat(client.clientName(), is("Apache"));
-            SdkHttpRequest request = SdkHttpRequest.builder().method(SdkHttpMethod.GET).uri(URI.create("https://host/")).build();
-            HttpExecuteRequest executeRequest = HttpExecuteRequest.builder().request(request).build();
-            ExecutableHttpRequest executableHttpRequest = client.prepareRequest(executeRequest);
-            assertNotNull(executableHttpRequest);
-        } finally {
-            client.close();
-        }
     }
 
     public void testAWSConfigurationWithAwsSettings() {
@@ -210,30 +194,17 @@ public class AwsEc2ServiceImplTests extends OpenSearchTestCase implements Config
         RetryPolicy retryPolicyConfiguration = AwsEc2ServiceImpl.buildRetryPolicy(logger, Ec2ClientSettings.getClientSettings(settings));
         assertThat(retryPolicyConfiguration.numRetries(), is(10));
 
-        final AwsCredentials credentials = AwsEc2ServiceImpl.buildCredentials(
-            logger,
-            Ec2ClientSettings.getClientSettings(Settings.EMPTY)).resolveCredentials();
+        final AwsCredentials credentials = AwsEc2ServiceImpl.buildCredentials(logger, Ec2ClientSettings.getClientSettings(Settings.EMPTY))
+            .resolveCredentials();
 
         assertThat(credentials.accessKeyId(), is("aws-access-key-id"));
         assertThat(credentials.secretAccessKey(), is("aws-secret-access-key"));
 
         ClientOverrideConfiguration clientOverrideConfiguration = AwsEc2ServiceImpl.buildOverrideConfiguration(
             logger,
-            Ec2ClientSettings.getClientSettings(Settings.EMPTY));
+            Ec2ClientSettings.getClientSettings(Settings.EMPTY)
+        );
         assertTrue(clientOverrideConfiguration.retryPolicy().isPresent());
         assertThat(clientOverrideConfiguration.retryPolicy().get().numRetries(), is(10));
-
-        SdkHttpClient client = AwsEc2ServiceImpl.buildHttpClient(
-            logger,
-            Ec2ClientSettings.getClientSettings(Settings.EMPTY)).build();
-        try {
-            assertThat(client.clientName(), is("Apache"));
-            SdkHttpRequest request = SdkHttpRequest.builder().method(SdkHttpMethod.GET).uri(URI.create("https://host/")).build();
-            HttpExecuteRequest executeRequest = HttpExecuteRequest.builder().request(request).build();
-            ExecutableHttpRequest executableHttpRequest = client.prepareRequest(executeRequest);
-            assertNotNull(executableHttpRequest);
-        } finally {
-            client.close();
-        }
     }
 }

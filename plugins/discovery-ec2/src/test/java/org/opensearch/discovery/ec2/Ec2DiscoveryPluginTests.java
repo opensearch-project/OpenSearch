@@ -37,7 +37,7 @@ import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
-import software.amazon.awssdk.http.apache.ApacheHttpClient;
+import software.amazon.awssdk.http.apache.ProxyConfiguration;
 import software.amazon.awssdk.services.ec2.Ec2Client;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
@@ -156,7 +156,10 @@ public class Ec2DiscoveryPluginTests extends OpenSearchTestCase implements Confi
         try (Ec2DiscoveryPluginMock plugin = new Ec2DiscoveryPluginMock(settings1)) {
             try (AmazonEc2ClientReference clientReference = plugin.ec2Service.client()) {
                 {
-                    final AwsCredentials credentials = ((MockEc2Client) clientReference.get()).credentials.resolveCredentials();
+                    final MockEc2Client mockEc2Client = (MockEc2Client) clientReference.get();
+                    assertThat(mockEc2Client.endpoint, is("ec2_endpoint_1"));
+
+                    final AwsCredentials credentials = mockEc2Client.credentials.resolveCredentials();
                     assertThat(credentials.accessKeyId(), is("ec2_access_1"));
                     assertThat(credentials.secretAccessKey(), is("ec2_secret_1"));
                     if (mockSecure1HasSessionToken) {
@@ -165,16 +168,25 @@ public class Ec2DiscoveryPluginTests extends OpenSearchTestCase implements Confi
                     } else {
                         assertThat(credentials, instanceOf(AwsBasicCredentials.class));
                     }
-                    // assertThat(((MockEc2Client) clientReference.get()).configuration.proxyUsername(), is("proxy_username_1"));
-                    // assertThat(((MockEc2Client) clientReference.get()).configuration.getProxyPassword(), is("proxy_password_1"));
-                    // assertThat(((MockEc2Client) clientReference.get()).configuration.getProxyHost(), is("proxy_host_1"));
-                    // assertThat(((MockEc2Client) clientReference.get()).configuration.getProxyPort(), is(881));
-                    assertThat(((MockEc2Client) clientReference.get()).endpoint, is("ec2_endpoint_1"));
+
+                    assertThat(
+                        mockEc2Client.proxyConfiguration.toString(),
+                        is(
+                            "ProxyConfiguration(endpoint=https://proxy_host_1:881, username=proxy_username_1, preemptiveBasicAuthenticationEnabled=false)"
+                        )
+                    );
+                    assertThat(mockEc2Client.proxyConfiguration.username(), is("proxy_username_1"));
+                    assertThat(mockEc2Client.proxyConfiguration.password(), is("proxy_password_1"));
+                    // assertThat(mockEc2Client.proxyConfiguration.host(), is("proxy_host_1"));
+                    // assertThat(mockEc2Client.proxyConfiguration.port(), is(881));
                 }
                 // reload secure settings2
                 plugin.reload(settings2);
                 // client is not released, it is still using the old settings
                 {
+                    final MockEc2Client mockEc2Client = (MockEc2Client) clientReference.get();
+                    assertThat(mockEc2Client.endpoint, is("ec2_endpoint_1"));
+
                     final AwsCredentials credentials = ((MockEc2Client) clientReference.get()).credentials.resolveCredentials();
                     if (mockSecure1HasSessionToken) {
                         assertThat(credentials, instanceOf(AwsSessionCredentials.class));
@@ -182,14 +194,23 @@ public class Ec2DiscoveryPluginTests extends OpenSearchTestCase implements Confi
                     } else {
                         assertThat(credentials, instanceOf(AwsBasicCredentials.class));
                     }
-                    // assertThat(((MockEc2Client) clientReference.get()).configuration.getProxyUsername(), is("proxy_username_1"));
-                    // assertThat(((MockEc2Client) clientReference.get()).configuration.getProxyPassword(), is("proxy_password_1"));
-                    // assertThat(((MockEc2Client) clientReference.get()).configuration.getProxyHost(), is("proxy_host_1"));
-                    // assertThat(((MockEc2Client) clientReference.get()).configuration.getProxyPort(), is(881));
-                    assertThat(((MockEc2Client) clientReference.get()).endpoint, is("ec2_endpoint_1"));
+
+                    assertThat(
+                        mockEc2Client.proxyConfiguration.toString(),
+                        is(
+                            "ProxyConfiguration(endpoint=https://proxy_host_1:881, username=proxy_username_1, preemptiveBasicAuthenticationEnabled=false)"
+                        )
+                    );
+                    assertThat(mockEc2Client.proxyConfiguration.username(), is("proxy_username_1"));
+                    assertThat(mockEc2Client.proxyConfiguration.password(), is("proxy_password_1"));
+                    // assertThat(mockEc2Client.proxyConfiguration.host(), is("proxy_host_1"));
+                    // assertThat(mockEc2Client.proxyConfiguration.port(), is(881));
                 }
             }
             try (AmazonEc2ClientReference clientReference = plugin.ec2Service.client()) {
+                final MockEc2Client mockEc2Client = (MockEc2Client) clientReference.get();
+                assertThat(mockEc2Client.endpoint, is("ec2_endpoint_2"));
+
                 final AwsCredentials credentials = ((MockEc2Client) clientReference.get()).credentials.resolveCredentials();
                 assertThat(credentials.accessKeyId(), is("ec2_access_2"));
                 assertThat(credentials.secretAccessKey(), is("ec2_secret_2"));
@@ -199,11 +220,17 @@ public class Ec2DiscoveryPluginTests extends OpenSearchTestCase implements Confi
                 } else {
                     assertThat(credentials, instanceOf(AwsBasicCredentials.class));
                 }
-                // assertThat(((MockEc2Client) clientReference.get()).configuration.getProxyUsername(), is("proxy_username_2"));
-                // assertThat(((MockEc2Client) clientReference.get()).configuration.getProxyPassword(), is("proxy_password_2"));
-                // assertThat(((MockEc2Client) clientReference.get()).configuration.getProxyHost(), is("proxy_host_2"));
-                // assertThat(((MockEc2Client) clientReference.get()).configuration.getProxyPort(), is(882));
-                assertThat(((MockEc2Client) clientReference.get()).endpoint, is("ec2_endpoint_2"));
+
+                assertThat(
+                    mockEc2Client.proxyConfiguration.toString(),
+                    is(
+                        "ProxyConfiguration(endpoint=https://proxy_host_2:882, username=proxy_username_2, preemptiveBasicAuthenticationEnabled=false)"
+                    )
+                );
+                assertThat(mockEc2Client.proxyConfiguration.username(), is("proxy_username_2"));
+                assertThat(mockEc2Client.proxyConfiguration.password(), is("proxy_password_2"));
+                // assertThat(mockEc2Client.proxyConfiguration.host(), is("proxy_host_2"));
+                // assertThat(mockEc2Client.proxyConfiguration.port(), is(882));
             }
         }
     }
@@ -215,11 +242,12 @@ public class Ec2DiscoveryPluginTests extends OpenSearchTestCase implements Confi
                 @Override
                 protected Ec2Client buildClient(
                     AwsCredentialsProvider credentials,
-                    ApacheHttpClient.Builder apacheHttpClientBuilder,
+                    ProxyConfiguration proxyConfiguration,
                     ClientOverrideConfiguration overrideConfiguration,
-                    String endpoint
+                    String endpoint,
+                    long readTimeoutMillis
                 ) {
-                    return new MockEc2Client(credentials, apacheHttpClientBuilder, overrideConfiguration, endpoint);
+                    return new MockEc2Client(credentials, proxyConfiguration, overrideConfiguration, endpoint, readTimeoutMillis);
                 }
             });
         }
@@ -229,19 +257,22 @@ public class Ec2DiscoveryPluginTests extends OpenSearchTestCase implements Confi
 
         String endpoint;
         final AwsCredentialsProvider credentials;
-        final ApacheHttpClient.Builder apacheHttpClientBuilder;
         final ClientOverrideConfiguration clientOverrideConfiguration;
+        final ProxyConfiguration proxyConfiguration;
+        final long readTimeoutMillis;
 
         MockEc2Client(
             AwsCredentialsProvider credentials,
-            ApacheHttpClient.Builder apacheHttpClientBuilder,
+            ProxyConfiguration proxyConfiguration,
             ClientOverrideConfiguration clientOverrideConfiguration,
-            String endpoint
+            String endpoint,
+            long readTimeoutMillis
         ) {
             this.credentials = credentials;
-            this.apacheHttpClientBuilder = apacheHttpClientBuilder;
+            this.proxyConfiguration = proxyConfiguration;
             this.clientOverrideConfiguration = clientOverrideConfiguration;
             this.endpoint = endpoint;
+            this.readTimeoutMillis = readTimeoutMillis;
         }
 
         @Override
