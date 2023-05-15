@@ -37,7 +37,6 @@ import com.carrotsearch.hppc.procedures.LongProcedure;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
@@ -52,7 +51,6 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.Assertions;
-import org.opensearch.index.IndexSettings;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardId;
 
@@ -167,7 +165,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         TragicExceptionHolder tragedy,
         final LongConsumer persistedSequenceNumberConsumer,
         final BigArrays bigArrays,
-        @Nullable IndexSettings indexSettings
+        Boolean remoteTranslogEnabled
     ) throws IOException {
         final Path checkpointFile = file.getParent().resolve(Translog.CHECKPOINT_FILE_NAME);
 
@@ -188,8 +186,11 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             if (Assertions.ENABLED) {
                 writerGlobalCheckpointSupplier = () -> {
                     long gcp = globalCheckpointSupplier.getAsLong();
-                    assert gcp >= initialGlobalCheckpoint || (indexSettings != null && indexSettings.isRemoteTranslogStoreEnabled())
-                        : "global checkpoint [" + gcp + "] lower than initial gcp [" + initialGlobalCheckpoint + "]";
+                    assert gcp >= initialGlobalCheckpoint || (remoteTranslogEnabled == Boolean.TRUE) : "global checkpoint ["
+                        + gcp
+                        + "] lower than initial gcp ["
+                        + initialGlobalCheckpoint
+                        + "]";
                     return gcp;
                 };
             } else {

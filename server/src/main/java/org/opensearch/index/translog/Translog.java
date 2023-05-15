@@ -523,7 +523,7 @@ public abstract class Translog extends AbstractIndexShardComponent implements In
                 tragedy,
                 persistedSequenceNumberConsumer,
                 bigArrays,
-                indexSettings
+                indexSettings.isRemoteTranslogStoreEnabled()
             );
         } catch (final IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
