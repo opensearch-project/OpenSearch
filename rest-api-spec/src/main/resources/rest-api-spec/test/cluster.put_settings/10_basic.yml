@@ -73,6 +73,10 @@
 ---
 "Test set search backpressure mode":
 
+  - skip:
+      version: "- 2.3.99"
+      reason: "Search backpressure was added in 2.4"
+
   - do:
       cluster.put_settings:
         body:
