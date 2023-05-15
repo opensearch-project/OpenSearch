@@ -84,8 +84,26 @@ tasks.named("bundlePlugin").configure {
   }
 }
 
+tasks.register("writeTestJavaPolicy") {
+  doLast {
+    final File tmp = file("${buildDir}/tmp")
+    if (tmp.exists() == false && tmp.mkdirs() == false) {
+      throw new GradleException("failed to create temporary directory [${tmp}]")
+    }
+    final File javaPolicy = file("${tmp}/java.policy")
+    javaPolicy.write(
+      [
+        "grant {",
+        "  permission java.util.PropertyPermission \"aws.ec2MetadataServiceEndpoint\", \"write\";",
+        "  permission java.io.FilePermission \"config\", \"read\";",
+        "};"
+      ].join("\n")
+    )
+  }
+}
 
 tasks.named("test").configure {
+  dependsOn "writeTestJavaPolicy"
   // this is needed for insecure plugins, remove if possible!
   systemProperty 'tests.artifact', project.name
 
