@@ -153,19 +153,6 @@ public class XContentParserTests extends OpenSearchTestCase {
             }
 
             assertThat(text, hasLength(value.length()));
-
-            switch (xContentType) {
-                case CBOR:
-                case SMILE:
-                    assertThat(text, instanceOf(String.class));
-                    break;
-                case JSON:
-                case YAML:
-                    assertThat(text, instanceOf(String.class));
-                    break;
-                default:
-                    throw new AssertionError("unexpected x-content type [" + xContentType + "]");
-            }
         }
     }
 
