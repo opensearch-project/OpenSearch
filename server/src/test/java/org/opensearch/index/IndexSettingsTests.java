@@ -1045,18 +1045,17 @@ public class IndexSettingsTests extends OpenSearchTestCase {
 
     @SuppressForbidden(reason = "sets the SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY feature flag")
     public void testExtendedCompatibilityVersionForRemoteSnapshot() throws Exception {
-        try (FeatureFlagSetter f = FeatureFlagSetter.set(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY)) {
-            IndexMetadata metadata = newIndexMeta(
-                "index",
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
-                    .build()
-            );
-            IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
-            assertTrue(settings.isRemoteSnapshot());
-            assertEquals(SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION, settings.getExtendedCompatibilitySnapshotVersion());
-        }
+        FeatureFlagSetter.set(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY);
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
+                .build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertTrue(settings.isRemoteSnapshot());
+        assertEquals(SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION, settings.getExtendedCompatibilitySnapshotVersion());
     }
 
     public void testExtendedCompatibilityVersionForNonRemoteSnapshot() {
