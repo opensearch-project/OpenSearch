@@ -13,5 +13,4 @@ import org.opensearch.identity.tokens.AuthToken;
 /**
  * Noop implementation of an Auth Token
  */
-public class NoopAuthToken implements AuthToken {
-}
+public class NoopAuthToken implements AuthToken {}
