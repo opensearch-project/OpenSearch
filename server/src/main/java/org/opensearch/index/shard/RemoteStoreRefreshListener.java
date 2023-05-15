@@ -199,7 +199,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                                     .filter(file -> !localSegmentsPostRefresh.contains(file))
                                     .collect(Collectors.toSet())
                                     .forEach(localSegmentChecksumMap::remove);
-                                OnSuccessfulSegmentsSync();
+                                onSuccessfulSegmentsSync();
                                 final long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();
                                 indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
 
@@ -240,7 +240,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         }
     }
 
-    private void OnSuccessfulSegmentsSync() {
+    private void onSuccessfulSegmentsSync() {
         // Reset the backoffDelayIterator for the future failures
         resetBackOffDelayIterator();
         // Cancel the scheduled cancellable retry if possible and set it to null

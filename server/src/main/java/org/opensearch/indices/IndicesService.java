@@ -158,6 +158,7 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.threadpool.ThreadPool;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;

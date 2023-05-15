@@ -14,6 +14,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.junit.After;
+import org.mockito.Mockito;
 import org.opensearch.action.ActionListener;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
@@ -36,12 +37,15 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
 import static org.opensearch.index.shard.RemoteStoreRefreshListener.SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX;
 
 public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
     private IndexShard indexShard;
     private RemoteStoreRefreshListener remoteStoreRefreshListener;
+
+    private SegmentReplicationCheckpointPublisher checkpointPublisher;
 
     public void setup(boolean primary, int numberOfDocs) throws IOException {
         indexShard = newStartedShard(
@@ -52,7 +56,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
 
         indexDocs(1, numberOfDocs);
         indexShard.refresh("test");
-
+        checkpointPublisher = mock(SegmentReplicationCheckpointPublisher.class);
         remoteStoreRefreshListener = new RemoteStoreRefreshListener(indexShard, SegmentReplicationCheckpointPublisher.EMPTY);
     }
 
@@ -162,6 +166,8 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
                 (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) remoteStore.directory()).getDelegate()).getDelegate();
 
             assertEquals(0, remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().size());
+            Mockito.verify(checkpointPublisher, times(1)).publish(Mockito.any(), Mockito.any());
+
         }
     }
 
@@ -210,6 +216,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         remoteSegmentStoreDirectory.init();
 
         verifyUploadedSegments(remoteSegmentStoreDirectory);
+        Mockito.verify(checkpointPublisher, times(2)).publish(Mockito.any(), Mockito.any());
     }
 
     public void testRefreshSuccessOnFirstAttempt() throws Exception {
