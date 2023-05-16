@@ -84,7 +84,10 @@ class ShiroTokenHandler implements TokenManager {
 
     @Override
     public void resetToken(AuthToken token) {
-
+        if (token instanceof BasicAuthToken) {
+            final BasicAuthToken basicAuthToken = (BasicAuthToken) token;
+            basicAuthToken.revoke();
+        }
     }
 
     public String generatePassword() {

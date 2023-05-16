@@ -8,6 +8,10 @@
 
 package org.opensearch.identity.noop;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.OpenSearchException;
+import org.opensearch.identity.IdentityService;
 import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.identity.tokens.NoopToken;
 import org.opensearch.identity.tokens.TokenManager;
@@ -15,7 +19,9 @@ import org.opensearch.identity.tokens.TokenManager;
 /**
  * This class represents a Noop Token Manager
  */
-public class NoopTokenManager implements TokenManager {
+public class NoopTokenHandler implements TokenManager {
+
+    private static final Logger log = LogManager.getLogger(IdentityService.class);
 
     /**
      * Generate a new Noop Token
@@ -58,7 +64,11 @@ public class NoopTokenManager implements TokenManager {
      */
     @Override
     public void revokeToken(AuthToken token) {
-
+        if (token instanceof NoopToken) {
+            log.info("Revoke operation is not supported for NoopTokens");
+            return;
+        }
+        throw new OpenSearchException("Token is not a NoopToken");
     }
 
     /**
@@ -67,6 +77,10 @@ public class NoopTokenManager implements TokenManager {
      */
     @Override
     public void resetToken(AuthToken token) {
-
+        if (token instanceof NoopToken) {
+            log.info("Reset operation is not supported for NoopTokens");
+            return;
+        }
+        throw new OpenSearchException("Token is not a NoopToken");
     }
 }
