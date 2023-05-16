@@ -116,13 +116,13 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             } else if (Booleans.isFalse(source)) {
                 fetchSource = false;
             } else {
-                sourceIncludes = org.opensearch.core.common.Strings.splitStringByCommaToArray(source);
+                sourceIncludes = Strings.splitStringByCommaToArray(source);
             }
         }
 
         String sIncludes = request.param("_source_includes");
         if (sIncludes != null) {
-            sourceIncludes = org.opensearch.core.common.Strings.splitStringByCommaToArray(sIncludes);
+            sourceIncludes = Strings.splitStringByCommaToArray(sIncludes);
         }
 
         String sExcludes = request.param("_source_excludes");

@@ -85,7 +85,7 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        String[] indices = org.opensearch.core.common.Strings.splitStringByCommaToArray(request.param("index"));
+        String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String alias = request.param("name");
         Map<String, Object> filter = null;
         String routing = null;

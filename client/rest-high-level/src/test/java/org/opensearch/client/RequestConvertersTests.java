@@ -1074,7 +1074,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         Request request = RequestConverters.search(searchRequest, searchEndpoint);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         String index = String.join(",", indices);
-        if (org.opensearch.core.common.Strings.hasLength(index)) {
+        if (Strings.hasLength(index)) {
             endpoint.add(index);
         }
         endpoint.add(searchEndpoint);
@@ -1179,7 +1179,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         Request request = RequestConverters.count(countRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         String index = String.join(",", indices);
-        if (org.opensearch.core.common.Strings.hasLength(index)) {
+        if (Strings.hasLength(index)) {
             endpoint.add(index);
         }
         endpoint.add("_count");
@@ -1316,7 +1316,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         Request request = RequestConverters.createPit(createPitRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         String index = String.join(",", indices);
-        if (org.opensearch.core.common.Strings.hasLength(index)) {
+        if (Strings.hasLength(index)) {
             endpoint.add(index);
         }
         endpoint.add("_search/point_in_time");
@@ -1371,7 +1371,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         Request request = RequestConverters.searchTemplate(searchTemplateRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         String index = String.join(",", indices);
-        if (org.opensearch.core.common.Strings.hasLength(index)) {
+        if (Strings.hasLength(index)) {
             endpoint.add(index);
         }
         endpoint.add("_search/template");
@@ -1613,7 +1613,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         // a hash set before being added to the request, and can appear in a
         // non-deterministic order.
         assertThat(request.getParameters(), hasKey("fields"));
-        String[] requestFields = org.opensearch.core.common.Strings.splitStringByCommaToArray(request.getParameters().get("fields"));
+        String[] requestFields = Strings.splitStringByCommaToArray(request.getParameters().get("fields"));
         assertEquals(new HashSet<>(Arrays.asList(fields)), new HashSet<>(Arrays.asList(requestFields)));
 
         for (Map.Entry<String, String> param : indicesOptionsParams.entrySet()) {
@@ -1653,7 +1653,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         // a hash set before being added to the request, and can appear in a
         // non-deterministic order.
         assertThat(request.getParameters(), hasKey("fields"));
-        String[] requestFields = org.opensearch.core.common.Strings.splitStringByCommaToArray(request.getParameters().get("fields"));
+        String[] requestFields = Strings.splitStringByCommaToArray(request.getParameters().get("fields"));
         assertEquals(new HashSet<>(Arrays.asList(fields)), new HashSet<>(Arrays.asList(requestFields)));
 
         for (Map.Entry<String, String> param : indicesOptionsParams.entrySet()) {
@@ -1681,7 +1681,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         Request request = RequestConverters.rankEval(rankEvalRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
         String index = String.join(",", indices);
-        if (org.opensearch.core.common.Strings.hasLength(index)) {
+        if (Strings.hasLength(index)) {
             endpoint.add(index);
         }
         endpoint.add(RestRankEvalAction.ENDPOINT);

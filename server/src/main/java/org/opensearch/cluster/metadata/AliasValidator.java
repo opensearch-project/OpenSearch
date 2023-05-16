@@ -86,7 +86,7 @@ public class AliasValidator {
      */
     public void validateAliasStandalone(Alias alias) {
         validateAliasStandalone(alias.name(), alias.indexRouting());
-        if (org.opensearch.core.common.Strings.hasLength(alias.filter())) {
+        if (Strings.hasLength(alias.filter())) {
             try {
                 XContentHelper.convertToMap(XContentFactory.xContent(alias.filter()), alias.filter(), false);
             } catch (Exception e) {
@@ -101,7 +101,7 @@ public class AliasValidator {
     public void validateAlias(String alias, String index, @Nullable String indexRouting, Function<String, IndexMetadata> indexLookup) {
         validateAliasStandalone(alias, indexRouting);
 
-        if (!org.opensearch.core.common.Strings.hasText(index)) {
+        if (Strings.hasText(index) == false) {
             throw new IllegalArgumentException("index name is required");
         }
 

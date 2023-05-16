@@ -206,15 +206,15 @@ public class SearchPreferenceIT extends OpenSearchIntegTestCase {
             allNodeHosts.add(node.getHostname());
         }
 
-        String node_expr = "_only_nodes:" + org.opensearch.core.common.Strings.arrayToCommaDelimitedString(allNodeIds.toArray());
+        String node_expr = "_only_nodes:" + Strings.arrayToCommaDelimitedString(allNodeIds.toArray());
         request = client.prepareSearch("test").setQuery(matchAllQuery()).setPreference(node_expr);
         assertSearchOnRandomNodes(request);
 
-        node_expr = "_only_nodes:" + org.opensearch.core.common.Strings.arrayToCommaDelimitedString(allNodeNames.toArray());
+        node_expr = "_only_nodes:" + Strings.arrayToCommaDelimitedString(allNodeNames.toArray());
         request = client.prepareSearch("test").setQuery(matchAllQuery()).setPreference(node_expr);
         assertSearchOnRandomNodes(request);
 
-        node_expr = "_only_nodes:" + org.opensearch.core.common.Strings.arrayToCommaDelimitedString(allNodeHosts.toArray());
+        node_expr = "_only_nodes:" + Strings.arrayToCommaDelimitedString(allNodeHosts.toArray());
         request = client.prepareSearch("test").setQuery(matchAllQuery()).setPreference(node_expr);
         assertSearchOnRandomNodes(request);
 

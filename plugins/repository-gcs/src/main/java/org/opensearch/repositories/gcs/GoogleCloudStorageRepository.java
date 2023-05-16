@@ -98,7 +98,7 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         this.storageService = storageService;
 
         String basePath = BASE_PATH.get(metadata.settings());
-        if (org.opensearch.core.common.Strings.hasLength(basePath)) {
+        if (Strings.hasLength(basePath)) {
             BlobPath path = new BlobPath();
             for (String elem : basePath.split("/")) {
                 path = path.add(elem);

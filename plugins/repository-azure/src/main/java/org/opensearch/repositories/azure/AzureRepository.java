@@ -128,7 +128,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
         this.storageService = storageService;
 
         final String basePath = Strings.trimLeadingCharacter(Repository.BASE_PATH_SETTING.get(metadata.settings()), '/');
-        if (org.opensearch.core.common.Strings.hasLength(basePath)) {
+        if (Strings.hasLength(basePath)) {
             // Remove starting / if any
             BlobPath path = new BlobPath();
             for (final String elem : basePath.split("/")) {

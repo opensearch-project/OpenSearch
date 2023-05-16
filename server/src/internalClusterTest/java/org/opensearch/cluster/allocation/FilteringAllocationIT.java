@@ -287,8 +287,8 @@ public class FilteringAllocationIT extends OpenSearchIntegTestCase {
         Set<String> includeNodes = new HashSet<>(nodes.subList(3, 6));
         logger.info(
             "--> exclude: [{}], include: [{}]",
-            org.opensearch.core.common.Strings.collectionToCommaDelimitedString(excludeNodes),
-            org.opensearch.core.common.Strings.collectionToCommaDelimitedString(includeNodes)
+            Strings.collectionToCommaDelimitedString(excludeNodes),
+            Strings.collectionToCommaDelimitedString(includeNodes)
         );
         ensureStableCluster(6);
         client().admin().indices().prepareCreate("test").get();
@@ -299,10 +299,7 @@ public class FilteringAllocationIT extends OpenSearchIntegTestCase {
         }
 
         Settings exclude = Settings.builder()
-            .put(
-                "cluster.routing.allocation.exclude._name",
-                org.opensearch.core.common.Strings.collectionToCommaDelimitedString(excludeNodes)
-            )
+            .put("cluster.routing.allocation.exclude._name", Strings.collectionToCommaDelimitedString(excludeNodes))
             .build();
 
         logger.info("--> updating settings");
@@ -320,7 +317,7 @@ public class FilteringAllocationIT extends OpenSearchIntegTestCase {
                 "shard on "
                     + node
                     + " but should only be on the include node list: "
-                    + org.opensearch.core.common.Strings.collectionToCommaDelimitedString(includeNodes),
+                    + Strings.collectionToCommaDelimitedString(includeNodes),
                 includeNodes.contains(node)
             );
         }

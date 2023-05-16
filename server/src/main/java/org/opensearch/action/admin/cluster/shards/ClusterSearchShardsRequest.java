@@ -146,7 +146,7 @@ public class ClusterSearchShardsRequest extends ClusterManagerNodeReadRequest<Cl
      * The routing values to control the shards that the search will be executed on.
      */
     public ClusterSearchShardsRequest routing(String... routings) {
-        this.routing = org.opensearch.core.common.Strings.arrayToCommaDelimitedString(routings);
+        this.routing = Strings.arrayToCommaDelimitedString(routings);
         return this;
     }
 

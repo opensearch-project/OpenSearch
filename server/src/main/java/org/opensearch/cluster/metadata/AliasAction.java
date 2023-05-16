@@ -45,7 +45,7 @@ public abstract class AliasAction {
     private final String index;
 
     private AliasAction(String index) {
-        if (false == org.opensearch.core.common.Strings.hasText(index)) {
+        if (false == Strings.hasText(index)) {
             throw new IllegalArgumentException("[index] is required");
         }
         this.index = index;
@@ -120,7 +120,7 @@ public abstract class AliasAction {
             @Nullable Boolean isHidden
         ) {
             super(index);
-            if (false == org.opensearch.core.common.Strings.hasText(alias)) {
+            if (false == Strings.hasText(alias)) {
                 throw new IllegalArgumentException("[alias] is required");
             }
             this.alias = alias;

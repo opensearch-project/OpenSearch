@@ -40,20 +40,20 @@ import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.cluster.metadata.AliasAction;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.ParsingException;
-import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ConstructingObjectParser;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ObjectParser.ValueType;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.index.query.QueryBuilder;
 
 import java.io.IOException;
@@ -321,7 +321,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 throw new IllegalArgumentException("[indices] can't be empty");
             }
             for (String index : indices) {
-                if (false == org.opensearch.core.common.Strings.hasLength(index)) {
+                if (false == Strings.hasLength(index)) {
                     throw new IllegalArgumentException("[indices] can't contain empty string");
                 }
             }
@@ -333,7 +333,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
          * Set the index this action is operating on.
          */
         public AliasActions index(String index) {
-            if (false == org.opensearch.core.common.Strings.hasLength(index)) {
+            if (false == Strings.hasLength(index)) {
                 throw new IllegalArgumentException("[index] can't be empty string");
             }
             this.indices = new String[] { index };
@@ -351,7 +351,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 throw new IllegalArgumentException("[aliases] can't be empty");
             }
             for (String alias : aliases) {
-                if (false == org.opensearch.core.common.Strings.hasLength(alias)) {
+                if (false == Strings.hasLength(alias)) {
                     throw new IllegalArgumentException("[aliases] can't contain empty string");
                 }
             }
@@ -367,7 +367,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (type == AliasActions.Type.REMOVE_INDEX) {
                 throw new IllegalArgumentException("[alias] is unsupported for [" + type + "]");
             }
-            if (false == org.opensearch.core.common.Strings.hasLength(alias)) {
+            if (false == Strings.hasLength(alias)) {
                 throw new IllegalArgumentException("[alias] can't be empty string");
             }
             this.aliases = new String[] { alias };
@@ -430,7 +430,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             try {
                 XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
                 builder.map(filter);
-                this.filter = Strings.toString(builder);
+                this.filter = org.opensearch.common.Strings.toString(builder);
                 return this;
             } catch (IOException e) {
                 throw new OpenSearchGenerationException("Failed to generate [" + filter + "]", e);
@@ -446,7 +446,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 XContentBuilder builder = XContentFactory.jsonBuilder();
                 filter.toXContent(builder, ToXContent.EMPTY_PARAMS);
                 builder.close();
-                this.filter = Strings.toString(builder);
+                this.filter = org.opensearch.common.Strings.toString(builder);
                 return this;
             } catch (IOException e) {
                 throw new OpenSearchGenerationException("Failed to build json for alias request", e);
@@ -530,18 +530,18 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (0 != aliases.length) {
                 builder.array(ALIASES.getPreferredName(), aliases);
             }
-            if (false == org.opensearch.core.common.Strings.isEmpty(filter)) {
+            if (false == Strings.isEmpty(filter)) {
                 try (InputStream stream = new BytesArray(filter).streamInput()) {
                     builder.rawField(FILTER.getPreferredName(), stream, XContentType.JSON);
                 }
             }
-            if (false == org.opensearch.core.common.Strings.isEmpty(routing)) {
+            if (false == Strings.isEmpty(routing)) {
                 builder.field(ROUTING.getPreferredName(), routing);
             }
-            if (false == org.opensearch.core.common.Strings.isEmpty(indexRouting)) {
+            if (false == Strings.isEmpty(indexRouting)) {
                 builder.field(INDEX_ROUTING.getPreferredName(), indexRouting);
             }
-            if (false == org.opensearch.core.common.Strings.isEmpty(searchRouting)) {
+            if (false == Strings.isEmpty(searchRouting)) {
                 builder.field(SEARCH_ROUTING.getPreferredName(), searchRouting);
             }
             if (null != writeIndex) {

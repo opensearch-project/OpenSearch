@@ -99,7 +99,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
      * @param fieldName name of indexed geo field to operate distance computation on.
      * */
     public GeoDistanceQueryBuilder(String fieldName) {
-        if (org.opensearch.core.common.Strings.isEmpty(fieldName)) {
+        if (Strings.isEmpty(fieldName)) {
             throw new IllegalArgumentException("fieldName must not be null or empty");
         }
         this.fieldName = fieldName;
@@ -166,7 +166,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
 
     /** Sets the distance from the center for this query. */
     public GeoDistanceQueryBuilder distance(String distance, DistanceUnit unit) {
-        if (org.opensearch.core.common.Strings.isEmpty(distance)) {
+        if (Strings.isEmpty(distance)) {
             throw new IllegalArgumentException("distance must not be null or empty");
         }
         if (unit == null) {

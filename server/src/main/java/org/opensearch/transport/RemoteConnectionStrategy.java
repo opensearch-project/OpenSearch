@@ -217,7 +217,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             return seeds.isEmpty() == false;
         } else {
             String address = ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace(clusterAlias).get(settings);
-            return org.opensearch.core.common.Strings.isEmpty(address) == false;
+            return Strings.isEmpty(address) == false;
         }
     }
 

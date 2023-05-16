@@ -323,10 +323,7 @@ public class IndicesLifecycleListenerIT extends OpenSearchIntegTestCase {
         public String toString() {
             StringBuilder sb = new StringBuilder();
             for (Map.Entry<ShardId, List<IndexShardState>> entry : shardStates.entrySet()) {
-                sb.append(entry.getKey())
-                    .append(" --> ")
-                    .append(org.opensearch.core.common.Strings.collectionToCommaDelimitedString(entry.getValue()))
-                    .append("\n");
+                sb.append(entry.getKey()).append(" --> ").append(Strings.collectionToCommaDelimitedString(entry.getValue())).append("\n");
             }
             return sb.toString();
         }

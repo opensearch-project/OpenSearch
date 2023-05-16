@@ -208,7 +208,7 @@ final class DocumentParser {
             for (String part : parts) {
                 if (Strings.hasText(part) == false) {
                     // check if the field name contains only whitespace
-                    if (org.opensearch.core.common.Strings.isEmpty(part) == false) {
+                    if (Strings.isEmpty(part) == false) {
                         throw new IllegalArgumentException("object field cannot contain only whitespace: ['" + fullFieldPath + "']");
                     }
                     throw new IllegalArgumentException(
@@ -218,7 +218,7 @@ final class DocumentParser {
             }
             return parts;
         } else {
-            if (org.opensearch.core.common.Strings.isEmpty(fullFieldPath)) {
+            if (Strings.isEmpty(fullFieldPath)) {
                 throw new IllegalArgumentException("field name cannot be an empty string");
             }
             return new String[] { fullFieldPath };

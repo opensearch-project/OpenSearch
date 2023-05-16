@@ -470,7 +470,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             }
             BytesRestResponse bytesRestResponse = BytesRestResponse.createSimpleErrorResponse(channel, METHOD_NOT_ALLOWED, msg.toString());
             if (validMethodSet.isEmpty() == false) {
-                bytesRestResponse.addHeader("Allow", org.opensearch.core.common.Strings.collectionToDelimitedString(validMethodSet, ","));
+                bytesRestResponse.addHeader("Allow", Strings.collectionToDelimitedString(validMethodSet, ","));
             }
             channel.sendResponse(bytesRestResponse);
         } catch (final IOException e) {
@@ -491,7 +491,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         // When we have an OPTIONS HTTP request and no valid handlers, simply send OK by default (with the Access Control Origin header
         // which gets automatically added).
         if (validMethodSet.isEmpty() == false) {
-            bytesRestResponse.addHeader("Allow", org.opensearch.core.common.Strings.collectionToDelimitedString(validMethodSet, ","));
+            bytesRestResponse.addHeader("Allow", Strings.collectionToDelimitedString(validMethodSet, ","));
         }
         channel.sendResponse(bytesRestResponse);
     }

@@ -299,7 +299,7 @@ public class TransportSnapshotsStatusAction extends TransportClusterManagerNodeA
         }
         // Now add snapshots on disk that are not currently running
         final String repositoryName = request.repository();
-        if (org.opensearch.core.common.Strings.hasText(repositoryName) && CollectionUtils.isEmpty(request.snapshots()) == false) {
+        if (Strings.hasText(repositoryName) && CollectionUtils.isEmpty(request.snapshots()) == false) {
             loadRepositoryData(snapshotsInProgress, request, builder, currentSnapshotNames, repositoryName, listener);
         } else {
             listener.onResponse(new SnapshotsStatusResponse(Collections.unmodifiableList(builder)));

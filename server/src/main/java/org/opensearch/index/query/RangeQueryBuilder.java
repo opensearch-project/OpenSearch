@@ -91,7 +91,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
      * @param fieldName The field name
      */
     public RangeQueryBuilder(String fieldName) {
-        if (org.opensearch.core.common.Strings.isEmpty(fieldName)) {
+        if (Strings.isEmpty(fieldName)) {
             throw new IllegalArgumentException("field name is null or empty");
         }
         this.fieldName = fieldName;
@@ -303,7 +303,7 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     }
 
     DateMathParser getForceDateParser() { // pkg private for testing
-        if (org.opensearch.core.common.Strings.hasText(format)) {
+        if (Strings.hasText(format)) {
             return DateFormatter.forPattern(this.format).toDateMathParser();
         }
         return null;

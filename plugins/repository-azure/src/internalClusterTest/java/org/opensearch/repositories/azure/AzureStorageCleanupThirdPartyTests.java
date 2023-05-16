@@ -74,7 +74,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
     @Override
     protected Settings nodeSettings() {
         final String endpoint = System.getProperty("test.azure.endpoint_suffix");
-        if (org.opensearch.core.common.Strings.hasText(endpoint)) {
+        if (Strings.hasText(endpoint)) {
             return Settings.builder().put(super.nodeSettings()).put("azure.client.default.endpoint_suffix", endpoint).build();
         }
         return super.nodeSettings();
@@ -83,7 +83,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
     @Override
     protected SecureSettings credentials() {
         assertThat(System.getProperty("test.azure.account"), not(blankOrNullString()));
-        final boolean hasSasToken = org.opensearch.core.common.Strings.hasText(System.getProperty("test.azure.sas_token"));
+        final boolean hasSasToken = Strings.hasText(System.getProperty("test.azure.sas_token"));
         if (hasSasToken == false) {
             assertThat(System.getProperty("test.azure.key"), not(blankOrNullString()));
         } else {

@@ -402,7 +402,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             List<String> list = (List<String>) value;
             return list.toArray(new String[0]);
         } else if (value instanceof String) {
-            return org.opensearch.core.common.Strings.splitStringByCommaToArray((String) value);
+            return Strings.splitStringByCommaToArray((String) value);
         } else {
             throw new IllegalArgumentException("Expected [" + name + "] to be a list or a string but was [" + value + ']');
         }

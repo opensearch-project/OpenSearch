@@ -101,17 +101,15 @@ public class SameShardAllocationDecider extends AllocationDecider {
                 // check if its on the same host as the one we want to allocate to
                 boolean checkNodeOnSameHostName = false;
                 boolean checkNodeOnSameHostAddress = false;
-                if (org.opensearch.core.common.Strings.hasLength(checkNode.node().getHostAddress())
-                    && org.opensearch.core.common.Strings.hasLength(node.node().getHostAddress())) {
+                if (Strings.hasLength(checkNode.node().getHostAddress()) && Strings.hasLength(node.node().getHostAddress())) {
                     if (checkNode.node().getHostAddress().equals(node.node().getHostAddress())) {
                         checkNodeOnSameHostAddress = true;
                     }
-                } else if (org.opensearch.core.common.Strings.hasLength(checkNode.node().getHostName())
-                    && Strings.hasLength(node.node().getHostName())) {
-                        if (checkNode.node().getHostName().equals(node.node().getHostName())) {
-                            checkNodeOnSameHostName = true;
-                        }
+                } else if (Strings.hasLength(checkNode.node().getHostName()) && Strings.hasLength(node.node().getHostName())) {
+                    if (checkNode.node().getHostName().equals(node.node().getHostName())) {
+                        checkNodeOnSameHostName = true;
                     }
+                }
                 if (checkNodeOnSameHostAddress || checkNodeOnSameHostName) {
                     for (ShardRouting assignedShard : assignedShards) {
                         if (checkNode.nodeId().equals(assignedShard.currentNodeId())) {

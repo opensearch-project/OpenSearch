@@ -103,7 +103,7 @@ public final class HdfsRepository extends BlobStoreRepository {
                 )
             );
         }
-        if (org.opensearch.core.common.Strings.hasLength(uri.getPath()) && uri.getPath().equals("/") == false) {
+        if (Strings.hasLength(uri.getPath()) && uri.getPath().equals("/") == false) {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,

@@ -187,7 +187,7 @@ public class RestTable {
                     for (Table.Cell headerCell : table.getHeaders()) {
                         String aliases = headerCell.attr.get("alias");
                         if (aliases != null) {
-                            for (String alias : org.opensearch.core.common.Strings.splitStringByCommaToArray(aliases)) {
+                            for (String alias : Strings.splitStringByCommaToArray(aliases)) {
                                 if (possibility.equals(alias)) {
                                     dispHeader = new DisplayHeader(headerCell.value.toString(), alias);
                                     break;
@@ -247,7 +247,7 @@ public class RestTable {
         Set<String> headers = new LinkedHashSet<>(table.getHeaders().size());
 
         // check headers and aliases
-        for (String header : org.opensearch.core.common.Strings.splitStringByCommaToArray(request.param("h"))) {
+        for (String header : Strings.splitStringByCommaToArray(request.param("h"))) {
             if (Regex.isSimpleMatchPattern(header)) {
                 for (Table.Cell tableHeaderCell : table.getHeaders()) {
                     String configuredHeader = tableHeaderCell.value.toString();

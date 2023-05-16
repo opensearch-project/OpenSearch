@@ -154,7 +154,7 @@ public class RestSearchAction extends BaseRestHandler {
         if (searchRequest.source() == null) {
             searchRequest.source(new SearchSourceBuilder());
         }
-        searchRequest.indices(org.opensearch.core.common.Strings.splitStringByCommaToArray(request.param("index")));
+        searchRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
         if (requestContentParser != null) {
             searchRequest.source().parseXContent(requestContentParser, true);
         }
@@ -265,7 +265,7 @@ public class RestSearchAction extends BaseRestHandler {
         String sDocValueFields = request.param("docvalue_fields");
         if (sDocValueFields != null) {
             if (Strings.hasText(sDocValueFields)) {
-                String[] sFields = org.opensearch.core.common.Strings.splitStringByCommaToArray(sDocValueFields);
+                String[] sFields = Strings.splitStringByCommaToArray(sDocValueFields);
                 for (String field : sFields) {
                     searchSourceBuilder.docValueField(field, null);
                 }
@@ -292,7 +292,7 @@ public class RestSearchAction extends BaseRestHandler {
 
         String sSorts = request.param("sort");
         if (sSorts != null) {
-            String[] sorts = org.opensearch.core.common.Strings.splitStringByCommaToArray(sSorts);
+            String[] sorts = Strings.splitStringByCommaToArray(sSorts);
             for (String sort : sorts) {
                 int delimiter = sort.lastIndexOf(":");
                 if (delimiter != -1) {
@@ -311,7 +311,7 @@ public class RestSearchAction extends BaseRestHandler {
 
         String sStats = request.param("stats");
         if (sStats != null) {
-            searchSourceBuilder.stats(Arrays.asList(org.opensearch.core.common.Strings.splitStringByCommaToArray(sStats)));
+            searchSourceBuilder.stats(Arrays.asList(Strings.splitStringByCommaToArray(sStats)));
         }
 
         String suggestField = request.param("suggest_field");

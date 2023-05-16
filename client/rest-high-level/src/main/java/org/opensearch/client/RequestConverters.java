@@ -220,7 +220,7 @@ final class RequestConverters {
 
                     if (opType == DocWriteRequest.OpType.INDEX || opType == DocWriteRequest.OpType.CREATE) {
                         IndexRequest indexRequest = (IndexRequest) action;
-                        if (org.opensearch.core.common.Strings.hasLength(indexRequest.getPipeline())) {
+                        if (Strings.hasLength(indexRequest.getPipeline())) {
                             metadata.field("pipeline", indexRequest.getPipeline());
                         }
                     } else if (opType == DocWriteRequest.OpType.UPDATE) {
@@ -338,7 +338,7 @@ final class RequestConverters {
     }
 
     static Request index(IndexRequest indexRequest) {
-        String method = org.opensearch.core.common.Strings.hasLength(indexRequest.id()) ? HttpPut.METHOD_NAME : HttpPost.METHOD_NAME;
+        String method = Strings.hasLength(indexRequest.id()) ? HttpPut.METHOD_NAME : HttpPost.METHOD_NAME;
 
         String endpoint;
         if (indexRequest.opType() == DocWriteRequest.OpType.CREATE) {
@@ -747,7 +747,7 @@ final class RequestConverters {
         Params params = new Params();
         params.withTimeout(putStoredScriptRequest.timeout());
         params.withClusterManagerTimeout(putStoredScriptRequest.clusterManagerNodeTimeout());
-        if (org.opensearch.core.common.Strings.hasText(putStoredScriptRequest.context())) {
+        if (Strings.hasText(putStoredScriptRequest.context())) {
             params.putParam("context", putStoredScriptRequest.context());
         }
         request.addParameters(params.asMap());
@@ -903,7 +903,7 @@ final class RequestConverters {
         Params() {}
 
         Params putParam(String name, String value) {
-            if (org.opensearch.core.common.Strings.hasLength(value)) {
+            if (Strings.hasLength(value)) {
                 parameters.put(name, value);
             }
             return this;
@@ -1298,7 +1298,7 @@ final class RequestConverters {
 
         EndpointBuilder addPathPart(String... parts) {
             for (String part : parts) {
-                if (org.opensearch.core.common.Strings.hasLength(part)) {
+                if (Strings.hasLength(part)) {
                     joiner.add(encodePart(part));
                 }
             }
@@ -1317,7 +1317,7 @@ final class RequestConverters {
 
         EndpointBuilder addPathPartAsIs(String... parts) {
             for (String part : parts) {
-                if (org.opensearch.core.common.Strings.hasLength(part)) {
+                if (Strings.hasLength(part)) {
                     joiner.add(part);
                 }
             }

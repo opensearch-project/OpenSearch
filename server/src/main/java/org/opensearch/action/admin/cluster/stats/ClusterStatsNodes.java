@@ -684,7 +684,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
                     NetworkModule.TRANSPORT_DEFAULT_TYPE_SETTING.get(settings)
                 );
                 final String httpType = settings.get(NetworkModule.HTTP_TYPE_KEY, NetworkModule.HTTP_DEFAULT_TYPE_SETTING.get(settings));
-                if (org.opensearch.core.common.Strings.hasText(transportType)) {
+                if (Strings.hasText(transportType)) {
                     transportTypes.computeIfAbsent(transportType, k -> new AtomicInteger()).incrementAndGet();
                 }
                 if (Strings.hasText(httpType)) {

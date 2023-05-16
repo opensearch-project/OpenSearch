@@ -309,7 +309,7 @@ public class DoSection implements ExecutableSection {
                 apiCallSection.getHeaders(),
                 apiCallSection.getNodeSelector()
             );
-            if (org.opensearch.core.common.Strings.hasLength(catchParam)) {
+            if (Strings.hasLength(catchParam)) {
                 String catchStatusCode;
                 if (catches.containsKey(catchParam)) {
                     catchStatusCode = catches.get(catchParam).v1();

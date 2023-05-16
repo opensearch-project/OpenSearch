@@ -985,7 +985,7 @@ public final class IndexSettings {
      * Returns <code>true</code> if the index has a custom data path
      */
     public boolean hasCustomDataPath() {
-        return !org.opensearch.core.common.Strings.isEmpty(customDataPath());
+        return Strings.isEmpty(customDataPath()) == false;
     }
 
     /**

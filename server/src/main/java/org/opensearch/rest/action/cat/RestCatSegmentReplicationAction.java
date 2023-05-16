@@ -65,7 +65,7 @@ public class RestCatSegmentReplicationAction extends AbstractCatAction {
     @Override
     public BaseRestHandler.RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final SegmentReplicationStatsRequest segmentReplicationStatsRequest = new SegmentReplicationStatsRequest(
-            org.opensearch.core.common.Strings.splitStringByCommaToArray(request.param("index"))
+            Strings.splitStringByCommaToArray(request.param("index"))
         );
         segmentReplicationStatsRequest.timeout(request.param("timeout"));
         segmentReplicationStatsRequest.detailed(request.paramAsBoolean("detailed", false));

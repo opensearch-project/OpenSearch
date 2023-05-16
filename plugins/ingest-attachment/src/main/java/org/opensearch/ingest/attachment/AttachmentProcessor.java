@@ -129,12 +129,12 @@ public final class AttachmentProcessor extends AbstractProcessor {
             throw new OpenSearchParseException("Error parsing document in field [{}]", e, field);
         }
 
-        if (properties.contains(Property.CONTENT) && org.opensearch.core.common.Strings.hasLength(parsedContent)) {
+        if (properties.contains(Property.CONTENT) && Strings.hasLength(parsedContent)) {
             // somehow tika seems to append a newline at the end automatically, lets remove that again
             additionalFields.put(Property.CONTENT.toLowerCase(), parsedContent.trim());
         }
 
-        if (properties.contains(Property.LANGUAGE) && org.opensearch.core.common.Strings.hasLength(parsedContent)) {
+        if (properties.contains(Property.LANGUAGE) && Strings.hasLength(parsedContent)) {
             OptimaizeLangDetector langDetector = new OptimaizeLangDetector();
             langDetector.loadModels();
             LanguageResult result = langDetector.detect(parsedContent);
@@ -151,19 +151,19 @@ public final class AttachmentProcessor extends AbstractProcessor {
 
         if (properties.contains(Property.TITLE)) {
             String title = metadata.get(TikaCoreProperties.TITLE);
-            if (org.opensearch.core.common.Strings.hasLength(title)) {
+            if (Strings.hasLength(title)) {
                 additionalFields.put(Property.TITLE.toLowerCase(), title);
             }
         }
 
         if (properties.contains(Property.AUTHOR)) {
             String author = metadata.get("Author");
-            if (org.opensearch.core.common.Strings.hasLength(author)) {
+            if (Strings.hasLength(author)) {
                 additionalFields.put(Property.AUTHOR.toLowerCase(), author);
             } else {
                 // The MSOffice parser has deprecated "Author" in favor of "Creator"
                 author = metadata.get(TikaCoreProperties.CREATOR);
-                if (org.opensearch.core.common.Strings.hasLength(author)) {
+                if (Strings.hasLength(author)) {
                     additionalFields.put(Property.AUTHOR.toLowerCase(), author);
                 }
             }
@@ -171,12 +171,12 @@ public final class AttachmentProcessor extends AbstractProcessor {
 
         if (properties.contains(Property.KEYWORDS)) {
             String keywords = metadata.get("Keywords");
-            if (org.opensearch.core.common.Strings.hasLength(keywords)) {
+            if (Strings.hasLength(keywords)) {
                 additionalFields.put(Property.KEYWORDS.toLowerCase(), keywords);
             } else {
                 // Fallback - EPUBs put their keywords as multiple subject fields by convention
                 keywords = metadata.get(TikaCoreProperties.SUBJECT);
-                if (org.opensearch.core.common.Strings.hasLength(keywords)) {
+                if (Strings.hasLength(keywords)) {
                     additionalFields.put(Property.KEYWORDS.toLowerCase(), keywords);
                 }
             }
@@ -184,7 +184,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
 
         if (properties.contains(Property.CONTENT_TYPE)) {
             String contentType = metadata.get(Metadata.CONTENT_TYPE);
-            if (org.opensearch.core.common.Strings.hasLength(contentType)) {
+            if (Strings.hasLength(contentType)) {
                 additionalFields.put(Property.CONTENT_TYPE.toLowerCase(), contentType);
             }
         }

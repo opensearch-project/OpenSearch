@@ -228,7 +228,7 @@ public class GceSeedHostsProvider implements SeedHostsProvider {
                         // Trying to get Public IP Address (For future use)
                         if (networkInterface.getAccessConfigs() != null) {
                             for (AccessConfig accessConfig : networkInterface.getAccessConfigs()) {
-                                if (org.opensearch.core.common.Strings.hasText(accessConfig.getNatIP())) {
+                                if (Strings.hasText(accessConfig.getNatIP())) {
                                     ip_public = accessConfig.getNatIP();
                                     break;
                                 }

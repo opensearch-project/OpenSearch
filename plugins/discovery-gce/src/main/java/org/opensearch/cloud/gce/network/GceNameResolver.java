@@ -97,7 +97,7 @@ public class GceNameResolver implements CustomNameResolver {
         String gceMetadataPath;
         if (value.equals(GceAddressResolverType.GCE.configName)) {
             // We replace network placeholder with default network interface value: 0
-            gceMetadataPath = org.opensearch.core.common.Strings.replace(GceAddressResolverType.GCE.gceName, "{{network}}", "0");
+            gceMetadataPath = Strings.replace(GceAddressResolverType.GCE.gceName, "{{network}}", "0");
         } else if (value.equals(GceAddressResolverType.PRIVATE_DNS.configName)) {
             gceMetadataPath = GceAddressResolverType.PRIVATE_DNS.gceName;
         } else if (value.startsWith(GceAddressResolverType.PRIVATE_IP.configName)) {

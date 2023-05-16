@@ -80,7 +80,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final String[] indices = org.opensearch.core.common.Strings.splitStringByCommaToArray(request.param("index"));
+        final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final String[] fields = Strings.splitStringByCommaToArray(request.param("fields"));
 
         GetFieldMappingsRequest getMappingsRequest = new GetFieldMappingsRequest();

@@ -90,7 +90,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * constructor used internally for serialization of both value / termslookup variants
      */
     TermsQueryBuilder(String fieldName, List<Object> values, TermsLookup termsLookup) {
-        if (org.opensearch.core.common.Strings.isEmpty(fieldName)) {
+        if (Strings.isEmpty(fieldName)) {
             throw new IllegalArgumentException("field name cannot be null.");
         }
         if (values == null && termsLookup == null) {

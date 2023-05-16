@@ -297,7 +297,7 @@ public interface IndexAbstraction {
                     "alias ["
                         + aliasName
                         + "] has more than one write index ["
-                        + org.opensearch.core.common.Strings.collectionToCommaDelimitedString(writeIndicesStrings)
+                        + Strings.collectionToCommaDelimitedString(writeIndicesStrings)
                         + "]"
                 );
             }
@@ -318,7 +318,7 @@ public interface IndexAbstraction {
                     "alias ["
                         + aliasName
                         + "] has is_hidden set to true on indices ["
-                        + org.opensearch.core.common.Strings.collectionToCommaDelimitedString(hiddenOn)
+                        + Strings.collectionToCommaDelimitedString(hiddenOn)
                         + "] but does not have is_hidden set to true on indices ["
                         + Strings.collectionToCommaDelimitedString(nonHiddenOn)
                         + "]; alias must have the same is_hidden setting "

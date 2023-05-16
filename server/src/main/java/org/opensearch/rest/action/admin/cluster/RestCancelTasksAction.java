@@ -73,7 +73,7 @@ public class RestCancelTasksAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final String[] nodesIds = org.opensearch.core.common.Strings.splitStringByCommaToArray(request.param("nodes"));
+        final String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodes"));
         final TaskId taskId = new TaskId(request.param("task_id"));
         final String[] actions = Strings.splitStringByCommaToArray(request.param("actions"));
         final TaskId parentTaskId = new TaskId(request.param("parent_task_id"));

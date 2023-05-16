@@ -211,7 +211,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 final String message = String.format(
                     Locale.ROOT,
                     "missing mandatory plugins [%s], found plugins [%s]",
-                    org.opensearch.core.common.Strings.collectionToDelimitedString(missingPlugins, ", "),
+                    Strings.collectionToDelimitedString(missingPlugins, ", "),
                     Strings.collectionToDelimitedString(pluginsNames, ", ")
                 );
                 throw new IllegalStateException(message);

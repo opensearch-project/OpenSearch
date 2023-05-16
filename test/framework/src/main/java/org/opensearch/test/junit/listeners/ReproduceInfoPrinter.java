@@ -163,7 +163,7 @@ public class ReproduceInfoPrinter extends RunListener {
                 // we always use the default prefix
                 return this;
             }
-            if (org.opensearch.core.common.Strings.hasLength(value)) {
+            if (Strings.hasLength(value)) {
                 return super.appendOpt(sysPropName, value);
             }
             return this;

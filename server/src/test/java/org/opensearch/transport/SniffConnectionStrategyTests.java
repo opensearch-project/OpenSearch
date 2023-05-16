@@ -712,25 +712,16 @@ public class SniffConnectionStrategyTests extends OpenSearchTestCase {
                     );
 
                     Settings noChange = Settings.builder()
-                        .put(
-                            seedSetting.getKey(),
-                            org.opensearch.core.common.Strings.arrayToCommaDelimitedString(seedNodes(seedNode).toArray())
-                        )
+                        .put(seedSetting.getKey(), Strings.arrayToCommaDelimitedString(seedNodes(seedNode).toArray()))
                         .put(numConnections.getKey(), 3)
                         .build();
                     assertFalse(strategy.shouldRebuildConnection(noChange));
                     Settings seedsChanged = Settings.builder()
-                        .put(
-                            seedSetting.getKey(),
-                            org.opensearch.core.common.Strings.arrayToCommaDelimitedString(seedNodes(discoverableNode).toArray())
-                        )
+                        .put(seedSetting.getKey(), Strings.arrayToCommaDelimitedString(seedNodes(discoverableNode).toArray()))
                         .build();
                     assertTrue(strategy.shouldRebuildConnection(seedsChanged));
                     Settings proxyChanged = Settings.builder()
-                        .put(
-                            seedSetting.getKey(),
-                            org.opensearch.core.common.Strings.arrayToCommaDelimitedString(seedNodes(seedNode).toArray())
-                        )
+                        .put(seedSetting.getKey(), Strings.arrayToCommaDelimitedString(seedNodes(seedNode).toArray()))
                         .put(proxySetting.getKey(), "proxy_address:9300")
                         .build();
                     assertTrue(strategy.shouldRebuildConnection(proxyChanged));

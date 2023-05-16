@@ -104,8 +104,8 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
         }
 
         return new AddVotingConfigExclusionsRequest(
-            org.opensearch.core.common.Strings.splitStringByCommaToArray(deprecatedNodeDescription),
-            org.opensearch.core.common.Strings.splitStringByCommaToArray(nodeIds),
+            Strings.splitStringByCommaToArray(deprecatedNodeDescription),
+            Strings.splitStringByCommaToArray(nodeIds),
             Strings.splitStringByCommaToArray(nodeNames),
             TimeValue.parseTimeValue(request.param("timeout"), DEFAULT_TIMEOUT, getClass().getSimpleName() + ".timeout")
         );

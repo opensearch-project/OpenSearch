@@ -204,7 +204,7 @@ public class AzureSeedHostsProvider implements SeedHostsProvider {
             }
 
             // If provided, we check the deployment name
-            if (org.opensearch.core.common.Strings.hasLength(deploymentName) && !deploymentName.equals(deployment.getName())) {
+            if (Strings.hasLength(deploymentName) && !deploymentName.equals(deployment.getName())) {
                 logger.debug("current deployment name [{}] different from [{}]. skipping...", deployment.getName(), deploymentName);
                 continue;
             }

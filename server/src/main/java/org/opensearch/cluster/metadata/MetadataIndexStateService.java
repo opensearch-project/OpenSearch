@@ -187,9 +187,7 @@ public class MetadataIndexStateService {
         }
         if (writeIndices.size() > 0) {
             throw new IllegalArgumentException(
-                "cannot close the following data stream write indices ["
-                    + org.opensearch.core.common.Strings.collectionToCommaDelimitedString(writeIndices)
-                    + "]"
+                "cannot close the following data stream write indices [" + Strings.collectionToCommaDelimitedString(writeIndices) + "]"
             );
         }
 
@@ -368,7 +366,7 @@ public class MetadataIndexStateService {
                 // Create a new index closed block
                 indexBlock = createIndexClosingBlock();
             }
-            assert org.opensearch.core.common.Strings.hasLength(indexBlock.uuid()) : "Closing block should have a UUID";
+            assert Strings.hasLength(indexBlock.uuid()) : "Closing block should have a UUID";
             blocks.addIndexBlock(index.getName(), indexBlock);
             blockedIndices.put(index, indexBlock);
         }
@@ -484,7 +482,7 @@ public class MetadataIndexStateService {
         if (writeIndices.size() > 0) {
             throw new IllegalArgumentException(
                 "cannot add a block to the following data stream write indices ["
-                    + org.opensearch.core.common.Strings.collectionToCommaDelimitedString(writeIndices)
+                    + Strings.collectionToCommaDelimitedString(writeIndices)
                     + "]"
             );
         }

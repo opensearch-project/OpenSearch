@@ -253,7 +253,7 @@ public class UnifiedHighlighter implements Highlighter {
     protected static String mergeFieldValues(List<Object> fieldValues, char valuesSeparator) {
         // postings highlighter accepts all values in a single string, as offsets etc. need to match with content
         // loaded from stored fields, we merge all values using a proper separator
-        String rawValue = org.opensearch.core.common.Strings.collectionToDelimitedString(fieldValues, String.valueOf(valuesSeparator));
+        String rawValue = Strings.collectionToDelimitedString(fieldValues, String.valueOf(valuesSeparator));
         return rawValue.substring(0, Math.min(rawValue.length(), Integer.MAX_VALUE - 1));
     }
 

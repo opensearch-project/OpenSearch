@@ -118,7 +118,7 @@ public class GoogleCloudStorageService {
                     "Unknown client name ["
                         + clientName
                         + "]. Existing client configs: "
-                        + org.opensearch.core.common.Strings.collectionToDelimitedString(clientSettings.keySet(), ",")
+                        + Strings.collectionToDelimitedString(clientSettings.keySet(), ",")
                 );
             }
 
@@ -202,15 +202,15 @@ public class GoogleCloudStorageService {
             .setTransportOptions(httpTransportOptions)
             .setHeaderProvider(() -> {
                 final MapBuilder<String, String> mapBuilder = MapBuilder.newMapBuilder();
-                if (org.opensearch.core.common.Strings.hasLength(clientSettings.getApplicationName())) {
+                if (Strings.hasLength(clientSettings.getApplicationName())) {
                     mapBuilder.put("user-agent", clientSettings.getApplicationName());
                 }
                 return mapBuilder.immutableMap();
             });
-        if (org.opensearch.core.common.Strings.hasLength(clientSettings.getHost())) {
+        if (Strings.hasLength(clientSettings.getHost())) {
             storageOptionsBuilder.setHost(clientSettings.getHost());
         }
-        if (org.opensearch.core.common.Strings.hasLength(clientSettings.getProjectId())) {
+        if (Strings.hasLength(clientSettings.getProjectId())) {
             storageOptionsBuilder.setProjectId(clientSettings.getProjectId());
         }
         if (clientSettings.getCredential() == null) {

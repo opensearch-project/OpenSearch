@@ -73,7 +73,7 @@ public class RestFieldCapabilitiesAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        String[] indices = org.opensearch.core.common.Strings.splitStringByCommaToArray(request.param("index"));
+        String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         FieldCapabilitiesRequest fieldRequest = new FieldCapabilitiesRequest().fields(
             Strings.splitStringByCommaToArray(request.param("fields"))
         ).indices(indices);

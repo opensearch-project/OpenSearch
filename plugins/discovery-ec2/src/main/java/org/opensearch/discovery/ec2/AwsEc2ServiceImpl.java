@@ -66,7 +66,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
         final AmazonEC2ClientBuilder builder = AmazonEC2ClientBuilder.standard()
             .withCredentials(credentials)
             .withClientConfiguration(configuration);
-        if (org.opensearch.core.common.Strings.hasText(endpoint)) {
+        if (Strings.hasText(endpoint)) {
             logger.debug("using explicit ec2 endpoint [{}]", endpoint);
             builder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, null));
         }

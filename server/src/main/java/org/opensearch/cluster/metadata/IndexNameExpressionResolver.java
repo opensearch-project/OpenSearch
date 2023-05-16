@@ -619,7 +619,7 @@ public class IndexNameExpressionResolver {
         // List of indices that don't require any routing
         Set<String> norouting = new HashSet<>();
         if (routing != null) {
-            paramRouting = Sets.newHashSet(org.opensearch.core.common.Strings.splitStringByCommaToArray(routing));
+            paramRouting = Sets.newHashSet(Strings.splitStringByCommaToArray(routing));
         }
 
         for (String expression : resolvedExpressions) {
@@ -696,7 +696,7 @@ public class IndexNameExpressionResolver {
      */
     public Map<String, Set<String>> resolveSearchRoutingAllIndices(Metadata metadata, String routing) {
         if (routing != null) {
-            Set<String> r = Sets.newHashSet(org.opensearch.core.common.Strings.splitStringByCommaToArray(routing));
+            Set<String> r = Sets.newHashSet(Strings.splitStringByCommaToArray(routing));
             Map<String, Set<String>> routings = new HashMap<>();
             String[] concreteIndices = metadata.getConcreteAllIndices();
             for (String index : concreteIndices) {
