@@ -33,7 +33,6 @@
 package org.opensearch.common.xcontent;
 
 import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.exc.StreamConstraintsException;
 import com.fasterxml.jackson.dataformat.yaml.JacksonYAMLParseException;
 
 import org.opensearch.common.CheckedSupplier;
@@ -73,35 +72,21 @@ import static org.junit.internal.matchers.ThrowableMessageMatcher.hasMessage;
 public class XContentParserTests extends OpenSearchTestCase {
     private static final Map<XContentType, Supplier<String>> GENERATORS = Map.of(
         XContentType.JSON,
-        () -> randomAlphaOfLengthBetween(1, JsonXContent.DEFAULT_MAX_STRING_LEN),
+        () -> randomAlphaOfLengthBetween(1, JsonXContent.DEFAULT_MAX_STRING_LEN / 10), /* limit to ~200Mb */
         XContentType.CBOR,
-        () -> randomAlphaOfLengthBetween(1, CborXContent.DEFAULT_MAX_STRING_LEN),
+        () -> randomAlphaOfLengthBetween(1, CborXContent.DEFAULT_MAX_STRING_LEN / 10), /* limit to ~200Mb */
         XContentType.SMILE,
-        () -> randomAlphaOfLengthBetween(1, SmileXContent.DEFAULT_MAX_STRING_LEN),
+        () -> randomAlphaOfLengthBetween(1, SmileXContent.DEFAULT_MAX_STRING_LEN / 10), /* limit to ~200Mb */
         /* YAML parser limitation */
         XContentType.YAML,
         () -> randomRealisticUnicodeOfCodepointLengthBetween(1, 3140000)
     );
 
-    private static final Map<XContentType, Supplier<String>> OFF_LIMIT_GENERATORS = Map.of(
-        XContentType.JSON,
-        () -> randomAlphaOfLength(JsonXContent.DEFAULT_MAX_STRING_LEN + 1),
-        XContentType.CBOR,
-        () -> randomAlphaOfLength(CborXContent.DEFAULT_MAX_STRING_LEN + 1),
-        XContentType.SMILE,
-        () -> randomAlphaOfLength(SmileXContent.DEFAULT_MAX_STRING_LEN + 1),
-        /* YAML parser limitation */
-        XContentType.YAML,
-        () -> randomRealisticUnicodeOfCodepointLength(3145730)
-    );
-
     public void testStringOffLimit() throws IOException {
-        final XContentType xContentType = randomFrom(XContentType.values());
-
         final String field = randomAlphaOfLengthBetween(1, 5);
-        final String value = OFF_LIMIT_GENERATORS.get(xContentType).get();
+        final String value = randomRealisticUnicodeOfCodepointLength(3145730);
 
-        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+        try (XContentBuilder builder = XContentBuilder.builder(XContentType.YAML.xContent())) {
             builder.startObject();
             if (randomBoolean()) {
                 builder.field(field, value);
@@ -110,16 +95,12 @@ public class XContentParserTests extends OpenSearchTestCase {
             }
             builder.endObject();
 
-            try (XContentParser parser = createParser(xContentType.xContent(), BytesReference.bytes(builder))) {
+            try (XContentParser parser = createParser(XContentType.YAML.xContent(), BytesReference.bytes(builder))) {
                 assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
                 assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
                 assertEquals(field, parser.currentName());
                 assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
-                if (xContentType != XContentType.YAML) {
-                    assertThrows(StreamConstraintsException.class, () -> parser.text());
-                } else {
-                    assertThrows(JacksonYAMLParseException.class, () -> parser.nextToken());
-                }
+                assertThrows(JacksonYAMLParseException.class, () -> parser.nextToken());
             }
         }
     }

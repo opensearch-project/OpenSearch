@@ -58,7 +58,7 @@ import java.util.Set;
  */
 public class CborXContent implements XContent {
     public static final int DEFAULT_MAX_STRING_LEN = Integer.parseInt(
-        System.getProperty("opensearch.xcontent.string.length.max", "50000000" /* ~50 Mb */)
+        System.getProperty("opensearch.xcontent.string.length.max", Integer.toString(Integer.MAX_VALUE) /* no limit */)
     );
 
     public static XContentBuilder contentBuilder() throws IOException {
