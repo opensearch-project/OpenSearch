@@ -24,6 +24,7 @@ import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
@@ -32,6 +33,7 @@ import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.plugins.SearchPipelinePlugin;
 import org.opensearch.search.SearchHit;
@@ -132,6 +134,47 @@ public class SearchPipelineServiceTests extends OpenSearchTestCase {
             () -> searchPipelineService.resolvePipeline(searchRequest)
         );
         assertTrue(e.getMessage(), e.getMessage().contains(" not defined"));
+    }
+
+    public void testResolveIndexDefaultPipeline() throws Exception {
+        SearchPipelineService service = createWithProcessors();
+
+        SearchPipelineMetadata metadata = new SearchPipelineMetadata(
+            Map.of(
+                "p1",
+                new PipelineConfiguration(
+                    "p1",
+                    new BytesArray("{\"request_processors\" : [ { \"scale_request_size\": { \"scale\" : 2 } } ] }"),
+                    XContentType.JSON
+                )
+            )
+        );
+        Settings defaultPipelineSetting = Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+            .put(IndexSettings.DEFAULT_SEARCH_PIPELINE.getKey(), "p1")
+            .build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("my_index").settings(defaultPipelineSetting).build();
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState previousState = clusterState;
+        clusterState = ClusterState.builder(clusterState)
+            .metadata(Metadata.builder().put(indexMetadata, false).putCustom(SearchPipelineMetadata.TYPE, metadata))
+            .build();
+
+        ClusterChangedEvent cce = new ClusterChangedEvent("", clusterState, previousState);
+        service.applyClusterState(cce);
+
+        SearchRequest searchRequest = new SearchRequest("my_index").source(SearchSourceBuilder.searchSource().size(5));
+        PipelinedRequest pipelinedRequest = service.resolvePipeline(searchRequest);
+        assertEquals("p1", pipelinedRequest.getPipeline().getId());
+        assertEquals(10, pipelinedRequest.transformedRequest().source().size());
+
+        // Bypass the default pipeline
+        searchRequest.pipeline("_none");
+        pipelinedRequest = service.resolvePipeline(searchRequest);
+        assertEquals("_none", pipelinedRequest.getPipeline().getId());
+        assertEquals(5, pipelinedRequest.transformedRequest().source().size());
     }
 
     private static abstract class FakeProcessor implements Processor {
