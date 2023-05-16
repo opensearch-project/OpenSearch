@@ -33,6 +33,7 @@ package org.opensearch.repositories.s3;
 
 import org.junit.Before;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
@@ -42,6 +43,7 @@ import java.util.Map;
 public class S3ServiceTests extends OpenSearchTestCase implements ConfigPathSupport {
     @Override
     @Before
+    @SuppressForbidden(reason = "Need to set system property here for AWS SDK v2")
     public void setUp() throws Exception {
         SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
 
