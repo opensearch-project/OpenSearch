@@ -13,7 +13,7 @@ import org.opensearch.OpenSearchException;
 /**
  * A named Route
  *
- * @opensearch.api
+ * @opensearch.internal
  */
 public class NamedRoute extends RestHandler.Route {
     private static final String VALID_ACTION_NAME_PATTERN = "^[a-zA-Z0-9:/*_]*$";
@@ -22,10 +22,7 @@ public class NamedRoute extends RestHandler.Route {
     private final String name;
 
     public boolean isValidRouteName(String routeName) {
-        if (routeName == null || routeName.isBlank()) {
-            return false;
-        }
-        if (routeName.length() > MAX_LENGTH_OF_ACTION_NAME) {
+        if (routeName == null || routeName.isBlank() || routeName.length() > MAX_LENGTH_OF_ACTION_NAME) {
             return false;
         }
         return routeName.matches(VALID_ACTION_NAME_PATTERN);
