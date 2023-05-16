@@ -58,8 +58,6 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
 
         assertEquals(jsonObject.get("rejection_count"), (int) pressureTrackerStats.rejectionCount);
         assertEquals(jsonObject.get("consecutive_failure_count"), (int) pressureTrackerStats.consecutiveFailuresCount);
-        assertEquals(jsonObject.get("failing_since_timestamp_in_millis"), (int) -1);
-        assertEquals(jsonObject.get("latest_failure_timestamp_in_millis"), (int) -1);
 
         assertEquals(((Map) jsonObject.get("total_uploads_in_bytes")).get("started"), (int) pressureTrackerStats.uploadBytesStarted);
         assertEquals(((Map) jsonObject.get("total_uploads_in_bytes")).get("succeeded"), (int) pressureTrackerStats.uploadBytesSucceeded);
@@ -93,8 +91,6 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
             try (StreamInput in = out.bytes().streamInput()) {
                 RemoteStoreStats deserializedStats = new RemoteStoreStats(in);
                 assertEquals(deserializedStats.getStats().shardId.toString(), stats.getStats().shardId.toString());
-                assertEquals(deserializedStats.getStats().latestLocalRefreshFilesCount, stats.getStats().latestLocalRefreshFilesCount);
-                assertEquals(deserializedStats.getStats().latestRemoteRefreshFilesCount, stats.getStats().latestRemoteRefreshFilesCount);
                 assertEquals(deserializedStats.getStats().localRefreshCount, stats.getStats().localRefreshCount);
                 assertEquals(deserializedStats.getStats().localRefreshTimeMs, stats.getStats().localRefreshTimeMs);
                 assertEquals(deserializedStats.getStats().remoteRefreshCount, stats.getStats().remoteRefreshCount);
@@ -115,8 +111,6 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
                 );
                 assertEquals(deserializedStats.getStats().uploadTimeMovingAverage, stats.getStats().uploadTimeMovingAverage, 0);
                 assertEquals(deserializedStats.getStats().bytesLag, stats.getStats().bytesLag);
-                assertEquals(deserializedStats.getStats().inflightUploads, stats.getStats().inflightUploads);
-                assertEquals(deserializedStats.getStats().inflightUploadBytes, stats.getStats().inflightUploadBytes);
             }
         }
     }
@@ -124,8 +118,6 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
     private RemoteRefreshSegmentTracker.Stats createPressureTrackerStats() {
         return new RemoteRefreshSegmentTracker.Stats(
             shardId,
-            3,
-            2,
             3,
             System.nanoTime() / 1_000_000L + randomIntBetween(10, 100),
             2,
@@ -142,9 +134,7 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
             2,
             3,
             4,
-            9,
-            3,
-            8
+            9
         );
     }
 }

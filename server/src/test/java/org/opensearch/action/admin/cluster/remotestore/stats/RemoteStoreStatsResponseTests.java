@@ -74,8 +74,6 @@ public class RemoteStoreStatsResponseTests extends OpenSearchTestCase {
 
         assertEquals(statsObject.get("rejection_count"), (int) pressureTrackerStats.rejectionCount);
         assertEquals(statsObject.get("consecutive_failure_count"), (int) pressureTrackerStats.consecutiveFailuresCount);
-        assertEquals(statsObject.get("failing_since_timestamp_in_millis"), (int) -1);
-        assertEquals(statsObject.get("latest_failure_timestamp_in_millis"), (int) -1);
 
         assertEquals(((Map) statsObject.get("total_uploads_in_bytes")).get("started"), (int) pressureTrackerStats.uploadBytesStarted);
         assertEquals(((Map) statsObject.get("total_uploads_in_bytes")).get("succeeded"), (int) pressureTrackerStats.uploadBytesSucceeded);
@@ -105,8 +103,6 @@ public class RemoteStoreStatsResponseTests extends OpenSearchTestCase {
         return new RemoteRefreshSegmentTracker.Stats(
             shardId,
             3,
-            2,
-            3,
             System.nanoTime() / 1_000_000L + randomIntBetween(10, 100),
             2,
             System.nanoTime() / 1_000_000L + randomIntBetween(10, 100),
@@ -122,9 +118,7 @@ public class RemoteStoreStatsResponseTests extends OpenSearchTestCase {
             2,
             3,
             4,
-            9,
-            3,
-            8
+            9
         );
     }
 

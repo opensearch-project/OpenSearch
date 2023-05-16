@@ -439,8 +439,6 @@ public class RemoteRefreshSegmentTracker {
     public RemoteRefreshSegmentTracker.Stats stats() {
         return new RemoteRefreshSegmentTracker.Stats(
             shardId,
-            latestLocalFileNameLengthMap.size(),
-            latestUploadFiles.size(),
             localRefreshSeqNo,
             localRefreshTimeMs,
             remoteRefreshSeqNo,
@@ -457,9 +455,7 @@ public class RemoteRefreshSegmentTracker {
             uploadBytesMovingAverageReference.get().getAverage(),
             uploadBytesPerSecMovingAverageReference.get().getAverage(),
             uploadTimeMsMovingAverageReference.get().getAverage(),
-            getBytesLag(),
-            getInflightUploads(),
-            getInflightUploadBytes()
+            getBytesLag()
         );
     }
 
@@ -469,8 +465,6 @@ public class RemoteRefreshSegmentTracker {
     public static class Stats implements Writeable {
 
         public final ShardId shardId;
-        public final long latestRemoteRefreshFilesCount;
-        public final long latestLocalRefreshFilesCount;
         public final long localRefreshCount;
         public final long localRefreshTimeMs;
         public final long remoteRefreshCount;
@@ -488,13 +482,9 @@ public class RemoteRefreshSegmentTracker {
         public final double uploadBytesPerSecMovingAverage;
         public final double uploadTimeMovingAverage;
         public final long bytesLag;
-        public final long inflightUploads;
-        public final long inflightUploadBytes;
 
         public Stats(
             ShardId shardId,
-            long latestLocalRefreshFilesCount,
-            long latestRemoteRefreshFilesCount,
             long localRefreshCount,
             long localRefreshTimeMs,
             long remoteRefreshCount,
@@ -511,13 +501,9 @@ public class RemoteRefreshSegmentTracker {
             double uploadBytesMovingAverage,
             double uploadBytesPerSecMovingAverage,
             double uploadTimeMovingAverage,
-            long bytesLag,
-            long inflightUploads,
-            long inflightUploadBytes
+            long bytesLag
         ) {
             this.shardId = shardId;
-            this.latestLocalRefreshFilesCount = latestLocalRefreshFilesCount;
-            this.latestRemoteRefreshFilesCount = latestRemoteRefreshFilesCount;
             this.localRefreshCount = localRefreshCount;
             this.localRefreshTimeMs = localRefreshTimeMs;
             this.remoteRefreshCount = remoteRefreshCount;
@@ -535,15 +521,11 @@ public class RemoteRefreshSegmentTracker {
             this.uploadBytesPerSecMovingAverage = uploadBytesPerSecMovingAverage;
             this.uploadTimeMovingAverage = uploadTimeMovingAverage;
             this.bytesLag = bytesLag;
-            this.inflightUploads = inflightUploads;
-            this.inflightUploadBytes = inflightUploadBytes;
         }
 
         public Stats(StreamInput in) throws IOException {
             try {
                 this.shardId = new ShardId(in);
-                this.latestLocalRefreshFilesCount = in.readLong();
-                this.latestRemoteRefreshFilesCount = in.readLong();
                 this.localRefreshCount = in.readLong();
                 this.localRefreshTimeMs = in.readLong();
                 this.remoteRefreshCount = in.readLong();
@@ -561,8 +543,6 @@ public class RemoteRefreshSegmentTracker {
                 this.uploadBytesPerSecMovingAverage = in.readDouble();
                 this.uploadTimeMovingAverage = in.readDouble();
                 this.bytesLag = in.readLong();
-                this.inflightUploads = in.readLong();
-                this.inflightUploadBytes = in.readLong();
             } catch (IOException e) {
                 throw e;
             }
@@ -571,8 +551,6 @@ public class RemoteRefreshSegmentTracker {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             shardId.writeTo(out);
-            out.writeLong(latestLocalRefreshFilesCount);
-            out.writeLong(latestRemoteRefreshFilesCount);
             out.writeLong(localRefreshCount);
             out.writeLong(localRefreshTimeMs);
             out.writeLong(remoteRefreshCount);
@@ -590,8 +568,6 @@ public class RemoteRefreshSegmentTracker {
             out.writeDouble(uploadBytesPerSecMovingAverage);
             out.writeDouble(uploadTimeMovingAverage);
             out.writeLong(bytesLag);
-            out.writeLong(inflightUploads);
-            out.writeLong(inflightUploadBytes);
         }
     }
 
