@@ -117,7 +117,7 @@ public class SkipSection {
 
         parser.nextToken();
 
-        if (Strings.hasLength(version) && features.isEmpty() == false) {
+        if (Strings.hasLength(version) == false && features.isEmpty()) {
             throw new ParsingException(parser.getTokenLocation(), "version or features is mandatory within skip section");
         }
         if (Strings.hasLength(version) && Strings.hasLength(reason) == false) {
