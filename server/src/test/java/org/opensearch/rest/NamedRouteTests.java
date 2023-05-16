@@ -8,7 +8,6 @@
 
 package org.opensearch.rest;
 
-import org.junit.Test;
 import org.opensearch.OpenSearchException;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -16,7 +15,6 @@ import static org.opensearch.rest.NamedRoute.MAX_LENGTH_OF_ACTION_NAME;
 
 public class NamedRouteTests extends OpenSearchTestCase {
 
-    @Test
     public void testNamedRouteWithNullName() {
         try {
             NamedRoute r = new NamedRoute(RestRequest.Method.GET, "foo/bar", null);
@@ -26,7 +24,6 @@ public class NamedRouteTests extends OpenSearchTestCase {
         }
     }
 
-    @Test
     public void testNamedRouteWithEmptyName() {
         try {
             NamedRoute r = new NamedRoute(RestRequest.Method.GET, "foo/bar", "");
@@ -36,7 +33,6 @@ public class NamedRouteTests extends OpenSearchTestCase {
         }
     }
 
-    @Test
     public void testNamedRouteWithNameContainingSpace() {
         try {
             NamedRoute r = new NamedRoute(RestRequest.Method.GET, "foo/bar", "foo bar");
@@ -46,7 +42,6 @@ public class NamedRouteTests extends OpenSearchTestCase {
         }
     }
 
-    @Test
     public void testNamedRouteWithNameContainingInvalidCharacters() {
         try {
             NamedRoute r = new NamedRoute(RestRequest.Method.GET, "foo/bar", "foo@bar!");
@@ -56,7 +51,6 @@ public class NamedRouteTests extends OpenSearchTestCase {
         }
     }
 
-    @Test
     public void testNamedRouteWithNameOverMaximumLength() {
         try {
             String repeated = new String(new char[MAX_LENGTH_OF_ACTION_NAME + 1]).replace("\0", "x");
@@ -67,7 +61,6 @@ public class NamedRouteTests extends OpenSearchTestCase {
         }
     }
 
-    @Test
     public void testNamedRouteWithValidActionName() {
         try {
             NamedRoute r = new NamedRoute(RestRequest.Method.GET, "foo/bar", "foo:bar");
@@ -76,7 +69,6 @@ public class NamedRouteTests extends OpenSearchTestCase {
         }
     }
 
-    @Test
     public void testNamedRouteWithValidActionNameWithForwardSlash() {
         try {
             NamedRoute r = new NamedRoute(RestRequest.Method.GET, "foo/bar", "foo:bar/baz");
@@ -85,7 +77,6 @@ public class NamedRouteTests extends OpenSearchTestCase {
         }
     }
 
-    @Test
     public void testNamedRouteWithValidActionNameWithWildcard() {
         try {
             NamedRoute r = new NamedRoute(RestRequest.Method.GET, "foo/bar", "foo:bar/*");
@@ -94,7 +85,6 @@ public class NamedRouteTests extends OpenSearchTestCase {
         }
     }
 
-    @Test
     public void testNamedRouteWithValidActionNameWithUnderscore() {
         try {
             NamedRoute r = new NamedRoute(RestRequest.Method.GET, "foo/bar", "foo:bar_baz");
