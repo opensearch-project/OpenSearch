@@ -24,6 +24,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -52,7 +53,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         indexDocs(1, numberOfDocs);
         indexShard.refresh("test");
 
-        remoteStoreRefreshListener = new RemoteStoreRefreshListener(indexShard);
+        remoteStoreRefreshListener = new RemoteStoreRefreshListener(indexShard, SegmentReplicationCheckpointPublisher.EMPTY);
     }
 
     private void indexDocs(int startDocId, int numberOfDocs) throws IOException {
@@ -316,7 +317,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             return indexShard.getEngine();
         }).when(shard).getEngine();
 
-        RemoteStoreRefreshListener refreshListener = new RemoteStoreRefreshListener(shard);
+        RemoteStoreRefreshListener refreshListener = new RemoteStoreRefreshListener(shard, SegmentReplicationCheckpointPublisher.EMPTY);
         refreshListener.afterRefresh(false);
     }
 
