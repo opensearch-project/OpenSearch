@@ -8,17 +8,12 @@
 
 package org.opensearch.action.admin.cluster.remotestore.stats;
 
-import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
-import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
-import org.opensearch.index.remote.RemoteRefreshSegmentPressureSettings;
 import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
@@ -28,12 +23,9 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Map;
 
-import static org.mockito.Mockito.mock;
 import static org.opensearch.core.xcontent.ToXContent.EMPTY_PARAMS;
 
 public class RemoteStoreStatsTests extends OpenSearchTestCase {
-    private RemoteRefreshSegmentPressureSettings pressureSettings;
-    private ClusterService clusterService;
     private ThreadPool threadPool;
     private ShardId shardId;
 
@@ -41,16 +33,6 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool("remote_store_stats_test");
-        clusterService = new ClusterService(
-            Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool
-        );
-        pressureSettings = new RemoteRefreshSegmentPressureSettings(
-            clusterService,
-            Settings.EMPTY,
-            mock(RemoteRefreshSegmentPressureService.class)
-        );
         shardId = new ShardId("index", "uuid", 0);
     }
 
@@ -68,32 +50,39 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
         stats.toXContent(builder, EMPTY_PARAMS);
         Map<String, Object> jsonObject = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
         assertEquals(jsonObject.get("shardId"), pressureTrackerStats.shardId.toString());
-        assertEquals(jsonObject.get("latest_remote_refresh_files_count"), (int) pressureTrackerStats.latestRemoteRefreshFilesCount);
-        assertEquals(jsonObject.get("latest_local_refresh_files_count"), (int) pressureTrackerStats.latestLocalRefreshFilesCount);
         assertEquals(jsonObject.get("local_refresh_timestamp_in_millis"), (int) pressureTrackerStats.localRefreshTimeMs);
         assertEquals(jsonObject.get("local_refresh_cumulative_count"), (int) pressureTrackerStats.localRefreshCount);
         assertEquals(jsonObject.get("remote_refresh_timestamp_in_millis"), (int) pressureTrackerStats.remoteRefreshTimeMs);
         assertEquals(jsonObject.get("remote_refresh_cumulative_count"), (int) pressureTrackerStats.remoteRefreshCount);
         assertEquals(jsonObject.get("bytes_lag"), (int) pressureTrackerStats.bytesLag);
-        assertEquals(jsonObject.get("inflight_upload_bytes"), (int) pressureTrackerStats.inflightUploadBytes);
-        assertEquals(jsonObject.get("inflight_remote_refreshes"), (int) pressureTrackerStats.inflightUploads);
+
         assertEquals(jsonObject.get("rejection_count"), (int) pressureTrackerStats.rejectionCount);
         assertEquals(jsonObject.get("consecutive_failure_count"), (int) pressureTrackerStats.consecutiveFailuresCount);
-        assertEquals(((Map) jsonObject.get("total_upload_in_bytes")).get("started"), (int) pressureTrackerStats.uploadBytesStarted);
-        assertEquals(((Map) jsonObject.get("total_upload_in_bytes")).get("succeeded"), (int) pressureTrackerStats.uploadBytesSucceeded);
-        assertEquals(((Map) jsonObject.get("total_upload_in_bytes")).get("failed"), (int) pressureTrackerStats.uploadBytesFailed);
+        assertEquals(jsonObject.get("failing_since_timestamp_in_millis"), (int) -1);
+        assertEquals(jsonObject.get("latest_failure_timestamp_in_millis"), (int) -1);
+
+        assertEquals(((Map) jsonObject.get("total_uploads_in_bytes")).get("started"), (int) pressureTrackerStats.uploadBytesStarted);
+        assertEquals(((Map) jsonObject.get("total_uploads_in_bytes")).get("succeeded"), (int) pressureTrackerStats.uploadBytesSucceeded);
+        assertEquals(((Map) jsonObject.get("total_uploads_in_bytes")).get("failed"), (int) pressureTrackerStats.uploadBytesFailed);
         assertEquals(
-            ((Map) ((Map) jsonObject.get("total_upload_in_bytes")).get("moving_avg")).get("started"),
+            ((Map) jsonObject.get("remote_refresh_size_in_bytes")).get("moving_avg"),
             pressureTrackerStats.uploadBytesMovingAverage
         );
         assertEquals(
-            ((Map) ((Map) jsonObject.get("upload_speed_in_bytes_per_sec")).get("moving_avg")).get("started"),
+            ((Map) jsonObject.get("remote_refresh_size_in_bytes")).get("last_successful"),
+            (int) pressureTrackerStats.lastSuccessfulRemoteRefreshBytes
+        );
+        assertEquals(
+            ((Map) jsonObject.get("upload_latency_in_bytes_per_sec")).get("moving_avg"),
             pressureTrackerStats.uploadBytesPerSecMovingAverage
         );
         assertEquals(((Map) jsonObject.get("total_remote_refresh")).get("started"), (int) pressureTrackerStats.totalUploadsStarted);
         assertEquals(((Map) jsonObject.get("total_remote_refresh")).get("succeeded"), (int) pressureTrackerStats.totalUploadsSucceeded);
         assertEquals(((Map) jsonObject.get("total_remote_refresh")).get("failed"), (int) pressureTrackerStats.totalUploadsFailed);
-        assertEquals(((Map) jsonObject.get("remote_refresh_latency")).get("moving_avg"), pressureTrackerStats.uploadTimeMovingAverage);
+        assertEquals(
+            ((Map) jsonObject.get("remote_refresh_latency_in_nanos")).get("moving_avg"),
+            pressureTrackerStats.uploadTimeMovingAverage
+        );
     }
 
     public void testSerialization() throws Exception {
@@ -149,6 +138,7 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
             5,
             3,
             2,
+            5,
             2,
             3,
             4,

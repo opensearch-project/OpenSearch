@@ -42,29 +42,29 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
             .field("shardId", remoteSegmentUploadShardStats.shardId)
-            .field("latest_remote_refresh_files_count", remoteSegmentUploadShardStats.latestRemoteRefreshFilesCount)
-            .field("latest_local_refresh_files_count", remoteSegmentUploadShardStats.latestLocalRefreshFilesCount)
+
             .field("local_refresh_timestamp_in_millis", remoteSegmentUploadShardStats.localRefreshTimeMs)
             .field("local_refresh_cumulative_count", remoteSegmentUploadShardStats.localRefreshCount)
             .field("remote_refresh_timestamp_in_millis", remoteSegmentUploadShardStats.remoteRefreshTimeMs)
             .field("remote_refresh_cumulative_count", remoteSegmentUploadShardStats.remoteRefreshCount)
             .field("bytes_lag", remoteSegmentUploadShardStats.bytesLag)
-            .field("inflight_upload_bytes", remoteSegmentUploadShardStats.inflightUploadBytes)
-            .field("inflight_remote_refreshes", remoteSegmentUploadShardStats.inflightUploads)
+
             .field("rejection_count", remoteSegmentUploadShardStats.rejectionCount)
-            .field("consecutive_failure_count", remoteSegmentUploadShardStats.consecutiveFailuresCount);
-        builder.startObject("total_upload_in_bytes");
+            .field("consecutive_failure_count", remoteSegmentUploadShardStats.consecutiveFailuresCount)
+            .field("failing_since_timestamp_in_millis", -1) // need another PR to be merged before intergration.
+            .field("latest_failure_timestamp_in_millis", -1);
+
+        builder.startObject("total_uploads_in_bytes");
         builder.field("started", remoteSegmentUploadShardStats.uploadBytesStarted)
             .field("succeeded", remoteSegmentUploadShardStats.uploadBytesSucceeded)
             .field("failed", remoteSegmentUploadShardStats.uploadBytesFailed);
-        builder.startObject("moving_avg");
-        builder.field("started", remoteSegmentUploadShardStats.uploadBytesMovingAverage);
         builder.endObject();
+        builder.startObject("remote_refresh_size_in_bytes");
+        builder.field("last_successful", remoteSegmentUploadShardStats.lastSuccessfulRemoteRefreshBytes);
+        builder.field("moving_avg", remoteSegmentUploadShardStats.uploadBytesMovingAverage);
         builder.endObject();
-        builder.startObject("upload_speed_in_bytes_per_sec");
-        builder.startObject("moving_avg");
-        builder.field("started", remoteSegmentUploadShardStats.uploadBytesPerSecMovingAverage);
-        builder.endObject();
+        builder.startObject("upload_latency_in_bytes_per_sec");
+        builder.field("moving_avg", remoteSegmentUploadShardStats.uploadBytesPerSecMovingAverage);
         builder.endObject();
 
         builder.startObject("total_remote_refresh");
@@ -73,7 +73,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
             .field("failed", remoteSegmentUploadShardStats.totalUploadsFailed);
         builder.endObject();
 
-        builder.startObject("remote_refresh_latency");
+        builder.startObject("remote_refresh_latency_in_nanos");
         builder.field("moving_avg", remoteSegmentUploadShardStats.uploadTimeMovingAverage);
         builder.endObject();
         builder.endObject();

@@ -68,6 +68,11 @@ public class RemoteRefreshSegmentTracker {
     private volatile long timeMsLag;
 
     /**
+     * Keeps track of the total bytes of segment files which were uploaded to remote store during last successful remote refresh
+     */
+    private volatile long lastSuccessfulRemoteRefreshBytes;
+
+    /**
      * Cumulative sum of size in bytes of segment files for which upload has started during remote refresh.
      */
     private volatile long uploadBytesStarted;
@@ -364,6 +369,7 @@ public class RemoteRefreshSegmentTracker {
     }
 
     void addUploadBytes(long size) {
+        lastSuccessfulRemoteRefreshBytes = size;
         synchronized (uploadBytesMutex) {
             this.uploadBytesMovingAverageReference.get().record(size);
         }
@@ -447,6 +453,7 @@ public class RemoteRefreshSegmentTracker {
             totalUploadsFailed,
             rejectionCount.get(),
             failures.length(),
+            lastSuccessfulRemoteRefreshBytes,
             uploadBytesMovingAverageReference.get().getAverage(),
             uploadBytesPerSecMovingAverageReference.get().getAverage(),
             uploadTimeMsMovingAverageReference.get().getAverage(),
@@ -476,6 +483,7 @@ public class RemoteRefreshSegmentTracker {
         public final long totalUploadsSucceeded;
         public final long rejectionCount;
         public final long consecutiveFailuresCount;
+        public final long lastSuccessfulRemoteRefreshBytes;
         public final double uploadBytesMovingAverage;
         public final double uploadBytesPerSecMovingAverage;
         public final double uploadTimeMovingAverage;
@@ -499,6 +507,7 @@ public class RemoteRefreshSegmentTracker {
             long totalUploadsFailed,
             long rejectionCount,
             long consecutiveFailuresCount,
+            long lastSuccessfulRemoteRefreshBytes,
             double uploadBytesMovingAverage,
             double uploadBytesPerSecMovingAverage,
             double uploadTimeMovingAverage,
@@ -521,6 +530,7 @@ public class RemoteRefreshSegmentTracker {
             this.totalUploadsSucceeded = totalUploadsSucceeded;
             this.rejectionCount = rejectionCount;
             this.consecutiveFailuresCount = consecutiveFailuresCount;
+            this.lastSuccessfulRemoteRefreshBytes = lastSuccessfulRemoteRefreshBytes;
             this.uploadBytesMovingAverage = uploadBytesMovingAverage;
             this.uploadBytesPerSecMovingAverage = uploadBytesPerSecMovingAverage;
             this.uploadTimeMovingAverage = uploadTimeMovingAverage;
@@ -546,6 +556,7 @@ public class RemoteRefreshSegmentTracker {
                 this.totalUploadsSucceeded = in.readLong();
                 this.rejectionCount = in.readLong();
                 this.consecutiveFailuresCount = in.readLong();
+                this.lastSuccessfulRemoteRefreshBytes = in.readLong();
                 this.uploadBytesMovingAverage = in.readDouble();
                 this.uploadBytesPerSecMovingAverage = in.readDouble();
                 this.uploadTimeMovingAverage = in.readDouble();
@@ -574,6 +585,7 @@ public class RemoteRefreshSegmentTracker {
             out.writeLong(totalUploadsSucceeded);
             out.writeLong(rejectionCount);
             out.writeLong(consecutiveFailuresCount);
+            out.writeLong(lastSuccessfulRemoteRefreshBytes);
             out.writeDouble(uploadBytesMovingAverage);
             out.writeDouble(uploadBytesPerSecMovingAverage);
             out.writeDouble(uploadTimeMovingAverage);
