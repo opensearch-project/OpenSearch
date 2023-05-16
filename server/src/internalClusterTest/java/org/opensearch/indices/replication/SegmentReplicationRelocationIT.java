@@ -8,6 +8,7 @@
 
 package org.opensearch.indices.replication;
 
+import org.junit.Before;
 import org.opensearch.OpenSearchCorruptionException;
 import org.opensearch.action.ActionFuture;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -43,6 +44,11 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
     private final TimeValue ACCEPTABLE_RELOCATION_TIME = new TimeValue(5, TimeUnit.MINUTES);
 
+    @Before
+    public void setup() {
+        internalCluster().startClusterManagerOnlyNode();
+    }
+
     private void createIndex(int replicaCount) {
         prepareCreate(INDEX_NAME, Settings.builder().put(SETTING_NUMBER_OF_REPLICAS, replicaCount)).get();
     }
@@ -75,7 +81,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
             .cluster()
             .prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
-            .setWaitForNodes("3")
+            .setWaitForNodes("4")
             .execute()
             .actionGet();
         assertEquals(clusterHealthResponse.isTimedOut(), false);
@@ -152,7 +158,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
             .cluster()
             .prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
-            .setWaitForNodes("3")
+            .setWaitForNodes("4")
             .execute()
             .actionGet();
         assertEquals(clusterHealthResponse.isTimedOut(), false);
@@ -242,7 +248,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
             .cluster()
             .prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
-            .setWaitForNodes("3")
+            .setWaitForNodes("4")
             .execute()
             .actionGet();
         assertEquals(clusterHealthResponse.isTimedOut(), false);
@@ -319,7 +325,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
             .cluster()
             .prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
-            .setWaitForNodes("3")
+            .setWaitForNodes("4")
             .execute()
             .actionGet();
         assertEquals(clusterHealthResponse.isTimedOut(), false);
@@ -488,7 +494,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
             .cluster()
             .prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
-            .setWaitForNodes("2")
+            .setWaitForNodes("3")
             .setWaitForGreenStatus()
             .setTimeout(TimeValue.timeValueSeconds(2))
             .execute()
@@ -516,7 +522,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
             .cluster()
             .prepareHealth()
             .setWaitForEvents(Priority.LANGUID)
-            .setWaitForNodes("3")
+            .setWaitForNodes("4")
             .execute()
             .actionGet();
         assertEquals(clusterHealthResponse.isTimedOut(), false);

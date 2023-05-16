@@ -28,7 +28,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
  */
 @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/7643")
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class SegmentReplicationRemoteStoreIT extends SegmentReplicationIT {
+public class RemoteStoreSegmentReplicationIT extends SegmentReplicationIT {
 
     private static final String REPOSITORY_NAME = "test-remore-store-repo";
 

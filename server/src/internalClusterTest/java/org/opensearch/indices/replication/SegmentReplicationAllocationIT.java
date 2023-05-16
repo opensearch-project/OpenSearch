@@ -36,7 +36,7 @@ import org.opensearch.cluster.OpenSearchAllocationTestCase.ShardAllocations;
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SegmentReplicationAllocationIT extends SegmentReplicationBaseIT {
 
-    private void createIndex(String idxName, int shardCount, int replicaCount, boolean isSegRep) {
+    public void createIndex(String idxName, int shardCount, int replicaCount, boolean isSegRep) {
         Settings.Builder builder = Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount)
             .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), false)
