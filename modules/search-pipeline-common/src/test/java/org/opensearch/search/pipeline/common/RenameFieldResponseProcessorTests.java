@@ -27,7 +27,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-public class RenameResponseProcessorTests extends OpenSearchTestCase {
+public class RenameFieldResponseProcessorTests extends OpenSearchTestCase {
 
     private SearchRequest createDummyRequest() {
         QueryBuilder query = new TermQueryBuilder("field", "value");
@@ -55,9 +55,15 @@ public class RenameResponseProcessorTests extends OpenSearchTestCase {
     public void testRenameResponse() throws Exception {
         SearchRequest request = createDummyRequest();
 
-        RenameResponseProcessor renameResponseProcessor = new RenameResponseProcessor(null, null, "field 0", "new field", false);
+        RenameFieldResponseProcessor renameFieldResponseProcessor = new RenameFieldResponseProcessor(
+            null,
+            null,
+            "field 0",
+            "new field",
+            false
+        );
         SearchResponse response = createTestResponse(2, false);
-        SearchResponse renameResponse = renameResponseProcessor.processResponse(request, createTestResponse(5, false));
+        SearchResponse renameResponse = renameFieldResponseProcessor.processResponse(request, createTestResponse(5, false));
 
         assertNotEquals(response.getHits(), renameResponse.getHits());
     }
@@ -65,9 +71,15 @@ public class RenameResponseProcessorTests extends OpenSearchTestCase {
     public void testRenameResponseWithMapping() throws Exception {
         SearchRequest request = createDummyRequest();
 
-        RenameResponseProcessor renameResponseProcessor = new RenameResponseProcessor(null, null, "field 0", "new field", true);
+        RenameFieldResponseProcessor renameFieldResponseProcessor = new RenameFieldResponseProcessor(
+            null,
+            null,
+            "field 0",
+            "new field",
+            true
+        );
         SearchResponse response = createTestResponse(5, true);
-        SearchResponse renameResponse = renameResponseProcessor.processResponse(request, createTestResponse(5, true));
+        SearchResponse renameResponse = renameFieldResponseProcessor.processResponse(request, createTestResponse(5, true));
 
         assertNotEquals(response.getHits(), renameResponse.getHits());
 
@@ -82,8 +94,17 @@ public class RenameResponseProcessorTests extends OpenSearchTestCase {
 
     public void testMissingField() throws Exception {
         SearchRequest request = createDummyRequest();
-        RenameResponseProcessor renameResponseProcessor = new RenameResponseProcessor(null, null, "field", "new field", false);
-        assertThrows(IllegalArgumentException.class, () -> renameResponseProcessor.processResponse(request, createTestResponse(3, true)));
+        RenameFieldResponseProcessor renameFieldResponseProcessor = new RenameFieldResponseProcessor(
+            null,
+            null,
+            "field",
+            "new field",
+            false
+        );
+        assertThrows(
+            IllegalArgumentException.class,
+            () -> renameFieldResponseProcessor.processResponse(request, createTestResponse(3, true))
+        );
     }
 
     public void testFactory() throws Exception {
@@ -93,9 +114,9 @@ public class RenameResponseProcessorTests extends OpenSearchTestCase {
         config.put("field", oldField);
         config.put("target_field", newField);
 
-        RenameResponseProcessor.Factory factory = new RenameResponseProcessor.Factory();
-        RenameResponseProcessor processor = factory.create(Collections.emptyMap(), null, null, config);
-        assertEquals(processor.getType(), "rename");
+        RenameFieldResponseProcessor.Factory factory = new RenameFieldResponseProcessor.Factory();
+        RenameFieldResponseProcessor processor = factory.create(Collections.emptyMap(), null, null, config);
+        assertEquals(processor.getType(), "rename_field");
         assertEquals(processor.getOldField(), oldField);
         assertEquals(processor.getNewField(), newField);
         assertFalse(processor.isIgnoreMissing());

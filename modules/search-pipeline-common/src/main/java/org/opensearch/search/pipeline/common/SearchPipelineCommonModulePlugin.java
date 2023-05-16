@@ -29,8 +29,8 @@ public class SearchPipelineCommonModulePlugin extends Plugin implements SearchPi
         return Map.of(
             FilterQueryRequestProcessor.TYPE,
             new FilterQueryRequestProcessor.Factory(parameters.namedXContentRegistry),
-            RenameResponseProcessor.TYPE,
-            new RenameResponseProcessor.Factory()
+            RenameFieldResponseProcessor.TYPE,
+            new RenameFieldResponseProcessor.Factory()
         );
     }
 }

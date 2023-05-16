@@ -27,7 +27,7 @@ import java.util.Map;
 /**
  * This is a {@link SearchRequestProcessor} that renames a field before returning the search response
  */
-public class RenameResponseProcessor extends AbstractProcessor implements SearchResponseProcessor {
+public class RenameFieldResponseProcessor extends AbstractProcessor implements SearchResponseProcessor {
 
     private final String oldField;
     private final String newField;
@@ -36,7 +36,7 @@ public class RenameResponseProcessor extends AbstractProcessor implements Search
     /**
      * Key to reference this processor type from a search pipeline.
      */
-    public static final String TYPE = "rename";
+    public static final String TYPE = "rename_field";
 
     /**
      * Constructor that takes a target field to rename and the new name
@@ -47,7 +47,7 @@ public class RenameResponseProcessor extends AbstractProcessor implements Search
      * @param newField      name of field that will replace the old field
      * @param ignoreMissing if true, do not throw error if oldField does not exist within search response
      */
-    public RenameResponseProcessor(String tag, String description, String oldField, String newField, boolean ignoreMissing) {
+    public RenameFieldResponseProcessor(String tag, String description, String oldField, String newField, boolean ignoreMissing) {
         super(tag, description);
         this.oldField = oldField;
         this.newField = newField;
@@ -136,7 +136,7 @@ public class RenameResponseProcessor extends AbstractProcessor implements Search
         Factory() {}
 
         @Override
-        public RenameResponseProcessor create(
+        public RenameFieldResponseProcessor create(
             Map<String, Processor.Factory> processorFactories,
             String tag,
             String description,
@@ -145,7 +145,7 @@ public class RenameResponseProcessor extends AbstractProcessor implements Search
             String oldField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "field");
             String newField = ConfigurationUtils.readStringProperty(TYPE, tag, config, "target_field");
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_missing", false);
-            return new RenameResponseProcessor(tag, description, oldField, newField, ignoreMissing);
+            return new RenameFieldResponseProcessor(tag, description, oldField, newField, ignoreMissing);
         }
     }
 }
