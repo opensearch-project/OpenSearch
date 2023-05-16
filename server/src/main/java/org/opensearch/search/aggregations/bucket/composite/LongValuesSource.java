@@ -160,7 +160,7 @@ public class LongValuesSource extends SingleDimensionValuesSource<Long> {
         }
     }
 
-    int compareValues(long v1, long v2) {
+    private int compareValues(long v1, long v2) {
         return Long.compare(v1, v2) * reverseMul;
     }
 
