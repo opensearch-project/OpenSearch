@@ -8,6 +8,7 @@
 
 package org.opensearch.discovery.ec2;
 
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
 
 import java.nio.file.Path;
@@ -20,6 +21,7 @@ interface ConfigPathSupport {
         return PathUtils.get("config");
     }
 
+    @SuppressForbidden(reason = "set predictable aws defaults")
     default public void setUpAwsProfile() throws Exception {
         SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
         SocketAccess.doPrivileged(() -> System.setProperty("aws.region", "us-east-1"));
