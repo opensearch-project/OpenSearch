@@ -32,9 +32,8 @@ public class NamedRoute extends RestHandler.Route {
         super(method, path);
         if (!isValidRouteName(name)) {
             throw new OpenSearchException(
-                "Invalid route name specified. Route name must match /"
-                    + VALID_ACTION_NAME_PATTERN
-                    + "/ and be less than "
+                "Invalid route name specified. The route name may include the following characters"
+                    + " 'a-z', 'A-Z', '0-9', ':', '/', '*', '_' and be less than "
                     + MAX_LENGTH_OF_ACTION_NAME
                     + " characters"
             );
