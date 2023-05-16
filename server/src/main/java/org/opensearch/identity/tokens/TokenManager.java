@@ -17,7 +17,7 @@ public interface TokenManager {
      * Create a new auth token
      * @return A new auth token
      */
-    public AuthToken generateToken();
+    public AuthToken issueToken();
 
     /**
      * Validate an auth token based on the rules associated with its format

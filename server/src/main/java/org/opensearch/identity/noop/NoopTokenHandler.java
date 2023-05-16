@@ -24,11 +24,11 @@ public class NoopTokenHandler implements TokenManager {
     private static final Logger log = LogManager.getLogger(IdentityService.class);
 
     /**
-     * Generate a new Noop Token
+     * Issue a new Noop Token
      * @return a new Noop Token
      */
     @Override
-    public AuthToken generateToken() {
+    public AuthToken issueToken() {
         return new NoopToken();
     }
 

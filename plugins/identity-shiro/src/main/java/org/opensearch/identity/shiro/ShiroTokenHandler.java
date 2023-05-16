@@ -42,7 +42,7 @@ class ShiroTokenHandler implements TokenManager {
     }
 
     @Override
-    public AuthToken generateToken() {
+    public AuthToken issueToken() {
 
         Subject subject = new ShiroSubject(this, SecurityUtils.getSubject());
         final byte[] rawEncoded = Base64.getEncoder().encode((subject.getPrincipal().getName() + ":" + generatePassword()).getBytes(UTF_8));
