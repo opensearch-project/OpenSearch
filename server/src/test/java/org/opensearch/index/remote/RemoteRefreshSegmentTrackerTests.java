@@ -21,7 +21,6 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.mockito.Mockito.mock;
 

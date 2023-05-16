@@ -23,6 +23,8 @@ import org.opensearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsTestHelper.compareStatsResponse;
+import static org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsTestHelper.createPressureTrackerStats;
 import static org.opensearch.core.xcontent.ToXContent.EMPTY_PARAMS;
 
 public class RemoteStoreStatsTests extends OpenSearchTestCase {
@@ -43,48 +45,17 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
     }
 
     public void testXContentBuilder() throws IOException {
-        RemoteRefreshSegmentTracker.Stats pressureTrackerStats = createPressureTrackerStats();
+        RemoteRefreshSegmentTracker.Stats pressureTrackerStats = createPressureTrackerStats(shardId);
         RemoteStoreStats stats = new RemoteStoreStats(pressureTrackerStats);
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         stats.toXContent(builder, EMPTY_PARAMS);
         Map<String, Object> jsonObject = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
-        assertEquals(jsonObject.get("shardId"), pressureTrackerStats.shardId.toString());
-        assertEquals(jsonObject.get("local_refresh_timestamp_in_millis"), (int) pressureTrackerStats.localRefreshTimeMs);
-        assertEquals(jsonObject.get("local_refresh_cumulative_count"), (int) pressureTrackerStats.localRefreshCount);
-        assertEquals(jsonObject.get("remote_refresh_timestamp_in_millis"), (int) pressureTrackerStats.remoteRefreshTimeMs);
-        assertEquals(jsonObject.get("remote_refresh_cumulative_count"), (int) pressureTrackerStats.remoteRefreshCount);
-        assertEquals(jsonObject.get("bytes_lag"), (int) pressureTrackerStats.bytesLag);
-
-        assertEquals(jsonObject.get("rejection_count"), (int) pressureTrackerStats.rejectionCount);
-        assertEquals(jsonObject.get("consecutive_failure_count"), (int) pressureTrackerStats.consecutiveFailuresCount);
-
-        assertEquals(((Map) jsonObject.get("total_uploads_in_bytes")).get("started"), (int) pressureTrackerStats.uploadBytesStarted);
-        assertEquals(((Map) jsonObject.get("total_uploads_in_bytes")).get("succeeded"), (int) pressureTrackerStats.uploadBytesSucceeded);
-        assertEquals(((Map) jsonObject.get("total_uploads_in_bytes")).get("failed"), (int) pressureTrackerStats.uploadBytesFailed);
-        assertEquals(
-            ((Map) jsonObject.get("remote_refresh_size_in_bytes")).get("moving_avg"),
-            pressureTrackerStats.uploadBytesMovingAverage
-        );
-        assertEquals(
-            ((Map) jsonObject.get("remote_refresh_size_in_bytes")).get("last_successful"),
-            (int) pressureTrackerStats.lastSuccessfulRemoteRefreshBytes
-        );
-        assertEquals(
-            ((Map) jsonObject.get("upload_latency_in_bytes_per_sec")).get("moving_avg"),
-            pressureTrackerStats.uploadBytesPerSecMovingAverage
-        );
-        assertEquals(((Map) jsonObject.get("total_remote_refresh")).get("started"), (int) pressureTrackerStats.totalUploadsStarted);
-        assertEquals(((Map) jsonObject.get("total_remote_refresh")).get("succeeded"), (int) pressureTrackerStats.totalUploadsSucceeded);
-        assertEquals(((Map) jsonObject.get("total_remote_refresh")).get("failed"), (int) pressureTrackerStats.totalUploadsFailed);
-        assertEquals(
-            ((Map) jsonObject.get("remote_refresh_latency_in_nanos")).get("moving_avg"),
-            pressureTrackerStats.uploadTimeMovingAverage
-        );
+        compareStatsResponse(jsonObject, pressureTrackerStats);
     }
 
     public void testSerialization() throws Exception {
-        RemoteRefreshSegmentTracker.Stats pressureTrackerStats = createPressureTrackerStats();
+        RemoteRefreshSegmentTracker.Stats pressureTrackerStats = createPressureTrackerStats(shardId);
         RemoteStoreStats stats = new RemoteStoreStats(pressureTrackerStats);
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             stats.writeTo(out);
@@ -113,28 +84,5 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
                 assertEquals(deserializedStats.getStats().bytesLag, stats.getStats().bytesLag);
             }
         }
-    }
-
-    private RemoteRefreshSegmentTracker.Stats createPressureTrackerStats() {
-        return new RemoteRefreshSegmentTracker.Stats(
-            shardId,
-            3,
-            System.nanoTime() / 1_000_000L + randomIntBetween(10, 100),
-            2,
-            System.nanoTime() / 1_000_000L + randomIntBetween(10, 100),
-            10,
-            5,
-            5,
-            10,
-            5,
-            5,
-            3,
-            2,
-            5,
-            2,
-            3,
-            4,
-            9
-        );
     }
 }

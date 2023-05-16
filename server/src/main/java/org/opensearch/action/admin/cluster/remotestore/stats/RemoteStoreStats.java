@@ -41,38 +41,38 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
-            .field("shardId", remoteSegmentUploadShardStats.shardId)
+            .field(Fields.SHARD_ID, remoteSegmentUploadShardStats.shardId)
 
-            .field("local_refresh_timestamp_in_millis", remoteSegmentUploadShardStats.localRefreshTimeMs)
-            .field("local_refresh_cumulative_count", remoteSegmentUploadShardStats.localRefreshCount)
-            .field("remote_refresh_timestamp_in_millis", remoteSegmentUploadShardStats.remoteRefreshTimeMs)
-            .field("remote_refresh_cumulative_count", remoteSegmentUploadShardStats.remoteRefreshCount)
-            .field("bytes_lag", remoteSegmentUploadShardStats.bytesLag)
+            .field(Fields.LOCAL_REFRESH_TIMESTAMP, remoteSegmentUploadShardStats.localRefreshTimeMs)
+            .field(Fields.LOCAL_REFRESH_CUMULATIVE_COUNT, remoteSegmentUploadShardStats.localRefreshCount)
+            .field(Fields.REMOTE_REFRESH_TIMESTAMP, remoteSegmentUploadShardStats.remoteRefreshTimeMs)
+            .field(Fields.REMOTE_REFRESH_CUMULATIVE_COUNT, remoteSegmentUploadShardStats.remoteRefreshCount)
+            .field(Fields.BYTES_LAG, remoteSegmentUploadShardStats.bytesLag)
 
-            .field("rejection_count", remoteSegmentUploadShardStats.rejectionCount)
-            .field("consecutive_failure_count", remoteSegmentUploadShardStats.consecutiveFailuresCount);
+            .field(Fields.REJECTION_COUNT, remoteSegmentUploadShardStats.rejectionCount)
+            .field(Fields.CONSECUTIVE_FAILURE_COUNT, remoteSegmentUploadShardStats.consecutiveFailuresCount);
 
-        builder.startObject("total_remote_refresh");
-        builder.field("started", remoteSegmentUploadShardStats.totalUploadsStarted)
-            .field("succeeded", remoteSegmentUploadShardStats.totalUploadsSucceeded)
-            .field("failed", remoteSegmentUploadShardStats.totalUploadsFailed);
+        builder.startObject(Fields.TOTAL_REMOTE_REFRESH);
+        builder.field(Fields.STARTED, remoteSegmentUploadShardStats.totalUploadsStarted)
+            .field(Fields.SUCCEEDED, remoteSegmentUploadShardStats.totalUploadsSucceeded)
+            .field(Fields.FAILED, remoteSegmentUploadShardStats.totalUploadsFailed);
         builder.endObject();
 
-        builder.startObject("total_uploads_in_bytes");
-        builder.field("started", remoteSegmentUploadShardStats.uploadBytesStarted)
-            .field("succeeded", remoteSegmentUploadShardStats.uploadBytesSucceeded)
-            .field("failed", remoteSegmentUploadShardStats.uploadBytesFailed);
+        builder.startObject(Fields.TOTAL_UPLOADS_IN_BYTES);
+        builder.field(Fields.STARTED, remoteSegmentUploadShardStats.uploadBytesStarted)
+            .field(Fields.SUCCEEDED, remoteSegmentUploadShardStats.uploadBytesSucceeded)
+            .field(Fields.FAILED, remoteSegmentUploadShardStats.uploadBytesFailed);
         builder.endObject();
-        builder.startObject("remote_refresh_size_in_bytes");
-        builder.field("last_successful", remoteSegmentUploadShardStats.lastSuccessfulRemoteRefreshBytes);
-        builder.field("moving_avg", remoteSegmentUploadShardStats.uploadBytesMovingAverage);
+        builder.startObject(Fields.REMOTE_REFRESH_SIZE_IN_BYTES);
+        builder.field(Fields.LAST_SUCCESSFUL, remoteSegmentUploadShardStats.lastSuccessfulRemoteRefreshBytes);
+        builder.field(Fields.MOVING_AVG, remoteSegmentUploadShardStats.uploadBytesMovingAverage);
         builder.endObject();
 
-        builder.startObject("upload_latency_in_bytes_per_sec");
-        builder.field("moving_avg", remoteSegmentUploadShardStats.uploadBytesPerSecMovingAverage);
+        builder.startObject(Fields.UPLOAD_LATENCY_IN_BYTES_PER_SEC);
+        builder.field(Fields.MOVING_AVG, remoteSegmentUploadShardStats.uploadBytesPerSecMovingAverage);
         builder.endObject();
-        builder.startObject("remote_refresh_latency_in_nanos");
-        builder.field("moving_avg", remoteSegmentUploadShardStats.uploadTimeMovingAverage);
+        builder.startObject(Fields.REMOTE_REFRESH_LATENCY_IN_NANOS);
+        builder.field(Fields.MOVING_AVG, remoteSegmentUploadShardStats.uploadTimeMovingAverage);
         builder.endObject();
         builder.endObject();
 
@@ -83,4 +83,26 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(remoteSegmentUploadShardStats);
     }
+
+    static final class Fields {
+        static final String SHARD_ID = "shard_id";
+        static final String LOCAL_REFRESH_TIMESTAMP = "local_refresh_timestamp_in_millis";
+        static final String LOCAL_REFRESH_CUMULATIVE_COUNT = "local_refresh_cumulative_count";
+        static final String REMOTE_REFRESH_TIMESTAMP = "remote_refresh_timestamp_in_millis";
+        static final String REMOTE_REFRESH_CUMULATIVE_COUNT = "remote_refresh_cumulative_count";
+        static final String BYTES_LAG = "bytes_lag";
+        static final String REJECTION_COUNT = "rejection_count";
+        static final String CONSECUTIVE_FAILURE_COUNT = "consecutive_failure_count";
+        static final String TOTAL_REMOTE_REFRESH = "total_remote_refresh";
+        static final String TOTAL_UPLOADS_IN_BYTES = "total_uploads_in_bytes";
+        static final String REMOTE_REFRESH_SIZE_IN_BYTES = "remote_refresh_size_in_bytes";
+        static final String UPLOAD_LATENCY_IN_BYTES_PER_SEC = "upload_latency_in_bytes_per_sec";
+        static final String REMOTE_REFRESH_LATENCY_IN_NANOS = "remote_refresh_latency_in_nanos";
+        static final String STARTED = "started";
+        static final String SUCCEEDED = "succeeded";
+        static final String FAILED = "failed";
+        static final String MOVING_AVG = "moving_avg";
+        static final String LAST_SUCCESSFUL = "last_successful";
+    }
+
 }
