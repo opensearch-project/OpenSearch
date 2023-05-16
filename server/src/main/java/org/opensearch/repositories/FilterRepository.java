@@ -45,7 +45,6 @@ import org.opensearch.common.component.LifecycleListener;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
-import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.snapshots.SnapshotId;
@@ -222,15 +221,6 @@ public class FilterRepository implements Repository {
         ActionListener<Void> listener
     ) {
         in.restoreShard(store, snapshotId, indexId, snapshotShardId, recoveryState, listener);
-    }
-
-    @Override
-    public RemoteStoreShardShallowCopySnapshot getRemoteStoreShallowCopyShardMetadata(
-        SnapshotId snapshotId,
-        IndexId indexId,
-        ShardId snapshotShardId
-    ) {
-        return in.getRemoteStoreShallowCopyShardMetadata(snapshotId, indexId, snapshotShardId);
     }
 
     @Override

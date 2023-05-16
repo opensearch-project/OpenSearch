@@ -1482,6 +1482,25 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return indexCommit;
     }
 
+    /**
+     *
+     * @param snapshotId Snapshot UUID.
+     * @param primaryTerm current primary term.
+     * @param generation Snapshot Commit Generation.
+     * @throws IOException if there is some failure in acquiring lock in remote store.
+     */
+    public void acquireLockOnCommitData(String snapshotId, long primaryTerm, long generation) throws IOException {
+        assert remoteStore.directory() instanceof FilterDirectory : "Store.directory is not an instance of " + "FilterDirectory";
+        FilterDirectory remoteStoreDirectory = (FilterDirectory) remoteStore.directory();
+        assert remoteStoreDirectory.getDelegate() instanceof FilterDirectory
+            : "Store.directory is not enclosing an instance of FilterDirectory";
+        FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
+        final Directory remoteDirectory = byteSizeCachingStoreDirectory.getDelegate();
+        assert remoteDirectory instanceof RemoteSegmentStoreDirectory : "remoteDirectory is not an instance of "
+            + "RemoteSegmentStoreDirectory";
+        ((RemoteSegmentStoreDirectory) remoteDirectory).acquireLock(primaryTerm, generation, snapshotId);
+    }
+
     public Optional<NRTReplicationEngine> getReplicationEngine() {
         if (getEngine() instanceof NRTReplicationEngine) {
             return Optional.of((NRTReplicationEngine) getEngine());

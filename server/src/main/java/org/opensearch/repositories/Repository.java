@@ -46,7 +46,6 @@ import org.opensearch.common.component.LifecycleComponent;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
-import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.snapshots.SnapshotId;
@@ -305,20 +304,6 @@ public interface Repository extends LifecycleComponent {
         ShardId snapshotShardId,
         RecoveryState recoveryState,
         ActionListener<Void> listener
-    );
-
-    /**
-     * Returns Snapshot Shard Metadata for remote store interop enabled snapshot.
-     * <p>
-     * The index can be renamed on restore, hence different {@code shardId} and {@code snapshotShardId} are supplied.
-     * @param snapshotId      snapshot id
-     * @param indexId         id of the index in the repository from which the restore is occurring
-     * @param snapshotShardId shard id (in the snapshot)
-     */
-    public RemoteStoreShardShallowCopySnapshot getRemoteStoreShallowCopyShardMetadata(
-        SnapshotId snapshotId,
-        IndexId indexId,
-        ShardId snapshotShardId
     );
 
     /**

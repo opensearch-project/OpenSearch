@@ -241,11 +241,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Boolean> REMOTE_STORE_INDEX_SHALLOW_COPY = Setting.boolSetting(
-        "remote_store_index_shallow_copy",
-        false,
-        Setting.Property.Dynamic
-    );
+    public static final Setting<Boolean> REMOTE_STORE_INDEX_SHALLOW_COPY = Setting.boolSetting("remote_store_index_shallow_copy", false);
 
     /**
      * Setting to set batch size of stale snapshot shard blobs that will be deleted by snapshot workers as part of snapshot deletion.
@@ -2326,12 +2322,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final BlobContainer shardContainer = shardContainer(indexId, shardId);
 
             long indexTotalFileSize = 0;
+            // local store is being used here to fetch the files metadata instead of remote store as currently
+            // remote store is mirroring the local store.
             Collection<String> fileNames = snapshotIndexCommit.getFileNames();
             Store.MetadataSnapshot commitSnapshotMetadata = store.getMetadata(snapshotIndexCommit);
             for (String fileName : fileNames) {
                 indexTotalFileSize += commitSnapshotMetadata.get(fileName).length();
             }
             int indexTotalNumberOfFiles = fileNames.size();
+            this.basePath();
 
             snapshotStatus.moveToStarted(
                 startTime,
@@ -2354,17 +2353,23 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         snapshotIndexCommit.getGeneration(),
                         lastSnapshotStatus.getStartTime(),
                         threadPool.absoluteTimeInMillis() - lastSnapshotStatus.getStartTime(),
-                        lastSnapshotStatus.getIncrementalFileCount(),
-                        lastSnapshotStatus.getIncrementalSize(),
+                        indexTotalNumberOfFiles,
+                        indexTotalFileSize,
                         store.indexSettings().getUUID(),
-                        store.indexSettings().getRemoteStoreRepository()
+                        store.indexSettings().getRemoteStoreRepository(),
+                        this.basePath().toString(),
+                        snapshotIndexCommit.getFileNames()
                     ),
                     shardContainer,
                     snapshotId.getUUID(),
                     compress
                 );
             } catch (IOException e) {
-                throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
+                throw new IndexShardSnapshotFailedException(
+                    shardId,
+                    "Failed to write commit point for snapshot " + snapshotId.getName() + "(" + snapshotId.getUUID() + ")",
+                    e
+                );
             }
             snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis(), generation);
             listener.onResponse(generation);
@@ -2623,16 +2628,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             throw new AssertionError(e);
         }
         return true;
-    }
-
-    @Override
-    public RemoteStoreShardShallowCopySnapshot getRemoteStoreShallowCopyShardMetadata(
-        SnapshotId snapshotId,
-        IndexId indexId,
-        ShardId snapshotShardId
-    ) {
-        final BlobContainer container = shardContainer(indexId, snapshotShardId);
-        return loadRemStoreEnabledShardSnapshot(container, snapshotId);
     }
 
     @Override

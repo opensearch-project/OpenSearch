@@ -127,7 +127,6 @@ import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
-import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.store.StoreUtils;
@@ -2777,15 +2776,6 @@ public class IndexShardTests extends IndexShardTestCase {
                     recoveryState.getIndex().setFileDetailsComplete();
                     return null;
                 });
-            }
-
-            @Override
-            public RemoteStoreShardShallowCopySnapshot getRemoteStoreShallowCopyShardMetadata(
-                SnapshotId snapshotId,
-                IndexId indexId,
-                ShardId snapshotShardId
-            ) {
-                return null;
             }
         }, future);
         assertTrue(future.actionGet());

@@ -186,6 +186,11 @@ public class CreateSnapshotRequestBuilder extends ClusterManagerNodeOperationReq
         return this;
     }
 
+    public CreateSnapshotRequestBuilder setRemoteStoreIndexShallowCopy(boolean remoteStoreIndexShallowCopy) {
+        request.remoteStoreIndexShallowCopy(remoteStoreIndexShallowCopy);
+        return this;
+    }
+
     /**
      * Set to true if snapshot should include global cluster state
      *

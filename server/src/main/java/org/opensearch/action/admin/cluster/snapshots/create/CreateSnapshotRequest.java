@@ -39,6 +39,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
@@ -102,6 +103,7 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
 
     private Map<String, Object> userMetadata;
 
+    @Nullable
     private Boolean remoteStoreIndexShallowCopy;
 
     private static final String REMOTE_STORE_INDEX_SHALLOW_COPY = "remote_store_index_shallow_copy";
@@ -130,7 +132,7 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
         waitForCompletion = in.readBoolean();
         partial = in.readBoolean();
         userMetadata = in.readMap();
-        if (in.getVersion().onOrAfter(Version.V_2_8_0)) {
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
             remoteStoreIndexShallowCopy = in.readOptionalBoolean();
         }
     }
@@ -147,7 +149,7 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
         out.writeBoolean(waitForCompletion);
         out.writeBoolean(partial);
         out.writeMap(userMetadata);
-        if (out.getVersion().onOrAfter(Version.V_2_8_0)) {
+        if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
             out.writeOptionalBoolean(remoteStoreIndexShallowCopy);
         }
     }
@@ -517,7 +519,9 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
             indicesOptions.toXContent(builder, params);
         }
         builder.field("metadata", userMetadata);
-        builder.field(REMOTE_STORE_INDEX_SHALLOW_COPY, remoteStoreIndexShallowCopy);
+        if (remoteStoreIndexShallowCopy != null) {
+            builder.field(REMOTE_STORE_INDEX_SHALLOW_COPY, remoteStoreIndexShallowCopy);
+        }
         builder.endObject();
         return builder;
     }
