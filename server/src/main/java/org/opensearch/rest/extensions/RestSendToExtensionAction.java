@@ -21,7 +21,7 @@ import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.rest.RestExecuteOnExtensionResponse;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
-import org.opensearch.rest.ProtectedRoute;
+import org.opensearch.rest.NamedRoute;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.rest.RestStatus;
@@ -107,7 +107,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             }
             logger.info("Registering: " + method + " " + path);
             if (name.isPresent()) {
-                restActionsAsRoutes.add(new ProtectedRoute(method, path, name.get()));
+                restActionsAsRoutes.add(new NamedRoute(method, path, name.get()));
             } else {
                 restActionsAsRoutes.add(new Route(method, path));
             }

@@ -33,7 +33,7 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.extensions.DiscoveryExtensionNode;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
-import org.opensearch.rest.ProtectedRoute;
+import org.opensearch.rest.NamedRoute;
 import org.opensearch.rest.RestHandler.Route;
 import org.opensearch.rest.RestRequest.Method;
 import org.opensearch.rest.extensions.RestSendToExtensionAction;
@@ -142,11 +142,11 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         );
 
         assertEquals("send_to_extension_action", restSendToExtensionAction.getName());
-        List<ProtectedRoute> expected = new ArrayList<>();
+        List<NamedRoute> expected = new ArrayList<>();
         String uriPrefix = "/_extensions/_uniqueid1";
-        expected.add(new ProtectedRoute(Method.GET, uriPrefix + "/foo", "foo"));
-        expected.add(new ProtectedRoute(Method.PUT, uriPrefix + "/bar", "bar"));
-        expected.add(new ProtectedRoute(Method.POST, uriPrefix + "/baz", "baz"));
+        expected.add(new NamedRoute(Method.GET, uriPrefix + "/foo", "foo"));
+        expected.add(new NamedRoute(Method.PUT, uriPrefix + "/bar", "bar"));
+        expected.add(new NamedRoute(Method.POST, uriPrefix + "/baz", "baz"));
 
         List<Route> routes = restSendToExtensionAction.routes();
         assertEquals(expected.size(), routes.size());
@@ -154,8 +154,8 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         List<String> paths = routes.stream().map(Route::getPath).collect(Collectors.toList());
         List<Method> expectedMethods = expected.stream().map(Route::getMethod).collect(Collectors.toList());
         List<Method> methods = routes.stream().map(Route::getMethod).collect(Collectors.toList());
-        List<String> expectedNames = expected.stream().map(ProtectedRoute::name).collect(Collectors.toList());
-        List<String> names = routes.stream().map(r -> ((ProtectedRoute) r).name()).collect(Collectors.toList());
+        List<String> expectedNames = expected.stream().map(NamedRoute::name).collect(Collectors.toList());
+        List<String> names = routes.stream().map(r -> ((NamedRoute) r).name()).collect(Collectors.toList());
         assertTrue(paths.containsAll(expectedPaths));
         assertTrue(expectedPaths.containsAll(paths));
         assertTrue(methods.containsAll(expectedMethods));
