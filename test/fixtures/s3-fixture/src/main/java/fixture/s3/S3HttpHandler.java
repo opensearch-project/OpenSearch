@@ -92,10 +92,10 @@ public class S3HttpHandler implements HttpHandler {
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
         final String request = exchange.getRequestMethod() + " " + exchange.getRequestURI().toString();
-//        if (request.startsWith("GET") || request.startsWith("HEAD") || request.startsWith("DELETE")) {
-//            int read = exchange.getRequestBody().read();
-//            assert read == -1 : "Request body should have been empty but saw [" + read + "]";
-//        }
+        if (request.startsWith("GET") || request.startsWith("HEAD") || request.startsWith("DELETE")) {
+            int read = exchange.getRequestBody().read();
+            assert read == -1 : "Request body should have been empty but saw [" + read + "]";
+        }
         try {
             if (Regex.simpleMatch("HEAD /" + path + "*", request)) {
                 final BytesReference blob = blobs.get(exchange.getRequestURI().getPath());
@@ -173,9 +173,6 @@ public class S3HttpHandler implements HttpHandler {
             } else if (Regex.simpleMatch("GET /" + bucket + "?list-type=*", request)) {
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
-//                if (params.get("list-type") != null) {
-//                    throw new AssertionError("Test must be adapted for GET Bucket (List Objects) Version 2");
-//                }
 
                 final StringBuilder list = new StringBuilder();
                 list.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
