@@ -17,7 +17,7 @@ import org.opensearch.OpenSearchException;
  */
 public class NamedRoute extends RestHandler.Route {
     private static final String VALID_ACTION_NAME_PATTERN = "^[a-zA-Z0-9:/*_]*$";
-    private static final int MAX_LENGTH_OF_ACTION_NAME = 250;
+    static final int MAX_LENGTH_OF_ACTION_NAME = 250;
 
     private final String name;
 

@@ -6,13 +6,13 @@
  * compatible open source license.
  */
 
-package org.opensearch.extensions.rest;
+package org.opensearch.rest;
 
 import org.junit.Test;
 import org.opensearch.OpenSearchException;
-import org.opensearch.rest.NamedRoute;
-import org.opensearch.rest.RestRequest;
 import org.opensearch.test.OpenSearchTestCase;
+
+import static org.opensearch.rest.NamedRoute.MAX_LENGTH_OF_ACTION_NAME;
 
 public class NamedRouteTests extends OpenSearchTestCase {
 
@@ -59,7 +59,7 @@ public class NamedRouteTests extends OpenSearchTestCase {
     @Test
     public void testNamedRouteWithNameOverMaximumLength() {
         try {
-            String repeated = new String(new char[251]).replace("\0", "x");
+            String repeated = new String(new char[MAX_LENGTH_OF_ACTION_NAME + 1]).replace("\0", "x");
             NamedRoute r = new NamedRoute(RestRequest.Method.GET, "foo/bar", repeated);
             fail("Expected NamedRoute to throw exception on name over maximum length supplied");
         } catch (OpenSearchException e) {
