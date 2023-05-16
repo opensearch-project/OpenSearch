@@ -33,6 +33,7 @@
 package org.opensearch.repositories.s3;
 
 import org.junit.Before;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
@@ -54,6 +55,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class S3ClientSettingsTests extends OpenSearchTestCase implements ConfigPathSupport {
     @Override
     @Before
+    @SuppressForbidden(reason = "Need to set system property here for AWS SDK v2")
     public void setUp() throws Exception {
         super.setUp();
 
