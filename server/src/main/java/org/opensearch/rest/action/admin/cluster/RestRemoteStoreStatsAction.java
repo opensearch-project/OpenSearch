@@ -32,11 +32,7 @@ public class RestRemoteStoreStatsAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return unmodifiableList(
-            asList(
-                new Route(GET, "/_remotestore/stats"),
-                new Route(GET, "/_remotestore/stats/{index}"),
-                new Route(GET, "/_remotestore/stats/{index}/{shard_id}")
-            )
+            asList(new Route(GET, "/_remotestore/stats/{index}"), new Route(GET, "/_remotestore/stats/{index}/{shard_id}"))
         );
     }
 
