@@ -29,6 +29,8 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -96,7 +98,9 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
 
     private volatile Scheduler.ScheduledCancellable scheduledCancellableRetry;
 
-    public RemoteStoreRefreshListener(IndexShard indexShard) {
+    private final SegmentReplicationCheckpointPublisher checkpointPublisher;
+
+    public RemoteStoreRefreshListener(IndexShard indexShard, SegmentReplicationCheckpointPublisher checkpointPublisher) {
         this.indexShard = indexShard;
         this.storeDirectory = indexShard.store().directory();
         this.remoteDirectory = (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory())
@@ -111,6 +115,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
             }
         }
         resetBackOffDelayIterator();
+        this.checkpointPublisher = checkpointPublisher;
     }
 
     @Override
@@ -151,6 +156,10 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                         deleteStaleCommits();
                     }
 
+                    // Capture replication checkpoint before uploading the segments as upload can take some time and checkpoint can
+                    // move.
+                    ReplicationCheckpoint checkpoint = indexShard.getLatestReplicationCheckpoint();
+
                     String segmentInfoSnapshotFilename = null;
                     try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
                         SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
@@ -190,9 +199,11 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                                     .filter(file -> !localSegmentsPostRefresh.contains(file))
                                     .collect(Collectors.toSet())
                                     .forEach(localSegmentChecksumMap::remove);
-                                OnSuccessfulSegmentsSync();
+                                onSuccessfulSegmentsSync();
                                 final long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();
                                 indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
+
+                                checkpointPublisher.publish(indexShard, checkpoint);
                             } else {
                                 shouldRetry = true;
                             }
@@ -229,7 +240,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         }
     }
 
-    private void OnSuccessfulSegmentsSync() {
+    private void onSuccessfulSegmentsSync() {
         // Reset the backoffDelayIterator for the future failures
         resetBackOffDelayIterator();
         // Cancel the scheduled cancellable retry if possible and set it to null
