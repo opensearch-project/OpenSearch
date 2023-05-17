@@ -46,10 +46,10 @@ import org.opensearch.common.unit.SizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
-import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.concurrent.XRejectedExecutionHandler;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.node.Node;
@@ -62,8 +62,10 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ScheduledExecutorService;
@@ -436,6 +438,16 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             command = new ThreadedRunnable(command, executor(executor));
         }
         return new ScheduledCancellableAdapter(scheduler.schedule(command, delay.millis(), TimeUnit.MILLISECONDS));
+    }
+
+    public Future<?> executeCallable(Callable<?> command, String executorName) {
+        ExecutorService executorService = executor(executorName);
+        return executorService.submit(command);
+    }
+
+    public boolean isExecutorShutDown(String executorName) {
+        ExecutorService executorService = executor(executorName);
+        return executorService.isShutdown();
     }
 
     public void scheduleUnlessShuttingDown(TimeValue delay, String executor, Runnable command) {
