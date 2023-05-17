@@ -127,7 +127,7 @@ public class SliceBuilderTests extends OpenSearchTestCase {
     }
 
     private ShardSearchRequest createRequest(int shardId) {
-        return createRequest(shardId, org.opensearch.common.Strings.EMPTY_ARRAY, null);
+        return createRequest(shardId, Strings.EMPTY_ARRAY, null);
     }
 
     private ShardSearchRequest createRequest(int shardId, String[] routings, String preference) {

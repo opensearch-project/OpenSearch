@@ -283,14 +283,11 @@ public class RemoteClusterServiceTests extends OpenSearchTestCase {
                     {
                         Map<String, OriginalIndices> perClusterIndices = service.groupIndices(
                             IndicesOptions.LENIENT_EXPAND_OPEN,
-                            org.opensearch.common.Strings.EMPTY_ARRAY,
+                            Strings.EMPTY_ARRAY,
                             i -> false
                         );
                         assertEquals(1, perClusterIndices.size());
-                        assertArrayEquals(
-                            org.opensearch.common.Strings.EMPTY_ARRAY,
-                            perClusterIndices.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).indices()
-                        );
+                        assertArrayEquals(Strings.EMPTY_ARRAY, perClusterIndices.get(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY).indices());
                     }
                 }
             }

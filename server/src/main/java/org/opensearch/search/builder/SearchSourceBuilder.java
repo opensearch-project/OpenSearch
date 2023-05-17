@@ -763,7 +763,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder fetchSource(@Nullable String include, @Nullable String exclude) {
         return fetchSource(
-            include == null ? org.opensearch.common.Strings.EMPTY_ARRAY : new String[] { include },
+            include == null ? Strings.EMPTY_ARRAY : new String[] { include },
             exclude == null ? Strings.EMPTY_ARRAY : new String[] { exclude }
         );
     }

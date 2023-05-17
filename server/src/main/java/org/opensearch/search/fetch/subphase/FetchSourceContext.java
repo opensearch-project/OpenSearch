@@ -71,12 +71,12 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
     public FetchSourceContext(boolean fetchSource, String[] includes, String[] excludes) {
         this.fetchSource = fetchSource;
-        this.includes = includes == null ? org.opensearch.common.Strings.EMPTY_ARRAY : includes;
-        this.excludes = excludes == null ? org.opensearch.common.Strings.EMPTY_ARRAY : excludes;
+        this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
+        this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
     }
 
     public FetchSourceContext(boolean fetchSource) {
-        this(fetchSource, org.opensearch.common.Strings.EMPTY_ARRAY, org.opensearch.common.Strings.EMPTY_ARRAY);
+        this(fetchSource, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
     }
 
     public FetchSourceContext(StreamInput in) throws IOException {
@@ -139,8 +139,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     public static FetchSourceContext fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         boolean fetchSource = true;
-        String[] includes = org.opensearch.common.Strings.EMPTY_ARRAY;
-        String[] excludes = org.opensearch.common.Strings.EMPTY_ARRAY;
+        String[] includes = Strings.EMPTY_ARRAY;
+        String[] excludes = Strings.EMPTY_ARRAY;
         if (token == XContentParser.Token.VALUE_BOOLEAN) {
             fetchSource = parser.booleanValue();
         } else if (token == XContentParser.Token.VALUE_STRING) {

@@ -167,7 +167,7 @@ public class FetchSourcePhaseTests extends OpenSearchTestCase {
         return hitExecuteMultiple(
             source,
             fetchSource,
-            include == null ? org.opensearch.common.Strings.EMPTY_ARRAY : new String[] { include },
+            include == null ? Strings.EMPTY_ARRAY : new String[] { include },
             exclude == null ? Strings.EMPTY_ARRAY : new String[] { exclude },
             nestedIdentity
         );

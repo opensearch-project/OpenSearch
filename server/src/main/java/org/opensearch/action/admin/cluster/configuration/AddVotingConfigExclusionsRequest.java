@@ -72,7 +72,7 @@ public class AddVotingConfigExclusionsRequest extends ClusterManagerNodeRequest<
      * @param nodeNames Names of the nodes to add - see {@link AddVotingConfigExclusionsRequest#resolveVotingConfigExclusions(ClusterState)}
      */
     public AddVotingConfigExclusionsRequest(String... nodeNames) {
-        this(org.opensearch.common.Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, nodeNames, TimeValue.timeValueSeconds(30));
+        this(Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, nodeNames, TimeValue.timeValueSeconds(30));
     }
 
     /**

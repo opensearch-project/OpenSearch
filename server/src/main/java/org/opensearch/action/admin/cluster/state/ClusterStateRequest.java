@@ -102,7 +102,7 @@ public class ClusterStateRequest extends ClusterManagerNodeReadRequest<ClusterSt
         metadata = true;
         blocks = true;
         customs = true;
-        indices = org.opensearch.common.Strings.EMPTY_ARRAY;
+        indices = Strings.EMPTY_ARRAY;
         return this;
     }
 

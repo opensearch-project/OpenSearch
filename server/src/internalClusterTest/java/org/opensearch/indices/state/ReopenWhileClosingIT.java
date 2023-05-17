@@ -107,7 +107,7 @@ public class ReopenWhileClosingIT extends OpenSearchIntegTestCase {
             createIndexWithDocs(indices.get(i), dataOnlyNodes);
         }
 
-        ensureYellowAndNoInitializingShards(indices.toArray(org.opensearch.common.Strings.EMPTY_ARRAY));
+        ensureYellowAndNoInitializingShards(indices.toArray(Strings.EMPTY_ARRAY));
 
         final CountDownLatch block = new CountDownLatch(1);
         final Releasable releaseBlock = interceptVerifyShardBeforeCloseActions(randomFrom(indices), block::countDown);
