@@ -261,6 +261,7 @@ final class IndicesRequestConverters {
         parameters.withIndicesOptions(clearIndicesCacheRequest.indicesOptions());
         parameters.putParam("query", Boolean.toString(clearIndicesCacheRequest.queryCache()));
         parameters.putParam("fielddata", Boolean.toString(clearIndicesCacheRequest.fieldDataCache()));
+        parameters.putParam("file", Boolean.toString(clearIndicesCacheRequest.fileCache()));
         parameters.putParam("request", Boolean.toString(clearIndicesCacheRequest.requestCache()));
         parameters.putParam("fields", String.join(",", clearIndicesCacheRequest.fields()));
         request.addParameters(parameters.asMap());

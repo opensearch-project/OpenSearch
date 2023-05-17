@@ -67,6 +67,10 @@
       "request":{
         "type":"boolean",
         "description":"Clear request cache"
+      },
+      "file":{
+        "type":"boolean",
+        "description":"Clear filecache"
       }
     }
   }
