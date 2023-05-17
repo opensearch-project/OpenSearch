@@ -596,6 +596,10 @@ public class IndicesRequestConvertersTests extends OpenSearchTestCase {
             clearIndicesCacheRequest.fields(RequestConvertersTests.randomIndicesNames(1, 5));
             expectedParams.put("fields", String.join(",", clearIndicesCacheRequest.fields()));
         }
+        if (OpenSearchTestCase.randomBoolean()) {
+            clearIndicesCacheRequest.fileCache(OpenSearchTestCase.randomBoolean());
+        }
+        expectedParams.put("file", Boolean.toString(clearIndicesCacheRequest.fileCache()));
 
         Request request = IndicesRequestConverters.clearCache(clearIndicesCacheRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "");
