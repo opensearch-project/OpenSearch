@@ -1,6 +1,7 @@
 {
   "remote_store.stats":{
     "documentation":{
+      "url": "https://opensearch.org/docs/latest/opensearch/rest-api/remote-store#stats",
       "description":"Stats for remote store."
     },
     "stability":"experimental",
