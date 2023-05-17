@@ -223,8 +223,8 @@ setup:
 "Returns error if target index's metadata write is blocked":
 
   - skip:
-      version: " - 2.9.99"
-      reason: "only available in 3.0+"
+      version: " - 2.7.99"
+      reason: "only available in 2.8.0 and above"
 
   # block source index's write operations
   - do:
