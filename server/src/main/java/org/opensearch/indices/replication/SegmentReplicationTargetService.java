@@ -57,7 +57,7 @@ public class SegmentReplicationTargetService implements IndexEventListener {
     private final ThreadPool threadPool;
     private final RecoverySettings recoverySettings;
 
-    protected final ReplicationCollection<SegmentReplicationTarget> onGoingReplications;
+    private final ReplicationCollection<SegmentReplicationTarget> onGoingReplications;
 
     private final Map<ShardId, SegmentReplicationTarget> completedReplications = ConcurrentCollections.newConcurrentMap();
 
