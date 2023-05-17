@@ -324,6 +324,25 @@ public class TranslogTransferManager {
         );
     }
 
+    public void delete() {
+        // cleans up all the translog contents
+        transferService.deleteAsync(
+            ThreadPool.Names.REMOTE_PURGE,
+            remoteBaseTransferPath,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    logger.info("Deleted all remote translog data  for {}",  shardId);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.error(new ParameterizedMessage("Exception occurred while cleaning translog {}"), e);
+                }
+            }
+        );
+    }
+
     public void deleteStaleTranslogMetadataFilesAsync() {
         transferService.listAllAsync(ThreadPool.Names.REMOTE_PURGE, remoteMetadataTransferPath, new ActionListener<>() {
             @Override

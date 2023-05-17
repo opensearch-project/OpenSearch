@@ -1890,6 +1890,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
             } finally {
                 final Engine engine = this.currentEngineReference.getAndSet(null);
+                engine.translogManager().onDelete();
+                if (isRemoteStoreEnabled()) {
+                    assert remoteStore.directory() instanceof FilterDirectory : "Store.directory is not an instance of FilterDirectory";
+                    FilterDirectory remoteStoreDirectory = (FilterDirectory) remoteStore.directory();
+                    FilterDirectory byteSizeCachingStoreDirectory = (FilterDirectory) remoteStoreDirectory.getDelegate();
+                    final Directory remoteDirectory = byteSizeCachingStoreDirectory.getDelegate();
+                    ((RemoteSegmentStoreDirectory) remoteDirectory).deleteStaleSegments(0);
+                    //who deletes the directory ?
+                }
+
                 try {
                     if (engine != null && flushEngine) {
                         engine.flushAndClose();
@@ -1899,6 +1909,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     // Also closing refreshListeners to prevent us from accumulating any more listeners
                     IOUtils.close(engine, globalCheckpointListeners, refreshListeners, pendingReplicationActions);
                     indexShardOperationPermits.close();
+
                 }
             }
         }

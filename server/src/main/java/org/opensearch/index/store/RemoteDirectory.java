@@ -210,4 +210,8 @@ public class RemoteDirectory extends Directory {
     public Lock obtainLock(String name) throws IOException {
         throw new UnsupportedOperationException();
     }
+
+    public void delete() throws IOException {
+        blobContainer.delete();
+    }
 }
