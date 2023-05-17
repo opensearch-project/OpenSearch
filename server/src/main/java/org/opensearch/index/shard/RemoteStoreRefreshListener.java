@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.ReferenceManager;
@@ -306,7 +307,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
     // Visible for testing
     boolean uploadNewSegments(Collection<String> localFiles) throws IOException {
         AtomicBoolean uploadSuccess = new AtomicBoolean(true);
-        localFiles.stream().filter(file -> !EXCLUDE_FILES.contains(file)).filter(file -> {
+        Collection<String> filteredFiles = localFiles.stream().filter(file -> !EXCLUDE_FILES.contains(file)).filter(file -> {
             try {
                 return !remoteDirectory.containsFile(file, getChecksumOfLocalFile(file));
             } catch (IOException e) {
@@ -316,15 +317,18 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                 );
                 return true;
             }
-        }).forEach(file -> {
-            try {
-                remoteDirectory.copyFrom(storeDirectory, file, file, IOContext.DEFAULT);
-            } catch (IOException e) {
-                uploadSuccess.set(false);
-                // ToDO: Handle transient and permanent un-availability of the remote store (GitHub #3397)
-                logger.warn(() -> new ParameterizedMessage("Exception while uploading file {} to the remote segment store", file), e);
+        }).collect(Collectors.toList());
+
+        try {
+            remoteDirectory.copyFilesFrom(storeDirectory, filteredFiles, IOContext.DEFAULT);
+        } catch (Exception e) {
+            uploadSuccess.set(false);
+            if (e instanceof CorruptIndexException) {
+                indexShard.failShard(e.getMessage(), e);
             }
-        });
+            // ToDO: Handle transient and permanent un-availability of the remote store (GitHub #3397)
+            logger.warn(() -> new ParameterizedMessage("Exception: [{}] while uploading segment files", e), e);
+        }
         return uploadSuccess.get();
     }
 

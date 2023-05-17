@@ -32,12 +32,16 @@
 
 package org.opensearch.common.blobstore;
 
+import org.opensearch.common.blobstore.stream.write.UploadResponse;
+import org.opensearch.common.blobstore.stream.write.WriteContext;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * An interface for managing a repository of blob entries, where each blob entry is just a named group of bytes.
@@ -123,6 +127,29 @@ public interface BlobContainer {
      * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
      */
     void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException;
+
+    /**
+     * Used to check whether vendor plugin support for parallel upload of multiple streams is enabled or not.
+     * Returns false by default
+     *
+     * @return If multi-stream parallel uploads are supported
+     */
+    default boolean isMultiStreamUploadSupported() {
+        return false;
+    }
+
+    /**
+     * Reads blob content from multiple streams, each from a specific part of the file, which is provided by the
+     * StreamContextSupplier in the WriteContext passed to this method. An {@link IOException} is thrown if reading
+     * any of the input streams fails, or writing to the target blob fails
+     *
+     * @param writeContext A WriteContext object encapsulating all information needed to perform the upload
+     * @return A {@link CompletableFuture} representing the upload
+     * @throws IOException if any of the input streams could not be read, or the target blob could not be written to
+     */
+    default CompletableFuture<UploadResponse> writeBlobByStreams(WriteContext writeContext) throws IOException {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Reads blob content from the input stream and writes it to the container in a new blob with the given name,

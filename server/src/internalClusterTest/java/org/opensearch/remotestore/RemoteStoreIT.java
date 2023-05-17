@@ -52,7 +52,7 @@ public class RemoteStoreIT extends RemoteStoreBaseIT {
         return remoteStoreIndexSettings(0);
     }
 
-    private Settings remoteStoreIndexSettings(int numberOfReplicas) {
+    protected Settings remoteStoreIndexSettings(int numberOfReplicas) {
         return Settings.builder()
             .put(super.indexSettings())
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)

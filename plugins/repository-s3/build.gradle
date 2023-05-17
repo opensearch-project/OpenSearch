@@ -60,6 +60,42 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
   api "joda-time:joda-time:${versions.joda}"
+  api "org.reactivestreams:reactive-streams:${versions.reactivestreams}"
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
+
+  // aws sdk v2 stack
+  api "software.amazon.awssdk:sdk-core:${versions.aws_v2}"
+  api "software.amazon.awssdk:annotations:${versions.aws_v2}"
+  api "software.amazon.awssdk:aws-core:${versions.aws_v2}"
+  api "software.amazon.awssdk:auth:${versions.aws_v2}"
+  api "software.amazon.awssdk:endpoints-spi:${versions.aws_v2}"
+  api "software.amazon.awssdk:http-client-spi:${versions.aws_v2}"
+  api "software.amazon.awssdk:metrics-spi:${versions.aws_v2}"
+  api "software.amazon.awssdk:profiles:${versions.aws_v2}"
+  api "software.amazon.awssdk:regions:${versions.aws_v2}"
+  api "software.amazon.awssdk:utils:${versions.aws_v2}"
+  api "software.amazon.awssdk:aws-json-protocol:${versions.aws_v2}"
+  api "software.amazon.awssdk:protocol-core:${versions.aws_v2}"
+  api "software.amazon.awssdk:json-utils:${versions.aws_v2}"
+  api "software.amazon.awssdk:third-party-jackson-core:${versions.aws_v2}"
+  api "software.amazon.awssdk:s3:${versions.aws_v2}"
+  api "software.amazon.awssdk:signer:${versions.aws_v2}"
+  api "software.amazon.awssdk:aws-xml-protocol:${versions.aws_v2}"
+  api "software.amazon.awssdk:aws-json-protocol:${versions.aws_v2}"
+  api "software.amazon.awssdk:aws-query-protocol:${versions.aws_v2}"
+  api "software.amazon.awssdk:netty-nio-client:${versions.aws_v2}"
+
+  // network stack
+  api "io.netty:netty-buffer:${versions.netty}"
+  api "io.netty:netty-codec:${versions.netty}"
+  api "io.netty:netty-codec-http:${versions.netty}"
+  api "io.netty:netty-codec-http2:${versions.netty}"
+  api "io.netty:netty-common:${versions.netty}"
+  api "io.netty:netty-handler:${versions.netty}"
+  api "io.netty:netty-resolver:${versions.netty}"
+  api "io.netty:netty-transport:${versions.netty}"
+  api "io.netty:netty-transport-native-unix-common:${versions.netty}"
+  api "io.netty:netty-transport-classes-epoll:${versions.netty}"
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
   // and allowlist this hack in JarHell
@@ -76,9 +112,11 @@ restResources {
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
+  mapping from: /software.amazon.awssdk-.*/, to: 'software.amazon.awssdk'
   mapping from: /jmespath-java.*/, to: 'aws-java-sdk'
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /jaxb-.*/, to: 'jaxb'
+  mapping from: /netty-.*/, to: 'netty'
 }
 
 bundlePlugin {
@@ -358,34 +396,195 @@ TaskProvider s3ThirdPartyTest = tasks.register("s3ThirdPartyTest", Test) {
 }
 tasks.named("check").configure { dependsOn(s3ThirdPartyTest) }
 
-thirdPartyAudit.ignoreMissingClasses(
-  // classes are missing
-  'javax.jms.Message',
-  'javax.servlet.ServletContextEvent',
-  'javax.servlet.ServletContextListener',
-  'org.apache.avalon.framework.logger.Logger',
-  'org.apache.log.Hierarchy',
-  'org.apache.log.Logger',
-  'software.amazon.ion.IonReader',
-  'software.amazon.ion.IonSystem',
-  'software.amazon.ion.IonType',
-  'software.amazon.ion.IonWriter',
-  'software.amazon.ion.Timestamp',
-  'software.amazon.ion.system.IonBinaryWriterBuilder',
-  'software.amazon.ion.system.IonSystemBuilder',
-  'software.amazon.ion.system.IonTextWriterBuilder',
-  'software.amazon.ion.system.IonWriterBuilder',
-  // We don't use the kms dependency
-  'com.amazonaws.services.kms.AWSKMS',
-  'com.amazonaws.services.kms.AWSKMSClient',
-  'com.amazonaws.services.kms.model.DecryptRequest',
-  'com.amazonaws.services.kms.model.DecryptResult',
-  'com.amazonaws.services.kms.model.EncryptRequest',
-  'com.amazonaws.services.kms.model.EncryptResult',
-  'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
-  'com.amazonaws.services.kms.model.GenerateDataKeyResult',
-  'com.amazonaws.services.kms.AWSKMSClientBuilder'
-)
+thirdPartyAudit {
+  ignoreMissingClasses(
+    // classes are missing
+    'javax.jms.Message',
+    'javax.servlet.ServletContextEvent',
+    'javax.servlet.ServletContextListener',
+    'org.apache.avalon.framework.logger.Logger',
+    'org.apache.log.Hierarchy',
+    'org.apache.log.Logger',
+    'software.amazon.ion.IonReader',
+    'software.amazon.ion.IonSystem',
+    'software.amazon.ion.IonType',
+    'software.amazon.ion.IonWriter',
+    'software.amazon.ion.Timestamp',
+    'software.amazon.ion.system.IonBinaryWriterBuilder',
+    'software.amazon.ion.system.IonSystemBuilder',
+    'software.amazon.ion.system.IonTextWriterBuilder',
+    'software.amazon.ion.system.IonWriterBuilder',
+    // We don't use the kms dependency
+    'com.amazonaws.services.kms.AWSKMS',
+    'com.amazonaws.services.kms.AWSKMSClient',
+    'com.amazonaws.services.kms.model.DecryptRequest',
+    'com.amazonaws.services.kms.model.DecryptResult',
+    'com.amazonaws.services.kms.model.EncryptRequest',
+    'com.amazonaws.services.kms.model.EncryptResult',
+    'com.amazonaws.services.kms.model.GenerateDataKeyRequest',
+    'com.amazonaws.services.kms.model.GenerateDataKeyResult',
+    'com.amazonaws.services.kms.AWSKMSClientBuilder',
+
+    // from io.netty.handler.ssl.OpenSslEngine (netty)
+    'io.netty.internal.tcnative.AsyncSSLPrivateKeyMethod',
+    'io.netty.internal.tcnative.AsyncTask',
+    'io.netty.internal.tcnative.Buffer',
+    'io.netty.internal.tcnative.CertificateCompressionAlgo',
+    'io.netty.internal.tcnative.Library',
+    'io.netty.internal.tcnative.ResultCallback',
+    'io.netty.internal.tcnative.SSL',
+    'io.netty.internal.tcnative.SSLContext',
+    'io.netty.internal.tcnative.SSLPrivateKeyMethod',
+    'io.netty.internal.tcnative.SSLSession',
+    'io.netty.internal.tcnative.SSLSessionCache',
+    'io.netty.internal.tcnative.CertificateCallback',
+    'io.netty.internal.tcnative.CertificateVerifier',
+    'io.netty.internal.tcnative.SessionTicketKey',
+    'io.netty.internal.tcnative.SniHostNameMatcher',
+
+    'com.aayushatharva.brotli4j.Brotli4jLoader',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Status',
+    'com.aayushatharva.brotli4j.decoder.DecoderJNI$Wrapper',
+    'com.aayushatharva.brotli4j.encoder.BrotliEncoderChannel',
+    'com.aayushatharva.brotli4j.encoder.Encoder',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
+    'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
+
+    'com.github.luben.zstd.Zstd',
+    'com.google.protobuf.nano.CodedOutputByteBufferNano',
+    'com.google.protobuf.nano.MessageNano',
+
+    'com.ning.compress.BufferRecycler',
+    'com.ning.compress.lzf.ChunkDecoder',
+    'com.ning.compress.lzf.ChunkEncoder',
+    'com.ning.compress.lzf.LZFChunk',
+    'com.ning.compress.lzf.LZFEncoder',
+    'com.ning.compress.lzf.util.ChunkDecoderFactory',
+    'com.ning.compress.lzf.util.ChunkEncoderFactory',
+
+    'io.netty.internal.tcnative.AsyncSSLPrivateKeyMethod',
+    'io.netty.internal.tcnative.AsyncTask',
+
+    'io.netty.internal.tcnative.CertificateCallback',
+    'io.netty.internal.tcnative.CertificateVerifier',
+    'io.netty.internal.tcnative.ResultCallback',
+    'io.netty.internal.tcnative.SessionTicketKey',
+    'io.netty.internal.tcnative.SniHostNameMatcher',
+    'io.netty.internal.tcnative.SSL',
+    'io.netty.internal.tcnative.SSLSession',
+    'io.netty.internal.tcnative.SSLSessionCache',
+
+    'lzma.sdk.lzma.Encoder',
+    'net.jpountz.lz4.LZ4Compressor',
+    'net.jpountz.lz4.LZ4Factory',
+    'net.jpountz.lz4.LZ4FastDecompressor',
+    'net.jpountz.xxhash.XXHash32',
+    'net.jpountz.xxhash.XXHashFactory',
+
+    // from io.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
+    'org.bouncycastle.cert.X509v3CertificateBuilder',
+    'org.bouncycastle.cert.jcajce.JcaX509CertificateConverter',
+    'org.bouncycastle.operator.jcajce.JcaContentSignerBuilder',
+    'org.bouncycastle.openssl.PEMEncryptedKeyPair',
+    'org.bouncycastle.openssl.PEMParser',
+    'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter',
+    'org.bouncycastle.openssl.jcajce.JceOpenSSLPKCS8DecryptorProviderBuilder',
+    'org.bouncycastle.openssl.jcajce.JcePEMDecryptorProviderBuilder',
+    'org.bouncycastle.pkcs.PKCS8EncryptedPrivateKeyInfo',
+
+    'org.conscrypt.AllocatedBuffer',
+    'org.conscrypt.BufferAllocator',
+    'org.conscrypt.Conscrypt',
+    'org.conscrypt.HandshakeListener',
+
+    'org.eclipse.jetty.alpn.ALPN$ClientProvider',
+    'org.eclipse.jetty.alpn.ALPN$ServerProvider',
+    'org.eclipse.jetty.alpn.ALPN',
+
+    // from io.netty.handler.ssl.JettyNpnSslEngine (netty)
+    'org.eclipse.jetty.npn.NextProtoNego$ClientProvider',
+    'org.eclipse.jetty.npn.NextProtoNego$ServerProvider',
+    'org.eclipse.jetty.npn.NextProtoNego',
+
+    // from io.netty.handler.codec.marshalling.ChannelBufferByteInput (netty)
+    'org.jboss.marshalling.ByteInput',
+
+    // from io.netty.handler.codec.marshalling.ChannelBufferByteOutput (netty)
+    'org.jboss.marshalling.ByteOutput',
+
+    // from io.netty.handler.codec.marshalling.CompatibleMarshallingEncoder (netty)
+    'org.jboss.marshalling.Marshaller',
+
+    // from io.netty.handler.codec.marshalling.ContextBoundUnmarshallerProvider (netty)
+    'org.jboss.marshalling.MarshallerFactory',
+    'org.jboss.marshalling.MarshallingConfiguration',
+    'org.jboss.marshalling.Unmarshaller',
+
+    'org.slf4j.impl.StaticLoggerBinder',
+    'org.slf4j.impl.StaticMDCBinder',
+    'org.slf4j.impl.StaticMarkerBinder',
+    'reactor.blockhound.BlockHound$Builder',
+    'reactor.blockhound.integration.BlockHoundIntegration',
+
+    'software.amazon.awssdk.arns.Arn',
+    'software.amazon.awssdk.arns.ArnResource',
+    'software.amazon.awssdk.crt.CRT',
+    'software.amazon.awssdk.crt.auth.credentials.Credentials',
+    'software.amazon.awssdk.crt.auth.credentials.CredentialsProvider',
+    'software.amazon.awssdk.crt.auth.credentials.DelegateCredentialsProvider$DelegateCredentialsProviderBuilder',
+    'software.amazon.awssdk.crt.http.HttpHeader',
+    'software.amazon.awssdk.crt.http.HttpRequest',
+    'software.amazon.awssdk.crt.http.HttpRequestBodyStream',
+    'software.amazon.awssdk.crt.io.ClientBootstrap',
+    'software.amazon.awssdk.crt.s3.ChecksumAlgorithm',
+    'software.amazon.awssdk.crt.s3.ChecksumConfig',
+    'software.amazon.awssdk.crt.s3.ChecksumConfig$ChecksumLocation',
+    'software.amazon.awssdk.crt.s3.ResumeToken',
+    'software.amazon.awssdk.crt.s3.S3Client',
+    'software.amazon.awssdk.crt.s3.S3ClientOptions',
+    'software.amazon.awssdk.crt.s3.S3FinishedResponseContext',
+    'software.amazon.awssdk.crt.s3.S3MetaRequest',
+    'software.amazon.awssdk.crt.s3.S3MetaRequestOptions',
+    'software.amazon.awssdk.crt.s3.S3MetaRequestOptions$MetaRequestType',
+    'software.amazon.awssdk.crt.s3.S3MetaRequestResponseHandler',
+    'software.amazon.eventstream.HeaderValue',
+    'software.amazon.eventstream.Message',
+    'software.amazon.eventstream.MessageDecoder',
+
+    'com.jcraft.jzlib.Deflater',
+    'com.jcraft.jzlib.Inflater',
+    'com.jcraft.jzlib.JZlib$WrapperType',
+    'com.jcraft.jzlib.JZlib'
+  )
+
+  ignoreViolations(
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$1',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$2',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$3',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$4',
+    'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator$5',
+
+    'io.netty.util.internal.PlatformDependent0',
+    'io.netty.util.internal.PlatformDependent0$1',
+    'io.netty.util.internal.PlatformDependent0$2',
+    'io.netty.util.internal.PlatformDependent0$3',
+    'io.netty.util.internal.PlatformDependent0$4',
+    'io.netty.util.internal.PlatformDependent0$6',
+
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields',
+    'io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
+    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
+    'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
+  )
+}
 
 // jarhell with jdk (intentionally, because jaxb was removed from default modules in java 9)
 if (BuildParams.runtimeJavaVersion <= JavaVersion.VERSION_1_8) {

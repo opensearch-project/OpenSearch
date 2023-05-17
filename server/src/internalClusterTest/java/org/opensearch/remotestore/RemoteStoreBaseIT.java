@@ -59,13 +59,17 @@ public class RemoteStoreBaseIT extends OpenSearchIntegTestCase {
             .build();
     }
 
+    protected void putRepository(Path path) {
+        assertAcked(
+            clusterAdmin().preparePutRepository(REPOSITORY_NAME).setType("fs").setSettings(Settings.builder().put("location", path))
+        );
+    }
+
     @Before
     public void setup() {
         internalCluster().startClusterManagerOnlyNode();
         Path absolutePath = randomRepoPath().toAbsolutePath();
-        assertAcked(
-            clusterAdmin().preparePutRepository(REPOSITORY_NAME).setType("fs").setSettings(Settings.builder().put("location", absolutePath))
-        );
+        putRepository(absolutePath);
     }
 
     @After

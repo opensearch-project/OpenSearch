@@ -57,11 +57,18 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStoreException;
 import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.stream.StreamContext;
+import org.opensearch.common.blobstore.stream.write.UploadResponse;
+import org.opensearch.common.blobstore.stream.write.WriteContext;
+import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.support.AbstractBlobContainer;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.repositories.s3.async.UploadRequest;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.utils.CompletableFutureUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -71,6 +78,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -85,6 +93,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     /**
      * Maximum number of deletes in a {@link DeleteObjectsRequest}.
+     *
      * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/multiobjectdeleteapi.html">S3 Documentation</a>.
      */
     private static final int MAX_BULK_DELETES = 1000;
@@ -147,6 +156,42 @@ class S3BlobContainer extends AbstractBlobContainer {
             }
             return null;
         });
+    }
+
+    @Override
+    public boolean isMultiStreamUploadSupported() {
+        return blobStore.isMultipartUploadEnabled();
+    }
+
+    @Override
+    public CompletableFuture<UploadResponse> writeBlobByStreams(WriteContext writeContext) throws IOException {
+        UploadRequest uploadRequest = new UploadRequest(
+            blobStore.bucket(),
+            buildKey(writeContext.getFileName()),
+            writeContext.getFileSize(),
+            writeContext.getWritePriority(),
+            writeContext.getUploadFinalizer()
+        );
+        try {
+            long partSize = blobStore.getAsyncUploadUtils().calculateOptimalPartSize(writeContext.getFileSize());
+            StreamContext streamContext = SocketAccess.doPrivileged(() -> writeContext.getStreamContext(partSize));
+            try (AmazonAsyncS3Reference amazonS3Reference = SocketAccess.doPrivileged(blobStore::asyncClientReference)) {
+
+                S3AsyncClient s3AsyncClient = writeContext.getWritePriority() == WritePriority.HIGH
+                    ? amazonS3Reference.get().priorityClient()
+                    : amazonS3Reference.get().client();
+                CompletableFuture<UploadResponse> returnFuture = new CompletableFuture<>();
+                CompletableFuture<UploadResponse> completableFuture = blobStore.getAsyncUploadUtils()
+                    .uploadObject(s3AsyncClient, uploadRequest, streamContext);
+
+                CompletableFutureUtils.forwardExceptionTo(returnFuture, completableFuture);
+                CompletableFutureUtils.forwardResultTo(completableFuture, returnFuture);
+                return completableFuture;
+            }
+        } catch (Exception e) {
+            logger.info("exception error from blob container for file {}", writeContext.getFileName());
+            throw new IOException(e);
+        }
     }
 
     // package private for testing

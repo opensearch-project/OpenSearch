@@ -62,7 +62,11 @@ public class S3ClientSettingsTests extends OpenSearchTestCase implements ConfigP
         assertThat(defaultSettings.endpoint, is(emptyString()));
         assertThat(defaultSettings.protocol, is(Protocol.HTTPS));
         assertThat(defaultSettings.proxySettings, is(ProxySettings.NO_PROXY_SETTINGS));
-        assertThat(defaultSettings.readTimeoutMillis, is(ClientConfiguration.DEFAULT_SOCKET_TIMEOUT));
+        assertThat(defaultSettings.readTimeoutMillis, is(50 * 1000));
+        assertThat(defaultSettings.requestTimeoutMillis, is(120 * 1000));
+        assertThat(defaultSettings.connectionTimeoutMillis, is(10 * 1000));
+        assertThat(defaultSettings.connectionTTLMillis, is(5 * 1000));
+        assertThat(defaultSettings.maxConnections, is(100));
         assertThat(defaultSettings.maxRetries, is(ClientConfiguration.DEFAULT_RETRY_POLICY.getMaxErrorRetry()));
         assertThat(defaultSettings.throttleRetries, is(ClientConfiguration.DEFAULT_THROTTLE_RETRIES));
     }

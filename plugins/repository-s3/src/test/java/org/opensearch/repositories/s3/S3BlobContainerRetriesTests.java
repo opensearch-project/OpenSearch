@@ -35,11 +35,23 @@ import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.internal.MD5DigestCalculatingInputStream;
 import com.amazonaws.util.Base16;
 import org.apache.http.HttpStatus;
+import org.junit.After;
+import org.junit.Before;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.Stream;
+import org.opensearch.common.StreamProvider;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.TransferPartStreamSupplier;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.stream.StreamContext;
+import org.opensearch.common.blobstore.stream.write.StreamContextSupplier;
+import org.opensearch.common.blobstore.stream.write.UploadResponse;
+import org.opensearch.common.blobstore.stream.write.WriteContext;
+import org.opensearch.common.blobstore.stream.write.WritePriority;
+import org.opensearch.common.blobstore.transfer.UploadFinalizer;
+import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
@@ -53,8 +65,9 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.CountDown;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
-import org.junit.After;
-import org.junit.Before;
+import org.opensearch.repositories.s3.async.AsyncExecutorBuilder;
+import org.opensearch.repositories.s3.async.AsyncUploadUtils;
+import org.opensearch.repositories.s3.async.TransferNIOGroup;
 
 import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
@@ -63,19 +76,24 @@ import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.opensearch.repositories.s3.S3ClientSettings.DISABLE_CHUNKED_ENCODING;
-import static org.opensearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTING;
-import static org.opensearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SETTING;
-import static org.opensearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTING;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.opensearch.repositories.s3.S3ClientSettings.DISABLE_CHUNKED_ENCODING;
+import static org.opensearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTING;
+import static org.opensearch.repositories.s3.S3ClientSettings.MAX_RETRIES_SETTING;
+import static org.opensearch.repositories.s3.S3ClientSettings.READ_TIMEOUT_SETTING;
 
 /**
  * This class tests how a {@link S3BlobContainer} and its underlying AWS S3 client are retrying requests when reading or writing blobs.
@@ -84,16 +102,33 @@ import static org.hamcrest.Matchers.is;
 public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTestCase implements ConfigPathSupport {
 
     private S3Service service;
+    private S3AsyncService asyncService;
+    private ExecutorService futureCompletionService;
+    private ExecutorService streamReaderService;
+    private TransferNIOGroup transferNIOGroup;
 
     @Before
     public void setUp() throws Exception {
         service = new S3Service(configPath());
+        asyncService = new S3AsyncService(configPath());
+
+        futureCompletionService = Executors.newSingleThreadExecutor();
+        streamReaderService = Executors.newSingleThreadExecutor();
+        transferNIOGroup = new TransferNIOGroup(1);
+
+        // needed by S3AsyncService
+        SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
         super.setUp();
     }
 
     @After
     public void tearDown() throws Exception {
-        IOUtils.close(service);
+        IOUtils.close(service, asyncService);
+
+        streamReaderService.shutdown();
+        futureCompletionService.shutdown();
+        IOUtils.close(transferNIOGroup);
+
         super.tearDown();
     }
 
@@ -141,6 +176,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         secureSettings.setString(S3ClientSettings.SECRET_KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "secret");
         clientSettings.setSecureSettings(secureSettings);
         service.refreshAndClearCache(S3ClientSettings.load(clientSettings.build(), configPath()));
+        asyncService.refreshAndClearCache(S3ClientSettings.load(clientSettings.build(), configPath()));
 
         final RepositoryMetadata repositoryMetadata = new RepositoryMetadata(
             "repository",
@@ -148,16 +184,31 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             Settings.builder().put(S3Repository.CLIENT_NAME.getKey(), clientName).build()
         );
 
+        AsyncExecutorBuilder asyncExecutorBuilder = new AsyncExecutorBuilder(
+            futureCompletionService,
+            streamReaderService,
+            transferNIOGroup
+        );
+
         return new S3BlobContainer(
             BlobPath.cleanPath(),
             new S3BlobStore(
                 service,
+                asyncService,
+                true,
                 "bucket",
                 S3Repository.SERVER_SIDE_ENCRYPTION_SETTING.getDefault(Settings.EMPTY),
                 bufferSize == null ? S3Repository.BUFFER_SIZE_SETTING.getDefault(Settings.EMPTY) : bufferSize,
                 S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
                 S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
-                repositoryMetadata
+                repositoryMetadata,
+                new AsyncUploadUtils(
+                    S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING.getDefault(Settings.EMPTY).getBytes(),
+                    asyncExecutorBuilder.getStreamReader(),
+                    asyncExecutorBuilder.getStreamReader()
+                ),
+                asyncExecutorBuilder,
+                asyncExecutorBuilder
             )
         ) {
             @Override
@@ -215,6 +266,95 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             blobContainer.writeBlob("write_blob_max_retries", stream, bytes.length, false);
         }
         assertThat(countDown.isCountedDown(), is(true));
+    }
+
+    public void testWriteBlobByStreamsWithRetries() throws Exception {
+        final int maxRetries = randomInt(5);
+        final CountDown countDown = new CountDown(maxRetries + 1);
+
+        final byte[] bytes = randomBlobContent();
+        httpServer.createContext("/bucket/write_blob_by_streams_max_retries", exchange -> {
+            if ("PUT".equals(exchange.getRequestMethod()) && exchange.getRequestURI().getQuery() == null) {
+                if (countDown.countDown()) {
+                    final BytesReference body = Streams.readFully(exchange.getRequestBody());
+                    if (Objects.deepEquals(bytes, BytesReference.toBytes(body))) {
+                        exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
+                    } else {
+                        exchange.sendResponseHeaders(HttpStatus.SC_BAD_REQUEST, -1);
+                    }
+                    exchange.close();
+                    return;
+                }
+
+                if (randomBoolean()) {
+                    if (randomBoolean()) {
+                        Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, Math.max(1, bytes.length - 1))]);
+                    } else {
+                        Streams.readFully(exchange.getRequestBody());
+                        exchange.sendResponseHeaders(
+                            randomFrom(
+                                HttpStatus.SC_INTERNAL_SERVER_ERROR,
+                                HttpStatus.SC_BAD_GATEWAY,
+                                HttpStatus.SC_SERVICE_UNAVAILABLE,
+                                HttpStatus.SC_GATEWAY_TIMEOUT
+                            ),
+                            -1
+                        );
+                    }
+                }
+                exchange.close();
+            }
+        });
+
+        final BlobContainer blobContainer = createBlobContainer(maxRetries, null, true, null);
+        List<InputStream> openInputStreams = new ArrayList<>();
+        CompletableFuture<UploadResponse> completableFuture = blobContainer.writeBlobByStreams(
+            new WriteContext("write_blob_by_streams_max_retries", new StreamContextSupplier() {
+                @Override
+                public StreamContext supplyStreamContext(long partSize) {
+                    return new StreamContext(new StreamProvider(new TransferPartStreamSupplier() {
+                        @Override
+                        public Stream supply(int partNo, long size, long position) throws IOException {
+                            InputStream inputStream = new OffsetRangeIndexInputStream(
+                                new ByteArrayIndexInput("desc", bytes),
+                                size,
+                                position
+                            );
+                            openInputStreams.add(inputStream);
+                            return new Stream(inputStream, size, position);
+                        }
+                    }, partSize, calculateLastPartSize(bytes.length, partSize), calculateNumberOfParts(bytes.length, partSize)),
+                        calculateNumberOfParts(bytes.length, partSize)
+                    );
+                }
+            }, bytes.length, false, WritePriority.NORMAL, new UploadFinalizer() {
+                @Override
+                public void accept(boolean uploadSuccess) {
+                    assertTrue(uploadSuccess);
+                }
+            })
+        );
+
+        // wait for completableFuture to finish
+        completableFuture.get();
+
+        assertThat(countDown.isCountedDown(), is(true));
+
+        openInputStreams.forEach(inputStream -> {
+            try {
+                inputStream.close();
+            } catch (IOException e) {
+                fail("Failure while closing open input streams");
+            }
+        });
+    }
+
+    private long calculateLastPartSize(long totalSize, long partSize) {
+        return totalSize % partSize == 0 ? partSize : totalSize % partSize;
+    }
+
+    private int calculateNumberOfParts(long contentLength, long partSize) {
+        return (int) ((contentLength % partSize) == 0 ? contentLength / partSize : (contentLength / partSize) + 1);
     }
 
     public void testWriteBlobWithReadTimeouts() {
