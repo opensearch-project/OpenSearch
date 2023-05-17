@@ -31,7 +31,6 @@
 
 package org.opensearch.rest.action.cat;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.opensearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.opensearch.action.support.IndicesOptions;
@@ -44,6 +43,7 @@ import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
 
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
@@ -111,9 +111,9 @@ public class RestAliasAction extends AbstractCatAction {
     private Table buildTable(RestRequest request, GetAliasesResponse response) {
         Table table = getTableWithHeader(request);
 
-        for (ObjectObjectCursor<String, List<AliasMetadata>> cursor : response.getAliases()) {
-            String indexName = cursor.key;
-            for (AliasMetadata aliasMetadata : cursor.value) {
+        for (final Map.Entry<String, List<AliasMetadata>> cursor : response.getAliases().entrySet()) {
+            String indexName = cursor.getKey();
+            for (AliasMetadata aliasMetadata : cursor.getValue()) {
                 table.startRow();
                 table.addCell(aliasMetadata.alias());
                 table.addCell(indexName);

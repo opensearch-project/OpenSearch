@@ -39,7 +39,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.regex.Regex;
@@ -566,12 +565,11 @@ public class IndexNameExpressionResolver {
             return null;
         }
 
-        final ImmutableOpenMap<String, AliasMetadata> indexAliases = indexMetadata.getAliases();
+        final Map<String, AliasMetadata> indexAliases = indexMetadata.getAliases();
         final AliasMetadata[] aliasCandidates;
         if (iterateIndexAliases(indexAliases.size(), resolvedExpressions.size())) {
             // faster to iterate indexAliases
             aliasCandidates = StreamSupport.stream(Spliterators.spliteratorUnknownSize(indexAliases.values().iterator(), 0), false)
-                .map(cursor -> cursor.value)
                 .filter(aliasMetadata -> resolvedExpressions.contains(aliasMetadata.alias()))
                 .toArray(AliasMetadata[]::new);
         } else {

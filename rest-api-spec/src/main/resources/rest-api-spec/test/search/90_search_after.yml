@@ -224,3 +224,55 @@
   - match: {hits.hits.0._index: test }
   - match: {hits.hits.0._source.timestamp: "2019-10-21 00:30:04.828740" }
   - match: {hits.hits.0.sort: [1571617804828740000] }
+
+---
+"unsigned long":
+  - skip:
+      version: " - 2.7.99"
+      reason: unsigned_long is not supported before 2.8.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              population:
+                type: unsigned_long
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body: |
+          {"index":{}}
+          {"population": 10223372036854775800}
+          {"index":{}}
+          {"population": 15223372036854775800}
+
+  - do:
+      search:
+        index: test
+        rest_total_hits_as_int: true
+        body:
+          size: 1
+          sort: [{ population: asc }]
+  - match: {hits.total: 2 }
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0._index: test }
+  - match: {hits.hits.0._source.population: 10223372036854775800 }
+  - match: {hits.hits.0.sort: [10223372036854775800] }
+
+  # search_after with the sort
+  - do:
+      search:
+        index: test
+        rest_total_hits_as_int: true
+        body:
+          size: 1
+          sort: [{ population: asc }]
+          search_after: [10223372036854775800]
+  - match: {hits.total: 2 }
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0._index: test }
+  - match: {hits.hits.0._source.population: 15223372036854775800 }
+  - match: {hits.hits.0.sort: [15223372036854775800] }

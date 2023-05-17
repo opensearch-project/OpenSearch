@@ -89,6 +89,7 @@ import org.opensearch.search.query.ReduceableSearchResult;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.search.sort.SortOrder;
 import org.opensearch.search.suggest.SuggestionSearchContext;
 
 import java.io.IOException;
@@ -210,7 +211,8 @@ final class DefaultSearchContext extends SearchContext {
             engineSearcher.getQueryCache(),
             engineSearcher.getQueryCachingPolicy(),
             lowLevelCancellation,
-            executor
+            executor,
+            shouldReverseLeafReaderContexts()
         );
         this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;
@@ -884,5 +886,23 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public ReaderContext readerContext() {
         return readerContext;
+    }
+
+    private boolean shouldReverseLeafReaderContexts() {
+        // Time series based workload by default traverses segments in desc order i.e. latest to the oldest order.
+        // This is actually beneficial for search queries to start search on latest segments first for time series workload.
+        // That can slow down ASC order queries on timestamp workload. So to avoid that slowdown, we will reverse leaf
+        // reader order here.
+        if (this.indexShard.isTimeSeriesIndex()) {
+            // Only reverse order for asc order sort queries
+            if (request != null
+                && request.source() != null
+                && request.source().sorts() != null
+                && request.source().sorts().size() > 0
+                && request.source().sorts().get(0).order() == SortOrder.ASC) {
+                return true;
+            }
+        }
+        return false;
     }
 }

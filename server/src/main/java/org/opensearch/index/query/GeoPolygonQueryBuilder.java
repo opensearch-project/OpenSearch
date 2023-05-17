@@ -114,7 +114,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         int size = in.readVInt();
         shell = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            shell.add(in.readGeoPoint());
+            shell.add(new GeoPoint(in));
         }
         validationMethod = GeoValidationMethod.readFromStream(in);
         ignoreUnmapped = in.readBoolean();
@@ -125,7 +125,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         out.writeString(fieldName);
         out.writeVInt(shell.size());
         for (GeoPoint point : shell) {
-            out.writeGeoPoint(point);
+            point.writeTo(out);
         }
         validationMethod.writeTo(out);
         out.writeBoolean(ignoreUnmapped);

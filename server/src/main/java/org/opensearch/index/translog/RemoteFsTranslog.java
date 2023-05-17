@@ -9,7 +9,7 @@
 package org.opensearch.index.translog;
 
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.io.FileSystemUtils;
+import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.ReleasableLock;
@@ -22,6 +22,7 @@ import org.opensearch.index.translog.transfer.TranslogCheckpointTransferSnapshot
 import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
+import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -116,8 +117,20 @@ public class RemoteFsTranslog extends Translog {
         }
     }
 
-    public static void download(TranslogTransferManager translogTransferManager, Path location) throws IOException {
+    public static void download(Repository repository, ShardId shardId, ThreadPool threadPool, Path location) throws IOException {
+        assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
+        BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
+        FileTransferTracker fileTransferTracker = new FileTransferTracker(shardId);
+        TranslogTransferManager translogTransferManager = buildTranslogTransferManager(
+            blobStoreRepository,
+            threadPool,
+            shardId,
+            fileTransferTracker
+        );
+        RemoteFsTranslog.download(translogTransferManager, location);
+    }
 
+    public static void download(TranslogTransferManager translogTransferManager, Path location) throws IOException {
         TranslogTransferMetadata translogMetadata = translogTransferManager.readMetadata();
         if (translogMetadata != null) {
             if (Files.notExists(location)) {

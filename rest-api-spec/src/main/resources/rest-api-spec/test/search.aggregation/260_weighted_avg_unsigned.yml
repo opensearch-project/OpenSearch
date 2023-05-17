@@ -1,0 +1,70 @@
+setup:
+  - skip:
+      version: " - 2.7.99"
+      reason: unsigned_long is not supported before 2.8.0
+
+  - do:
+      indices.create:
+          index: test_1
+          body:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              properties:
+                unsigned_field:
+                   type : unsigned_long
+                double_field:
+                   type : double
+                string_field:
+                   type: keyword
+
+  - do:
+       bulk:
+         refresh: true
+         body:
+           - index:
+               _index: test_1
+               _id:    1
+           - unsigned_field: 1
+             double_field: 1.0
+           - index:
+               _index: test_1
+               _id:    2
+           - unsigned_field: 2
+             double_field: 2.0
+           - index:
+               _index: test_1
+               _id:    3
+           - unsigned_field: 3
+             double_field: 3.0
+           - index:
+               _index: test_1
+               _id:    4
+           - unsigned_field: 4
+             double_field: 4.0
+
+---
+"Basic test":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            the_unsigned_avg:
+              weighted_avg:
+                value:
+                  field: "unsigned_field"
+                weight:
+                  field: "unsigned_field"
+            the_double_avg:
+              weighted_avg:
+                value:
+                  field: "double_field"
+                weight:
+                  field: "double_field"
+
+  - match: { hits.total: 4 }
+  - length: { hits.hits: 4 }
+  - match: { aggregations.the_unsigned_avg.value: 3.0 }
+  - match: { aggregations.the_double_avg.value: 3.0 }

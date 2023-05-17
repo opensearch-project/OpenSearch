@@ -246,6 +246,106 @@ setup:
   - match: { aggregations.integer_terms.buckets.1.doc_count: 1 }
 
 ---
+"Long test":
+  - do:
+      index:
+        index: test_1
+        id: 1
+        body: { "number": 4611686018427387903 }
+
+  - do:
+      index:
+        index: test_1
+        id: 2
+        body: { "number": -4611686018427387904 }
+
+  - do:
+      index:
+        index: test_1
+        id: 3
+        body: { "number": 4611686018427387903 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "long_terms" : { "terms" : { "field" : "number" } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.long_terms.buckets: 2 }
+
+  - match: { aggregations.long_terms.buckets.0.key: 4611686018427387903 }
+
+  - is_false: aggregations.long_terms.buckets.0.key_as_string
+
+  - match: { aggregations.long_terms.buckets.0.doc_count: 2 }
+
+  - match: { aggregations.long_terms.buckets.1.key: -4611686018427387904 }
+
+  - is_false: aggregations.long_terms.buckets.1.key_as_string
+
+  - match: { aggregations.long_terms.buckets.1.doc_count: 1 }
+
+---
+"Unsigned Long test":
+  - skip:
+      version: " - 2.7.99"
+      reason: unsigned_long is not supported before 2.8.0
+
+  - do:
+      indices.put_mapping:
+        index: test_1
+        body:
+          properties:
+            unsigned:
+              type: unsigned_long
+
+  - do:
+      index:
+        index: test_1
+        id: 1
+        body: { "unsigned": 18446744073709551615 }
+
+  - do:
+      index:
+        index: test_1
+        id: 2
+        body: { "unsigned": 10223372036854775807 }
+
+  - do:
+      index:
+        index: test_1
+        id: 3
+        body: { "unsigned": 18446744073709551615 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "unsigned_terms" : { "terms" : { "field" : "unsigned" } } } }
+
+  - match: { hits.total: 3 }
+
+  - length: { aggregations.unsigned_terms.buckets: 2 }
+
+  - match: { aggregations.unsigned_terms.buckets.0.key: 18446744073709551615 }
+
+  - is_false: aggregations.unsigned_terms.buckets.0.key_as_string
+
+  - match: { aggregations.unsigned_terms.buckets.0.doc_count: 2 }
+
+  - match: { aggregations.unsigned_terms.buckets.1.key: 10223372036854775807 }
+
+  - is_false: aggregations.unsigned_terms.buckets.1.key_as_string
+
+  - match: { aggregations.unsigned_terms.buckets.1.doc_count: 1 }
+
+---
 "Double test":
   - do:
       index:
@@ -568,6 +668,41 @@ setup:
   - match: { aggregations.long_terms.buckets.0.doc_count: 1 }
 
 ---
+"Unmapped unsigned longs":
+  - skip:
+      version: " - 2.7.99"
+      reason: unsigned_long is not supported before 2.8.0
+
+  - do:
+      indices.put_mapping:
+        index: test_1
+        body:
+          properties:
+            unsigned:
+              type: unsigned_long
+  - do:
+      index:
+        index: test_1
+        id: 1
+        body: {}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "unsigned_terms" : { "terms" : { "field" : "unmapped_unsigned", "value_type" : "unsigned_long", "missing": 3 } } } }
+
+  - match: { hits.total: 1 }
+
+  - length: { aggregations.unsigned_terms.buckets: 1 }
+
+  - match: { aggregations.unsigned_terms.buckets.0.key: 3 }
+
+  - match: { aggregations.unsigned_terms.buckets.0.doc_count: 1 }
+
+---
 "Unmapped doubles":
 
   - do:
@@ -648,6 +783,95 @@ setup:
   - match: { aggregations.number_terms.buckets.2.key: 14.6 }
 
   - match: { aggregations.number_terms.buckets.2.doc_count: 1 }
+
+---
+"Mixing longs, unsigned  long and doubles":
+  - skip:
+      version: " - 2.7.99"
+      reason: unsigned_long is not supported before 2.8.0
+
+  - do:
+      indices.put_mapping:
+        index: test_1
+        body:
+          properties:
+            unsigned:
+              type: unsigned_long
+
+  - do:
+      indices.create:
+          index: test_3
+          body:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              properties:
+                number:
+                  type: unsigned_long
+
+  - do:
+      index:
+        index: test_1
+        id: 1
+        body: {"number": 100}
+
+  - do:
+      index:
+        index: test_1
+        id: 2
+        body: {"number": 10}
+
+  - do:
+      index:
+        index: test_2
+        id: 3
+        body: {"number": 100.0}
+
+  - do:
+      index:
+        index: test_2
+        id: 1
+        body: {"number": 10.0}
+
+  - do:
+      index:
+        index: test_2
+        id: 2
+        body: {"number": 14.6}
+
+  - do:
+      index:
+        index: test_3
+        id: 1
+        body: {"number": 10223372036854775807}
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size" : 0, "aggs" : { "number_terms" : { "terms" : { "field" : "number" } } } }
+
+  - match: { hits.total: 6 }
+
+  - length: { aggregations.number_terms.buckets: 4 }
+
+  - match: { aggregations.number_terms.buckets.0.key: 10.0 }
+
+  - match: { aggregations.number_terms.buckets.0.doc_count: 2 }
+
+  - match: { aggregations.number_terms.buckets.1.key: 100.0 }
+
+  - match: { aggregations.number_terms.buckets.1.doc_count: 2 }
+
+  - match: { aggregations.number_terms.buckets.2.key: 14.6 }
+
+  - match: { aggregations.number_terms.buckets.2.doc_count: 1 }
+
+  - match: { aggregations.number_terms.buckets.3.key: 10223372036854775807.0 }
+
+  - match: { aggregations.number_terms.buckets.3.doc_count: 1 }
 
 ---
 "Deprecated _term order":

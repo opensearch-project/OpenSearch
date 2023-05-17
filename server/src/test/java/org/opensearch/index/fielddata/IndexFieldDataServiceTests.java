@@ -369,6 +369,22 @@ public class IndexFieldDataServiceTests extends OpenSearchSingleNodeTestCase {
         );
     }
 
+    public void testRequireDocValuesOnUnsignedLongs() {
+        doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.UNSIGNED_LONG));
+        doTestRequireDocValues(
+            new NumberFieldMapper.NumberFieldType(
+                "field",
+                NumberFieldMapper.NumberType.UNSIGNED_LONG,
+                true,
+                false,
+                false,
+                false,
+                null,
+                Collections.emptyMap()
+            )
+        );
+    }
+
     public void testRequireDocValuesOnBools() {
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field"));
         doTestRequireDocValues(new BooleanFieldMapper.BooleanFieldType("field", true, false, false, null, Collections.emptyMap()));

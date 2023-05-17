@@ -32,13 +32,11 @@
 
 package org.opensearch.cluster.block;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.cluster.AbstractDiffable;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MetadataIndexStateService;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.util.set.Sets;
@@ -64,17 +62,17 @@ import static java.util.stream.Collectors.toSet;
  * @opensearch.internal
  */
 public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
-    public static final ClusterBlocks EMPTY_CLUSTER_BLOCK = new ClusterBlocks(emptySet(), ImmutableOpenMap.of());
+    public static final ClusterBlocks EMPTY_CLUSTER_BLOCK = new ClusterBlocks(emptySet(), Map.of());
 
     private final Set<ClusterBlock> global;
 
-    private final ImmutableOpenMap<String, Set<ClusterBlock>> indicesBlocks;
+    private final Map<String, Set<ClusterBlock>> indicesBlocks;
 
     private final EnumMap<ClusterBlockLevel, ImmutableLevelHolder> levelHolders;
 
-    ClusterBlocks(Set<ClusterBlock> global, ImmutableOpenMap<String, Set<ClusterBlock>> indicesBlocks) {
+    ClusterBlocks(Set<ClusterBlock> global, final Map<String, Set<ClusterBlock>> indicesBlocks) {
         this.global = global;
-        this.indicesBlocks = indicesBlocks;
+        this.indicesBlocks = Collections.unmodifiableMap(indicesBlocks);
         levelHolders = generateLevelHolders(global, indicesBlocks);
     }
 
@@ -82,7 +80,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         return global;
     }
 
-    public ImmutableOpenMap<String, Set<ClusterBlock>> indices() {
+    public Map<String, Set<ClusterBlock>> indices() {
         return indicesBlocks;
     }
 
@@ -90,7 +88,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         return levelHolders.get(level).global();
     }
 
-    public ImmutableOpenMap<String, Set<ClusterBlock>> indices(ClusterBlockLevel level) {
+    public Map<String, Set<ClusterBlock>> indices(ClusterBlockLevel level) {
         return levelHolders.get(level).indices();
     }
 
@@ -100,7 +98,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
 
     private static EnumMap<ClusterBlockLevel, ImmutableLevelHolder> generateLevelHolders(
         Set<ClusterBlock> global,
-        ImmutableOpenMap<String, Set<ClusterBlock>> indicesBlocks
+        final Map<String, Set<ClusterBlock>> indicesBlocks
     ) {
 
         EnumMap<ClusterBlockLevel, ImmutableLevelHolder> levelHolders = new EnumMap<>(ClusterBlockLevel.class);
@@ -108,11 +106,11 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
             Predicate<ClusterBlock> containsLevel = block -> block.contains(level);
             Set<ClusterBlock> newGlobal = unmodifiableSet(global.stream().filter(containsLevel).collect(toSet()));
 
-            ImmutableOpenMap.Builder<String, Set<ClusterBlock>> indicesBuilder = ImmutableOpenMap.builder();
-            for (ObjectObjectCursor<String, Set<ClusterBlock>> entry : indicesBlocks) {
-                indicesBuilder.put(entry.key, unmodifiableSet(entry.value.stream().filter(containsLevel).collect(toSet())));
+            final Map<String, Set<ClusterBlock>> indicesBuilder = new HashMap<>();
+            for (final Map.Entry<String, Set<ClusterBlock>> entry : indicesBlocks.entrySet()) {
+                indicesBuilder.put(entry.getKey(), unmodifiableSet(entry.getValue().stream().filter(containsLevel).collect(toSet())));
             }
-            levelHolders.put(level, new ImmutableLevelHolder(newGlobal, indicesBuilder.build()));
+            levelHolders.put(level, new ImmutableLevelHolder(newGlobal, indicesBuilder));
         }
         return levelHolders;
     }
@@ -288,9 +286,9 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
                 sb.append("      ").append(block);
             }
         }
-        for (ObjectObjectCursor<String, Set<ClusterBlock>> entry : indices()) {
-            sb.append("   ").append(entry.key).append(":\n");
-            for (ClusterBlock block : entry.value) {
+        for (final Map.Entry<String, Set<ClusterBlock>> entry : indices().entrySet()) {
+            sb.append("   ").append(entry.getKey()).append(":\n");
+            for (ClusterBlock block : entry.getValue()) {
                 sb.append("      ").append(block);
             }
         }
@@ -310,10 +308,7 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
 
     public static ClusterBlocks readFrom(StreamInput in) throws IOException {
         final Set<ClusterBlock> global = readBlockSet(in);
-        ImmutableOpenMap<String, Set<ClusterBlock>> indicesBlocks = in.readImmutableMap(
-            i -> i.readString().intern(),
-            ClusterBlocks::readBlockSet
-        );
+        final Map<String, Set<ClusterBlock>> indicesBlocks = in.readMap(i -> i.readString().intern(), ClusterBlocks::readBlockSet);
         if (global.isEmpty() && indicesBlocks.isEmpty()) {
             return EMPTY_CLUSTER_BLOCK;
         }
@@ -337,18 +332,18 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
     static class ImmutableLevelHolder {
 
         private final Set<ClusterBlock> global;
-        private final ImmutableOpenMap<String, Set<ClusterBlock>> indices;
+        private final Map<String, Set<ClusterBlock>> indices;
 
-        ImmutableLevelHolder(Set<ClusterBlock> global, ImmutableOpenMap<String, Set<ClusterBlock>> indices) {
+        ImmutableLevelHolder(Set<ClusterBlock> global, final Map<String, Set<ClusterBlock>> indices) {
             this.global = global;
-            this.indices = indices;
+            this.indices = Collections.unmodifiableMap(indices);
         }
 
         public Set<ClusterBlock> global() {
             return global;
         }
 
-        public ImmutableOpenMap<String, Set<ClusterBlock>> indices() {
+        public Map<String, Set<ClusterBlock>> indices() {
             return indices;
         }
     }
@@ -372,11 +367,11 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
 
         public Builder blocks(ClusterBlocks blocks) {
             global.addAll(blocks.global());
-            for (ObjectObjectCursor<String, Set<ClusterBlock>> entry : blocks.indices()) {
-                if (!indices.containsKey(entry.key)) {
-                    indices.put(entry.key, new HashSet<>());
+            for (final Map.Entry<String, Set<ClusterBlock>> entry : blocks.indices().entrySet()) {
+                if (!indices.containsKey(entry.getKey())) {
+                    indices.put(entry.getKey(), new HashSet<>());
                 }
-                indices.get(entry.key).addAll(entry.value);
+                indices.get(entry.getKey()).addAll(entry.getValue());
             }
             return this;
         }
@@ -476,11 +471,11 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
                 return EMPTY_CLUSTER_BLOCK;
             }
             // We copy the block sets here in case of the builder is modified after build is called
-            ImmutableOpenMap.Builder<String, Set<ClusterBlock>> indicesBuilder = ImmutableOpenMap.builder(indices.size());
+            final HashMap<String, Set<ClusterBlock>> indicesBuilder = new HashMap<>(indices.size());
             for (Map.Entry<String, Set<ClusterBlock>> entry : indices.entrySet()) {
                 indicesBuilder.put(entry.getKey(), unmodifiableSet(new HashSet<>(entry.getValue())));
             }
-            return new ClusterBlocks(unmodifiableSet(new HashSet<>(global)), indicesBuilder.build());
+            return new ClusterBlocks(unmodifiableSet(new HashSet<>(global)), indicesBuilder);
         }
     }
 }

@@ -164,4 +164,60 @@ public class NumbersTests extends OpenSearchTestCase {
         e = expectThrows(IllegalArgumentException.class, () -> Numbers.toByteExact(new AtomicInteger(3))); // not supported
         assertEquals("Cannot check whether [3] of class [java.util.concurrent.atomic.AtomicInteger] is actually a long", e.getMessage());
     }
+
+    public void testToUnsignedLong() {
+        assertEquals(BigInteger.valueOf(3L), Numbers.toUnsignedLong("3", false));
+        assertEquals(BigInteger.valueOf(3L), Numbers.toUnsignedLong("3.1", true));
+        assertEquals(new BigInteger("17223372036854775807"), Numbers.toUnsignedLong("17223372036854775807.00", false));
+        assertEquals(new BigInteger("17223372036854775807"), Numbers.toUnsignedLong("17223372036854775807.00", true));
+        assertEquals(new BigInteger("17223372036854775807"), Numbers.toUnsignedLong("17223372036854775807.99", true));
+        assertEquals(new BigInteger("18446744073709551000"), Numbers.toUnsignedLong("1.8446744073709551E19", true));
+
+        assertEquals(
+            "Value [19223372036854775808] is out of range for an unsigned long",
+            expectThrows(IllegalArgumentException.class, () -> Numbers.toUnsignedLong("19223372036854775808", false)).getMessage()
+        );
+        assertEquals(
+            "Value [-1] is out of range for an unsigned long",
+            expectThrows(IllegalArgumentException.class, () -> Numbers.toUnsignedLong("-1", false)).getMessage()
+        );
+
+        assertEquals(
+            "Value [1.8446744073709552E19] is out of range for an unsigned long",
+            expectThrows(IllegalArgumentException.class, () -> Numbers.toUnsignedLong("1.8446744073709552E19", false)).getMessage()
+        );
+
+        assertEquals(
+            "Value [1e99999999] is out of range for an unsigned long",
+            expectThrows(IllegalArgumentException.class, () -> Numbers.toUnsignedLong("1e99999999", false)).getMessage()
+        );
+    }
+
+    public void testToUnsignedLongExact() {
+        assertEquals(BigInteger.valueOf(3L), Numbers.toUnsignedLongExact(Long.valueOf(3L)));
+        assertEquals(BigInteger.valueOf(3L), Numbers.toUnsignedLongExact(Integer.valueOf(3)));
+        assertEquals(BigInteger.valueOf(3L), Numbers.toUnsignedLongExact(Short.valueOf((short) 3)));
+        assertEquals(BigInteger.valueOf(3L), Numbers.toUnsignedLongExact(Byte.valueOf((byte) 3)));
+        assertEquals(BigInteger.valueOf(3L), Numbers.toUnsignedLongExact(3d));
+        assertEquals(BigInteger.valueOf(3L), Numbers.toUnsignedLongExact(3f));
+        assertEquals(BigInteger.valueOf(3L), Numbers.toUnsignedLongExact(BigInteger.valueOf(3L)));
+        assertEquals(BigInteger.valueOf(3L), Numbers.toUnsignedLongExact(BigDecimal.valueOf(3L)));
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> Numbers.toUnsignedLongExact(3.1d));
+        assertEquals("3.1 is not an integer value", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> Numbers.toUnsignedLongExact(Double.NaN));
+        assertEquals("NaN is not an integer value", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> Numbers.toUnsignedLongExact(Double.POSITIVE_INFINITY));
+        assertEquals("Infinity is not an integer value", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> Numbers.toUnsignedLongExact(3.1f));
+        assertEquals("3.1 is not an integer value", e.getMessage());
+        e = expectThrows(IllegalArgumentException.class, () -> Numbers.toUnsignedLongExact(new AtomicInteger(3))); // not supported
+        assertEquals("Cannot convert [3] of class [java.util.concurrent.atomic.AtomicInteger] to a BigInteger", e.getMessage());
+    }
+
+    public void testToUnsignedBigInteger() {
+        final BigInteger random = randomUnsignedLong();
+        assertEquals(random, Numbers.toUnsignedBigInteger(random.longValue()));
+        assertEquals(Numbers.MAX_UNSIGNED_LONG_VALUE, Numbers.toUnsignedBigInteger(Numbers.MAX_UNSIGNED_LONG_VALUE.longValue()));
+    }
 }
