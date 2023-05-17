@@ -16,6 +16,7 @@ import org.opensearch.action.ActionListener;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.index.shard.ShardId;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 import org.opensearch.threadpool.ThreadPool;
@@ -47,6 +48,7 @@ import static org.opensearch.index.translog.transfer.TranslogTransferMetadata.ge
  */
 public class TranslogTransferManager {
 
+    private final ShardId shardId;
     private final TransferService transferService;
     private final BlobPath remoteBaseTransferPath;
     private final BlobPath remoteMetadataTransferPath;
@@ -59,14 +61,20 @@ public class TranslogTransferManager {
     private final static String METADATA_DIR = "metadata";
 
     public TranslogTransferManager(
+        ShardId shardId,
         TransferService transferService,
         BlobPath remoteBaseTransferPath,
         FileTransferTracker fileTransferTracker
     ) {
+        this.shardId = shardId;
         this.transferService = transferService;
         this.remoteBaseTransferPath = remoteBaseTransferPath;
         this.remoteMetadataTransferPath = remoteBaseTransferPath.add(METADATA_DIR);
         this.fileTransferTracker = fileTransferTracker;
+    }
+
+    public ShardId getShardId() {
+        return this.shardId;
     }
 
     public boolean transferSnapshot(TransferSnapshot transferSnapshot, TranslogTransferListener translogTransferListener)
@@ -229,7 +237,7 @@ public class TranslogTransferManager {
      * @param minPrimaryTermToKeep all primary terms below this primary term are deleted.
      */
     public void deletePrimaryTermsAsync(long minPrimaryTermToKeep) {
-        logger.info("Deleting primary terms from remote store lesser than {}", minPrimaryTermToKeep);
+        logger.info("Deleting primary terms from remote store lesser than {} for {}", minPrimaryTermToKeep, shardId);
         transferService.listFoldersAsync(ThreadPool.Names.REMOTE_PURGE, remoteBaseTransferPath, new ActionListener<>() {
             @Override
             public void onResponse(Set<String> folders) {
@@ -267,7 +275,7 @@ public class TranslogTransferManager {
             new ActionListener<>() {
                 @Override
                 public void onResponse(Void unused) {
-                    logger.info("Deleted primary term {}", primaryTerm);
+                    logger.info("Deleted primary term {} for {}", primaryTerm, shardId);
                 }
 
                 @Override
