@@ -31,7 +31,7 @@
 
 package org.opensearch.index.query;
 
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.search.SimpleQueryStringQueryParser;
 
 import java.util.Locale;

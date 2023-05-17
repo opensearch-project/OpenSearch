@@ -32,10 +32,10 @@
 
 package org.opensearch.http;
 
-import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
+import org.opensearch.core.common.Strings;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.test.OpenSearchTestCase;
@@ -97,7 +97,9 @@ public class CorsHandlerTests extends OpenSearchTestCase {
     }
 
     public void testCorsConfigWithDefaults() {
-        final Set<String> methods = Strings.commaDelimitedListToSet(SETTING_CORS_ALLOW_METHODS.getDefault(Settings.EMPTY));
+        final Set<String> methods = org.opensearch.core.common.Strings.commaDelimitedListToSet(
+            SETTING_CORS_ALLOW_METHODS.getDefault(Settings.EMPTY)
+        );
         final Set<String> headers = Strings.commaDelimitedListToSet(SETTING_CORS_ALLOW_HEADERS.getDefault(Settings.EMPTY));
         final long maxAge = SETTING_CORS_MAX_AGE.getDefault(Settings.EMPTY);
         final Settings settings = Settings.builder().put(SETTING_CORS_ENABLED.getKey(), true).build();

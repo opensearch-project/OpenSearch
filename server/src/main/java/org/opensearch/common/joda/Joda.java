@@ -32,7 +32,6 @@
 
 package org.opensearch.common.joda;
 
-import org.opensearch.common.Strings;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.FormatNames;
@@ -56,6 +55,7 @@ import org.joda.time.format.DateTimeParserBucket;
 import org.joda.time.format.DateTimePrinter;
 import org.joda.time.format.ISODateTimeFormat;
 import org.joda.time.format.StrictISODateTimeFormat;
+import org.opensearch.core.common.Strings;
 
 import java.io.IOException;
 import java.io.Writer;

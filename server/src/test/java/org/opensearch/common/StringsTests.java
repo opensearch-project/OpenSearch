@@ -127,15 +127,15 @@ public class StringsTests extends OpenSearchTestCase {
     }
 
     public void testSplitStringToSet() {
-        assertEquals(Strings.tokenizeByCommaToSet(null), Sets.newHashSet());
-        assertEquals(Strings.tokenizeByCommaToSet(""), Sets.newHashSet());
-        assertEquals(Strings.tokenizeByCommaToSet("a,b,c"), Sets.newHashSet("a", "b", "c"));
-        assertEquals(Strings.tokenizeByCommaToSet("a, b, c"), Sets.newHashSet("a", "b", "c"));
-        assertEquals(Strings.tokenizeByCommaToSet(" a ,  b, c  "), Sets.newHashSet("a", "b", "c"));
-        assertEquals(Strings.tokenizeByCommaToSet("aa, bb, cc"), Sets.newHashSet("aa", "bb", "cc"));
-        assertEquals(Strings.tokenizeByCommaToSet(" a "), Sets.newHashSet("a"));
-        assertEquals(Strings.tokenizeByCommaToSet("   a   "), Sets.newHashSet("a"));
-        assertEquals(Strings.tokenizeByCommaToSet("   aa   "), Sets.newHashSet("aa"));
-        assertEquals(Strings.tokenizeByCommaToSet("   "), Sets.newHashSet());
+        assertEquals(org.opensearch.core.common.Strings.tokenizeByCommaToSet(null), Sets.newHashSet());
+        assertEquals(org.opensearch.core.common.Strings.tokenizeByCommaToSet(""), Sets.newHashSet());
+        assertEquals(org.opensearch.core.common.Strings.tokenizeByCommaToSet("a,b,c"), Sets.newHashSet("a", "b", "c"));
+        assertEquals(org.opensearch.core.common.Strings.tokenizeByCommaToSet("a, b, c"), Sets.newHashSet("a", "b", "c"));
+        assertEquals(org.opensearch.core.common.Strings.tokenizeByCommaToSet(" a ,  b, c  "), Sets.newHashSet("a", "b", "c"));
+        assertEquals(org.opensearch.core.common.Strings.tokenizeByCommaToSet("aa, bb, cc"), Sets.newHashSet("aa", "bb", "cc"));
+        assertEquals(org.opensearch.core.common.Strings.tokenizeByCommaToSet(" a "), Sets.newHashSet("a"));
+        assertEquals(org.opensearch.core.common.Strings.tokenizeByCommaToSet("   a   "), Sets.newHashSet("a"));
+        assertEquals(org.opensearch.core.common.Strings.tokenizeByCommaToSet("   aa   "), Sets.newHashSet("aa"));
+        assertEquals(org.opensearch.core.common.Strings.tokenizeByCommaToSet("   "), Sets.newHashSet());
     }
 }

@@ -33,12 +33,12 @@
 package org.opensearch.cluster.node;
 
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
+import org.opensearch.core.common.Strings;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -70,7 +70,7 @@ public class DiscoveryNodeFilters {
     public static final BiConsumer<String, String> IP_VALIDATOR = (propertyKey, rawValue) -> {
         if (rawValue != null) {
             if (propertyKey.endsWith("._ip") || propertyKey.endsWith("._host_ip") || propertyKey.endsWith("_publish_ip")) {
-                for (String value : Strings.tokenizeToStringArray(rawValue, ",")) {
+                for (String value : org.opensearch.core.common.Strings.tokenizeToStringArray(rawValue, ",")) {
                     if (Regex.isSimpleMatchPattern(value) == false && InetAddresses.isInetAddress(value) == false) {
                         throw new IllegalArgumentException("invalid IP address [" + value + "] for [" + propertyKey + "]");
                     }

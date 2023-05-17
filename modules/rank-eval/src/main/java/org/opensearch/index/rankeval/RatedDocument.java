@@ -158,10 +158,10 @@ public class RatedDocument implements Writeable, ToXContentObject {
         private final String index;
 
         DocumentKey(String index, String docId) {
-            if (Strings.isNullOrEmpty(index)) {
+            if (org.opensearch.core.common.Strings.isNullOrEmpty(index)) {
                 throw new IllegalArgumentException("Index must be set for each rated document");
             }
-            if (Strings.isNullOrEmpty(docId)) {
+            if (org.opensearch.core.common.Strings.isNullOrEmpty(docId)) {
                 throw new IllegalArgumentException("DocId must be set for each rated document");
             }
 

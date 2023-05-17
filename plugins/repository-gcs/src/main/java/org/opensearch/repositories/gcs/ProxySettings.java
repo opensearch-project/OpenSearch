@@ -8,7 +8,7 @@
 
 package org.opensearch.repositories.gcs;
 
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -54,7 +54,7 @@ public class ProxySettings {
     }
 
     public boolean isAuthenticated() {
-        return Strings.isNullOrEmpty(username) == false && Strings.isNullOrEmpty(password) == false;
+        return org.opensearch.core.common.Strings.isNullOrEmpty(username) == false && Strings.isNullOrEmpty(password) == false;
     }
 
     @Override

@@ -34,7 +34,7 @@ package org.opensearch.client.indices;
 
 import org.opensearch.client.TimedRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 
 /**
  * A request to simulate matching a provided index name and an optional new index template against the existing index templates.
@@ -47,7 +47,7 @@ public class SimulateIndexTemplateRequest extends TimedRequest {
     private PutComposableIndexTemplateRequest indexTemplateV2Request;
 
     public SimulateIndexTemplateRequest(String indexName) {
-        if (Strings.isNullOrEmpty(indexName)) {
+        if (org.opensearch.core.common.Strings.isNullOrEmpty(indexName)) {
             throw new IllegalArgumentException("index name cannot be null or empty");
         }
         this.indexName = indexName;

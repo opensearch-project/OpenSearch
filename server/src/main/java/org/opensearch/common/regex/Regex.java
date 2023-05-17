@@ -209,7 +209,7 @@ public class Regex {
 
     public static int flagsFromString(String flags) {
         int pFlags = 0;
-        for (String s : Strings.delimitedListToStringArray(flags, "|")) {
+        for (String s : org.opensearch.core.common.Strings.delimitedListToStringArray(flags, "|")) {
             if (s.isEmpty()) {
                 continue;
             }

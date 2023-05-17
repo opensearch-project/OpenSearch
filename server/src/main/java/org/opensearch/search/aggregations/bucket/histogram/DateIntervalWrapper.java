@@ -35,12 +35,12 @@ package org.opensearch.search.aggregations.bucket.histogram;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.Rounding.DateTimeUnit;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -198,7 +198,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
      */
     @Deprecated
     public void dateHistogramInterval(DateHistogramInterval dateHistogramInterval) {
-        if (dateHistogramInterval == null || Strings.isNullOrEmpty(dateHistogramInterval.toString())) {
+        if (dateHistogramInterval == null || org.opensearch.core.common.Strings.isNullOrEmpty(dateHistogramInterval.toString())) {
             throw new IllegalArgumentException("[dateHistogramInterval] must not be null: [date_histogram]");
         }
         setIntervalType(IntervalTypeEnum.LEGACY_DATE_HISTO);
@@ -226,7 +226,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
      * @param interval The fixed interval to use
      */
     public void calendarInterval(DateHistogramInterval interval) {
-        if (interval == null || Strings.isNullOrEmpty(interval.toString())) {
+        if (interval == null || org.opensearch.core.common.Strings.isNullOrEmpty(interval.toString())) {
             throw new IllegalArgumentException("[interval] must not be null: [date_histogram]");
         }
         if (DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString()) == null) {
@@ -256,7 +256,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
      * @param interval The fixed interval to use
      */
     public void fixedInterval(DateHistogramInterval interval) {
-        if (interval == null || Strings.isNullOrEmpty(interval.toString())) {
+        if (interval == null || org.opensearch.core.common.Strings.isNullOrEmpty(interval.toString())) {
             throw new IllegalArgumentException("[interval] must not be null: [date_histogram]");
         }
         setIntervalType(IntervalTypeEnum.FIXED);
@@ -280,7 +280,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
      * the interval cannot be parsed as a fixed time.
      */
     TimeValue tryIntervalAsFixedUnit() {
-        if (dateHistogramInterval == null || Strings.isNullOrEmpty(dateHistogramInterval.toString())) {
+        if (dateHistogramInterval == null || org.opensearch.core.common.Strings.isNullOrEmpty(dateHistogramInterval.toString())) {
             return null;
         }
         try {

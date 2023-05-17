@@ -1950,7 +1950,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 throw new IllegalArgumentException("Cannot run TEST scope test with " + TESTS_CLUSTER);
             }
             String clusterName = System.getProperty(TESTS_CLUSTER_NAME);
-            if (Strings.isNullOrEmpty(clusterName)) {
+            if (org.opensearch.core.common.Strings.isNullOrEmpty(clusterName)) {
                 throw new IllegalArgumentException("Missing tests.clustername system property");
             }
             return buildExternalCluster(clusterAddresses, clusterName);

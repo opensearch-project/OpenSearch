@@ -254,7 +254,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 builder.array(ALIASES_FIELD.getPreferredName(), aliases);
             }
             builder.array(ATTRIBUTES_FIELD.getPreferredName(), attributes);
-            if (Strings.isNullOrEmpty(dataStream) == false) {
+            if (org.opensearch.core.common.Strings.isNullOrEmpty(dataStream) == false) {
                 builder.field(DATA_STREAM_FIELD.getPreferredName(), dataStream);
             }
             builder.endObject();

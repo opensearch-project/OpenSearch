@@ -111,7 +111,7 @@ public class GetRequestBuilder extends SingleShardOperationRequestBuilder<GetReq
      */
     public GetRequestBuilder setFetchSource(@Nullable String include, @Nullable String exclude) {
         return setFetchSource(
-            include == null ? org.opensearch.common.Strings.EMPTY_ARRAY : new String[] { include },
+            include == null ? Strings.EMPTY_ARRAY : new String[] { include },
             exclude == null ? Strings.EMPTY_ARRAY : new String[] { exclude }
         );
     }

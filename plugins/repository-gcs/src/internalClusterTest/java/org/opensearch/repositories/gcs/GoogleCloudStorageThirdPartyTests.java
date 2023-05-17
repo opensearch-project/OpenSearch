@@ -33,10 +33,10 @@
 package org.opensearch.repositories.gcs;
 
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.SecureSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.AbstractThirdPartyRepositoryTestCase;
 
@@ -58,7 +58,7 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
     protected Settings nodeSettings() {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings());
 
-        if (Strings.isNullOrEmpty(System.getProperty("test.google.endpoint")) == false) {
+        if (org.opensearch.core.common.Strings.isNullOrEmpty(System.getProperty("test.google.endpoint")) == false) {
             builder.put("gcs.client.default.endpoint", System.getProperty("test.google.endpoint"));
         }
 

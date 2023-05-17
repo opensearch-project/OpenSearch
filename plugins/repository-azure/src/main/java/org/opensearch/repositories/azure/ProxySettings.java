@@ -9,8 +9,8 @@
 package org.opensearch.repositories.azure;
 
 import com.azure.core.http.ProxyOptions;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.SettingsException;
+import org.opensearch.core.common.Strings;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -87,7 +87,7 @@ public class ProxySettings {
     }
 
     public boolean isAuthenticated() {
-        return Strings.isNullOrEmpty(username) == false && Strings.isNullOrEmpty(password) == false;
+        return org.opensearch.core.common.Strings.isNullOrEmpty(username) == false && Strings.isNullOrEmpty(password) == false;
     }
 
     @Override

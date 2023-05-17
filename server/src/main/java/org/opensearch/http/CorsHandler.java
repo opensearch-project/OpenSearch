@@ -47,10 +47,10 @@
 
 package org.opensearch.http;
 
-import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
+import org.opensearch.core.common.Strings;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestStatus;
 import org.opensearch.rest.RestUtils;
@@ -152,7 +152,7 @@ public class CorsHandler {
     }
 
     private static boolean isSameOrigin(final String origin, final String host) {
-        if (Strings.isNullOrEmpty(host) == false) {
+        if (org.opensearch.core.common.Strings.isNullOrEmpty(host) == false) {
             // strip protocol from origin
             final String originDomain = SCHEME_PATTERN.matcher(origin).replaceFirst("");
             if (host.equals(originDomain)) {
@@ -169,7 +169,7 @@ public class CorsHandler {
 
     private boolean setOrigin(final HttpRequest request, final HttpResponse response) {
         String origin = getOrigin(request);
-        if (!Strings.isNullOrEmpty(origin)) {
+        if (!org.opensearch.core.common.Strings.isNullOrEmpty(origin)) {
             if (config.isAnyOriginSupported()) {
                 if (config.isCredentialsAllowed()) {
                     setAllowOrigin(response, origin);
@@ -193,7 +193,7 @@ public class CorsHandler {
         }
 
         final String origin = getOrigin(request);
-        if (Strings.isNullOrEmpty(origin)) {
+        if (org.opensearch.core.common.Strings.isNullOrEmpty(origin)) {
             // Not a CORS request so we cannot validate it. It may be a non CORS request.
             return true;
         }
@@ -447,14 +447,14 @@ public class CorsHandler {
         if (SETTING_CORS_ALLOW_CREDENTIALS.get(settings)) {
             builder.allowCredentials();
         }
-        String[] strMethods = Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_METHODS.get(settings), ",");
+        String[] strMethods = org.opensearch.core.common.Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_METHODS.get(settings), ",");
         RestRequest.Method[] methods = Arrays.stream(strMethods)
             .map(s -> s.toUpperCase(Locale.ENGLISH))
             .map(RestRequest.Method::valueOf)
             .toArray(RestRequest.Method[]::new);
         Config config = builder.allowedRequestMethods(methods)
             .maxAge(SETTING_CORS_MAX_AGE.get(settings))
-            .allowedRequestHeaders(Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_HEADERS.get(settings), ","))
+            .allowedRequestHeaders(org.opensearch.core.common.Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_HEADERS.get(settings), ","))
             .build();
         return config;
     }

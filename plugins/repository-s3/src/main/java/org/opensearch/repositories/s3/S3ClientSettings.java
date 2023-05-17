@@ -34,7 +34,6 @@ package org.opensearch.repositories.s3;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
-import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -45,6 +44,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -585,8 +585,8 @@ final class S3ClientSettings {
         private final String roleSessionName;
 
         IrsaCredentials(String identityTokenFile, String roleArn, String roleSessionName) {
-            this.identityTokenFile = Strings.isNullOrEmpty(identityTokenFile) ? null : identityTokenFile;
-            this.roleArn = Strings.isNullOrEmpty(roleArn) ? null : roleArn;
+            this.identityTokenFile = org.opensearch.core.common.Strings.isNullOrEmpty(identityTokenFile) ? null : identityTokenFile;
+            this.roleArn = org.opensearch.core.common.Strings.isNullOrEmpty(roleArn) ? null : roleArn;
             this.roleSessionName = Strings.isNullOrEmpty(roleSessionName) ? "s3-sdk-java-" + System.currentTimeMillis() : roleSessionName;
         }
 
