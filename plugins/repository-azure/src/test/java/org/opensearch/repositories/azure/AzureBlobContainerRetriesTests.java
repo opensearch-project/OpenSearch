@@ -119,6 +119,10 @@ public class AzureBlobContainerRetriesTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         threadPool = new TestThreadPool(getTestClass().getName(), AzureRepositoryPlugin.executorBuilder());
         httpServer = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+        httpServer.createContext("/", (exchange) -> {
+            exchange.sendResponseHeaders(404, 0L);
+            exchange.close();
+        });
         httpServer.start();
         super.setUp();
     }

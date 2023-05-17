@@ -103,7 +103,6 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.env.Environment;
@@ -129,6 +128,7 @@ import org.opensearch.search.MockSearchService;
 import org.opensearch.test.junit.listeners.LoggingListener;
 import org.opensearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransportPlugin;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
@@ -220,6 +220,12 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         portGenerator.set(0);
     }
 
+    @Override
+    public void tearDown() throws Exception {
+        FeatureFlagSetter.clear();
+        super.tearDown();
+    }
+
     // Allows distinguishing between parallel test processes
     public static final String TEST_WORKER_VM_ID;
 
@@ -258,6 +264,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         }));
 
         BootstrapForTesting.ensureInitialized();
+        TransportService.ensureClassloaded(); // ensure server streamables are registered
 
         // filter out joda timezones that are deprecated for the java time migration
         List<String> jodaTZIds = DateTimeZone.getAvailableIDs()
