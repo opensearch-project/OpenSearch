@@ -1,4 +1,4 @@
-## 2022-05-18 Version 1.3.10 Release Notes
+## 2023-05-18 Version 1.3.10 Release Notes
 
 ### Upgrades
 - Upgrade Netty from 4.1.90.Final to 4.1.91.Final , ASM 9.4 to ASM 9.5, ByteBuddy 1.14.2 to 1.14.3 ([#6981](https://github.com/opensearch-project/OpenSearch/pull/6981))
