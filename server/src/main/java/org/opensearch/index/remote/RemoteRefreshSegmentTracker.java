@@ -461,6 +461,8 @@ public class RemoteRefreshSegmentTracker {
 
     /**
      * Represents the tracker's state as seen in the stats API.
+     *
+     * @opensearch.internal
      */
     public static class Stats implements Writeable {
 

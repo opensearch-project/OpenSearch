@@ -21,11 +21,12 @@ import java.io.IOException;
  */
 public class RemoteStoreStatsRequest extends BroadcastRequest<RemoteStoreStatsRequest> {
 
-    private String[] shards = new String[0];
+    private String[] shards;
     private boolean local = false;
 
     public RemoteStoreStatsRequest() {
         super((String[]) null);
+        shards = new String[0];
     }
 
     public RemoteStoreStatsRequest(StreamInput in) throws IOException {

@@ -63,6 +63,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
             .field(Fields.SUCCEEDED, remoteSegmentUploadShardStats.uploadBytesSucceeded)
             .field(Fields.FAILED, remoteSegmentUploadShardStats.uploadBytesFailed);
         builder.endObject();
+
         builder.startObject(Fields.REMOTE_REFRESH_SIZE_IN_BYTES);
         builder.field(Fields.LAST_SUCCESSFUL, remoteSegmentUploadShardStats.lastSuccessfulRemoteRefreshBytes);
         builder.field(Fields.MOVING_AVG, remoteSegmentUploadShardStats.uploadBytesMovingAverage);
@@ -71,7 +72,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         builder.startObject(Fields.UPLOAD_LATENCY_IN_BYTES_PER_SEC);
         builder.field(Fields.MOVING_AVG, remoteSegmentUploadShardStats.uploadBytesPerSecMovingAverage);
         builder.endObject();
-        builder.startObject(Fields.REMOTE_REFRESH_LATENCY_IN_NANOS);
+        builder.startObject(Fields.REMOTE_REFRESH_LATENCY_IN_MILLIS);
         builder.field(Fields.MOVING_AVG, remoteSegmentUploadShardStats.uploadTimeMovingAverage);
         builder.endObject();
         builder.endObject();
@@ -97,7 +98,7 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         static final String TOTAL_UPLOADS_IN_BYTES = "total_uploads_in_bytes";
         static final String REMOTE_REFRESH_SIZE_IN_BYTES = "remote_refresh_size_in_bytes";
         static final String UPLOAD_LATENCY_IN_BYTES_PER_SEC = "upload_latency_in_bytes_per_sec";
-        static final String REMOTE_REFRESH_LATENCY_IN_NANOS = "remote_refresh_latency_in_nanos";
+        static final String REMOTE_REFRESH_LATENCY_IN_MILLIS = "remote_refresh_latency_in_millis";
         static final String STARTED = "started";
         static final String SUCCEEDED = "succeeded";
         static final String FAILED = "failed";

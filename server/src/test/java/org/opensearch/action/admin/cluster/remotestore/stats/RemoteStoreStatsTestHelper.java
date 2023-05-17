@@ -97,7 +97,7 @@ public class RemoteStoreStatsTestHelper {
             (int) pressureTrackerStats.totalUploadsFailed
         );
         assertEquals(
-            ((Map) statsObject.get(RemoteStoreStats.Fields.REMOTE_REFRESH_LATENCY_IN_NANOS)).get(RemoteStoreStats.Fields.MOVING_AVG),
+            ((Map) statsObject.get(RemoteStoreStats.Fields.REMOTE_REFRESH_LATENCY_IN_MILLIS)).get(RemoteStoreStats.Fields.MOVING_AVG),
             pressureTrackerStats.uploadTimeMovingAverage
         );
     }

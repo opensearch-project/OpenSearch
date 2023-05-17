@@ -53,9 +53,7 @@ public class RestRemoteStoreStatsAction extends BaseRestHandler {
         if (shardId != null) {
             remoteStoreStatsRequest.shards(shardId);
         }
-        if (local) {
-            remoteStoreStatsRequest.local(local);
-        }
+        remoteStoreStatsRequest.local(local);
         return channel -> client.admin().cluster().remoteStoreStats(remoteStoreStatsRequest, new RestToXContentListener<>(channel));
     }
 }
