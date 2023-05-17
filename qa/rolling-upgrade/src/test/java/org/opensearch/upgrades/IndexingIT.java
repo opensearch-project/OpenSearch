@@ -293,8 +293,9 @@ public class IndexingIT extends AbstractRollingTestCase {
         assertCount(indexName, expectedCount);
 
         if (CLUSTER_TYPE != ClusterType.OLD) {
-            logger.info("--> Index one doc (to be deleted next) and verify doc count");
+            logger.info("--> Bulk index 5 documents");
             bulk(indexName, "_" + CLUSTER_TYPE, 5);
+            logger.info("--> Index one doc (to be deleted next) and verify doc count");
             Request toBeDeleted = new Request("PUT", "/" + indexName + "/_doc/to_be_deleted");
             toBeDeleted.addParameter("refresh", "true");
             toBeDeleted.setJsonEntity("{\"f1\": \"delete-me\"}");

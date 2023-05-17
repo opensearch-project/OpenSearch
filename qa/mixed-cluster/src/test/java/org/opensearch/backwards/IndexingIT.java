@@ -107,12 +107,6 @@ public class IndexingIT extends OpenSearchRestTestCase {
         logger.info("cluster nodes: {}", clusterState);
     }
 
-    private void printIndexSettings(String index) throws IOException, ParseException {
-        Request indexSettings = new Request("GET", index + "/_settings?pretty");
-        String idxSettings = EntityUtils.toString(client().performRequest(indexSettings).getEntity()).trim();
-        logger.info("idxSettings : {}", idxSettings);
-    }
-
     /**
      * This test verifies that segment replication does not break when primary shards are on lower OS version. It does this
      * by verifying replica shards contains same number of documents as primary's.
@@ -134,7 +128,6 @@ public class IndexingIT extends OpenSearchRestTestCase {
         final String index = "test-index";
         createIndex(index, settings.build());
         ensureYellow(index);
-        printIndexSettings(index);
 
         int docCount = 200;
         try (RestClient nodeClient = buildClient(restClientSettings(),
@@ -146,7 +139,6 @@ public class IndexingIT extends OpenSearchRestTestCase {
             updateIndexSettings(index, Settings.builder().put("index.number_of_replicas", 2));
 
             printClusterRouting();
-            printIndexSettings(index);
             ensureGreen(index);
 
             // Index docs
@@ -184,7 +176,6 @@ public class IndexingIT extends OpenSearchRestTestCase {
         createIndex(index, settings.build());
         ensureYellow(index);
         printClusterRouting();
-        printIndexSettings(index);
 
         int docCount = 200;
         try (RestClient nodeClient = buildClient(restClientSettings(),
