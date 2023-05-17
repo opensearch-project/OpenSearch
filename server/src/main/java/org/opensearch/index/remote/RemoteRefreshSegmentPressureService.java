@@ -64,7 +64,11 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
      * @return the tracker if index is remote-backed, else null.
      */
     public RemoteRefreshSegmentTracker getRemoteRefreshSegmentTracker(ShardId shardId) {
-        return trackerMap.get(shardId);
+        RemoteRefreshSegmentTracker a = trackerMap.get(shardId);
+        if (a == null) {
+            return new RemoteRefreshSegmentTracker(shardId, 20, 20, 20);
+        }
+        return a;
     }
 
     @Override
