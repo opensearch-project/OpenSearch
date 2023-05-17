@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations;
 
+import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
@@ -137,7 +138,7 @@ public class AggregationsIntegrationIT extends OpenSearchIntegTestCase {
             exceptionThrown = true;
             Throwable nestedException = ex.getCause();
             assertNotNull(nestedException);
-            assertTrue(nestedException instanceof OpenSearchException);
+            assertTrue(nestedException instanceof BaseOpenSearchException);
             assertNotNull(nestedException.getCause());
             assertTrue(nestedException.getCause() instanceof IllegalArgumentException);
             String actualExceptionMessage = nestedException.getCause().getMessage();
