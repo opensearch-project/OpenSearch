@@ -70,8 +70,8 @@ public class MissingDoclet extends StandardDoclet {
     DocletEnvironment docEnv;
     DocTrees docTrees;
     Elements elementUtils;
-    Set<String> ignored = Collections.emptySet();
-    Set<String> ignoredGroups = Collections.emptySet();
+    Set<String> ignored = new HashSet<>();
+    Set<String> ignoredGroups = new HashSet<>();
     Set<String> methodPackages = Collections.emptySet();
 
     @Override
