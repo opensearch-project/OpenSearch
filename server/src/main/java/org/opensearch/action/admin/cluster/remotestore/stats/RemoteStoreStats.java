@@ -46,7 +46,6 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
             .field(Fields.LOCAL_REFRESH_TIMESTAMP, remoteSegmentUploadShardStats.localRefreshTimeMs)
             .field(Fields.REMOTE_REFRESH_TIMESTAMP, remoteSegmentUploadShardStats.remoteRefreshTimeMs)
             .field(Fields.REFRESH_LAG, remoteSegmentUploadShardStats.localRefreshNumber - remoteSegmentUploadShardStats.remoteRefreshNumber)
-            .field(Fields.REMOTE_REFRESH_CUMULATIVE_COUNT, remoteSegmentUploadShardStats.remoteRefreshNumber)
             .field(Fields.BYTES_LAG, remoteSegmentUploadShardStats.bytesLag)
 
             .field(Fields.BACKPRESSURE_REJECTION_COUNT, remoteSegmentUploadShardStats.rejectionCount)
@@ -97,19 +96,9 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         static final String LOCAL_REFRESH_TIMESTAMP = "local_refresh_timestamp_in_millis";
 
         /**
-         * No of total local refreshes attempted
-         */
-        static final String LOCAL_REFRESH_CUMULATIVE_COUNT = "local_refresh_cumulative_count";
-
-        /**
          * Last successful remote refresh timestamp in milliseconds
          */
         static final String REMOTE_REFRESH_TIMESTAMP = "remote_refresh_timestamp_in_millis";
-
-        /**
-         * No of total remote refreshes attempted
-         */
-        static final String REMOTE_REFRESH_CUMULATIVE_COUNT = "remote_refresh_cumulative_count";
 
         /**
          * Lag in terms of bytes b/w local and remote store
