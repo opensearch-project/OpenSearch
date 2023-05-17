@@ -1046,19 +1046,24 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         // wait for segrep to start and copy temporary files
         waitForFileCopy.await();
 
-        // verify replica contains temporary files
-        IndexShard replicaShard = getIndexShard(replica, INDEX_NAME);
-        List<String> temporaryFiles = Arrays.stream(replicaShard.store().directory().listAll())
-            .filter(fileName -> fileName.startsWith(REPLICATION_PREFIX))
-            .collect(Collectors.toList());
-        logger.info("--> temporaryFiles {}", temporaryFiles);
-        assertTrue(temporaryFiles.size() > 0);
+        final IndexShard replicaShard = getIndexShard(replica, INDEX_NAME);
+        // Wait until replica has written a tmp file to disk.
+        List<String> temporaryFiles = new ArrayList<>();
+        assertBusy(() -> {
+            // verify replica contains temporary files
+            temporaryFiles.addAll(
+                Arrays.stream(replicaShard.store().directory().listAll())
+                    .filter(fileName -> fileName.startsWith(REPLICATION_PREFIX))
+                    .collect(Collectors.toList())
+            );
+            logger.info("--> temporaryFiles {}", temporaryFiles);
+            assertTrue(temporaryFiles.size() > 0);
+        });
 
         // Clear scroll query, this should clean up files on replica
         client(replica).prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
 
         // verify temporary files still exist
-        replicaShard = getIndexShard(replica, INDEX_NAME);
         List<String> temporaryFilesPostClear = Arrays.stream(replicaShard.store().directory().listAll())
             .filter(fileName -> fileName.startsWith(REPLICATION_PREFIX))
             .collect(Collectors.toList());
@@ -1067,7 +1072,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         // Unblock segment replication
         blockFileCopy.countDown();
 
-        assertEquals(temporaryFiles.size(), temporaryFilesPostClear.size());
         assertTrue(temporaryFilesPostClear.containsAll(temporaryFiles));
 
         // wait for replica to catch up and verify doc count

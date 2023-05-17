@@ -292,8 +292,8 @@ setup:
 ---
 "Unsigned Long test":
   - skip:
-      version: " - 2.99.99"
-      reason: unsigned_long is not supported before 3.0.0
+      version: " - 2.7.99"
+      reason: unsigned_long is not supported before 2.8.0
 
   - do:
       indices.put_mapping:
@@ -670,8 +670,8 @@ setup:
 ---
 "Unmapped unsigned longs":
   - skip:
-      version: " - 2.99.99"
-      reason: unsigned_long is not supported before 3.0.0
+      version: " - 2.7.99"
+      reason: unsigned_long is not supported before 2.8.0
 
   - do:
       indices.put_mapping:
@@ -787,8 +787,8 @@ setup:
 ---
 "Mixing longs, unsigned  long and doubles":
   - skip:
-      version: " - 2.99.99"
-      reason: unsigned_long is not supported before 3.0.0
+      version: " - 2.7.99"
+      reason: unsigned_long is not supported before 2.8.0
 
   - do:
       indices.put_mapping:

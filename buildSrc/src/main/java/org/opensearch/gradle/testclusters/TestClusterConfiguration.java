@@ -55,6 +55,8 @@ public interface TestClusterConfiguration {
 
     void setTestDistribution(TestDistribution distribution);
 
+    void extension(ExtensionsProperties extension);
+
     void plugin(Provider<RegularFile> plugin);
 
     void plugin(String pluginProjectPath);
