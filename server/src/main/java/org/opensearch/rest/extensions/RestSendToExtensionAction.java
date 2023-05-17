@@ -111,9 +111,11 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             if (name.isPresent()) {
                 NamedRoute nr = new NamedRoute(method, path, name.get());
                 restActionsAsRoutes.add(nr);
-                actionModule.registerNamedRoute(nr);
+                actionModule.getDynamicRouteRegistry().registerDynamicRoute(nr, this);
             } else {
-                restActionsAsRoutes.add(new Route(method, path));
+                Route r = new Route(method, path);
+                restActionsAsRoutes.add(r);
+                actionModule.getDynamicRouteRegistry().registerDynamicRoute(r, this);
             }
         }
         this.routes = unmodifiableList(restActionsAsRoutes);

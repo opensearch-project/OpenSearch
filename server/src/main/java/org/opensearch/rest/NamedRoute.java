@@ -47,4 +47,9 @@ public class NamedRoute extends RestHandler.Route {
     public String name() {
         return this.name;
     }
+
+    @Override
+    public String toString() {
+        return "NamedRoute [method=" + method + ", path=" + path + ", name=" + name + "]";
+    }
 }

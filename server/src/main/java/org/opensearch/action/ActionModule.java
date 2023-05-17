@@ -34,7 +34,6 @@ package org.opensearch.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
 import org.opensearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
@@ -451,16 +450,17 @@ import org.opensearch.rest.action.search.RestMultiSearchAction;
 import org.opensearch.rest.action.search.RestPutSearchPipelineAction;
 import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.rest.action.search.RestSearchScrollAction;
+import org.opensearch.rest.extensions.RestSendToExtensionAction;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.usage.UsageService;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
@@ -498,8 +498,8 @@ public class ActionModule extends AbstractModule {
     // associated with remote action execution on extensions, possibly in
     // a different JVM and possibly on a different server.
     private final DynamicActionRegistry dynamicActionRegistry;
-    // The unmodifiable map containing OpenSearch, Plugin and extension REST actions
-    private final Map<String, NamedRoute> restActions;
+    // A dynamic route registry associated with registered extension routes
+    private final DynamicRouteRegistry dynamicRouteRegistry;
     private final ActionFilters actionFilters;
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
@@ -530,9 +530,10 @@ public class ActionModule extends AbstractModule {
         this.actionPlugins = actionPlugins;
         this.threadPool = threadPool;
         actions = setupActions(actionPlugins);
-        restActions = new HashMap<>();
         actionFilters = setupActionFilters(actionPlugins);
         dynamicActionRegistry = new DynamicActionRegistry();
+        dynamicRouteRegistry = new DynamicRouteRegistry();
+        dynamicRouteRegistry.registerDynamicActionRegistry(dynamicActionRegistry);
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<RestHeaderDefinition> headers = Stream.concat(
@@ -558,33 +559,6 @@ public class ActionModule extends AbstractModule {
         );
 
         restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService, identityService);
-    }
-
-    private Set<String> getAllRegisteredActionNames() {
-        Set<String> registeredActionNames = new HashSet<>();
-        if (actions != null) {
-            for (String transportActionName : actions.keySet()) {
-                registeredActionNames.add(transportActionName);
-            }
-        }
-        if (dynamicActionRegistry != null && dynamicActionRegistry.actions != null) {
-            for (ActionType transportAction : dynamicActionRegistry.actions.keySet()) {
-                registeredActionNames.add(transportAction.name());
-            }
-        }
-        for (String restActionName : restActions.keySet()) {
-            registeredActionNames.add(restActionName);
-        }
-        return registeredActionNames;
-    }
-
-    public void registerNamedRoute(NamedRoute route) {
-        Set<String> registeredActionNames = getAllRegisteredActionNames();
-        if (registeredActionNames.contains(route.name())) {
-            throw new OpenSearchException("Action with action name " + route.name() + " already registered in the action module.");
-        } else {
-            restActions.put(route.name(), route);
-        }
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {
@@ -1037,6 +1011,10 @@ public class ActionModule extends AbstractModule {
         return dynamicActionRegistry;
     }
 
+    public DynamicRouteRegistry getDynamicRouteRegistry() {
+        return dynamicRouteRegistry;
+    }
+
     public RestController getRestController() {
         return restController;
     }
@@ -1057,6 +1035,8 @@ public class ActionModule extends AbstractModule {
         // at times other than node bootstrap.
         private final Map<ActionType<?>, TransportAction<?, ?>> registry = new ConcurrentHashMap<>();
 
+        private final HashSet<String> registeredActionNames = new HashSet<>();
+
         /**
          * Register the immutable actions in the registry.
          *
@@ -1064,6 +1044,9 @@ public class ActionModule extends AbstractModule {
          */
         public void registerUnmodifiableActionMap(Map<ActionType, TransportAction> actions) {
             this.actions = actions;
+            for (ActionType action : actions.keySet()) {
+                registeredActionNames.add(action.name());
+            }
         }
 
         /**
@@ -1078,6 +1061,7 @@ public class ActionModule extends AbstractModule {
             if (actions.containsKey(action) || registry.putIfAbsent(action, transportAction) != null) {
                 throw new IllegalArgumentException("action [" + action.name() + "] already registered");
             }
+            registeredActionNames.add(action.name());
         }
 
         /**
@@ -1090,6 +1074,16 @@ public class ActionModule extends AbstractModule {
             if (registry.remove(action) == null) {
                 throw new IllegalArgumentException("action [" + action.name() + "] was not registered");
             }
+            registeredActionNames.remove(action.name());
+        }
+
+        /**
+         * Checks to see if an action is registered provided an action name
+         *
+         * @param actionName The name of the action to check
+         */
+        public boolean isActionRegistered(String actionName) {
+            return registeredActionNames.contains(actionName);
         }
 
         /**
@@ -1104,6 +1098,83 @@ public class ActionModule extends AbstractModule {
                 return actions.get(action);
             }
             return registry.get(action);
+        }
+    }
+
+    /**
+     * The DynamicRouteRegistry maintains a registry mapping {@link org.opensearch.rest.RestHandler.Route} instances to {@link org.opensearch.rest.extensions.RestSendToExtensionAction} instances.
+     * <p>
+     * This class is modeled after {@link NamedRegistry} but provides both register and unregister capabilities.
+     *
+     * @opensearch.internal
+     */
+    public static class DynamicRouteRegistry {
+        // This is an instance of a DynamicActionRegistry containing all registered transport actions
+        private DynamicActionRegistry dynamicActionRegistry;
+        // A dynamic registry to add or remove Route / RestSendToExtensionAction pairs
+        // at times other than node bootstrap.
+        private final Map<RestHandler.Route, RestSendToExtensionAction> registry = new ConcurrentHashMap<>();
+
+        private final Set<String> registeredRestActionNames = new HashSet<>();
+
+        /**
+         * Register the immutable actions in the registry.
+         *
+         * @param dynamicActionRegistry A registry of all transport actions - native and dynamic
+         */
+        public void registerDynamicActionRegistry(DynamicActionRegistry dynamicActionRegistry) {
+            this.dynamicActionRegistry = dynamicActionRegistry;
+        }
+
+        /**
+         * Add a dynamic action to the registry.
+         *
+         * @param route The route instance to add
+         * @param action The corresponding instance of RestSendToExtensionAction to execute
+         */
+        public void registerDynamicRoute(RestHandler.Route route, RestSendToExtensionAction action) {
+            requireNonNull(route, "route is required");
+            requireNonNull(action, "action is required");
+            Optional<String> routeName = Optional.empty();
+            if (route instanceof NamedRoute) {
+                for (ActionType actionType : dynamicActionRegistry.registry.keySet()) {
+                }
+                routeName = Optional.of(((NamedRoute) route).name());
+                if (dynamicActionRegistry.isActionRegistered(routeName.get()) || registeredRestActionNames.contains(routeName.get())) {
+                    throw new IllegalArgumentException("route [" + route + "] already registered");
+                }
+            }
+            if (registry.containsKey(route)) {
+                throw new IllegalArgumentException("route [" + route + "] already registered");
+            }
+            registry.put(route, action);
+            routeName.ifPresent(registeredRestActionNames::add);
+        }
+
+        /**
+         * Remove a dynamic route from the registry.
+         *
+         * @param route The route to remove
+         */
+        public void unregisterDynamicRoute(RestHandler.Route route) {
+            requireNonNull(route, "route is required");
+            if (registry.remove(route) == null) {
+                throw new IllegalArgumentException("action [" + route + "] was not registered");
+            }
+            if (route instanceof NamedRoute) {
+                registeredRestActionNames.remove(((NamedRoute) route).name());
+            }
+        }
+
+        /**
+         * Gets the {@link RestSendToExtensionAction} instance corresponding to the {@link RestHandler.Route} instance.
+         *
+         * @param route The {@link RestHandler.Route}.
+         * @return the corresponding {@link RestSendToExtensionAction} if it is registered, null otherwise.
+         */
+        @SuppressWarnings("unchecked")
+        public RestSendToExtensionAction get(RestHandler.Route route) {
+            return registry.get(route);
         }
     }
 }

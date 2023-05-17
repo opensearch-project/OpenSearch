@@ -184,8 +184,8 @@ public interface RestHandler {
      */
     class Route {
 
-        private final String path;
-        private final Method method;
+        protected final String path;
+        protected final Method method;
 
         public Route(Method method, String path) {
             this.path = path;
@@ -198,6 +198,28 @@ public interface RestHandler {
 
         public Method getMethod() {
             return method;
+        }
+
+        @Override
+        public int hashCode() {
+            return toString().hashCode();
+        }
+
+        @Override
+        public String toString() {
+            return "Route [method=" + method + ", path=" + path + "]";
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            Route that = (Route) o;
+            return Objects.equals(method, that.method) && Objects.equals(path, that.path);
         }
     }
 

@@ -22,13 +22,16 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.mockito.Mockito.mock;
 
 import org.junit.After;
 import org.junit.Before;
-import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
+import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
+import org.opensearch.action.admin.cluster.health.TransportClusterHealthAction;
+import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
@@ -39,6 +42,8 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.extensions.DiscoveryExtensionNode;
+import org.opensearch.extensions.action.ExtensionAction;
+import org.opensearch.extensions.action.ExtensionTransportAction;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.rest.NamedRoute;
@@ -106,7 +111,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
             settingsModule.getIndexScopedSettings(),
             settingsModule.getClusterSettings(),
             settingsModule.getSettingsFilter(),
-            null,
+            mock(ThreadPool.class),
             emptyList(),
             null,
             null,
@@ -198,19 +203,53 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
             List.of()
         );
         expectThrows(
-            OpenSearchException.class,
+            IllegalArgumentException.class,
             () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService, actionModule)
         );
     }
 
-    public void testRestSendToExtensionWithNamedRouteCollidingWithNativeAction() throws Exception {
+    public void testRestSendToExtensionMultipleRoutesWithSameMethodAndPath() throws Exception {
+        RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
+            "uniqueid1",
+            List.of("GET /foo", "GET /foo"),
+            List.of()
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService, actionModule)
+        );
+    }
+
+    public void testRestSendToExtensionWithNamedRouteCollidingWithDynamicTransportAction() throws Exception {
+        DynamicActionRegistry dynamicActionRegistry = actionModule.getDynamicActionRegistry();
+        ActionFilters emptyFilters = new ActionFilters(Collections.emptySet());
+        ExtensionAction testExtensionAction = new ExtensionAction("extensionId", "test:action/name");
+        ExtensionTransportAction testExtensionTransportAction = new ExtensionTransportAction("test:action/name", emptyFilters, null, null);
+        assertNull(dynamicActionRegistry.get(testExtensionAction));
+        dynamicActionRegistry.registerDynamicAction(testExtensionAction, testExtensionTransportAction);
+
+        RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
+            "uniqueid1",
+            List.of("GET /foo test:action/name"),
+            List.of()
+        );
+
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService, actionModule)
+        );
+    }
+
+    public void testRestSendToExtensionWithNamedRouteCollidingWithNativeTransportAction() throws Exception {
+        actionModule.getDynamicActionRegistry()
+            .registerUnmodifiableActionMap(Map.of(ClusterHealthAction.INSTANCE, mock(TransportClusterHealthAction.class)));
         RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
             "uniqueid1",
             List.of("GET /foo " + ClusterHealthAction.NAME),
             List.of()
         );
         expectThrows(
-            OpenSearchException.class,
+            IllegalArgumentException.class,
             () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService, actionModule)
         );
     }
