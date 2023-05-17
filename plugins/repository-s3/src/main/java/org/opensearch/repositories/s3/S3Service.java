@@ -207,8 +207,7 @@ class S3Service implements Closeable {
             // TODO: Remove this once fixed in the AWS SDK
             endpoint = clientSettings.protocol.toString() + "://" + endpoint;
         }
-        final String region = Strings.hasLength(clientSettings.region) ? clientSettings.region : null;
-        logger.debug("using endpoint [{}] and region [{}]", endpoint, region);
+        logger.debug("using endpoint [{}] and region [{}]", endpoint, clientSettings.region);
 
         // If the endpoint configuration isn't set on the builder then the default behaviour is to try
         // and work out what region we are in and use an appropriate endpoint - see AwsClientBuilder#setRegion.
@@ -219,6 +218,7 @@ class S3Service implements Closeable {
         // We do this because directly constructing the client is deprecated (was already deprecated in 1.1.223 too)
         // so this change removes that usage of a deprecated API.
         builder.endpointOverride(URI.create(endpoint));
+        builder.region(Region.of(clientSettings.region));
         if (clientSettings.pathStyleAccess) {
             builder.forcePathStyle(true);
         }
@@ -325,9 +325,7 @@ class S3Service implements Closeable {
     private static SSLConnectionSocketFactory createSocksSslConnectionSocketFactory(final InetSocketAddress address) {
         // This part was taken from AWS settings
         try {
-            // TODO is this the right way to initialize SSLContext?
             final SSLContext sslCtx = SSLContext.getDefault();
-            // TODO what are trust managers?
             sslCtx.init(SystemPropertyTlsKeyManagersProvider.create().keyManagers(), null, new SecureRandom());
             return new SdkTlsSocketFactory(sslCtx, new DefaultHostnameVerifier()) {
                 @Override

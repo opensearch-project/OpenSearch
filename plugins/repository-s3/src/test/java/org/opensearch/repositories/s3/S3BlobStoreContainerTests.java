@@ -240,8 +240,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             invocationOnMock -> {
                 final UploadPartRequest request = (UploadPartRequest) invocationOnMock.getArguments()[0];
                 final UploadPartResponse response = UploadPartResponse.builder().eTag(expectedEtags.get(request.partNumber() - 1)).build();
-                // TODO do we need to set part number here?
-                // response.setPartNumber(request.getPartNumber());
                 return response;
             }
         );
@@ -325,7 +323,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
 
         final int stage = randomInt(2);
         final List<SdkException> exceptions = Arrays.asList(
-            // TODO need to review exception initialization here
             SdkException.create("Expected initialization request to fail", new RuntimeException()),
             SdkException.create("Expected upload part request to fail", new RuntimeException()),
             SdkException.create("Expected completion request to fail", new RuntimeException())
@@ -353,8 +350,6 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
             when(client.uploadPart(any(UploadPartRequest.class), any(RequestBody.class))).thenAnswer(invocationOnMock -> {
                 final UploadPartRequest request = (UploadPartRequest) invocationOnMock.getArguments()[0];
                 final UploadPartResponse response = UploadPartResponse.builder().eTag(randomAlphaOfLength(20)).build();
-                // TODO review this
-                // response.setPartNumber(request.getPartNumber());
                 return response;
             });
 
