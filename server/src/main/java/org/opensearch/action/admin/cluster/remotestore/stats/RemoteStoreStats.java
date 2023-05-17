@@ -49,31 +49,31 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
             .field(Fields.REMOTE_REFRESH_CUMULATIVE_COUNT, remoteSegmentUploadShardStats.remoteRefreshCount)
             .field(Fields.BYTES_LAG, remoteSegmentUploadShardStats.bytesLag)
 
-            .field(Fields.REJECTION_COUNT, remoteSegmentUploadShardStats.rejectionCount)
+            .field(Fields.BACKPRESSURE_REJECTION_COUNT, remoteSegmentUploadShardStats.rejectionCount)
             .field(Fields.CONSECUTIVE_FAILURE_COUNT, remoteSegmentUploadShardStats.consecutiveFailuresCount);
 
         builder.startObject(Fields.TOTAL_REMOTE_REFRESH);
-        builder.field(Fields.STARTED, remoteSegmentUploadShardStats.totalUploadsStarted)
-            .field(Fields.SUCCEEDED, remoteSegmentUploadShardStats.totalUploadsSucceeded)
-            .field(Fields.FAILED, remoteSegmentUploadShardStats.totalUploadsFailed);
+        builder.field(SubFields.STARTED, remoteSegmentUploadShardStats.totalUploadsStarted)
+            .field(SubFields.SUCCEEDED, remoteSegmentUploadShardStats.totalUploadsSucceeded)
+            .field(SubFields.FAILED, remoteSegmentUploadShardStats.totalUploadsFailed);
         builder.endObject();
 
         builder.startObject(Fields.TOTAL_UPLOADS_IN_BYTES);
-        builder.field(Fields.STARTED, remoteSegmentUploadShardStats.uploadBytesStarted)
-            .field(Fields.SUCCEEDED, remoteSegmentUploadShardStats.uploadBytesSucceeded)
-            .field(Fields.FAILED, remoteSegmentUploadShardStats.uploadBytesFailed);
+        builder.field(SubFields.STARTED, remoteSegmentUploadShardStats.uploadBytesStarted)
+            .field(SubFields.SUCCEEDED, remoteSegmentUploadShardStats.uploadBytesSucceeded)
+            .field(SubFields.FAILED, remoteSegmentUploadShardStats.uploadBytesFailed);
         builder.endObject();
 
         builder.startObject(Fields.REMOTE_REFRESH_SIZE_IN_BYTES);
-        builder.field(Fields.LAST_SUCCESSFUL, remoteSegmentUploadShardStats.lastSuccessfulRemoteRefreshBytes);
-        builder.field(Fields.MOVING_AVG, remoteSegmentUploadShardStats.uploadBytesMovingAverage);
+        builder.field(SubFields.LAST_SUCCESSFUL, remoteSegmentUploadShardStats.lastSuccessfulRemoteRefreshBytes);
+        builder.field(SubFields.MOVING_AVG, remoteSegmentUploadShardStats.uploadBytesMovingAverage);
         builder.endObject();
 
         builder.startObject(Fields.UPLOAD_LATENCY_IN_BYTES_PER_SEC);
-        builder.field(Fields.MOVING_AVG, remoteSegmentUploadShardStats.uploadBytesPerSecMovingAverage);
+        builder.field(SubFields.MOVING_AVG, remoteSegmentUploadShardStats.uploadBytesPerSecMovingAverage);
         builder.endObject();
         builder.startObject(Fields.REMOTE_REFRESH_LATENCY_IN_MILLIS);
-        builder.field(Fields.MOVING_AVG, remoteSegmentUploadShardStats.uploadTimeMovingAverage);
+        builder.field(SubFields.MOVING_AVG, remoteSegmentUploadShardStats.uploadTimeMovingAverage);
         builder.endObject();
         builder.endObject();
 
@@ -85,24 +85,89 @@ public class RemoteStoreStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(remoteSegmentUploadShardStats);
     }
 
+    /**
+     * Fields for remote store stats response
+     */
     static final class Fields {
         static final String SHARD_ID = "shard_id";
+
+        /**
+         * Last successful local refresh timestamp in milliseconds
+         */
         static final String LOCAL_REFRESH_TIMESTAMP = "local_refresh_timestamp_in_millis";
+
+        /**
+         * No of total local refreshes attempted
+         */
         static final String LOCAL_REFRESH_CUMULATIVE_COUNT = "local_refresh_cumulative_count";
+
+        /**
+         * Last successful remote refresh timestamp in milliseconds
+         */
         static final String REMOTE_REFRESH_TIMESTAMP = "remote_refresh_timestamp_in_millis";
+
+        /**
+         * No of total remote refreshes attempted
+         */
         static final String REMOTE_REFRESH_CUMULATIVE_COUNT = "remote_refresh_cumulative_count";
+
+        /**
+         * Lag in terms of bytes b/w local and remote store
+         */
         static final String BYTES_LAG = "bytes_lag";
-        static final String REJECTION_COUNT = "rejection_count";
+
+        /**
+         * Total write rejections due to remote store backpressure kick in
+         */
+        static final String BACKPRESSURE_REJECTION_COUNT = "backpressure_rejection_count";
+
+        /**
+         * No of consecutive remote refresh failures without a single success since the first failures
+         */
         static final String CONSECUTIVE_FAILURE_COUNT = "consecutive_failure_count";
+
+        /**
+         * Represents the number of remote refreshes
+         */
         static final String TOTAL_REMOTE_REFRESH = "total_remote_refresh";
+
+        /**
+         * Represents the total uploads to remote store in bytes
+         */
         static final String TOTAL_UPLOADS_IN_BYTES = "total_uploads_in_bytes";
+
+        /**
+         * Represents the size of new data to be uploaded as part of a refresh
+         */
         static final String REMOTE_REFRESH_SIZE_IN_BYTES = "remote_refresh_size_in_bytes";
+
+        /**
+         * Represents the speed of remote store uploads in bytes per sec
+         */
         static final String UPLOAD_LATENCY_IN_BYTES_PER_SEC = "upload_latency_in_bytes_per_sec";
+
+        /**
+         * Time taken by a single remote refresh
+         */
         static final String REMOTE_REFRESH_LATENCY_IN_MILLIS = "remote_refresh_latency_in_millis";
+    }
+
+    /**
+     * Reusable sub fields for {@link Fields}
+     */
+    static final class SubFields {
         static final String STARTED = "started";
         static final String SUCCEEDED = "succeeded";
         static final String FAILED = "failed";
+
+        /**
+         * Moving avg over last N values stat for a {@link Fields}
+         */
         static final String MOVING_AVG = "moving_avg";
+
+        /**
+         * Most recent successful attempt stat for a {@link Fields}
+         */
         static final String LAST_SUCCESSFUL = "last_successful";
     }
 

@@ -54,50 +54,50 @@ public class RemoteStoreStatsTestHelper {
         );
         assertEquals(statsObject.get(RemoteStoreStats.Fields.BYTES_LAG), (int) pressureTrackerStats.bytesLag);
 
-        assertEquals(statsObject.get(RemoteStoreStats.Fields.REJECTION_COUNT), (int) pressureTrackerStats.rejectionCount);
+        assertEquals(statsObject.get(RemoteStoreStats.Fields.BACKPRESSURE_REJECTION_COUNT), (int) pressureTrackerStats.rejectionCount);
         assertEquals(
             statsObject.get(RemoteStoreStats.Fields.CONSECUTIVE_FAILURE_COUNT),
             (int) pressureTrackerStats.consecutiveFailuresCount
         );
 
         assertEquals(
-            ((Map) statsObject.get(RemoteStoreStats.Fields.TOTAL_UPLOADS_IN_BYTES)).get(RemoteStoreStats.Fields.STARTED),
+            ((Map) statsObject.get(RemoteStoreStats.Fields.TOTAL_UPLOADS_IN_BYTES)).get(RemoteStoreStats.SubFields.STARTED),
             (int) pressureTrackerStats.uploadBytesStarted
         );
         assertEquals(
-            ((Map) statsObject.get(RemoteStoreStats.Fields.TOTAL_UPLOADS_IN_BYTES)).get(RemoteStoreStats.Fields.SUCCEEDED),
+            ((Map) statsObject.get(RemoteStoreStats.Fields.TOTAL_UPLOADS_IN_BYTES)).get(RemoteStoreStats.SubFields.SUCCEEDED),
             (int) pressureTrackerStats.uploadBytesSucceeded
         );
         assertEquals(
-            ((Map) statsObject.get(RemoteStoreStats.Fields.TOTAL_UPLOADS_IN_BYTES)).get(RemoteStoreStats.Fields.FAILED),
+            ((Map) statsObject.get(RemoteStoreStats.Fields.TOTAL_UPLOADS_IN_BYTES)).get(RemoteStoreStats.SubFields.FAILED),
             (int) pressureTrackerStats.uploadBytesFailed
         );
         assertEquals(
-            ((Map) statsObject.get(RemoteStoreStats.Fields.REMOTE_REFRESH_SIZE_IN_BYTES)).get(RemoteStoreStats.Fields.MOVING_AVG),
+            ((Map) statsObject.get(RemoteStoreStats.Fields.REMOTE_REFRESH_SIZE_IN_BYTES)).get(RemoteStoreStats.SubFields.MOVING_AVG),
             pressureTrackerStats.uploadBytesMovingAverage
         );
         assertEquals(
-            ((Map) statsObject.get(RemoteStoreStats.Fields.REMOTE_REFRESH_SIZE_IN_BYTES)).get(RemoteStoreStats.Fields.LAST_SUCCESSFUL),
+            ((Map) statsObject.get(RemoteStoreStats.Fields.REMOTE_REFRESH_SIZE_IN_BYTES)).get(RemoteStoreStats.SubFields.LAST_SUCCESSFUL),
             (int) pressureTrackerStats.lastSuccessfulRemoteRefreshBytes
         );
         assertEquals(
-            ((Map) statsObject.get(RemoteStoreStats.Fields.UPLOAD_LATENCY_IN_BYTES_PER_SEC)).get(RemoteStoreStats.Fields.MOVING_AVG),
+            ((Map) statsObject.get(RemoteStoreStats.Fields.UPLOAD_LATENCY_IN_BYTES_PER_SEC)).get(RemoteStoreStats.SubFields.MOVING_AVG),
             pressureTrackerStats.uploadBytesPerSecMovingAverage
         );
         assertEquals(
-            ((Map) statsObject.get(RemoteStoreStats.Fields.TOTAL_REMOTE_REFRESH)).get(RemoteStoreStats.Fields.STARTED),
+            ((Map) statsObject.get(RemoteStoreStats.Fields.TOTAL_REMOTE_REFRESH)).get(RemoteStoreStats.SubFields.STARTED),
             (int) pressureTrackerStats.totalUploadsStarted
         );
         assertEquals(
-            ((Map) statsObject.get(RemoteStoreStats.Fields.TOTAL_REMOTE_REFRESH)).get(RemoteStoreStats.Fields.SUCCEEDED),
+            ((Map) statsObject.get(RemoteStoreStats.Fields.TOTAL_REMOTE_REFRESH)).get(RemoteStoreStats.SubFields.SUCCEEDED),
             (int) pressureTrackerStats.totalUploadsSucceeded
         );
         assertEquals(
-            ((Map) statsObject.get(RemoteStoreStats.Fields.TOTAL_REMOTE_REFRESH)).get(RemoteStoreStats.Fields.FAILED),
+            ((Map) statsObject.get(RemoteStoreStats.Fields.TOTAL_REMOTE_REFRESH)).get(RemoteStoreStats.SubFields.FAILED),
             (int) pressureTrackerStats.totalUploadsFailed
         );
         assertEquals(
-            ((Map) statsObject.get(RemoteStoreStats.Fields.REMOTE_REFRESH_LATENCY_IN_MILLIS)).get(RemoteStoreStats.Fields.MOVING_AVG),
+            ((Map) statsObject.get(RemoteStoreStats.Fields.REMOTE_REFRESH_LATENCY_IN_MILLIS)).get(RemoteStoreStats.SubFields.MOVING_AVG),
             pressureTrackerStats.uploadTimeMovingAverage
         );
     }
