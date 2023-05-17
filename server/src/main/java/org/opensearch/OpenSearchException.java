@@ -43,7 +43,6 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
-import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.Index;
@@ -81,7 +80,7 @@ import static org.opensearch.common.xcontent.XContentParserUtils.ensureFieldName
  *
  * @opensearch.internal
  */
-public class OpenSearchException extends BaseOpenSearchException implements ToXContentFragment, Writeable {
+public class OpenSearchException extends BaseOpenSearchException implements Writeable {
 
     /**
      * Setting a higher base exception id to avoid conflicts.
@@ -215,19 +214,19 @@ public class OpenSearchException extends BaseOpenSearchException implements ToXC
             token = parser.nextToken();
 
             if (token.isValue()) {
-                if (TYPE.equals(currentFieldName)) {
+                if (BaseExceptionsHelper.TYPE.equals(currentFieldName)) {
                     type = parser.text();
-                } else if (REASON.equals(currentFieldName)) {
+                } else if (BaseExceptionsHelper.REASON.equals(currentFieldName)) {
                     reason = parser.text();
-                } else if (STACK_TRACE.equals(currentFieldName)) {
+                } else if (BaseExceptionsHelper.STACK_TRACE.equals(currentFieldName)) {
                     stack = parser.text();
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     metadata.put(currentFieldName, Collections.singletonList(parser.text()));
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (CAUSED_BY.equals(currentFieldName)) {
+                if (BaseExceptionsHelper.CAUSED_BY.equals(currentFieldName)) {
                     cause = fromXContent(parser);
-                } else if (HEADER.equals(currentFieldName)) {
+                } else if (BaseExceptionsHelper.HEADER.equals(currentFieldName)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
@@ -260,7 +259,7 @@ public class OpenSearchException extends BaseOpenSearchException implements ToXC
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         rootCauses.add(fromXContent(parser));
                     }
-                } else if (SUPPRESSED.match(currentFieldName, parser.getDeprecationHandler())) {
+                } else if (BaseExceptionsHelper.SUPPRESSED.match(currentFieldName, parser.getDeprecationHandler())) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         suppressed.add(fromXContent(parser));
                     }
@@ -293,7 +292,7 @@ public class OpenSearchException extends BaseOpenSearchException implements ToXC
             // by addMetadata. The prefix will get stripped out when printing metadata out so it will be effectively invisible.
             // TODO move subclasses that print out simple metadata to using addMetadata directly and support also numbers and booleans.
             // TODO rename metadataToXContent and have only SearchPhaseExecutionException use it, which prints out complex objects
-            e.addMetadata(OPENSEARCH_PREFIX_KEY + entry.getKey(), entry.getValue());
+            e.addMetadata(BaseExceptionsHelper.OPENSEARCH_PREFIX_KEY + entry.getKey(), entry.getValue());
         }
         for (Map.Entry<String, List<String>> header : headers.entrySet()) {
             e.addHeader(header.getKey(), header.getValue());

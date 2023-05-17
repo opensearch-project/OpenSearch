@@ -33,7 +33,6 @@
 package org.opensearch.action.support.replication;
 
 import org.opensearch.BaseExceptionsHelper;
-import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.ShardOperationFailedException;
@@ -305,7 +304,7 @@ public class ReplicationResponse extends ActionResponse {
                 builder.field(_NODE, nodeId);
                 builder.field(REASON);
                 builder.startObject();
-                BaseOpenSearchException.generateThrowableXContent(builder, params, cause);
+                BaseExceptionsHelper.generateThrowableXContent(builder, params, cause);
                 builder.endObject();
                 builder.field(STATUS, status);
                 builder.field(PRIMARY, primary);

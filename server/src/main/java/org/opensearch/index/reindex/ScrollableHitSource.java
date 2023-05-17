@@ -33,7 +33,7 @@
 package org.opensearch.index.reindex;
 
 import org.apache.logging.log4j.Logger;
-import org.opensearch.BaseOpenSearchException;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.bulk.BackoffPolicy;
@@ -489,7 +489,7 @@ public abstract class ScrollableHitSource {
             builder.field(REASON_FIELD);
             {
                 builder.startObject();
-                BaseOpenSearchException.generateThrowableXContent(builder, params, reason);
+                BaseExceptionsHelper.generateThrowableXContent(builder, params, reason);
                 builder.endObject();
             }
             builder.endObject();

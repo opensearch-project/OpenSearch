@@ -32,7 +32,7 @@
 
 package org.opensearch.action.support;
 
-import org.opensearch.BaseOpenSearchException;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ShardOperationFailedException;
@@ -136,7 +136,7 @@ public class DefaultShardOperationFailedException extends ShardOperationFailedEx
         builder.field("status", status.name());
         if (reason != null) {
             builder.startObject("reason");
-            BaseOpenSearchException.generateThrowableXContent(builder, params, cause);
+            BaseExceptionsHelper.generateThrowableXContent(builder, params, cause);
             builder.endObject();
         }
         return builder;

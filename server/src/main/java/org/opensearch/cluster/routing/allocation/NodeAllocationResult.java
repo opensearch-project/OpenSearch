@@ -32,7 +32,7 @@
 
 package org.opensearch.cluster.routing.allocation;
 
-import org.opensearch.BaseOpenSearchException;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.Nullable;
@@ -300,7 +300,7 @@ public class NodeAllocationResult implements ToXContentObject, Writeable, Compar
                 }
                 if (storeException != null) {
                     builder.startObject("store_exception");
-                    BaseOpenSearchException.generateThrowableXContent(builder, params, storeException);
+                    BaseExceptionsHelper.generateThrowableXContent(builder, params, storeException);
                     builder.endObject();
                 }
             }

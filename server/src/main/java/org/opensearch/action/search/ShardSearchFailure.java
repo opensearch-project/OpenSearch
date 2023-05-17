@@ -33,7 +33,6 @@
 package org.opensearch.action.search;
 
 import org.opensearch.BaseExceptionsHelper;
-import org.opensearch.BaseOpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.OriginalIndices;
@@ -87,17 +86,20 @@ public class ShardSearchFailure extends ShardOperationFailedException {
     }
 
     public ShardSearchFailure(Exception e, @Nullable SearchShardTarget shardTarget) {
+        this(e, BaseExceptionsHelper.unwrapCause(e), shardTarget);
+    }
+
+    private ShardSearchFailure(final Exception e, final Throwable unwrappedCause, @Nullable SearchShardTarget shardTarget) {
         super(
             shardTarget == null ? null : shardTarget.getFullyQualifiedIndexName(),
             shardTarget == null ? -1 : shardTarget.getShardId().getId(),
             BaseExceptionsHelper.detailedMessage(e),
-            ExceptionsHelper.status(BaseExceptionsHelper.unwrapCause(e)),
-            BaseExceptionsHelper.unwrapCause(e)
+            ExceptionsHelper.status(unwrappedCause),
+            unwrappedCause
         );
 
-        final Throwable actual = BaseExceptionsHelper.unwrapCause(e);
-        if (actual instanceof SearchException) {
-            this.shardTarget = ((SearchException) actual).shard();
+        if (unwrappedCause instanceof SearchException) {
+            this.shardTarget = ((SearchException) unwrappedCause).shard();
         } else if (shardTarget != null) {
             this.shardTarget = shardTarget;
         }
@@ -146,7 +148,7 @@ public class ShardSearchFailure extends ShardOperationFailedException {
             }
             builder.field(REASON_FIELD);
             builder.startObject();
-            BaseOpenSearchException.generateThrowableXContent(builder, params, cause);
+            BaseExceptionsHelper.generateThrowableXContent(builder, params, cause);
             builder.endObject();
         }
         builder.endObject();

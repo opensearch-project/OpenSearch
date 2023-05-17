@@ -32,7 +32,7 @@
 
 package org.opensearch.index.reindex;
 
-import org.opensearch.BaseOpenSearchException;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.ParseField;
@@ -1000,7 +1000,7 @@ public class BulkByScrollTask extends CancellableTask {
                 status.toXContent(builder, params);
             } else {
                 builder.startObject();
-                BaseOpenSearchException.generateThrowableXContent(builder, params, exception);
+                BaseExceptionsHelper.generateThrowableXContent(builder, params, exception);
                 builder.endObject();
             }
             return builder;
