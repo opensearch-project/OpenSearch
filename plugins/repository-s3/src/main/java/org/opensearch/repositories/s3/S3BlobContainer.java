@@ -195,7 +195,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
             Iterator<ListObjectsV2Response> listObjectsResponseIterator = listObjectsIterable.iterator();
             while (listObjectsResponseIterator.hasNext()) {
-                ListObjectsV2Response listObjectsResponse = listObjectsResponseIterator.next();
+                ListObjectsV2Response listObjectsResponse = SocketAccess.doPrivileged(listObjectsResponseIterator::next);
                 List<String> blobsToDelete = listObjectsResponse.contents().stream().map(s3Object -> {
                     deletedBlobs.incrementAndGet();
                     deletedBytes.addAndGet(s3Object.size());
@@ -343,7 +343,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         ListObjectsV2Iterable listObjectsIterable = SocketAccess.doPrivileged(
             () -> clientReference.get().listObjectsV2Paginator(listObjectsRequest)
         );
-        listObjectsIterable.forEach(results::add);
+        SocketAccess.doPrivilegedVoid(() -> listObjectsIterable.forEach(results::add));
         return results;
     }
 

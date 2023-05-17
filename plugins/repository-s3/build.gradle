@@ -80,6 +80,7 @@ dependencies {
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
   api "joda-time:joda-time:${versions.joda}"
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
 
   // HACK: javax.xml.bind was removed from default modules in java 9, so we pull the api in here,
   // and allowlist this hack in JarHell
@@ -384,9 +385,9 @@ thirdPartyAudit.ignoreMissingClasses(
   'org.apache.avalon.framework.logger.Logger',
   'org.apache.log.Hierarchy',
   'org.apache.log.Logger',
-  'org.slf4j.Logger',
-  'org.slf4j.LoggerFactory',
-  'org.slf4j.event.Level',
+  'org.slf4j.impl.StaticLoggerBinder',
+  'org.slf4j.impl.StaticMDCBinder',
+  'org.slf4j.impl.StaticMarkerBinder',
   'software.amazon.awssdk.arns.Arn',
   'software.amazon.awssdk.arns.ArnResource',
   'software.amazon.awssdk.crt.CRT',
