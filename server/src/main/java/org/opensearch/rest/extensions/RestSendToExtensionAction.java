@@ -10,6 +10,7 @@ package org.opensearch.rest.extensions;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.action.ActionModule;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
@@ -83,7 +84,8 @@ public class RestSendToExtensionAction extends BaseRestHandler {
     public RestSendToExtensionAction(
         RegisterRestActionsRequest restActionsRequest,
         DiscoveryExtensionNode discoveryExtensionNode,
-        TransportService transportService
+        TransportService transportService,
+        ActionModule actionModule
     ) {
         this.pathPrefix = "/_extensions/_" + restActionsRequest.getUniqueId();
         RestRequest.Method method;
@@ -107,7 +109,9 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             }
             logger.info("Registering: " + method + " " + path);
             if (name.isPresent()) {
-                restActionsAsRoutes.add(new NamedRoute(method, path, name.get()));
+                NamedRoute nr = new NamedRoute(method, path, name.get());
+                restActionsAsRoutes.add(nr);
+                actionModule.registerNamedRoute(nr);
             } else {
                 restActionsAsRoutes.add(new Route(method, path));
             }

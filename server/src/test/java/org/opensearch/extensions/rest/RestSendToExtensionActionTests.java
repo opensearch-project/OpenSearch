@@ -19,19 +19,27 @@ import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
 import org.junit.After;
 import org.junit.Before;
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
+import org.opensearch.action.ActionModule;
+import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.extensions.DiscoveryExtensionNode;
+import org.opensearch.identity.IdentityService;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.rest.NamedRoute;
 import org.opensearch.rest.RestHandler.Route;
@@ -43,12 +51,14 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransport;
+import org.opensearch.usage.UsageService;
 
 public class RestSendToExtensionActionTests extends OpenSearchTestCase {
 
     private TransportService transportService;
     private MockNioTransport transport;
     private DiscoveryExtensionNode discoveryExtensionNode;
+    private ActionModule actionModule;
     private final ThreadPool threadPool = new TestThreadPool(RestSendToExtensionActionTests.class.getSimpleName());
 
     @Before
@@ -88,6 +98,22 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
             Version.fromString("3.0.0"),
             Collections.emptyList()
         );
+        SettingsModule settingsModule = new SettingsModule(settings);
+        UsageService usageService = new UsageService();
+        actionModule = new ActionModule(
+            settingsModule.getSettings(),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            settingsModule.getIndexScopedSettings(),
+            settingsModule.getClusterSettings(),
+            settingsModule.getSettingsFilter(),
+            null,
+            emptyList(),
+            null,
+            null,
+            usageService,
+            null,
+            new IdentityService(Settings.EMPTY, new ArrayList<>())
+        );
     }
 
     @Override
@@ -107,7 +133,8 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         RestSendToExtensionAction restSendToExtensionAction = new RestSendToExtensionAction(
             registerRestActionRequest,
             discoveryExtensionNode,
-            transportService
+            transportService,
+            actionModule
         );
 
         assertEquals("send_to_extension_action", restSendToExtensionAction.getName());
@@ -129,7 +156,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         assertTrue(expectedMethods.containsAll(methods));
     }
 
-    public void testRestSendToExtensionActionWithProtectedRoute() throws Exception {
+    public void testRestSendToExtensionActionWithNamedRoute() throws Exception {
         RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
             "uniqueid1",
             List.of("GET /foo foo", "PUT /bar bar", "POST /baz baz"),
@@ -138,7 +165,8 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         RestSendToExtensionAction restSendToExtensionAction = new RestSendToExtensionAction(
             registerRestActionRequest,
             discoveryExtensionNode,
-            transportService
+            transportService,
+            actionModule
         );
 
         assertEquals("send_to_extension_action", restSendToExtensionAction.getName());
@@ -163,6 +191,30 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         assertTrue(expectedNames.containsAll(names));
     }
 
+    public void testRestSendToExtensionMultipleNamedRoutesWithSameName() throws Exception {
+        RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
+            "uniqueid1",
+            List.of("GET /foo foo", "PUT /bar foo"),
+            List.of()
+        );
+        expectThrows(
+            OpenSearchException.class,
+            () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService, actionModule)
+        );
+    }
+
+    public void testRestSendToExtensionWithNamedRouteCollidingWithNativeAction() throws Exception {
+        RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
+            "uniqueid1",
+            List.of("GET /foo " + ClusterHealthAction.NAME, "PUT /bar foo"),
+            List.of()
+        );
+        expectThrows(
+            OpenSearchException.class,
+            () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService, actionModule)
+        );
+    }
+
     public void testRestSendToExtensionActionFilterHeaders() throws Exception {
         RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
             "uniqueid1",
@@ -172,7 +224,8 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         RestSendToExtensionAction restSendToExtensionAction = new RestSendToExtensionAction(
             registerRestActionRequest,
             discoveryExtensionNode,
-            transportService
+            transportService,
+            actionModule
         );
 
         Map<String, List<String>> headers = new HashMap<>();
@@ -198,7 +251,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService)
+            () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService, actionModule)
         );
     }
 
@@ -210,7 +263,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService)
+            () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService, actionModule)
         );
     }
 
@@ -222,7 +275,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService)
+            () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService, actionModule)
         );
     }
 
@@ -234,7 +287,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService)
+            () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService, actionModule)
         );
     }
 }
