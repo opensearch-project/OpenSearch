@@ -181,7 +181,7 @@ public class ExtensionsManager {
             actionModule,
             this
         );
-        registerRequestHandler();
+        registerRequestHandler(actionModule);
     }
 
     /**
@@ -222,14 +222,16 @@ public class ExtensionsManager {
         return extensionTransportActionsHandler.sendTransportRequestToExtension(request);
     }
 
-    private void registerRequestHandler() {
+    private void registerRequestHandler(ActionModule actionModule) {
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_REGISTER_REST_ACTIONS,
             ThreadPool.Names.GENERIC,
             false,
             false,
             RegisterRestActionsRequest::new,
-            ((request, channel, task) -> channel.sendResponse(restActionsRequestHandler.handleRegisterRestActionsRequest(request)))
+            ((request, channel, task) -> channel.sendResponse(
+                restActionsRequestHandler.handleRegisterRestActionsRequest(request, actionModule)
+            ))
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_REGISTER_CUSTOM_SETTINGS,

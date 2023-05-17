@@ -34,6 +34,7 @@ package org.opensearch.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.cluster.allocation.ClusterAllocationExplainAction;
 import org.opensearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.opensearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
@@ -304,6 +305,7 @@ import org.opensearch.persistent.StartPersistentTaskAction;
 import org.opensearch.persistent.UpdatePersistentTaskStatusAction;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ActionPlugin.ActionHandler;
+import org.opensearch.rest.NamedRoute;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestHeaderDefinition;
@@ -455,6 +457,8 @@ import org.opensearch.usage.UsageService;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -494,6 +498,8 @@ public class ActionModule extends AbstractModule {
     // associated with remote action execution on extensions, possibly in
     // a different JVM and possibly on a different server.
     private final DynamicActionRegistry dynamicActionRegistry;
+    // The unmodifiable map containing OpenSearch, Plugin and extension REST actions
+    private final Map<String, NamedRoute> restActions;
     private final ActionFilters actionFilters;
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
@@ -524,6 +530,7 @@ public class ActionModule extends AbstractModule {
         this.actionPlugins = actionPlugins;
         this.threadPool = threadPool;
         actions = setupActions(actionPlugins);
+        restActions = new HashMap<>();
         actionFilters = setupActionFilters(actionPlugins);
         dynamicActionRegistry = new DynamicActionRegistry();
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
@@ -551,6 +558,33 @@ public class ActionModule extends AbstractModule {
         );
 
         restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService, identityService);
+    }
+
+    private Set<String> getAllRegisteredActionNames() {
+        Set<String> registeredActionNames = new HashSet<>();
+        if (actions != null) {
+            for (String transportActionName : actions.keySet()) {
+                registeredActionNames.add(transportActionName);
+            }
+        }
+        if (dynamicActionRegistry != null && dynamicActionRegistry.actions != null) {
+            for (ActionType transportAction : dynamicActionRegistry.actions.keySet()) {
+                registeredActionNames.add(transportAction.name());
+            }
+        }
+        for (String restActionName : restActions.keySet()) {
+            registeredActionNames.add(restActionName);
+        }
+        return registeredActionNames;
+    }
+
+    public void registerNamedRoute(NamedRoute route) {
+        Set<String> registeredActionNames = getAllRegisteredActionNames();
+        if (registeredActionNames.contains(route.name())) {
+            throw new OpenSearchException("Action with action name " + route.name() + " already registered in the action module.");
+        } else {
+            restActions.put(route.name(), route);
+        }
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {
