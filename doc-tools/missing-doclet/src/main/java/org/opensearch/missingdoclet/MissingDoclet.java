@@ -13,6 +13,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -59,12 +60,18 @@ public class MissingDoclet extends StandardDoclet {
     private static final int METHOD = 2;
     // checks that @param tags are present for any method/constructor parameters
     private static final int PARAMETER = 3;
+    private static final Set<String> ALLOWED_TO_BE_IGNORED = new HashSet<>();
+    static {
+        // TODO Should we stick this list in missing-javadoc.gradle instead?
+        ALLOWED_TO_BE_IGNORED.add("org.opensearch.extensions.proto");
+    }
     int level = PARAMETER;
     Reporter reporter;
     DocletEnvironment docEnv;
     DocTrees docTrees;
     Elements elementUtils;
     Set<String> ignored = Collections.emptySet();
+    Set<String> ignoredGroups = Collections.emptySet();
     Set<String> methodPackages = Collections.emptySet();
 
     @Override
@@ -145,7 +152,14 @@ public class MissingDoclet extends StandardDoclet {
 
             @Override
             public boolean process(String option, List<String> arguments) {
-                ignored = new HashSet<>(Arrays.asList(arguments.get(0).split(",")));
+                String[] tokens = arguments.get(0).split(",");
+                for (String token : tokens) {
+                    if (token.endsWith(".*")) {
+                        validateAndParseIgnoredGroup(token).ifPresent(ignoredGroups::add);
+                    } else {
+                        ignored.add(token);
+                    }
+                }
                 return true;
             }
         });
@@ -288,7 +302,13 @@ public class MissingDoclet extends StandardDoclet {
         // check that this element isn't on our ignore list. This is only used as a workaround for "split packages".
         // ignoring a package isn't recursive (on purpose), we still check all the classes, etc. inside it.
         // we just need to cope with the fact package-info.java isn't there because it is split across multiple jars.
-        if (ignored.contains(element.toString())) {
+        String elementStr = element.toString();
+        for (String group : ignoredGroups) {
+            if (elementStr.startsWith(group)) {
+                return;
+            }
+        }
+        if (ignored.contains(elementStr)) {
             return;
         }
         var tree = docTrees.getDocCommentTree(element);
@@ -428,5 +448,21 @@ public class MissingDoclet extends StandardDoclet {
         } else {
             reporter.print(Diagnostic.Kind.ERROR, element, fullMessage.toString());
         }
+    }
+
+    /**
+     * Given 'com.foo.bar.*', we check 'com.foo.bar' is allowlisted to be ignored.
+     * If allowed, we return 'com.foo.bar.' so we can do string match on full package names.
+     * Otherwise, we return Optional.empty so this group is not used.
+     *
+     * @param group
+     * @return
+     */
+    private Optional<String> validateAndParseIgnoredGroup(String group) {
+        // Ideally, basic validation on the group string should have been done in build.gradle.
+        if (group.length() > 2 && !ALLOWED_TO_BE_IGNORED.contains(group.substring(0, group.length()-2))) {
+            return Optional.empty();
+        }
+        return Optional.of(group.substring(0, group.length()-1));
     }
 }
