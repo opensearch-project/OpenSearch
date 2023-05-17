@@ -205,6 +205,10 @@ public abstract class TransportBroadcastAction<
                         // no node connected, act as failure
                         onOperation(shard, shardIt, shardIndex, new NoShardAvailableActionException(shardIt.shardId()));
                     } else {
+                        // Update weighted routing fail open stats in case the only healthy shard copy is present
+                        // in weighed away az data nodes
+                        FailAwareWeightedRouting.getInstance()
+                            .updateFailOpenStatsForOneHealthyCopy(shardIt, clusterService.state(), shard.currentNodeId());
                         transportService.sendRequest(
                             node,
                             transportShardAction,

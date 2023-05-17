@@ -266,6 +266,10 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
             if (node == null) {
                 onFailure(shardRouting, new NoShardAvailableActionException(shardRouting.shardId()));
             } else {
+                // Update weighted routing fail open stats in case the only healthy shard copy is present
+                // in weighed away az data nodes
+                FailAwareWeightedRouting.getInstance()
+                    .updateFailOpenStatsForOneHealthyCopy(shardIt, clusterService.state(), shardRouting.currentNodeId());
                 internalRequest.request().internalShardId = shardRouting.shardId();
                 if (logger.isTraceEnabled()) {
                     logger.trace(
