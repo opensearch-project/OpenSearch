@@ -1135,8 +1135,6 @@ public class ActionModule extends AbstractModule {
             requireNonNull(action, "action is required");
             Optional<String> routeName = Optional.empty();
             if (route instanceof NamedRoute) {
-                for (ActionType actionType : dynamicActionRegistry.registry.keySet()) {
-                }
                 routeName = Optional.of(((NamedRoute) route).name());
                 if (dynamicActionRegistry.isActionRegistered(routeName.get()) || registeredRestActionNames.contains(routeName.get())) {
                     throw new IllegalArgumentException("route [" + route + "] already registered");
