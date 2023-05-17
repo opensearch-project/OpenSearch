@@ -410,7 +410,7 @@ public class MetadataRolloverService {
                 "rollover target is a ["
                     + indexAbstraction.getType().getDisplayName()
                     + "] but one of ["
-                    + org.opensearch.core.common.Strings.collectionToCommaDelimitedString(
+                    + Strings.collectionToCommaDelimitedString(
                         VALID_ROLLOVER_TARGETS.stream().map(IndexAbstraction.Type::getDisplayName).collect(Collectors.toList())
                     )
                     + "] was expected"

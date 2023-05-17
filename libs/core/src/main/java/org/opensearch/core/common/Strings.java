@@ -489,4 +489,30 @@ public class Strings {
     public static boolean isNullOrEmpty(@Nullable String s) {
         return s == null || s.isEmpty();
     }
+
+    /**
+     * Capitalize a <code>String</code>, changing the first letter to
+     * upper case as per {@link Character#toUpperCase(char)}.
+     * No other letters are changed.
+     *
+     * @param str the String to capitalize, may be <code>null</code>
+     * @return the capitalized String, <code>null</code> if null
+     */
+    public static String capitalize(String str) {
+        return changeFirstCharacterCase(str, true);
+    }
+
+    private static String changeFirstCharacterCase(String str, boolean capitalize) {
+        if (str == null || str.length() == 0) {
+            return str;
+        }
+        StringBuilder sb = new StringBuilder(str.length());
+        if (capitalize) {
+            sb.append(Character.toUpperCase(str.charAt(0)));
+        } else {
+            sb.append(Character.toLowerCase(str.charAt(0)));
+        }
+        sb.append(str.substring(1));
+        return sb.toString();
+    }
 }

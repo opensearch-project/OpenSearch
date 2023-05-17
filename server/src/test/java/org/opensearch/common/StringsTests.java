@@ -32,7 +32,6 @@
 
 package org.opensearch.common;
 
-import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentObject;
@@ -124,18 +123,5 @@ public class StringsTests extends OpenSearchTestCase {
             Strings.toString(XContentType.JSON, toXContent, new ToXContent.MapParams(Collections.singletonMap("color", "blue"))),
             containsString("\"color_from_param\":\"blue\"")
         );
-    }
-
-    public void testSplitStringToSet() {
-        assertEquals(org.opensearch.core.common.Strings.tokenizeByCommaToSet(null), Sets.newHashSet());
-        assertEquals(org.opensearch.core.common.Strings.tokenizeByCommaToSet(""), Sets.newHashSet());
-        assertEquals(org.opensearch.core.common.Strings.tokenizeByCommaToSet("a,b,c"), Sets.newHashSet("a", "b", "c"));
-        assertEquals(org.opensearch.core.common.Strings.tokenizeByCommaToSet("a, b, c"), Sets.newHashSet("a", "b", "c"));
-        assertEquals(org.opensearch.core.common.Strings.tokenizeByCommaToSet(" a ,  b, c  "), Sets.newHashSet("a", "b", "c"));
-        assertEquals(org.opensearch.core.common.Strings.tokenizeByCommaToSet("aa, bb, cc"), Sets.newHashSet("aa", "bb", "cc"));
-        assertEquals(org.opensearch.core.common.Strings.tokenizeByCommaToSet(" a "), Sets.newHashSet("a"));
-        assertEquals(org.opensearch.core.common.Strings.tokenizeByCommaToSet("   a   "), Sets.newHashSet("a"));
-        assertEquals(org.opensearch.core.common.Strings.tokenizeByCommaToSet("   aa   "), Sets.newHashSet("aa"));
-        assertEquals(org.opensearch.core.common.Strings.tokenizeByCommaToSet("   "), Sets.newHashSet());
     }
 }

@@ -455,11 +455,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
 
     @Override
     public String getDescription() {
-        return "requests["
-            + requests.size()
-            + "], indices["
-            + org.opensearch.core.common.Strings.collectionToDelimitedString(indices, ", ")
-            + "]";
+        return "requests[" + requests.size() + "], indices[" + Strings.collectionToDelimitedString(indices, ", ") + "]";
     }
 
     private void applyGlobalMandatoryParameters(DocWriteRequest<?> request) {
@@ -467,7 +463,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     }
 
     private static String valueOrDefault(String value, String globalDefault) {
-        if (org.opensearch.core.common.Strings.isNullOrEmpty(value) && !Strings.isNullOrEmpty(globalDefault)) {
+        if (Strings.isNullOrEmpty(value) && Strings.isNullOrEmpty(globalDefault) == false) {
             return globalDefault;
         }
         return value;

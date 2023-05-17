@@ -27,7 +27,7 @@ public final class Functions {
      * @return function name wrapped into brackets or empty string
      */
     public static String nameOrEmptyFunc(final String functionName) {
-        if (!org.opensearch.core.common.Strings.isNullOrEmpty(functionName)) {
+        if (Strings.isNullOrEmpty(functionName) == false) {
             return "(" + AbstractQueryBuilder.NAME_FIELD.getPreferredName() + ": " + functionName + ")";
         } else {
             return "";
@@ -40,7 +40,7 @@ public final class Functions {
      * @return function name as an argument or empty string
      */
     public static String nameOrEmptyArg(final String functionName) {
-        if (!org.opensearch.core.common.Strings.isNullOrEmpty(functionName)) {
+        if (Strings.isNullOrEmpty(functionName) == false) {
             return ", " + FunctionScoreQueryBuilder.NAME_FIELD.getPreferredName() + ": " + functionName;
         } else {
             return "";

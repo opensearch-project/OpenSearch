@@ -68,7 +68,7 @@ public enum SimpleQueryStringFlag {
     }
 
     static int resolveFlags(String flags) {
-        if (org.opensearch.core.common.Strings.hasLength(flags) == false) {
+        if (Strings.hasLength(flags) == false) {
             return ALL.value();
         }
         int magic = NONE.value();

@@ -73,7 +73,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         "cluster.remote.",
         "proxy_address",
         (ns, key) -> Setting.simpleString(key, new StrategyValidator<>(ns, key, ConnectionStrategy.PROXY, s -> {
-            if (org.opensearch.core.common.Strings.hasLength(s)) {
+            if (Strings.hasLength(s)) {
                 parsePort(s);
             }
         }), Setting.Property.Dynamic, Setting.Property.NodeScope)
@@ -192,8 +192,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         this.maxNumConnections = maxNumConnections;
         this.configuredAddress = configuredAddress;
         this.configuredServerName = configuredServerName;
-        assert org.opensearch.core.common.Strings.isEmpty(configuredAddress) == false
-            : "Cannot use proxy connection strategy with no configured addresses";
+        assert Strings.isEmpty(configuredAddress) == false : "Cannot use proxy connection strategy with no configured addresses";
         this.address = address;
         this.clusterNameValidator = (newConnection, actualProfile, listener) -> transportService.handshake(
             newConnection,

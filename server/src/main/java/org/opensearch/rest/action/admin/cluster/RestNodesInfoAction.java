@@ -101,18 +101,18 @@ public class RestNodesInfoAction extends BaseRestHandler {
         // this means one must differentiate between allowed metrics and arbitrary node ids in the same place
         if (request.hasParam("nodeId") && !request.hasParam("metrics")) {
             String nodeId = request.param("nodeId", "_all");
-            Set<String> metricsOrNodeIds = org.opensearch.core.common.Strings.tokenizeByCommaToSet(nodeId);
+            Set<String> metricsOrNodeIds = Strings.tokenizeByCommaToSet(nodeId);
             boolean isMetricsOnly = ALLOWED_METRICS.containsAll(metricsOrNodeIds);
             if (isMetricsOnly) {
                 nodeIds = new String[] { "_all" };
                 metrics = metricsOrNodeIds;
             } else {
-                nodeIds = org.opensearch.core.common.Strings.tokenizeToStringArray(nodeId, ",");
+                nodeIds = Strings.tokenizeToStringArray(nodeId, ",");
                 metrics = Sets.newHashSet("_all");
             }
         } else {
             nodeIds = Strings.tokenizeToStringArray(request.param("nodeId", "_all"), ",");
-            metrics = org.opensearch.core.common.Strings.tokenizeByCommaToSet(request.param("metrics", "_all"));
+            metrics = Strings.tokenizeByCommaToSet(request.param("metrics", "_all"));
         }
 
         final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(nodeIds);

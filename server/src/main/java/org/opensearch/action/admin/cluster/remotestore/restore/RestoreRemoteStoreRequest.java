@@ -11,10 +11,10 @@ package org.opensearch.action.admin.cluster.remotestore.restore;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 
@@ -130,7 +130,7 @@ public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<Restore
             String name = entry.getKey();
             if (name.equals("indices")) {
                 if (entry.getValue() instanceof String) {
-                    indices(org.opensearch.core.common.Strings.splitStringByCommaToArray((String) entry.getValue()));
+                    indices(Strings.splitStringByCommaToArray((String) entry.getValue()));
                 } else if (entry.getValue() instanceof ArrayList) {
                     indices((ArrayList<String>) entry.getValue());
                 } else {
@@ -179,6 +179,6 @@ public class RestoreRemoteStoreRequest extends ClusterManagerNodeRequest<Restore
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return org.opensearch.common.Strings.toString(XContentType.JSON, this);
     }
 }

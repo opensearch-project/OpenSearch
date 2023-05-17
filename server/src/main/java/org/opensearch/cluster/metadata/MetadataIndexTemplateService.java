@@ -48,7 +48,6 @@ import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
-import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.ValidationException;
 import org.opensearch.common.bytes.BytesReference;
@@ -60,10 +59,11 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.MapperParsingException;
@@ -302,7 +302,7 @@ public class MetadataIndexTemplateService {
         if (stringMappings != null) {
             Map<String, Object> parsedMappings = MapperService.parseMapping(xContentRegistry, stringMappings);
             if (parsedMappings.size() > 0) {
-                stringMappings = Strings.toString(
+                stringMappings = org.opensearch.common.Strings.toString(
                     XContentFactory.jsonBuilder().startObject().field(MapperService.SINGLE_MAPPING_NAME, parsedMappings).endObject()
                 );
             }
@@ -551,7 +551,7 @@ public class MetadataIndexTemplateService {
                     + "match during index creation, please use a different priority",
                 name,
                 template.indexPatterns(),
-                org.opensearch.core.common.Strings.collectionToCommaDelimitedString(overlaps.keySet()),
+                Strings.collectionToCommaDelimitedString(overlaps.keySet()),
                 overlaps.entrySet().stream().map(e -> e.getKey() + " => " + e.getValue()).collect(Collectors.joining(",")),
                 template.priorityOrZero()
             );
@@ -566,7 +566,7 @@ public class MetadataIndexTemplateService {
                     + "existing older templates [%s] with patterns (%s); this template [%s] will take precedence during new index creation",
                 name,
                 template.indexPatterns(),
-                org.opensearch.core.common.Strings.collectionToCommaDelimitedString(overlaps.keySet()),
+                Strings.collectionToCommaDelimitedString(overlaps.keySet()),
                 overlaps.entrySet().stream().map(e -> e.getKey() + " => " + e.getValue()).collect(Collectors.joining(",")),
                 name
             );
@@ -591,7 +591,7 @@ public class MetadataIndexTemplateService {
             if (stringMappings != null) {
                 Map<String, Object> parsedMappings = MapperService.parseMapping(xContentRegistry, stringMappings);
                 if (parsedMappings.size() > 0) {
-                    stringMappings = Strings.toString(
+                    stringMappings = org.opensearch.common.Strings.toString(
                         XContentFactory.jsonBuilder().startObject().field(MapperService.SINGLE_MAPPING_NAME, parsedMappings).endObject()
                     );
                 }
@@ -953,7 +953,7 @@ public class MetadataIndexTemplateService {
                     + " of a composable template at index creation time",
                 request.name,
                 request.indexPatterns,
-                org.opensearch.core.common.Strings.collectionToCommaDelimitedString(overlaps.keySet()),
+                Strings.collectionToCommaDelimitedString(overlaps.keySet()),
                 overlaps.entrySet().stream().map(e -> e.getKey() + " => " + e.getValue()).collect(Collectors.joining(",")),
                 request.name
             );
@@ -1502,9 +1502,12 @@ public class MetadataIndexTemplateService {
             if (indexPattern.startsWith("_")) {
                 validationErrors.add("index_pattern [" + indexPattern + "] must not start with '_'");
             }
-            if (Strings.validFileNameExcludingAstrix(indexPattern) == false) {
+            if (org.opensearch.common.Strings.validFileNameExcludingAstrix(indexPattern) == false) {
                 validationErrors.add(
-                    "index_pattern [" + indexPattern + "] must not contain the following characters " + Strings.INVALID_FILENAME_CHARS
+                    "index_pattern ["
+                        + indexPattern
+                        + "] must not contain the following characters "
+                        + org.opensearch.common.Strings.INVALID_FILENAME_CHARS
                 );
             }
         }

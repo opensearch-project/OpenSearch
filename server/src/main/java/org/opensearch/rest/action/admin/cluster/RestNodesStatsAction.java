@@ -104,8 +104,8 @@ public class RestNodesStatsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        String[] nodesIds = org.opensearch.core.common.Strings.splitStringByCommaToArray(request.param("nodeId"));
-        Set<String> metrics = org.opensearch.core.common.Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
+        String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
+        Set<String> metrics = Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
 
         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(nodesIds);
         nodesStatsRequest.timeout(request.param("timeout"));

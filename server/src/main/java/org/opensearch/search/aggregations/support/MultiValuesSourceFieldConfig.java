@@ -137,7 +137,7 @@ public class MultiValuesSourceFieldConfig extends BaseMultiValuesSourceFieldConf
         }
 
         public MultiValuesSourceFieldConfig build() {
-            if (org.opensearch.core.common.Strings.isNullOrEmpty(fieldName) && script == null) {
+            if (Strings.isNullOrEmpty(fieldName) && script == null) {
                 throw new IllegalArgumentException(
                     "["
                         + ParseField.CommonFields.FIELD.getPreferredName()

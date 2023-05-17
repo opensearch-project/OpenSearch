@@ -152,7 +152,7 @@ public class CorsHandler {
     }
 
     private static boolean isSameOrigin(final String origin, final String host) {
-        if (org.opensearch.core.common.Strings.isNullOrEmpty(host) == false) {
+        if (Strings.isNullOrEmpty(host) == false) {
             // strip protocol from origin
             final String originDomain = SCHEME_PATTERN.matcher(origin).replaceFirst("");
             if (host.equals(originDomain)) {
@@ -169,7 +169,7 @@ public class CorsHandler {
 
     private boolean setOrigin(final HttpRequest request, final HttpResponse response) {
         String origin = getOrigin(request);
-        if (!org.opensearch.core.common.Strings.isNullOrEmpty(origin)) {
+        if (Strings.isNullOrEmpty(origin) == false) {
             if (config.isAnyOriginSupported()) {
                 if (config.isCredentialsAllowed()) {
                     setAllowOrigin(response, origin);
@@ -193,7 +193,7 @@ public class CorsHandler {
         }
 
         final String origin = getOrigin(request);
-        if (org.opensearch.core.common.Strings.isNullOrEmpty(origin)) {
+        if (Strings.isNullOrEmpty(origin)) {
             // Not a CORS request so we cannot validate it. It may be a non CORS request.
             return true;
         }
@@ -447,14 +447,14 @@ public class CorsHandler {
         if (SETTING_CORS_ALLOW_CREDENTIALS.get(settings)) {
             builder.allowCredentials();
         }
-        String[] strMethods = org.opensearch.core.common.Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_METHODS.get(settings), ",");
+        String[] strMethods = Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_METHODS.get(settings), ",");
         RestRequest.Method[] methods = Arrays.stream(strMethods)
             .map(s -> s.toUpperCase(Locale.ENGLISH))
             .map(RestRequest.Method::valueOf)
             .toArray(RestRequest.Method[]::new);
         Config config = builder.allowedRequestMethods(methods)
             .maxAge(SETTING_CORS_MAX_AGE.get(settings))
-            .allowedRequestHeaders(org.opensearch.core.common.Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_HEADERS.get(settings), ","))
+            .allowedRequestHeaders(Strings.tokenizeToStringArray(SETTING_CORS_ALLOW_HEADERS.get(settings), ","))
             .build();
         return config;
     }

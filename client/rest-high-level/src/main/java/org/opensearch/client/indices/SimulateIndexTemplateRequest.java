@@ -47,7 +47,7 @@ public class SimulateIndexTemplateRequest extends TimedRequest {
     private PutComposableIndexTemplateRequest indexTemplateV2Request;
 
     public SimulateIndexTemplateRequest(String indexName) {
-        if (org.opensearch.core.common.Strings.isNullOrEmpty(indexName)) {
+        if (Strings.isNullOrEmpty(indexName)) {
             throw new IllegalArgumentException("index name cannot be null or empty");
         }
         this.indexName = indexName;

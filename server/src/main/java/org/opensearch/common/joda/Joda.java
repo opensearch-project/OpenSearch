@@ -84,7 +84,7 @@ public class Joda {
      * Parses a joda based pattern, including some named ones (similar to the built in Joda ISO ones).
      */
     public static JodaDateFormatter forPattern(String input) {
-        if (org.opensearch.core.common.Strings.hasLength(input)) {
+        if (Strings.hasLength(input)) {
             input = input.trim();
         }
         if (input == null || input.length() == 0) {
@@ -279,7 +279,7 @@ public class Joda {
             formatter = StrictISODateTimeFormat.yearMonth();
         } else if (FormatNames.STRICT_YEAR_MONTH_DAY.matches(input)) {
             formatter = StrictISODateTimeFormat.yearMonthDay();
-        } else if (org.opensearch.core.common.Strings.hasLength(input) && input.contains("||")) {
+        } else if (Strings.hasLength(input) && input.contains("||")) {
             String[] formats = Strings.delimitedListToStringArray(input, "||");
             DateTimeParser[] parsers = new DateTimeParser[formats.length];
 

@@ -37,7 +37,7 @@ import org.opensearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.node.NodeClient;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -106,9 +106,9 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         assert indicesStatsRequest.indicesOptions() == IndicesOptions.strictExpandOpenAndForbidClosed() : "IndicesStats default indices "
             + "options changed";
         indicesStatsRequest.indicesOptions(IndicesOptions.fromRequest(request, defaultIndicesOption));
-        indicesStatsRequest.indices(org.opensearch.core.common.Strings.splitStringByCommaToArray(request.param("index")));
+        indicesStatsRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
 
-        Set<String> metrics = org.opensearch.core.common.Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
+        Set<String> metrics = Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
         // short cut, if no metrics have been specified in URI
         if (metrics.size() == 1 && metrics.contains("_all")) {
             indicesStatsRequest.all();
@@ -140,7 +140,7 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         }
 
         if (request.hasParam("groups")) {
-            indicesStatsRequest.groups(org.opensearch.core.common.Strings.splitStringByCommaToArray(request.param("groups")));
+            indicesStatsRequest.groups(Strings.splitStringByCommaToArray(request.param("groups")));
         }
 
         if (indicesStatsRequest.completion() && (request.hasParam("fields") || request.hasParam("completion_fields"))) {

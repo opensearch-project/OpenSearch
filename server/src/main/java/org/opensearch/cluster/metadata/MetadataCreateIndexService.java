@@ -73,6 +73,7 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.index.Index;
@@ -1045,7 +1046,7 @@ public class MetadataCreateIndexService {
         List<AliasMetadata> resolvedAliases = new ArrayList<>();
         for (Alias alias : aliases) {
             aliasValidator.validateAlias(alias, index, metadata);
-            if (org.opensearch.core.common.Strings.hasLength(alias.filter())) {
+            if (Strings.hasLength(alias.filter())) {
                 aliasValidator.validateAliasFilter(alias.name(), alias.filter(), queryShardContext, xContentRegistry);
             }
             AliasMetadata aliasMetadata = AliasMetadata.builder(alias.name())
@@ -1430,10 +1431,7 @@ public class MetadataCreateIndexService {
                 resizeIntoName,
                 indexSettingsBuilder.build()
             );
-            indexSettingsBuilder.put(
-                initialRecoveryIdFilter,
-                org.opensearch.core.common.Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray())
-            );
+            indexSettingsBuilder.put(initialRecoveryIdFilter, Strings.arrayToCommaDelimitedString(nodesToAllocateOn.toArray()));
         } else if (type == ResizeType.SPLIT) {
             validateSplitIndex(currentState, resizeSourceIndex.getName(), resizeIntoName, indexSettingsBuilder.build());
             indexSettingsBuilder.putNull(initialRecoveryIdFilter);

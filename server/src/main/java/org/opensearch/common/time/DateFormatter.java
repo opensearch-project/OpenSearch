@@ -149,7 +149,7 @@ public interface DateFormatter {
 
     static DateFormatter forPattern(String input) {
 
-        if (org.opensearch.core.common.Strings.hasLength(input) == false) {
+        if (Strings.hasLength(input) == false) {
             throw new IllegalArgumentException("No date pattern provided");
         }
 
@@ -171,7 +171,7 @@ public interface DateFormatter {
     static List<String> splitCombinedPatterns(String input) {
         List<String> patterns = new ArrayList<>();
         for (String pattern : Strings.delimitedListToStringArray(input, "||")) {
-            if (org.opensearch.core.common.Strings.hasLength(pattern) == false) {
+            if (Strings.hasLength(pattern) == false) {
                 throw new IllegalArgumentException("Cannot have empty element in multi date format pattern: " + input);
             }
             patterns.add(pattern);

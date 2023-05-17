@@ -2563,7 +2563,7 @@ public class InternalEngineTests extends EngineTestCase {
                                 "1",
                                 null,
                                 testDocument(),
-                                bytesArray(org.opensearch.core.common.Strings.collectionToCommaDelimitedString(values)),
+                                bytesArray(Strings.collectionToCommaDelimitedString(values)),
                                 null
                             ),
                             UNASSIGNED_SEQ_NO,
@@ -2609,9 +2609,7 @@ public class InternalEngineTests extends EngineTestCase {
         try (Engine.GetResult get = engine.get(new Engine.Get(true, false, doc.id(), uidTerm), searcherFactory)) {
             FieldsVisitor visitor = new FieldsVisitor(true);
             get.docIdAndVersion().reader.document(get.docIdAndVersion().docId, visitor);
-            List<String> values = Arrays.asList(
-                org.opensearch.core.common.Strings.commaDelimitedListToStringArray(visitor.source().utf8ToString())
-            );
+            List<String> values = Arrays.asList(Strings.commaDelimitedListToStringArray(visitor.source().utf8ToString()));
             assertThat(currentValues, equalTo(new HashSet<>(values)));
         }
     }

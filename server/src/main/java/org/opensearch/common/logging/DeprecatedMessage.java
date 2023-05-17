@@ -68,7 +68,7 @@ public class DeprecatedMessage extends OpenSearchLogMessage {
 
     private static Map<String, Object> fieldMap(String key, String xOpaqueId) {
         final MapBuilder<String, Object> builder = MapBuilder.newMapBuilder();
-        if (org.opensearch.core.common.Strings.isNullOrEmpty(key) == false) {
+        if (Strings.isNullOrEmpty(key) == false) {
             builder.put("key", key);
         }
         if (Strings.isNullOrEmpty(xOpaqueId) == false) {

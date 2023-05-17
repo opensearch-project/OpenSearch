@@ -35,7 +35,7 @@ package org.opensearch.common.regex;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -122,8 +122,8 @@ public class Regex {
             return false;
         }
         if (caseInsensitive) {
-            pattern = Strings.toLowercaseAscii(pattern);
-            str = Strings.toLowercaseAscii(str);
+            pattern = org.opensearch.common.Strings.toLowercaseAscii(pattern);
+            str = org.opensearch.common.Strings.toLowercaseAscii(str);
         }
         return simpleMatchWithNormalizedStrings(pattern, str);
     }
@@ -209,7 +209,7 @@ public class Regex {
 
     public static int flagsFromString(String flags) {
         int pFlags = 0;
-        for (String s : org.opensearch.core.common.Strings.delimitedListToStringArray(flags, "|")) {
+        for (String s : Strings.delimitedListToStringArray(flags, "|")) {
             if (s.isEmpty()) {
                 continue;
             }

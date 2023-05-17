@@ -118,13 +118,9 @@ public class RestAliasAction extends AbstractCatAction {
                 table.addCell(aliasMetadata.alias());
                 table.addCell(indexName);
                 table.addCell(aliasMetadata.filteringRequired() ? "*" : "-");
-                String indexRouting = org.opensearch.core.common.Strings.hasLength(aliasMetadata.indexRouting())
-                    ? aliasMetadata.indexRouting()
-                    : "-";
+                String indexRouting = Strings.hasLength(aliasMetadata.indexRouting()) ? aliasMetadata.indexRouting() : "-";
                 table.addCell(indexRouting);
-                String searchRouting = org.opensearch.core.common.Strings.hasLength(aliasMetadata.searchRouting())
-                    ? aliasMetadata.searchRouting()
-                    : "-";
+                String searchRouting = Strings.hasLength(aliasMetadata.searchRouting()) ? aliasMetadata.searchRouting() : "-";
                 table.addCell(searchRouting);
                 String isWriteIndex = aliasMetadata.writeIndex() == null ? "-" : aliasMetadata.writeIndex().toString();
                 table.addCell(isWriteIndex);

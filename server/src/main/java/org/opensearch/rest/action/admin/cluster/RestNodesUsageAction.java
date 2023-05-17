@@ -75,7 +75,7 @@ public class RestNodesUsageAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        String[] nodesIds = org.opensearch.core.common.Strings.splitStringByCommaToArray(request.param("nodeId"));
+        String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         Set<String> metrics = Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
 
         NodesUsageRequest nodesUsageRequest = new NodesUsageRequest(nodesIds);

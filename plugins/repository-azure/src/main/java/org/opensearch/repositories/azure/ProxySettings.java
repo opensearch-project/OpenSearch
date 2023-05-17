@@ -87,7 +87,7 @@ public class ProxySettings {
     }
 
     public boolean isAuthenticated() {
-        return org.opensearch.core.common.Strings.isNullOrEmpty(username) == false && Strings.isNullOrEmpty(password) == false;
+        return Strings.isNullOrEmpty(username) == false && Strings.isNullOrEmpty(password) == false;
     }
 
     @Override

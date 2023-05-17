@@ -103,7 +103,7 @@ public class OpenSearchJsonLayout extends AbstractStringLayout {
     }
 
     private String pattern(String type, String[] opensearchMessageFields, int maxMessageLength) {
-        if (org.opensearch.core.common.Strings.isEmpty(type)) {
+        if (Strings.isEmpty(type)) {
             throw new IllegalArgumentException("layout parameter 'type_name' cannot be empty");
         }
 

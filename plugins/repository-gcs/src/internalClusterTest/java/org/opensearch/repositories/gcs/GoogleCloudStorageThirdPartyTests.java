@@ -58,7 +58,7 @@ public class GoogleCloudStorageThirdPartyTests extends AbstractThirdPartyReposit
     protected Settings nodeSettings() {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings());
 
-        if (org.opensearch.core.common.Strings.isNullOrEmpty(System.getProperty("test.google.endpoint")) == false) {
+        if (Strings.isNullOrEmpty(System.getProperty("test.google.endpoint")) == false) {
             builder.put("gcs.client.default.endpoint", System.getProperty("test.google.endpoint"));
         }
 

@@ -32,7 +32,6 @@
 
 package org.opensearch.repositories.azure;
 
-import org.opensearch.core.common.Strings;
 import reactor.core.scheduler.Schedulers;
 
 import com.azure.core.http.policy.HttpPipelinePolicy;
@@ -45,6 +44,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.Strings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -340,7 +340,7 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
         assertThat(azure2Proxy, notNullValue());
         assertThat(azure2Proxy.getType(), is(ProxySettings.ProxyType.HTTP));
         assertThat(azure2Proxy.getAddress(), is(new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 8081)));
-        assertTrue(org.opensearch.core.common.Strings.isNullOrEmpty(azure2Proxy.getUsername()));
+        assertTrue(Strings.isNullOrEmpty(azure2Proxy.getUsername()));
         assertTrue(Strings.isNullOrEmpty(azure2Proxy.getPassword()));
         assertEquals(mock.storageSettings.get("azure3").getProxySettings(), ProxySettings.NO_PROXY_SETTINGS);
     }

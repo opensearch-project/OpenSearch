@@ -198,7 +198,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
      */
     @Deprecated
     public void dateHistogramInterval(DateHistogramInterval dateHistogramInterval) {
-        if (dateHistogramInterval == null || org.opensearch.core.common.Strings.isNullOrEmpty(dateHistogramInterval.toString())) {
+        if (dateHistogramInterval == null || Strings.isNullOrEmpty(dateHistogramInterval.toString())) {
             throw new IllegalArgumentException("[dateHistogramInterval] must not be null: [date_histogram]");
         }
         setIntervalType(IntervalTypeEnum.LEGACY_DATE_HISTO);
@@ -226,7 +226,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
      * @param interval The fixed interval to use
      */
     public void calendarInterval(DateHistogramInterval interval) {
-        if (interval == null || org.opensearch.core.common.Strings.isNullOrEmpty(interval.toString())) {
+        if (interval == null || Strings.isNullOrEmpty(interval.toString())) {
             throw new IllegalArgumentException("[interval] must not be null: [date_histogram]");
         }
         if (DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString()) == null) {
@@ -256,7 +256,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
      * @param interval The fixed interval to use
      */
     public void fixedInterval(DateHistogramInterval interval) {
-        if (interval == null || org.opensearch.core.common.Strings.isNullOrEmpty(interval.toString())) {
+        if (interval == null || Strings.isNullOrEmpty(interval.toString())) {
             throw new IllegalArgumentException("[interval] must not be null: [date_histogram]");
         }
         setIntervalType(IntervalTypeEnum.FIXED);
@@ -280,7 +280,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
      * the interval cannot be parsed as a fixed time.
      */
     TimeValue tryIntervalAsFixedUnit() {
-        if (dateHistogramInterval == null || org.opensearch.core.common.Strings.isNullOrEmpty(dateHistogramInterval.toString())) {
+        if (dateHistogramInterval == null || Strings.isNullOrEmpty(dateHistogramInterval.toString())) {
             return null;
         }
         try {

@@ -97,9 +97,7 @@ public class CorsHandlerTests extends OpenSearchTestCase {
     }
 
     public void testCorsConfigWithDefaults() {
-        final Set<String> methods = org.opensearch.core.common.Strings.commaDelimitedListToSet(
-            SETTING_CORS_ALLOW_METHODS.getDefault(Settings.EMPTY)
-        );
+        final Set<String> methods = Strings.commaDelimitedListToSet(SETTING_CORS_ALLOW_METHODS.getDefault(Settings.EMPTY));
         final Set<String> headers = Strings.commaDelimitedListToSet(SETTING_CORS_ALLOW_HEADERS.getDefault(Settings.EMPTY));
         final long maxAge = SETTING_CORS_MAX_AGE.getDefault(Settings.EMPTY);
         final Settings settings = Settings.builder().put(SETTING_CORS_ENABLED.getKey(), true).build();

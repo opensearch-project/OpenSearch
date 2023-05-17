@@ -51,12 +51,12 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.io.stream.Writeable;
 import org.opensearch.common.util.concurrent.CountDown;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -254,7 +254,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 builder.array(ALIASES_FIELD.getPreferredName(), aliases);
             }
             builder.array(ATTRIBUTES_FIELD.getPreferredName(), attributes);
-            if (org.opensearch.core.common.Strings.isNullOrEmpty(dataStream) == false) {
+            if (Strings.isNullOrEmpty(dataStream) == false) {
                 builder.field(DATA_STREAM_FIELD.getPreferredName(), dataStream);
             }
             builder.endObject();

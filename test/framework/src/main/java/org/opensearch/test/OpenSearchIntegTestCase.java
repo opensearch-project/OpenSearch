@@ -95,7 +95,6 @@ import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Priority;
-import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
@@ -110,16 +109,17 @@ import org.opensearch.common.transport.TransportAddress;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.core.xcontent.ToXContent;
-import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
-import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.common.xcontent.smile.SmileXContent;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.core.common.Strings;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.http.HttpInfo;
@@ -1945,12 +1945,12 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
 
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
         String clusterAddresses = System.getProperty(TESTS_CLUSTER);
-        if (org.opensearch.core.common.Strings.hasLength(clusterAddresses) && ignoreExternalCluster() == false) {
+        if (Strings.hasLength(clusterAddresses) && ignoreExternalCluster() == false) {
             if (scope == Scope.TEST) {
                 throw new IllegalArgumentException("Cannot run TEST scope test with " + TESTS_CLUSTER);
             }
             String clusterName = System.getProperty(TESTS_CLUSTER_NAME);
-            if (org.opensearch.core.common.Strings.isNullOrEmpty(clusterName)) {
+            if (Strings.isNullOrEmpty(clusterName)) {
                 throw new IllegalArgumentException("Missing tests.clustername system property");
             }
             return buildExternalCluster(clusterAddresses, clusterName);
