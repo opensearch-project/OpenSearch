@@ -62,9 +62,9 @@ public class RemoteStoreStatsTests extends OpenSearchTestCase {
             try (StreamInput in = out.bytes().streamInput()) {
                 RemoteStoreStats deserializedStats = new RemoteStoreStats(in);
                 assertEquals(deserializedStats.getStats().shardId.toString(), stats.getStats().shardId.toString());
-                assertEquals(deserializedStats.getStats().localRefreshCount, stats.getStats().localRefreshCount);
+                assertEquals(deserializedStats.getStats().localRefreshNumber, stats.getStats().localRefreshNumber);
                 assertEquals(deserializedStats.getStats().localRefreshTimeMs, stats.getStats().localRefreshTimeMs);
-                assertEquals(deserializedStats.getStats().remoteRefreshCount, stats.getStats().remoteRefreshCount);
+                assertEquals(deserializedStats.getStats().remoteRefreshNumber, stats.getStats().remoteRefreshNumber);
                 assertEquals(deserializedStats.getStats().remoteRefreshTimeMs, stats.getStats().remoteRefreshTimeMs);
                 assertEquals(deserializedStats.getStats().uploadBytesStarted, stats.getStats().uploadBytesStarted);
                 assertEquals(deserializedStats.getStats().uploadBytesSucceeded, stats.getStats().uploadBytesSucceeded);

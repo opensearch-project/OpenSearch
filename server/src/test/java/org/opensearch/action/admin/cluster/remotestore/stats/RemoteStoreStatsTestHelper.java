@@ -46,11 +46,14 @@ public class RemoteStoreStatsTestHelper {
     static void compareStatsResponse(Map<String, Object> statsObject, RemoteRefreshSegmentTracker.Stats pressureTrackerStats) {
         assertEquals(statsObject.get(RemoteStoreStats.Fields.SHARD_ID), pressureTrackerStats.shardId.toString());
         assertEquals(statsObject.get(RemoteStoreStats.Fields.LOCAL_REFRESH_TIMESTAMP), (int) pressureTrackerStats.localRefreshTimeMs);
-        assertEquals(statsObject.get(RemoteStoreStats.Fields.LOCAL_REFRESH_CUMULATIVE_COUNT), (int) pressureTrackerStats.localRefreshCount);
+        assertEquals(
+            statsObject.get(RemoteStoreStats.Fields.LOCAL_REFRESH_CUMULATIVE_COUNT),
+            (int) pressureTrackerStats.localRefreshNumber
+        );
         assertEquals(statsObject.get(RemoteStoreStats.Fields.REMOTE_REFRESH_TIMESTAMP), (int) pressureTrackerStats.remoteRefreshTimeMs);
         assertEquals(
             statsObject.get(RemoteStoreStats.Fields.REMOTE_REFRESH_CUMULATIVE_COUNT),
-            (int) pressureTrackerStats.remoteRefreshCount
+            (int) pressureTrackerStats.remoteRefreshNumber
         );
         assertEquals(statsObject.get(RemoteStoreStats.Fields.BYTES_LAG), (int) pressureTrackerStats.bytesLag);
 
