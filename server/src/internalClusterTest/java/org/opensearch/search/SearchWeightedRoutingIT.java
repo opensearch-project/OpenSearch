@@ -1430,4 +1430,136 @@ public class SearchWeightedRoutingIT extends OpenSearchIntegTestCase {
         WeightedRoutingStats.getInstance().resetFailOpenCount();
     }
 
+    public void testFailOpenStatsWithOneHealthyStandbyShardCopy() throws Exception {
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .put("cluster.routing.weighted.fail_open", true)
+            .build();
+        WeightedRoutingStats.getInstance().resetFailOpenCount();
+
+        int nodeCountPerAZ = 1;
+        Map<String, List<String>> nodeMap = setupCluster(nodeCountPerAZ, commonSettings);
+
+        int numShards = 10;
+        int numReplicas = 2;
+        setUpIndexing(numShards, numReplicas);
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
+        setShardRoutingWeights(weights);
+
+        logger.info("--> data nodes in zone a and b are stopped");
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeMap.get("a").get(0)));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeMap.get("b").get(0)));
+        ensureStableCluster(2);
+
+        Set<String> hitNodes = new HashSet<>();
+
+        // Make Search Requests
+        Future<SearchResponse>[] responses = new Future[20];
+        for (int i = 0; i < 20; i++) {
+            responses[i] = internalCluster().smartClient().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).execute();
+        }
+        int failedCount = 0;
+        for (int i = 0; i < 20; i++) {
+            try {
+                SearchResponse searchResponse = responses[i].get();
+                assertEquals(0, searchResponse.getFailedShards());
+                for (int j = 0; j < searchResponse.getHits().getHits().length; j++) {
+                    hitNodes.add(searchResponse.getHits().getAt(j).getShard().getNodeId());
+                }
+            } catch (Exception t) {
+                failedCount++;
+            }
+        }
+
+        Assert.assertTrue(failedCount == 0);
+        assertSearchInAZ("c");
+
+        DiscoveryNodes dataNodes = internalCluster().clusterService().state().nodes();
+
+        Map<String, String> nodeIDMap = new HashMap<>();
+        for (DiscoveryNode node : dataNodes) {
+            nodeIDMap.put(node.getName(), node.getId());
+        }
+
+        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().addMetric("weighted_routing").execute().actionGet();
+        Map<String, NodeStats> stats = nodeStats.getNodesMap();
+        NodeStats nodeStatsC = stats.get(nodeIDMap.get(nodeMap.get("c").get(0)));
+        assertEquals(20 * numShards, nodeStatsC.getWeightedRoutingStats().getFailOpenCount());
+        WeightedRoutingStats.getInstance().resetFailOpenCount();
+    }
+
+    public void testFailOpenStatsForMultiGetOneHealthyStandbyShardCopy() throws Exception {
+
+        WeightedRoutingStats.getInstance().resetFailOpenCount();
+
+        Settings commonSettings = Settings.builder()
+            .put("cluster.routing.allocation.awareness.attributes", "zone")
+            .put("cluster.routing.allocation.awareness.force.zone.values", "a,b,c")
+            .put("cluster.routing.weighted.fail_open", true)
+            .build();
+
+        int nodeCountPerAZ = 1;
+        Map<String, List<String>> nodeMap = setupCluster(nodeCountPerAZ, commonSettings);
+
+        int numShards = 1;
+        int numReplicas = 2;
+        setUpIndexing(numShards, numReplicas);
+
+        logger.info("--> setting shard routing weights for weighted round robin");
+        Map<String, Double> weights = Map.of("a", 1.0, "b", 1.0, "c", 0.0);
+        setShardRoutingWeights(weights);
+
+        logger.info("--> data nodes in zone a and b are stopped");
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeMap.get("a").get(0)));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(nodeMap.get("b").get(0)));
+        ensureStableCluster(2);
+
+        Future<MultiGetResponse>[] responses = new Future[20];
+        logger.info("--> making search requests");
+        int index1, index2;
+        int docId = 0;
+        for (int i = 0; i < 20; i++) {
+
+            index1 = docId++;
+            index2 = docId++;
+            responses[i] = internalCluster().smartClient()
+                .prepareMultiGet()
+                .add(new MultiGetRequest.Item("test", "" + index1))
+                .add(new MultiGetRequest.Item("test", "" + index2))
+                .execute();
+        }
+
+        int failedCount = 0;
+        for (int i = 0; i < 20; i++) {
+            try {
+                MultiGetResponse multiGetResponse = responses[i].get();
+                assertThat(multiGetResponse.getResponses().length, equalTo(2));
+                if (multiGetResponse.getResponses()[0].isFailed() || multiGetResponse.getResponses()[1].isFailed()) {
+                    failedCount++;
+                }
+            } catch (Exception t) {
+                fail("search should not fail");
+            }
+        }
+
+        Assert.assertTrue(failedCount == 0);
+
+        DiscoveryNodes dataNodes = internalCluster().clusterService().state().nodes();
+
+        Map<String, String> nodeIDMap = new HashMap<>();
+        for (DiscoveryNode node : dataNodes) {
+            nodeIDMap.put(node.getName(), node.getId());
+        }
+
+        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().addMetric("weighted_routing").execute().actionGet();
+        Map<String, NodeStats> stats = nodeStats.getNodesMap();
+        NodeStats nodeStatsC = stats.get(nodeIDMap.get(nodeMap.get("c").get(0)));
+        assertEquals(20 * 2, nodeStatsC.getWeightedRoutingStats().getFailOpenCount());
+        WeightedRoutingStats.getInstance().resetFailOpenCount();
+
+    }
+
 }

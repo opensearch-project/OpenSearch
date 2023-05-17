@@ -283,6 +283,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                         public void innerOnResponse(Result result) {
                             try {
                                 onShardResult(result, shardIt);
+                                // Update weighted routing fail open stats in case the only healthy shard copy is present
+                                // in weighed away az data nodes
+                                FailAwareWeightedRouting.getInstance()
+                                    .updateFailOpenStatsForOneHealthyCopy(shardIt, clusterState, shard.getNodeId());
                             } finally {
                                 executeNext(pendingExecutions, thread);
                             }

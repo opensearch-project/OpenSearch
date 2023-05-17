@@ -21,6 +21,7 @@ import org.opensearch.search.SearchShardTarget;
 import java.util.List;
 
 import static org.opensearch.cluster.routing.OperationRouting.IGNORE_WEIGHTED_SHARD_ROUTING;
+import static org.opensearch.cluster.routing.OperationRouting.WEIGHTED_ROUTING_FAILOPEN_ENABLED;
 
 /**
  * This class contains logic to find next shard to retry search request in case of failure from other shard copy.
@@ -122,6 +123,40 @@ public class FailAwareWeightedRouting {
     }
 
     /**
+     * This function updates fail open stats in case the only healthy shard copy resides in weighed away az data node.
+     * The stats are updated in case weighed shard routing and fail open is enabled for search requests.
+     *
+     * @param shardsIt Shard Iterator containing order in which shard copies for a shard need to be requested
+     * @param clusterState The current cluster state
+     * @param nodeID the id of the node containing current shard copy
+     */
+    public void updateFailOpenStatsForOneHealthyCopy(final SearchShardIterator shardsIt, ClusterState clusterState, String nodeID) {
+        if (ignoreWeightedRouting(clusterState) && isFailOpenDisabled(clusterState)) {
+            return;
+        }
+        if (shardsIt.size() == 1 && WeightedRoutingUtils.isWeighedAway(nodeID, clusterState)) {
+            getWeightedRoutingStats().updateFailOpenCount();
+        }
+    }
+
+    /**
+     * This function updates fail open stats in case the only healthy shard copy resides in weighed away az data node.
+     * The stats are updated in case weighed shard routing and fail open is enabled for search requests.
+     *
+     * @param shardsIt Shard Iterator containing order in which shard copies for a shard need to be requested
+     * @param clusterState The current cluster state
+     * @param nodeID the id of the node containing current shard copy
+     */
+    public void updateFailOpenStatsForOneHealthyCopy(final ShardsIterator shardsIt, ClusterState clusterState, String nodeID) {
+        if (ignoreWeightedRouting(clusterState) && isFailOpenDisabled(clusterState)) {
+            return;
+        }
+        if (shardsIt.size() == 1 && WeightedRoutingUtils.isWeighedAway(nodeID, clusterState)) {
+            getWeightedRoutingStats().updateFailOpenCount();
+        }
+    }
+
+    /**
      * *
      * @return true if can fail open ie request shard copies present in nodes with weighted shard
      * routing weight set to zero
@@ -142,6 +177,10 @@ public class FailAwareWeightedRouting {
 
     private boolean ignoreWeightedRouting(ClusterState clusterState) {
         return IGNORE_WEIGHTED_SHARD_ROUTING.get(clusterState.getMetadata().settings());
+    }
+
+    private boolean isFailOpenDisabled(ClusterState clusterState) {
+        return WEIGHTED_ROUTING_FAILOPEN_ENABLED.get(clusterState.getMetadata().settings());
     }
 
     public WeightedRoutingStats getWeightedRoutingStats() {

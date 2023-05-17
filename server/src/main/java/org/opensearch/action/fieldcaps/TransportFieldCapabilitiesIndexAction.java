@@ -267,6 +267,7 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
             if (shardsIt.size() == 0 || shardIndex >= shardsIt.size()) {
                 return null;
             }
+
             ShardRouting next = FailAwareWeightedRouting.getInstance()
                 .findNext(shardsIt.get(shardIndex), clusterService.state(), failure, this::moveToNextShard);
 
@@ -306,6 +307,10 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
             if (node == null) {
                 onFailure(shardRouting, new NoShardAvailableActionException(shardRouting.shardId()));
             } else {
+                // Update weighted routing fail open stats in case the only healthy shard copy is present
+                // in weighed away az data nodes
+                FailAwareWeightedRouting.getInstance()
+                    .updateFailOpenStatsForOneHealthyCopy(shardsIt.get(shardIndex), clusterService.state(), shardRouting.currentNodeId());
                 request.shardId(shardRouting.shardId());
                 if (logger.isTraceEnabled()) {
                     logger.trace("sending request [{}] on node [{}]", request, node);
@@ -330,6 +335,7 @@ public class TransportFieldCapabilitiesIndexAction extends HandledTransportActio
                         public void handleResponse(final FieldCapabilitiesIndexResponse response) {
                             if (response.canMatch()) {
                                 listener.onResponse(response);
+
                             } else {
                                 moveToNextShard();
                                 tryNext(null, false);
