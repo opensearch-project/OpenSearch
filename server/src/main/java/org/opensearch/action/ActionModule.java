@@ -457,12 +457,12 @@ import org.opensearch.usage.UsageService;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -532,8 +532,7 @@ public class ActionModule extends AbstractModule {
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         dynamicActionRegistry = new DynamicActionRegistry();
-        dynamicRouteRegistry = new DynamicRouteRegistry();
-        dynamicRouteRegistry.registerDynamicActionRegistry(dynamicActionRegistry);
+        dynamicRouteRegistry = new DynamicRouteRegistry(dynamicActionRegistry);
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<RestHeaderDefinition> headers = Stream.concat(
@@ -1035,7 +1034,7 @@ public class ActionModule extends AbstractModule {
         // at times other than node bootstrap.
         private final Map<ActionType<?>, TransportAction<?, ?>> registry = new ConcurrentHashMap<>();
 
-        private final HashSet<String> registeredActionNames = new HashSet<>();
+        private final Set<String> registeredActionNames = new ConcurrentSkipListSet<>();
 
         /**
          * Register the immutable actions in the registry.
@@ -1108,21 +1107,20 @@ public class ActionModule extends AbstractModule {
      *
      * @opensearch.internal
      */
-    public static class DynamicRouteRegistry {
+    public class DynamicRouteRegistry {
         // This is an instance of a DynamicActionRegistry containing all registered transport actions
         private DynamicActionRegistry dynamicActionRegistry;
         // A dynamic registry to add or remove Route / RestSendToExtensionAction pairs
         // at times other than node bootstrap.
         private final Map<RestHandler.Route, RestSendToExtensionAction> registry = new ConcurrentHashMap<>();
 
-        private final Set<String> registeredRestActionNames = new HashSet<>();
+        private final Set<String> registeredRestActionNames = new ConcurrentSkipListSet<>();
 
         /**
-         * Register the immutable actions in the registry.
          *
-         * @param dynamicActionRegistry A registry of all transport actions - native and dynamic
+         * @param dynamicActionRegistry A registry of all transport actions - native, plugins and dynamic
          */
-        public void registerDynamicActionRegistry(DynamicActionRegistry dynamicActionRegistry) {
+        public DynamicRouteRegistry(DynamicActionRegistry dynamicActionRegistry) {
             this.dynamicActionRegistry = dynamicActionRegistry;
         }
 
