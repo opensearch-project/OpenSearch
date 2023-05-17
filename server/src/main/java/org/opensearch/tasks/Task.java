@@ -193,11 +193,9 @@ public class Task {
      */
     protected final TaskInfo taskInfo(String localNodeId, String description, Status status, TaskResourceStats resourceStats) {
         boolean cancelled = this instanceof CancellableTask && ((CancellableTask) this).isCancelled();
-        long cancellationStartTime = -1;
-        long runningTimeSinceCancellationNanos = -1;
+        long cancelledAt = -1;
         if (cancelled) {
-            cancellationStartTime = ((CancellableTask) this).getCancellationStartTime();
-            runningTimeSinceCancellationNanos = System.nanoTime() - ((CancellableTask) this).getCancellationStartTimeNanos();
+            cancelledAt = ((CancellableTask) this).getCancelledAt();
         }
         return new TaskInfo(
             new TaskId(localNodeId, getId()),
@@ -212,8 +210,7 @@ public class Task {
             parentTask,
             headers,
             resourceStats,
-            cancellationStartTime,
-            runningTimeSinceCancellationNanos
+            cancelledAt
         );
     }
 
