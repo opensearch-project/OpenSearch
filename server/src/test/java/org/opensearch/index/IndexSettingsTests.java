@@ -40,11 +40,13 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.search.pipeline.SearchPipelineService;
 import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
@@ -1079,5 +1081,42 @@ public class IndexSettingsTests extends OpenSearchTestCase {
             () -> IndexMetadata.INDEX_REMOTE_TRANSLOG_REPOSITORY_SETTING.get(indexSettings)
         );
         assertEquals("Setting index.remote_store.translog.repository should be provided with non-empty repository ID", iae.getMessage());
+    }
+
+    @SuppressForbidden(reason = "sets the SEARCH_PIPELINE feature flag")
+    public void testDefaultSearchPipeline() throws Exception {
+        FeatureFlagSetter.set(FeatureFlags.SEARCH_PIPELINE);
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(SearchPipelineService.NOOP_PIPELINE_ID, settings.getDefaultSearchPipeline());
+        metadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.DEFAULT_SEARCH_PIPELINE.getKey(), "foo")
+                .build()
+        );
+        settings.updateIndexMetadata(metadata);
+        assertEquals("foo", settings.getDefaultSearchPipeline());
+    }
+
+    public void testDefaultSearchPipelineWithoutFeatureFlag() {
+        IndexMetadata metadata = newIndexMeta(
+            "index",
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build()
+        );
+        IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
+        assertEquals(SearchPipelineService.NOOP_PIPELINE_ID, settings.getDefaultSearchPipeline());
+        IndexMetadata updatedMetadata = newIndexMeta(
+            "index",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.DEFAULT_SEARCH_PIPELINE.getKey(), "foo")
+                .build()
+        );
+        assertThrows(SettingsException.class, () -> settings.updateIndexMetadata(updatedMetadata));
     }
 }
