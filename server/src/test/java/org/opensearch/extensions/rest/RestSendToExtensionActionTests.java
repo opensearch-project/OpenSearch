@@ -206,7 +206,7 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
     public void testRestSendToExtensionWithNamedRouteCollidingWithNativeAction() throws Exception {
         RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
             "uniqueid1",
-            List.of("GET /foo " + ClusterHealthAction.NAME, "PUT /bar foo"),
+            List.of("GET /foo " + ClusterHealthAction.NAME),
             List.of()
         );
         expectThrows(
