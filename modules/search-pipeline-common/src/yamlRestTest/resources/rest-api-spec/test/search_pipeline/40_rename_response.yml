@@ -15,7 +15,7 @@ teardown:
             "description": "test pipeline",
             "response_processors": [
               {
-                "rename":
+                "rename_field":
                   {
                     "field": "a",
                     "target_field": "b"
@@ -33,7 +33,7 @@ teardown:
             "description": "test pipeline with ignore missing true",
             "response_processors": [
               {
-                "rename":
+                "rename_field":
                   {
                     "field": "aa",
                     "target_field": "b",
@@ -52,7 +52,7 @@ teardown:
             "description": "test pipeline with ignore missing false",
             "response_processors": [
               {
-                "rename":
+                "rename_field":
                   {
                     "field": "aa",
                     "target_field": "b",
