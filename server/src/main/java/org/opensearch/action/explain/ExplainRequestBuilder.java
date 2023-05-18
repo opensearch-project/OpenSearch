@@ -35,7 +35,7 @@ package org.opensearch.action.explain;
 import org.opensearch.action.support.single.shard.SingleShardOperationRequestBuilder;
 import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 

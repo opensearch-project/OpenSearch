@@ -30,7 +30,7 @@
  * GitHub history for details.
  */
 
-package org.opensearch.common.logging;
+package org.opensearch.core.common.logging;
 
 import java.util.HashSet;
 import java.util.Set;

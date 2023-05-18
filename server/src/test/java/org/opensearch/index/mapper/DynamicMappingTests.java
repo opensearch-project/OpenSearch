@@ -37,7 +37,6 @@ import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentFactory;
-import org.opensearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 import java.time.Instant;

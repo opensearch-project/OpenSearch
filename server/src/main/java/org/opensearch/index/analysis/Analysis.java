@@ -69,8 +69,8 @@ import org.apache.lucene.analysis.ru.RussianAnalyzer;
 import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.env.Environment;
 
 import java.io.BufferedReader;

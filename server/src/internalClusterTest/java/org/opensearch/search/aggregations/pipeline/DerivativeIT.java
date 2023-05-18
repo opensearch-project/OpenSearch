@@ -32,7 +32,7 @@
 
 package org.opensearch.search.aggregations.pipeline;
 
-import org.opensearch.ExceptionsHelper;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
@@ -639,7 +639,7 @@ public class DerivativeIT extends OpenSearchIntegTestCase {
                 .get();
             fail("Expected an Exception but didn't get one");
         } catch (Exception e) {
-            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            Throwable cause = BaseExceptionsHelper.unwrapCause(e);
             if (cause == null) {
                 throw e;
             } else if (cause instanceof SearchPhaseExecutionException) {

@@ -9,9 +9,9 @@
 package org.opensearch.search.aggregations.support;
 
 import org.opensearch.core.ParseField;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;

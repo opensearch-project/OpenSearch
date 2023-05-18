@@ -33,7 +33,7 @@
 package org.opensearch.common.time;
 
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 
 import java.time.DayOfWeek;
 import java.time.Instant;

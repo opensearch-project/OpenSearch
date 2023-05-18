@@ -37,6 +37,7 @@ import com.carrotsearch.hppc.ObjectIntMap;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.core.Assertions;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
@@ -369,7 +370,7 @@ public class TaskManager implements ClusterStateApplier {
         try {
             taskResult = task.result(localNode, error);
         } catch (IOException ex) {
-            logger.warn(() -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.detailedMessage(error)), ex);
+            logger.warn(() -> new ParameterizedMessage("couldn't store error {}", BaseExceptionsHelper.detailedMessage(error)), ex);
             listener.onFailure(ex);
             return;
         }
@@ -381,7 +382,7 @@ public class TaskManager implements ClusterStateApplier {
 
             @Override
             public void onFailure(Exception e) {
-                logger.warn(() -> new ParameterizedMessage("couldn't store error {}", ExceptionsHelper.detailedMessage(error)), e);
+                logger.warn(() -> new ParameterizedMessage("couldn't store error {}", BaseExceptionsHelper.detailedMessage(error)), e);
                 listener.onFailure(e);
             }
         });

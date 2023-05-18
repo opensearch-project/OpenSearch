@@ -37,6 +37,7 @@ import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentHelper;
@@ -152,7 +153,7 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
 
     @Override
     public String toString() {
-        String source = "_na_";
+        String source = Strings.UNKNOWN_UUID_VALUE;
 
         try {
             source = XContentHelper.convertToJson(content, false, xContentType);

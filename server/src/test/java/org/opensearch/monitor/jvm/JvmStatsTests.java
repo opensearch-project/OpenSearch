@@ -32,8 +32,8 @@
 
 package org.opensearch.monitor.jvm;
 
-import org.opensearch.common.Strings;
 import org.opensearch.common.unit.ByteSizeValue;
+import org.opensearch.core.common.Strings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

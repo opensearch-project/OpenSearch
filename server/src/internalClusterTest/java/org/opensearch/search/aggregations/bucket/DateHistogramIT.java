@@ -31,7 +31,7 @@
 
 package org.opensearch.search.aggregations.bucket;
 
-import org.opensearch.OpenSearchException;
+import org.opensearch.BaseOpenSearchException;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
@@ -650,9 +650,9 @@ public class DateHistogramIT extends OpenSearchIntegTestCase {
                 .get();
             fail("Expected an exception");
         } catch (SearchPhaseExecutionException e) {
-            OpenSearchException[] rootCauses = e.guessRootCauses();
+            BaseOpenSearchException[] rootCauses = e.guessRootCauses();
             if (rootCauses.length == 1) {
-                OpenSearchException rootCause = rootCauses[0];
+                BaseOpenSearchException rootCause = rootCauses[0];
                 if (rootCause instanceof AggregationExecutionException) {
                     AggregationExecutionException aggException = (AggregationExecutionException) rootCause;
                     assertThat(aggException.getMessage(), Matchers.startsWith("Invalid aggregation order path"));

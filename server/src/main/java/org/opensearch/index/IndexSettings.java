@@ -37,7 +37,6 @@ import org.apache.lucene.sandbox.index.MergeOnFlushMergePolicy;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.Strings;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
@@ -48,6 +47,7 @@ import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
@@ -995,7 +995,7 @@ public final class IndexSettings {
      * Returns <code>true</code> if the index has a custom data path
      */
     public boolean hasCustomDataPath() {
-        return !Strings.isEmpty(customDataPath());
+        return Strings.isEmpty(customDataPath()) == false;
     }
 
     /**

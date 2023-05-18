@@ -34,7 +34,7 @@ package org.opensearch.client.indices;
 
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.Validatable;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 
 /** Request the mappings of specific fields */
 public class GetFieldMappingsRequest implements Validatable {

@@ -35,6 +35,7 @@ package org.opensearch.cluster.action.shard;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.ActionListener;
@@ -629,7 +630,7 @@ public class ShardStateAction {
             components.add("primary term [" + primaryTerm + "]");
             components.add("message [" + message + "]");
             if (failure != null) {
-                components.add("failure [" + ExceptionsHelper.detailedMessage(failure) + "]");
+                components.add("failure [" + BaseExceptionsHelper.detailedMessage(failure) + "]");
             }
             components.add("markAsStale [" + markAsStale + "]");
             return String.join(", ", components);

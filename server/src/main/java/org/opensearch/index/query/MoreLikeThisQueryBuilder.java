@@ -37,6 +37,7 @@ import org.apache.lucene.index.Fields;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.Version;
@@ -448,7 +449,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
                 toXContent(builder, EMPTY_PARAMS);
                 return Strings.toString(builder);
             } catch (Exception e) {
-                return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
+                return "{ \"error\" : \"" + BaseExceptionsHelper.detailedMessage(e) + "\"}";
             }
         }
 

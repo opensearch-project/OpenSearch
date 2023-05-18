@@ -425,7 +425,7 @@ public final class Settings implements ToXContentFragment {
             if (valueFromPrefix instanceof List) {
                 return Collections.unmodifiableList((List<String>) valueFromPrefix);
             } else if (commaDelimited) {
-                String[] strings = Strings.splitStringByCommaToArray(get(key));
+                String[] strings = org.opensearch.core.common.Strings.splitStringByCommaToArray(get(key));
                 if (strings.length > 0) {
                     for (String string : strings) {
                         result.add(string.trim());
@@ -453,7 +453,7 @@ public final class Settings implements ToXContentFragment {
      * Returns group settings for the given setting prefix.
      */
     public Map<String, Settings> getGroups(String settingPrefix, boolean ignoreNonGrouped) throws SettingsException {
-        if (!Strings.hasLength(settingPrefix)) {
+        if (!org.opensearch.core.common.Strings.hasLength(settingPrefix)) {
             throw new IllegalArgumentException("illegal setting prefix " + settingPrefix);
         }
         if (settingPrefix.charAt(settingPrefix.length() - 1) != '.') {
@@ -1206,7 +1206,7 @@ public final class Settings implements ToXContentFragment {
                 String value = propertyPlaceholder.replacePlaceholders(Settings.toString(entry.getValue()), placeholderResolver);
                 // if the values exists and has length, we should maintain it in the map
                 // otherwise, the replace process resolved into removing it
-                if (Strings.hasLength(value)) {
+                if (org.opensearch.core.common.Strings.hasLength(value)) {
                     entry.setValue(value);
                 } else {
                     entryItr.remove();

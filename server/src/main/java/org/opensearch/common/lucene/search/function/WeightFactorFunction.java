@@ -35,7 +35,7 @@ package org.opensearch.common.lucene.search.function;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 
 import java.io.IOException;
 import java.util.Objects;

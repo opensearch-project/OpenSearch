@@ -38,11 +38,11 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.xcontent.XContentType;
@@ -737,6 +737,6 @@ public class RestoreSnapshotRequest extends ClusterManagerNodeRequest<RestoreSna
 
     @Override
     public String toString() {
-        return Strings.toString(XContentType.JSON, this);
+        return org.opensearch.common.Strings.toString(XContentType.JSON, this);
     }
 }

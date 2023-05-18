@@ -32,7 +32,7 @@
 
 package org.opensearch.blocks;
 
-import org.opensearch.ExceptionsHelper;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.admin.indices.exists.indices.IndicesExistsResponse;
@@ -428,7 +428,7 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
         try {
             try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client(), 1000)) {
                 indexer.setFailureAssertion(t -> {
-                    Throwable cause = ExceptionsHelper.unwrapCause(t);
+                    Throwable cause = BaseExceptionsHelper.unwrapCause(t);
                     assertThat(cause, instanceOf(ClusterBlockException.class));
                     ClusterBlockException e = (ClusterBlockException) cause;
                     assertThat(e.blocks(), hasSize(1));
@@ -474,7 +474,7 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
         final APIBlock block = randomAddableBlock();
 
         Consumer<Exception> exceptionConsumer = t -> {
-            Throwable cause = ExceptionsHelper.unwrapCause(t);
+            Throwable cause = BaseExceptionsHelper.unwrapCause(t);
             if (cause instanceof ClusterBlockException) {
                 ClusterBlockException e = (ClusterBlockException) cause;
                 assertThat(e.blocks(), hasSize(1));
