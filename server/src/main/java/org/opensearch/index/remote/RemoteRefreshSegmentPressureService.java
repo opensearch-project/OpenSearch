@@ -50,10 +50,9 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
     public RemoteRefreshSegmentPressureService(ClusterService clusterService, Settings settings) {
         pressureSettings = new RemoteRefreshSegmentPressureSettings(clusterService, settings, this);
         lagValidators = Arrays.asList(
-            new RefreshSeqNoLagValidator(pressureSettings),
+            new ConsecutiveFailureValidator(pressureSettings),
             new BytesLagValidator(pressureSettings),
-            new TimeLagValidator(pressureSettings),
-            new ConsecutiveFailureValidator(pressureSettings)
+            new TimeLagValidator(pressureSettings)
         );
     }
 
@@ -168,43 +167,6 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
         abstract String name();
 
         abstract String rejectionMessage(RemoteRefreshSegmentTracker pressureTracker, ShardId shardId);
-    }
-
-    /**
-     * Check if the remote store seq no lag is above the min seq no lag limit
-     *
-     * @opensearch.internal
-     */
-    private static class RefreshSeqNoLagValidator extends LagValidator {
-
-        private static final String NAME = "refresh_seq_no_lag";
-
-        private RefreshSeqNoLagValidator(RemoteRefreshSegmentPressureSettings pressureSettings) {
-            super(pressureSettings);
-        }
-
-        @Override
-        public boolean validate(RemoteRefreshSegmentTracker pressureTracker, ShardId shardId) {
-            // Check if the remote store seq no lag is above the min seq no lag limit
-            return pressureTracker.getRefreshSeqNoLag() <= pressureSettings.getMinRefreshSeqNoLagLimit();
-        }
-
-        @Override
-        String rejectionMessage(RemoteRefreshSegmentTracker pressureTracker, ShardId shardId) {
-            return String.format(
-                Locale.ROOT,
-                "rejected execution on primary shard:%s due to remote segments lagging behind local segments."
-                    + "remote_refresh_seq_no:%s local_refresh_seq_no:%s",
-                shardId,
-                pressureTracker.getRemoteRefreshSeqNo(),
-                pressureTracker.getLocalRefreshSeqNo()
-            );
-        }
-
-        @Override
-        String name() {
-            return NAME;
-        }
     }
 
     /**
