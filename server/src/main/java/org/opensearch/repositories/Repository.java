@@ -373,6 +373,24 @@ public interface Repository extends LifecycleComponent {
         SnapshotId target,
         RepositoryShardId shardId,
         @Nullable String shardGeneration,
+        ActionListener<String> listener
+    );
+
+    /**
+     * Clones a remote store index shard snapshot.
+     *
+     * @param source                        source snapshot
+     * @param target                        target snapshot
+     * @param shardId                       shard id
+     * @param shardGeneration               shard generation in repo
+     * @param remoteStoreLockManagerFactory remoteStoreLockManagerFactory for cloning metadata lock file
+     * @param listener                      listener to complete with new shard generation once clone has completed
+     */
+    void cloneRemoteStoreIndexShardSnapshot(
+        SnapshotId source,
+        SnapshotId target,
+        RepositoryShardId shardId,
+        @Nullable String shardGeneration,
         RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
         ActionListener<String> listener
     );

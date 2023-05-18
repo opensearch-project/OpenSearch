@@ -95,14 +95,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         final String currentShardGen = repositoryData.shardGenerations().getShardGen(indexId, shardId);
         final String newShardGeneration = PlainActionFuture.get(
-            f -> repository.cloneShardSnapshot(
-                sourceSnapshotInfo.snapshotId(),
-                targetSnapshotId,
-                repositoryShardId,
-                currentShardGen,
-                null,
-                f
-            )
+            f -> repository.cloneShardSnapshot(sourceSnapshotInfo.snapshotId(), targetSnapshotId, repositoryShardId, currentShardGen, f)
         );
 
         final BlobStoreIndexShardSnapshot targetShardSnapshot = readShardSnapshot(repository, repositoryShardId, targetSnapshotId);
@@ -126,14 +119,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // verify that repeated cloning is idempotent
         final String newShardGeneration2 = PlainActionFuture.get(
-            f -> repository.cloneShardSnapshot(
-                sourceSnapshotInfo.snapshotId(),
-                targetSnapshotId,
-                repositoryShardId,
-                newShardGeneration,
-                null,
-                f
-            )
+            f -> repository.cloneShardSnapshot(sourceSnapshotInfo.snapshotId(), targetSnapshotId, repositoryShardId, newShardGeneration, f)
         );
         assertEquals(newShardGeneration, newShardGeneration2);
     }

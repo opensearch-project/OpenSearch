@@ -374,6 +374,17 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
             SnapshotId target,
             RepositoryShardId shardId,
             String shardGeneration,
+            ActionListener<String> listener
+        ) {
+
+        }
+
+        @Override
+        public void cloneRemoteStoreIndexShardSnapshot(
+            SnapshotId source,
+            SnapshotId target,
+            RepositoryShardId shardId,
+            String shardGeneration,
             RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
             ActionListener<String> listener
         ) {

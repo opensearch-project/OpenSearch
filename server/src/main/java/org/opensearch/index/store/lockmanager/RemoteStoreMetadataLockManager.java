@@ -92,8 +92,8 @@ public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
      */
     @Override
     public void cloneLock(LockInfo originalLockInfo, LockInfo clonedLockInfo) throws IOException {
-        assert originalLockInfo instanceof FileLockInfo : "originalLockInfo should be instance of ShardLockInfo";
-        assert clonedLockInfo instanceof FileLockInfo : "clonedLockInfo should be instance of ShardLockInfo";
+        assert originalLockInfo instanceof FileLockInfo : "originalLockInfo should be instance of FileLockInfo";
+        assert clonedLockInfo instanceof FileLockInfo : "clonedLockInfo should be instance of FileLockInfo";
         String originalResourceId = ((FileLockInfo) originalLockInfo).getAcquirerId();
         String clonedResourceId = ((FileLockInfo) clonedLockInfo).getAcquirerId();
         assert originalResourceId != null && clonedResourceId != null : "provided resourceIds should not be null";
