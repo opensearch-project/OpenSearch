@@ -9,8 +9,8 @@
 package org.opensearch.repositories.azure;
 
 import com.azure.core.http.ProxyOptions;
-import org.opensearch.common.Strings;
 import org.opensearch.common.settings.SettingsException;
+import org.opensearch.core.common.Strings;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;

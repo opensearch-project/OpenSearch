@@ -32,6 +32,7 @@
 
 package org.opensearch.action.get;
 
+import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionResponse;
@@ -130,7 +131,7 @@ public class MultiGetResponse extends ActionResponse implements Iterable<MultiGe
             builder.startObject();
             builder.field(INDEX.getPreferredName(), index);
             builder.field(ID.getPreferredName(), id);
-            OpenSearchException.generateFailureXContent(builder, params, exception, true);
+            BaseOpenSearchException.generateFailureXContent(builder, params, exception, true);
             builder.endObject();
             return builder;
         }

@@ -56,11 +56,11 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
-import static org.opensearch.common.Strings.EMPTY_ARRAY;
 import static org.opensearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.opensearch.common.settings.Settings.readSettingsFromStream;
 import static org.opensearch.common.settings.Settings.writeSettingsToStream;
 import static org.opensearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.opensearch.core.common.Strings.EMPTY_ARRAY;
 
 /**
  * Create snapshot request
@@ -446,7 +446,7 @@ public class CreateSnapshotRequest extends ClusterManagerNodeRequest<CreateSnaps
             String name = entry.getKey();
             if (name.equals("indices")) {
                 if (entry.getValue() instanceof String) {
-                    indices(Strings.splitStringByCommaToArray((String) entry.getValue()));
+                    indices(org.opensearch.core.common.Strings.splitStringByCommaToArray((String) entry.getValue()));
                 } else if (entry.getValue() instanceof List) {
                     indices((List<String>) entry.getValue());
                 } else {

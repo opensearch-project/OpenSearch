@@ -40,7 +40,6 @@ import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.action.support.master.AcknowledgedResponse;
-import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
@@ -49,6 +48,7 @@ import org.opensearch.common.util.CollectionUtils;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.ToXContentObject;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -250,7 +250,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
                     builder.startObject(fieldName);
                     String[] s1 = Strings.splitStringByCommaToArray(source[i]);
                     for (String s : s1) {
-                        String[] s2 = Strings.split(s, "=");
+                        String[] s2 = org.opensearch.common.Strings.split(s, "=");
                         if (s2.length != 2) {
                             throw new IllegalArgumentException("malformed " + s);
                         }
@@ -270,7 +270,7 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
                 builder.startObject(fieldName);
                 String[] s1 = Strings.splitStringByCommaToArray(source[i]);
                 for (String s : s1) {
-                    String[] s2 = Strings.split(s, "=");
+                    String[] s2 = org.opensearch.common.Strings.split(s, "=");
                     if (s2.length != 2) {
                         throw new IllegalArgumentException("malformed " + s);
                     }
