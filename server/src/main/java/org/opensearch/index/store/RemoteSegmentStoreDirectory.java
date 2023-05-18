@@ -352,6 +352,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             throw new NoSuchFileException(name);
         }
     }
+
     /**
      * Copies a list of files from the source directory to a remote based on multi-stream upload support.
      * If vendor plugin supports uploading multiple parts in parallel, <code>BlobContainer#writeBlobByStreams</code>

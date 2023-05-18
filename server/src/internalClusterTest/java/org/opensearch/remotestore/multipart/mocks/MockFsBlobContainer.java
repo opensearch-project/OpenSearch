@@ -10,11 +10,10 @@ package org.opensearch.remotestore.multipart.mocks;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.opensearch.common.OffsetStreamContainer;
-import org.opensearch.common.StreamProvider;
+import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
 import org.opensearch.common.blobstore.fs.FsBlobStore;
-import org.opensearch.common.blobstore.stream.StreamContext;
 import org.opensearch.common.blobstore.stream.write.UploadResponse;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 
@@ -51,8 +50,7 @@ public class MockFsBlobContainer extends FsBlobContainer {
 
         int nParts = 10;
         long partSize = writeContext.getFileSize() / nParts;
-        StreamContext streamContext = writeContext.getStreamContext(partSize);
-        StreamProvider streamProvider = streamContext.getStreamProvider();
+        StreamContext streamContext = writeContext.getStreamProvider(partSize);
         final Path file = path.resolve(writeContext.getFileName());
         byte[] buffer = new byte[(int) writeContext.getFileSize()];
         AtomicLong totalContentRead = new AtomicLong();
@@ -61,7 +59,7 @@ public class MockFsBlobContainer extends FsBlobContainer {
             int finalPartIdx = partIdx;
             Thread thread = new Thread(() -> {
                 try {
-                    OffsetStreamContainer offsetStreamContainer = streamProvider.provideStream(finalPartIdx);
+                    OffsetStreamContainer offsetStreamContainer = streamContext.provideStream(finalPartIdx);
                     InputStream inputStream = offsetStreamContainer.getInputStream();
                     long remainingContentLength = offsetStreamContainer.getContentLength();
                     long offset = offsetStreamContainer.getOffset();

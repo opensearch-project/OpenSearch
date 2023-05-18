@@ -14,10 +14,9 @@ import org.junit.Before;
 import org.mockito.invocation.InvocationOnMock;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.OffsetStreamContainer;
-import org.opensearch.common.StreamProvider;
+import org.opensearch.common.StreamContext;
 import org.opensearch.common.TransferPartStreamSupplier;
 import org.opensearch.common.blobstore.BlobPath;
-import org.opensearch.common.blobstore.stream.StreamContext;
 import org.opensearch.common.blobstore.stream.write.StreamContextSupplier;
 import org.opensearch.common.blobstore.stream.write.UploadResponse;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
@@ -444,7 +443,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             new WriteContext("write_blob_by_streams_max_retries", new StreamContextSupplier() {
                 @Override
                 public StreamContext supplyStreamContext(long partSize) {
-                    return new StreamContext(new StreamProvider(new TransferPartStreamSupplier() {
+                    return new StreamContext(new TransferPartStreamSupplier() {
                         @Override
                         public OffsetStreamContainer supply(int partNo, long size, long position) throws IOException {
                             InputStream inputStream = new OffsetRangeIndexInputStream(
@@ -455,9 +454,7 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
                             openInputStreams.add(inputStream);
                             return new OffsetStreamContainer(inputStream, size, position);
                         }
-                    }, partSize, calculateLastPartSize(bytes.length, partSize), calculateNumberOfParts(bytes.length, partSize)),
-                        calculateNumberOfParts(bytes.length, partSize)
-                    );
+                    }, partSize, calculateLastPartSize(bytes.length, partSize), calculateNumberOfParts(bytes.length, partSize));
                 }
             }, bytes.length, false, WritePriority.NORMAL, new UploadFinalizer() {
                 @Override
@@ -501,16 +498,14 @@ public class S3BlobContainerMockClientTests extends OpenSearchTestCase implement
             new WriteContext("write_large_blob", new StreamContextSupplier() {
                 @Override
                 public StreamContext supplyStreamContext(long partSize) {
-                    return new StreamContext(new StreamProvider(new TransferPartStreamSupplier() {
+                    return new StreamContext(new TransferPartStreamSupplier() {
                         @Override
                         public OffsetStreamContainer supply(int partNo, long size, long position) throws IOException {
                             InputStream inputStream = new OffsetRangeIndexInputStream(new ZeroIndexInput("desc", blobSize), size, position);
                             openInputStreams.add(inputStream);
                             return new OffsetStreamContainer(inputStream, size, position);
                         }
-                    }, partSize, calculateLastPartSize(blobSize, partSize), calculateNumberOfParts(blobSize, partSize)),
-                        calculateNumberOfParts(blobSize, partSize)
-                    );
+                    }, partSize, calculateLastPartSize(blobSize, partSize), calculateNumberOfParts(blobSize, partSize));
                 }
             }, blobSize, false, WritePriority.HIGH, new UploadFinalizer() {
                 @Override

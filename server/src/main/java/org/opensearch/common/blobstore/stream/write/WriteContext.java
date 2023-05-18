@@ -8,7 +8,7 @@
 
 package org.opensearch.common.blobstore.stream.write;
 
-import org.opensearch.common.blobstore.stream.StreamContext;
+import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.transfer.UploadFinalizer;
 
 /**
@@ -66,7 +66,7 @@ public class WriteContext {
      * @param partSize The size of a single part to be uploaded
      * @return The stream context which will be used by the plugin to initialize streams from the file
      */
-    public StreamContext getStreamContext(long partSize) {
+    public StreamContext getStreamProvider(long partSize) {
         return streamContextSupplier.supplyStreamContext(partSize);
     }
 

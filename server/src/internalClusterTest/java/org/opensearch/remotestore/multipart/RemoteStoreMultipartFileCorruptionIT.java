@@ -10,8 +10,6 @@ package org.opensearch.remotestore.multipart;
 
 import org.junit.After;
 import org.junit.Before;
-import org.opensearch.action.admin.indices.flush.FlushResponse;
-import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -44,10 +42,7 @@ public class RemoteStoreMultipartFileCorruptionIT extends OpenSearchIntegTestCas
 
     @Override
     protected Settings featureFlagSettings() {
-        return Settings.builder()
-            .put(super.featureFlagSettings())
-            .put(FeatureFlags.REMOTE_STORE, "true")
-            .build();
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REMOTE_STORE, "true").build();
     }
 
     @Before
