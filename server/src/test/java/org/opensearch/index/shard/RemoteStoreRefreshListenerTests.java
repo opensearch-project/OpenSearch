@@ -391,7 +391,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         /**
          * Sole constructor, typically called from sub-classes.
          *
-         * @param in Directory
+         * @param in input directory
          */
         protected TestFilterDirectory(Directory in) {
             super(in);

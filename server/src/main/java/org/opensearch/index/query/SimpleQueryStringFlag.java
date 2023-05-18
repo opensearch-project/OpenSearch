@@ -31,7 +31,7 @@
 
 package org.opensearch.index.query;
 
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.search.SimpleQueryStringQueryParser;
 
 import java.util.Locale;
@@ -68,7 +68,7 @@ public enum SimpleQueryStringFlag {
     }
 
     static int resolveFlags(String flags) {
-        if (!Strings.hasLength(flags)) {
+        if (Strings.hasLength(flags) == false) {
             return ALL.value();
         }
         int magic = NONE.value();
