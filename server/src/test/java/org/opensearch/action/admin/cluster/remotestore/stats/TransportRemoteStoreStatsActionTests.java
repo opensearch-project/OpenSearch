@@ -109,90 +109,86 @@ public class TransportRemoteStoreStatsActionTests extends IndexShardTestCase {
     }
 
     public void testOnlyPrimaryShards() throws Exception {
-        try (FeatureFlagSetter f = FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE)) {
-            RoutingTable routingTable = RoutingTable.builder().addAsNew(remoteStoreIndexMetadata).build();
-            Metadata metadata = Metadata.builder().put(remoteStoreIndexMetadata, false).build();
-            ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
+        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
+        RoutingTable routingTable = RoutingTable.builder().addAsNew(remoteStoreIndexMetadata).build();
+        Metadata metadata = Metadata.builder().put(remoteStoreIndexMetadata, false).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
-            when(clusterService.getClusterSettings()).thenReturn(
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-            );
-            when(clusterService.state()).thenReturn(clusterState);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        when(clusterService.state()).thenReturn(clusterState);
 
-            ShardsIterator shardsIterator = statsAction.shards(
-                clusterService.state(),
-                new RemoteStoreStatsRequest(),
-                new String[] { INDEX.getName() }
-            );
+        ShardsIterator shardsIterator = statsAction.shards(
+            clusterService.state(),
+            new RemoteStoreStatsRequest(),
+            new String[] { INDEX.getName() }
+        );
 
-            assertEquals(shardsIterator.size(), 2);
-        }
+        assertEquals(shardsIterator.size(), 2);
     }
 
     public void testOnlyLocalShards() throws Exception {
-        try (FeatureFlagSetter f = FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE)) {
-            String[] concreteIndices = new String[] { INDEX.getName() };
-            RoutingTable routingTable = spy(RoutingTable.builder().addAsNew(remoteStoreIndexMetadata).build());
-            doReturn(
-                new PlainShardsIterator(routingTable.allShards(INDEX.getName()).stream().map(Mockito::spy).collect(Collectors.toList()))
-            ).when(routingTable).allShards(concreteIndices);
-            routingTable.allShards(concreteIndices)
-                .forEach(
-                    shardRouting -> doReturn(shardRouting.shardId().id() == 0 ? "node1" : localNode.getId()).when(shardRouting)
-                        .currentNodeId()
-                );
-            Metadata metadata = Metadata.builder().put(remoteStoreIndexMetadata, false).build();
-            ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-                .metadata(metadata)
-                .routingTable(routingTable)
-                .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()))
-                .build();
-            when(clusterService.getClusterSettings()).thenReturn(
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
+        String[] concreteIndices = new String[] { INDEX.getName() };
+        RoutingTable routingTable = spy(RoutingTable.builder().addAsNew(remoteStoreIndexMetadata).build());
+        doReturn(new PlainShardsIterator(routingTable.allShards(INDEX.getName()).stream().map(Mockito::spy).collect(Collectors.toList())))
+            .when(routingTable)
+            .allShards(concreteIndices);
+        routingTable.allShards(concreteIndices)
+            .forEach(
+                shardRouting -> doReturn(shardRouting.shardId().id() == 0 ? "node1" : localNode.getId()).when(shardRouting).currentNodeId()
             );
-            when(clusterService.state()).thenReturn(clusterState);
-            RemoteStoreStatsRequest remoteStoreStatsRequest = new RemoteStoreStatsRequest();
-            remoteStoreStatsRequest.local(true);
-            ShardsIterator shardsIterator = statsAction.shards(clusterService.state(), remoteStoreStatsRequest, concreteIndices);
+        Metadata metadata = Metadata.builder().put(remoteStoreIndexMetadata, false).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .routingTable(routingTable)
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()))
+            .build();
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        when(clusterService.state()).thenReturn(clusterState);
+        RemoteStoreStatsRequest remoteStoreStatsRequest = new RemoteStoreStatsRequest();
+        remoteStoreStatsRequest.local(true);
+        ShardsIterator shardsIterator = statsAction.shards(clusterService.state(), remoteStoreStatsRequest, concreteIndices);
 
-            assertEquals(shardsIterator.size(), 1);
-        }
+        assertEquals(shardsIterator.size(), 1);
     }
 
     public void testOnlyRemoteStoreEnabledShards() throws Exception {
-        try (FeatureFlagSetter f = FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE)) {
-            Index NEW_INDEX = new Index("newIndex", "newUUID");
-            IndexMetadata indexMetadataWithoutRemoteStore = IndexMetadata.builder(NEW_INDEX.getName())
-                .settings(
-                    settings(Version.CURRENT).put(SETTING_INDEX_UUID, NEW_INDEX.getUUID()).put(SETTING_REMOTE_STORE_ENABLED, false).build()
-                )
-                .numberOfShards(2)
-                .numberOfReplicas(1)
-                .build();
+        FeatureFlagSetter.set(FeatureFlags.REMOTE_STORE);
+        Index NEW_INDEX = new Index("newIndex", "newUUID");
+        IndexMetadata indexMetadataWithoutRemoteStore = IndexMetadata.builder(NEW_INDEX.getName())
+            .settings(
+                settings(Version.CURRENT).put(SETTING_INDEX_UUID, NEW_INDEX.getUUID()).put(SETTING_REMOTE_STORE_ENABLED, false).build()
+            )
+            .numberOfShards(2)
+            .numberOfReplicas(1)
+            .build();
 
-            RoutingTable routingTable = RoutingTable.builder()
-                .addAsNew(remoteStoreIndexMetadata)
-                .addAsNew(indexMetadataWithoutRemoteStore)
-                .build();
-            Metadata metadata = Metadata.builder().put(remoteStoreIndexMetadata, false).put(indexMetadataWithoutRemoteStore, false).build();
-            ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
+        RoutingTable routingTable = RoutingTable.builder()
+            .addAsNew(remoteStoreIndexMetadata)
+            .addAsNew(indexMetadataWithoutRemoteStore)
+            .build();
+        Metadata metadata = Metadata.builder().put(remoteStoreIndexMetadata, false).put(indexMetadataWithoutRemoteStore, false).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
-            IndexService newIndexService = mock(IndexService.class);
+        IndexService newIndexService = mock(IndexService.class);
 
-            when(clusterService.getClusterSettings()).thenReturn(
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-            );
-            when(clusterService.state()).thenReturn(clusterState);
-            when(indicesService.indexService(NEW_INDEX)).thenReturn(newIndexService);
-            when(newIndexService.getIndexSettings()).thenReturn(new IndexSettings(indexMetadataWithoutRemoteStore, Settings.EMPTY));
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        when(clusterService.state()).thenReturn(clusterState);
+        when(indicesService.indexService(NEW_INDEX)).thenReturn(newIndexService);
+        when(newIndexService.getIndexSettings()).thenReturn(new IndexSettings(indexMetadataWithoutRemoteStore, Settings.EMPTY));
 
-            ShardsIterator shardsIterator = statsAction.shards(
-                clusterService.state(),
-                new RemoteStoreStatsRequest(),
-                new String[] { INDEX.getName() }
-            );
+        ShardsIterator shardsIterator = statsAction.shards(
+            clusterService.state(),
+            new RemoteStoreStatsRequest(),
+            new String[] { INDEX.getName() }
+        );
 
-            assertEquals(shardsIterator.size(), 2);
-        }
+        assertEquals(shardsIterator.size(), 2);
     }
 }
