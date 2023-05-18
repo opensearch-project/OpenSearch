@@ -103,7 +103,6 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.env.Environment;
@@ -219,6 +218,12 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     @AfterClass
     public static void resetPortCounter() {
         portGenerator.set(0);
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        FeatureFlagSetter.clear();
+        super.tearDown();
     }
 
     // Allows distinguishing between parallel test processes
