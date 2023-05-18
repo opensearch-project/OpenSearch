@@ -101,6 +101,11 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
         return pressureSettings.isRemoteRefreshSegmentPressureEnabled();
     }
 
+    /**
+     * Validates if segments are lagging more than the limits. If yes, it would lead to rejections of the requests.
+     *
+     * @param shardId shardId for which the validation needs to be done.
+     */
     public void validateSegmentsUploadLag(ShardId shardId) {
         RemoteRefreshSegmentTracker remoteRefreshSegmentTracker = getRemoteRefreshSegmentTracker(shardId);
         // This will be null for non-remote backed indexes

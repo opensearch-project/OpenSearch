@@ -70,7 +70,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         remoteStoreRefreshListener = new RemoteStoreRefreshListener(
             indexShard,
             SegmentReplicationCheckpointPublisher.EMPTY,
-            remoteRefreshSegmentPressureService
+            remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(indexShard.shardId())
         );
         remoteStoreRefreshListener.beforeRefresh();
     }
@@ -381,7 +381,7 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         RemoteStoreRefreshListener refreshListener = new RemoteStoreRefreshListener(
             shard,
             SegmentReplicationCheckpointPublisher.EMPTY,
-            remoteRefreshSegmentPressureService
+            remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(indexShard.shardId())
         );
         refreshListener.beforeRefresh();
         refreshListener.afterRefresh(true);

@@ -309,17 +309,17 @@ public class RemoteRefreshSegmentTrackerTests extends OpenSearchTestCase {
         pressureTracker.setLatestLocalFileNameLengthMap(fileSizeMap);
         assertEquals(205L, pressureTracker.getBytesLag());
 
-        pressureTracker.addToLatestUploadFiles("a");
+        pressureTracker.addToLatestUploadedFiles("a");
         assertEquals(105L, pressureTracker.getBytesLag());
 
         fileSizeMap.put("c", 115L);
         pressureTracker.setLatestLocalFileNameLengthMap(fileSizeMap);
         assertEquals(220L, pressureTracker.getBytesLag());
 
-        pressureTracker.addToLatestUploadFiles("b");
+        pressureTracker.addToLatestUploadedFiles("b");
         assertEquals(115L, pressureTracker.getBytesLag());
 
-        pressureTracker.addToLatestUploadFiles("c");
+        pressureTracker.addToLatestUploadedFiles("c");
         assertEquals(0L, pressureTracker.getBytesLag());
     }
 

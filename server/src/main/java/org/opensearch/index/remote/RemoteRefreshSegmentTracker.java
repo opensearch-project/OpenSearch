@@ -120,7 +120,7 @@ public class RemoteRefreshSegmentTracker {
     /**
      * Set of names of segment files that were uploaded as part of the most recent remote refresh.
      */
-    private final Set<String> latestUploadFiles = new HashSet<>();
+    private final Set<String> latestUploadedFiles = new HashSet<>();
 
     /**
      * Keeps the bytes lag computed so that we do not compute it for every request.
@@ -340,14 +340,14 @@ public class RemoteRefreshSegmentTracker {
         computeBytesLag();
     }
 
-    public void addToLatestUploadFiles(String file) {
-        this.latestUploadFiles.add(file);
+    public void addToLatestUploadedFiles(String file) {
+        this.latestUploadedFiles.add(file);
         computeBytesLag();
     }
 
-    public void setLatestUploadFiles(Set<String> files) {
-        this.latestUploadFiles.clear();
-        this.latestUploadFiles.addAll(files);
+    public void setLatestUploadedFiles(Set<String> files) {
+        this.latestUploadedFiles.clear();
+        this.latestUploadedFiles.addAll(files);
         computeBytesLag();
     }
 
@@ -357,7 +357,7 @@ public class RemoteRefreshSegmentTracker {
         }
         Set<String> filesNotYetUploaded = latestLocalFileNameLengthMap.keySet()
             .stream()
-            .filter(f -> !latestUploadFiles.contains(f))
+            .filter(f -> !latestUploadedFiles.contains(f))
             .collect(Collectors.toSet());
         this.bytesLag = filesNotYetUploaded.stream().map(latestLocalFileNameLengthMap::get).mapToLong(Long::longValue).sum();
     }
