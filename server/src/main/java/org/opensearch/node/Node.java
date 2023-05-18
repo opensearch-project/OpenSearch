@@ -466,7 +466,8 @@ public class Node implements Closeable {
             final IdentityService identityService = new IdentityService(settings, identityPlugins);
 
             if (FeatureFlags.isEnabled(FeatureFlags.EXTENSIONS)) {
-                this.extensionsManager = new ExtensionsManager(initialEnvironment.extensionDir(), identityService);
+                Set<Setting<?>> additionalSettings = identityService.getExtensionSettings().stream().collect(Collectors.toSet());
+                this.extensionsManager = new ExtensionsManager(initialEnvironment.extensionDir(), additionalSettings);
             } else {
                 this.extensionsManager = new NoopExtensionsManager();
             }

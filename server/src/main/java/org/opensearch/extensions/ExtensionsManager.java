@@ -17,6 +17,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -39,6 +40,7 @@ import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
@@ -58,7 +60,6 @@ import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.rest.RestActionsRequestHandler;
 import org.opensearch.extensions.settings.CustomSettingsRequestHandler;
 import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
-import org.opensearch.identity.IdentityService;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndicesModuleRequest;
@@ -118,7 +119,7 @@ public class ExtensionsManager {
     private CustomSettingsRequestHandler customSettingsRequestHandler;
     private TransportService transportService;
     private ClusterService clusterService;
-    private IdentityService identityService;
+    private Set<Setting<?>> additionalSettings;
     private Settings environmentSettings;
     private AddSettingsUpdateConsumerRequestHandler addSettingsUpdateConsumerRequestHandler;
     private NodeClient client;
@@ -138,7 +139,7 @@ public class ExtensionsManager {
         // will be initialized in initializeServicesAndRestHandler which is called after the Node is initialized
         this.transportService = null;
         this.clusterService = null;
-        this.identityService = null;
+        this.additionalSettings = new HashSet<>();
         this.client = null;
         this.extensionTransportActionsHandler = null;
 
@@ -153,10 +154,10 @@ public class ExtensionsManager {
      * Instantiate a new ExtensionsManager object to handle requests and responses from extensions. This is called during Node bootstrap.
      *
      * @param extensionsPath  Path to a directory containing extensions.
-     * @param identityService  Identity Service
+     * @param additionalSettings  Additional settings to read in from extensions.yml
      * @throws IOException  If the extensions discovery file is not properly retrieved.
      */
-    public ExtensionsManager(Path extensionsPath, IdentityService identityService) throws IOException {
+    public ExtensionsManager(Path extensionsPath, Set<Setting<?>> additionalSettings) throws IOException {
         logger.info("ExtensionsManager initialized");
         this.extensionsPath = extensionsPath;
         this.initializedExtensions = new HashMap<String, DiscoveryExtensionNode>();
@@ -165,7 +166,11 @@ public class ExtensionsManager {
         // will be initialized in initializeServicesAndRestHandler which is called after the Node is initialized
         this.transportService = null;
         this.clusterService = null;
-        this.identityService = identityService;
+        if (additionalSettings == null) {
+            this.additionalSettings = new HashSet<>();
+        } else {
+            this.additionalSettings = additionalSettings;
+        }
         this.client = null;
         this.extensionTransportActionsHandler = null;
 
@@ -659,23 +664,14 @@ public class ExtensionsManager {
                     }
 
                     Settings.Builder output = Settings.builder();
-                    ExtensionAdditionalSettings additionalSettings = new ExtensionAdditionalSettings(Set.of());
-
-                    if (identityService != null) {
-                        additionalSettings = new ExtensionAdditionalSettings(
-                            identityService.getExtensionSettings().stream().collect(Collectors.toSet())
-                        );
-                        Set<String> securitySettingsKeys = identityService.getExtensionSettings()
-                            .stream()
-                            .map(s -> s.getKey())
-                            .collect(Collectors.toSet());
-                        Map<String, ?> securitySettings = extensionMap.entrySet()
-                            .stream()
-                            .filter(kv -> securitySettingsKeys.contains(kv.getKey()))
-                            .collect(Collectors.toMap(map -> map.getKey(), map -> map.getValue()));
-                        output.loadFromMap(securitySettings);
-                        additionalSettings.applySettings(output.build());
-                    }
+                    ExtensionAdditionalSettings extAdditionalSettings = new ExtensionAdditionalSettings(additionalSettings);
+                    Set<String> additionalSettingsKeys = additionalSettings.stream().map(s -> s.getKey()).collect(Collectors.toSet());
+                    Map<String, ?> additionalSettingsMap = extensionMap.entrySet()
+                        .stream()
+                        .filter(kv -> additionalSettingsKeys.contains(kv.getKey()))
+                        .collect(Collectors.toMap(map -> map.getKey(), map -> map.getValue()));
+                    output.loadFromMap(additionalSettingsMap);
+                    extAdditionalSettings.applySettings(output.build());
 
                     // Create extension read from yml config
                     readExtensions.add(
@@ -688,7 +684,7 @@ public class ExtensionsManager {
                             extensionMap.get("opensearchVersion").toString(),
                             extensionMap.get("minimumCompatibleVersion").toString(),
                             extensionDependencyList,
-                            additionalSettings
+                            extAdditionalSettings
                         )
                     );
                 } catch (IOException e) {
@@ -758,10 +754,6 @@ public class ExtensionsManager {
 
     void setClusterService(ClusterService clusterService) {
         this.clusterService = clusterService;
-    }
-
-    void setIdentityService(IdentityService identityService) {
-        this.identityService = identityService;
     }
 
     CustomSettingsRequestHandler getCustomSettingsRequestHandler() {

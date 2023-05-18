@@ -32,6 +32,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -71,12 +72,15 @@ import org.opensearch.extensions.proto.ExtensionRequestProto;
 import org.opensearch.extensions.rest.RegisterRestActionsRequest;
 import org.opensearch.extensions.settings.RegisterCustomSettingsRequest;
 import org.opensearch.identity.IdentityService;
+import org.opensearch.identity.Subject;
+import org.opensearch.identity.noop.NoopSubject;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
 import org.opensearch.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.plugins.IdentityPlugin;
 import org.opensearch.rest.RestController;
 import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.IndexSettingsModule;
@@ -99,6 +103,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
     private RestController restController;
     private SettingsModule settingsModule;
     private ClusterService clusterService;
+    private IdentityService identityService;
+    private Setting customSetting = Setting.simpleString("custom_extension_setting", "none", Property.ExtensionScope);
     private NodeClient client;
     private MockNioTransport transport;
     private Path extensionDir;
@@ -116,6 +122,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         "     version: '0.0.7'",
         "     opensearchVersion: '3.0.0'",
         "     minimumCompatibleVersion: '3.0.0'",
+        "     custom_extension_setting: 'custom_setting'",
         "   - name: secondExtension",
         "     uniqueId: 'uniqueid2'",
         "     hostAddress: '127.0.0.1'",
@@ -160,6 +167,20 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             Collections.emptySet()
         );
         actionModule = mock(ActionModule.class);
+        IdentityPlugin identityPlugin = new IdentityPlugin() {
+            @Override
+            public Subject getSubject() {
+                return new NoopSubject();
+            }
+
+            @Override
+            public List<Setting<?>> getExtensionSettings() {
+                List<Setting<?>> settings = new ArrayList<Setting<?>>();
+                settings.add(customSetting);
+                return settings;
+            }
+        };
+        identityService = new IdentityService(Settings.EMPTY, List.of(identityPlugin));
         restController = new RestController(
             emptySet(),
             null,
@@ -892,6 +913,67 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             ExtensionsManager extensionsManager = new ExtensionsManager(extensionDir);
             assertEquals(0, extensionsManager.getExtensionIdMap().values().size());
             mockLogAppender.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testAdditionalExtensionSettings() throws Exception {
+        Files.write(extensionDir.resolve("extensions.yml"), extensionsYmlLines, StandardCharsets.UTF_8);
+
+        Set<Setting<?>> additionalSettings = identityService.getExtensionSettings().stream().collect(Collectors.toSet());
+
+        ExtensionsManager extensionsManager = new ExtensionsManager(extensionDir, additionalSettings);
+
+        List<DiscoveryExtensionNode> expectedExtensions = new ArrayList<DiscoveryExtensionNode>();
+
+        String expectedUniqueId = "uniqueid0";
+        Version expectedVersion = Version.fromString("2.0.0");
+        ExtensionDependency expectedDependency = new ExtensionDependency(expectedUniqueId, expectedVersion);
+
+        expectedExtensions.add(
+            new DiscoveryExtensionNode(
+                "firstExtension",
+                "uniqueid1",
+                new TransportAddress(InetAddress.getByName("127.0.0.0"), 9300),
+                new HashMap<String, String>(),
+                Version.fromString("3.0.0"),
+                Version.fromString("3.0.0"),
+                Collections.emptyList()
+            )
+        );
+
+        expectedExtensions.add(
+            new DiscoveryExtensionNode(
+                "secondExtension",
+                "uniqueid2",
+                new TransportAddress(InetAddress.getByName("127.0.0.1"), 9301),
+                new HashMap<String, String>(),
+                Version.fromString("2.0.0"),
+                Version.fromString("2.0.0"),
+                List.of(expectedDependency)
+            )
+        );
+        assertEquals(expectedExtensions.size(), extensionsManager.getExtensionIdMap().values().size());
+        for (DiscoveryExtensionNode extension : expectedExtensions) {
+            DiscoveryExtensionNode initializedExtension = extensionsManager.getExtensionIdMap().get(extension.getId());
+            assertEquals(extension.getName(), initializedExtension.getName());
+            assertEquals(extension.getId(), initializedExtension.getId());
+            assertEquals(extension.getAddress(), initializedExtension.getAddress());
+            assertEquals(extension.getAttributes(), initializedExtension.getAttributes());
+            assertEquals(extension.getVersion(), initializedExtension.getVersion());
+            assertEquals(extension.getMinimumCompatibleVersion(), initializedExtension.getMinimumCompatibleVersion());
+            assertEquals(extension.getDependencies(), initializedExtension.getDependencies());
+            assertTrue(extensionsManager.lookupExtensionSettingsById(extension.getId()).isPresent());
+            if ("firstExtension".equals(extension.getName())) {
+                assertEquals(
+                    "custom_setting",
+                    extensionsManager.lookupExtensionSettingsById(extension.getId()).get().getAdditionalSettings().get(customSetting)
+                );
+            } else if ("secondExtension".equals(extension.getName())) {
+                assertEquals(
+                    "none",
+                    extensionsManager.lookupExtensionSettingsById(extension.getId()).get().getAdditionalSettings().get(customSetting)
+                );
+            }
         }
     }
 

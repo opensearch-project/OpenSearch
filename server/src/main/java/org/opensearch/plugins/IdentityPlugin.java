@@ -29,7 +29,7 @@ public interface IdentityPlugin {
     Subject getSubject();
 
     /**
-     * Returns a list of additional {@link Setting} definitions for that this plugin adds for extensions
+     * Returns a list of additional {@link Setting} definitions that this plugin adds for extensions
      */
     default List<Setting<?>> getExtensionSettings() {
         return Collections.emptyList();
