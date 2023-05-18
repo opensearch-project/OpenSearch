@@ -220,6 +220,31 @@ public class RestSendToExtensionActionTests extends OpenSearchTestCase {
         );
     }
 
+    public void testRestSendToExtensionMultipleRoutesWithSameMethodAndPathWithDifferentPathParams() throws Exception {
+        RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
+            "uniqueid1",
+            List.of("GET /foo/{path_param1}", "GET /foo/{path_param2}"),
+            List.of()
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService, actionModule)
+        );
+    }
+
+    public void testRestSendToExtensionMultipleRoutesWithSameMethodAndPathWithPathParams() throws Exception {
+        RegisterRestActionsRequest registerRestActionRequest = new RegisterRestActionsRequest(
+            "uniqueid1",
+            List.of("GET /foo/{path_param}", "GET /foo/{path_param}/list"),
+            List.of()
+        );
+        try {
+            new RestSendToExtensionAction(registerRestActionRequest, discoveryExtensionNode, transportService, actionModule);
+        } catch (IllegalArgumentException e) {
+            fail("IllegalArgumentException should not be thrown for different paths");
+        }
+    }
+
     public void testRestSendToExtensionWithNamedRouteCollidingWithDynamicTransportAction() throws Exception {
         DynamicActionRegistry dynamicActionRegistry = actionModule.getDynamicActionRegistry();
         ActionFilters emptyFilters = new ActionFilters(Collections.emptySet());

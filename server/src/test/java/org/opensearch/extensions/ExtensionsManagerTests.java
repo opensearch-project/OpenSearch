@@ -41,7 +41,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
-import org.opensearch.action.ActionModule.DynamicRouteRegistry;
+import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
@@ -169,7 +169,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             new UsageService(),
             new IdentityService(Settings.EMPTY, List.of())
         );
-        when(actionModule.getDynamicRouteRegistry()).thenReturn(mock(DynamicRouteRegistry.class));
+        when(actionModule.getDynamicActionRegistry()).thenReturn(mock(DynamicActionRegistry.class));
         when(actionModule.getRestController()).thenReturn(restController);
         settingsModule = new SettingsModule(Settings.EMPTY, emptyList(), emptyList(), emptySet());
         clusterService = createClusterService(threadPool);

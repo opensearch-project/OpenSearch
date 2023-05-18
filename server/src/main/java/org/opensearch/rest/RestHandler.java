@@ -196,13 +196,18 @@ public interface RestHandler {
             return path;
         }
 
+        public String getPathWithPathParamsReplaced() {
+            return path.replaceAll("(?<=\\{).*?(?=\\})", "path_param");
+        }
+
         public Method getMethod() {
             return method;
         }
 
         @Override
         public int hashCode() {
-            return toString().hashCode();
+            String routeStr = "Route [method=" + method + ", path=" + getPathWithPathParamsReplaced() + "]";
+            return routeStr.hashCode();
         }
 
         @Override
@@ -219,7 +224,8 @@ public interface RestHandler {
                 return false;
             }
             Route that = (Route) o;
-            return Objects.equals(method, that.method) && Objects.equals(path, that.path);
+            return Objects.equals(method, that.method)
+                && Objects.equals(getPathWithPathParamsReplaced(), that.getPathWithPathParamsReplaced());
         }
     }
 
