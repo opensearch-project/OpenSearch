@@ -6,7 +6,6 @@
 - Upgrade `org.apache.hadoop:hadoop-minicluster` from 3.3.4 to 3.3.5
 - OpenJDK Update (April 2023 Patch releases) [#7449](https://github.com/opensearch-project/OpenSearch/pull/7449)
 - Upgrade `net.minidev:json-smart` from 2.4.7 to 2.4.10
-- Security: https://github.com/opensearch-project/OpenSearch/compare/1.3.9...HEAD
 
 ### Bug Fixes
 - Avoid negative memory result in IndicesQueryCache stats calculation ([#6917](https://github.com/opensearch-project/OpenSearch/pull/6917))
