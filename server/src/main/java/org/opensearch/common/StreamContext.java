@@ -36,6 +36,9 @@ public class StreamContext {
     }
 
     /**
+     * Vendor plugins can use this method to create new streams only when they are required for processing
+     * New streams won't be created till this method is called with the specific <code>partNumber</code>
+     *
      * @param partNumber The index of the part
      * @return A stream reference to the part requested
      */
