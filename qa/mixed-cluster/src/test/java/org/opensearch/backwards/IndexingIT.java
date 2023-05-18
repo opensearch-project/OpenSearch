@@ -127,7 +127,7 @@ public class IndexingIT extends OpenSearchRestTestCase {
             .put("index.routing.allocation.include._name", bwcNames);
         final String index = "test-index";
         createIndex(index, settings.build());
-        ensureYellow(index);
+        ensureNoInitializingShards(); // wait for all other shard activity to finish
 
         int docCount = 200;
         try (RestClient nodeClient = buildClient(restClientSettings(),
@@ -174,7 +174,7 @@ public class IndexingIT extends OpenSearchRestTestCase {
             .put("index.routing.allocation.exclude._name", bwcNames);
         final String index = "test-index";
         createIndex(index, settings.build());
-        ensureYellow(index);
+        ensureNoInitializingShards(); // wait for all other shard activity to finish
         printClusterRouting();
 
         int docCount = 200;
