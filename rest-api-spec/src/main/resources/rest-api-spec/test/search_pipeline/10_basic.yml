@@ -1,7 +1,7 @@
 ---
 "Test basic pipeline crud":
   - skip:
-      version: " - 2.7.0"
+      version: " - 2.6.99"
       reason: "Added in 2.7.0"
   - do:
       search_pipeline.put:
@@ -32,7 +32,7 @@
 ---
 "Test Put Versioned Pipeline":
   - skip:
-      version: " - 2.7.0"
+      version: " - 2.6.99"
       reason: "Added in 2.7.0"
   - do:
       search_pipeline.put:
@@ -125,7 +125,7 @@
 ---
 "Test Get All Pipelines":
   - skip:
-      version: " - 2.7.0"
+      version: " - 2.6.99"
       reason: "Added in 2.7.0"
   - do:
       search_pipeline.put:
@@ -152,7 +152,7 @@
 ---
 "Test invalid config":
   - skip:
-      version: " - 2.7.0"
+      version: " - 2.6.99"
       reason: "Added in 2.7.0"
   - do:
       catch: /parse_exception/
