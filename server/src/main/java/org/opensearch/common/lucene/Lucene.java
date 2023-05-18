@@ -53,10 +53,8 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
-import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.index.StandardDirectoryReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
@@ -142,8 +140,7 @@ public class Lucene {
      * older major versions of Lucene. This leverages Lucene's "expert" readLatestCommit API. The
      * {@link org.opensearch.Version} parameter determines the minimum supported Lucene major version.
      */
-    public static SegmentInfos readSegmentInfos(Directory directory, org.opensearch.Version minimumVersion)
-        throws IOException {
+    public static SegmentInfos readSegmentInfos(Directory directory, org.opensearch.Version minimumVersion) throws IOException {
         final int minSupportedLuceneMajor = minimumVersion.minimumIndexCompatibilityVersion().luceneVersion.major;
         return SegmentInfos.readLatestCommit(directory, minSupportedLuceneMajor);
     }
