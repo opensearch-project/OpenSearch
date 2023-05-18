@@ -1311,7 +1311,7 @@ public class MetadataCreateIndexService {
     private static List<String> validateIndexCustomPath(Settings settings, @Nullable Path sharedDataPath) {
         String customPath = IndexMetadata.INDEX_DATA_PATH_SETTING.get(settings);
         List<String> validationErrors = new ArrayList<>();
-        if (org.opensearch.core.common.Strings.isEmpty(customPath) == false) {
+        if (Strings.isEmpty(customPath) == false) {
             if (sharedDataPath == null) {
                 validationErrors.add("path.shared_data must be set in order to use custom data paths");
             } else {

@@ -33,7 +33,6 @@
 package org.opensearch.search.aggregations;
 
 import org.opensearch.BaseOpenSearchException;
-import org.opensearch.OpenSearchException;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
