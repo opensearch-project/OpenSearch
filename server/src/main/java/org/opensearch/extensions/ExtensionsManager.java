@@ -33,6 +33,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
+import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
@@ -181,7 +182,7 @@ public class ExtensionsManager {
             actionModule,
             this
         );
-        registerRequestHandler(actionModule);
+        registerRequestHandler(actionModule.getDynamicActionRegistry());
     }
 
     /**
@@ -222,7 +223,7 @@ public class ExtensionsManager {
         return extensionTransportActionsHandler.sendTransportRequestToExtension(request);
     }
 
-    private void registerRequestHandler(ActionModule actionModule) {
+    private void registerRequestHandler(DynamicActionRegistry dynamicActionRegistry) {
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_REGISTER_REST_ACTIONS,
             ThreadPool.Names.GENERIC,
@@ -230,7 +231,7 @@ public class ExtensionsManager {
             false,
             RegisterRestActionsRequest::new,
             ((request, channel, task) -> channel.sendResponse(
-                restActionsRequestHandler.handleRegisterRestActionsRequest(request, actionModule.getDynamicActionRegistry())
+                restActionsRequestHandler.handleRegisterRestActionsRequest(request, dynamicActionRegistry)
             ))
         );
         transportService.registerRequestHandler(
