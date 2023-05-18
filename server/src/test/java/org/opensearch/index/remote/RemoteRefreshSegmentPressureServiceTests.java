@@ -99,14 +99,10 @@ public class RemoteRefreshSegmentPressureServiceTests extends OpenSearchTestCase
         pressureService = new RemoteRefreshSegmentPressureService(clusterService, Settings.EMPTY);
         pressureService.afterIndexShardCreated(indexShard);
 
-        // 1. Seq no - add data points to the pressure tracker
         RemoteRefreshSegmentTracker pressureTracker = pressureService.getRemoteRefreshSegmentTracker(shardId);
         pressureTracker.updateLocalRefreshSeqNo(6);
-        Exception e = assertThrows(OpenSearchRejectedExecutionException.class, () -> pressureService.validateSegmentsUploadLag(shardId));
-        assertTrue(e.getMessage().contains("due to remote segments lagging behind local segments"));
-        assertTrue(e.getMessage().contains("remote_refresh_seq_no:0 local_refresh_seq_no:6"));
 
-        // 2. time lag more than dynamic threshold
+        // 1. time lag more than dynamic threshold
         pressureTracker.updateRemoteRefreshSeqNo(3);
         AtomicLong sum = new AtomicLong();
         IntStream.range(0, 20).forEach(i -> {
@@ -117,14 +113,14 @@ public class RemoteRefreshSegmentPressureServiceTests extends OpenSearchTestCase
         long currentMs = System.nanoTime() / 1_000_000;
         pressureTracker.updateLocalRefreshTimeMs((long) (currentMs + 4 * avg));
         pressureTracker.updateRemoteRefreshTimeMs(currentMs);
-        e = assertThrows(OpenSearchRejectedExecutionException.class, () -> pressureService.validateSegmentsUploadLag(shardId));
+        Exception e = assertThrows(OpenSearchRejectedExecutionException.class, () -> pressureService.validateSegmentsUploadLag(shardId));
         assertTrue(e.getMessage().contains("due to remote segments lagging behind local segments"));
         assertTrue(e.getMessage().contains("time_lag:38 ms dynamic_time_lag_threshold:19.0 ms"));
 
         pressureTracker.updateRemoteRefreshTimeMs((long) (currentMs + 2 * avg));
         pressureService.validateSegmentsUploadLag(shardId);
 
-        // 3. bytes lag more than dynamic threshold
+        // 2. bytes lag more than dynamic threshold
         sum.set(0);
         IntStream.range(0, 20).forEach(i -> {
             pressureTracker.addUploadBytes(i);
@@ -142,13 +138,13 @@ public class RemoteRefreshSegmentPressureServiceTests extends OpenSearchTestCase
         pressureTracker.setLatestLocalFileNameLengthMap(nameSizeMap);
         pressureService.validateSegmentsUploadLag(shardId);
 
-        // 4. Consecutive failures more than the limit
-        IntStream.range(0, 10).forEach(ignore -> pressureTracker.incrementTotalUploadsFailed());
+        // 3. Consecutive failures more than the limit
+        IntStream.range(0, 5).forEach(ignore -> pressureTracker.incrementTotalUploadsFailed());
         pressureService.validateSegmentsUploadLag(shardId);
         pressureTracker.incrementTotalUploadsFailed();
         e = assertThrows(OpenSearchRejectedExecutionException.class, () -> pressureService.validateSegmentsUploadLag(shardId));
         assertTrue(e.getMessage().contains("due to remote segments lagging behind local segments"));
-        assertTrue(e.getMessage().contains("failure_streak_count:11 min_consecutive_failure_threshold:10"));
+        assertTrue(e.getMessage().contains("failure_streak_count:6 min_consecutive_failure_threshold:5"));
         pressureTracker.incrementTotalUploadsSucceeded();
         pressureService.validateSegmentsUploadLag(shardId);
     }
