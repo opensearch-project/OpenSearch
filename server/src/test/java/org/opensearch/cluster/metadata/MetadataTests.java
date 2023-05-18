@@ -41,7 +41,6 @@ import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfigExcl
 import org.opensearch.common.Strings;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
@@ -93,7 +92,7 @@ public class MetadataTests extends OpenSearchTestCase {
             .build();
 
         {
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(new GetAliasesRequest(), Strings.EMPTY_ARRAY);
+            final Map<String, List<AliasMetadata>> aliases = metadata.findAliases(new GetAliasesRequest(), Strings.EMPTY_ARRAY);
             assertThat(aliases.size(), equalTo(0));
         }
         {
@@ -105,7 +104,7 @@ public class MetadataTests extends OpenSearchTestCase {
                 // replacing with empty aliases behaves as if aliases were unspecified at request building
                 request.replaceAliases(Strings.EMPTY_ARRAY);
             }
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(new GetAliasesRequest(), new String[] { "index" });
+            final Map<String, List<AliasMetadata>> aliases = metadata.findAliases(new GetAliasesRequest(), new String[] { "index" });
             assertThat(aliases.size(), equalTo(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
             assertThat(aliasMetadataList.size(), equalTo(2));
@@ -113,7 +112,7 @@ public class MetadataTests extends OpenSearchTestCase {
             assertThat(aliasMetadataList.get(1).alias(), equalTo("alias2"));
         }
         {
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(
+            final Map<String, List<AliasMetadata>> aliases = metadata.findAliases(
                 new GetAliasesRequest("alias*"),
                 new String[] { "index" }
             );
@@ -124,7 +123,7 @@ public class MetadataTests extends OpenSearchTestCase {
             assertThat(aliasMetadataList.get(1).alias(), equalTo("alias2"));
         }
         {
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAliases(
+            final Map<String, List<AliasMetadata>> aliases = metadata.findAliases(
                 new GetAliasesRequest("alias1"),
                 new String[] { "index" }
             );
@@ -134,7 +133,7 @@ public class MetadataTests extends OpenSearchTestCase {
             assertThat(aliasMetadataList.get(0).alias(), equalTo("alias1"));
         }
         {
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAllAliases(new String[] { "index" });
+            final Map<String, List<AliasMetadata>> aliases = metadata.findAllAliases(new String[] { "index" });
             assertThat(aliases.size(), equalTo(1));
             List<AliasMetadata> aliasMetadataList = aliases.get("index");
             assertThat(aliasMetadataList.size(), equalTo(2));
@@ -142,7 +141,7 @@ public class MetadataTests extends OpenSearchTestCase {
             assertThat(aliasMetadataList.get(1).alias(), equalTo("alias2"));
         }
         {
-            ImmutableOpenMap<String, List<AliasMetadata>> aliases = metadata.findAllAliases(Strings.EMPTY_ARRAY);
+            final Map<String, List<AliasMetadata>> aliases = metadata.findAllAliases(Strings.EMPTY_ARRAY);
             assertThat(aliases.size(), equalTo(0));
         }
     }
@@ -173,7 +172,7 @@ public class MetadataTests extends OpenSearchTestCase {
         List<Index> allIndices = new ArrayList<>(result.indices);
         allIndices.addAll(result.backingIndices);
         String[] concreteIndices = allIndices.stream().map(Index::getName).collect(Collectors.toList()).toArray(new String[] {});
-        ImmutableOpenMap<String, IndexAbstraction.DataStream> dataStreams = result.metadata.findDataStreams(concreteIndices);
+        final Map<String, IndexAbstraction.DataStream> dataStreams = result.metadata.findDataStreams(concreteIndices);
         assertThat(dataStreams.size(), equalTo(numBackingIndices));
         for (Index backingIndex : result.backingIndices) {
             assertThat(dataStreams.containsKey(backingIndex.getName()), is(true));
@@ -659,19 +658,16 @@ public class MetadataTests extends OpenSearchTestCase {
             .build();
 
         {
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(Strings.EMPTY_ARRAY, MapperPlugin.NOOP_FIELD_FILTER);
+            final Map<String, MappingMetadata> mappings = metadata.findMappings(Strings.EMPTY_ARRAY, MapperPlugin.NOOP_FIELD_FILTER);
             assertEquals(0, mappings.size());
         }
         {
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
-                new String[] { "index1" },
-                MapperPlugin.NOOP_FIELD_FILTER
-            );
+            final Map<String, MappingMetadata> mappings = metadata.findMappings(new String[] { "index1" }, MapperPlugin.NOOP_FIELD_FILTER);
             assertEquals(1, mappings.size());
             assertIndexMappingsNotFiltered(mappings, "index1");
         }
         {
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            final Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1", "index2" },
                 MapperPlugin.NOOP_FIELD_FILTER
             );
@@ -701,15 +697,12 @@ public class MetadataTests extends OpenSearchTestCase {
             .build();
 
         {
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
-                new String[] { "index1" },
-                MapperPlugin.NOOP_FIELD_FILTER
-            );
+            final Map<String, MappingMetadata> mappings = metadata.findMappings(new String[] { "index1" }, MapperPlugin.NOOP_FIELD_FILTER);
             MappingMetadata mappingMetadata = mappings.get("index1");
             assertSame(originalMappingMetadata, mappingMetadata);
         }
         {
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            final Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1" },
                 index -> field -> randomBoolean()
             );
@@ -764,21 +757,18 @@ public class MetadataTests extends OpenSearchTestCase {
             .build();
 
         {
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
-                new String[] { "index1", "index2", "index3" },
-                index -> {
-                    if (index.equals("index1")) {
-                        return field -> field.startsWith("name.") == false
-                            && field.startsWith("properties.key.") == false
-                            && field.equals("age") == false
-                            && field.equals("address.location") == false;
-                    }
-                    if (index.equals("index2")) {
-                        return field -> false;
-                    }
-                    return MapperPlugin.NOOP_FIELD_PREDICATE;
+            final Map<String, MappingMetadata> mappings = metadata.findMappings(new String[] { "index1", "index2", "index3" }, index -> {
+                if (index.equals("index1")) {
+                    return field -> field.startsWith("name.") == false
+                        && field.startsWith("properties.key.") == false
+                        && field.equals("age") == false
+                        && field.equals("address.location") == false;
                 }
-            );
+                if (index.equals("index2")) {
+                    return field -> false;
+                }
+                return MapperPlugin.NOOP_FIELD_PREDICATE;
+            });
 
             assertIndexMappingsNoFields(mappings, "index2");
             assertIndexMappingsNotFiltered(mappings, "index3");
@@ -825,7 +815,7 @@ public class MetadataTests extends OpenSearchTestCase {
         }
 
         {
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            final Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1", "index2", "index3" },
                 index -> field -> (index.equals("index3") && field.endsWith("keyword"))
             );
@@ -860,7 +850,7 @@ public class MetadataTests extends OpenSearchTestCase {
         }
 
         {
-            ImmutableOpenMap<String, MappingMetadata> mappings = metadata.findMappings(
+            final Map<String, MappingMetadata> mappings = metadata.findMappings(
                 new String[] { "index1", "index2", "index3" },
                 index -> field -> (index.equals("index2"))
             );
@@ -881,7 +871,7 @@ public class MetadataTests extends OpenSearchTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertIndexMappingsNoFields(ImmutableOpenMap<String, MappingMetadata> mappings, String index) {
+    private static void assertIndexMappingsNoFields(final Map<String, MappingMetadata> mappings, String index) {
         MappingMetadata docMapping = mappings.get(index);
         assertNotNull(docMapping);
         Map<String, Object> sourceAsMap = docMapping.getSourceAsMap();
@@ -893,7 +883,7 @@ public class MetadataTests extends OpenSearchTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private static void assertIndexMappingsNotFiltered(ImmutableOpenMap<String, MappingMetadata> mappings, String index) {
+    private static void assertIndexMappingsNotFiltered(final Map<String, MappingMetadata> mappings, String index) {
         MappingMetadata docMapping = mappings.get(index);
         assertNotNull(docMapping);
 
@@ -1050,10 +1040,9 @@ public class MetadataTests extends OpenSearchTestCase {
     public void testBuilderRejectsNullInCustoms() {
         final Metadata.Builder builder = Metadata.builder();
         final String key = randomAlphaOfLength(10);
-        final ImmutableOpenMap.Builder<String, Metadata.Custom> mapBuilder = ImmutableOpenMap.builder();
+        final Map<String, Metadata.Custom> mapBuilder = new HashMap<>();
         mapBuilder.put(key, null);
-        final ImmutableOpenMap<String, Metadata.Custom> map = mapBuilder.build();
-        assertThat(expectThrows(NullPointerException.class, () -> builder.customs(map)).getMessage(), containsString(key));
+        assertThat(expectThrows(NullPointerException.class, () -> builder.customs(mapBuilder)).getMessage(), containsString(key));
     }
 
     public void testBuilderRejectsDataStreamThatConflictsWithIndex() {

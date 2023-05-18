@@ -505,7 +505,7 @@ public class ShardStateActionTests extends OpenSearchTestCase {
         shardStateAction.setOnBeforeWaitForNewClusterManagerAndRetry(() -> {
             DiscoveryNodes.Builder clusterManagerBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
             clusterManagerBuilder.clusterManagerNodeId(
-                clusterService.state().nodes().getClusterManagerNodes().iterator().next().value.getId()
+                clusterService.state().nodes().getClusterManagerNodes().values().iterator().next().getId()
             );
             setState(clusterService, ClusterState.builder(clusterService.state()).nodes(clusterManagerBuilder));
         });

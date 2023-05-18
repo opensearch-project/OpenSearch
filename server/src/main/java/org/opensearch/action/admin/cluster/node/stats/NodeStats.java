@@ -41,7 +41,6 @@ import org.opensearch.cluster.service.ClusterManagerThrottlingStats;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.discovery.DiscoveryStats;
@@ -176,7 +175,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             weightedRoutingStats = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_3_0_0) && FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT)) {
+        if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
             fileCacheStats = in.readOptionalWriteable(FileCacheStats::new);
         } else {
             fileCacheStats = null;
@@ -390,7 +389,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_2_6_0)) {
             out.writeOptionalWriteable(weightedRoutingStats);
         }
-        if (out.getVersion().onOrAfter(Version.V_3_0_0) && FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT)) {
+        if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
             out.writeOptionalWriteable(fileCacheStats);
         }
     }
@@ -474,7 +473,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (getWeightedRoutingStats() != null) {
             getWeightedRoutingStats().toXContent(builder, params);
         }
-        if (getFileCacheStats() != null && FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT)) {
+        if (getFileCacheStats() != null) {
             getFileCacheStats().toXContent(builder, params);
         }
 

@@ -81,6 +81,7 @@ import org.opensearch.search.aggregations.bucket.composite.CompositeValuesSource
 import org.opensearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.opensearch.search.aggregations.bucket.range.Range;
 import org.opensearch.search.aggregations.bucket.range.RangeAggregationBuilder;
+import org.opensearch.search.aggregations.bucket.terms.MultiTermsAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.RareTerms;
 import org.opensearch.search.aggregations.bucket.terms.RareTermsAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
@@ -89,6 +90,7 @@ import org.opensearch.search.aggregations.matrix.stats.MatrixStats;
 import org.opensearch.search.aggregations.matrix.stats.MatrixStatsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.WeightedAvg;
 import org.opensearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
+import org.opensearch.search.aggregations.support.MultiTermsValuesSourceConfig;
 import org.opensearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.opensearch.search.aggregations.support.ValueType;
 import org.opensearch.search.builder.PointInTimeBuilder;
@@ -105,6 +107,7 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -295,6 +298,67 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         Terms.Bucket type2 = termsAgg.getBucketByKey("type2");
         assertEquals(2, type2.getDocCount());
         assertEquals(0, type2.getAggregations().asList().size());
+    }
+
+    public void testSearchWithMultiTermsAgg() throws IOException {
+        final String indexName = "multi_aggs";
+        Request createIndex = new Request(HttpPut.METHOD_NAME, "/" + indexName);
+        createIndex.setJsonEntity(
+            "{\n"
+                + "    \"mappings\": {\n"
+                + "        \"properties\" : {\n"
+                + "            \"username\" : {\n"
+                + "                \"type\" : \"keyword\"\n"
+                + "            },\n"
+                + "            \"rating\" : {\n"
+                + "                \"type\" : \"unsigned_long\"\n"
+                + "            }\n"
+                + "        }\n"
+                + "    }"
+                + "}"
+        );
+        client().performRequest(createIndex);
+
+        {
+            Request doc1 = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/_doc/1");
+            doc1.setJsonEntity("{\"username\":\"bob\", \"rating\": 18446744073709551615}");
+            client().performRequest(doc1);
+            Request doc2 = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/_doc/2");
+            doc2.setJsonEntity("{\"username\":\"tom\", \"rating\": 10223372036854775807}");
+            client().performRequest(doc2);
+            Request doc3 = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/_doc/3");
+            doc3.setJsonEntity("{\"username\":\"john\"}");
+            client().performRequest(doc3);
+        }
+        client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
+
+        SearchRequest searchRequest = new SearchRequest().indices(indexName);
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.aggregation(
+            new MultiTermsAggregationBuilder("agg1").terms(
+                Arrays.asList(
+                    new MultiTermsValuesSourceConfig.Builder().setFieldName("username").build(),
+                    new MultiTermsValuesSourceConfig.Builder().setFieldName("rating").build()
+                )
+            )
+        );
+        searchSourceBuilder.size(0);
+        searchRequest.source(searchSourceBuilder);
+        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+        assertSearchHeader(searchResponse);
+        assertNull(searchResponse.getSuggest());
+        assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
+        assertEquals(0, searchResponse.getHits().getHits().length);
+        assertEquals(Float.NaN, searchResponse.getHits().getMaxScore(), 0f);
+        Terms termsAgg = searchResponse.getAggregations().get("agg1");
+        assertEquals("agg1", termsAgg.getName());
+        assertEquals(2, termsAgg.getBuckets().size());
+        Terms.Bucket bucket1 = termsAgg.getBucketByKey("bob|18446744073709551615");
+        assertEquals(1, bucket1.getDocCount());
+        assertEquals(0, bucket1.getAggregations().asList().size());
+        Terms.Bucket bucket2 = termsAgg.getBucketByKey("tom|10223372036854775807");
+        assertEquals(1, bucket2.getDocCount());
+        assertEquals(0, bucket2.getAggregations().asList().size());
     }
 
     public void testSearchWithRareTermsAgg() throws IOException {
@@ -845,6 +909,56 @@ public class SearchIT extends OpenSearchRestHighLevelClientTestCase {
         assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getTotalHits().value, Matchers.equalTo(2L));
         assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getAt(0).getId(), Matchers.equalTo("5"));
         assertThat(multiSearchResponse.getResponses()[2].getResponse().getHits().getAt(1).getId(), Matchers.equalTo("6"));
+    }
+
+    public void testSearchWithSort() throws Exception {
+        final String indexName = "search_sort";
+        Request createIndex = new Request(HttpPut.METHOD_NAME, "/" + indexName);
+        createIndex.setJsonEntity(
+            "{\n"
+                + "    \"mappings\": {\n"
+                + "        \"properties\" : {\n"
+                + "            \"username\" : {\n"
+                + "                \"type\" : \"keyword\"\n"
+                + "            },\n"
+                + "            \"rating\" : {\n"
+                + "                \"type\" : \"unsigned_long\"\n"
+                + "            }\n"
+                + "        }\n"
+                + "    }"
+                + "}"
+        );
+        client().performRequest(createIndex);
+
+        {
+            Request doc1 = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/_doc/1");
+            doc1.setJsonEntity("{\"username\":\"bob\", \"rating\": 18446744073709551610}");
+            client().performRequest(doc1);
+            Request doc2 = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/_doc/2");
+            doc2.setJsonEntity("{\"username\":\"tom\", \"rating\": 10223372036854775807}");
+            client().performRequest(doc2);
+            Request doc3 = new Request(HttpPut.METHOD_NAME, "/" + indexName + "/_doc/3");
+            doc3.setJsonEntity("{\"username\":\"john\"}");
+            client().performRequest(doc3);
+        }
+        client().performRequest(new Request(HttpPost.METHOD_NAME, "/search_sort/_refresh"));
+
+        SearchRequest searchRequest = new SearchRequest("search_sort");
+        searchRequest.source().sort("rating", SortOrder.ASC);
+        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+
+        assertThat(searchResponse.getTook().millis(), Matchers.greaterThanOrEqualTo(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value, Matchers.equalTo(3L));
+        assertThat(searchResponse.getHits().getAt(0).getId(), Matchers.equalTo("2"));
+        assertThat(searchResponse.getHits().getAt(1).getId(), Matchers.equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(2).getId(), Matchers.equalTo("3"));
+
+        assertThat(searchResponse.getHits().getAt(0).getSortValues().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).getSortValues()[0], equalTo(new BigInteger("10223372036854775807")));
+        assertThat(searchResponse.getHits().getAt(1).getSortValues().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(1).getSortValues()[0], equalTo(new BigInteger("18446744073709551610")));
+        assertThat(searchResponse.getHits().getAt(2).getSortValues().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(2).getSortValues()[0], equalTo(new BigInteger("18446744073709551615")));
     }
 
     public void testMultiSearch_withAgg() throws Exception {

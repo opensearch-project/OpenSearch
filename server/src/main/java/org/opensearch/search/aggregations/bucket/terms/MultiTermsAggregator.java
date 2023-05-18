@@ -16,6 +16,7 @@ import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.PriorityQueue;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.CheckedSupplier;
+import org.opensearch.common.Numbers;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
@@ -37,6 +38,7 @@ import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -387,6 +389,31 @@ public class MultiTermsAggregator extends DeferableBucketAggregator {
                         termValues.add(BytesRef.deepCopyOf(bytes));
                     }
                     return termValues;
+                };
+            };
+        }
+
+        static InternalValuesSource unsignedLongValuesSource(ValuesSource.Numeric valuesSource, IncludeExclude.LongFilter longFilter) {
+            return ctx -> {
+                SortedNumericDocValues values = valuesSource.longValues(ctx);
+                return doc -> {
+                    if (values.advanceExact(doc)) {
+                        int valuesCount = values.docValueCount();
+
+                        BigInteger previous = Numbers.MAX_UNSIGNED_LONG_VALUE;
+                        List<Object> termValues = new ArrayList<>(valuesCount);
+                        for (int i = 0; i < valuesCount; ++i) {
+                            BigInteger val = Numbers.toUnsignedBigInteger(values.nextValue());
+                            if (previous.compareTo(val) != 0 || i == 0) {
+                                if (longFilter == null || longFilter.accept(NumericUtils.doubleToSortableLong(val.doubleValue()))) {
+                                    termValues.add(val);
+                                }
+                                previous = val;
+                            }
+                        }
+                        return termValues;
+                    }
+                    return Collections.emptyList();
                 };
             };
         }

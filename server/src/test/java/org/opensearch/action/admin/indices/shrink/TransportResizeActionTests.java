@@ -470,6 +470,97 @@ public class TransportResizeActionTests extends OpenSearchTestCase {
         );
     }
 
+    public void testIndexBlocks() {
+        String indexName = randomAlphaOfLength(10);
+        // create one that won't fail
+        ClusterState clusterState = ClusterState.builder(
+            createClusterState(indexName, 10, 0, 40, Settings.builder().put("index.blocks.read_only", true).build())
+        ).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
+
+        // Target index will be blocked by [index.blocks.read_only=true] copied from the source index
+        ResizeRequest resizeRequest = new ResizeRequest("target", indexName);
+        ResizeType resizeType;
+        switch (randomIntBetween(0, 2)) {
+            case 0:
+                resizeType = ResizeType.SHRINK;
+                break;
+            case 1:
+                resizeType = ResizeType.SPLIT;
+                break;
+            default:
+                resizeType = ResizeType.CLONE;
+        }
+        resizeRequest.setResizeType(resizeType);
+        resizeRequest.getTargetIndexRequest().settings(Settings.builder().put("index.number_of_shards", randomIntBetween(1, 100)).build());
+        ClusterState finalState = clusterState;
+        IllegalArgumentException iae = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportResizeAction.prepareCreateIndexRequest(
+                resizeRequest,
+                finalState,
+                null,
+                new StoreStats(between(1, 10000), between(1, 10000)),
+                indexName,
+                "target"
+            )
+        );
+        assertEquals(
+            "target index [target] will be blocked by [index.blocks.read_only=true] which is copied from the source index ["
+                + indexName
+                + "], this will disable metadata writes and cause the shards to be unassigned",
+            iae.getMessage()
+        );
+
+        // Overwrites the source index's settings index.blocks.read_only, so resize won't fail
+        AllocationService service = new AllocationService(
+            new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE
+        );
+        RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        // now we start the shard
+        routingTable = OpenSearchAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, indexName).routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        int numSourceShards = clusterState.metadata().index(indexName).getNumberOfShards();
+        DocsStats stats = new DocsStats(between(0, (IndexWriter.MAX_DOCS) / numSourceShards), between(1, 1000), between(1, 10000));
+
+        int expectedShardsNum;
+        String cause;
+        switch (resizeType) {
+            case SHRINK:
+                expectedShardsNum = 5;
+                cause = "shrink_index";
+                break;
+            case SPLIT:
+                expectedShardsNum = 20;
+                cause = "split_index";
+                break;
+            default:
+                expectedShardsNum = 10;
+                cause = "clone_index";
+        }
+        resizeRequest.getTargetIndexRequest()
+            .settings(Settings.builder().put("index.number_of_shards", expectedShardsNum).put("index.blocks.read_only", false).build());
+        final ActiveShardCount activeShardCount = randomBoolean() ? ActiveShardCount.ALL : ActiveShardCount.ONE;
+        resizeRequest.setWaitForActiveShards(activeShardCount);
+        CreateIndexClusterStateUpdateRequest request = TransportResizeAction.prepareCreateIndexRequest(
+            resizeRequest,
+            clusterState,
+            (i) -> stats,
+            new StoreStats(100, between(1, 10000)),
+            indexName,
+            "target"
+        );
+        assertNotNull(request.recoverFrom());
+        assertEquals(indexName, request.recoverFrom().getName());
+        assertEquals(String.valueOf(expectedShardsNum), request.settings().get("index.number_of_shards"));
+        assertEquals(cause, request.cause());
+        assertEquals(request.waitForActiveShards(), activeShardCount);
+    }
+
     private DiscoveryNode newNode(String nodeId) {
         final Set<DiscoveryNodeRole> roles = Collections.unmodifiableSet(
             new HashSet<>(Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE))

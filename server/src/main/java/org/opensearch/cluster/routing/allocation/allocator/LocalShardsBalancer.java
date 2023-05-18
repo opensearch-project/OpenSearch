@@ -28,7 +28,6 @@ import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.gateway.PriorityComparator;
 
 import java.util.ArrayList;
@@ -126,11 +125,8 @@ public class LocalShardsBalancer extends ShardsBalancer {
      */
     @Override
     public float avgShardsPerNode() {
-        if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT)) {
-            float totalShards = nodes.values().stream().map(BalancedShardsAllocator.ModelNode::numShards).reduce(0, Integer::sum);
-            return totalShards / nodes.size();
-        }
-        return avgShardsPerNode;
+        float totalShards = nodes.values().stream().map(BalancedShardsAllocator.ModelNode::numShards).reduce(0, Integer::sum);
+        return totalShards / nodes.size();
     }
 
     /**
@@ -200,8 +196,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
      */
     @Override
     MoveDecision decideRebalance(final ShardRouting shard) {
-        if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT)
-            && RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shard, allocation))) {
+        if (RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shard, allocation))) {
             return MoveDecision.NOT_TAKEN;
         }
 
@@ -474,18 +469,14 @@ public class LocalShardsBalancer extends ShardsBalancer {
      * to the nodes we relocated them from.
      */
     private String[] buildWeightOrderedIndices() {
-        final String[] indices;
-        if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT)) {
-            final List<String> localIndices = new ArrayList<>();
-            for (String index : allocation.routingTable().indicesRouting().keys().toArray(String.class)) {
-                if (RoutingPool.LOCAL_ONLY.equals(RoutingPool.getIndexPool(metadata.index(index)))) {
-                    localIndices.add(index);
-                }
+
+        final List<String> localIndices = new ArrayList<>();
+        for (String index : allocation.routingTable().indicesRouting().keySet().toArray(new String[0])) {
+            if (RoutingPool.LOCAL_ONLY.equals(RoutingPool.getIndexPool(metadata.index(index)))) {
+                localIndices.add(index);
             }
-            indices = localIndices.toArray(new String[0]);
-        } else {
-            indices = allocation.routingTable().indicesRouting().keys().toArray(String.class);
         }
+        final String[] indices = localIndices.toArray(new String[0]);
 
         final float[] deltas = new float[indices.length];
         for (int i = 0; i < deltas.length; i++) {
@@ -578,8 +569,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
 
             ShardRouting shardRouting = it.next();
 
-            if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT)
-                && RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shardRouting, allocation))) {
+            if (RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shardRouting, allocation))) {
                 continue;
             }
 
@@ -643,8 +633,7 @@ public class LocalShardsBalancer extends ShardsBalancer {
      */
     @Override
     MoveDecision decideMove(final ShardRouting shardRouting) {
-        if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT)
-            && RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shardRouting, allocation))) {
+        if (RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shardRouting, allocation))) {
             return MoveDecision.NOT_TAKEN;
         }
 
@@ -791,15 +780,13 @@ public class LocalShardsBalancer extends ShardsBalancer {
          * the next replica. If we could not find a node to allocate (0,R,IDX1) we move all it's replicas to ignoreUnassigned.
          */
         ShardRouting[] unassignedShards = unassigned.drain();
-        if (FeatureFlags.isEnabled(FeatureFlags.SEARCHABLE_SNAPSHOT)) {
-            List<ShardRouting> allUnassignedShards = Arrays.stream(unassignedShards).collect(Collectors.toList());
-            List<ShardRouting> localUnassignedShards = allUnassignedShards.stream()
-                .filter(shard -> RoutingPool.LOCAL_ONLY.equals(RoutingPool.getShardPool(shard, allocation)))
-                .collect(Collectors.toList());
-            allUnassignedShards.removeAll(localUnassignedShards);
-            allUnassignedShards.forEach(shard -> routingNodes.unassigned().add(shard));
-            unassignedShards = localUnassignedShards.toArray(new ShardRouting[0]);
-        }
+        List<ShardRouting> allUnassignedShards = Arrays.stream(unassignedShards).collect(Collectors.toList());
+        List<ShardRouting> localUnassignedShards = allUnassignedShards.stream()
+            .filter(shard -> RoutingPool.LOCAL_ONLY.equals(RoutingPool.getShardPool(shard, allocation)))
+            .collect(Collectors.toList());
+        allUnassignedShards.removeAll(localUnassignedShards);
+        allUnassignedShards.forEach(shard -> routingNodes.unassigned().add(shard));
+        unassignedShards = localUnassignedShards.toArray(new ShardRouting[0]);
         ShardRouting[] primary = unassignedShards;
         ShardRouting[] secondary = new ShardRouting[primary.length];
         int secondaryLength = 0;

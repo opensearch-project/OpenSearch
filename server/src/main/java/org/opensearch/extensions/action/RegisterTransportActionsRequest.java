@@ -10,10 +10,12 @@ package org.opensearch.extensions.action;
 
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.extensions.proto.RegisterTransportActionsProto.RegisterTransportActions;
+import org.opensearch.extensions.proto.ExtensionIdentityProto.ExtensionIdentity;
 import org.opensearch.transport.TransportRequest;
 
 import java.io.IOException;
-import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
@@ -23,40 +25,35 @@ import java.util.Set;
  * @opensearch.internal
  */
 public class RegisterTransportActionsRequest extends TransportRequest {
-    // The uniqueId defining the extension which runs this action
-    private String uniqueId;
-    // The action names to register
-    private Set<String> transportActions;
+    private final RegisterTransportActions request;
 
     public RegisterTransportActionsRequest(String uniqueId, Set<String> transportActions) {
-        this.uniqueId = uniqueId;
-        this.transportActions = transportActions;
+        ExtensionIdentity identity = ExtensionIdentity.newBuilder().setUniqueId(uniqueId).build();
+        this.request = RegisterTransportActions.newBuilder().setIdentity(identity).addAllTransportActions(transportActions).build();
     }
 
     public RegisterTransportActionsRequest(StreamInput in) throws IOException {
         super(in);
-        this.uniqueId = in.readString();
-        this.transportActions = new HashSet<>(in.readStringList());
+        this.request = RegisterTransportActions.parseFrom(in.readByteArray());
     }
 
     public String getUniqueId() {
-        return uniqueId;
+        return request.getIdentity().getUniqueId();
     }
 
-    public Set<String> getTransportActions() {
-        return transportActions;
+    public List<String> getTransportActions() {
+        return request.getTransportActionsList();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(uniqueId);
-        out.writeStringCollection(transportActions);
+        out.writeByteArray(request.toByteArray());
     }
 
     @Override
     public String toString() {
-        return "TransportActionsRequest{uniqueId=" + uniqueId + ", actions=" + transportActions + "}";
+        return "TransportActionsRequest{Identity=" + request.getIdentity() + ", actions=" + request.getTransportActionsList() + "}";
     }
 
     @Override
@@ -64,11 +61,12 @@ public class RegisterTransportActionsRequest extends TransportRequest {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
         RegisterTransportActionsRequest that = (RegisterTransportActionsRequest) obj;
-        return Objects.equals(uniqueId, that.uniqueId) && Objects.equals(transportActions, that.transportActions);
+        return Objects.equals(request.getIdentity().getUniqueId(), that.request.getIdentity().getUniqueId())
+            && Objects.equals(request.getTransportActionsList(), that.request.getTransportActionsList());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(uniqueId, transportActions);
+        return Objects.hash(request.getIdentity(), request.getTransportActionsList());
     }
 }

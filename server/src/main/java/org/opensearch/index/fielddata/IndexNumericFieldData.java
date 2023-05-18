@@ -44,6 +44,7 @@ import org.opensearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSour
 import org.opensearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
 import org.opensearch.index.fielddata.fieldcomparator.IntValuesComparatorSource;
 import org.opensearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
+import org.opensearch.index.fielddata.fieldcomparator.UnsignedLongValuesComparatorSource;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
@@ -75,7 +76,8 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         DATE_NANOSECONDS(false, SortField.Type.LONG, CoreValuesSourceType.DATE),
         HALF_FLOAT(true, SortField.Type.LONG, CoreValuesSourceType.NUMERIC),
         FLOAT(true, SortField.Type.FLOAT, CoreValuesSourceType.NUMERIC),
-        DOUBLE(true, SortField.Type.DOUBLE, CoreValuesSourceType.NUMERIC);
+        DOUBLE(true, SortField.Type.DOUBLE, CoreValuesSourceType.NUMERIC),
+        UNSIGNED_LONG(false, SortField.Type.LONG, CoreValuesSourceType.NUMERIC);
 
         private final boolean floatingPoint;
         private final ValuesSourceType valuesSourceType;
@@ -202,6 +204,8 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
                 return new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
             case DOUBLE:
                 return new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
+            case UNSIGNED_LONG:
+                return new UnsignedLongValuesComparatorSource(this, missingValue, sortMode, nested);
             case DATE:
                 return dateComparatorSource(missingValue, sortMode, nested);
             case DATE_NANOSECONDS:

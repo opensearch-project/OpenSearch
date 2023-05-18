@@ -106,10 +106,12 @@ import org.opensearch.search.aggregations.bucket.terms.ParsedSignificantLongTerm
 import org.opensearch.search.aggregations.bucket.terms.ParsedSignificantStringTerms;
 import org.opensearch.search.aggregations.bucket.terms.ParsedStringRareTerms;
 import org.opensearch.search.aggregations.bucket.terms.ParsedStringTerms;
+import org.opensearch.search.aggregations.bucket.terms.ParsedUnsignedLongTerms;
 import org.opensearch.search.aggregations.bucket.terms.SignificantLongTerms;
 import org.opensearch.search.aggregations.bucket.terms.SignificantStringTerms;
 import org.opensearch.search.aggregations.bucket.terms.StringRareTerms;
 import org.opensearch.search.aggregations.bucket.terms.StringTerms;
+import org.opensearch.search.aggregations.bucket.terms.UnsignedLongTerms;
 import org.opensearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.ExtendedStatsAggregationBuilder;
@@ -258,6 +260,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         map.put(VariableWidthHistogramAggregationBuilder.NAME, (p, c) -> ParsedVariableWidthHistogram.fromXContent(p, (String) c));
         map.put(StringTerms.NAME, (p, c) -> ParsedStringTerms.fromXContent(p, (String) c));
         map.put(LongTerms.NAME, (p, c) -> ParsedLongTerms.fromXContent(p, (String) c));
+        map.put(UnsignedLongTerms.NAME, (p, c) -> ParsedUnsignedLongTerms.fromXContent(p, (String) c));
         map.put(DoubleTerms.NAME, (p, c) -> ParsedDoubleTerms.fromXContent(p, (String) c));
         map.put(LongRareTerms.NAME, (p, c) -> ParsedLongRareTerms.fromXContent(p, (String) c));
         map.put(StringRareTerms.NAME, (p, c) -> ParsedStringRareTerms.fromXContent(p, (String) c));

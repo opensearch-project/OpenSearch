@@ -35,12 +35,15 @@ package org.opensearch.action.admin.cluster.node.tasks;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.regex.Regex;
 import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskId;
 import org.opensearch.tasks.TaskInfo;
+import org.opensearch.tasks.ThreadResourceInfo;
 import org.opensearch.test.tasks.MockTaskManagerListener;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -52,6 +55,7 @@ public class RecordingTaskManagerListener implements MockTaskManagerListener {
     private String localNodeId;
 
     private List<Tuple<Boolean, TaskInfo>> events = new ArrayList<>();
+    private List<Tuple<TaskId, Map<Long, List<ThreadResourceInfo>>>> threadStats = new ArrayList<>();
 
     public RecordingTaskManagerListener(String localNodeId, String... actionMasks) {
         this.actionMasks = actionMasks;
@@ -68,7 +72,9 @@ public class RecordingTaskManagerListener implements MockTaskManagerListener {
     @Override
     public synchronized void onTaskUnregistered(Task task) {
         if (Regex.simpleMatch(actionMasks, task.getAction())) {
-            events.add(new Tuple<>(false, task.taskInfo(localNodeId, true)));
+            TaskInfo taskInfo = task.taskInfo(localNodeId, true);
+            events.add(new Tuple<>(false, taskInfo));
+            threadStats.add(new Tuple<>(taskInfo.getTaskId(), task.getResourceStats()));
         }
     }
 
@@ -80,6 +86,10 @@ public class RecordingTaskManagerListener implements MockTaskManagerListener {
 
     public synchronized List<Tuple<Boolean, TaskInfo>> getEvents() {
         return Collections.unmodifiableList(new ArrayList<>(events));
+    }
+
+    public synchronized List<Tuple<TaskId, Map<Long, List<ThreadResourceInfo>>>> getThreadStats() {
+        return List.copyOf(threadStats);
     }
 
     public synchronized List<TaskInfo> getRegistrationEvents() {

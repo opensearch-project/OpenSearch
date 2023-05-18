@@ -59,7 +59,7 @@ import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.collect.Tuple;
-import org.opensearch.common.io.FileSystemUtils;
+import org.opensearch.core.util.FileSystemUtils;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.settings.Settings;
@@ -2904,7 +2904,9 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             void deleteReaderFiles(TranslogReader reader) {
                 if (fail.fail()) {
                     // simulate going OOM and dying just at the wrong moment.
-                    throw new RuntimeException("simulated");
+                    RuntimeException e = new RuntimeException("simulated");
+                    tragedy.setTragicException(e);
+                    throw e;
                 } else {
                     super.deleteReaderFiles(reader);
                 }
@@ -3226,13 +3228,13 @@ public class LocalTranslogTests extends OpenSearchTestCase {
                     syncedDocs.addAll(unsynced);
                     unsynced.clear();
                 } catch (TranslogException | MockDirectoryWrapper.FakeIOException ex) {
-                    assertEquals(failableTLog.getTragicException(), ex);
+                    assertEquals(ex, failableTLog.getTragicException());
                 } catch (IOException ex) {
                     assertEquals(ex.getMessage(), "__FAKE__ no space left on device");
-                    assertEquals(failableTLog.getTragicException(), ex);
+                    assertEquals(ex, failableTLog.getTragicException());
                 } catch (RuntimeException ex) {
                     assertEquals(ex.getMessage(), "simulated");
-                    assertEquals(failableTLog.getTragicException(), ex);
+                    assertEquals(ex, failableTLog.getTragicException());
                 } finally {
                     Checkpoint checkpoint = Translog.readCheckpoint(config.getTranslogPath());
                     if (checkpoint.numOps == unsynced.size() + syncedDocs.size()) {

@@ -250,7 +250,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         ccsMinimizeRoundtrips = in.readBoolean();
         cancelAfterTimeInterval = in.readOptionalTimeValue();
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) { // TODO: Update if/when we backport to 2.x
+        if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
             pipeline = in.readOptionalString();
         }
     }
@@ -281,7 +281,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         out.writeBoolean(ccsMinimizeRoundtrips);
         out.writeOptionalTimeValue(cancelAfterTimeInterval);
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) { // TODO: Update if/when we backport to 2.x
+        if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
             out.writeOptionalString(pipeline);
         }
     }
@@ -432,7 +432,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
-     * {@code _local} to prefer local shards or a custom value, which guarantees that the same order
+     * {@code _local} to prefer local shards, {@code _primary} to execute only on primary shards,
+     * or a custom value, which guarantees that the same order
      * will be used across different requests.
      */
     public SearchRequest preference(String preference) {

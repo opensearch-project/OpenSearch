@@ -39,6 +39,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexingPressure;
+import org.opensearch.index.remote.RemoteRefreshSegmentPressureSettings;
 import org.opensearch.index.SegmentReplicationPressureService;
 import org.opensearch.index.ShardIndexingPressureMemoryManager;
 import org.opensearch.index.ShardIndexingPressureSettings;
@@ -49,6 +50,7 @@ import org.opensearch.search.backpressure.settings.SearchShardTaskSettings;
 import org.opensearch.search.backpressure.settings.SearchTaskSettings;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.tasks.TaskResourceTrackingService;
+import org.opensearch.tasks.consumer.TopNSearchTasksLogger;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
@@ -599,8 +601,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IndexingPressure.MAX_INDEXING_BYTES,
                 TaskResourceTrackingService.TASK_RESOURCE_TRACKING_ENABLED,
                 TaskManager.TASK_RESOURCE_CONSUMERS_ENABLED,
+                TopNSearchTasksLogger.LOG_TOP_QUERIES_SIZE_SETTING,
+                TopNSearchTasksLogger.LOG_TOP_QUERIES_FREQUENCY_SETTING,
                 ClusterManagerTaskThrottler.THRESHOLD_SETTINGS,
-
+                ClusterManagerTaskThrottler.BASE_DELAY_SETTINGS,
+                ClusterManagerTaskThrottler.MAX_DELAY_SETTINGS,
                 // Settings related to search backpressure
                 SearchBackpressureSettings.SETTING_MODE,
 
@@ -631,7 +636,20 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 SegmentReplicationPressureService.SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED,
                 SegmentReplicationPressureService.MAX_INDEXING_CHECKPOINTS,
                 SegmentReplicationPressureService.MAX_REPLICATION_TIME_SETTING,
-                SegmentReplicationPressureService.MAX_ALLOWED_STALE_SHARDS
+                SegmentReplicationPressureService.MAX_ALLOWED_STALE_SHARDS,
+
+                // Settings related to Searchable Snapshots
+                Node.NODE_SEARCH_CACHE_SIZE_SETTING,
+
+                // Settings related to Remote Refresh Segment Pressure
+                RemoteRefreshSegmentPressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED,
+                RemoteRefreshSegmentPressureSettings.MIN_SEQ_NO_LAG_LIMIT,
+                RemoteRefreshSegmentPressureSettings.BYTES_LAG_VARIANCE_FACTOR,
+                RemoteRefreshSegmentPressureSettings.UPLOAD_TIME_LAG_VARIANCE_FACTOR,
+                RemoteRefreshSegmentPressureSettings.MIN_CONSECUTIVE_FAILURES_LIMIT,
+                RemoteRefreshSegmentPressureSettings.UPLOAD_BYTES_MOVING_AVERAGE_WINDOW_SIZE,
+                RemoteRefreshSegmentPressureSettings.UPLOAD_BYTES_PER_SEC_MOVING_AVERAGE_WINDOW_SIZE,
+                RemoteRefreshSegmentPressureSettings.UPLOAD_TIME_MOVING_AVERAGE_WINDOW_SIZE
             )
         )
     );
@@ -643,11 +661,15 @@ public final class ClusterSettings extends AbstractScopedSettings {
      * is ready for production release, the feature flag can be removed, and the
      * setting should be moved to {@link #BUILT_IN_CLUSTER_SETTINGS}.
      */
-    public static final Map<String, List<Setting>> FEATURE_FLAGGED_CLUSTER_SETTINGS = Map.of(
-        FeatureFlags.SEARCHABLE_SNAPSHOT,
-        List.of(Node.NODE_SEARCH_CACHE_SIZE_SETTING),
-        FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL,
-        List.of(IndicesService.CLUSTER_REPLICATION_TYPE_SETTING)
+    public static final Map<List<String>, List<Setting>> FEATURE_FLAGGED_CLUSTER_SETTINGS = Map.of(
+        List.of(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL),
+        List.of(IndicesService.CLUSTER_REPLICATION_TYPE_SETTING),
+        List.of(FeatureFlags.REMOTE_STORE),
+        List.of(
+            IndicesService.CLUSTER_REMOTE_STORE_ENABLED_SETTING,
+            IndicesService.CLUSTER_REMOTE_STORE_REPOSITORY_SETTING,
+            IndicesService.CLUSTER_REMOTE_TRANSLOG_STORE_ENABLED_SETTING,
+            IndicesService.CLUSTER_REMOTE_TRANSLOG_REPOSITORY_SETTING
+        )
     );
-
 }

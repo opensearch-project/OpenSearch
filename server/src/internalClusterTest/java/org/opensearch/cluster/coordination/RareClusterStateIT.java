@@ -394,7 +394,7 @@ public class RareClusterStateIT extends OpenSearchIntegTestCase {
             assertNotNull(mapper.mappers().getMapper("field2"));
         });
 
-        assertBusy(() -> assertTrue(client().prepareGet("index", "2").get().isExists()));
+        assertBusy(() -> assertTrue(client().prepareGet("index", "2").setPreference("_primary").get().isExists()));
 
         // The mappings have not been propagated to the replica yet as a consequence the document count not be indexed
         // We wait on purpose to make sure that the document is not indexed because the shard operation is stalled

@@ -8,6 +8,7 @@
 
 package org.opensearch.index.store.remote.filecache;
 
+import org.apache.lucene.store.IndexInput;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.breaker.CircuitBreakingException;
 import org.opensearch.index.store.remote.utils.cache.CacheUsage;
@@ -21,6 +22,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.function.BiFunction;
+import java.util.function.Predicate;
 
 import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory.LOCAL_STORE_LOCATION;
 
@@ -121,6 +123,11 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
     }
 
     @Override
+    public long prune(Predicate<Path> keyPredicate) {
+        return theCache.prune(keyPredicate);
+    }
+
+    @Override
     public CacheUsage usage() {
         return theCache.usage();
     }
@@ -171,7 +178,8 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
             .filter(Files::isRegularFile)
             .forEach(path -> {
                 try {
-                    put(path.toAbsolutePath(), new FileCachedIndexInput.ClosedIndexInput(Files.size(path)));
+                    put(path.toAbsolutePath(), new RestoredCachedIndexInput(Files.size(path)));
+                    decRef(path.toAbsolutePath());
                 } catch (IOException e) {
                     throw new UncheckedIOException(
                         "Unable to retrieve cache file details. Please clear the file cache for node startup.",
@@ -193,10 +201,43 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
             capacity(),
             usage.usage(),
             stats.evictionWeight(),
-            stats.removeWeight(),
-            stats.replaceCount(),
             stats.hitCount(),
             stats.missCount()
         );
+    }
+
+    /**
+     * Placeholder for the existing file blocks that are in the disk-based
+     * local cache at node startup time. We can't open a file handle to these
+     * blocks at this point, so we store this placeholder object in the cache.
+     * If a block is needed, then these entries will be replaced with a proper
+     * entry that will open the actual file handle to create the IndexInput.
+     * These entries are eligible for eviction so if nothing needs to reference
+     * them they will be deleted when the disk-based local cache fills up.
+     */
+    private static class RestoredCachedIndexInput implements CachedIndexInput {
+        private final long length;
+
+        private RestoredCachedIndexInput(long length) {
+            this.length = length;
+        }
+
+        @Override
+        public IndexInput getIndexInput() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long length() {
+            return length;
+        }
+
+        @Override
+        public boolean isClosed() {
+            return true;
+        }
+
+        @Override
+        public void close() throws Exception {}
     }
 }

@@ -1209,7 +1209,6 @@ public class ReplicationTracker extends AbstractIndexShardComponent implements L
      */
     public synchronized void setLatestReplicationCheckpoint(ReplicationCheckpoint checkpoint) {
         assert indexSettings.isSegRepEnabled();
-        assert primaryMode;
         assert handoffInProgress == false;
         if (checkpoint.equals(lastPublishedReplicationCheckpoint) == false) {
             this.lastPublishedReplicationCheckpoint = checkpoint;

@@ -37,7 +37,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.lucene.BytesRefs;
 import org.opensearch.common.unit.TimeValue;
@@ -534,38 +533,6 @@ public class BytesStreamsTests extends OpenSearchTestCase {
         assertThat(expected, equalTo(loaded));
     }
 
-    public void testWriteImmutableMap() throws IOException {
-        final int size = randomIntBetween(0, 100);
-        final ImmutableOpenMap.Builder<String, String> expectedBuilder = ImmutableOpenMap.builder(randomIntBetween(0, 100));
-        for (int i = 0; i < size; ++i) {
-            expectedBuilder.put(randomAlphaOfLength(2), randomAlphaOfLength(5));
-        }
-
-        final ImmutableOpenMap<String, String> expected = expectedBuilder.build();
-        final BytesStreamOutput out = new BytesStreamOutput();
-        out.writeMap(expected, StreamOutput::writeString, StreamOutput::writeString);
-        final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
-        final ImmutableOpenMap<String, String> loaded = in.readImmutableMap(StreamInput::readString, StreamInput::readString);
-
-        assertThat(expected, equalTo(loaded));
-    }
-
-    public void testWriteImmutableMapOfWritable() throws IOException {
-        final int size = randomIntBetween(0, 100);
-        final ImmutableOpenMap.Builder<TestWriteable, TestWriteable> expectedBuilder = ImmutableOpenMap.builder(randomIntBetween(0, 100));
-        for (int i = 0; i < size; ++i) {
-            expectedBuilder.put(new TestWriteable(randomBoolean()), new TestWriteable(randomBoolean()));
-        }
-
-        final ImmutableOpenMap<TestWriteable, TestWriteable> expected = expectedBuilder.build();
-        final BytesStreamOutput out = new BytesStreamOutput();
-        out.writeMap(expected);
-        final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
-        final ImmutableOpenMap<TestWriteable, TestWriteable> loaded = in.readImmutableMap(TestWriteable::new, TestWriteable::new);
-
-        assertThat(expected, equalTo(loaded));
-    }
-
     public void testWriteMapOfLists() throws IOException {
         final int size = randomIntBetween(0, 5);
         final Map<String, List<String>> expected = new HashMap<>(size);
@@ -672,9 +639,9 @@ public class BytesStreamsTests extends OpenSearchTestCase {
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             GeoPoint geoPoint = new GeoPoint(randomDouble(), randomDouble());
-            out.writeGeoPoint(geoPoint);
+            geoPoint.writeTo(out);
             StreamInput wrap = out.bytes().streamInput();
-            GeoPoint point = wrap.readGeoPoint();
+            GeoPoint point = new GeoPoint(wrap);
             assertEquals(point, geoPoint);
         }
     }

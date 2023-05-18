@@ -31,6 +31,7 @@
 import org.opensearch.gradle.MavenFilteringHack
 import org.opensearch.gradle.info.BuildParams
 import org.opensearch.gradle.test.RestIntegTestTask
+import org.opensearch.gradle.test.TestTask
 import org.opensearch.gradle.test.rest.YamlRestTestPlugin
 import org.opensearch.gradle.test.InternalClusterTestPlugin
 
@@ -86,7 +87,7 @@ bundlePlugin {
   }
 }
 
-task testRepositoryCreds(type: Test) {
+task testRepositoryCreds(type: TestTask) {
   include '**/RepositoryCredentialsTests.class'
   systemProperty 'opensearch.allow_insecure_settings', 'true'
 }

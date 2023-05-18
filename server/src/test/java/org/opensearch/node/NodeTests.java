@@ -44,7 +44,6 @@ import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.transport.BoundTransportAddress;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.ByteSizeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexService;
@@ -363,7 +362,6 @@ public class NodeTests extends OpenSearchTestCase {
         ByteSizeValue cacheSize = new ByteSizeValue(16, ByteSizeUnit.GB);
         Settings searchRoleSettingsWithConfig = baseSettings().put(searchRoleSettings)
             .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize)
-            .put(FeatureFlags.SEARCHABLE_SNAPSHOT, "true")
             .build();
         Settings onlySearchRoleSettings = Settings.builder()
             .put(searchRoleSettingsWithConfig)

@@ -32,14 +32,11 @@
 
 package org.opensearch.cluster;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.IndexGraveyard.IndexGraveyardDiff;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodes;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.gateway.GatewayService;
 import org.opensearch.index.Index;
 
@@ -47,6 +44,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -129,8 +127,7 @@ public class ClusterChangedEvent {
             return Collections.emptyList();
         }
         List<String> created = null;
-        for (ObjectCursor<String> cursor : state.metadata().indices().keys()) {
-            String index = cursor.value;
+        for (final String index : state.metadata().indices().keySet()) {
             if (!previousState.metadata().hasIndex(index)) {
                 if (created == null) {
                     created = new ArrayList<>();
@@ -170,20 +167,20 @@ public class ClusterChangedEvent {
      */
     public Set<String> changedCustomMetadataSet() {
         Set<String> result = new HashSet<>();
-        ImmutableOpenMap<String, Metadata.Custom> currentCustoms = state.metadata().customs();
-        ImmutableOpenMap<String, Metadata.Custom> previousCustoms = previousState.metadata().customs();
+        Map<String, Metadata.Custom> currentCustoms = state.metadata().customs();
+        Map<String, Metadata.Custom> previousCustoms = previousState.metadata().customs();
         if (currentCustoms.equals(previousCustoms) == false) {
-            for (ObjectObjectCursor<String, Metadata.Custom> currentCustomMetadata : currentCustoms) {
+            for (Map.Entry<String, Metadata.Custom> currentCustomMetadata : currentCustoms.entrySet()) {
                 // new custom md added or existing custom md changed
-                if (previousCustoms.containsKey(currentCustomMetadata.key) == false
-                    || currentCustomMetadata.value.equals(previousCustoms.get(currentCustomMetadata.key)) == false) {
-                    result.add(currentCustomMetadata.key);
+                if (previousCustoms.containsKey(currentCustomMetadata.getKey()) == false
+                    || currentCustomMetadata.getValue().equals(previousCustoms.get(currentCustomMetadata.getKey())) == false) {
+                    result.add(currentCustomMetadata.getKey());
                 }
             }
             // existing custom md deleted
-            for (ObjectObjectCursor<String, Metadata.Custom> previousCustomMetadata : previousCustoms) {
-                if (currentCustoms.containsKey(previousCustomMetadata.key) == false) {
-                    result.add(previousCustomMetadata.key);
+            for (Map.Entry<String, Metadata.Custom> previousCustomMetadata : previousCustoms.entrySet()) {
+                if (currentCustoms.containsKey(previousCustomMetadata.getKey()) == false) {
+                    result.add(previousCustomMetadata.getKey());
                 }
             }
         }
@@ -286,8 +283,7 @@ public class ClusterChangedEvent {
         final Metadata previousMetadata = previousState.metadata();
         final Metadata currentMetadata = state.metadata();
 
-        for (ObjectCursor<IndexMetadata> cursor : previousMetadata.indices().values()) {
-            IndexMetadata index = cursor.value;
+        for (final IndexMetadata index : previousMetadata.indices().values()) {
             IndexMetadata current = currentMetadata.index(index.getIndex());
             if (current == null) {
                 if (deleted == null) {

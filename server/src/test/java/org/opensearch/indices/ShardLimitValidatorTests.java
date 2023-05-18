@@ -42,13 +42,14 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.cluster.shards.ShardCounts;
 import org.opensearch.common.ValidationException;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -331,7 +332,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
             counts.getFailingIndexReplicas()
         );
 
-        Index[] indices = Arrays.stream(state.metadata().indices().values().toArray(IndexMetadata.class))
+        Index[] indices = Arrays.stream(state.metadata().indices().values().toArray(new IndexMetadata[0]))
             .map(IndexMetadata::getIndex)
             .collect(Collectors.toList())
             .toArray(new Index[2]);
@@ -373,7 +374,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
             counts.getFailingIndexReplicas()
         );
 
-        Index[] indices = Arrays.stream(state.metadata().indices().values().toArray(IndexMetadata.class))
+        Index[] indices = Arrays.stream(state.metadata().indices().values().toArray(new IndexMetadata[0]))
             .map(IndexMetadata::getIndex)
             .collect(Collectors.toList())
             .toArray(new Index[2]);
@@ -401,7 +402,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
             counts.getFailingIndexReplicas()
         );
 
-        Index[] indices = Arrays.stream(state.metadata().indices().values().toArray(IndexMetadata.class))
+        Index[] indices = Arrays.stream(state.metadata().indices().values().toArray(new IndexMetadata[0]))
             .map(IndexMetadata::getIndex)
             .collect(Collectors.toList())
             .toArray(new Index[2]);
@@ -429,7 +430,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
             counts.getFailingIndexReplicas()
         );
 
-        Index[] indices = Arrays.stream(state.metadata().indices().values().toArray(IndexMetadata.class))
+        Index[] indices = Arrays.stream(state.metadata().indices().values().toArray(new IndexMetadata[0]))
             .map(IndexMetadata::getIndex)
             .collect(Collectors.toList())
             .toArray(new Index[2]);
@@ -472,7 +473,7 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
             counts.getFailingIndexReplicas()
         );
 
-        Index[] indices = Arrays.stream(state.metadata().indices().values().toArray(IndexMetadata.class))
+        Index[] indices = Arrays.stream(state.metadata().indices().values().toArray(new IndexMetadata[0]))
             .map(IndexMetadata::getIndex)
             .collect(Collectors.toList())
             .toArray(new Index[2]);
@@ -498,12 +499,12 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
     }
 
     public static ClusterState createClusterForShardLimitTest(int nodesInCluster, int shardsInIndex, int replicas) {
-        ImmutableOpenMap.Builder<String, DiscoveryNode> dataNodes = ImmutableOpenMap.builder();
+        final Map<String, DiscoveryNode> dataNodes = new HashMap<>();
         for (int i = 0; i < nodesInCluster; i++) {
             dataNodes.put(randomAlphaOfLengthBetween(5, 15), mock(DiscoveryNode.class));
         }
         DiscoveryNodes nodes = mock(DiscoveryNodes.class);
-        when(nodes.getDataNodes()).thenReturn(dataNodes.build());
+        when(nodes.getDataNodes()).thenReturn(dataNodes);
 
         IndexMetadata.Builder indexMetadata = IndexMetadata.builder(randomAlphaOfLengthBetween(5, 15))
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
@@ -529,12 +530,12 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         int closedIndexShards,
         int closedIndexReplicas
     ) {
-        ImmutableOpenMap.Builder<String, DiscoveryNode> dataNodes = ImmutableOpenMap.builder();
+        final Map<String, DiscoveryNode> dataNodes = new HashMap<>();
         for (int i = 0; i < nodesInCluster; i++) {
             dataNodes.put(randomAlphaOfLengthBetween(5, 15), mock(DiscoveryNode.class));
         }
         DiscoveryNodes nodes = mock(DiscoveryNodes.class);
-        when(nodes.getDataNodes()).thenReturn(dataNodes.build());
+        when(nodes.getDataNodes()).thenReturn(dataNodes);
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).build();
         state = addOpenedIndex(openIndexName, openIndexShards, openIndexReplicas, state);

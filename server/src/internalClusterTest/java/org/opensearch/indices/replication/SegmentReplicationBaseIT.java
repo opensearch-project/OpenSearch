@@ -19,7 +19,6 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
@@ -53,11 +52,6 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
     protected static final String INDEX_NAME = "test-idx-1";
     protected static final int SHARD_COUNT = 1;
     protected static final int REPLICA_COUNT = 1;
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REPLICATION_TYPE, "true").build();
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

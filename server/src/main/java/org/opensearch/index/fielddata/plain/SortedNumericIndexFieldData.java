@@ -48,6 +48,8 @@ import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.fielddata.LeafNumericFieldData;
 import org.opensearch.index.fielddata.NumericDoubleValues;
+import org.opensearch.index.fielddata.ScriptDocValues;
+import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.opensearch.index.mapper.DocValueFetcher;
@@ -58,6 +60,7 @@ import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
@@ -112,7 +115,7 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
 
     @Override
     protected boolean sortRequiresCustomComparator() {
-        return numericType == NumericType.HALF_FLOAT;
+        return numericType == NumericType.HALF_FLOAT || numericType == NumericType.UNSIGNED_LONG;
     }
 
     @Override
@@ -169,6 +172,8 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
                 return new SortedNumericDoubleFieldData(reader, field);
             case DATE_NANOSECONDS:
                 return new NanoSecondFieldData(reader, field, numericType);
+            case UNSIGNED_LONG:
+                return new SortedNumericUnsignedLongFieldData(reader, field);
             default:
                 return new SortedNumericLongFieldData(reader, field, numericType);
         }
@@ -498,5 +503,62 @@ public class SortedNumericIndexFieldData extends IndexNumericFieldData {
         public Collection<Accountable> getChildResources() {
             return Collections.emptyList();
         }
+    }
+
+    /**
+     * Wraps a NumericDocValues and exposes a single 64-bit double per document.
+     *
+     * @opensearch.internal
+     */
+    static final class SortedNumericUnsignedLongFieldData implements LeafNumericFieldData {
+        final LeafReader reader;
+        final String field;
+
+        SortedNumericUnsignedLongFieldData(LeafReader reader, String field) {
+            this.reader = reader;
+            this.field = field;
+        }
+
+        @Override
+        public SortedNumericDocValues getLongValues() {
+            try {
+                return DocValues.getSortedNumeric(reader, field);
+            } catch (IOException e) {
+                throw new IllegalStateException("Cannot load doc values", e);
+            }
+        }
+
+        @Override
+        public SortedNumericDoubleValues getDoubleValues() {
+            try {
+                SortedNumericDocValues raw = DocValues.getSortedNumeric(reader, field);
+                return FieldData.unsignedLongToDoubles(raw);
+            } catch (IOException e) {
+                throw new IllegalStateException("Cannot load doc values", e);
+            }
+        }
+
+        @Override
+        public Collection<Accountable> getChildResources() {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public final ScriptDocValues<BigInteger> getScriptValues() {
+            return new ScriptDocValues.UnsignedLongs(getLongValues());
+        }
+
+        @Override
+        public final SortedBinaryDocValues getBytesValues() {
+            return FieldData.toUnsignedString(getLongValues());
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return 0L;
+        }
+
+        @Override
+        public void close() {}
     }
 }

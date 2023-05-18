@@ -81,8 +81,8 @@ public class NodeInfo extends BaseNodeResponse {
 
     public NodeInfo(StreamInput in) throws IOException {
         super(in);
-        version = Version.readVersion(in);
-        build = Build.readBuild(in);
+        version = in.readVersion();
+        build = in.readBuild();
         if (in.readBoolean()) {
             totalIndexingBuffer = new ByteSizeValue(in.readLong());
         } else {
@@ -100,7 +100,7 @@ public class NodeInfo extends BaseNodeResponse {
         addInfoIfNonNull(PluginsAndModules.class, in.readOptionalWriteable(PluginsAndModules::new));
         addInfoIfNonNull(IngestInfo.class, in.readOptionalWriteable(IngestInfo::new));
         addInfoIfNonNull(AggregationInfo.class, in.readOptionalWriteable(AggregationInfo::new));
-        if (in.getVersion().onOrAfter(Version.V_3_0_0)) { // TODO: Change if/when we backport to 2.x
+        if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
             addInfoIfNonNull(SearchPipelineInfo.class, in.readOptionalWriteable(SearchPipelineInfo::new));
         }
     }
@@ -202,7 +202,7 @@ public class NodeInfo extends BaseNodeResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(version.id);
-        Build.writeBuild(build, out);
+        out.writeBuild(build);
         if (totalIndexingBuffer == null) {
             out.writeBoolean(false);
         } else {
@@ -224,7 +224,7 @@ public class NodeInfo extends BaseNodeResponse {
         out.writeOptionalWriteable(getInfo(PluginsAndModules.class));
         out.writeOptionalWriteable(getInfo(IngestInfo.class));
         out.writeOptionalWriteable(getInfo(AggregationInfo.class));
-        if (out.getVersion().onOrAfter(Version.V_3_0_0)) { // TODO: Change if/when we backport to 2.x
+        if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
             out.writeOptionalWriteable(getInfo(SearchPipelineInfo.class));
         }
     }

@@ -31,7 +31,6 @@
 
 package org.opensearch.env;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import org.opensearch.OpenSearchException;
@@ -158,7 +157,7 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
             Sets.union(
                 indexUUIDsFor(indexPaths),
                 StreamSupport.stream(metadata.indices().values().spliterator(), false)
-                    .map(imd -> imd.value.getIndexUUID())
+                    .map(imd -> imd.getIndexUUID())
                     .collect(Collectors.toSet())
             )
         );
@@ -302,9 +301,9 @@ public class NodeRepurposeCommand extends OpenSearchNodeCommand {
 
     private String toIndexName(String uuid, Metadata metadata) {
         if (metadata != null) {
-            for (ObjectObjectCursor<String, IndexMetadata> indexMetadata : metadata.indices()) {
-                if (indexMetadata.value.getIndexUUID().equals(uuid)) {
-                    return indexMetadata.value.getIndex().getName();
+            for (final IndexMetadata indexMetadata : metadata.indices().values()) {
+                if (indexMetadata.getIndexUUID().equals(uuid)) {
+                    return indexMetadata.getIndex().getName();
                 }
             }
         }

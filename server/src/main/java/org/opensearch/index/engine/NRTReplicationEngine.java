@@ -337,6 +337,7 @@ public class NRTReplicationEngine extends Engine {
 
     @Override
     public boolean maybeRefresh(String source) throws EngineException {
+        ensureOpen();
         try {
             return readerManager.maybeRefresh();
         } catch (IOException e) {

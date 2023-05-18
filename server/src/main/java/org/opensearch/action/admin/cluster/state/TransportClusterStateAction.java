@@ -32,7 +32,6 @@
 
 package org.opensearch.action.admin.cluster.state;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionListener;
@@ -57,6 +56,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.function.Predicate;
+import java.util.Map;
 
 /**
  * Transport action for obtaining cluster state
@@ -212,18 +212,18 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
             }
 
             // filter out metadata that shouldn't be returned by the API
-            for (ObjectObjectCursor<String, Custom> custom : currentState.metadata().customs()) {
-                if (custom.value.context().contains(Metadata.XContentContext.API) == false) {
-                    mdBuilder.removeCustom(custom.key);
+            for (final Map.Entry<String, Custom> custom : currentState.metadata().customs().entrySet()) {
+                if (custom.getValue().context().contains(Metadata.XContentContext.API) == false) {
+                    mdBuilder.removeCustom(custom.getKey());
                 }
             }
         }
         builder.metadata(mdBuilder);
 
         if (request.customs()) {
-            for (ObjectObjectCursor<String, ClusterState.Custom> custom : currentState.customs()) {
-                if (custom.value.isPrivate() == false) {
-                    builder.putCustom(custom.key, custom.value);
+            for (final Map.Entry<String, ClusterState.Custom> custom : currentState.customs().entrySet()) {
+                if (custom.getValue().isPrivate() == false) {
+                    builder.putCustom(custom.getKey(), custom.getValue());
                 }
             }
         }
