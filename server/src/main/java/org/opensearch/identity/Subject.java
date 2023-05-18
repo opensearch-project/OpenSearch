@@ -29,9 +29,4 @@ public interface Subject {
      * throws SubjectDisabled
      */
     void authenticate(final AuthToken token);
-
-    /**
-     * Method that returns whether the current subject of the running thread is authenticated
-     */
-    boolean isAuthenticated();
 }

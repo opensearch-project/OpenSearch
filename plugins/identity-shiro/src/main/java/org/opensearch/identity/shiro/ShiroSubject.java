@@ -88,9 +88,4 @@ public class ShiroSubject implements Subject {
             .orElseThrow(() -> new UnsupportedAuthenticationToken());
         shiroSubject.login(authToken);
     }
-
-    @Override
-    public boolean isAuthenticated() {
-        return shiroSubject.isAuthenticated();
-    }
 }
