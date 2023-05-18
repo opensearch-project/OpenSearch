@@ -2022,8 +2022,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             throw new IllegalArgumentException(
                 "the number of target shards ("
                     + numTargetShards
-                    + ") must be the same as the number of "
-                    + " source shards ( "
+                    + ") must be the same as the number of"
+                    + " source shards ("
                     + numSourceShards
                     + ")"
             );
