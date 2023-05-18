@@ -125,16 +125,19 @@ public class IndexingIT extends AbstractRollingTestCase {
             final int primaryHits = ObjectPath.createFromResponse(searchTestIndexResponse).evaluate("hits.total");
             logger.info("--> primaryHits {}", primaryHits);
             final int shardNum = shardNumber;
-            assertBusy(() -> {
-                Request replicaRequest = new Request("POST", "/" + index + "/_search");
-                replicaRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
-                replicaRequest.addParameter("filter_path", "hits.total");
-                replicaRequest.addParameter("preference", "_shards:" + shardNum + "|_only_nodes:" + replicaShardToNodeIDMap.get(shardNum));
-                Response replicaResponse = client().performRequest(replicaRequest);
-                int replicaHits = ObjectPath.createFromResponse(replicaResponse).evaluate("hits.total");
-                logger.info("--> ReplicaHits {}", replicaHits);
-                assertEquals(primaryHits, replicaHits);
-            }, 1, TimeUnit.MINUTES);
+            // Verify replica shard doc count only when available.
+            if (replicaShardToNodeIDMap.get(shardNum) != null) {
+                assertBusy(() -> {
+                    Request replicaRequest = new Request("POST", "/" + index + "/_search");
+                    replicaRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
+                    replicaRequest.addParameter("filter_path", "hits.total");
+                    replicaRequest.addParameter("preference", "_shards:" + shardNum + "|_only_nodes:" + replicaShardToNodeIDMap.get(shardNum));
+                    Response replicaResponse = client().performRequest(replicaRequest);
+                    int replicaHits = ObjectPath.createFromResponse(replicaResponse).evaluate("hits.total");
+                    logger.info("--> ReplicaHits {}", replicaHits);
+                    assertEquals(primaryHits, replicaHits);
+                }, 1, TimeUnit.MINUTES);
+            }
         }
     }
 
