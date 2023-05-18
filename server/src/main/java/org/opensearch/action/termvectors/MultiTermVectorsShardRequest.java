@@ -86,7 +86,8 @@ public class MultiTermVectorsShardRequest extends SingleShardRequest<MultiTermVe
 
     /**
      * Sets the preference to execute the search. Defaults to randomize across shards. Can be set to
-     * {@code _local} to prefer local shards or a custom value, which guarantees that the same order
+     * {@code _local} to prefer local shards, {@code _primary} to execute only on primary shards,
+     * or a custom value, which guarantees that the same order
      * will be used across different requests.
      */
     public MultiTermVectorsShardRequest preference(String preference) {

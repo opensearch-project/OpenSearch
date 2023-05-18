@@ -275,7 +275,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         );
 
         assertEquals(
-            "index source must be read-only to resize index. use \"index.blocks.write=true\"",
+            "index source must block write operations to resize index. use \"index.blocks.write=true\"",
             expectThrows(
                 IllegalStateException.class,
                 () -> MetadataCreateIndexService.validateShrinkIndex(
@@ -377,7 +377,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         );
 
         assertEquals(
-            "index source must be read-only to resize index. use \"index.blocks.write=true\"",
+            "index source must block write operations to resize index. use \"index.blocks.write=true\"",
             expectThrows(
                 IllegalStateException.class,
                 () -> MetadataCreateIndexService.validateSplitIndex(
@@ -434,6 +434,65 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             "target",
             Settings.builder().put("index.number_of_shards", targetShards).build()
         );
+    }
+
+    public void testValidateCloneIndex() {
+        int numShards = randomIntBetween(1, 42);
+        Settings targetSettings = Settings.builder().put("index.number_of_shards", numShards).build();
+        ClusterState state = createClusterState(
+            "source",
+            numShards,
+            randomIntBetween(0, 10),
+            Settings.builder().put("index.blocks.write", true).build()
+        );
+
+        assertEquals(
+            "index [source] already exists",
+            expectThrows(
+                ResourceAlreadyExistsException.class,
+                () -> MetadataCreateIndexService.validateCloneIndex(state, "target", "source", targetSettings)
+            ).getMessage()
+        );
+
+        assertEquals(
+            "no such index [no_such_index]",
+            expectThrows(
+                IndexNotFoundException.class,
+                () -> MetadataCreateIndexService.validateCloneIndex(state, "no_such_index", "target", targetSettings)
+            ).getMessage()
+        );
+
+        assertEquals(
+            "index source must block write operations to resize index. use \"index.blocks.write=true\"",
+            expectThrows(
+                IllegalStateException.class,
+                () -> MetadataCreateIndexService.validateCloneIndex(
+                    createClusterState("source", randomIntBetween(2, 100), randomIntBetween(0, 10), Settings.EMPTY),
+                    "source",
+                    "target",
+                    targetSettings
+                )
+            ).getMessage()
+        );
+
+        ClusterState clusterState = ClusterState.builder(
+            createClusterState("source", numShards, 0, Settings.builder().put("index.blocks.write", true).build())
+        ).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();
+        AllocationService service = new AllocationService(
+            new AllocationDeciders(singleton(new MaxRetryAllocationDecider())),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE
+        );
+
+        RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        // now we start the shard
+        routingTable = OpenSearchAllocationTestCase.startInitializingShardsAndReroute(service, clusterState, "source").routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+
+        MetadataCreateIndexService.validateCloneIndex(clusterState, "source", "target", targetSettings);
     }
 
     public void testPrepareResizeIndexSettings() {
@@ -1018,7 +1077,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
         // adds alias from new index to existing index
         BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer = (builder, indexMetadata) -> {
-            AliasMetadata newAlias = indexMetadata.getAliases().iterator().next().value;
+            AliasMetadata newAlias = indexMetadata.getAliases().values().iterator().next();
             IndexMetadata myIndex = builder.get("my-index");
             builder.put(IndexMetadata.builder(myIndex).putAlias(AliasMetadata.builder(newAlias.getAlias()).build()));
         };
@@ -1397,7 +1456,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         IndexMetadata indexMetadata = buildIndexMetadata("test", aliases, () -> null, indexSettings, 4, sourceIndexMetadata, false);
 
         assertThat(indexMetadata.getAliases().size(), is(1));
-        assertThat(indexMetadata.getAliases().keys().iterator().next().value, is("alias1"));
+        assertThat(indexMetadata.getAliases().keySet().iterator().next(), is("alias1"));
         assertThat("The source index primary term must be used", indexMetadata.primaryTerm(0), is(3L));
     }
 

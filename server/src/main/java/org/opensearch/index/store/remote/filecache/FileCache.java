@@ -22,6 +22,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.function.BiFunction;
+import java.util.function.Predicate;
 
 import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory.LOCAL_STORE_LOCATION;
 
@@ -119,6 +120,11 @@ public class FileCache implements RefCountedCache<Path, CachedIndexInput> {
     @Override
     public long prune() {
         return theCache.prune();
+    }
+
+    @Override
+    public long prune(Predicate<Path> keyPredicate) {
+        return theCache.prune(keyPredicate);
     }
 
     @Override

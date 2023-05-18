@@ -761,6 +761,7 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 ).getStringRep()
             );
         }
+
         return builder.build();
     }
 
@@ -1084,6 +1085,23 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
                 }
             }
 
+            assertThat(lastKnownCount, greaterThanOrEqualTo(numDocs));
+        }, maxWaitTimeMs, TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * Waits until at least a give number of document is indexed by indexer
+     *
+     * @param numDocs number of documents to wait for
+     * @param indexer a {@link BackgroundIndexer}. It will be first checked for documents indexed.
+     *                This saves on unneeded searches.
+     */
+    public void waitForIndexed(final long numDocs, final BackgroundIndexer indexer) throws Exception {
+        // indexing threads can wait for up to ~1m before retrying when they first try to index into a shard which is not STARTED.
+        final long maxWaitTimeMs = Math.max(90 * 1000, 200 * numDocs);
+
+        assertBusy(() -> {
+            long lastKnownCount = indexer.totalIndexedDocs();
             assertThat(lastKnownCount, greaterThanOrEqualTo(numDocs));
         }, maxWaitTimeMs, TimeUnit.MILLISECONDS);
     }

@@ -67,6 +67,7 @@ import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.CheckedRunnable;
+import org.opensearch.common.Numbers;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
@@ -102,7 +103,6 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.env.Environment;
@@ -128,6 +128,7 @@ import org.opensearch.search.MockSearchService;
 import org.opensearch.test.junit.listeners.LoggingListener;
 import org.opensearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
 import org.opensearch.transport.nio.MockNioTransportPlugin;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
@@ -219,6 +220,12 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         portGenerator.set(0);
     }
 
+    @Override
+    public void tearDown() throws Exception {
+        FeatureFlagSetter.clear();
+        super.tearDown();
+    }
+
     // Allows distinguishing between parallel test processes
     public static final String TEST_WORKER_VM_ID;
 
@@ -257,6 +264,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         }));
 
         BootstrapForTesting.ensureInitialized();
+        TransportService.ensureClassloaded(); // ensure server streamables are registered
 
         // filter out joda timezones that are deprecated for the java time migration
         List<String> jodaTZIds = DateTimeZone.getAvailableIDs()
@@ -802,6 +810,22 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
 
     public static long randomLong() {
         return random().nextLong();
+    }
+
+    /**
+     * Returns a random BigInteger uniformly distributed over the range 0 to (2^64 - 1) inclusive
+     * Currently BigIntegers are only used for unsigned_long field type, where the max value is 2^64 - 1.
+     * Modify this random generator if a wider range for BigIntegers is necessary.
+     * @return a random bigInteger in the range [0 ; 2^64 - 1]
+     */
+    public static BigInteger randomUnsignedLong() {
+        BigInteger value = randomBigInteger().abs();
+
+        while (value.compareTo(Numbers.MAX_UNSIGNED_LONG_VALUE) == 1) {
+            value = value.subtract(Numbers.MAX_UNSIGNED_LONG_VALUE);
+        }
+
+        return value;
     }
 
     /**

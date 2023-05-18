@@ -1,6 +1,9 @@
 codecov:
   require_ci_to_pass: yes
 
+ignore:
+  - "test"
+
 coverage:
   precision: 2
   round: down

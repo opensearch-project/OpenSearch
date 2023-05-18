@@ -36,6 +36,7 @@ import org.opensearch.common.CheckedFunction;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.CharBuffer;
 import java.util.List;
 import java.util.Map;
@@ -230,6 +231,8 @@ public interface XContentParser extends Closeable {
 
     double doubleValue(boolean coerce) throws IOException;
 
+    BigInteger bigIntegerValue(boolean coerce) throws IOException;
+
     short shortValue() throws IOException;
 
     int intValue() throws IOException;
@@ -239,6 +242,8 @@ public interface XContentParser extends Closeable {
     float floatValue() throws IOException;
 
     double doubleValue() throws IOException;
+
+    BigInteger bigIntegerValue() throws IOException;
 
     /**
      * @return true iff the current value is either boolean (<code>true</code> or <code>false</code>) or one of "false", "true".

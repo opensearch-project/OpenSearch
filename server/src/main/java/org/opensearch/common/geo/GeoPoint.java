@@ -40,6 +40,11 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.geo.GeoUtils.EffectivePoint;
+import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.BaseWriteable.Reader;
+import org.opensearch.core.common.io.stream.BaseWriteable.Writer;
+import org.opensearch.core.common.io.stream.BaseWriteable.WriteableRegistry;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.geometry.Geometry;
@@ -85,6 +90,22 @@ public class GeoPoint implements ToXContentFragment {
 
     public GeoPoint(GeoPoint template) {
         this(template.getLat(), template.getLon());
+    }
+
+    public GeoPoint(final StreamInput in) throws IOException {
+        this.lat = in.readDouble();
+        this.lon = in.readDouble();
+    }
+
+    /**
+     * Register this type as a streamable so it can be serialized over the wire
+     */
+    public static void registerStreamables() {
+        WriteableRegistry.<Writer<StreamOutput, ?>>registerWriter(GeoPoint.class, (o, v) -> {
+            o.writeByte((byte) 22);
+            ((GeoPoint) v).writeTo(o);
+        });
+        WriteableRegistry.<Reader<StreamInput, ?>>registerReader(Byte.valueOf((byte) 22), GeoPoint::new);
     }
 
     public GeoPoint reset(double lat, double lon) {
@@ -208,6 +229,11 @@ public class GeoPoint implements ToXContentFragment {
     public GeoPoint resetFromGeoHash(long geohashLong) {
         final int level = (int) (12 - (geohashLong & 15));
         return this.resetFromIndexHash(BitUtil.flipFlop((geohashLong >>> 4) << ((level * 5) + 2)));
+    }
+
+    public void writeTo(final StreamOutput out) throws IOException {
+        out.writeDouble(this.lat);
+        out.writeDouble(this.lon);
     }
 
     public double lat() {

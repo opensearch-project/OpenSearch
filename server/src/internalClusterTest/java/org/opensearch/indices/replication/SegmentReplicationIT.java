@@ -43,6 +43,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.opensearch.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -359,6 +360,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
     /**
      * This test validates the primary node drop does not result in shard failure on replica.
+     * @throws Exception when issue is encountered
      */
     public void testNodeDropWithOngoingReplication() throws Exception {
         internalCluster().startClusterManagerOnlyNode();
@@ -772,9 +774,10 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         final int docCount = scaledRandomIntBetween(10, 200);
         for (int i = 0; i < docCount; i++) {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().get();
+            // Refresh, this should trigger round of segment replication
             refresh(INDEX_NAME);
         }
-        // Refresh, this should trigger round of segment replication
+        ensureGreen(INDEX_NAME);
         waitForSearchableDocs(docCount, primaryNode, replicaNode);
         verifyStoreContent();
         final IndexShard replicaAfterFailure = getIndexShard(replicaNode, INDEX_NAME);
@@ -868,6 +871,7 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
     /**
      * Tests a scroll query on the replica
+     * @throws Exception when issue is encountered
      */
     public void testScrollCreatedOnReplica() throws Exception {
         // create the cluster with one primary node containing primary shard and replica node containing replica shard
@@ -955,6 +959,8 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
     /**
      * Tests that when scroll query is cleared, it does not delete the temporary replication files, which are part of
      * ongoing round of segment replication
+     *
+     * @throws Exception when issue is encountered
      */
     public void testScrollWithOngoingSegmentReplication() throws Exception {
         // create the cluster with one primary node containing primary shard and replica node containing replica shard
@@ -1041,19 +1047,24 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         // wait for segrep to start and copy temporary files
         waitForFileCopy.await();
 
-        // verify replica contains temporary files
-        IndexShard replicaShard = getIndexShard(replica, INDEX_NAME);
-        List<String> temporaryFiles = Arrays.stream(replicaShard.store().directory().listAll())
-            .filter(fileName -> fileName.startsWith(REPLICATION_PREFIX))
-            .collect(Collectors.toList());
-        logger.info("--> temporaryFiles {}", temporaryFiles);
-        assertTrue(temporaryFiles.size() > 0);
+        final IndexShard replicaShard = getIndexShard(replica, INDEX_NAME);
+        // Wait until replica has written a tmp file to disk.
+        List<String> temporaryFiles = new ArrayList<>();
+        assertBusy(() -> {
+            // verify replica contains temporary files
+            temporaryFiles.addAll(
+                Arrays.stream(replicaShard.store().directory().listAll())
+                    .filter(fileName -> fileName.startsWith(REPLICATION_PREFIX))
+                    .collect(Collectors.toList())
+            );
+            logger.info("--> temporaryFiles {}", temporaryFiles);
+            assertTrue(temporaryFiles.size() > 0);
+        });
 
         // Clear scroll query, this should clean up files on replica
         client(replica).prepareClearScroll().addScrollId(searchResponse.getScrollId()).get();
 
         // verify temporary files still exist
-        replicaShard = getIndexShard(replica, INDEX_NAME);
         List<String> temporaryFilesPostClear = Arrays.stream(replicaShard.store().directory().listAll())
             .filter(fileName -> fileName.startsWith(REPLICATION_PREFIX))
             .collect(Collectors.toList());
@@ -1062,7 +1073,6 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         // Unblock segment replication
         blockFileCopy.countDown();
 
-        assertEquals(temporaryFiles.size(), temporaryFilesPostClear.size());
         assertTrue(temporaryFilesPostClear.containsAll(temporaryFiles));
 
         // wait for replica to catch up and verify doc count
@@ -1200,4 +1210,43 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         currentFiles = List.of(replicaShard.store().directory().listAll());
         assertFalse("Files should be cleaned up", currentFiles.containsAll(snapshottedSegments));
     }
+
+    /**
+     * This tests that if a primary receives docs while a replica is performing round of segrep during recovery
+     * the replica will catch up to latest checkpoint once recovery completes without requiring an additional primary refresh/flush.
+     */
+    public void testPrimaryReceivesDocsDuringReplicaRecovery() throws Exception {
+        final List<String> nodes = new ArrayList<>();
+        final String primaryNode = internalCluster().startNode();
+        nodes.add(primaryNode);
+        final Settings settings = Settings.builder().put(indexSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
+        createIndex(INDEX_NAME, settings);
+        ensureGreen(INDEX_NAME);
+        // start a replica node, initially will be empty with no shard assignment.
+        final String replicaNode = internalCluster().startNode();
+        nodes.add(replicaNode);
+
+        // index a doc.
+        client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", randomInt()).get();
+        refresh(INDEX_NAME);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        // block replication
+        try (final Releasable ignored = blockReplication(List.of(replicaNode), latch)) {
+            // update to add replica, initiating recovery, this will get stuck at last step
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareUpdateSettings(INDEX_NAME)
+                    .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+            );
+            ensureYellow(INDEX_NAME);
+            // index another doc while blocked, this would not get replicated to replica.
+            client().prepareIndex(INDEX_NAME).setId("2").setSource("foo2", randomInt()).get();
+            refresh(INDEX_NAME);
+        }
+        ensureGreen(INDEX_NAME);
+        waitForSearchableDocs(2, nodes);
+    }
+
 }

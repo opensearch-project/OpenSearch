@@ -66,7 +66,6 @@ import org.opensearch.cluster.routing.allocation.command.AllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.common.UUIDs;
-import org.opensearch.common.collect.ImmutableOpenMap;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.Index;
@@ -1344,11 +1343,11 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             )
             .build();
 
-        final ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shards = ImmutableOpenMap.builder();
+        final Map<ShardId, RestoreInProgress.ShardRestoreStatus> shards = new HashMap<>();
         shards.put(shardId, new RestoreInProgress.ShardRestoreStatus("node1"));
 
         final RestoreInProgress.Builder restores = new RestoreInProgress.Builder().add(
-            new RestoreInProgress.Entry("_restore_uuid", snapshot, RestoreInProgress.State.INIT, singletonList("test"), shards.build())
+            new RestoreInProgress.Entry("_restore_uuid", snapshot, RestoreInProgress.State.INIT, singletonList("test"), shards)
         );
 
         ClusterState clusterState = ClusterState.builder(new ClusterName(getTestName()))
@@ -1404,7 +1403,7 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(1));
 
         final SnapshotShard snapshotShard = new SnapshotShard(snapshot, indexId, shardId);
-        final ImmutableOpenMap.Builder<SnapshotShard, Long> snapshotShardSizes = ImmutableOpenMap.builder();
+        final Map<SnapshotShard, Long> snapshotShardSizes = new HashMap<>();
 
         final boolean shouldAllocate;
         if (randomBoolean()) {
@@ -1418,7 +1417,7 @@ public class DiskThresholdDeciderTests extends OpenSearchAllocationTestCase {
             logger.info("--> shard is always allocated when its size could not be retrieved");
             shouldAllocate = true;
         }
-        snapshotShardSizeInfoRef.set(new SnapshotShardSizeInfo(snapshotShardSizes.build()));
+        snapshotShardSizeInfoRef.set(new SnapshotShardSizeInfo(snapshotShardSizes));
 
         // reroute uses the previous snapshot shard size
         clusterState = startInitializingShardsAndReroute(strategy, clusterState);

@@ -42,6 +42,7 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.joda.time.DateTimeZone;
+import org.opensearch.Build;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.common.CharArrays;
@@ -49,21 +50,18 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.Strings;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.bytes.BytesReference;
-import org.opensearch.common.collect.ImmutableOpenMap;
-import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.SecureString;
 import org.opensearch.common.text.Text;
-import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.core.common.io.stream.BaseStreamInput;
+import org.opensearch.core.common.io.stream.BaseWriteable;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
-import org.opensearch.script.JodaCompatibleZonedDateTime;
 
 import java.io.ByteArrayInputStream;
 import java.io.EOFException;
 import java.io.FileNotFoundException;
 import java.io.FilterInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.math.BigInteger;
 import java.nio.file.AccessDeniedException;
 import java.nio.file.AtomicMoveNotSupportedException;
@@ -108,7 +106,7 @@ import static org.opensearch.OpenSearchException.readStackTrace;
  *
  * @opensearch.internal
  */
-public abstract class StreamInput extends InputStream {
+public abstract class StreamInput extends BaseStreamInput {
 
     private Version version = Version.CURRENT;
 
@@ -680,31 +678,17 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
-     * Read {@link ImmutableOpenMap} using given key and value readers.
-     *
-     * @param keyReader   key reader
-     * @param valueReader value reader
-     */
-    public <K, V> ImmutableOpenMap<K, V> readImmutableMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader)
-        throws IOException {
-        final int size = readVInt();
-        if (size == 0) {
-            return ImmutableOpenMap.of();
-        }
-        final ImmutableOpenMap.Builder<K, V> builder = ImmutableOpenMap.builder(size);
-        for (int i = 0; i < size; i++) {
-            builder.put(keyReader.read(this), valueReader.read(this));
-        }
-        return builder.build();
-    }
-
-    /**
      * Reads a value of unspecified type. If a collection is read then the collection will be mutable if it contains any entry but might
      * be immutable if it is empty.
      */
     @Nullable
     public Object readGenericValue() throws IOException {
         byte type = readByte();
+        BaseWriteable.Reader<StreamInput, ?> r = BaseWriteable.WriteableRegistry.getReader(type);
+        if (r != null) {
+            return r.read(this);
+        }
+
         switch (type) {
             case -1:
                 return null;
@@ -734,8 +718,6 @@ public abstract class StreamInput extends InputStream {
                 return readByte();
             case 12:
                 return readDate();
-            case 13:
-                return readDateTime();
             case 14:
                 return readBytesReference();
             case 15:
@@ -752,8 +734,6 @@ public abstract class StreamInput extends InputStream {
                 return readDoubleArray();
             case 21:
                 return readBytesRef();
-            case 22:
-                return readGeoPoint();
             case 23:
                 return readZonedDateTime();
             case 24:
@@ -795,14 +775,6 @@ public abstract class StreamInput extends InputStream {
             list.add(readGenericValue());
         }
         return list;
-    }
-
-    private JodaCompatibleZonedDateTime readDateTime() throws IOException {
-        // we reuse DateTime to communicate with older nodes that don't know about the joda compat layer, but
-        // here we are on a new node so we always want a compat datetime
-        final ZoneId zoneId = DateUtils.dateTimeZoneToZoneId(DateTimeZone.forID(readString()));
-        long millis = readLong();
-        return new JodaCompatibleZonedDateTime(Instant.ofEpochMilli(millis), zoneId);
     }
 
     private ZonedDateTime readZonedDateTime() throws IOException {
@@ -850,13 +822,6 @@ public abstract class StreamInput extends InputStream {
 
     private Date readDate() throws IOException {
         return new Date(readLong());
-    }
-
-    /**
-     * Reads a {@link GeoPoint} from this stream input
-     */
-    public GeoPoint readGeoPoint() throws IOException {
-        return new GeoPoint(readDouble(), readDouble());
     }
 
     /**
@@ -1127,6 +1092,24 @@ public abstract class StreamInput extends InputStream {
         return null;
     }
 
+    /** Reads the OpenSearch Version from the input stream */
+    public Version readVersion() throws IOException {
+        return Version.fromId(readVInt());
+    }
+
+    /** Reads the {@link Version} from the input stream */
+    public Build readBuild() throws IOException {
+        // the following is new for opensearch: we write the distribution to support any "forks"
+        final String distribution = readString();
+        // be lenient when reading on the wire, the enumeration values from other versions might be different than what we know
+        final Build.Type type = Build.Type.fromDisplayName(readString(), false);
+        String hash = readString();
+        String date = readString();
+        boolean snapshot = readBoolean();
+        final String version = readString();
+        return new Build(type, hash, date, snapshot, version, distribution);
+    }
+
     /**
      * Get the registry of named writeables if this stream has one,
      * {@code null} otherwise.
@@ -1182,7 +1165,7 @@ public abstract class StreamInput extends InputStream {
      * @return the list of objects
      * @throws IOException if an I/O exception occurs reading the list
      */
-    public <T> List<T> readList(final Writeable.Reader<T> reader) throws IOException {
+    public <T> List<T> readList(final BaseWriteable.Reader<StreamInput, T> reader) throws IOException {
         return readCollection(reader, ArrayList::new, Collections.emptyList());
     }
 
@@ -1224,8 +1207,11 @@ public abstract class StreamInput extends InputStream {
     /**
      * Reads a collection of objects
      */
-    private <T, C extends Collection<? super T>> C readCollection(Writeable.Reader<T> reader, IntFunction<C> constructor, C empty)
-        throws IOException {
+    private <T, C extends Collection<? super T>> C readCollection(
+        BaseWriteable.Reader<StreamInput, T> reader,
+        IntFunction<C> constructor,
+        C empty
+    ) throws IOException {
         int count = readArraySize();
         if (count == 0) {
             return empty;

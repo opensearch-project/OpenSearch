@@ -43,6 +43,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.sandbox.document.BigIntegerPoint;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSet;
@@ -66,6 +67,7 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -74,6 +76,7 @@ import java.util.Set;
 
 import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.DOUBLE;
 import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.LONG;
+import static org.opensearch.index.mapper.NumberFieldMapper.NumberType.UNSIGNED_LONG;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -103,6 +106,13 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
         );
     }
 
+    public void testRandomDoubleAndUnsignedLong() throws IOException {
+        testRandomCase(
+            new ClassAndName(createNumber("double", DOUBLE), Double.class),
+            new ClassAndName(createNumber("unsigned_long", UNSIGNED_LONG), BigInteger.class)
+        );
+    }
+
     public void testRandomDoubleAndKeyword() throws IOException {
         testRandomCase(
             new ClassAndName(createNumber("double", DOUBLE), Double.class),
@@ -125,6 +135,13 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
         testRandomCase(
             new ClassAndName(createNumber("long", LONG), Long.class),
             new ClassAndName(createNumber("double", DOUBLE), Double.class)
+        );
+    }
+
+    public void testRandomLongAndUnsignedLong() throws IOException {
+        testRandomCase(
+            new ClassAndName(createNumber("long", LONG), Long.class),
+            new ClassAndName(createNumber("unsigned_long", UNSIGNED_LONG), BigInteger.class)
         );
     }
 
@@ -191,6 +208,13 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                 for (int j = 0; j < numValues; j++) {
                     values[j] = randomLong();
                 }
+            } else if (type.clazz == BigInteger.class) {
+                if (i < indexSortSourcePrefix) {
+                    indexSortFields[i] = new SortedNumericSortField(type.fieldType.name(), SortField.Type.LONG);
+                }
+                for (int j = 0; j < numValues; j++) {
+                    values[j] = randomUnsignedLong();
+                }
             } else if (type.clazz == Double.class) {
                 if (i < indexSortSourcePrefix) {
                     indexSortFields[i] = new SortedNumericSortField(type.fieldType.name(), SortField.Type.DOUBLE);
@@ -237,6 +261,15 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                                     long value = (Long) values.get(k);
                                     document.add(new SortedNumericDocValuesField(types[j].fieldType.name(), value));
                                     document.add(new LongPoint(types[j].fieldType.name(), value));
+                                } else if (types[j].clazz == BigInteger.class) {
+                                    BigInteger value = (BigInteger) values.get(k);
+                                    document.add(
+                                        new SortedNumericDocValuesField(
+                                            types[j].fieldType.name(),
+                                            NumericUtils.doubleToSortableLong(value.doubleValue())
+                                        )
+                                    );
+                                    document.add(new BigIntegerPoint(types[j].fieldType.name(), value));
                                 } else if (types[j].clazz == Double.class) {
                                     document.add(
                                         new SortedNumericDocValuesField(
@@ -283,6 +316,17 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                         1
                     );
                 } else if (types[i].clazz == Double.class) {
+                    sources[i] = new DoubleValuesSource(
+                        bigArrays,
+                        fieldType,
+                        context -> FieldData.sortableLongBitsToDoubles(DocValues.getSortedNumeric(context.reader(), fieldType.name())),
+                        DocValueFormat.RAW,
+                        missingBucket,
+                        MissingOrder.DEFAULT,
+                        size,
+                        1
+                    );
+                } else if (types[i].clazz == BigInteger.class) {
                     sources[i] = new DoubleValuesSource(
                         bigArrays,
                         fieldType,

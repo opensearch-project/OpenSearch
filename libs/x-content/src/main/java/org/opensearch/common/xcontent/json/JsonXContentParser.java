@@ -43,6 +43,7 @@ import org.opensearch.core.xcontent.AbstractXContentParser;
 import org.opensearch.common.util.io.IOUtils;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.CharBuffer;
 
 public class JsonXContentParser extends AbstractXContentParser {
@@ -186,6 +187,15 @@ public class JsonXContentParser extends AbstractXContentParser {
     @Override
     public double doDoubleValue() throws IOException {
         return parser.getDoubleValue();
+    }
+
+    @Override
+    public BigInteger doBigIntegerValue() throws IOException {
+        if (parser.getCurrentToken() == JsonToken.VALUE_NUMBER_FLOAT) {
+            return parser.getDecimalValue().toBigInteger();
+        } else {
+            return parser.getBigIntegerValue();
+        }
     }
 
     @Override

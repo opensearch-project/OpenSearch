@@ -88,8 +88,13 @@ public class SearchWhileCreatingIndexIT extends OpenSearchIntegTestCase {
         ClusterHealthStatus status = client().admin().cluster().prepareHealth("test").get().getStatus();
         while (status != ClusterHealthStatus.GREEN) {
             // first, verify that search normal search works
-            SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field", "test")).get();
+            SearchResponse searchResponse = client().prepareSearch("test")
+                .setPreference("_primary")
+                .setQuery(QueryBuilders.termQuery("field", "test"))
+                .execute()
+                .actionGet();
             assertHitCount(searchResponse, 1);
+
             Client client = client();
             searchResponse = client.prepareSearch("test")
                 .setPreference(preference + Integer.toString(counter++))

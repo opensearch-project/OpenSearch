@@ -584,12 +584,14 @@ public final class SearchPhaseController {
                 firstResult = false;
                 ulFormats = new boolean[formats.length];
                 for (int i = 0; i < formats.length; i++) {
-                    ulFormats[i] = formats[i] == DocValueFormat.UNSIGNED_LONG_SHIFTED ? true : false;
+                    ulFormats[i] = (formats[i] == DocValueFormat.UNSIGNED_LONG_SHIFTED || formats[i] == DocValueFormat.UNSIGNED_LONG)
+                        ? true
+                        : false;
                 }
             } else {
                 for (int i = 0; i < formats.length; i++) {
                     // if the format is unsigned_long in one shard, and something different in another shard
-                    if (ulFormats[i] ^ (formats[i] == DocValueFormat.UNSIGNED_LONG_SHIFTED)) {
+                    if (ulFormats[i] ^ (formats[i] == DocValueFormat.UNSIGNED_LONG_SHIFTED || formats[i] == DocValueFormat.UNSIGNED_LONG)) {
                         throw new IllegalArgumentException(
                             "Can't do sort across indices, as a field has [unsigned_long] type "
                                 + "in one index, and different type in another index!"
