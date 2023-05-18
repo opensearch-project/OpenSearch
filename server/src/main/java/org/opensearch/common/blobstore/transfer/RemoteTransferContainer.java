@@ -12,8 +12,8 @@ import com.jcraft.jzlib.JZlib;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
+import org.opensearch.common.OffsetStreamContainer;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.Stream;
 import org.opensearch.common.StreamProvider;
 import org.opensearch.common.TransferPartStreamSupplier;
 import org.opensearch.common.blobstore.stream.StreamContext;
@@ -136,14 +136,14 @@ public class RemoteTransferContainer implements Closeable {
         Stream get() throws IOException;
     }
 
-    private LocalStreamSupplier<Stream> getMultipartStreamSupplier(final int streamIdx, final long size, final long position) {
+    private LocalStreamSupplier<OffsetStreamContainer> getMultipartStreamSupplier(final int streamIdx, final long size, final long position) {
         return () -> {
             try {
                 OffsetRangeInputStream offsetRangeInputStream = offsetRangeInputStreamSupplier.get(size, position);
                 ResettableCheckedInputStream checkedInputStream = new ResettableCheckedInputStream(offsetRangeInputStream, localFileName);
                 Objects.requireNonNull(inputStreams.get())[streamIdx] = checkedInputStream;
 
-                return new Stream(checkedInputStream, size, position);
+                return new OffsetStreamContainer(checkedInputStream, size, position);
             } catch (IOException e) {
                 log.error("Failed to create input stream", e);
                 throw e;

@@ -39,7 +39,7 @@ public class StreamProvider {
      * @param partNumber The index of the part
      * @return A stream reference to the part requested
      */
-    public Stream provideStream(int partNumber) throws IOException {
+    public OffsetStreamContainer provideStream(int partNumber) throws IOException {
         long position = partSize * partNumber;
         long size = (partNumber == numOfParts - 1) ? lastPartSize : partSize;
         return streamSupplier.supply(partNumber, size, position);

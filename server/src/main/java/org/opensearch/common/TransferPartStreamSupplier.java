@@ -15,5 +15,5 @@ import java.io.IOException;
  * the partNo, size and position (the offset in the file)
  */
 public interface TransferPartStreamSupplier {
-    Stream supply(int partNo, long size, long position) throws IOException;
+    OffsetStreamContainer supply(int partNo, long size, long position) throws IOException;
 }

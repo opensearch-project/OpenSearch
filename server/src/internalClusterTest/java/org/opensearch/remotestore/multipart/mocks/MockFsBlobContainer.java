@@ -9,7 +9,7 @@
 package org.opensearch.remotestore.multipart.mocks;
 
 import org.apache.lucene.index.CorruptIndexException;
-import org.opensearch.common.Stream;
+import org.opensearch.common.OffsetStreamContainer;
 import org.opensearch.common.StreamProvider;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.fs.FsBlobContainer;
@@ -61,10 +61,10 @@ public class MockFsBlobContainer extends FsBlobContainer {
             int finalPartIdx = partIdx;
             Thread thread = new Thread(() -> {
                 try {
-                    Stream stream = streamProvider.provideStream(finalPartIdx);
-                    InputStream inputStream = stream.getInputStream();
-                    long remainingContentLength = stream.getContentLength();
-                    long offset = stream.getOffset();
+                    OffsetStreamContainer offsetStreamContainer = streamProvider.provideStream(finalPartIdx);
+                    InputStream inputStream = offsetStreamContainer.getInputStream();
+                    long remainingContentLength = offsetStreamContainer.getContentLength();
+                    long offset = offsetStreamContainer.getOffset();
                     while (remainingContentLength > 0) {
                         int readContentLength = inputStream.read(buffer, (int) offset, (int) remainingContentLength);
                         totalContentRead.addAndGet(readContentLength);
