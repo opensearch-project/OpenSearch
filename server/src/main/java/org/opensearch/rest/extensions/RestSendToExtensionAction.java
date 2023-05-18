@@ -10,7 +10,7 @@ package org.opensearch.rest.extensions;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.ActionModule;
+import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.bytes.BytesReference;
 import org.opensearch.common.io.stream.StreamInput;
@@ -85,7 +85,7 @@ public class RestSendToExtensionAction extends BaseRestHandler {
         RegisterRestActionsRequest restActionsRequest,
         DiscoveryExtensionNode discoveryExtensionNode,
         TransportService transportService,
-        ActionModule actionModule
+        DynamicActionRegistry dynamicActionRegistry
     ) {
         this.pathPrefix = "/_extensions/_" + restActionsRequest.getUniqueId();
         RestRequest.Method method;
@@ -111,11 +111,11 @@ public class RestSendToExtensionAction extends BaseRestHandler {
             if (name.isPresent()) {
                 NamedRoute nr = new NamedRoute(method, path, name.get());
                 restActionsAsRoutes.add(nr);
-                actionModule.getDynamicActionRegistry().registerDynamicRoute(nr, this);
+                dynamicActionRegistry.registerDynamicRoute(nr, this);
             } else {
                 Route r = new Route(method, path);
                 restActionsAsRoutes.add(r);
-                actionModule.getDynamicActionRegistry().registerDynamicRoute(r, this);
+                dynamicActionRegistry.registerDynamicRoute(r, this);
             }
         }
         this.routes = unmodifiableList(restActionsAsRoutes);

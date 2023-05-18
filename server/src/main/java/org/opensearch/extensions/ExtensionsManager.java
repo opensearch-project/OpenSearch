@@ -230,7 +230,7 @@ public class ExtensionsManager {
             false,
             RegisterRestActionsRequest::new,
             ((request, channel, task) -> channel.sendResponse(
-                restActionsRequestHandler.handleRegisterRestActionsRequest(request, actionModule)
+                restActionsRequestHandler.handleRegisterRestActionsRequest(request, actionModule.getDynamicActionRegistry())
             ))
         );
         transportService.registerRequestHandler(
