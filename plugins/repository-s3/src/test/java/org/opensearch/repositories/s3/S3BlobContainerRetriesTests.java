@@ -39,7 +39,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Stream;
+import org.opensearch.common.OffsetStreamContainer;
 import org.opensearch.common.StreamProvider;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.TransferPartStreamSupplier;
@@ -314,14 +314,14 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 public StreamContext supplyStreamContext(long partSize) {
                     return new StreamContext(new StreamProvider(new TransferPartStreamSupplier() {
                         @Override
-                        public Stream supply(int partNo, long size, long position) throws IOException {
+                        public OffsetStreamContainer supply(int partNo, long size, long position) throws IOException {
                             InputStream inputStream = new OffsetRangeIndexInputStream(
                                 new ByteArrayIndexInput("desc", bytes),
                                 size,
                                 position
                             );
                             openInputStreams.add(inputStream);
-                            return new Stream(inputStream, size, position);
+                            return new OffsetStreamContainer(inputStream, size, position);
                         }
                     }, partSize, calculateLastPartSize(bytes.length, partSize), calculateNumberOfParts(bytes.length, partSize)),
                         calculateNumberOfParts(bytes.length, partSize)

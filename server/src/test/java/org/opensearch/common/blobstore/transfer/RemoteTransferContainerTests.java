@@ -9,7 +9,7 @@
 package org.opensearch.common.blobstore.transfer;
 
 import org.junit.Before;
-import org.opensearch.common.Stream;
+import org.opensearch.common.OffsetStreamContainer;
 import org.opensearch.common.blobstore.stream.StreamContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeFileInputStream;
@@ -97,9 +97,9 @@ public class RemoteTransferContainerTests extends OpenSearchTestCase {
             long expectedOffset = partIdx * partSize;
             threads[partIdx] = new Thread(() -> {
                 try {
-                    Stream stream = streamContext.getStreamProvider().provideStream(finalPartIdx);
-                    assertEquals(expectedPartSize, stream.getContentLength());
-                    assertEquals(expectedOffset, stream.getOffset());
+                    OffsetStreamContainer offsetStreamContainer = streamContext.getStreamProvider().provideStream(finalPartIdx);
+                    assertEquals(expectedPartSize, offsetStreamContainer.getContentLength());
+                    assertEquals(expectedOffset, offsetStreamContainer.getOffset());
                 } catch (IOException e) {
                     fail("IOException during stream creation");
                 }

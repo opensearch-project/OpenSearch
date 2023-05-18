@@ -13,7 +13,7 @@ import java.io.InputStream;
 /**
  * Model composed of an input stream, the total content length and offset
  */
-public class Stream {
+public class OffsetStreamContainer {
 
     private final InputStream inputStream;
     private final long contentLength;
@@ -26,7 +26,7 @@ public class Stream {
      * @param contentLength The total content length that is to be read from the stream
      * @param offset The offset pointer that this stream reads from in the file
      */
-    public Stream(InputStream inputStream, long contentLength, long offset) {
+    public OffsetStreamContainer(InputStream inputStream, long contentLength, long offset) {
         this.inputStream = inputStream;
         this.contentLength = contentLength;
         this.offset = offset;
