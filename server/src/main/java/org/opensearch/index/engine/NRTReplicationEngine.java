@@ -374,6 +374,7 @@ public class NRTReplicationEngine extends Engine implements LifecycleAware {
 
     @Override
     public boolean maybeRefresh(String source) throws EngineException {
+        ensureOpen();
         try {
             return readerManager.maybeRefresh();
         } catch (IOException e) {
