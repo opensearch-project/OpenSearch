@@ -9,7 +9,7 @@
 package org.opensearch.common.lucene.search.function;
 
 import org.apache.lucene.search.Explanation;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.functionscore.FunctionScoreQueryBuilder;
 
@@ -27,7 +27,7 @@ public final class Functions {
      * @return function name wrapped into brackets or empty string
      */
     public static String nameOrEmptyFunc(final String functionName) {
-        if (!Strings.isNullOrEmpty(functionName)) {
+        if (Strings.isNullOrEmpty(functionName) == false) {
             return "(" + AbstractQueryBuilder.NAME_FIELD.getPreferredName() + ": " + functionName + ")";
         } else {
             return "";
@@ -40,7 +40,7 @@ public final class Functions {
      * @return function name as an argument or empty string
      */
     public static String nameOrEmptyArg(final String functionName) {
-        if (!Strings.isNullOrEmpty(functionName)) {
+        if (Strings.isNullOrEmpty(functionName) == false) {
             return ", " + FunctionScoreQueryBuilder.NAME_FIELD.getPreferredName() + ": " + functionName;
         } else {
             return "";

@@ -36,7 +36,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 
-import org.opensearch.ExceptionsHelper;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
@@ -47,13 +47,13 @@ import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.Strings;
 import org.opensearch.common.breaker.CircuitBreaker;
 import org.opensearch.common.io.stream.StreamInput;
 import org.opensearch.common.io.stream.StreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AtomicArray;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
@@ -415,7 +415,7 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
                     SearchPhaseExecutionException.class,
                     () -> client.prepareSearch("test").addAggregation(new TestAggregationBuilder("test")).get()
                 );
-                assertThat(ExceptionsHelper.unwrapCause(exc).getCause().getMessage(), containsString("<reduce_aggs>"));
+                assertThat(BaseExceptionsHelper.unwrapCause(exc).getCause().getMessage(), containsString("<reduce_aggs>"));
             });
 
             final AtomicArray<Exception> exceptions = new AtomicArray<>(10);
@@ -443,7 +443,7 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
             latch.await();
             assertThat(exceptions.asList().size(), equalTo(10));
             for (Exception exc : exceptions.asList()) {
-                assertThat(ExceptionsHelper.unwrapCause(exc).getCause().getMessage(), containsString("<reduce_aggs>"));
+                assertThat(BaseExceptionsHelper.unwrapCause(exc).getCause().getMessage(), containsString("<reduce_aggs>"));
             }
             assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
         } finally {
@@ -482,7 +482,7 @@ public class TransportSearchIT extends OpenSearchIntegTestCase {
         latch.await();
         assertThat(exceptions.asList().size(), equalTo(10));
         for (Exception exc : exceptions.asList()) {
-            assertThat(ExceptionsHelper.unwrapCause(exc).getCause().getMessage(), containsString("boom"));
+            assertThat(BaseExceptionsHelper.unwrapCause(exc).getCause().getMessage(), containsString("boom"));
         }
         assertBusy(() -> assertThat(requestBreakerUsed(), equalTo(0L)));
     }

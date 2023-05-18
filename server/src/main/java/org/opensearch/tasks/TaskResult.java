@@ -31,7 +31,7 @@
 
 package org.opensearch.tasks;
 
-import org.opensearch.OpenSearchException;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.client.Requests;
 import org.opensearch.common.Nullable;
 import org.opensearch.core.ParseField;
@@ -240,7 +240,7 @@ public final class TaskResult implements Writeable, ToXContentObject {
     private static BytesReference toXContent(Exception error) throws IOException {
         try (XContentBuilder builder = XContentFactory.contentBuilder(Requests.INDEX_CONTENT_TYPE)) {
             builder.startObject();
-            OpenSearchException.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, error);
+            BaseExceptionsHelper.generateThrowableXContent(builder, ToXContent.EMPTY_PARAMS, error);
             builder.endObject();
             return BytesReference.bytes(builder);
         }

@@ -326,7 +326,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
          * @param width The width of the gap introduced
          */
         public SpanGapQueryBuilder(String fieldName, int width) {
-            if (Strings.isEmpty(fieldName)) {
+            if (org.opensearch.core.common.Strings.isEmpty(fieldName)) {
                 throw new IllegalArgumentException("[span_gap] field name is null or empty");
             }
             // lucene has not coded any restriction on value of width.

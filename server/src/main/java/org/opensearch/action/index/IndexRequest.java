@@ -57,6 +57,7 @@ import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.XContentType;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.VersionType;
@@ -681,7 +682,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public String toString() {
-        String sSource = "_na_";
+        String sSource = Strings.UNKNOWN_UUID_VALUE;
         try {
             if (source.length() > MAX_SOURCE_LENGTH_IN_TOSTRING) {
                 sSource = "n/a, actual length: ["
