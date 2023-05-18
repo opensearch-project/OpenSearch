@@ -31,6 +31,8 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -110,7 +112,13 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
      */
     private final Map<String, Long> latestFileNameSizeOnLocalMap = new HashMap<>();
 
-    public RemoteStoreRefreshListener(IndexShard indexShard, RemoteRefreshSegmentPressureService pressureService) {
+    private final SegmentReplicationCheckpointPublisher checkpointPublisher;
+
+    public RemoteStoreRefreshListener(
+        IndexShard indexShard,
+        SegmentReplicationCheckpointPublisher checkpointPublisher,
+        RemoteRefreshSegmentPressureService pressureService
+    ) {
         this.indexShard = indexShard;
         this.storeDirectory = indexShard.store().directory();
         this.remoteDirectory = (RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) indexShard.remoteStore().directory())
@@ -126,6 +134,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         }
         this.pressureService = pressureService;
         resetBackOffDelayIterator();
+        this.checkpointPublisher = checkpointPublisher;
     }
 
     @Override
@@ -183,7 +192,9 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                 String segmentInfoSnapshotFilename = null;
                 try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = indexShard.getSegmentInfosSnapshot()) {
                     SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
-
+                    // Capture replication checkpoint before uploading the segments as upload can take some time and checkpoint can
+                    // move.
+                    ReplicationCheckpoint checkpoint = indexShard.getLatestReplicationCheckpoint();
                     Collection<String> localSegmentsPostRefresh = segmentInfos.files(true);
 
                     List<String> segmentInfosFiles = localSegmentsPostRefresh.stream()
@@ -225,9 +236,10 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
                             // Update the remote refresh time and refresh seq no
                             updateRemoteRefreshTimeAndSeqNo(segmentTracker, refreshTimeMs, refreshSeqNo);
                             clearStaleFilesFromLocalSegmentChecksumMap(localSegmentsPostRefresh);
-                            OnSuccessfulSegmentsSync();
+                            onSuccessfulSegmentsSync();
                             final long lastRefreshedCheckpoint = ((InternalEngine) indexShard.getEngine()).lastRefreshedCheckpoint();
                             indexShard.getEngine().translogManager().setMinSeqNoToKeep(lastRefreshedCheckpoint + 1);
+                            checkpointPublisher.publish(indexShard, checkpoint);
                             // At this point since we have uploaded new segments, segment infos and segment metadata file,
                             // along with marking minSeqNoToKeep, upload has succeeded completely.
                             shouldRetry = false;
@@ -277,7 +289,7 @@ public final class RemoteStoreRefreshListener implements ReferenceManager.Refres
         }
     }
 
-    private void OnSuccessfulSegmentsSync() {
+    private void onSuccessfulSegmentsSync() {
         // Reset the backoffDelayIterator for the future failures
         resetBackOffDelayIterator();
         // Cancel the scheduled cancellable retry if possible and set it to null

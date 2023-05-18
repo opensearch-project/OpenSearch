@@ -648,7 +648,7 @@ public abstract class IndexShardTestCase extends OpenSearchTestCase {
         ShardPath remoteShardPath = new ShardPath(false, remoteNodePath.resolve(shardId), remoteNodePath.resolve(shardId), shardId);
         RemoteDirectory dataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
         RemoteDirectory metadataDirectory = newRemoteDirectory(remoteShardPath.resolveIndex());
-        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory);
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(dataDirectory, metadataDirectory, null);
         return createStore(shardId, new IndexSettings(metadata, nodeSettings), remoteSegmentStoreDirectory);
     }
 

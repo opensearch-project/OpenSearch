@@ -44,12 +44,16 @@ import org.opensearch.cluster.routing.ShardsIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.io.stream.StreamInput;
+import org.opensearch.index.shard.ShardPath;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.node.Node;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * Indices clear cache action.
@@ -63,11 +67,14 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
 
     private final IndicesService indicesService;
 
+    private final Node node;
+
     @Inject
     public TransportClearIndicesCacheAction(
         ClusterService clusterService,
         TransportService transportService,
         IndicesService indicesService,
+        Node node,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
@@ -82,6 +89,7 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
             false
         );
         this.indicesService = indicesService;
+        this.node = node;
     }
 
     @Override
@@ -109,6 +117,14 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
 
     @Override
     protected EmptyResult shardOperation(ClearIndicesCacheRequest request, ShardRouting shardRouting) {
+        if (request.fileCache()) {
+            if (node.fileCache() != null) {
+                ShardPath shardPath = ShardPath.loadFileCachePath(node.getNodeEnvironment(), shardRouting.shardId());
+                Predicate<Path> pathStartsWithShardPathPredicate = path -> path.startsWith(shardPath.getDataPath());
+                node.fileCache().prune(pathStartsWithShardPathPredicate);
+            }
+        }
+
         indicesService.clearIndexShardCache(
             shardRouting.shardId(),
             request.queryCache(),
@@ -129,11 +145,11 @@ public class TransportClearIndicesCacheAction extends TransportBroadcastByNodeAc
 
     @Override
     protected ClusterBlockException checkGlobalBlock(ClusterState state, ClearIndicesCacheRequest request) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
     }
 
     @Override
     protected ClusterBlockException checkRequestBlock(ClusterState state, ClearIndicesCacheRequest request, String[] concreteIndices) {
-        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE, concreteIndices);
+        return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 }

@@ -29,6 +29,7 @@ import org.opensearch.index.remote.RemoteRefreshSegmentPressureService;
 import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
+import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -66,7 +67,11 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         );
         remoteRefreshSegmentPressureService = new RemoteRefreshSegmentPressureService(clusterService, Settings.EMPTY);
         remoteRefreshSegmentPressureService.afterIndexShardCreated(indexShard);
-        remoteStoreRefreshListener = new RemoteStoreRefreshListener(indexShard, remoteRefreshSegmentPressureService);
+        remoteStoreRefreshListener = new RemoteStoreRefreshListener(
+            indexShard,
+            SegmentReplicationCheckpointPublisher.EMPTY,
+            remoteRefreshSegmentPressureService
+        );
         remoteStoreRefreshListener.beforeRefresh();
     }
 
@@ -373,7 +378,11 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         when(shard.indexSettings()).thenReturn(indexShard.indexSettings());
         when(shard.shardId()).thenReturn(indexShard.shardId());
         remoteRefreshSegmentPressureService.afterIndexShardCreated(shard);
-        RemoteStoreRefreshListener refreshListener = new RemoteStoreRefreshListener(shard, remoteRefreshSegmentPressureService);
+        RemoteStoreRefreshListener refreshListener = new RemoteStoreRefreshListener(
+            shard,
+            SegmentReplicationCheckpointPublisher.EMPTY,
+            remoteRefreshSegmentPressureService
+        );
         refreshListener.beforeRefresh();
         refreshListener.afterRefresh(true);
         return Tuple.tuple(refreshListener, remoteRefreshSegmentPressureService);

@@ -1871,7 +1871,7 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                         new SegmentReplicationSourceFactory(transportService, recoverySettings, clusterService),
                         indicesService
                     ),
-                    SegmentReplicationSourceService.NO_OP,
+                    mock(SegmentReplicationSourceService.class),
                     shardStateAction,
                     new NodeMappingRefreshAction(transportService, metadataMappingService),
                     repositoriesService,
