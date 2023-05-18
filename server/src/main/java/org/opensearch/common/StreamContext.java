@@ -11,14 +11,14 @@ package org.opensearch.common;
 import java.io.IOException;
 
 /**
- * StreamProvider is used to supply streams to vendor plugins using <code>StreamProvider#provideStream</code>
+ * StreamContext is used to supply streams to vendor plugins using {@link StreamContext#provideStream}
  */
-public class StreamProvider {
+public class StreamContext {
 
     private final TransferPartStreamSupplier streamSupplier;
     private final long partSize;
     private final long lastPartSize;
-    private final int numOfParts;
+    private final int numberOfParts;
 
     /**
      * Construct a new StreamProvider object
@@ -26,13 +26,13 @@ public class StreamProvider {
      * @param streamSupplier An implementation of TransferPartStreamSupplier which will be called when provideStreams is called
      * @param partSize Size of all parts apart from the last one
      * @param lastPartSize Size of the last part
-     * @param numOfParts Total number of parts
+     * @param numberOfParts Total number of parts
      */
-    public StreamProvider(TransferPartStreamSupplier streamSupplier, long partSize, long lastPartSize, int numOfParts) {
+    public StreamContext(TransferPartStreamSupplier streamSupplier, long partSize, long lastPartSize, int numberOfParts) {
         this.streamSupplier = streamSupplier;
         this.partSize = partSize;
         this.lastPartSize = lastPartSize;
-        this.numOfParts = numOfParts;
+        this.numberOfParts = numberOfParts;
     }
 
     /**
@@ -41,7 +41,11 @@ public class StreamProvider {
      */
     public OffsetStreamContainer provideStream(int partNumber) throws IOException {
         long position = partSize * partNumber;
-        long size = (partNumber == numOfParts - 1) ? lastPartSize : partSize;
+        long size = (partNumber == numberOfParts - 1) ? lastPartSize : partSize;
         return streamSupplier.supply(partNumber, size, position);
+    }
+
+    public int getNumberOfParts() {
+        return numberOfParts;
     }
 }

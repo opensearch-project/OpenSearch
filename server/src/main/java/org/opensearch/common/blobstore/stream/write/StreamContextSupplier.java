@@ -8,7 +8,7 @@
 
 package org.opensearch.common.blobstore.stream.write;
 
-import org.opensearch.common.blobstore.stream.StreamContext;
+import org.opensearch.common.StreamContext;
 
 /**
  * Will return the <code>StreamContext</code> to the caller given the part size

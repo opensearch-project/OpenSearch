@@ -14,9 +14,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.opensearch.common.OffsetStreamContainer;
 import org.opensearch.common.SetOnce;
-import org.opensearch.common.StreamProvider;
+import org.opensearch.common.StreamContext;
 import org.opensearch.common.TransferPartStreamSupplier;
-import org.opensearch.common.blobstore.stream.StreamContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
@@ -84,7 +83,7 @@ public class RemoteTransferContainer implements Closeable {
     public WriteContext createWriteContext() {
         return new WriteContext(
             remoteFileName,
-            this::supplyStreamContext,
+            partSize1 -> supplyStreamContext(partSize1),
             contentLength,
             failTransferIfFileExists,
             writePriority,
@@ -94,7 +93,7 @@ public class RemoteTransferContainer implements Closeable {
 
     /**
      * @param partSize Part sizes of all parts apart from the last one, which is determined internally
-     * @return The {@link StreamContext} object that will be used by the vendor plugin to retrieve streams
+     * @return The {@link StreamContext} object that will be used by the vendor plugin to retrieve streams during upload
      */
     public StreamContext supplyStreamContext(long partSize) {
         try {
@@ -115,7 +114,7 @@ public class RemoteTransferContainer implements Closeable {
         ResettableCheckedInputStream[] streams = new ResettableCheckedInputStream[numberOfParts];
         inputStreams.set(streams);
 
-        return new StreamContext(new StreamProvider(getTransferPartStreamSupplier(), partSize, lastPartSize, numberOfParts), numberOfParts);
+        return new StreamContext(getTransferPartStreamSupplier(), partSize, lastPartSize, numberOfParts);
     }
 
     private TransferPartStreamSupplier getTransferPartStreamSupplier() {
@@ -136,7 +135,11 @@ public class RemoteTransferContainer implements Closeable {
         Stream get() throws IOException;
     }
 
-    private LocalStreamSupplier<OffsetStreamContainer> getMultipartStreamSupplier(final int streamIdx, final long size, final long position) {
+    private LocalStreamSupplier<OffsetStreamContainer> getMultipartStreamSupplier(
+        final int streamIdx,
+        final long size,
+        final long position
+    ) {
         return () -> {
             try {
                 OffsetRangeInputStream offsetRangeInputStream = offsetRangeInputStreamSupplier.get(size, position);
