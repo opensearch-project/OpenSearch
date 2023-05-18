@@ -53,6 +53,7 @@ import java.time.Duration;
 import java.util.concurrent.atomic.AtomicReference;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.profiles.ProfileFileSystemSetting;
+import software.amazon.awssdk.regions.Region;
 
 class AwsEc2ServiceImpl implements AwsEc2Service {
     private static final Logger logger = LogManager.getLogger(AwsEc2ServiceImpl.class);
@@ -61,6 +62,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
         new AtomicReference<>();
 
     private Ec2Client buildClient(Ec2ClientSettings clientSettings) {
+        SocketAccess.doPrivilegedVoid(AwsEc2ServiceImpl::setDefaultAwsProfilePath);
         final AwsCredentialsProvider awsCredentialsProvider = buildCredentials(logger, clientSettings);
         final ClientOverrideConfiguration overrideConfiguration = buildOverrideConfiguration(logger, clientSettings);
         final ProxyConfiguration proxyConfiguration = buildProxyConfiguration(logger, clientSettings);
@@ -69,6 +71,7 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
             proxyConfiguration,
             overrideConfiguration,
             clientSettings.endpoint,
+            clientSettings.region,
             clientSettings.readTimeoutMillis
         );
     }
@@ -79,10 +82,9 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
         ProxyConfiguration proxyConfiguration,
         ClientOverrideConfiguration overrideConfiguration,
         String endpoint,
+        Region region,
         long readTimeoutMillis
     ) {
-        SocketAccess.doPrivilegedVoid(AwsEc2ServiceImpl::setDefaultAwsProfilePath);
-
         ApacheHttpClient.Builder clientBuilder = ApacheHttpClient.builder()
             .proxyConfiguration(proxyConfiguration)
             .socketTimeout(Duration.ofMillis(readTimeoutMillis));
@@ -90,12 +92,14 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
         Ec2ClientBuilder builder = Ec2Client.builder()
             .overrideConfiguration(overrideConfiguration)
             .httpClientBuilder(clientBuilder)
-            .credentialsProvider(awsCredentialsProvider);
+            .credentialsProvider(awsCredentialsProvider)
+            .region(region);
 
         if (Strings.hasText(endpoint)) {
             logger.debug("using explicit ec2 endpoint [{}]", endpoint);
             builder.endpointOverride(URI.create(endpoint));
         }
+
         return SocketAccess.doPrivileged(builder::build);
     }
 
@@ -174,9 +178,11 @@ class AwsEc2ServiceImpl implements AwsEc2Service {
     @SuppressForbidden(reason = "Prevent AWS SDK v2 from using ~/.aws/config and ~/.aws/credentials.")
     static void setDefaultAwsProfilePath() {
         if (ProfileFileSystemSetting.AWS_SHARED_CREDENTIALS_FILE.getStringValue().isEmpty()) {
+            logger.info("setting aws.sharedCredentialsFile={}", System.getProperty("opensearch.path.conf"));
             System.setProperty(ProfileFileSystemSetting.AWS_SHARED_CREDENTIALS_FILE.property(), System.getProperty("opensearch.path.conf"));
         }
         if (ProfileFileSystemSetting.AWS_CONFIG_FILE.getStringValue().isEmpty()) {
+            logger.info("setting aws.sharedCredentialsFile={}", System.getProperty("opensearch.path.conf"));
             System.setProperty(ProfileFileSystemSetting.AWS_CONFIG_FILE.property(), System.getProperty("opensearch.path.conf"));
         }
     }

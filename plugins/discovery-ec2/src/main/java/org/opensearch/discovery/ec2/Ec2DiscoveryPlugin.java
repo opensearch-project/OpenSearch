@@ -118,6 +118,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
             Ec2ClientSettings.SECRET_KEY_SETTING,
             Ec2ClientSettings.SESSION_TOKEN_SETTING,
             Ec2ClientSettings.ENDPOINT_SETTING,
+            Ec2ClientSettings.REGION_SETTING,
             Ec2ClientSettings.PROTOCOL_SETTING,
             Ec2ClientSettings.PROXY_HOST_SETTING,
             Ec2ClientSettings.PROXY_PORT_SETTING,

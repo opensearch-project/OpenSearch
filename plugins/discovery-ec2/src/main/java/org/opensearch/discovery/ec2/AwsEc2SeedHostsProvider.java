@@ -38,7 +38,6 @@ import software.amazon.awssdk.services.ec2.model.Instance;
 import software.amazon.awssdk.services.ec2.model.Reservation;
 import software.amazon.awssdk.services.ec2.model.Filter;
 
-import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.ec2.model.GroupIdentifier;
 import software.amazon.awssdk.services.ec2.model.Tag;
 
@@ -120,6 +119,7 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
     }
 
     protected List<TransportAddress> fetchDynamicNodes() {
+        logger.info("fetchDynamicNodes");
 
         final List<TransportAddress> dynamicHosts = new ArrayList<>();
 
@@ -130,14 +130,15 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
             // NOTE: we don't filter by security group during the describe instances request for two reasons:
             // 1. differences in VPCs require different parameters during query (ID vs Name)
             // 2. We want to use two different strategies: (all security groups vs. any security groups)
-            descInstances = SocketAccess.doPrivileged(() -> clientReference.get().describeInstances(buildDescribeInstancesRequest()));
-        } catch (final SdkException e) {
-            logger.info("Exception while retrieving instance list from AWS API: {}", e.getMessage());
-            logger.debug("Full exception:", e);
+            DescribeInstancesRequest instancesRequest = buildDescribeInstancesRequest();
+            descInstances = SocketAccess.doPrivileged(() -> clientReference.get().describeInstances(instancesRequest));
+        } catch (final RuntimeException e) {
+            logger.warn("Exception while retrieving instance list from AWS API: {}", e.getMessage());
+            logger.warn("Full exception:", e);
             return dynamicHosts;
         }
 
-        logger.trace("finding seed nodes...");
+        logger.info("finding seed nodes...");
         for (final Reservation reservation : descInstances.reservations()) {
             for (final Instance instance : reservation.instances()) {
                 // lets see if we can filter based on groups

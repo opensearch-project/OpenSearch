@@ -88,7 +88,11 @@ public abstract class AbstractEc2MockAPITestCase extends OpenSearchTestCase {
         final MockSecureSettings mockSecure = new MockSecureSettings();
         mockSecure.setString(Ec2ClientSettings.ACCESS_KEY_SETTING.getKey(), accessKey);
         mockSecure.setString(Ec2ClientSettings.SECRET_KEY_SETTING.getKey(), "ec2_secret");
-        return Settings.builder().put(Ec2ClientSettings.ENDPOINT_SETTING.getKey(), endpoint).setSecureSettings(mockSecure).build();
+        return Settings.builder()
+            .put(Ec2ClientSettings.ENDPOINT_SETTING.getKey(), endpoint)
+            .put(Ec2ClientSettings.REGION_SETTING.getKey(), "ec2_region")
+            .setSecureSettings(mockSecure)
+            .build();
     }
 
     @After
