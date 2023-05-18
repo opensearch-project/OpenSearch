@@ -128,32 +128,6 @@ public class ExtensionsManager {
      * Instantiate a new ExtensionsManager object to handle requests and responses from extensions. This is called during Node bootstrap.
      *
      * @param extensionsPath  Path to a directory containing extensions.
-     * @throws IOException  If the extensions discovery file is not properly retrieved.
-     */
-    public ExtensionsManager(Path extensionsPath) throws IOException {
-        logger.info("ExtensionsManager initialized");
-        this.extensionsPath = extensionsPath;
-        this.initializedExtensions = new HashMap<String, DiscoveryExtensionNode>();
-        this.extensionIdMap = new HashMap<String, DiscoveryExtensionNode>();
-        this.extensionSettingsMap = new HashMap<String, Extension>();
-        // will be initialized in initializeServicesAndRestHandler which is called after the Node is initialized
-        this.transportService = null;
-        this.clusterService = null;
-        this.additionalSettings = new HashSet<>();
-        this.client = null;
-        this.extensionTransportActionsHandler = null;
-
-        /*
-         * Now Discover extensions
-         */
-        discover();
-
-    }
-
-    /**
-     * Instantiate a new ExtensionsManager object to handle requests and responses from extensions. This is called during Node bootstrap.
-     *
-     * @param extensionsPath  Path to a directory containing extensions.
      * @param additionalSettings  Additional settings to read in from extensions.yml
      * @throws IOException  If the extensions discovery file is not properly retrieved.
      */
