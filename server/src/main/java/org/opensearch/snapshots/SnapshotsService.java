@@ -337,9 +337,19 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                 }
 
-                Boolean remoteStoreIndexShallowCopy = request.remoteStoreIndexShallowCopy();
-
-                if (remoteStoreIndexShallowCopy == null) {
+                boolean remoteStoreIndexShallowCopy = false;
+                if (request.remoteStoreIndexShallowCopy() != null) {
+                    if (!version.onOrAfter(Version.V_2_8_0)) {
+                        throw new SnapshotException(
+                            new Snapshot(repositoryName, snapshotId),
+                            "Snapshot cannot be triggered with parameter remote_store_shallow_copy_index enabled. "
+                                + "Cluster have nodes with version older than 2.8.0"
+                        );
+                    }
+                    remoteStoreIndexShallowCopy = request.remoteStoreIndexShallowCopy();
+                } else if (version.onOrAfter(Version.V_2_8_0)) {
+                    // if remoteStoreIndexShallowCopy parameter is not passed in create snapshot request,
+                    // we will pull the value from repository settings.
                     remoteStoreIndexShallowCopy = REMOTE_STORE_INDEX_SHALLOW_COPY.get(repository.getMetadata().settings());
                 }
 

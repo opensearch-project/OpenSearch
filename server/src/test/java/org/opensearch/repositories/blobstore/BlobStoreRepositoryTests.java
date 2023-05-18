@@ -273,7 +273,9 @@ public class BlobStoreRepositoryTests extends OpenSearchSingleNodeTestCase {
             .get();
         final SnapshotId snapshotId2 = createSnapshotResponse.getSnapshotInfo().snapshotId();
 
-        assert (getLockFilesInRemoteStore(remoteStoreIndexName, remoteStoreRepositoryName).length == 1);
+        String[] lockFiles = getLockFilesInRemoteStore(remoteStoreIndexName, remoteStoreRepositoryName);
+        assert (lockFiles.length == 1);
+        assert lockFiles[0].endsWith(snapshotId2.getUUID() + ".lock");
 
         logger.info("--> create another normal snapshot");
         createSnapshotResponse = client.admin()
@@ -284,7 +286,9 @@ public class BlobStoreRepositoryTests extends OpenSearchSingleNodeTestCase {
             .get();
         final SnapshotId snapshotId3 = createSnapshotResponse.getSnapshotInfo().snapshotId();
 
-        assert (getLockFilesInRemoteStore(remoteStoreIndexName, remoteStoreRepositoryName).length == 1);
+        lockFiles = getLockFilesInRemoteStore(remoteStoreIndexName, remoteStoreRepositoryName);
+        assert (lockFiles.length == 1);
+        assert lockFiles[0].endsWith(snapshotId2.getUUID() + ".lock");
 
         logger.info("--> make sure the node's repository can resolve the snapshots");
         final List<SnapshotId> originalSnapshots = Arrays.asList(snapshotId1, snapshotId2, snapshotId3);
@@ -335,7 +339,10 @@ public class BlobStoreRepositoryTests extends OpenSearchSingleNodeTestCase {
             .get();
         final SnapshotId snapshotId1 = createSnapshotResponse.getSnapshotInfo().snapshotId();
 
-        assert (getLockFilesInRemoteStore(remoteStoreIndexName, remoteStoreRepositoryName).length == 1);
+        String[] lockFiles = getLockFilesInRemoteStore(remoteStoreIndexName, remoteStoreRepositoryName);
+        assert (lockFiles.length == 1);
+        assert lockFiles[0].endsWith(snapshotId1.getUUID() + ".lock");
+
         logger.info("--> create second remote index shallow snapshot");
         createSnapshotResponse = client.admin()
             .cluster()
@@ -346,8 +353,12 @@ public class BlobStoreRepositoryTests extends OpenSearchSingleNodeTestCase {
             .get();
         final SnapshotId snapshotId2 = createSnapshotResponse.getSnapshotInfo().snapshotId();
 
-        assert (getLockFilesInRemoteStore(remoteStoreIndexName, remoteStoreRepositoryName).length == 2);
-
+        lockFiles = getLockFilesInRemoteStore(remoteStoreIndexName, remoteStoreRepositoryName);
+        assert (lockFiles.length == 2);
+        List<SnapshotId> shallowCopySnapshotIDs = Arrays.asList(snapshotId1, snapshotId2);
+        for (SnapshotId snapshotId : shallowCopySnapshotIDs) {
+            assert lockFiles[0].contains(snapshotId.getUUID()) || lockFiles[1].contains(snapshotId.getUUID());
+        }
         logger.info("--> create third remote index shallow snapshot");
         createSnapshotResponse = client.admin()
             .cluster()
@@ -358,8 +369,14 @@ public class BlobStoreRepositoryTests extends OpenSearchSingleNodeTestCase {
             .get();
         final SnapshotId snapshotId3 = createSnapshotResponse.getSnapshotInfo().snapshotId();
 
-        assert (getLockFilesInRemoteStore(remoteStoreIndexName, remoteStoreRepositoryName).length == 3);
-
+        lockFiles = getLockFilesInRemoteStore(remoteStoreIndexName, remoteStoreRepositoryName);
+        assert (lockFiles.length == 3);
+        shallowCopySnapshotIDs = Arrays.asList(snapshotId1, snapshotId2, snapshotId3);
+        for (SnapshotId snapshotId : shallowCopySnapshotIDs) {
+            assert lockFiles[0].contains(snapshotId.getUUID())
+                || lockFiles[1].contains(snapshotId.getUUID())
+                || lockFiles[2].contains(snapshotId.getUUID());
+        }
         logger.info("--> create normal snapshot");
         createSnapshotResponse = client.admin()
             .cluster()
@@ -369,7 +386,14 @@ public class BlobStoreRepositoryTests extends OpenSearchSingleNodeTestCase {
             .get();
         final SnapshotId snapshotId4 = createSnapshotResponse.getSnapshotInfo().snapshotId();
 
-        assert (getLockFilesInRemoteStore(remoteStoreIndexName, remoteStoreRepositoryName).length == 3);
+        lockFiles = getLockFilesInRemoteStore(remoteStoreIndexName, remoteStoreRepositoryName);
+        assert (lockFiles.length == 3);
+        shallowCopySnapshotIDs = Arrays.asList(snapshotId1, snapshotId2, snapshotId3);
+        for (SnapshotId snapshotId : shallowCopySnapshotIDs) {
+            assert lockFiles[0].contains(snapshotId.getUUID())
+                || lockFiles[1].contains(snapshotId.getUUID())
+                || lockFiles[2].contains(snapshotId.getUUID());
+        }
 
         logger.info("--> make sure the node's repository can resolve the snapshots");
         final List<SnapshotId> originalSnapshots = Arrays.asList(snapshotId1, snapshotId2, snapshotId3, snapshotId4);

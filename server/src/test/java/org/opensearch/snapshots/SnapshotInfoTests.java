@@ -73,6 +73,8 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
 
         Map<String, Object> userMetadata = randomUserMetadata();
 
+        Boolean remoteStoreIndexShallowCopy = randomBoolean() ? null : randomBoolean();
+
         return new SnapshotInfo(
             snapshotId,
             indices,
@@ -84,7 +86,7 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
             shardFailures,
             includeGlobalState,
             userMetadata,
-            false
+            remoteStoreIndexShallowCopy
         );
     }
 
@@ -95,7 +97,7 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
 
     @Override
     protected SnapshotInfo mutateInstance(SnapshotInfo instance) {
-        switch (randomIntBetween(0, 8)) {
+        switch (randomIntBetween(0, 9)) {
             case 0:
                 SnapshotId snapshotId = new SnapshotId(
                     randomValueOtherThan(instance.snapshotId().getName(), () -> randomAlphaOfLength(5)),
@@ -245,6 +247,20 @@ public class SnapshotInfoTests extends AbstractWireSerializingTestCase<SnapshotI
                     instance.includeGlobalState(),
                     instance.userMetadata(),
                     instance.isRemoteStoreIndexShallowCopyEnabled()
+                );
+            case 9:
+                return new SnapshotInfo(
+                    instance.snapshotId(),
+                    instance.indices(),
+                    instance.dataStreams(),
+                    instance.startTime(),
+                    instance.reason(),
+                    instance.endTime(),
+                    instance.totalShards(),
+                    instance.shardFailures(),
+                    instance.includeGlobalState(),
+                    instance.userMetadata(),
+                    Boolean.FALSE.equals(instance.isRemoteStoreIndexShallowCopyEnabled())
                 );
             default:
                 throw new IllegalArgumentException("invalid randomization case");

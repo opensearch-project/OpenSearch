@@ -327,6 +327,7 @@ public class RepositoriesServiceTests extends OpenSearchTestCase {
             Version repositoryMetaVersion,
             Map<String, Object> userMetadata,
             long primaryTerm,
+            long startTime,
             ActionListener<String> listener
         ) {
 

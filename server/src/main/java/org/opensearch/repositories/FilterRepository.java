@@ -194,6 +194,7 @@ public class FilterRepository implements Repository {
         Version repositoryMetaVersion,
         Map<String, Object> userMetadata,
         long primaryTerm,
+        long startTime,
         ActionListener<String> listener
     ) {
         in.snapshotRemoteStoreIndexShard(
@@ -207,6 +208,7 @@ public class FilterRepository implements Repository {
             repositoryMetaVersion,
             userMetadata,
             primaryTerm,
+            startTime,
             listener
         );
     }

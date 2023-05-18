@@ -270,9 +270,10 @@ public interface Repository extends LifecycleComponent {
      * @param repositoryMetaVersion    version of the updated repository metadata to write
      * @param userMetadata             user metadata of the snapshot found in {@link SnapshotsInProgress.Entry#userMetadata()}
      * @param primaryTerm              current Primary Term
+     * @param startTime                start time of the snapshot commit, this will be used as the start time for snapshot.
      * @param listener                 listener invoked on completion
      */
-    void snapshotRemoteStoreIndexShard(
+    default void snapshotRemoteStoreIndexShard(
         Store store,
         MapperService mapperService,
         SnapshotId snapshotId,
@@ -283,8 +284,11 @@ public interface Repository extends LifecycleComponent {
         Version repositoryMetaVersion,
         Map<String, Object> userMetadata,
         long primaryTerm,
+        long startTime,
         ActionListener<String> listener
-    );
+    ) {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Restores snapshot of the shard.

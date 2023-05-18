@@ -16,7 +16,6 @@ import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
 /**
@@ -37,25 +36,25 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment {
     private final String remoteStoreRepository;
     private final String repositoryBasePath;
     private final String indexUUID;
-    private final Collection<String> fileNames;
+    private final List<String> fileNames;
 
-    private static final String NAME = "name";
-    private static final String INDEX_VERSION = "index_version";
-    private static final String START_TIME = "start_time";
-    private static final String TIME = "time";
+    static final String NAME = "name";
+    static final String INDEX_VERSION = "index_version";
+    static final String START_TIME = "start_time";
+    static final String TIME = "time";
 
-    private static final String INDEX_UUID = "index_uuid";
+    static final String INDEX_UUID = "index_uuid";
 
-    private static final String REMOTE_STORE_REPOSITORY = "remote_store_repository";
-    private static final String REPOSITORY_BASE_PATH = "remote_store_repository_base_path";
-    private static final String FILE_NAMES = "file_names";
+    static final String REMOTE_STORE_REPOSITORY = "remote_store_repository";
+    static final String REPOSITORY_BASE_PATH = "remote_store_repository_base_path";
+    static final String FILE_NAMES = "file_names";
 
-    private static final String PRIMARY_TERM = "primary_term";
+    static final String PRIMARY_TERM = "primary_term";
 
-    private static final String COMMIT_GENERATION = "commit_generation";
+    static final String COMMIT_GENERATION = "commit_generation";
 
-    private static final String TOTAL_FILE_COUNT = "number_of_files";
-    private static final String TOTAL_SIZE = "total_size";
+    static final String TOTAL_FILE_COUNT = "number_of_files";
+    static final String TOTAL_SIZE = "total_size";
 
     private static final ParseField PARSE_NAME = new ParseField(NAME);
 
@@ -89,7 +88,12 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment {
         builder.field(REMOTE_STORE_REPOSITORY, remoteStoreRepository);
         builder.field(COMMIT_GENERATION, commitGeneration);
         builder.field(PRIMARY_TERM, primaryTerm);
-        builder.field(FILE_NAMES, fileNames);
+        builder.field(REPOSITORY_BASE_PATH, repositoryBasePath);
+        builder.startArray(FILE_NAMES);
+        for (String fileName : fileNames) {
+            builder.value(fileName);
+        }
+        builder.endArray();
         return builder;
     }
 
@@ -105,7 +109,7 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment {
         String indexUUID,
         String remoteStoreRepository,
         String repositoryBasePath,
-        Collection<String> fileNames
+        List<String> fileNames
     ) {
         assert snapshot != null;
         assert indexVersion >= 0;
@@ -143,9 +147,8 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment {
         String repositoryBasePath = null;
         long primaryTerm = -1;
         long commitGeneration = -1;
-        Collection<String> fileNames = new ArrayList<>();
+        List<String> fileNames = new ArrayList<>();
 
-        List<BlobStoreIndexShardSnapshot.FileInfo> indexFiles = new ArrayList<>();
         if (parser.currentToken() == null) { // fresh parser? move to the first token
             parser.nextToken();
         }
@@ -191,6 +194,29 @@ public class RemoteStoreShardShallowCopySnapshot implements ToXContentFragment {
             } else {
                 parser.skipChildren();
             }
+        }
+
+        // Verify that file information is complete
+        if (snapshot == null) {
+            throw new OpenSearchParseException("missing Snapshot Name");
+        }
+        if (indexVersion < 0) {
+            throw new OpenSearchParseException("missing or invalid Index Version");
+        }
+        if (commitGeneration < 0) {
+            throw new OpenSearchParseException("missing or invalid Commit Generation");
+        }
+        if (primaryTerm < 0) {
+            throw new OpenSearchParseException("missing or invalid Primary Term");
+        }
+        if (indexUUID == null) {
+            throw new OpenSearchParseException("missing Index UUID");
+        }
+        if (remoteStoreRepository == null) {
+            throw new OpenSearchParseException("missing Remote Store Repository");
+        }
+        if (repositoryBasePath == null) {
+            throw new OpenSearchParseException("missing Repository Base Path");
         }
 
         return new RemoteStoreShardShallowCopySnapshot(

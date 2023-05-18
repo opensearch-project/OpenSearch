@@ -176,21 +176,6 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
     ) {}
 
     @Override
-    public void snapshotRemoteStoreIndexShard(
-        Store store,
-        MapperService mapperService,
-        SnapshotId snapshotId,
-        IndexId indexId,
-        IndexCommit snapshotIndexCommit,
-        String shardStateIdentifier,
-        IndexShardSnapshotStatus snapshotStatus,
-        Version repositoryMetaVersion,
-        Map<String, Object> userMetadata,
-        long primaryTerm,
-        ActionListener<String> listener
-    ) {}
-
-    @Override
     public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
         return null;
     }

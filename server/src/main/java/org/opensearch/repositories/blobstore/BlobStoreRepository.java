@@ -184,6 +184,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     public static final String SNAPSHOT_PREFIX = "snap-";
 
+    public static final String SHALLOW_SNAPSHOT_PREFIX = "shallow-snap-";
+
     public static final String INDEX_FILE_PREFIX = "index-";
 
     public static final String INDEX_LATEST_BLOB = "index.latest";
@@ -195,6 +197,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final String METADATA_NAME_FORMAT = METADATA_PREFIX + "%s.dat";
 
     public static final String SNAPSHOT_NAME_FORMAT = SNAPSHOT_PREFIX + "%s.dat";
+
+    public static final String SHALLOW_SNAPSHOT_NAME_FORMAT = SHALLOW_SNAPSHOT_PREFIX + "%s.dat";
 
     private static final String SNAPSHOT_INDEX_PREFIX = "index-";
 
@@ -317,7 +321,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     );
 
     public static final ChecksumBlobStoreFormat<RemoteStoreShardShallowCopySnapshot> REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT =
-        new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SNAPSHOT_NAME_FORMAT, RemoteStoreShardShallowCopySnapshot::fromXContent);
+        new ChecksumBlobStoreFormat<>(SNAPSHOT_CODEC, SHALLOW_SNAPSHOT_NAME_FORMAT, RemoteStoreShardShallowCopySnapshot::fromXContent);
 
     public static final ChecksumBlobStoreFormat<BlobStoreIndexShardSnapshots> INDEX_SHARD_SNAPSHOTS_FORMAT = new ChecksumBlobStoreFormat<>(
         "snapshots",
@@ -2308,6 +2312,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         Version repositoryMetaVersion,
         Map<String, Object> userMetadata,
         long primaryTerm,
+        long startTime,
         ActionListener<String> listener
     ) {
         if (isReadOnly()) {
@@ -2315,7 +2320,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return;
         }
         final ShardId shardId = store.shardId();
-        final long startTime = threadPool.absoluteTimeInMillis();
         try {
             final String generation = snapshotStatus.generation();
             logger.info("[{}] [{}] snapshot to [{}] [{}] ...", shardId, snapshotId, metadata.name(), generation);
@@ -2324,13 +2328,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             long indexTotalFileSize = 0;
             // local store is being used here to fetch the files metadata instead of remote store as currently
             // remote store is mirroring the local store.
-            Collection<String> fileNames = snapshotIndexCommit.getFileNames();
+            List<String> fileNames = new ArrayList<>(snapshotIndexCommit.getFileNames());
             Store.MetadataSnapshot commitSnapshotMetadata = store.getMetadata(snapshotIndexCommit);
             for (String fileName : fileNames) {
                 indexTotalFileSize += commitSnapshotMetadata.get(fileName).length();
             }
             int indexTotalNumberOfFiles = fileNames.size();
-            this.basePath();
 
             snapshotStatus.moveToStarted(
                 startTime,
@@ -2358,7 +2361,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         store.indexSettings().getUUID(),
                         store.indexSettings().getRemoteStoreRepository(),
                         this.basePath().toString(),
-                        snapshotIndexCommit.getFileNames()
+                        fileNames
                     ),
                     shardContainer,
                     snapshotId.getUUID(),
@@ -2962,7 +2965,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     /**
      * Loads information about remote store enabled shard snapshot for remote store interop enabled snapshots
      */
-    public RemoteStoreShardShallowCopySnapshot loadRemStoreEnabledShardSnapshot(BlobContainer shardContainer, SnapshotId snapshotId) {
+    public RemoteStoreShardShallowCopySnapshot loadShallowCopyShardSnapshot(BlobContainer shardContainer, SnapshotId snapshotId) {
         try {
             return REMOTE_STORE_SHARD_SHALLOW_COPY_SNAPSHOT_FORMAT.read(shardContainer, snapshotId.getUUID(), namedXContentRegistry);
         } catch (NoSuchFileException ex) {

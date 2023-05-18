@@ -120,6 +120,10 @@ public class CreateSnapshotRequestTests extends OpenSearchTestCase {
         }
 
         if (randomBoolean()) {
+            original.remoteStoreIndexShallowCopy(randomBoolean());
+        }
+
+        if (randomBoolean()) {
             original.clusterManagerNodeTimeout("60s");
         }
 

@@ -265,7 +265,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         SNAPSHOT_INFO_PARSER.declareBoolean(SnapshotInfoBuilder::setIncludeGlobalState, new ParseField(INCLUDE_GLOBAL_STATE));
         SNAPSHOT_INFO_PARSER.declareObject(SnapshotInfoBuilder::setUserMetadata, (p, c) -> p.map(), new ParseField(USER_METADATA));
         SNAPSHOT_INFO_PARSER.declareInt(SnapshotInfoBuilder::setVersion, new ParseField(VERSION_ID));
-        // TODO: adding it here means it will showup in create snapshot response, confirm if we should do that...
         SNAPSHOT_INFO_PARSER.declareBoolean(
             SnapshotInfoBuilder::setRemoteStoreIndexShallowCopy,
             new ParseField(REMOTE_STORE_INDEX_SHALLOW_COPY)
@@ -636,6 +635,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             builder.field(VERSION_ID, version.id);
             builder.field(VERSION, version.toString());
         }
+        if (remoteStoreIndexShallowCopy != null) {
+            builder.field(REMOTE_STORE_INDEX_SHALLOW_COPY, remoteStoreIndexShallowCopy);
+        }
         builder.startArray(INDICES);
         for (String index : indices) {
             builder.value(index);
@@ -674,9 +676,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             }
             builder.endArray();
         }
-        if (remoteStoreIndexShallowCopy != null) {
-            builder.field(REMOTE_STORE_INDEX_SHALLOW_COPY, remoteStoreIndexShallowCopy);
-        }
         if (verbose || totalShards != 0) {
             builder.startObject(SHARDS);
             builder.field(TOTAL, totalShards);
@@ -694,6 +693,9 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         builder.field(UUID, snapshotId.getUUID());
         assert version != null : "version must always be known when writing a snapshot metadata blob";
         builder.field(VERSION_ID, version.id);
+        if (remoteStoreIndexShallowCopy != null) {
+            builder.field(REMOTE_STORE_INDEX_SHALLOW_COPY, remoteStoreIndexShallowCopy);
+        }
         builder.startArray(INDICES);
         for (String index : indices) {
             builder.value(index);
@@ -721,9 +723,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
             shardFailure.toXContent(builder, params);
         }
         builder.endArray();
-        if (remoteStoreIndexShallowCopy != null) {
-            builder.field(REMOTE_STORE_INDEX_SHALLOW_COPY, remoteStoreIndexShallowCopy);
-        }
         builder.endObject();
         return builder;
     }

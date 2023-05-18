@@ -394,7 +394,7 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
             GatedCloseable<IndexCommit> wrappedSnapshot = null;
             try {
                 if (remoteStoreIndexShallowCopy && indexShard.indexSettings().isRemoteStoreEnabled()) {
-                    long startTimeOfCommitOrFlush = threadPool.absoluteTimeInMillis();
+                    long startTime = threadPool.absoluteTimeInMillis();
                     // we flush first to make sure we get the latest writes snapshotted
                     wrappedSnapshot = indexShard.acquireLastIndexCommitAndRefresh(true);
                     long primaryTerm = indexShard.getOperationPrimaryTerm();
@@ -415,9 +415,10 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                         version,
                         userMetadata,
                         primaryTerm,
+                        startTime,
                         ActionListener.runBefore(listener, wrappedSnapshot::close)
                     );
-                    long endTimeOfCommitOrFlush = threadPool.absoluteTimeInMillis();
+                    long endTime = threadPool.absoluteTimeInMillis();
                     logger.debug(
                         "Time taken (in milliseconds) to complete shallow copy snapshot, "
                             + "for index "
@@ -427,25 +428,25 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                             + " and snapshot "
                             + snapshot.getSnapshotId()
                             + " is "
-                            + (endTimeOfCommitOrFlush - startTimeOfCommitOrFlush)
+                            + (endTime - startTime)
                     );
-                    return;
+                } else {
+                    // we flush first to make sure we get the latest writes snapshotted
+                    wrappedSnapshot = indexShard.acquireLastIndexCommit(true);
+                    final IndexCommit snapshotIndexCommit = wrappedSnapshot.get();
+                    repository.snapshotShard(
+                        indexShard.store(),
+                        indexShard.mapperService(),
+                        snapshot.getSnapshotId(),
+                        indexId,
+                        wrappedSnapshot.get(),
+                        getShardStateId(indexShard, snapshotIndexCommit),
+                        snapshotStatus,
+                        version,
+                        userMetadata,
+                        ActionListener.runBefore(listener, wrappedSnapshot::close)
+                    );
                 }
-                // we flush first to make sure we get the latest writes snapshotted
-                wrappedSnapshot = indexShard.acquireLastIndexCommit(true);
-                final IndexCommit snapshotIndexCommit = wrappedSnapshot.get();
-                repository.snapshotShard(
-                    indexShard.store(),
-                    indexShard.mapperService(),
-                    snapshot.getSnapshotId(),
-                    indexId,
-                    wrappedSnapshot.get(),
-                    getShardStateId(indexShard, snapshotIndexCommit),
-                    snapshotStatus,
-                    version,
-                    userMetadata,
-                    ActionListener.runBefore(listener, wrappedSnapshot::close)
-                );
             } catch (Exception e) {
                 IOUtils.close(wrappedSnapshot);
                 throw e;
