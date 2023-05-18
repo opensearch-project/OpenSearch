@@ -75,6 +75,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
         assertEquals("1.0", info.getVersion());
         assertEquals("FakePlugin", info.getClassname());
         assertThat(info.getExtendedPlugins(), empty());
+        assertEquals(info.isSemVerRangeCompatible(), false);
     }
 
     public void testReadFromPropertiesWithFolderNameAndVersionAfter() throws Exception {
@@ -287,6 +288,52 @@ public class PluginInfoTests extends OpenSearchTestCase {
         assertThat(info.getExtendedPlugins(), empty());
     }
 
+    public void testReadFromPropertiesSemVerRangeCompatible() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writePluginProperties(
+            pluginDir,
+            "description",
+            "fake desc",
+            "name",
+            "my_plugin",
+            "version",
+            "1.0",
+            "opensearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "FakePlugin",
+            "is.semVer.range.compatible",
+            "true"
+        );
+        PluginInfo info = PluginInfo.readFromProperties(pluginDir);
+        assertEquals(true, info.isSemVerRangeCompatible());
+    }
+
+    public void testReadFromPropertiesSemVerRangeNotCompatible() throws Exception {
+        Path pluginDir = createTempDir().resolve("fake-plugin");
+        PluginTestUtil.writePluginProperties(
+            pluginDir,
+            "description",
+            "fake desc",
+            "name",
+            "my_plugin",
+            "version",
+            "1.0",
+            "opensearch.version",
+            Version.CURRENT.toString(),
+            "java.version",
+            System.getProperty("java.specification.version"),
+            "classname",
+            "FakePlugin",
+            "is.semVer.range.compatible",
+            "false"
+        );
+        PluginInfo info = PluginInfo.readFromProperties(pluginDir);
+        assertEquals(false, info.isSemVerRangeCompatible());
+    }
+
     public void testSerialize() throws Exception {
         PluginInfo info = new PluginInfo(
             "c",
@@ -297,6 +344,7 @@ public class PluginInfoTests extends OpenSearchTestCase {
             "dummyclass",
             "c",
             Collections.singletonList("foo"),
+            randomBoolean(),
             randomBoolean()
         );
         BytesStreamOutput output = new BytesStreamOutput();
@@ -310,11 +358,71 @@ public class PluginInfoTests extends OpenSearchTestCase {
 
     public void testPluginListSorted() {
         List<PluginInfo> plugins = new ArrayList<>();
-        plugins.add(new PluginInfo("c", "foo", "dummy", Version.CURRENT, "1.8", "dummyclass", Collections.emptyList(), randomBoolean()));
-        plugins.add(new PluginInfo("b", "foo", "dummy", Version.CURRENT, "1.8", "dummyclass", Collections.emptyList(), randomBoolean()));
-        plugins.add(new PluginInfo("e", "foo", "dummy", Version.CURRENT, "1.8", "dummyclass", Collections.emptyList(), randomBoolean()));
-        plugins.add(new PluginInfo("a", "foo", "dummy", Version.CURRENT, "1.8", "dummyclass", Collections.emptyList(), randomBoolean()));
-        plugins.add(new PluginInfo("d", "foo", "dummy", Version.CURRENT, "1.8", "dummyclass", Collections.emptyList(), randomBoolean()));
+        plugins.add(
+            new PluginInfo(
+                "c",
+                "foo",
+                "dummy",
+                Version.CURRENT,
+                "1.8",
+                "dummyclass",
+                Collections.emptyList(),
+                randomBoolean(),
+                randomBoolean()
+            )
+        );
+        plugins.add(
+            new PluginInfo(
+                "b",
+                "foo",
+                "dummy",
+                Version.CURRENT,
+                "1.8",
+                "dummyclass",
+                Collections.emptyList(),
+                randomBoolean(),
+                randomBoolean()
+            )
+        );
+        plugins.add(
+            new PluginInfo(
+                "e",
+                "foo",
+                "dummy",
+                Version.CURRENT,
+                "1.8",
+                "dummyclass",
+                Collections.emptyList(),
+                randomBoolean(),
+                randomBoolean()
+            )
+        );
+        plugins.add(
+            new PluginInfo(
+                "a",
+                "foo",
+                "dummy",
+                Version.CURRENT,
+                "1.8",
+                "dummyclass",
+                Collections.emptyList(),
+                randomBoolean(),
+                randomBoolean()
+            )
+        );
+        plugins.add(
+            new PluginInfo(
+                "d",
+                "foo",
+                "dummy",
+                Version.CURRENT,
+                "1.8",
+                "dummyclass",
+                Collections.emptyList(),
+                randomBoolean(),
+                randomBoolean()
+            )
+        );
         PluginsAndModules pluginsInfo = new PluginsAndModules(plugins, Collections.emptyList());
 
         final List<PluginInfo> infos = pluginsInfo.getPluginInfos();

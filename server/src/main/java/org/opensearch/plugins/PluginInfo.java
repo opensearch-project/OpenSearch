@@ -75,19 +75,21 @@ public class PluginInfo implements Writeable, ToXContentObject {
     private final String customFolderName;
     private final List<String> extendedPlugins;
     private final boolean hasNativeController;
+    private final boolean isSemVerRangeCompatible;
 
     /**
      * Construct plugin info.
      *
-     * @param name                  the name of the plugin
-     * @param description           a description of the plugin
-     * @param version               an opaque version identifier for the plugin
-     * @param opensearchVersion     the version of OpenSearch the plugin was built for
-     * @param javaVersion           the version of Java the plugin was built with
-     * @param classname             the entry point to the plugin
-     * @param customFolderName      the custom folder name for the plugin
-     * @param extendedPlugins       other plugins this plugin extends through SPI
-     * @param hasNativeController   whether or not the plugin has a native controller
+     * @param name                      the name of the plugin
+     * @param description               a description of the plugin
+     * @param version                   an opaque version identifier for the plugin
+     * @param opensearchVersion         the version of OpenSearch the plugin was built for
+     * @param javaVersion               the version of Java the plugin was built with
+     * @param classname                 the entry point to the plugin
+     * @param customFolderName          the custom folder name for the plugin
+     * @param extendedPlugins           other plugins this plugin extends through SPI
+     * @param hasNativeController       whether or not the plugin has a native controller
+     * @param isSemVerRangeCompatible   whether or not the plugin specifies a semVer range of compatible versions
      */
     public PluginInfo(
         String name,
@@ -98,7 +100,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
         String classname,
         String customFolderName,
         List<String> extendedPlugins,
-        boolean hasNativeController
+        boolean hasNativeController,
+        boolean isSemVerRangeCompatible
     ) {
         this.name = name;
         this.description = description;
@@ -109,19 +112,21 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.customFolderName = customFolderName;
         this.extendedPlugins = Collections.unmodifiableList(extendedPlugins);
         this.hasNativeController = hasNativeController;
+        this.isSemVerRangeCompatible = isSemVerRangeCompatible;
     }
 
     /**
      * Construct plugin info.
      *
-     * @param name                  the name of the plugin
-     * @param description           a description of the plugin
-     * @param version               an opaque version identifier for the plugin
-     * @param opensearchVersion     the version of OpenSearch the plugin was built for
-     * @param javaVersion           the version of Java the plugin was built with
-     * @param classname             the entry point to the plugin
-     * @param extendedPlugins       other plugins this plugin extends through SPI
-     * @param hasNativeController   whether or not the plugin has a native controller
+     * @param name                      the name of the plugin
+     * @param description               a description of the plugin
+     * @param version                   an opaque version identifier for the plugin
+     * @param opensearchVersion         the version of OpenSearch the plugin was built for
+     * @param javaVersion               the version of Java the plugin was built with
+     * @param classname                 the entry point to the plugin
+     * @param extendedPlugins           other plugins this plugin extends through SPI
+     * @param hasNativeController       whether or not the plugin has a native controller
+     * @param isSemVerRangeCompatible   whether or not the plugin specifies a semVer range of compatible versions
      */
     public PluginInfo(
         String name,
@@ -131,7 +136,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
         String javaVersion,
         String classname,
         List<String> extendedPlugins,
-        boolean hasNativeController
+        boolean hasNativeController,
+        boolean isSemVerRangeCompatible
     ) {
         this(
             name,
@@ -142,7 +148,8 @@ public class PluginInfo implements Writeable, ToXContentObject {
             classname,
             null /* customFolderName */,
             extendedPlugins,
-            hasNativeController
+            hasNativeController,
+            isSemVerRangeCompatible
         );
     }
 
@@ -162,6 +169,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.customFolderName = in.readString();
         this.extendedPlugins = in.readStringList();
         this.hasNativeController = in.readBoolean();
+        this.isSemVerRangeCompatible = in.readBoolean();
     }
 
     @Override
@@ -179,6 +187,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
+        out.writeBoolean(isSemVerRangeCompatible);
     }
 
     /**
@@ -241,29 +250,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
         }
 
         final String hasNativeControllerValue = propsMap.remove("has.native.controller");
-        final boolean hasNativeController;
-        if (hasNativeControllerValue == null) {
-            hasNativeController = false;
-        } else {
-            switch (hasNativeControllerValue) {
-                case "true":
-                    hasNativeController = true;
-                    break;
-                case "false":
-                    hasNativeController = false;
-                    break;
-                default:
-                    final String message = String.format(
-                        Locale.ROOT,
-                        "property [%s] must be [%s], [%s], or unspecified but was [%s]",
-                        "has_native_controller",
-                        "true",
-                        "false",
-                        hasNativeControllerValue
-                    );
-                    throw new IllegalArgumentException(message);
-            }
-        }
+        final boolean hasNativeController = getBooleanProperty("has.native.controller", hasNativeControllerValue, false);
+
+        final String isSemVerRangeCompatibleValue = propsMap.remove("is.semVer.range.compatible");
+        final boolean isSemVerRangeCompatible = getBooleanProperty("is.semVer.range.compatible", isSemVerRangeCompatibleValue, false);
+        ;
 
         if (propsMap.isEmpty() == false) {
             throw new IllegalArgumentException("Unknown properties in plugin descriptor: " + propsMap.keySet());
@@ -278,8 +269,31 @@ public class PluginInfo implements Writeable, ToXContentObject {
             classname,
             customFolderName,
             extendedPlugins,
-            hasNativeController
+            hasNativeController,
+            isSemVerRangeCompatible
         );
+    }
+
+    private static boolean getBooleanProperty(String propertyName, String propertyValue, boolean defaultBool) {
+        if (propertyValue == null) {
+            return defaultBool;
+        }
+        switch (propertyValue) {
+            case "true":
+                return true;
+            case "false":
+                return false;
+            default:
+                final String message = String.format(
+                    Locale.ROOT,
+                    "property [%s] must be [%s], [%s], or unspecified but was [%s]",
+                    propertyName,
+                    "true",
+                    "false",
+                    propertyValue
+                );
+                throw new IllegalArgumentException(message);
+        }
     }
 
     /**
@@ -364,6 +378,14 @@ public class PluginInfo implements Writeable, ToXContentObject {
     }
 
     /**
+     * Whether or not the plugin specifies a semVer range of compatible versions.
+     * @return {@code true} if the plugin specifies a semVer range of compatible versions, {@code false} otherwise.
+     */
+    public boolean isSemVerRangeCompatible() {
+        return isSemVerRangeCompatible;
+    }
+
+    /**
      * The target folder name for the plugin.
      *
      * @return the custom folder name for the plugin if the folder name is specified, else return the id with kebab-case.
@@ -385,6 +407,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             builder.field("custom_foldername", customFolderName);
             builder.field("extended_plugins", extendedPlugins);
             builder.field("has_native_controller", hasNativeController);
+            builder.field("is_semVer_range_compatible", isSemVerRangeCompatible);
         }
         builder.endObject();
 
@@ -452,7 +475,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
             .append("\n")
             .append(prefix)
             .append("Folder name: ")
-            .append(customFolderName);
+            .append(customFolderName)
+            .append("\n")
+            .append(prefix)
+            .append("SemVer Range Compatible: ")
+            .append(isSemVerRangeCompatible);
         return information.toString();
     }
 }

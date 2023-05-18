@@ -149,6 +149,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 pluginClass.getName(),
                 null,
                 Collections.emptyList(),
+                false,
                 false
             );
             if (logger.isTraceEnabled()) {
@@ -387,7 +388,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * Verify the given plugin is compatible with the current OpenSearch installation.
      */
     static void verifyCompatibility(PluginInfo info) {
-        if (!isPluginVersionCompatibile(info.getOpenSearchVersion(), Version.CURRENT)) {
+        if (!isPluginVersionCompatible(info, Version.CURRENT)) {
             throw new IllegalArgumentException(
                 "Plugin ["
                     + info.getName()
@@ -403,12 +404,17 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     /**
      * This method checks if plugin was built with a version that is compatible with core's version.
-     * @param pluginVersion OS version plugin was built with
+     * @param pluginInfo {@code PluginInfo} to fetch plugin properties
      * @param coreVersion Core version
      * @return true if plugin's version is compatible with core, false otherwise
      */
-    static boolean isPluginVersionCompatibile(final Version pluginVersion, final Version coreVersion) {
-        return pluginVersion.major == coreVersion.major && pluginVersion.minor == coreVersion.minor;
+    static boolean isPluginVersionCompatible(final PluginInfo pluginInfo, final Version coreVersion) {
+        final Version pluginVersion = pluginInfo.getOpenSearchVersion();
+        if (pluginInfo.isSemVerRangeCompatible()) {
+            // Ignore patch version if plugin is specifying semVer range compatibility
+            return pluginVersion.major == coreVersion.major && pluginVersion.minor == coreVersion.minor;
+        }
+        return pluginVersion.equals(coreVersion);
     }
 
     static void checkForFailedPluginRemovals(final Path pluginsDirectory) throws IOException {

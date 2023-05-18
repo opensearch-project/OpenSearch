@@ -179,6 +179,7 @@ public class NodeInfoStreamingTests extends OpenSearchTestCase {
                         randomAlphaOfLengthBetween(3, 10),
                         name,
                         Collections.emptyList(),
+                        randomBoolean(),
                         randomBoolean()
                     )
                 );
@@ -197,6 +198,7 @@ public class NodeInfoStreamingTests extends OpenSearchTestCase {
                         randomAlphaOfLengthBetween(3, 10),
                         name,
                         Collections.emptyList(),
+                        randomBoolean(),
                         randomBoolean()
                     )
                 );

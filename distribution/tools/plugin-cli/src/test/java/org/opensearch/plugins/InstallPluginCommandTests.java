@@ -263,7 +263,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     }
 
     static void writePlugin(String name, Path structure, String... additionalProps) throws IOException {
-	writePlugin(name, structure, Version.CURRENT, additionalProps);
+        writePlugin(name, structure, Version.CURRENT, additionalProps);
     }
 
     static void writePlugin(String name, Path structure, Version coreVersion, String... additionalProps) throws IOException {
@@ -290,8 +290,8 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
     }
 
     static Path createPlugin(String name, Path structure, Version coreVersion, String... additionalProps) throws IOException {
-	writePlugin(name, structure, coreVersion, additionalProps);
-	return writeZip(structure, null);
+        writePlugin(name, structure, coreVersion, additionalProps);
+        return writeZip(structure, null);
     }
 
     static void writePluginSecurityPolicy(Path pluginDir, String... permissions) throws IOException {
@@ -877,17 +877,28 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         assertThat(e.getMessage(), containsString("Unknown plugin unknown_plugin"));
     }
 
-    public void testInstallPluginDifferingInPatchVersion() throws Exception {
+    public void testInstallPluginDifferingInPatchVersionAllowed() throws Exception {
+        Tuple<Path, Environment> env = createEnv(fs, temp);
+        Path pluginDir = createPluginDir(temp);
+        Version coreVersion = Version.CURRENT;
+        Version pluginVersion = VersionUtils.getVersion(coreVersion.major, coreVersion.minor, (byte)(coreVersion.revision + 1));
+        // Plugin explicitly specifies semVer range compatibility so patch version is not checked
+        String pluginZip = createPlugin("fake", pluginDir, pluginVersion, "is.semVer.range.compatible", "true").toUri().toURL().toString();
+        skipJarHellCommand.execute(terminal, Collections.singletonList(pluginZip), false, env.v2());
+        assertThat(terminal.getOutput(), containsString("100%"));
+    }
+
+    public void testInstallPluginDifferingInPatchVersionNotAllowed() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
         Version coreVersion = Version.CURRENT;
         Version pluginVersion = VersionUtils.getVersion(coreVersion.major, coreVersion.minor, (byte)(coreVersion.revision + 1));
         String pluginZip = createPlugin("fake", pluginDir, pluginVersion).toUri().toURL().toString();
-        skipJarHellCommand.execute(terminal, Collections.singletonList(pluginZip), false, env.v2());
-        assertThat(terminal.getOutput(), containsString("100%"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> skipJarHellCommand.execute(terminal, Collections.singletonList(pluginZip), false, env.v2()));
+        assertThat(e.getMessage(), containsString("Plugin [fake] was built for OpenSearch version"));
     }
 
-    public void testInstallPluginDifferingInMinorVersion() throws Exception {
+    public void testInstallPluginDifferingInMinorVersionNotAllowed() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
         Version coreVersion = Version.CURRENT;

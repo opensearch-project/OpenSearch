@@ -293,7 +293,17 @@ public class PluginsServiceTests extends OpenSearchTestCase {
 
     public void testSortBundlesCycleSelfReference() throws Exception {
         Path pluginDir = createTempDir();
-        PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.singletonList("foo"), false);
+        PluginInfo info = new PluginInfo(
+            "foo",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.singletonList("foo"),
+            false,
+            false
+        );
         PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
@@ -305,7 +315,17 @@ public class PluginsServiceTests extends OpenSearchTestCase {
     public void testSortBundlesCycle() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order, so we get know the beginning of the cycle
-        PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Arrays.asList("bar", "other"), false);
+        PluginInfo info = new PluginInfo(
+            "foo",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Arrays.asList("bar", "other"),
+            false,
+            false
+        );
         bundles.add(new PluginsService.Bundle(info, pluginDir));
         PluginInfo info2 = new PluginInfo(
             "bar",
@@ -315,6 +335,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "1.8",
             "MyPlugin",
             Collections.singletonList("baz"),
+            false,
             false
         );
         bundles.add(new PluginsService.Bundle(info2, pluginDir));
@@ -326,10 +347,21 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "1.8",
             "MyPlugin",
             Collections.singletonList("foo"),
+            false,
             false
         );
         bundles.add(new PluginsService.Bundle(info3, pluginDir));
-        PluginInfo info4 = new PluginInfo("other", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.emptyList(), false);
+        PluginInfo info4 = new PluginInfo(
+            "other",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.emptyList(),
+            false,
+            false
+        );
         bundles.add(new PluginsService.Bundle(info4, pluginDir));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> PluginsService.sortBundles(bundles));
@@ -338,7 +370,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
 
     public void testSortBundlesSingle() throws Exception {
         Path pluginDir = createTempDir();
-        PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.emptyList(), false);
+        PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.emptyList(), false, false);
         PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
         List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(Collections.singleton(bundle));
         assertThat(sortedBundles, Matchers.contains(bundle));
@@ -347,13 +379,13 @@ public class PluginsServiceTests extends OpenSearchTestCase {
     public void testSortBundlesNoDeps() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order
-        PluginInfo info1 = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.emptyList(), false);
+        PluginInfo info1 = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.emptyList(), false, false);
         PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir);
         bundles.add(bundle1);
-        PluginInfo info2 = new PluginInfo("bar", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.emptyList(), false);
+        PluginInfo info2 = new PluginInfo("bar", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.emptyList(), false, false);
         PluginsService.Bundle bundle2 = new PluginsService.Bundle(info2, pluginDir);
         bundles.add(bundle2);
-        PluginInfo info3 = new PluginInfo("baz", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.emptyList(), false);
+        PluginInfo info3 = new PluginInfo("baz", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.emptyList(), false, false);
         PluginsService.Bundle bundle3 = new PluginsService.Bundle(info3, pluginDir);
         bundles.add(bundle3);
         List<PluginsService.Bundle> sortedBundles = PluginsService.sortBundles(bundles);
@@ -362,7 +394,17 @@ public class PluginsServiceTests extends OpenSearchTestCase {
 
     public void testSortBundlesMissingDep() throws Exception {
         Path pluginDir = createTempDir();
-        PluginInfo info = new PluginInfo("foo", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.singletonList("dne"), false);
+        PluginInfo info = new PluginInfo(
+            "foo",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.singletonList("dne"),
+            false,
+            false
+        );
         PluginsService.Bundle bundle = new PluginsService.Bundle(info, pluginDir);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -374,7 +416,17 @@ public class PluginsServiceTests extends OpenSearchTestCase {
     public void testSortBundlesCommonDep() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order
-        PluginInfo info1 = new PluginInfo("grandparent", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.emptyList(), false);
+        PluginInfo info1 = new PluginInfo(
+            "grandparent",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.emptyList(),
+            false,
+            false
+        );
         PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir);
         bundles.add(bundle1);
         PluginInfo info2 = new PluginInfo(
@@ -385,6 +437,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "1.8",
             "MyPlugin",
             Collections.singletonList("common"),
+            false,
             false
         );
         PluginsService.Bundle bundle2 = new PluginsService.Bundle(info2, pluginDir);
@@ -397,6 +450,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "1.8",
             "MyPlugin",
             Collections.singletonList("common"),
+            false,
             false
         );
         PluginsService.Bundle bundle3 = new PluginsService.Bundle(info3, pluginDir);
@@ -409,6 +463,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "1.8",
             "MyPlugin",
             Collections.singletonList("grandparent"),
+            false,
             false
         );
         PluginsService.Bundle bundle4 = new PluginsService.Bundle(info4, pluginDir);
@@ -420,7 +475,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
     public void testSortBundlesAlreadyOrdered() throws Exception {
         Path pluginDir = createTempDir();
         Set<PluginsService.Bundle> bundles = new LinkedHashSet<>(); // control iteration order
-        PluginInfo info1 = new PluginInfo("dep", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.emptyList(), false);
+        PluginInfo info1 = new PluginInfo("dep", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.emptyList(), false, false);
         PluginsService.Bundle bundle1 = new PluginsService.Bundle(info1, pluginDir);
         bundles.add(bundle1);
         PluginInfo info2 = new PluginInfo(
@@ -431,6 +486,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "1.8",
             "MyPlugin",
             Collections.singletonList("dep"),
+            false,
             false
         );
         PluginsService.Bundle bundle2 = new PluginsService.Bundle(info2, pluginDir);
@@ -498,6 +554,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "1.8",
             "MyPlugin",
             Collections.singletonList("dep"),
+            false,
             false
         );
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
@@ -527,6 +584,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "1.8",
             "MyPlugin",
             Arrays.asList("dep1", "dep2"),
+            false,
             false
         );
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
@@ -546,7 +604,17 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         Path pluginDir = createTempDir();
         Path pluginJar = pluginDir.resolve("plugin.jar");
         makeJar(pluginJar, Level.class);
-        PluginInfo info1 = new PluginInfo("myplugin", "desc", "1.0", Version.CURRENT, "1.8", "MyPlugin", Collections.emptyList(), false);
+        PluginInfo info1 = new PluginInfo(
+            "myplugin",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "MyPlugin",
+            Collections.emptyList(),
+            false,
+            false
+        );
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
@@ -574,6 +642,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "1.8",
             "MyPlugin",
             Collections.singletonList("dep"),
+            false,
             false
         );
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
@@ -607,6 +676,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "1.8",
             "MyPlugin",
             Arrays.asList("dep1", "dep2"),
+            false,
             false
         );
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
@@ -640,6 +710,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "1.8",
             "MyPlugin",
             Arrays.asList("dep1", "dep2"),
+            false,
             false
         );
         PluginsService.Bundle bundle = new PluginsService.Bundle(info1, pluginDir);
@@ -712,35 +783,87 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "1.8",
             "FakePlugin",
             Collections.emptyList(),
+            false,
             false
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsService.verifyCompatibility(info));
         assertThat(e.getMessage(), containsString("was built for OpenSearch version 6.0.0"));
     }
 
-    public void testPluginDifferingWithCoreForPatchVersion() throws Exception {
-        // Validate that a plugin is allowed to have a different patch version than core
-        Version coreVersion = Version.CURRENT;
-        Version pluginVersion = VersionUtils.getVersion(coreVersion.major, coreVersion.minor, (byte)(coreVersion.revision + 1)); 
-        PluginInfo info = new PluginInfo("my_plugin", "desc", "1.0", pluginVersion, "1.8", "FakePlugin", Collections.emptyList(), false);
+    public void testPluginCompatibleWhenSemVerRangeNotSpecified() throws Exception {
+        // When semVer range is not specified, plugin is required to have same version as the core (Version.CURRENT)
+        PluginInfo info = new PluginInfo(
+            "my_plugin",
+            "desc",
+            "1.0",
+            Version.CURRENT,
+            "1.8",
+            "FakePlugin",
+            Collections.emptyList(),
+            false,
+            false
+        );
         PluginsService.verifyCompatibility(info);
     }
 
-    public void testIsPluginVersionCompatibile() {
+    public void testPluginIncompatibleWhenSemVerRangeNotSpecified() throws Exception {
+        // When semVer range is not specified, differing patch version is not allowed
+        Version coreVersion = Version.CURRENT;
+        Version pluginVersion = VersionUtils.getVersion(coreVersion.major, coreVersion.minor, (byte) (coreVersion.revision + 1));
+        PluginInfo info = new PluginInfo(
+            "my_plugin",
+            "desc",
+            "1.0",
+            pluginVersion,
+            "1.8",
+            "FakePlugin",
+            Collections.emptyList(),
+            false,
+            false
+        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> PluginsService.verifyCompatibility(info));
+        assertThat(e.getMessage(), containsString("was built for OpenSearch version"));
+    }
+
+    public void testPluginCompatibilityWhenSemVerRangeSpecified() {
         // Compatible plugin and core versions
-        assertTrue(PluginsService.isPluginVersionCompatibile(Version.fromString("1.0.0"), Version.fromString("1.0.0")));
-        assertTrue(PluginsService.isPluginVersionCompatibile(Version.fromString("1.0.0"), Version.fromString("1.0.1")));
-        assertTrue(PluginsService.isPluginVersionCompatibile(Version.fromString("1.0.1"), Version.fromString("1.0.0")));
+        assertTrue(PluginsService.isPluginVersionCompatible(getSemverCompatiblePluginInfoForVersion("1.0.0"), Version.fromString("1.0.0")));
+        assertTrue(PluginsService.isPluginVersionCompatible(getSemverCompatiblePluginInfoForVersion("1.0.0"), Version.fromString("1.0.1")));
+        assertTrue(PluginsService.isPluginVersionCompatible(getSemverCompatiblePluginInfoForVersion("1.0.1"), Version.fromString("1.0.0")));
 
         // Incompatible plugin and core versions
         // Different minor versions
-        assertFalse(PluginsService.isPluginVersionCompatibile(Version.fromString("1.0.0"), Version.fromString("1.1.0")));
-        assertFalse(PluginsService.isPluginVersionCompatibile(Version.fromString("1.1.0"), Version.fromString("1.0.0")));
+        assertFalse(
+            PluginsService.isPluginVersionCompatible(getSemverCompatiblePluginInfoForVersion("1.0.0"), Version.fromString("1.1.0"))
+        );
+        assertFalse(
+            PluginsService.isPluginVersionCompatible(getSemverCompatiblePluginInfoForVersion("1.1.0"), Version.fromString("1.0.0"))
+        );
         // Different major versions
-        assertFalse(PluginsService.isPluginVersionCompatibile(Version.fromString("1.0.0"), Version.fromString("2.0.0")));
-        assertFalse(PluginsService.isPluginVersionCompatibile(Version.fromString("2.0.0"), Version.fromString("1.0.0")));
+        assertFalse(
+            PluginsService.isPluginVersionCompatible(getSemverCompatiblePluginInfoForVersion("1.0.0"), Version.fromString("2.0.0"))
+        );
+        assertFalse(
+            PluginsService.isPluginVersionCompatible(getSemverCompatiblePluginInfoForVersion("2.0.0"), Version.fromString("1.0.0"))
+        );
         // Different major and minor versions
-        assertFalse(PluginsService.isPluginVersionCompatibile(Version.fromString("1.2.0"), Version.fromString("2.1.0")));
+        assertFalse(
+            PluginsService.isPluginVersionCompatible(getSemverCompatiblePluginInfoForVersion("1.2.0"), Version.fromString("2.1.0"))
+        );
+    }
+
+    private PluginInfo getSemverCompatiblePluginInfoForVersion(String version) {
+        return new PluginInfo(
+            "my_plugin",
+            "desc",
+            "1.0",
+            Version.fromString(version),
+            "1.8",
+            "FakePlugin",
+            Collections.emptyList(),
+            false,
+            true
+        );
     }
 
     public void testIncompatibleJavaVersion() throws Exception {
@@ -752,6 +875,7 @@ public class PluginsServiceTests extends OpenSearchTestCase {
             "1000000",
             "FakePlugin",
             Collections.emptyList(),
+            false,
             false
         );
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> PluginsService.verifyCompatibility(info));
@@ -917,7 +1041,10 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         TestExtensiblePlugin extensiblePlugin = new TestExtensiblePlugin();
         PluginsService.loadExtensions(
             Collections.singletonList(
-                Tuple.tuple(new PluginInfo("extensible", null, null, null, null, null, Collections.emptyList(), false), extensiblePlugin)
+                Tuple.tuple(
+                    new PluginInfo("extensible", null, null, null, null, null, Collections.emptyList(), false, false),
+                    extensiblePlugin
+                )
             )
         );
 
@@ -928,9 +1055,12 @@ public class PluginsServiceTests extends OpenSearchTestCase {
         TestPlugin testPlugin = new TestPlugin();
         PluginsService.loadExtensions(
             Arrays.asList(
-                Tuple.tuple(new PluginInfo("extensible", null, null, null, null, null, Collections.emptyList(), false), extensiblePlugin),
                 Tuple.tuple(
-                    new PluginInfo("test", null, null, null, null, null, Collections.singletonList("extensible"), false),
+                    new PluginInfo("extensible", null, null, null, null, null, Collections.emptyList(), false, false),
+                    extensiblePlugin
+                ),
+                Tuple.tuple(
+                    new PluginInfo("test", null, null, null, null, null, Collections.singletonList("extensible"), false, false),
                     testPlugin
                 )
             )
