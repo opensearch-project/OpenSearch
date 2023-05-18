@@ -41,6 +41,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
+import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
@@ -96,6 +97,7 @@ import org.opensearch.usage.UsageService;
 public class ExtensionsManagerTests extends OpenSearchTestCase {
     private TransportService transportService;
     private ActionModule actionModule;
+    private DynamicActionRegistry dynamicActionRegistry;
     private RestController restController;
     private SettingsModule settingsModule;
     private ClusterService clusterService;
@@ -160,6 +162,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             Collections.emptySet()
         );
         actionModule = mock(ActionModule.class);
+        dynamicActionRegistry = mock(DynamicActionRegistry.class);
         restController = new RestController(
             emptySet(),
             null,
@@ -168,6 +171,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
             new UsageService(),
             new IdentityService(Settings.EMPTY, List.of())
         );
+        when(actionModule.getDynamicActionRegistry()).thenReturn(mock(DynamicActionRegistry.class));
         when(actionModule.getRestController()).thenReturn(restController);
         settingsModule = new SettingsModule(Settings.EMPTY, emptyList(), emptyList(), emptySet());
         clusterService = createClusterService(threadPool);
@@ -422,7 +426,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         List<String> deprecatedActionsList = List.of("GET /deprecated/foo", "It's deprecated!");
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList, deprecatedActionsList);
         TransportResponse response = extensionsManager.getRestActionsRequestHandler()
-            .handleRegisterRestActionsRequest(registerActionsRequest);
+            .handleRegisterRestActionsRequest(registerActionsRequest, actionModule.getDynamicActionRegistry());
         assertEquals(AcknowledgedResponse.class, response.getClass());
         assertTrue(((AcknowledgedResponse) response).getStatus());
     }
@@ -454,7 +458,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList, deprecatedActionsList);
         expectThrows(
             IllegalArgumentException.class,
-            () -> extensionsManager.getRestActionsRequestHandler().handleRegisterRestActionsRequest(registerActionsRequest)
+            () -> extensionsManager.getRestActionsRequestHandler()
+                .handleRegisterRestActionsRequest(registerActionsRequest, actionModule.getDynamicActionRegistry())
         );
     }
 
@@ -468,7 +473,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList, deprecatedActionsList);
         expectThrows(
             IllegalArgumentException.class,
-            () -> extensionsManager.getRestActionsRequestHandler().handleRegisterRestActionsRequest(registerActionsRequest)
+            () -> extensionsManager.getRestActionsRequestHandler()
+                .handleRegisterRestActionsRequest(registerActionsRequest, actionModule.getDynamicActionRegistry())
         );
     }
 
@@ -481,7 +487,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList, deprecatedActionsList);
         expectThrows(
             IllegalArgumentException.class,
-            () -> extensionsManager.getRestActionsRequestHandler().handleRegisterRestActionsRequest(registerActionsRequest)
+            () -> extensionsManager.getRestActionsRequestHandler()
+                .handleRegisterRestActionsRequest(registerActionsRequest, dynamicActionRegistry)
         );
     }
 
@@ -494,7 +501,8 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         RegisterRestActionsRequest registerActionsRequest = new RegisterRestActionsRequest(uniqueIdStr, actionsList, deprecatedActionsList);
         expectThrows(
             IllegalArgumentException.class,
-            () -> extensionsManager.getRestActionsRequestHandler().handleRegisterRestActionsRequest(registerActionsRequest)
+            () -> extensionsManager.getRestActionsRequestHandler()
+                .handleRegisterRestActionsRequest(registerActionsRequest, dynamicActionRegistry)
         );
     }
 
