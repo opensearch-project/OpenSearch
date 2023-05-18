@@ -72,7 +72,6 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             SegmentReplicationCheckpointPublisher.EMPTY,
             remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(indexShard.shardId())
         );
-        remoteStoreRefreshListener.beforeRefresh();
     }
 
     private void indexDocs(int startDocId, int numberOfDocs) throws IOException {
@@ -383,7 +382,6 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
             SegmentReplicationCheckpointPublisher.EMPTY,
             remoteRefreshSegmentPressureService.getRemoteRefreshSegmentTracker(indexShard.shardId())
         );
-        refreshListener.beforeRefresh();
         refreshListener.afterRefresh(true);
         return Tuple.tuple(refreshListener, remoteRefreshSegmentPressureService);
     }
