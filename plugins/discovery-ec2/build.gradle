@@ -61,7 +61,6 @@ dependencies {
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   api "org.slf4j:slf4j-api:${versions.slf4j}"
-  api "org.slf4j:slf4j-simple:${versions.slf4j}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
   api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
@@ -133,9 +132,6 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.avalon.framework.logger.Logger',
     'org.apache.log.Hierarchy',
     'org.apache.log.Logger',
-    'org.slf4j.impl.StaticLoggerBinder',
-    'org.slf4j.impl.StaticMDCBinder',
-    'org.slf4j.impl.StaticMarkerBinder',
     'software.amazon.eventstream.HeaderValue',
     'software.amazon.eventstream.Message',
     'software.amazon.eventstream.MessageDecoder'
