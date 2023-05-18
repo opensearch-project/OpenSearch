@@ -881,7 +881,7 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
         Version coreVersion = Version.CURRENT;
-        Version pluginVersion = VersionUtils.getVersion(coreVersion.major, coreVersion.minor, (byte)(coreVersion.revision + 1));
+        Version pluginVersion = VersionUtils.getVersion(coreVersion.major, coreVersion.minor, (byte) (coreVersion.revision + 1));
         // Plugin explicitly specifies semVer range compatibility so patch version is not checked
         String pluginZip = createPlugin("fake", pluginDir, pluginVersion, "is.semVer.range.compatible", "true").toUri().toURL().toString();
         skipJarHellCommand.execute(terminal, Collections.singletonList(pluginZip), false, env.v2());
@@ -892,9 +892,12 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
         Version coreVersion = Version.CURRENT;
-        Version pluginVersion = VersionUtils.getVersion(coreVersion.major, coreVersion.minor, (byte)(coreVersion.revision + 1));
+        Version pluginVersion = VersionUtils.getVersion(coreVersion.major, coreVersion.minor, (byte) (coreVersion.revision + 1));
         String pluginZip = createPlugin("fake", pluginDir, pluginVersion).toUri().toURL().toString();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> skipJarHellCommand.execute(terminal, Collections.singletonList(pluginZip), false, env.v2()));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> skipJarHellCommand.execute(terminal, Collections.singletonList(pluginZip), false, env.v2())
+        );
         assertThat(e.getMessage(), containsString("Plugin [fake] was built for OpenSearch version"));
     }
 
@@ -902,9 +905,12 @@ public class InstallPluginCommandTests extends OpenSearchTestCase {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
         Version coreVersion = Version.CURRENT;
-        Version pluginVersion = VersionUtils.getVersion(coreVersion.major, (byte)(coreVersion.minor + 1), coreVersion.revision);
+        Version pluginVersion = VersionUtils.getVersion(coreVersion.major, (byte) (coreVersion.minor + 1), coreVersion.revision);
         String pluginZip = createPlugin("fake", pluginDir, pluginVersion).toUri().toURL().toString();
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> skipJarHellCommand.execute(terminal, Collections.singletonList(pluginZip), false, env.v2()));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> skipJarHellCommand.execute(terminal, Collections.singletonList(pluginZip), false, env.v2())
+        );
         assertThat(e.getMessage(), containsString("Plugin [fake] was built for OpenSearch version"));
     }
 
