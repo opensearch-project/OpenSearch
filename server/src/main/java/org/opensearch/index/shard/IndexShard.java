@@ -4693,7 +4693,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         long commitGeneration,
         boolean syncTillCommitPoint
     ) throws IOException {
-        assert indexSettings.isRemoteStoreEnabled();
         logger.info("Downloading segments from remote segment store");
         RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = null;
         if (remoteStore != null) {
@@ -4760,7 +4759,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 ) {
                     SegmentInfos infosSnapshot = SegmentInfos.readCommit(store.directory(), indexInput, commitGeneration);
                     long processedLocalCheckpoint = Long.parseLong(infosSnapshot.getUserData().get(LOCAL_CHECKPOINT_KEY));
-                    store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
+                    if (remoteStore != null) {
+                        store.commitSegmentInfos(infosSnapshot, processedLocalCheckpoint, processedLocalCheckpoint);
+                    }
+                    else {
+                        store.directory().sync(infosSnapshot.files(true));
+                        store.directory().syncMetaData();
+                    }
                 }
             }
         } catch (IOException e) {

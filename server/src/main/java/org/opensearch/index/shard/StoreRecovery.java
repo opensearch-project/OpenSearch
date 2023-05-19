@@ -364,16 +364,16 @@ final class StoreRecovery {
                 SnapshotRecoverySource recoverySource = (SnapshotRecoverySource) indexShard.recoveryState().getRecoverySource();
                 indexShard.prepareForIndexRecovery();
 
-                RemoteStoreShardShallowCopySnapshot remStoreBasedShardMetadata = repository.getRemoteStoreShallowCopyShardMetadata(
+                RemoteStoreShardShallowCopySnapshot shallowCopyShardMetadata = repository.getRemoteStoreShallowCopyShardMetadata(
                     recoverySource.snapshot().getSnapshotId(),
                     recoverySource.index(),
                     shardId
                 );
 
-                long primaryTerm = remStoreBasedShardMetadata.getPrimaryTerm();
-                long commitGeneration = remStoreBasedShardMetadata.getCommitGeneration();
-                String indexUUID = remStoreBasedShardMetadata.getIndexUUID();
-                String remoteStoreRepository = remStoreBasedShardMetadata.getRemoteStoreRepository();
+                long primaryTerm = shallowCopyShardMetadata.getPrimaryTerm();
+                long commitGeneration = shallowCopyShardMetadata.getCommitGeneration();
+                String indexUUID = shallowCopyShardMetadata.getIndexUUID();
+                String remoteStoreRepository = shallowCopyShardMetadata.getRemoteStoreRepository();
                 RemoteSegmentStoreDirectory tempRemoteDirectory = (RemoteSegmentStoreDirectory) directoryFactory.newDirectory(
                     remoteStoreRepository,
                     indexUUID,

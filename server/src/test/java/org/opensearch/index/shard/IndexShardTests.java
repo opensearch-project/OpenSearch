@@ -37,6 +37,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -49,6 +50,7 @@ import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.junit.Assert;
+import org.opensearch.common.io.PathUtils;
 import org.opensearch.core.Assertions;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
@@ -127,6 +129,9 @@ import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.store.StoreUtils;
@@ -188,7 +193,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-
+import java.util.Collection;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -210,7 +215,9 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 import static org.opensearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.opensearch.common.lucene.Lucene.cleanLuceneIndex;
 import static org.opensearch.core.xcontent.ToXContent.EMPTY_PARAMS;
@@ -2794,6 +2801,203 @@ public class IndexShardTests extends IndexShardTestCase {
         assertDocs(target, "0", "2");
 
         closeShard(source, false);
+        closeShards(target);
+    }
+
+    public void testRestoreFromSnapshotAndRemoteStoreToDocRep() throws IOException {
+        testRestoreFromSnapshotAndRemoteStore(true);
+    }
+
+    public void testRestoreFromSnapshotAndRemoteStore() throws IOException {
+        testRestoreFromSnapshotAndRemoteStore(false);
+    }
+
+    public void testRestoreFromSnapshotAndRemoteStore(boolean toDocRepShard) throws IOException {
+        IndexShard source = newStartedShard(
+            true,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .build(),
+            new InternalEngineFactory()
+        );
+
+        Settings.Builder settingsBuilder = Settings.builder();
+        if (!toDocRepShard) {
+            settingsBuilder.put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true);
+        }
+
+        IndexShard target = newStartedShard(
+            true,
+            settingsBuilder.build(),
+            new InternalEngineFactory()
+        );
+
+        indexDoc(source, "_doc", "1");
+        indexDoc(source, "_doc", "2");
+        indexDoc(source, "_doc", "4");
+        source.refresh("test");
+        assertDocs(source, "1", "2", "4");
+        flushShard(source);
+        source.refresh("test");
+
+        ShardRouting routing = ShardRoutingHelper.initWithSameId(
+            target.routingEntry(),
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE
+        );
+        final Snapshot snapshot = new Snapshot("foo", new SnapshotId("bar", UUIDs.randomBase64UUID()));
+
+        String indexUUID = source.indexSettings.getIndexMetadata().getIndexUUID();
+        String indexName = "test";
+        routing = ShardRoutingHelper.newWithRestoreSource(
+            routing,
+            new RecoverySource.SnapshotRecoverySource(
+                UUIDs.randomBase64UUID(),
+                snapshot,
+                Version.CURRENT,
+                new IndexId(indexName, indexUUID),
+                false,
+                true
+            )
+        );
+        target = reinitShard(target, routing);
+
+        DiscoveryNode localNode = new DiscoveryNode("foo", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        target.markAsRecovering("store", new RecoveryState(routing, localNode, null));
+        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+
+        long commitGeneration = 0L;
+        try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = source.getSegmentInfosSnapshot()) {
+            SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
+            commitGeneration = segmentInfos.getGeneration();
+        }
+        Collection<String> lastCommitedSegmentsInSource = SegmentInfos.readLatestCommit(source.store().directory()).files(false);
+
+        RemoteSegmentStoreDirectoryFactory directoryFactoryMock = mock(RemoteSegmentStoreDirectoryFactory.class);
+        RemoteSegmentStoreDirectory remoteSegmentStoreDirectory =
+            ((RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) source.remoteStore().directory()).getDelegate())
+                .getDelegate());
+        when(directoryFactoryMock.newDirectory(any(), any(), any())).thenReturn(remoteSegmentStoreDirectory);
+
+        IndexShard finalSource = source;
+        long finalCommitGeneration = commitGeneration;
+        target.restoreFromSnapshotAndRemoteStore(new RestoreOnlyRepository("test") {
+            @Override
+            public void restoreShard(
+                Store store,
+                SnapshotId snapshotId,
+                IndexId indexId,
+                ShardId snapshotShardId,
+                RecoveryState recoveryState,
+                ActionListener<Void> listener
+            ) {
+                assert false : "restore shard should not be called, as restore should happen from remote store";
+            }
+
+            @Override
+            public RemoteStoreShardShallowCopySnapshot getRemoteStoreShallowCopyShardMetadata(
+                SnapshotId snapshotId,
+                IndexId indexId,
+                ShardId snapshotShardId
+            ) {
+                return new RemoteStoreShardShallowCopySnapshot(
+                    snapshotId.getName(),
+                    randomLongBetween(1, 100),
+                    finalSource.getOperationPrimaryTerm(),
+                    finalCommitGeneration,
+                    randomLongBetween(1, 100),
+                    randomLongBetween(1, 100),
+                    randomInt(),
+                    randomInt(),
+                    indexUUID,
+                    "remote-store-repository-mock",
+                    "testBucket/remoteStore/",
+                    Arrays.asList("file1", "file2", "file3")
+                );
+            }
+        }, directoryFactoryMock, future);
+        assertTrue(future.actionGet());
+
+        assertDocs(target, "1", "2", "4");
+        assertTrue(
+            "Failed to sync all files to new shard",
+            List.of(target.store().directory().listAll()).containsAll(lastCommitedSegmentsInSource)
+        );
+
+        Directory storeDirectory = ((FilterDirectory) ((FilterDirectory) target.store().directory()).getDelegate()).getDelegate();
+        ((BaseDirectoryWrapper) storeDirectory).setCheckIndexOnClose(false);
+        closeShards(target);
+        closeShards(source);
+    }
+
+    public void testSyncSegmentsFromGivenRemoteSegmentStore() throws IOException {
+        String remoteStorePath = createTempDir().toString();
+        IndexShard source = newStartedShard(
+            true,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY, remoteStorePath + "__test")
+                .build(),
+            new InternalEngineFactory()
+        );
+        indexDoc(source, "_doc", "1");
+        indexDoc(source, "_doc", "2");
+        source.refresh("test");
+        assertDocs(source, "1", "2");
+        indexDoc(source, "_doc", "3");
+        source.refresh("test");
+        flushShard(source);
+
+        indexDoc(source, "_doc", "5");
+        source.refresh("test");
+
+        indexDoc(source, "_doc", "4");
+        source.refresh("test");
+
+        long primaryTerm;
+        long commitGeneration;
+        try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = source.getSegmentInfosSnapshot()) {
+            SegmentInfos segmentInfos = segmentInfosGatedCloseable.get();
+            primaryTerm = source.getOperationPrimaryTerm();
+            commitGeneration = segmentInfos.getGeneration();
+        }
+        Collection<String> lastCommitedSegmentsInSource = SegmentInfos.readLatestCommit(source.store().directory()).files(false);
+
+        closeShards(source);
+
+        RemoteSegmentStoreDirectory tempRemoteSegmentDirectory = createRemoteSegmentStoreDirectory(
+            source.shardId(),
+            PathUtils.get(remoteStorePath)
+        );
+
+        IndexShard target = newStartedShard(
+            true,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .build(),
+            new InternalEngineFactory()
+        );
+        ShardRouting routing = ShardRoutingHelper.initWithSameId(
+            target.routingEntry(),
+            RecoverySource.ExistingStoreRecoverySource.INSTANCE
+        );
+        routing = ShardRoutingHelper.newWithRestoreSource(routing, new RecoverySource.EmptyStoreRecoverySource());
+
+        target = reinitShard(target, routing);
+
+        target.syncSegmentsFromGivenRemoteSegmentStore(false, tempRemoteSegmentDirectory, primaryTerm, commitGeneration, true);
+        RemoteSegmentStoreDirectory remoteStoreDirectory = ((RemoteSegmentStoreDirectory) ((FilterDirectory) ((FilterDirectory) target
+            .remoteStore()
+            .directory()).getDelegate()).getDelegate());
+        Collection<String> uploadFiles = remoteStoreDirectory.getSegmentsUploadedToRemoteStore().keySet();
+        assertTrue(uploadFiles.containsAll(lastCommitedSegmentsInSource));
+        assertTrue(
+            "Failed to sync all files to new shard",
+            List.of(target.store().directory().listAll()).containsAll(lastCommitedSegmentsInSource)
+        );
         closeShards(target);
     }
 

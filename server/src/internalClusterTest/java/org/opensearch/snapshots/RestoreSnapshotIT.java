@@ -39,6 +39,7 @@ import org.opensearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.opensearch.action.admin.indices.template.delete.DeleteIndexTemplateRequestBuilder;
 import org.opensearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.index.IndexResponse;
 import org.opensearch.client.Client;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -46,8 +47,11 @@ import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeUnit;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.InvalidIndexNameException;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestStatus;
 
@@ -56,6 +60,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -81,6 +86,15 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertIndexTempl
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertRequestBuilderThrows;
 
 public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL, "true")
+            .put(FeatureFlags.REMOTE_STORE, "true")
+            .build();
+    }
 
     public void testParallelRestoreOperations() {
         String indexName1 = "testindex1";
@@ -150,6 +164,115 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         ensureGreen(restoredIndexName1, restoredIndexName2);
         assertThat(client.prepareGet(restoredIndexName1, docId).get().isExists(), equalTo(true));
         assertThat(client.prepareGet(restoredIndexName2, docId2).get().isExists(), equalTo(true));
+    }
+
+    public void testParallelRestoreOperationsShallowCopyEnabled() throws InterruptedException {
+        String indexName1 = "testindex1";
+        String indexName2 = "testindex2";
+        String snapshotRepoName = "test-restore-snapshot-repo";
+        String remoteStoreRepoName = "test-rs-repo" + TEST_REMOTE_STORE_REPO_SUFFIX;
+        String snapshotName1 = "test-restore-snapshot1";
+        String snapshotName2 = "test-restore-snapshot2";
+        Path absolutePath1 = randomRepoPath().toAbsolutePath();
+        Path absolutePath2 = randomRepoPath().toAbsolutePath();
+        logger.info("Snapshot Path [{}]", absolutePath1);
+        logger.info("Remote Store Repo Path [{}]", absolutePath2);
+        String restoredIndexName1 = indexName1 + "-restored";
+        String restoredIndexName2 = indexName2 + "-restored";
+        String expectedValue = "expected";
+
+        createRepository(snapshotRepoName, "fs", absolutePath1);
+        createRepository(remoteStoreRepoName, "fs", absolutePath2);
+
+        Client client = client();
+        Settings indexSettings = Settings.builder()
+            .put(super.indexSettings())
+            .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+            .put(IndexMetadata.SETTING_REMOTE_STORE_REPOSITORY, remoteStoreRepoName)
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "300s")
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
+        createIndex(indexName1, indexSettings);
+
+        Settings indexSettings2 = Settings.builder()
+            .put(super.indexSettings())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
+        createIndex(indexName2, indexSettings2);
+
+        final int numDocsInIndex1 = 5;
+        final int numDocsInIndex2 = 6;
+        indexDocuments(client, indexName1, numDocsInIndex1);
+        indexDocuments(client, indexName2, numDocsInIndex2);
+        ensureGreen(indexName1, indexName2);
+
+        logger.info("--> snapshot");
+        CreateSnapshotResponse createSnapshotResponse = client.admin()
+            .cluster()
+            .prepareCreateSnapshot(snapshotRepoName, snapshotName1)
+            .setWaitForCompletion(true)
+            .setRemoteStoreIndexShallowCopy(true)
+            .setIndices(indexName1, indexName2)
+            .get();
+        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(
+            createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
+        );
+        assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+
+        CreateSnapshotResponse createSnapshotResponse2 = client.admin()
+            .cluster()
+            .prepareCreateSnapshot(snapshotRepoName, snapshotName2)
+            .setWaitForCompletion(true)
+            .setIndices(indexName1, indexName2)
+            .get();
+        assertThat(createSnapshotResponse2.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(
+            createSnapshotResponse2.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse2.getSnapshotInfo().totalShards())
+        );
+        assertThat(createSnapshotResponse2.getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
+
+        RestoreSnapshotResponse restoreSnapshotResponse1 = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(snapshotRepoName, snapshotName1)
+            .setWaitForCompletion(false)
+            .setIndices(indexName1)
+            .setRenamePattern(indexName1)
+            .setRenameReplacement(restoredIndexName1)
+            .get();
+        RestoreSnapshotResponse restoreSnapshotResponse2 = client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(snapshotRepoName, snapshotName2)
+            .setWaitForCompletion(false)
+            .setIndices(indexName2)
+            .setRenamePattern(indexName2)
+            .setRenameReplacement(restoredIndexName2)
+            .get();
+        assertEquals(restoreSnapshotResponse1.status(), RestStatus.ACCEPTED);
+        assertEquals(restoreSnapshotResponse2.status(), RestStatus.ACCEPTED);
+        ensureGreen(restoredIndexName1, restoredIndexName2);
+        assertDocsPresentInIndex(client, restoredIndexName1, numDocsInIndex1);
+        assertDocsPresentInIndex(client, restoredIndexName2, numDocsInIndex2);
+    }
+
+    private void indexDocuments(Client client, String indexName, int numOfDocs) {
+        for (int i = 0; i < numOfDocs; i++) {
+            String id = Integer.toString(i);
+            client.prepareIndex(indexName).setId(id).setSource("text", "sometext").get();
+        }
+        client.admin().indices().prepareFlush(indexName).get();
+    }
+
+    private void assertDocsPresentInIndex(Client client, String indexName, int numOfDocs) {
+        for (int i = 0; i < numOfDocs; i++) {
+            String id = Integer.toString(i);
+            assertTrue(client.prepareGet(indexName, id).get().isExists());
+        }
     }
 
     public void testParallelRestoreOperationsFromSingleSnapshot() throws Exception {
