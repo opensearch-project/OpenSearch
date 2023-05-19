@@ -13,7 +13,7 @@ package org.opensearch.identity.tokens;
  */
 public class BearerAuthToken implements AuthToken {
 
-    public final String DELIMITER = ".";
+    public final String DELIMITER = "\\.";
     public final static String TOKEN_IDENTIFIER = "Bearer";
 
     private String header;

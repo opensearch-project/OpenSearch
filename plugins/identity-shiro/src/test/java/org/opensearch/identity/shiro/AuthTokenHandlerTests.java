@@ -14,6 +14,7 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.identity.noop.NoopTokenHandler;
 import org.opensearch.identity.tokens.AuthToken;
 import org.opensearch.identity.tokens.BasicAuthToken;
+import org.opensearch.identity.tokens.BearerAuthToken;
 import org.opensearch.identity.tokens.NoopToken;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
@@ -126,6 +127,18 @@ public class AuthTokenHandlerTests extends OpenSearchTestCase {
         BasicAuthToken authToken = new BasicAuthToken("Basic dGVzdDp0ZTpzdA==");
         assertThrows(OpenSearchException.class, () -> noopTokenHandler.resetToken(authToken));
         assertThrows(OpenSearchException.class, () -> noopTokenHandler.revokeToken(authToken));
+    }
+
+    public void testVerifyBearerTokenObject() {
+        BearerAuthToken testGoodToken = new BearerAuthToken("header.payload.signature");
+        IllegalStateException exception = assertThrows(IllegalStateException.class, () -> new BearerAuthToken("asddfhadfasdfad"));
+        assert(exception.getMessage().contains("Illegally formed bearer authorization token "));
+        assertEquals(testGoodToken.getCompleteToken(), "header.payload.signature");
+        assertEquals(testGoodToken.getTokenIdentifier(), "Bearer");
+        assertEquals(testGoodToken.getHeader(), "header");
+        assertEquals(testGoodToken.getPayload(), "payload");
+        assertEquals(testGoodToken.getSignature(), "signature");
+        assertEquals(testGoodToken.toString(), "Bearer auth token with header=header, payload=payload, signature=signature");
     }
 
 }
