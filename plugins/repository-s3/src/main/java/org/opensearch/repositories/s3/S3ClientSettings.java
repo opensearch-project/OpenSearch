@@ -201,7 +201,7 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<String> REGION = Setting.affixKeySetting(
         PREFIX,
         "region",
-        key -> new Setting<>(key, "us-east-1", Function.identity(), Property.NodeScope)
+        key -> new Setting<>(key, "us-west-2", Function.identity(), Property.NodeScope)
     );
 
     /** An override for the signer to use. */
