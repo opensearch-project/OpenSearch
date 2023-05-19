@@ -20,12 +20,15 @@ public class BearerAuthToken implements AuthToken {
     private String payload;
     private String signature;
 
+    private String completeToken;
+
     public BearerAuthToken(final String token) {
 
         String[] tokenComponents = token.split(DELIMITER);
         if (tokenComponents.length != 3) {
             throw new IllegalStateException("Illegally formed bearer authorization token " + token);
         }
+        completeToken = token;
         header = tokenComponents[0];
         payload = tokenComponents[1];
         signature = tokenComponents[2];
@@ -41,6 +44,14 @@ public class BearerAuthToken implements AuthToken {
 
     public String getSignature() {
         return signature;
+    }
+
+    public String getCompleteToken() {
+        return completeToken;
+    }
+
+    public String getTokenIdentifier() {
+        return TOKEN_IDENTIFIER;
     }
 
     @Override
