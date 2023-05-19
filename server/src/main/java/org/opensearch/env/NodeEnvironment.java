@@ -62,7 +62,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.gateway.MetadataStateFormat;
 import org.opensearch.gateway.PersistedClusterStateService;
 import org.opensearch.index.Index;

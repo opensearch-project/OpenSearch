@@ -43,7 +43,7 @@ import org.opensearch.client.Client;
 import org.opensearch.common.bytes.BytesArray;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.TransportAddress;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;

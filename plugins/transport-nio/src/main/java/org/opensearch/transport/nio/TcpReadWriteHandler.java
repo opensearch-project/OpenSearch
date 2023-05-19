@@ -39,7 +39,7 @@ import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.nio.BytesWriteHandler;
 import org.opensearch.nio.InboundChannelBuffer;
 import org.opensearch.nio.Page;

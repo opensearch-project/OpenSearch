@@ -49,7 +49,7 @@ import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentType;
-import org.opensearch.core.internal.io.Streams;
+import org.opensearch.common.util.io.Streams;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.identity.IdentityService;
 import org.opensearch.identity.Subject;

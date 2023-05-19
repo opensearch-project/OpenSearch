@@ -36,7 +36,7 @@ import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.opensearch.Assertions;
+import org.opensearch.core.Assertions;
 import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.rollover.RolloverInfo;

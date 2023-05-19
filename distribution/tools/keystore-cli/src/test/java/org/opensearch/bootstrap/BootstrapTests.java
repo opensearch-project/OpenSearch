@@ -31,7 +31,7 @@
 
 package org.opensearch.bootstrap;
 
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.settings.KeyStoreCommandTestCase;
 import org.opensearch.common.settings.KeyStoreWrapper;
 import org.opensearch.common.settings.SecureSettings;

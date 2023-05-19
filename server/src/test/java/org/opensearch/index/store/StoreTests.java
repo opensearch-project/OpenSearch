@@ -75,7 +75,7 @@ import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
-import org.opensearch.core.internal.io.IOUtils;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.env.ShardLock;
 import org.opensearch.index.Index;
 import org.opensearch.index.IndexModule;
