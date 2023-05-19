@@ -10,7 +10,7 @@ package org.opensearch.search.aggregations;
 
 import org.opensearch.search.internal.SearchContext;
 
-import java.util.Collections;
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -20,21 +20,9 @@ import java.util.List;
  * all the shards
  */
 public class ConcurrentAggregationProcessor extends DefaultAggregationProcessor {
-
-    @Override
-    public void populateResult(SearchContext context, List<InternalAggregation> aggregations) {
-        InternalAggregations internalAggregations = InternalAggregations.from(aggregations);
-        // Reduce the aggregations across slices before sending to the coordinator. We will perform shard level reduce iff multiple slices
-        // were created to execute this request and it used concurrent segment search path
-        // TODO: Add the check for flag that the request was executed using concurrent search
-        if (context.searcher().getSlices().length > 1) {
-            // using reduce is fine here instead of topLevelReduce as pipeline aggregation is evaluated on the coordinator after all
-            // documents are collected across shards for an aggregation
-            internalAggregations = InternalAggregations.reduce(
-                Collections.singletonList(internalAggregations),
-                context.aggregationReduceContext()
-            );
-        }
-        context.queryResult().aggregations(internalAggregations);
+    protected AggregationCollectorManager createAggregationCollectorManager(SearchContext context) throws IOException {
+        AggregatorFactories factories = context.aggregations().factories();
+        List<Aggregator> globalAggregators = factories.createTopLevelGlobalAggregators(context);
+        return new AggregationCollectorManager(context, globalAggregators);
     }
 }

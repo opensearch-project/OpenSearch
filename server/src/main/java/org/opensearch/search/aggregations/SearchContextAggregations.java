@@ -46,53 +46,17 @@ public class SearchContextAggregations {
     private final AggregatorFactories factories;
     private final MultiBucketConsumer multiBucketConsumer;
 
-    // top level global aggregators in the request
-    private final List<Aggregator> globalAggregators;
-
-    // top level aggregators other than global ones in the request
-    private final List<Aggregator> nonGlobalAggregators;
-
     /**
      * Creates a new aggregation context with the parsed aggregator factories
      */
     public SearchContextAggregations(AggregatorFactories factories, MultiBucketConsumer multiBucketConsumer) {
         this.factories = factories;
         this.multiBucketConsumer = multiBucketConsumer;
-        this.globalAggregators = new ArrayList<>();
-        this.nonGlobalAggregators = new ArrayList<>();
     }
 
     public AggregatorFactories factories() {
         return factories;
     }
-
-    public List<Aggregator> getGlobalAggregators() {
-        return Collections.unmodifiableList(globalAggregators);
-    }
-
-    public List<Aggregator> getNonGlobalAggregators() {
-        return Collections.unmodifiableList(nonGlobalAggregators);
-    }
-
-    /**
-     * Registers all the created non-global aggregators (top level aggregators) for the search execution context. In case of concurrent
-     * segment search where multiple slices are created, it will create the {@link Aggregator} collector per slice and register here.
-     *
-     * @param aggregators The top level non-global aggregators of the search execution.
-     */
-    public void addNonGlobalAggregators(List<Aggregator> aggregators) {
-        this.nonGlobalAggregators.addAll(aggregators);
-    }
-
-    /**
-     * Registers all the created global aggregators (top level aggregators) for the search execution context.
-     *
-     * @param aggregators The top level global aggregators of the search execution.
-     */
-    public void addGlobalAggregators(List<Aggregator> aggregators) {
-        this.globalAggregators.addAll(aggregators);
-    }
-
     /**
      * Returns a consumer for multi bucket aggregation that checks the total number of buckets
      * created in the response

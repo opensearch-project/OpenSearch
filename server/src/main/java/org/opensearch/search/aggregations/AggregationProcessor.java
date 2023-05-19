@@ -9,6 +9,7 @@
 package org.opensearch.search.aggregations;
 
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.query.QueryPhaseExecutionException;
 
 /**
  * Interface to define different stages of aggregation processing before and after document collection
@@ -26,11 +27,4 @@ public interface AggregationProcessor {
      * @param context {@link SearchContext} for the request
      */
     void postProcess(SearchContext context);
-
-    /**
-     * Callback to process the {@link org.opensearch.search.aggregations.bucket.global.GlobalAggregator} present
-     * in the search request
-     * @param context {@link SearchContext} for the request
-     */
-    void processGlobalAggregators(SearchContext context);
 }
