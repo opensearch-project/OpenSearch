@@ -1058,10 +1058,10 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
     @SuppressWarnings("unchecked")
     protected static Map<String, Object> getAlias(final String index, final String alias) throws IOException {
         String endpoint = "/_alias";
-        if (false == Strings.isEmpty(index)) {
+        if (false == org.opensearch.core.common.Strings.isEmpty(index)) {
             endpoint = index + endpoint;
         }
-        if (false == Strings.isEmpty(alias)) {
+        if (false == org.opensearch.core.common.Strings.isEmpty(alias)) {
             endpoint = endpoint + "/" + alias;
         }
         Map<String, Object> getAliasResponse = getAsMap(endpoint);

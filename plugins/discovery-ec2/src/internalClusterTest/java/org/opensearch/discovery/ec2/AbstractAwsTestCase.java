@@ -32,10 +32,10 @@
 
 package org.opensearch.discovery.ec2;
 
-import org.opensearch.common.Strings;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
+import org.opensearch.core.common.Strings;
 import org.opensearch.env.Environment;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;

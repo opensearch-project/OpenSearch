@@ -55,7 +55,7 @@ public class SearchingIT extends OpenSearchRestTestCase {
         try (RestHighLevelClient client = new RestHighLevelClient(RestClient.builder(nodes.toArray(HttpHost[]::new)))) {
             MultiGetResponse response = client.mget(multiGetRequest, RequestOptions.DEFAULT);
             assertEquals(1, response.getResponses().length);
-    
+
             assertTrue(response.getResponses()[0].isFailed());
             assertNotNull(response.getResponses()[0].getFailure());
             assertEquals(response.getResponses()[0].getFailure().getId(), "id1");
