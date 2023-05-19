@@ -172,7 +172,8 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Native Controller: false",
                 "Extended Plugins: []",
                 " * Classname: org.fake",
-                "Folder name: custom-folder"
+                "Folder name: custom-folder",
+                "SemVer Range Compatible: false"
             ),
             terminal.getOutput()
         );
@@ -195,7 +196,8 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Native Controller: true",
                 "Extended Plugins: []",
                 " * Classname: org.fake",
-                "Folder name: custom-folder"
+                "Folder name: custom-folder",
+                "SemVer Range Compatible: false"
             ),
             terminal.getOutput()
         );
@@ -220,6 +222,7 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Extended Plugins: []",
                 " * Classname: org.fake",
                 "Folder name: custom-folder",
+                "SemVer Range Compatible: false",
                 "fake_plugin2",
                 "- Plugin information:",
                 "Name: fake_plugin2",
@@ -230,7 +233,8 @@ public class ListPluginsCommandTests extends OpenSearchTestCase {
                 "Native Controller: false",
                 "Extended Plugins: []",
                 " * Classname: org.fake2",
-                "Folder name: custom-folder"
+                "Folder name: custom-folder",
+                "SemVer Range Compatible: false"
             ),
             terminal.getOutput()
         );

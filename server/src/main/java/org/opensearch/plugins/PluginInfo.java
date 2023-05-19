@@ -254,7 +254,6 @@ public class PluginInfo implements Writeable, ToXContentObject {
 
         final String isSemVerRangeCompatibleValue = propsMap.remove("is.semVer.range.compatible");
         final boolean isSemVerRangeCompatible = getBooleanProperty("is.semVer.range.compatible", isSemVerRangeCompatibleValue, false);
-        ;
 
         if (propsMap.isEmpty() == false) {
             throw new IllegalArgumentException("Unknown properties in plugin descriptor: " + propsMap.keySet());
