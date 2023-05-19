@@ -70,14 +70,14 @@ public class AuthTokenHandlerTests extends OpenSearchTestCase {
         final BasicAuthToken authToken = new BasicAuthToken("Basic dGVzdDp0ZTpzdA==");
         assertTrue(authToken.toString().equals("Basic auth token with user=test, password=te:st"));
         shiroAuthTokenHandler.revokeToken(authToken);
-        assert(authToken.toString().equals("Basic auth token with user=, password="));
+        assert (authToken.toString().equals("Basic auth token with user=, password="));
     }
 
     public void testShouldResetTokenSuccessfully() {
         final BasicAuthToken authToken = new BasicAuthToken("Basic dGVzdDp0ZTpzdA==");
         assertTrue(authToken.toString().equals("Basic auth token with user=test, password=te:st"));
         shiroAuthTokenHandler.resetToken(authToken);
-        assert(authToken.toString().equals("Basic auth token with user=, password="));
+        assert (authToken.toString().equals("Basic auth token with user=, password="));
     }
 
     public void testShouldFailWhenRevokeToken() {
@@ -88,9 +88,9 @@ public class AuthTokenHandlerTests extends OpenSearchTestCase {
 
     public void testShouldGetTokenInfoSuccessfully() {
         final BasicAuthToken authToken = new BasicAuthToken("Basic dGVzdDp0ZTpzdA==");
-        assert(authToken.toString().equals(shiroAuthTokenHandler.getTokenInfo(authToken)));
+        assert (authToken.toString().equals(shiroAuthTokenHandler.getTokenInfo(authToken)));
         final NoopToken noopAuthToken = new NoopToken();
-        assert(noopTokenHandler.getTokenInfo(noopAuthToken).equals("Token is NoopToken"));
+        assert (noopTokenHandler.getTokenInfo(noopAuthToken).equals("Token is NoopToken"));
         assert (noopTokenHandler.getTokenInfo(authToken).equals("Token is not a NoopToken"));
     }
 
