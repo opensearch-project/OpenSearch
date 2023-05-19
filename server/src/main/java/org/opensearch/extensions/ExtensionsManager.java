@@ -645,6 +645,7 @@ public class ExtensionsManager {
                         .stream()
                         .filter(kv -> additionalSettingsKeys.contains(kv.getKey()))
                         .collect(Collectors.toMap(map -> map.getKey(), map -> map.getValue()));
+
                     Settings.Builder output = Settings.builder();
                     output.loadFromMap(additionalSettingsMap);
                     extAdditionalSettings.applySettings(output.build());
