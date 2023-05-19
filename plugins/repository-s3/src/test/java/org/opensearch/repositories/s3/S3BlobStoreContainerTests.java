@@ -157,7 +157,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals(storageClass, request.storageClass());
         assertEquals(cannedAccessControlList, request.acl());
         if (serverSideEncryption) {
-            assertEquals(ServerSideEncryption.AES256.toString(), request.sseCustomerAlgorithm());
+            assertEquals(ServerSideEncryption.AES256, request.serverSideEncryption());
         }
     }
 
@@ -261,7 +261,7 @@ public class S3BlobStoreContainerTests extends OpenSearchTestCase {
         assertEquals(storageClass, initRequest.storageClass());
         assertEquals(cannedAccessControlList, initRequest.acl());
         if (serverSideEncryption) {
-            assertEquals(ServerSideEncryption.AES256.toString(), initRequest.sseCustomerAlgorithm());
+            assertEquals(ServerSideEncryption.AES256, initRequest.serverSideEncryption());
         }
 
         final Tuple<Long, Long> numberOfParts = S3BlobContainer.numberOfMultiparts(blobSize, bufferSize);
