@@ -133,7 +133,7 @@ public class RolloverRequest extends TimedRequest implements ToXContentObject {
     }
 
     /**
-     * Adds condition to check if the index has at least <code>numDocs</code> to rollover
+     * Adds condition to check if the index has at least <code>numDocs</code> to perform rollover.
      */
     public RolloverRequest addMinIndexDocsCondition(long numDocs) {
         MinDocsCondition minDocsCondition = new MinDocsCondition(numDocs);
