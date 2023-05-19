@@ -41,7 +41,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
-import org.opensearch.ExceptionsHelper;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.index.mapper.DateFieldMapper;
@@ -635,7 +635,7 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
             executeTestCase(query, aggBuilder, history -> {});
             fail("Expected an Exception but didn't get one");
         } catch (Exception e) {
-            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            Throwable cause = BaseExceptionsHelper.unwrapCause(e);
             if (cause == null) {
                 throw e;
             } else if (cause instanceof SearchPhaseExecutionException) {

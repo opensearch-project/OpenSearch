@@ -34,7 +34,7 @@ package org.opensearch.client.indices;
 
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.client.TimedRequest;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 
 public class GetMappingsRequest extends TimedRequest {
 
