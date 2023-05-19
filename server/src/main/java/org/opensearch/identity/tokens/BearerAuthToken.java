@@ -8,6 +8,9 @@
 
 package org.opensearch.identity.tokens;
 
+/**
+ * Bearer (JWT) Authentication Token in a http request header
+ */
 public class BearerAuthToken implements AuthToken {
 
     public final String DELIMITER = ".";
