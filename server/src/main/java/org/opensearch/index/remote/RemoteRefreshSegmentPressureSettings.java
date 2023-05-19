@@ -21,8 +21,8 @@ import org.opensearch.common.settings.Settings;
 public class RemoteRefreshSegmentPressureSettings {
 
     private static class Defaults {
-        private static final double BYTES_LAG_VARIANCE_FACTOR = 2.0;
-        private static final double UPLOAD_TIME_LAG_VARIANCE_FACTOR = 2.0;
+        private static final double BYTES_LAG_VARIANCE_FACTOR = 10.0;
+        private static final double UPLOAD_TIME_LAG_VARIANCE_FACTOR = 10.0;
         private static final double VARIANCE_FACTOR_MIN_VALUE = 1.0;
         private static final int MIN_CONSECUTIVE_FAILURES_LIMIT = 5;
         private static final int MIN_CONSECUTIVE_FAILURES_LIMIT_MIN_VALUE = 1;

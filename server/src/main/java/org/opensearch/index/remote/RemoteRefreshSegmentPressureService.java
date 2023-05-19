@@ -108,13 +108,9 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
      */
     public void validateSegmentsUploadLag(ShardId shardId) {
         RemoteRefreshSegmentTracker remoteRefreshSegmentTracker = getRemoteRefreshSegmentTracker(shardId);
-        // This will be null for non-remote backed indexes
-        if (remoteRefreshSegmentTracker == null) {
-            return;
-        }
-        // Check if refresh checkpoint (a.k.a. seq number) lag is 2 or below - this is to handle segment merges that can
-        // increase the bytes to upload almost suddenly.
-        if (remoteRefreshSegmentTracker.getRefreshSeqNoLag() <= 1) {
+        // condition 1 - This will be null for non-remote backed indexes
+        // condition 2 - This will be zero if the remote store is
+        if (remoteRefreshSegmentTracker == null || remoteRefreshSegmentTracker.getRefreshSeqNoLag() == 0) {
             return;
         }
 
@@ -189,6 +185,9 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
 
         @Override
         public boolean validate(RemoteRefreshSegmentTracker pressureTracker, ShardId shardId) {
+            if (pressureTracker.getRefreshSeqNoLag() <= 1) {
+                return true;
+            }
             if (pressureTracker.isUploadBytesAverageReady() == false) {
                 logger.trace("upload bytes moving average is not ready");
                 return true;
@@ -232,6 +231,9 @@ public class RemoteRefreshSegmentPressureService implements IndexEventListener {
 
         @Override
         public boolean validate(RemoteRefreshSegmentTracker pressureTracker, ShardId shardId) {
+            if (pressureTracker.getRefreshSeqNoLag() <= 1) {
+                return true;
+            }
             if (pressureTracker.isUploadTimeMsAverageReady() == false) {
                 logger.trace("upload time moving average is not ready");
                 return true;
