@@ -38,11 +38,7 @@ public abstract class AbstractRemoteStoreMockRepositoryIntegTestCase extends Abs
 
     @Override
     protected Settings featureFlagSettings() {
-        return Settings.builder()
-            .put(super.featureFlagSettings())
-            .put(FeatureFlags.SEGMENT_REPLICATION_EXPERIMENTAL, "true")
-            .put(FeatureFlags.REMOTE_STORE, "true")
-            .build();
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.REMOTE_STORE, "true").build();
     }
 
     @Before

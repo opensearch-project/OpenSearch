@@ -30,6 +30,7 @@ import org.opensearch.index.remote.RemoteRefreshSegmentTracker;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
+import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -42,6 +43,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.index.shard.RemoteStoreRefreshListener.SEGMENT_INFO_SNAPSHOT_FILENAME_PREFIX;
 
 public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
@@ -237,9 +239,19 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         // We spy on IndexShard.getEngine() to validate that we have successfully hit the terminal code for ascertaining successful upload.
         // Value has been set as 3 as during a successful upload IndexShard.getEngine() is hit thrice and with mockito we are counting down
         CountDownLatch successLatch = new CountDownLatch(3);
-        mockIndexShardWithRetryAndScheduleRefresh(succeedOnAttempt, refreshCountLatch, successLatch);
+        Tuple<RemoteStoreRefreshListener, RemoteRefreshSegmentPressureService> tuple = mockIndexShardWithRetryAndScheduleRefresh(
+            succeedOnAttempt,
+            refreshCountLatch,
+            successLatch
+        );
         assertBusy(() -> assertEquals(0, refreshCountLatch.getCount()));
         assertBusy(() -> assertEquals(0, successLatch.getCount()));
+        RemoteRefreshSegmentPressureService pressureService = tuple.v2();
+        RemoteRefreshSegmentTracker segmentTracker = pressureService.getRemoteRefreshSegmentTracker(indexShard.shardId());
+        assertEquals(0, segmentTracker.getBytesLag());
+        assertEquals(0, segmentTracker.getRefreshSeqNoLag());
+        assertEquals(0, segmentTracker.getTimeMsLag());
+        assertEquals(0, segmentTracker.getTotalUploadsFailed());
     }
 
     public void testRefreshSuccessOnSecondAttempt() throws Exception {
@@ -251,9 +263,19 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         // We spy on IndexShard.getEngine() to validate that we have successfully hit the terminal code for ascertaining successful upload.
         // Value has been set as 3 as during a successful upload IndexShard.getEngine() is hit thrice and with mockito we are counting down
         CountDownLatch successLatch = new CountDownLatch(3);
-        mockIndexShardWithRetryAndScheduleRefresh(succeedOnAttempt, refreshCountLatch, successLatch);
+        Tuple<RemoteStoreRefreshListener, RemoteRefreshSegmentPressureService> tuple = mockIndexShardWithRetryAndScheduleRefresh(
+            succeedOnAttempt,
+            refreshCountLatch,
+            successLatch
+        );
         assertBusy(() -> assertEquals(0, refreshCountLatch.getCount()));
         assertBusy(() -> assertEquals(0, successLatch.getCount()));
+        RemoteRefreshSegmentPressureService pressureService = tuple.v2();
+        RemoteRefreshSegmentTracker segmentTracker = pressureService.getRemoteRefreshSegmentTracker(indexShard.shardId());
+        assertEquals(0, segmentTracker.getBytesLag());
+        assertEquals(0, segmentTracker.getRefreshSeqNoLag());
+        assertEquals(0, segmentTracker.getTimeMsLag());
+        assertEquals(1, segmentTracker.getTotalUploadsFailed());
     }
 
     public void testRefreshSuccessOnThirdAttemptAttempt() throws Exception {
@@ -265,9 +287,20 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         // We spy on IndexShard.getEngine() to validate that we have successfully hit the terminal code for ascertaining successful upload.
         // Value has been set as 3 as during a successful upload IndexShard.getEngine() is hit thrice and with mockito we are counting down
         CountDownLatch successLatch = new CountDownLatch(3);
-        mockIndexShardWithRetryAndScheduleRefresh(succeedOnAttempt, refreshCountLatch, successLatch);
+        Tuple<RemoteStoreRefreshListener, RemoteRefreshSegmentPressureService> tuple = mockIndexShardWithRetryAndScheduleRefresh(
+            succeedOnAttempt,
+            refreshCountLatch,
+            successLatch
+        );
         assertBusy(() -> assertEquals(0, refreshCountLatch.getCount()));
         assertBusy(() -> assertEquals(0, successLatch.getCount()));
+        RemoteRefreshSegmentPressureService pressureService = tuple.v2();
+        RemoteRefreshSegmentTracker segmentTracker = pressureService.getRemoteRefreshSegmentTracker(indexShard.shardId());
+        assertEquals(0, segmentTracker.getBytesLag());
+        assertEquals(0, segmentTracker.getRefreshSeqNoLag());
+        assertEquals(0, segmentTracker.getTimeMsLag());
+        assertEquals(2, segmentTracker.getTotalUploadsFailed());
+
     }
 
     public void testTrackerData() throws Exception {
@@ -310,7 +343,10 @@ public class RemoteStoreRefreshListenerTests extends IndexShardTestCase {
         // Create index shard that we will be using to mock different methods in IndexShard for the unit test
         indexShard = newStartedShard(
             true,
-            Settings.builder().put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true).build(),
+            Settings.builder()
+                .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, true)
+                .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                .build(),
             new InternalEngineFactory()
         );
 

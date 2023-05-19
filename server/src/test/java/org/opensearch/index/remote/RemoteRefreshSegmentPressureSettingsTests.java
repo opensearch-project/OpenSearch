@@ -55,10 +55,10 @@ public class RemoteRefreshSegmentPressureSettingsTests extends OpenSearchTestCas
         assertFalse(pressureSettings.isRemoteRefreshSegmentPressureEnabled());
 
         // Check bytes lag variance threshold default value
-        assertEquals(2.0, pressureSettings.getBytesLagVarianceFactor(), 0.0d);
+        assertEquals(10.0, pressureSettings.getBytesLagVarianceFactor(), 0.0d);
 
         // Check time lag variance threshold default value
-        assertEquals(2.0, pressureSettings.getUploadTimeLagVarianceFactor(), 0.0d);
+        assertEquals(10.0, pressureSettings.getUploadTimeLagVarianceFactor(), 0.0d);
 
         // Check minimum consecutive failures limit default value
         assertEquals(5, pressureSettings.getMinConsecutiveFailuresLimit());
