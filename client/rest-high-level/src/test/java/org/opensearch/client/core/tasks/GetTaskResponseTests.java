@@ -97,7 +97,7 @@ public class GetTaskResponseTests extends OpenSearchTestCase {
         TaskId parentTaskId = randomBoolean() ? TaskId.EMPTY_TASK_ID : randomTaskId();
         Long cancelledAt = null;
         if (cancelled) {
-            cancelledAt = randomLong();
+            cancelledAt = randomNonNegativeLong();
         }
         Map<String, String> headers = randomBoolean()
             ? Collections.emptyMap()
