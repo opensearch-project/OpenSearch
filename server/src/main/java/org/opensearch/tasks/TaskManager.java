@@ -131,6 +131,7 @@ public class TaskManager implements ClusterStateApplier {
 
     private volatile boolean taskResourceConsumersEnabled;
     private final Set<Consumer<Task>> taskResourceConsumer;
+    private final List<TaskCancellationListener> taskCancellationListeners = new ArrayList<>();
 
     public static TaskManager createTaskManagerWithClusterSettings(
         Settings settings,
@@ -149,6 +150,14 @@ public class TaskManager implements ClusterStateApplier {
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
         this.taskResourceConsumersEnabled = TASK_RESOURCE_CONSUMERS_ENABLED.get(settings);
         taskResourceConsumer = new HashSet<>();
+    }
+
+    public interface TaskCancellationListener {
+        void onTaskCancelled(CancellableTask task);
+    }
+
+    public void addTaskCancellationListeners(TaskCancellationListener taskCancellationListener) {
+        this.taskCancellationListeners.add(taskCancellationListener);
     }
 
     public void registerTaskResourceConsumer(Consumer<Task> consumer) {
@@ -260,6 +269,17 @@ public class TaskManager implements ClusterStateApplier {
      */
     public void cancel(CancellableTask task, String reason, Runnable listener) {
         CancellableTaskHolder holder = cancellableTasks.get(task.getId());
+        List<Exception> exceptions = new ArrayList<>();
+        for (TaskCancellationListener cancellationListener : taskCancellationListeners) {
+            try {
+                cancellationListener.onTaskCancelled(task);
+            } catch (Exception e) {
+                exceptions.add(e);
+            }
+        }
+        // Throwing exception in case any of the cancellation listener results into exception.
+        // Should we just swallow such exceptions?
+        ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
         if (holder != null) {
             logger.trace("cancelling task with id {}", task.getId());
             holder.cancel(reason, listener);

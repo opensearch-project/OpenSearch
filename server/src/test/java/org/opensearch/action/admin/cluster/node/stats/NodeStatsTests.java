@@ -749,6 +749,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
             null,
             clusterManagerThrottlingStats,
             weightedRoutingStats,
+            null,
             null
         );
     }

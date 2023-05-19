@@ -33,6 +33,7 @@ package org.opensearch.action.admin.cluster.node.tasks;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+import org.opensearch.OpenSearchException;
 import org.opensearch.action.ActionListener;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
@@ -563,6 +564,13 @@ public class CancellableTasksTests extends TaskManagerTestCase {
     public void testCancelConcurrently() throws Exception {
         setupTestNodes(Settings.EMPTY);
         final TaskManager taskManager = testNodes[0].transportService.getTaskManager();
+        AtomicBoolean onTaskCancelled = new AtomicBoolean();
+        taskManager.addTaskCancellationListeners(new TaskManager.TaskCancellationListener() {
+            @Override
+            public void onTaskCancelled(CancellableTask task) {
+                onTaskCancelled.set(true);
+            }
+        });
         int numTasks = randomIntBetween(1, 10);
         List<CancellableTask> tasks = new ArrayList<>(numTasks);
         for (int i = 0; i < numTasks; i++) {
@@ -577,6 +585,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             threads[i] = new Thread(() -> {
                 phaser.arriveAndAwaitAdvance();
                 taskManager.cancel(cancellingTask, "test", () -> assertTrue(notified.compareAndSet(idx, 0, 1)));
+                assertTrue(onTaskCancelled.get());
             });
             threads[i].start();
         }
@@ -589,6 +598,16 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         AtomicBoolean called = new AtomicBoolean();
         taskManager.cancel(cancellingTask, "test", () -> assertTrue(called.compareAndSet(false, true)));
         assertTrue(called.get());
+    }
+
+    public void testCancelWithCancellationListenerThrowingException() {
+        setupTestNodes(Settings.EMPTY);
+        final TaskManager taskManager = testNodes[0].transportService.getTaskManager();
+        taskManager.addTaskCancellationListeners(task -> { throw new OpenSearchException("Exception"); });
+        CancellableTask cancellableTask = (CancellableTask) taskManager.register("type-0", "action-0", new CancellableNodeRequest());
+        AtomicBoolean taskCompleted = new AtomicBoolean();
+        assertThrows(OpenSearchException.class, () -> taskManager.cancel(cancellableTask, "test", () -> taskCompleted.set(true)));
+        assertFalse(taskCompleted.get());
     }
 
     private static void debugDelay(String name) {
