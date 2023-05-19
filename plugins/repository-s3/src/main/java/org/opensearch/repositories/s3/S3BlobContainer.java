@@ -382,7 +382,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             .acl(blobStore.getCannedACL())
             .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().putObjectMetricPublisher));
         if (blobStore.serverSideEncryption()) {
-            putObjectRequestBuilder = putObjectRequestBuilder.sseCustomerAlgorithm(ServerSideEncryption.AES256.toString());
+            putObjectRequestBuilder.serverSideEncryption(ServerSideEncryption.AES256);
         }
 
         PutObjectRequest putObjectRequest = putObjectRequestBuilder.build();
@@ -425,9 +425,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().multipartUploadMetricCollector));
 
         if (blobStore.serverSideEncryption()) {
-            createMultipartUploadRequestBuilder = createMultipartUploadRequestBuilder.sseCustomerAlgorithm(
-                ServerSideEncryption.AES256.toString()
-            );
+            createMultipartUploadRequestBuilder.serverSideEncryption(ServerSideEncryption.AES256);
         }
 
         CreateMultipartUploadRequest createMultipartUploadRequest = createMultipartUploadRequestBuilder.build();
