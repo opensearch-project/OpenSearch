@@ -20,8 +20,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class TaskCancellationMonitoringSettings {
 
-    public static final long INTERVAL_MILLIS_SETTING_DEFAULT_VALUE = 1000;
-    public static final long DURATION_MILLIS_SETTING_DEFAULT_VALUE = 3000;
+    public static final long INTERVAL_MILLIS_SETTING_DEFAULT_VALUE = 5000;
+    public static final long DURATION_MILLIS_SETTING_DEFAULT_VALUE = 10000;
     public static final boolean IS_ENABLED_SETTING_DEFAULT_VALUE = true;
 
     /**
