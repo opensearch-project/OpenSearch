@@ -98,7 +98,8 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.isCancelled(),
                     info.getParentTaskId(),
                     info.getHeaders(),
-                    info.getResourceStats()
+                    info.getResourceStats(),
+                    info.getCancelledAt()
                 );
             case 1:
                 return new TaskInfo(
@@ -113,7 +114,8 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.isCancelled(),
                     info.getParentTaskId(),
                     info.getHeaders(),
-                    info.getResourceStats()
+                    info.getResourceStats(),
+                    info.getCancelledAt()
                 );
             case 2:
                 return new TaskInfo(
@@ -128,7 +130,8 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.isCancelled(),
                     info.getParentTaskId(),
                     info.getHeaders(),
-                    info.getResourceStats()
+                    info.getResourceStats(),
+                    info.getCancelledAt()
                 );
             case 3:
                 return new TaskInfo(
@@ -143,7 +146,8 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.isCancelled(),
                     info.getParentTaskId(),
                     info.getHeaders(),
-                    info.getResourceStats()
+                    info.getResourceStats(),
+                    info.getCancelledAt()
                 );
             case 4:
                 Task.Status newStatus = randomValueOtherThan(info.getStatus(), TaskInfoTests::randomRawTaskStatus);
@@ -159,7 +163,8 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.isCancelled(),
                     info.getParentTaskId(),
                     info.getHeaders(),
-                    info.getResourceStats()
+                    info.getResourceStats(),
+                    info.getCancelledAt()
                 );
             case 5:
                 return new TaskInfo(
@@ -174,7 +179,8 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.isCancelled(),
                     info.getParentTaskId(),
                     info.getHeaders(),
-                    info.getResourceStats()
+                    info.getResourceStats(),
+                    info.getCancelledAt()
                 );
             case 6:
                 return new TaskInfo(
@@ -189,7 +195,8 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.isCancelled(),
                     info.getParentTaskId(),
                     info.getHeaders(),
-                    info.getResourceStats()
+                    info.getResourceStats(),
+                    info.getCancelledAt()
                 );
             case 7:
                 return new TaskInfo(
@@ -204,7 +211,8 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     false,
                     info.getParentTaskId(),
                     info.getHeaders(),
-                    info.getResourceStats()
+                    info.getResourceStats(),
+                    info.getCancelledAt()
                 );
             case 8:
                 TaskId parentId = new TaskId(info.getParentTaskId().getNodeId() + randomAlphaOfLength(5), info.getParentTaskId().getId());
@@ -220,7 +228,8 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.isCancelled(),
                     parentId,
                     info.getHeaders(),
-                    info.getResourceStats()
+                    info.getResourceStats(),
+                    info.getCancelledAt()
                 );
             case 9:
                 Map<String, String> headers = info.getHeaders();
@@ -242,7 +251,8 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.isCancelled(),
                     info.getParentTaskId(),
                     headers,
-                    info.getResourceStats()
+                    info.getResourceStats(),
+                    info.getCancelledAt()
                 );
             case 10:
                 Map<String, TaskResourceUsage> resourceUsageMap;
@@ -280,7 +290,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
                     info.getParentTaskId(),
                     info.getHeaders(),
                     info.getResourceStats(),
-                    info.getCancelledAt() + between(1, 100)
+                    randomNonNegativeLong()
                 );
             default:
                 throw new IllegalStateException();
@@ -303,7 +313,7 @@ public class TaskInfoTests extends AbstractSerializingTestCase<TaskInfo> {
         boolean cancelled = cancellable == true ? randomBoolean() : false;
         Long cancelledAt = null;
         if (cancelled) {
-            cancelledAt = randomLong();
+            cancelledAt = randomNonNegativeLong();
         }
         TaskId parentTaskId = randomBoolean() ? TaskId.EMPTY_TASK_ID : randomTaskId();
         Map<String, String> headers = randomBoolean()

@@ -329,7 +329,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             builder.endObject();
         }
         if (cancelledAt != null) {
-            builder.field("cancelled_at_millis", cancelledAt);
+            builder.humanReadableField("cancelled_at_millis", "cancelled_at", new TimeValue(cancelledAt));
         }
         return builder;
     }
@@ -358,10 +358,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         }
         @SuppressWarnings("unchecked")
         TaskResourceStats resourceStats = (TaskResourceStats) a[i++];
-        Long cancelledAt = null;
-        if (cancelled) {
-            cancelledAt = (Long) a[i++];
-        }
+        Long cancelledAt = (Long) a[i++];
         RawTaskStatus status = statusBytes == null ? null : new RawTaskStatus(statusBytes);
         TaskId parentTaskId = parentTaskIdString == null ? TaskId.EMPTY_TASK_ID : new TaskId(parentTaskIdString);
         return new TaskInfo(
