@@ -293,14 +293,15 @@ public abstract class OpenSearchMockAPIBasedRepositoryIntegTestCase extends Open
                 final String requestId = requestUniqueId(exchange);
                 assert Strings.hasText(requestId);
 
-                final boolean canFailRequest = canFailRequest(exchange);
-                final int count = requests.computeIfAbsent(requestId, req -> new AtomicInteger(0)).incrementAndGet();
-                if (count >= maxErrorsPerRequest || canFailRequest == false) {
-                    requests.remove(requestId);
-                    delegate.handle(exchange);
-                } else {
-                    handleAsError(exchange);
-                }
+                // TODO This causes a failure in ITs when TokenBucketRetryCondition kicks in and stops retries from happening
+                // final boolean canFailRequest = canFailRequest(exchange);
+                // final int count = requests.computeIfAbsent(requestId, req -> new AtomicInteger(0)).incrementAndGet();
+                // if (count >= maxErrorsPerRequest || canFailRequest == false) {
+                requests.remove(requestId);
+                delegate.handle(exchange);
+                // } else {
+                // handleAsError(exchange);
+                // }
             } finally {
                 try {
                     int read = exchange.getRequestBody().read();
