@@ -464,6 +464,10 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         this.documentFields.put(fieldName, field);
     }
 
+    public DocumentField removeDocumentField(String fieldName) {
+        return documentFields.remove(fieldName);
+    }
+
     /**
      * A map of hit fields (from field name to hit fields) if additional fields
      * were required to be loaded.
