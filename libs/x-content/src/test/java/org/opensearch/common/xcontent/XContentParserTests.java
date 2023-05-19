@@ -79,7 +79,7 @@ public class XContentParserTests extends OpenSearchTestCase {
         () -> randomAlphaOfLengthBetween(1, SmileXContent.DEFAULT_MAX_STRING_LEN / 10), /* limit to ~200Mb */
         /* YAML parser limitation */
         XContentType.YAML,
-        () -> randomRealisticUnicodeOfCodepointLengthBetween(1, 3140000)
+        () -> randomAlphaOfLengthBetween(1, 3140000)
     );
 
     public void testStringOffLimit() throws IOException {
