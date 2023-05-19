@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.indices.shards;
 
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
-import org.opensearch.OpenSearchException;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.action.ActionResponse;
 import org.opensearch.action.support.DefaultShardOperationFailedException;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -202,7 +202,7 @@ public class IndicesShardStoresResponse extends ActionResponse implements ToXCon
             builder.field(Fields.ALLOCATED, allocationStatus.value());
             if (storeException != null) {
                 builder.startObject(Fields.STORE_EXCEPTION);
-                OpenSearchException.generateThrowableXContent(builder, params, storeException);
+                BaseExceptionsHelper.generateThrowableXContent(builder, params, storeException);
                 builder.endObject();
             }
             return builder;

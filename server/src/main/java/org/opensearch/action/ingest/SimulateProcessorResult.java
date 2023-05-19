@@ -31,6 +31,7 @@
 
 package org.opensearch.action.ingest;
 
+import org.opensearch.BaseOpenSearchException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.core.ParseField;
 import org.opensearch.common.collect.Tuple;
@@ -269,10 +270,10 @@ public class SimulateProcessorResult implements Writeable, ToXContentObject {
 
         if (failure != null && ingestDocument != null) {
             builder.startObject(IGNORED_ERROR_FIELD);
-            OpenSearchException.generateFailureXContent(builder, params, failure, true);
+            BaseOpenSearchException.generateFailureXContent(builder, params, failure, true);
             builder.endObject();
         } else if (failure != null) {
-            OpenSearchException.generateFailureXContent(builder, params, failure, true);
+            BaseOpenSearchException.generateFailureXContent(builder, params, failure, true);
         }
 
         if (ingestDocument != null) {

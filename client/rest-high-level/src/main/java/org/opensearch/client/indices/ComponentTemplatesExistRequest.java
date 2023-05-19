@@ -32,7 +32,7 @@
 
 package org.opensearch.client.indices;
 
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 
 /**
  * A request to check for the existence of component templates
