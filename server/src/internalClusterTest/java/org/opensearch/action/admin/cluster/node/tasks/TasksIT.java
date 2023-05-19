@@ -552,7 +552,7 @@ public class TasksIT extends OpenSearchIntegTestCase {
             .getTasks();
         for (TaskInfo taskInfo : taskInfoList) {
             assertTrue(taskInfo.isCancelled());
-            assertNotEquals(-1, taskInfo.getCancelledAt());
+            assertNotNull(taskInfo.getCancelledAt());
         }
         future.get();
 

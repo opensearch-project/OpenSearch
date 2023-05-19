@@ -53,11 +53,11 @@ public abstract class CancellableTask extends Task {
     /**
      * The time this task was cancelled as a wall clock time since epoch ({@link System#currentTimeMillis()} style).
      */
-    private long cancelledAt = -1;
+    private Long cancelledAt = null;
     /**
      * The time this task was cancelled as a relative time ({@link System#nanoTime()} style).
      */
-    private long cancelledAtNanos = -1;
+    private Long cancelledAtNanos = null;
 
     public CancellableTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         this(id, type, action, description, parentTaskId, headers, NO_TIMEOUT);
@@ -97,11 +97,11 @@ public abstract class CancellableTask extends Task {
         return true;
     }
 
-    public long getCancelledAt() {
+    public Long getCancelledAt() {
         return cancelledAt;
     }
 
-    public long getCancelledAtNanos() {
+    public Long getCancelledAtNanos() {
         return cancelledAtNanos;
     }
 

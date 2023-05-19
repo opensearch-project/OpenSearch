@@ -193,7 +193,7 @@ public class Task {
      */
     protected final TaskInfo taskInfo(String localNodeId, String description, Status status, TaskResourceStats resourceStats) {
         boolean cancelled = this instanceof CancellableTask && ((CancellableTask) this).isCancelled();
-        long cancelledAt = -1;
+        Long cancelledAt = null;
         if (cancelled) {
             cancelledAt = ((CancellableTask) this).getCancelledAt();
         }

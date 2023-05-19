@@ -79,7 +79,7 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
                     put("dummy-type1", new TaskResourceUsage(100, 100));
                 }
             }),
-            0
+            0L
         );
         ListTasksResponse tasksResponse = new ListTasksResponse(singletonList(info), emptyList(), emptyList());
         assertEquals(

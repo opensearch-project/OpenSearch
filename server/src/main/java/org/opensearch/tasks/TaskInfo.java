@@ -85,7 +85,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
 
     private final boolean cancelled;
 
-    private final long cancelledAt;
+    private final Long cancelledAt;
 
     private final TaskId parentTaskId;
 
@@ -120,7 +120,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             parentTaskId,
             headers,
             resourceStats,
-            -1
+            null
         );
     }
 
@@ -137,7 +137,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         TaskId parentTaskId,
         Map<String, String> headers,
         TaskResourceStats resourceStats,
-        long cancelledAt
+        Long cancelledAt
     ) {
         if (cancellable == false && cancelled == true) {
             throw new IllegalArgumentException("task cannot be cancelled");
@@ -186,9 +186,9 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             resourceStats = null;
         }
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            cancelledAt = in.readLong();
+            cancelledAt = in.readOptionalLong();
         } else {
-            cancelledAt = -1;
+            cancelledAt = null;
         }
     }
 
@@ -211,7 +211,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             out.writeOptionalWriteable(resourceStats);
         }
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeLong(cancelledAt);
+            out.writeOptionalLong(cancelledAt);
         }
     }
 
@@ -271,7 +271,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         return cancelled;
     }
 
-    public long getCancelledAt() {
+    public Long getCancelledAt() {
         return cancelledAt;
     }
 
@@ -328,7 +328,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             resourceStats.toXContent(builder, params);
             builder.endObject();
         }
-        if (cancelledAt != -1) {
+        if (cancelledAt != null) {
             builder.field("cancelled_at_millis", cancelledAt);
         }
         return builder;
@@ -358,7 +358,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         }
         @SuppressWarnings("unchecked")
         TaskResourceStats resourceStats = (TaskResourceStats) a[i++];
-        long cancelledAt = -1;
+        Long cancelledAt = null;
         if (cancelled) {
             cancelledAt = (Long) a[i++];
         }

@@ -95,7 +95,7 @@ public class GetTaskResponseTests extends OpenSearchTestCase {
         boolean cancellable = randomBoolean();
         boolean cancelled = cancellable == true ? randomBoolean() : false;
         TaskId parentTaskId = randomBoolean() ? TaskId.EMPTY_TASK_ID : randomTaskId();
-        long cancelledAt = -1;
+        Long cancelledAt = null;
         if (cancelled) {
             cancelledAt = randomLong();
         }
