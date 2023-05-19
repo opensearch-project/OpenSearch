@@ -245,7 +245,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     }
 
     /**
-     * Adds condition to check if the index has at least <code>numDocs</code> to rollover
+     * Adds condition to check if the index has at least <code>numDocs</code> to perform rollover.
      */
     public void addMinIndexDocsCondition(long numDocs) {
         MinDocsCondition minDocsCondition = new MinDocsCondition(numDocs);

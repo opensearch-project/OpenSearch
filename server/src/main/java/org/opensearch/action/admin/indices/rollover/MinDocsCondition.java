@@ -41,7 +41,8 @@ import java.io.IOException;
 
 /**
  * Condition for minimum index docs. Evaluates to <code>true</code>
- * when the index has at least {@link #value} docs to rollover
+ * when the index has at least {@link #value} docs.
+ * If it evaluates to <code>false</code> then it prevents rollover
  *
  * @opensearch.internal
  */
