@@ -639,13 +639,13 @@ public class ExtensionsManager {
                         }
                     }
 
-                    Settings.Builder output = Settings.builder();
                     ExtensionAdditionalSettings extAdditionalSettings = new ExtensionAdditionalSettings(additionalSettings);
                     Set<String> additionalSettingsKeys = additionalSettings.stream().map(s -> s.getKey()).collect(Collectors.toSet());
                     Map<String, ?> additionalSettingsMap = extensionMap.entrySet()
                         .stream()
                         .filter(kv -> additionalSettingsKeys.contains(kv.getKey()))
                         .collect(Collectors.toMap(map -> map.getKey(), map -> map.getValue()));
+                    Settings.Builder output = Settings.builder();
                     output.loadFromMap(additionalSettingsMap);
                     extAdditionalSettings.applySettings(output.build());
 
