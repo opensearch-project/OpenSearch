@@ -35,6 +35,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
+import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
@@ -111,7 +112,6 @@ public class ExtensionsManager {
 
     private final Path extensionsPath;
     private ExtensionTransportActionsHandler extensionTransportActionsHandler;
-
     private Map<String, Extension> extensionSettingsMap;
     private Map<String, DiscoveryExtensionNode> initializedExtensions;
     private Map<String, DiscoveryExtensionNode> extensionIdMap;
@@ -192,7 +192,7 @@ public class ExtensionsManager {
             actionModule,
             this
         );
-        registerRequestHandler();
+        registerRequestHandler(actionModule.getDynamicActionRegistry());
     }
 
     /**
@@ -233,14 +233,16 @@ public class ExtensionsManager {
         return extensionTransportActionsHandler.sendTransportRequestToExtension(request);
     }
 
-    private void registerRequestHandler() {
+    private void registerRequestHandler(DynamicActionRegistry dynamicActionRegistry) {
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_REGISTER_REST_ACTIONS,
             ThreadPool.Names.GENERIC,
             false,
             false,
             RegisterRestActionsRequest::new,
-            ((request, channel, task) -> channel.sendResponse(restActionsRequestHandler.handleRegisterRestActionsRequest(request)))
+            ((request, channel, task) -> channel.sendResponse(
+                restActionsRequestHandler.handleRegisterRestActionsRequest(request, dynamicActionRegistry)
+            ))
         );
         transportService.registerRequestHandler(
             REQUEST_EXTENSION_REGISTER_CUSTOM_SETTINGS,

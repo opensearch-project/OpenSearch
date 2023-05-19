@@ -40,7 +40,6 @@ import fixture.gcs.FakeOAuth2HttpHandler;
 
 import org.apache.hc.core5.http.HttpStatus;
 import org.opensearch.common.Nullable;
-import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
@@ -57,6 +56,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.ByteSizeValue;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.CountDown;
+import org.opensearch.core.common.Strings;
 import org.opensearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.opensearch.repositories.blobstore.OpenSearchMockAPIBasedRepositoryIntegTestCase;
 import org.opensearch.rest.RestStatus;

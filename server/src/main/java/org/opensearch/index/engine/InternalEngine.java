@@ -65,8 +65,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.InfoStream;
+import org.opensearch.BaseExceptionsHelper;
 import org.opensearch.core.Assertions;
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
@@ -313,7 +313,7 @@ public class InternalEngine extends Engine {
             } catch (AssertionError e) {
                 // IndexWriter throws AssertionError on init, if asserts are enabled, if any files don't exist, but tests that
                 // randomly throw FNFE/NSFE can also hit this:
-                if (ExceptionsHelper.stackTrace(e).contains("org.apache.lucene.index.IndexWriter.filesExist")) {
+                if (BaseExceptionsHelper.stackTrace(e).contains("org.apache.lucene.index.IndexWriter.filesExist")) {
                     throw new EngineCreationFailureException(shardId, "failed to create engine", e);
                 } else {
                     throw e;
@@ -2522,7 +2522,7 @@ public class InternalEngine extends Engine {
              * If assertions are enabled, IndexWriter throws AssertionError on commit if any files don't exist, but tests that randomly
              * throw FileNotFoundException or NoSuchFileException can also hit this.
              */
-            if (ExceptionsHelper.stackTrace(e).contains("org.apache.lucene.index.IndexWriter.filesExist")) {
+            if (BaseExceptionsHelper.stackTrace(e).contains("org.apache.lucene.index.IndexWriter.filesExist")) {
                 final EngineException engineException = new EngineException(shardId, "failed to commit engine", e);
                 try {
                     failEngine("lucene commit failed", engineException);
