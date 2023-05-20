@@ -64,7 +64,7 @@ public class ExtensionActionUtilTest {
         ExtensionActionRequest extensionActionRequest = ExtensionActionUtil.createExtensionActionRequestFromBytes(myBytes);
         assert extensionActionRequest != null;
         String action = extensionActionRequest.getAction();
-        byte[] bytes = extensionActionRequest.getRequestBytes();
+        byte[] bytes = extensionActionRequest.getRequestBytes().toByteArray();
 
         assertEquals(this.actionName, action);
         assertArrayEquals(actionNameBytes, bytes);
@@ -85,7 +85,7 @@ public class ExtensionActionUtilTest {
         ExtensionActionRequest request = ExtensionActionUtil.createExtensionActionRequestFromBytes(bytes);
         assert request != null;
         assertEquals(actionName, request.getAction());
-        assertArrayEquals(actionNameBytes, request.getRequestBytes());
+        assertArrayEquals(actionNameBytes, request.getRequestBytes().toByteArray());
         assertNull(ExtensionActionUtil.convertParamsToBytes(null));
         assert bytes != null;
         assertTrue(bytes.length > 0);

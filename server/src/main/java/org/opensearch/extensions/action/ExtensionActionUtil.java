@@ -52,8 +52,6 @@ public class ExtensionActionUtil {
                 .array();
         } catch (RuntimeException e) {
             logger.error("RuntimeException occurred while creating proxyRequestBytes");
-        } catch (Exception e) {
-            logger.error("Error occurred while creating proxyRequestBytes");
         }
         return null;
     }
