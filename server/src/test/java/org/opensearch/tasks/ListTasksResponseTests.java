@@ -107,6 +107,7 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
                 + "          \"memory_in_bytes\" : 100\n"
                 + "        }\n"
                 + "      },\n"
+                + "      \"cancelled_at_millis\" : 0s,\n"
                 + "      \"cancelled_at_millis\" : 0\n"
                 + "    }\n"
                 + "  ]\n"
