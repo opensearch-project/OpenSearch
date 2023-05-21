@@ -44,6 +44,8 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.http.HttpTransportSettings;
+import org.opensearch.tracing.SpanHolder;
+import org.opensearch.tracing.TracerUtils;
 import org.opensearch.tasks.Task;
 
 import java.io.IOException;
@@ -66,6 +68,7 @@ import java.util.stream.Stream;
 
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_COUNT;
 import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING_HEADER_SIZE;
+import static org.opensearch.tracing.DefaultTracer.CURRENT_SPAN;
 import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
 
 /**
@@ -149,6 +152,13 @@ public final class ThreadContext implements Writeable {
 
         if (context.transientHeaders.containsKey(TASK_ID)) {
             threadContextStruct = threadContextStruct.putTransient(TASK_ID, context.transientHeaders.get(TASK_ID));
+        }
+
+        if (context.transientHeaders.containsKey(CURRENT_SPAN)) {
+            threadContextStruct = threadContextStruct.putTransient(
+                CURRENT_SPAN,
+                new SpanHolder((SpanHolder) context.transientHeaders.get(CURRENT_SPAN))
+            );
         }
 
         threadLocal.set(threadContextStruct);
@@ -246,6 +256,11 @@ public final class ThreadContext implements Writeable {
         }
         // this is the context when this method returns
         final ThreadContextStruct newContext = threadLocal.get();
+
+        if (newContext.transientHeaders.containsKey(CURRENT_SPAN)) {
+            newContext.transientHeaders.put(CURRENT_SPAN, new SpanHolder((SpanHolder) newContext.transientHeaders.get(CURRENT_SPAN)));
+        }
+
         return () -> {
             if (preserveResponseHeaders && threadLocal.get() != newContext) {
                 threadLocal.set(originalContext.putResponseHeaders(threadLocal.get().responseHeaders));
@@ -710,6 +725,8 @@ public final class ThreadContext implements Writeable {
         }
 
         private void writeTo(StreamOutput out, Map<String, String> defaultHeaders) throws IOException {
+            TracerUtils.addTracerContextToHeader(this.requestHeaders, this.transientHeaders);
+
             final Map<String, String> requestHeaders;
             if (defaultHeaders.isEmpty()) {
                 requestHeaders = this.requestHeaders;

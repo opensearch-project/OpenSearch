@@ -181,5 +181,8 @@ grant {
   permission java.io.FilePermission "/sys/fs/cgroup/cpuacct/-", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory", "read";
   permission java.io.FilePermission "/sys/fs/cgroup/memory/-", "read";
+  // needed by Opentelemetry
+  permission java.net.NetPermission "getProxySelector";
+  permission java.net.SocketPermission "127.0.0.1:4317", "connect,resolve";
 
 };
