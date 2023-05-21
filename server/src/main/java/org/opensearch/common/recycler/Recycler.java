@@ -32,7 +32,7 @@
 
 package org.opensearch.common.recycler;
 
-import org.opensearch.common.lease.Releasable;
+import org.opensearch.core.common.lease.Releasable;
 
 /**
  * A recycled object, note, implementations should support calling obtain and then recycle
