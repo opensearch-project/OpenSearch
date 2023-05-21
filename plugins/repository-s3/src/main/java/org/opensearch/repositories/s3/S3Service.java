@@ -315,9 +315,9 @@ class S3Service implements Closeable {
                 AwsRequestSigner.fromSignerName(clientSettings.signerOverride).getSigner()
             );
         }
-        RetryPolicy.Builder retryPolicy = RetryPolicy.builder().numRetries(clientSettings.maxRetries);
+        RetryPolicy.Builder retryPolicy = RetryPolicy.builder().numRetries(clientSettings.maxRetries).retryCapacityCondition(null);
         if (!clientSettings.throttleRetries) {
-            retryPolicy = retryPolicy.throttlingBackoffStrategy(BackoffStrategy.none());
+            retryPolicy.throttlingBackoffStrategy(BackoffStrategy.none());
         }
         return clientOverrideConfiguration.retryPolicy(retryPolicy.build()).build();
     }
