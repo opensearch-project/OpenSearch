@@ -29,7 +29,7 @@ import java.util.HashMap;
 import static org.hamcrest.core.Is.is;
 import java.util.concurrent.TimeUnit;
 
-public class ScriptProcessorTests extends OpenSearchTestCase {
+public class ScriptRequestProcessorTests extends OpenSearchTestCase {
 
     private ScriptService scriptService;
     private Script script;
@@ -82,7 +82,7 @@ public class ScriptProcessorTests extends OpenSearchTestCase {
     }
 
     public void testScriptingWithoutPrecompiledScriptFactory() throws Exception {
-        ScriptProcessor processor = new ScriptProcessor(randomAlphaOfLength(10), null, script, null, scriptService);
+        ScriptRequestProcessor processor = new ScriptRequestProcessor(randomAlphaOfLength(10), null, script, null, scriptService);
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.source(createSearchSourceBuilder());
 
@@ -92,7 +92,7 @@ public class ScriptProcessorTests extends OpenSearchTestCase {
     }
 
     public void testScriptingWithPrecompiledIngestScript() throws Exception {
-        ScriptProcessor processor = new ScriptProcessor(randomAlphaOfLength(10), null, script, searchScript, scriptService);
+        ScriptRequestProcessor processor = new ScriptRequestProcessor(randomAlphaOfLength(10), null, script, searchScript, scriptService);
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.source(createSearchSourceBuilder());
 

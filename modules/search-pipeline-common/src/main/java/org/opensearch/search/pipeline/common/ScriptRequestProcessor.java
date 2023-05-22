@@ -38,7 +38,7 @@ import static org.opensearch.ingest.ConfigurationUtils.newConfigurationException
  * Processor that evaluates a script with a search request in its context
  * and then returns the modified search request.
  */
-public final class ScriptProcessor extends AbstractProcessor implements SearchRequestProcessor {
+public final class ScriptRequestProcessor extends AbstractProcessor implements SearchRequestProcessor {
     /**
      * Key to reference this processor type from a search pipeline.
      */
@@ -57,7 +57,7 @@ public final class ScriptProcessor extends AbstractProcessor implements SearchRe
      * @param precompiledSearchScript The {@link Script} precompiled
      * @param scriptService The {@link ScriptService} used to execute the script.
      */
-    ScriptProcessor(
+    ScriptRequestProcessor(
         String tag,
         String description,
         Script script,
@@ -124,9 +124,9 @@ public final class ScriptProcessor extends AbstractProcessor implements SearchRe
     }
 
     /**
-     * Factory class for creating {@link ScriptProcessor}.
+     * Factory class for creating {@link ScriptRequestProcessor}.
      */
-    public static final class Factory implements Processor.Factory {
+    public static final class Factory implements Processor.Factory<SearchRequestProcessor> {
         private final ScriptService scriptService;
 
         /**
@@ -139,18 +139,18 @@ public final class ScriptProcessor extends AbstractProcessor implements SearchRe
         }
 
         /**
-         * Creates a new instance of {@link ScriptProcessor}.
+         * Creates a new instance of {@link ScriptRequestProcessor}.
          *
          * @param registry The registry of processor factories.
          * @param processorTag The processor's tag.
          * @param description The processor's description.
          * @param config The configuration options for the processor.
-         * @return The created {@link ScriptProcessor} instance.
+         * @return The created {@link ScriptRequestProcessor} instance.
          * @throws Exception if an error occurs during the creation process.
          */
         @Override
-        public ScriptProcessor create(
-            Map<String, Processor.Factory> registry,
+        public ScriptRequestProcessor create(
+            Map<String, Processor.Factory<SearchRequestProcessor>> registry,
             String processorTag,
             String description,
             Map<String, Object> config
@@ -175,7 +175,7 @@ public final class ScriptProcessor extends AbstractProcessor implements SearchRe
                 } catch (ScriptException e) {
                     throw newConfigurationException(TYPE, processorTag, null, e);
                 }
-                return new ScriptProcessor(processorTag, description, script, searchScript, scriptService);
+                return new ScriptRequestProcessor(processorTag, description, script, searchScript, scriptService);
             }
         }
     }
