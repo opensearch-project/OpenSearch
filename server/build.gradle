@@ -121,7 +121,6 @@ dependencies {
   api "org.apache.lucene:lucene-spatial-extras:${versions.lucene}"
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api "org.apache.lucene:lucene-suggest:${versions.lucene}"
-
   // utilities
   api project(":libs:opensearch-cli")
   api 'com.carrotsearch:hppc:0.8.1'
@@ -173,6 +172,8 @@ dependencies {
 
   // protobuf
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
+
+  implementation files('/home/stevan/git/opensearch/repo/performance-analyzer-commons/build/libs/opensearch-performance-analyzer-commons-3.0.0.0-SNAPSHOT.jar')
 
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server

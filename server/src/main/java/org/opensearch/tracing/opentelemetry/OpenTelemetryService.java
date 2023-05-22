@@ -28,6 +28,7 @@ import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import io.opentelemetry.semconv.resource.attributes.ResourceAttributes;
 import org.opensearch.action.ActionListener;
+import org.opensearch.performanceanalyzer.listener.DiskStatsTaskEventListener;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.tracing.TaskEventListener;
 
@@ -67,8 +68,7 @@ public class OpenTelemetryService {
             .setMeterProvider(sdkMeterProvider)
             .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
             .buildAndRegisterGlobal();
-
-        DEFAULT_TASK_EVENT_LISTENERS = List.of(new TaskEventListener() {
+        var defaultListener = new TaskEventListener() {
             @Override
             public void onStart(String operationName, String eventName, Thread t) {
                 Span span = Span.current();
@@ -105,7 +105,9 @@ public class OpenTelemetryService {
             public boolean isApplicable(String operationName, String eventName) {
                 return true;
             }
-        });
+        };
+
+        DEFAULT_TASK_EVENT_LISTENERS = List.of(defaultListener, new DiskStatsTaskEventListener());
     }
 
     public static boolean isThreadPoolAllowed(String threadPoolName) {

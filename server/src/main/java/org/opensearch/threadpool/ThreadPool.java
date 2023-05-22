@@ -48,7 +48,6 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
-import org.opensearch.common.util.concurrent.OpenSearchRejectedExecutionException;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.concurrent.XRejectedExecutionHandler;
 import org.opensearch.core.xcontent.ToXContentFragment;
@@ -226,6 +225,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         final ExecutorBuilder<?>... customBuilders
     ) {
         assert Node.NODE_NAME_SETTING.exists(settings);
+
         final Map<String, ExecutorBuilder> builders = new HashMap<>();
         final int allocatedProcessors = OpenSearchExecutors.allocatedProcessors(settings);
         final int halfProcMaxAt5 = halfAllocatedProcessorsMaxFive(allocatedProcessors);
@@ -420,8 +420,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         }
         return holder.executor();
     }
-
-
 
     /**
      * Schedules a one-shot command to run after a given delay. The command is run in the context of the calling thread.
@@ -700,7 +698,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public final Info info;
 
         ExecutorHolder(ExecutorService executor, Info info) {
-//             assert executor instanceof OpenSearchThreadPoolExecutor || executor == DIRECT_EXECUTOR;
+            assert executor instanceof OpenSearchThreadPoolExecutor || executor == DIRECT_EXECUTOR;
             this.executor = executor;
             this.info = info;
         }
@@ -902,9 +900,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         for (int i = 3; i < stackTraceElements.length; i++) {
             assert stackTraceElements[i].getClassName().equals(testingMethod.getClassName()) == false
                 || stackTraceElements[i].getMethodName().equals(testingMethod.getMethodName()) == false : testingMethod.getClassName()
-                    + "#"
-                    + testingMethod.getMethodName()
-                    + " is called recursively";
+                + "#"
+                + testingMethod.getMethodName()
+                + " is called recursively";
         }
         return true;
     }
