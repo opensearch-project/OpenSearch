@@ -300,7 +300,7 @@ public abstract class OpenSearchClientYamlSuiteTestCase extends OpenSearchRestTe
 
     private static String[] resolvePathsProperty(String propertyName, String defaultValue) {
         String property = System.getProperty(propertyName);
-        if (!Strings.hasLength(property)) {
+        if (!org.opensearch.core.common.Strings.hasLength(property)) {
             return defaultValue == null ? Strings.EMPTY_ARRAY : new String[] { defaultValue };
         } else {
             return property.split(PATHS_SEPARATOR);

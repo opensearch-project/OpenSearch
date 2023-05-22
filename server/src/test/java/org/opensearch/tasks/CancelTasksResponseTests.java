@@ -36,7 +36,7 @@ import org.opensearch.action.FailedNodeException;
 import org.opensearch.action.TaskOperationFailure;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
-import org.opensearch.common.Strings;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.test.AbstractXContentTestCase;

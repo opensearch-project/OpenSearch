@@ -570,8 +570,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             clusterService,
             threadPool,
             SegmentReplicationCheckpointPublisher.EMPTY,
-            SegmentReplicationTargetService.NO_OP,
-            SegmentReplicationSourceService.NO_OP,
+            mock(SegmentReplicationTargetService.class),
+            mock(SegmentReplicationSourceService.class),
             recoveryTargetService,
             shardStateAction,
             null,
@@ -581,7 +581,8 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
             null,
             primaryReplicaSyncer,
             s -> {},
-            RetentionLeaseSyncer.EMPTY
+            RetentionLeaseSyncer.EMPTY,
+            null
         );
     }
 

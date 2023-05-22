@@ -38,10 +38,10 @@ import com.azure.storage.common.policy.RetryPolicyType;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import fixture.azure.AzureHttpHandler;
+import org.opensearch.core.common.Strings;
 import reactor.core.scheduler.Schedulers;
 
 import org.opensearch.cluster.metadata.RepositoryMetadata;
-import org.opensearch.common.Strings;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
