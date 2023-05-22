@@ -206,8 +206,6 @@ thirdPartyAudit {
     'javax.jms.Message',
     'javax.servlet.ServletContextEvent',
     'javax.servlet.ServletContextListener',
-    'io.opencensus.tags.TagMetadata',
-    'io.opencensus.tags.TagMetadata$TagTtl',
     'com.google.api.gax.grpc.GrpcCallContext',
     'com.google.api.gax.grpc.GrpcStatusCode',
     'com.google.api.gax.grpc.InstantiatingGrpcChannelProvider',
