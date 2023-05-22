@@ -8,11 +8,8 @@
 package org.opensearch.search.pipeline.common.helpers;
 
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.common.unit.TimeValue;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.test.AbstractBuilderTestCase;
-
-import java.util.concurrent.TimeUnit;
 
 public class SearchRequestMapTests extends AbstractBuilderTestCase {
 
@@ -34,7 +31,6 @@ public class SearchRequestMapTests extends AbstractBuilderTestCase {
         source.trackScores(true);
         source.trackTotalHitsUpTo(3);
         source.minScore(1.0f);
-        source.timeout(new TimeValue(60, TimeUnit.SECONDS));
         source.terminateAfter(5);
         searchRequest.source(source);
 
@@ -48,7 +44,6 @@ public class SearchRequestMapTests extends AbstractBuilderTestCase {
         assertEquals(true, map.get("track_scores"));
         assertEquals(3, map.get("track_total_hits"));
         assertEquals(1.0f, map.get("min_score"));
-        assertEquals(new TimeValue(60, TimeUnit.SECONDS), map.get("timeout"));
         assertEquals(5, map.get("terminate_after"));
     }
 

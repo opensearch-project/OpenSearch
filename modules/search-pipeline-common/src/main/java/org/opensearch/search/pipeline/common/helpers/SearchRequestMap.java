@@ -84,8 +84,8 @@ public class SearchRequestMap implements Map<String, Object> {
      * Retrieves the value associated with the specified property from the SearchSourceBuilder.
      *
      * @param key The SearchSourceBuilder property whose value is to be retrieved.
-     * @return The value associated with the specified property.
-     * @throws IllegalArgumentException if the property is not a String.
+     * @return The value associated with the specified property or null if the property has not been initialized.
+     * @throws IllegalArgumentException if the property name is not a String.
      * @throws SearchRequestMapProcessingException if the property is not supported.
      */
     @Override
@@ -111,26 +111,8 @@ public class SearchRequestMap implements Map<String, Object> {
                 return source.trackTotalHitsUpTo();
             case "min_score":
                 return source.minScore();
-            case "timeout":
-                return source.timeout();
             case "terminate_after":
                 return source.terminateAfter();
-            case "sort":
-                return source.sorts();
-            case "docvalue_fields":
-                return source.docValueFields();
-            case "script_fields":
-                return source.scriptFields();
-            case "fetch_fields":
-                return source.fetchFields();
-            case "stored_fields":
-                return source.storedFields();
-            case "fetch_source":
-                return source.fetchSource();
-            case "indices_boost":
-                return source.indexBoosts();
-            case "stats":
-                return source.stats();
             case "profile":
                 return source.profile();
             default:
