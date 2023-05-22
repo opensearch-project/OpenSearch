@@ -34,7 +34,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class RemoteStoreIT extends RemoteStoreBaseIT {
+public class RemoteStoreIT extends RemoteStoreBaseIntegTestCase {
 
     private static final String INDEX_NAME = "remote-store-test-idx-1";
     private static final String TOTAL_OPERATIONS = "total-operations";
