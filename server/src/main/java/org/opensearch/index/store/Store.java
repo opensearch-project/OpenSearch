@@ -269,7 +269,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private static SegmentInfos readSegmentInfosExtendedCompatibility(Directory directory, org.opensearch.Version minimumVersion)
         throws IOException {
         try {
-            return Lucene.readSegmentInfosExtendedCompatibility(directory, minimumVersion);
+            return Lucene.readSegmentInfos(directory, minimumVersion);
         } catch (EOFException eof) {
             // TODO this should be caught by lucene - EOF is almost certainly an index corruption
             throw new CorruptIndexException("Read past EOF while reading segment infos", "<latest-commit>", eof);
