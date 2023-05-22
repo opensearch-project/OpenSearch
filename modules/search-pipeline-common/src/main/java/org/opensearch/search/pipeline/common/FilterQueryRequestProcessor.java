@@ -75,7 +75,7 @@ public class FilterQueryRequestProcessor extends AbstractProcessor implements Se
         return request;
     }
 
-    static class Factory implements Processor.Factory {
+    static class Factory implements Processor.Factory<SearchRequestProcessor> {
         private final NamedXContentRegistry namedXContentRegistry;
         public static final ParseField QUERY_FIELD = new ParseField("query");
 
@@ -85,7 +85,7 @@ public class FilterQueryRequestProcessor extends AbstractProcessor implements Se
 
         @Override
         public FilterQueryRequestProcessor create(
-            Map<String, Processor.Factory> processorFactories,
+            Map<String, Processor.Factory<SearchRequestProcessor>> processorFactories,
             String tag,
             String description,
             Map<String, Object> config

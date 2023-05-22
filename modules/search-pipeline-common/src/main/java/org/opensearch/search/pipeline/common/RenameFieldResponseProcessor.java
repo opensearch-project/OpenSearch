@@ -128,7 +128,7 @@ public class RenameFieldResponseProcessor extends AbstractProcessor implements S
     /**
      * This is a factor that creates the RenameResponseProcessor
      */
-    public static final class Factory implements Processor.Factory {
+    public static final class Factory implements Processor.Factory<SearchResponseProcessor> {
 
         /**
          * Constructor for factory
@@ -137,7 +137,7 @@ public class RenameFieldResponseProcessor extends AbstractProcessor implements S
 
         @Override
         public RenameFieldResponseProcessor create(
-            Map<String, Processor.Factory> processorFactories,
+            Map<String, Processor.Factory<SearchResponseProcessor>> processorFactories,
             String tag,
             String description,
             Map<String, Object> config
