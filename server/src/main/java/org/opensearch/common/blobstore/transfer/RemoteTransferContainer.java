@@ -37,13 +37,15 @@ public class RemoteTransferContainer implements Closeable {
     private long lastPartSize;
 
     private final long contentLength;
-    private final SetOnce<ResettableCheckedInputStream[]> inputStreams = new SetOnce<>();
+    private final SetOnce<InputStream[]> inputStreams = new SetOnce<>();
     private final String localFileName;
     private final String remoteFileName;
     private final boolean failTransferIfFileExists;
     private final WritePriority writePriority;
     private final long expectedChecksum;
     private final OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier;
+    private final boolean isRemoteDataIntegritySupported;
+    private final boolean areInputStreamsDecorated;
 
     private static final Logger log = LogManager.getLogger(RemoteTransferContainer.class);
 
@@ -58,6 +60,8 @@ public class RemoteTransferContainer implements Closeable {
      * @param failTransferIfFileExists       A boolean to determine if upload has to be failed if file exists
      * @param writePriority                  The {@link WritePriority} of current upload
      * @param offsetRangeInputStreamSupplier A supplier to create OffsetRangeInputStreams
+     * @param isRemoteDataIntegritySupported A boolean to signify whether the remote repository supports server side data integrity verification
+     * @param areInputStreamsDecorated            A boolean to signify whether the streams created via {@link OffsetRangeInputStreamSupplier#get} are decorated or not
      */
     public RemoteTransferContainer(
         String localFileName,
@@ -66,7 +70,9 @@ public class RemoteTransferContainer implements Closeable {
         boolean failTransferIfFileExists,
         WritePriority writePriority,
         OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier,
-        long expectedChecksum
+        long expectedChecksum,
+        boolean isRemoteDataIntegritySupported,
+        boolean areInputStreamsDecorated
     ) {
         this.localFileName = localFileName;
         this.remoteFileName = remoteFileName;
@@ -75,6 +81,8 @@ public class RemoteTransferContainer implements Closeable {
         this.writePriority = writePriority;
         this.offsetRangeInputStreamSupplier = offsetRangeInputStreamSupplier;
         this.expectedChecksum = expectedChecksum;
+        this.isRemoteDataIntegritySupported = isRemoteDataIntegritySupported;
+        this.areInputStreamsDecorated = areInputStreamsDecorated;
     }
 
     /**
@@ -87,7 +95,9 @@ public class RemoteTransferContainer implements Closeable {
             contentLength,
             failTransferIfFileExists,
             writePriority,
-            this::finalizeUpload
+            this::finalizeUpload,
+            isRemoteDataIntegrityCheckPossible(),
+            isRemoteDataIntegrityCheckPossible() ? expectedChecksum : null
         );
     }
 
@@ -111,7 +121,7 @@ public class RemoteTransferContainer implements Closeable {
         this.partSize = partSize;
         this.lastPartSize = (contentLength % partSize) != 0 ? contentLength % partSize : partSize;
         this.numberOfParts = (int) ((contentLength % partSize) == 0 ? contentLength / partSize : (contentLength / partSize) + 1);
-        ResettableCheckedInputStream[] streams = new ResettableCheckedInputStream[numberOfParts];
+        InputStream[] streams = new InputStream[numberOfParts];
         inputStreams.set(streams);
 
         return new StreamContext(getTransferPartStreamSupplier(), partSize, lastPartSize, numberOfParts);
@@ -143,10 +153,12 @@ public class RemoteTransferContainer implements Closeable {
         return () -> {
             try {
                 OffsetRangeInputStream offsetRangeInputStream = offsetRangeInputStreamSupplier.get(size, position);
-                ResettableCheckedInputStream checkedInputStream = new ResettableCheckedInputStream(offsetRangeInputStream, localFileName);
-                Objects.requireNonNull(inputStreams.get())[streamIdx] = checkedInputStream;
+                InputStream inputStream = !isRemoteDataIntegrityCheckPossible()
+                    ? new ResettableCheckedInputStream(offsetRangeInputStream, localFileName)
+                    : offsetRangeInputStream;
+                Objects.requireNonNull(inputStreams.get())[streamIdx] = inputStream;
 
-                return new OffsetStreamContainer(checkedInputStream, size, position);
+                return new OffsetStreamContainer(inputStream, size, position);
             } catch (IOException e) {
                 log.error("Failed to create input stream", e);
                 throw e;
@@ -154,7 +166,15 @@ public class RemoteTransferContainer implements Closeable {
         };
     }
 
+    private boolean isRemoteDataIntegrityCheckPossible() {
+        return isRemoteDataIntegritySupported && !areInputStreamsDecorated;
+    }
+
     private void finalizeUpload(boolean uploadSuccessful) {
+        if (isRemoteDataIntegrityCheckPossible()) {
+            return;
+        }
+
         if (uploadSuccessful) {
             long actualChecksum = getActualChecksum();
             if (actualChecksum != expectedChecksum) {
@@ -180,17 +200,20 @@ public class RemoteTransferContainer implements Closeable {
         return contentLength;
     }
 
+    private long getInputStreamChecksum(InputStream inputStream) {
+        assert inputStream instanceof ResettableCheckedInputStream
+            : "expected passed inputStream to be instance of ResettableCheckedInputStream";
+        return ((ResettableCheckedInputStream) inputStream).getChecksum();
+    }
+
     private long getActualChecksum() {
-        long checksum = Objects.requireNonNull(inputStreams.get())[0].getChecksum();
+        InputStream[] currentInputStreams = Objects.requireNonNull(inputStreams.get());
+        long checksum = getInputStreamChecksum(currentInputStreams[0]);
         for (int checkSumIdx = 1; checkSumIdx < Objects.requireNonNull(inputStreams.get()).length - 1; checkSumIdx++) {
-            checksum = JZlib.crc32_combine(checksum, Objects.requireNonNull(inputStreams.get())[checkSumIdx].getChecksum(), partSize);
+            checksum = JZlib.crc32_combine(checksum, getInputStreamChecksum(currentInputStreams[checkSumIdx]), partSize);
         }
         if (numberOfParts > 1) {
-            checksum = JZlib.crc32_combine(
-                checksum,
-                Objects.requireNonNull(inputStreams.get())[numberOfParts - 1].getChecksum(),
-                lastPartSize
-            );
+            checksum = JZlib.crc32_combine(checksum, getInputStreamChecksum(currentInputStreams[numberOfParts - 1]), lastPartSize);
         }
 
         return checksum;

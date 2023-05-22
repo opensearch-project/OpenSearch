@@ -28,7 +28,12 @@ public class StreamContext {
      * @param lastPartSize Size of the last part
      * @param numberOfParts Total number of parts
      */
-    public StreamContext(ThrowingTriFunction<Integer, Long, Long, OffsetStreamContainer, IOException> streamSupplier, long partSize, long lastPartSize, int numberOfParts) {
+    public StreamContext(
+        ThrowingTriFunction<Integer, Long, Long, OffsetStreamContainer, IOException> streamSupplier,
+        long partSize,
+        long lastPartSize,
+        int numberOfParts
+    ) {
         this.streamSupplier = streamSupplier;
         this.partSize = partSize;
         this.lastPartSize = lastPartSize;

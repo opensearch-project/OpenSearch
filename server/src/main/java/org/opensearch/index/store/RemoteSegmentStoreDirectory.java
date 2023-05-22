@@ -12,7 +12,6 @@ import com.jcraft.jzlib.JZlib;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -26,11 +25,6 @@ import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
-import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
-import org.opensearch.common.blobstore.stream.write.UploadResponse;
-import org.opensearch.common.blobstore.stream.write.WriteContext;
-import org.opensearch.common.blobstore.stream.write.WritePriority;
-import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.index.store.lockmanager.RemoteStoreCommitLevelLockManager;
@@ -54,11 +48,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.zip.CRC32;
@@ -409,7 +401,9 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             true,
             WritePriority.NORMAL,
             (size, position) -> new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position),
-            expectedChecksum
+            expectedChecksum,
+            remoteDataDirectory.getBlobContainer().isRemoteDataIntegritySupported(),
+            false
         );
         WriteContext writeContext = remoteTransferContainer.createWriteContext();
         CompletableFuture<UploadResponse> uploadFuture = remoteDataDirectory.getBlobContainer().writeBlobByStreams(writeContext);

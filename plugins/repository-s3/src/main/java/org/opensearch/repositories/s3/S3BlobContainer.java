@@ -164,13 +164,20 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public boolean isRemoteDataIntegritySupported() {
+        return true;
+    }
+
+    @Override
     public CompletableFuture<UploadResponse> writeBlobByStreams(WriteContext writeContext) throws IOException {
         UploadRequest uploadRequest = new UploadRequest(
             blobStore.bucket(),
             buildKey(writeContext.getFileName()),
             writeContext.getFileSize(),
             writeContext.getWritePriority(),
-            writeContext.getUploadFinalizer()
+            writeContext.getUploadFinalizer(),
+            writeContext.doRemoteDataIntegrityCheck(),
+            writeContext.getExpectedChecksum()
         );
         try {
             long partSize = blobStore.getAsyncUploadUtils().calculateOptimalPartSize(writeContext.getFileSize());

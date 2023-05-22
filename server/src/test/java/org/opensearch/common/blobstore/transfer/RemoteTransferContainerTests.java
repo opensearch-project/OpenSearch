@@ -14,6 +14,7 @@ import org.opensearch.common.StreamContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeFileInputStream;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
+import org.opensearch.common.blobstore.transfer.stream.ResettableCheckedInputStream;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -49,7 +50,9 @@ public class RemoteTransferContainerTests extends OpenSearchTestCase {
                         return new OffsetRangeFileInputStream(testFile, size, position);
                     }
                 },
-                0
+                0,
+                false,
+                false
             )
         ) {
             testSupplyStreamContext(remoteTransferContainer, 16, 16, 8);
@@ -70,7 +73,9 @@ public class RemoteTransferContainerTests extends OpenSearchTestCase {
                         return new OffsetRangeFileInputStream(testFile, size, position);
                     }
                 },
-                0
+                0,
+                false,
+                false
             )
         ) {
             testSupplyStreamContext(remoteTransferContainer, 10, 8, 13);
@@ -125,11 +130,54 @@ public class RemoteTransferContainerTests extends OpenSearchTestCase {
                         return new OffsetRangeFileInputStream(testFile, size, position);
                     }
                 },
-                0
+                0,
+                false,
+                false
             )
         ) {
             remoteTransferContainer.supplyStreamContext(16);
             assertThrows(RuntimeException.class, () -> remoteTransferContainer.supplyStreamContext(16));
         }
+    }
+
+    public void testTypeOfProvidedStreamsAllCases() throws IOException {
+        testTypeOfProvidedStreams(true, true);
+        testTypeOfProvidedStreams(true, false);
+        testTypeOfProvidedStreams(false, true);
+        testTypeOfProvidedStreams(false, false);
+    }
+
+    private void testTypeOfProvidedStreams(boolean isRemoteDataIntegritySupported, boolean areInputStreamsDecorated) throws IOException {
+        try (
+            RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
+                testFile.getFileName().toString(),
+                testFile.getFileName().toString(),
+                TEST_FILE_SIZE_BYTES,
+                true,
+                WritePriority.HIGH,
+                new RemoteTransferContainer.OffsetRangeInputStreamSupplier() {
+                    @Override
+                    public OffsetRangeInputStream get(long size, long position) throws IOException {
+                        return new OffsetRangeFileInputStream(testFile, size, position);
+                    }
+                },
+                0,
+                isRemoteDataIntegritySupported,
+                areInputStreamsDecorated
+            )
+        ) {
+            StreamContext streamContext = remoteTransferContainer.supplyStreamContext(16);
+            OffsetStreamContainer offsetStreamContainer = streamContext.provideStream(0);
+            if (shouldOffsetInputStreamsBeChecked(isRemoteDataIntegritySupported, areInputStreamsDecorated)) {
+                assertTrue(offsetStreamContainer.getInputStream() instanceof ResettableCheckedInputStream);
+            } else {
+                assertTrue(offsetStreamContainer.getInputStream() instanceof OffsetRangeInputStream);
+            }
+            assertThrows(RuntimeException.class, () -> remoteTransferContainer.supplyStreamContext(16));
+        }
+    }
+
+    private boolean shouldOffsetInputStreamsBeChecked(boolean isRemoteDataIntegritySupported, boolean areInputStreamsDecorated) {
+        return !isRemoteDataIntegritySupported || areInputStreamsDecorated;
     }
 }
