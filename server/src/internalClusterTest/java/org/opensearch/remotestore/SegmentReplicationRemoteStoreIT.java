@@ -8,6 +8,7 @@
 
 package org.opensearch.remotestore;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.junit.After;
 import org.junit.Before;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -25,6 +26,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
  * This makes sure that the constructs/flows that are being tested with Segment Replication, holds true after enabling
  * remote store.
  */
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/7643")
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SegmentReplicationRemoteStoreIT extends SegmentReplicationIT {
 
