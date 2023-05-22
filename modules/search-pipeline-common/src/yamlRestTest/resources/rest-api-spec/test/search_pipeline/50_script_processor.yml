@@ -1,0 +1,142 @@
+---
+teardown:
+  - do:
+      search_pipeline.delete:
+        id: "my_pipeline"
+        ignore: 404
+
+---
+"Test empty script in script processor":
+  - do:
+      catch: bad_request
+      search_pipeline.put:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "request_processors": [
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : ""
+                }
+              }
+            ]
+          }
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "script_exception" }
+
+---
+"Test supported search source builder fields":
+  - do:
+      search_pipeline.put:
+        id: "my_pipeline"
+        body: >
+          {
+            "description": "_description",
+            "request_processors": [
+              {
+                "script" : {
+                  "lang" : "painless",
+                  "source" : "ctx.source['size'] += 10; ctx.source['from'] -= 1; ctx.source['explain'] = !ctx.source['explain']; ctx.source['version'] = !ctx.source['version']; ctx.source['seqNoAndPrimaryTerm'] = !ctx.source['seqNoAndPrimaryTerm']; ctx.source['trackScores'] = !ctx.source['trackScores']; ctx.source['trackTotalHitsUpTo'] = 1; ctx.source['minScore'] -= 0.9; ctx.source['terminateAfter'] += 2; ctx.source['profile'] = !ctx.source['profile'];"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: {
+          "field": 2
+        }
+  - do:
+      index:
+        index: test
+        id: 2
+        body: {
+          "field": 3
+        }
+
+  - do:
+      indices.refresh:
+        index: test
+
+  - do:
+      search:
+        index: test
+        search_pipeline: "my_pipeline"
+        body: {
+          "from": 1,
+          "size": 1,
+          "explain": true,
+          "version": true,
+          "seq_no_primary_term": true,
+          "track_scores": true,
+          "track_total_hits": true,
+          "min_score": 1.0,
+          "timeout": "60s",
+          "terminate_after": 2,
+          "profile": true
+        }
+  - length: { hits.hits: 2 }
+  - match: { _shards.total: 1 }
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._score: 1.0 }
+  - match: { hits.hits.1._score: 1.0 }
+  - is_false: hits.hits.0._explanation
+  - is_false: hits.hits.1._explanation
+  - is_false: hits.hits.0._seq_no
+  - is_false: hits.hits.1._seq_no
+  - is_false: hits.hits.0._primary_term
+  - is_false: hits.hits.1._primary_term
+  - is_false: profile
+
+---
+"Test unsupported operations in script processor":
+  - do:
+      search_pipeline.put:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "request_processors": [
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "int a = ctx.dummy;"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body: {
+          "field": "foo"
+        }
+  - do:
+      index:
+        index: test
+        id: 2
+        body: {
+          "field": "value"
+        }
+
+  - do:
+      indices.refresh:
+        index: test
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        search_pipeline: "my_pipeline"
+        body: { }
+  - match: { status: 400 }
