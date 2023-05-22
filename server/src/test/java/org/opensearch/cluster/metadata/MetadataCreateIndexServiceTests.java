@@ -1254,7 +1254,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
             randomShardLimitService(),
             Collections.emptySet()
         );
-        verifyRemoteStoreIndexSettings(indexSettings, "false", null, null, null, ReplicationType.SEGMENT.toString(), null);
+        verifyRemoteStoreIndexSettings(indexSettings, "false", null, null, null, null, null);
     }
 
     public void testRemoteStoreTranslogDisabledByUserIndexSettings() {
@@ -1558,6 +1558,7 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
         request.settings(requestSettings.build());
         ThreadPool threadPool = new TestThreadPool(getTestName());
         MetadataCreateIndexService checkerService = getMetadataCreateIndexServiceInstance(settings, threadPool);
+        checkerService.updateReplicationStrategy(requestSettings, request.settings(), settings, false);
         // Verify if index setting overrides cluster replication setting
         assertEquals(ReplicationType.DOCUMENT.toString(), requestSettings.build().get(SETTING_REPLICATION_TYPE));
         threadPool.shutdown();
