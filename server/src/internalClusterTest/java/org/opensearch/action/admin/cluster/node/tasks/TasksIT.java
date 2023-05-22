@@ -520,7 +520,7 @@ public class TasksIT extends AbstractTasksIT {
             .getTasks();
         for (TaskInfo taskInfo : taskInfoList) {
             assertTrue(taskInfo.isCancelled());
-            assertNotNull(taskInfo.getCancelledAt());
+            assertNotNull(taskInfo.getCancellationStartTime());
         }
         future.get();
 

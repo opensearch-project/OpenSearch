@@ -85,7 +85,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
 
     private final boolean cancelled;
 
-    private final Long cancelledAt;
+    private final Long cancellationStartTime;
 
     private final TaskId parentTaskId;
 
@@ -137,7 +137,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         TaskId parentTaskId,
         Map<String, String> headers,
         TaskResourceStats resourceStats,
-        Long cancelledAt
+        Long cancellationStartTime
     ) {
         if (cancellable == false && cancelled == true) {
             throw new IllegalArgumentException("task cannot be cancelled");
@@ -154,7 +154,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         this.parentTaskId = parentTaskId;
         this.headers = headers;
         this.resourceStats = resourceStats;
-        this.cancelledAt = cancelledAt;
+        this.cancellationStartTime = cancellationStartTime;
     }
 
     /**
@@ -186,9 +186,9 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             resourceStats = null;
         }
         if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
-            cancelledAt = in.readOptionalLong();
+            cancellationStartTime = in.readOptionalLong();
         } else {
-            cancelledAt = null;
+            cancellationStartTime = null;
         }
     }
 
@@ -211,7 +211,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             out.writeOptionalWriteable(resourceStats);
         }
         if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
-            out.writeOptionalLong(cancelledAt);
+            out.writeOptionalLong(cancellationStartTime);
         }
     }
 
@@ -271,8 +271,8 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         return cancelled;
     }
 
-    public Long getCancelledAt() {
-        return cancelledAt;
+    public Long getCancellationStartTime() {
+        return cancellationStartTime;
     }
 
     /**
@@ -328,8 +328,8 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             resourceStats.toXContent(builder, params);
             builder.endObject();
         }
-        if (cancelledAt != null) {
-            builder.humanReadableField("cancelled_at_millis", "cancelled_at", new TimeValue(cancelledAt));
+        if (cancellationStartTime != null) {
+            builder.humanReadableField("cancellation_time_millis", "cancellation_time", new TimeValue(cancellationStartTime));
         }
         return builder;
     }
@@ -358,7 +358,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         }
         @SuppressWarnings("unchecked")
         TaskResourceStats resourceStats = (TaskResourceStats) a[i++];
-        Long cancelledAt = (Long) a[i++];
+        Long cancellationStartTime = (Long) a[i++];
         RawTaskStatus status = statusBytes == null ? null : new RawTaskStatus(statusBytes);
         TaskId parentTaskId = parentTaskIdString == null ? TaskId.EMPTY_TASK_ID : new TaskId(parentTaskIdString);
         return new TaskInfo(
@@ -374,7 +374,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             parentTaskId,
             headers,
             resourceStats,
-            cancelledAt
+            cancellationStartTime
         );
     });
     static {
@@ -393,7 +393,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         PARSER.declareString(optionalConstructorArg(), new ParseField("parent_task_id"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapStrings(), new ParseField("headers"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> TaskResourceStats.fromXContent(p), new ParseField("resource_stats"));
-        PARSER.declareLong(optionalConstructorArg(), new ParseField("cancelled_at_millis"));
+        PARSER.declareLong(optionalConstructorArg(), new ParseField("cancellation_time_millis"));
     }
 
     @Override
@@ -420,7 +420,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             && Objects.equals(status, other.status)
             && Objects.equals(headers, other.headers)
             && Objects.equals(resourceStats, other.resourceStats)
-            && Objects.equals(cancelledAt, other.cancelledAt);
+            && Objects.equals(cancellationStartTime, other.cancellationStartTime);
     }
 
     @Override
@@ -438,7 +438,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             status,
             headers,
             resourceStats,
-            cancelledAt
+            cancellationStartTime
         );
     }
 }

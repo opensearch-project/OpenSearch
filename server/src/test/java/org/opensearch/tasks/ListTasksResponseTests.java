@@ -107,8 +107,8 @@ public class ListTasksResponseTests extends AbstractXContentTestCase<ListTasksRe
                 + "          \"memory_in_bytes\" : 100\n"
                 + "        }\n"
                 + "      },\n"
-                + "      \"cancelled_at\" : \"0s\",\n"
-                + "      \"cancelled_at_millis\" : 0\n"
+                + "      \"cancellation_time\" : \"0s\",\n"
+                + "      \"cancellation_time_millis\" : 0\n"
                 + "    }\n"
                 + "  ]\n"
                 + "}",

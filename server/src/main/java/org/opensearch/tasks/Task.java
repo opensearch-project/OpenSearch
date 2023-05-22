@@ -193,9 +193,9 @@ public class Task {
      */
     protected final TaskInfo taskInfo(String localNodeId, String description, Status status, TaskResourceStats resourceStats) {
         boolean cancelled = this instanceof CancellableTask && ((CancellableTask) this).isCancelled();
-        Long cancelledAt = null;
+        Long cancellationStartTime = null;
         if (cancelled) {
-            cancelledAt = ((CancellableTask) this).getCancelledAt();
+            cancellationStartTime = ((CancellableTask) this).getCancellationStartTime();
         }
         return new TaskInfo(
             new TaskId(localNodeId, getId()),
@@ -210,7 +210,7 @@ public class Task {
             parentTask,
             headers,
             resourceStats,
-            cancelledAt
+            cancellationStartTime
         );
     }
 
