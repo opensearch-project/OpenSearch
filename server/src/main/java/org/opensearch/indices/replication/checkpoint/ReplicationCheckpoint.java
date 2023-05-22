@@ -32,6 +32,7 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
     private final long segmentInfosVersion;
     private final long length;
     private final String codec;
+    private final Version minVersion;
 
     public static ReplicationCheckpoint empty(ShardId shardId, String codec) {
         return new ReplicationCheckpoint(shardId, codec);
@@ -44,19 +45,29 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         segmentInfosVersion = SequenceNumbers.NO_OPS_PERFORMED;
         length = 0L;
         this.codec = codec;
+        minVersion = Version.CURRENT;
     }
 
     public ReplicationCheckpoint(ShardId shardId, long primaryTerm, long segmentsGen, long segmentInfosVersion, String codec) {
-        this(shardId, primaryTerm, segmentsGen, segmentInfosVersion, 0L, codec);
+        this(shardId, primaryTerm, segmentsGen, segmentInfosVersion, 0L, codec, Version.CURRENT);
     }
 
-    public ReplicationCheckpoint(ShardId shardId, long primaryTerm, long segmentsGen, long segmentInfosVersion, long length, String codec) {
+    public ReplicationCheckpoint(
+        ShardId shardId,
+        long primaryTerm,
+        long segmentsGen,
+        long segmentInfosVersion,
+        long length,
+        String codec,
+        Version bwcVersion
+    ) {
         this.shardId = shardId;
         this.primaryTerm = primaryTerm;
         this.segmentsGen = segmentsGen;
         this.segmentInfosVersion = segmentInfosVersion;
         this.length = length;
         this.codec = codec;
+        this.minVersion = bwcVersion;
     }
 
     public ReplicationCheckpoint(StreamInput in) throws IOException {
@@ -70,6 +81,11 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         } else {
             length = 0L;
             codec = null;
+        }
+        if (in.getVersion().onOrAfter(Version.V_2_8_0)) {
+            minVersion = in.readVersion();
+        } else {
+            minVersion = Version.CURRENT;
         }
     }
 
@@ -121,6 +137,13 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         return codec;
     }
 
+    /**
+     * Returns the minimum opensearch version cluster is on
+     */
+    public Version getMinVersion() {
+        return minVersion;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         shardId.writeTo(out);
@@ -130,6 +153,9 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
         if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
             out.writeLong(length);
             out.writeString(codec);
+        }
+        if (out.getVersion().onOrAfter(Version.V_2_8_0)) {
+            out.writeVersion(minVersion);
         }
     }
 
@@ -147,7 +173,8 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
             && segmentsGen == that.segmentsGen
             && segmentInfosVersion == that.segmentInfosVersion
             && Objects.equals(shardId, that.shardId)
-            && codec.equals(that.codec);
+            && codec.equals(that.codec)
+            && minVersion.equals(that.minVersion);
     }
 
     @Override
@@ -180,6 +207,8 @@ public class ReplicationCheckpoint implements Writeable, Comparable<ReplicationC
             + length
             + ", codec="
             + codec
+            + ", min version="
+            + minVersion
             + '}';
     }
 }

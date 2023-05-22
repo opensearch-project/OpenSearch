@@ -40,6 +40,7 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.similarities.Similarity;
+import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
@@ -81,7 +82,7 @@ public final class EngineConfig {
     private final TranslogDeletionPolicyFactory translogDeletionPolicyFactory;
     private volatile boolean enableGcDeletes = true;
     private final TimeValue flushMergesAfter;
-    private final String codecName;
+    private String codecName;
     private final ThreadPool threadPool;
     private final Engine.Warmer warmer;
     private final Store store;
@@ -105,6 +106,7 @@ public final class EngineConfig {
     private final boolean isReadOnlyReplica;
     private final BooleanSupplier primaryModeSupplier;
     private final Comparator<LeafReader> leafSorter;
+    private Version clusterMinVersion;
 
     /**
      * A supplier of the outstanding retention leases. This is used during merged operations to determine which operations that have been
@@ -176,7 +178,8 @@ public final class EngineConfig {
         this.similarity = builder.similarity;
         this.codecService = builder.codecService;
         this.eventListener = builder.eventListener;
-        codecName = builder.indexSettings.getValue(INDEX_CODEC_SETTING);
+        this.codecName = builder.indexSettings.getValue(INDEX_CODEC_SETTING);
+        this.clusterMinVersion = Version.CURRENT;
         // We need to make the indexing buffer for this shard at least as large
         // as the amount of memory that is available for all engines on the
         // local node so that decisions to flush segments to disk are made by
@@ -248,6 +251,44 @@ public final class EngineConfig {
      * </p>
      */
     public Codec getCodec() {
+        return codecService.codec(codecName);
+    }
+
+    /**
+     * Returns the codec name of the lucene codec used for writing new segments
+     */
+    public String getCodecName() {
+        return getCodec().getName();
+    }
+
+    /**
+     * Sets the codec name of the lucene codec used for writing new segments
+     */
+    public void setCodecName(String name) {
+        this.codecName = name;
+    }
+
+    /**
+     * Returns the minimum opensearch version among all nodes of a cluster when upgrade is in progress and
+     * segment replication is enabled; null when upgrade not in progress.
+     */
+    public Version getClusterMinVersion() {
+        return clusterMinVersion;
+    }
+
+    /**
+     * Sets the minimum opensearch version among all nodes of a cluster when upgrade is in progress and
+     * segment replication is enabled.
+     */
+    public void setClusterMinVersion(Version clusterMinVersion) {
+        this.clusterMinVersion = clusterMinVersion;
+    }
+
+    /**
+     * Returns the BWC Codec{@link Codec} to be used in the engine during a rolling upgrade when
+     * cluster is in a mixed version state and segment replication is enabled {@link org.apache.lucene.index.IndexWriter}
+     */
+    public Codec getBWCCodec(String codecName) {
         return codecService.codec(codecName);
     }
 
