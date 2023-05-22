@@ -26,9 +26,20 @@ public class SearchPipelineCommonModulePlugin extends Plugin implements SearchPi
      */
     public SearchPipelineCommonModulePlugin() {}
 
+    /**
+     * Returns a map of processor factories.
+     *
+     * @param parameters The parameters required for creating the processor factories.
+     * @return A map of processor factories, where the keys are the processor types and the values are the corresponding factory instances.
+     */
     @Override
     public Map<String, Processor.Factory<SearchRequestProcessor>> getRequestProcessors(Processor.Parameters parameters) {
-        return Map.of(FilterQueryRequestProcessor.TYPE, new FilterQueryRequestProcessor.Factory(parameters.namedXContentRegistry));
+        return Map.of(
+            FilterQueryRequestProcessor.TYPE,
+            new FilterQueryRequestProcessor.Factory(parameters.namedXContentRegistry),
+            ScriptRequestProcessor.TYPE,
+            new ScriptRequestProcessor.Factory(parameters.scriptService)
+        );
     }
 
     @Override
